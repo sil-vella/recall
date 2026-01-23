@@ -94,7 +94,9 @@ class CardAnimationManager extends ChangeNotifier {
   bool _fixedPositionsCaptured = false;
 
   CardAnimationManager._internal() {
-    _logger.info('🎬 CardAnimationManager: Instance created (singleton initialization)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationManager: Instance created (singleton initialization)');
+    }
   }
 
   // ========== Public API ==========
@@ -111,7 +113,9 @@ class CardAnimationManager extends ChangeNotifier {
   void registerCardKey(String cardId, GlobalKey key) {
     _cardKeys[cardId] = key;
     if (LOGGING_SWITCH) {
-      _logger.debug('🎬 CardAnimationManager: Registered card key for cardId: $cardId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 CardAnimationManager: Registered card key for cardId: $cardId');
+      }
     }
   }
 
@@ -121,7 +125,9 @@ class CardAnimationManager extends ChangeNotifier {
   void registerSectionKey(String section, GlobalKey key) {
     _sectionKeys[section] = key;
     if (LOGGING_SWITCH) {
-      _logger.debug('🎬 CardAnimationManager: Registered section key for section: $section', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 CardAnimationManager: Registered section key for section: $section');
+      }
     }
   }
 
@@ -129,7 +135,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// Should be called after widget build to capture current positions
   void updateCachedBounds() {
     if (LOGGING_SWITCH) {
-      _logger.debug('🎬 CardAnimationManager: Updating cached bounds for ${_cardKeys.length} cards and ${_sectionKeys.length} sections', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 CardAnimationManager: Updating cached bounds for ${_cardKeys.length} cards and ${_sectionKeys.length} sections');
+      }
     }
 
     // Update card bounds
@@ -153,7 +161,9 @@ class CardAnimationManager extends ChangeNotifier {
     }
 
     if (LOGGING_SWITCH) {
-      _logger.debug('🎬 CardAnimationManager: Updated ${_cachedBounds.length} cached bounds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 CardAnimationManager: Updated ${_cachedBounds.length} cached bounds');
+      }
     }
   }
 
@@ -162,7 +172,9 @@ class CardAnimationManager extends ChangeNotifier {
   void captureFixedPositions() {
     if (_fixedPositionsCaptured) {
       if (LOGGING_SWITCH) {
-        _logger.debug('🎬 CardAnimationManager: Fixed positions already captured, skipping', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 CardAnimationManager: Fixed positions already captured, skipping');
+        }
       }
       return;
     }
@@ -173,7 +185,9 @@ class CardAnimationManager extends ChangeNotifier {
     _fixedPositionsCaptured = true;
 
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: Captured fixed positions - drawPile: ${_drawPilePosition != null ? "captured" : "null"}, discardPile: ${_discardPilePosition != null ? "captured" : "null"}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: Captured fixed positions - drawPile: ${_drawPilePosition != null ? "captured" : "null"}, discardPile: ${_discardPilePosition != null ? "captured" : "null"}');
+      }
     }
   }
 
@@ -196,7 +210,9 @@ class CardAnimationManager extends ChangeNotifier {
     }
 
     if (LOGGING_SWITCH) {
-      _logger.warning('🎬 CardAnimationManager: Card position not found for cardId: $cardId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('🎬 CardAnimationManager: Card position not found for cardId: $cardId');
+      }
     }
     return null;
   }
@@ -208,7 +224,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// Returns null if card not found or position unavailable
   Rect? getHandCardPosition(String playerId, int cardIndex) {
     if (LOGGING_SWITCH) {
-      _logger.debug('🎬 CardAnimationManager: Getting hand card position for playerId: $playerId, cardIndex: $cardIndex', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 CardAnimationManager: Getting hand card position for playerId: $playerId, cardIndex: $cardIndex');
+      }
     }
 
     // Get player's hand from local state
@@ -231,7 +249,9 @@ class CardAnimationManager extends ChangeNotifier {
     // Validate cardIndex
     if (cardIndex < 0 || cardIndex >= hand.length) {
       if (LOGGING_SWITCH) {
-        _logger.warning('🎬 CardAnimationManager: Invalid cardIndex $cardIndex for hand length ${hand.length}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎬 CardAnimationManager: Invalid cardIndex $cardIndex for hand length ${hand.length}');
+        }
       }
       return null;
     }
@@ -240,7 +260,9 @@ class CardAnimationManager extends ChangeNotifier {
     final card = hand[cardIndex];
     if (card == null) {
       if (LOGGING_SWITCH) {
-        _logger.warning('🎬 CardAnimationManager: Card at index $cardIndex is null', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎬 CardAnimationManager: Card at index $cardIndex is null');
+        }
       }
       return null;
     }
@@ -255,7 +277,9 @@ class CardAnimationManager extends ChangeNotifier {
 
     if (cardId == null || cardId.isEmpty) {
       if (LOGGING_SWITCH) {
-        _logger.warning('🎬 CardAnimationManager: Could not extract cardId from card at index $cardIndex', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎬 CardAnimationManager: Could not extract cardId from card at index $cardIndex');
+        }
       }
       return null;
     }
@@ -263,7 +287,9 @@ class CardAnimationManager extends ChangeNotifier {
     // Get position using cardId (captures fresh position)
     final position = getCardPosition(cardId);
     if (position != null && LOGGING_SWITCH) {
-      _logger.debug('🎬 CardAnimationManager: Found card position for playerId: $playerId, cardIndex: $cardIndex, cardId: $cardId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 CardAnimationManager: Found card position for playerId: $playerId, cardIndex: $cardIndex, cardId: $cardId');
+      }
     }
 
     return position;
@@ -303,7 +329,9 @@ class CardAnimationManager extends ChangeNotifier {
     }
 
     if (LOGGING_SWITCH) {
-      _logger.warning('🎬 CardAnimationManager: Section position not found for section: $section', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('🎬 CardAnimationManager: Section position not found for section: $section');
+      }
     }
     return null;
   }
@@ -315,7 +343,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// [previousSlices] Map containing 'myHand', 'centerBoard', 'opponentsPanel' slices
   void capturePreviousState(Map<String, dynamic> previousSlices) {
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: Capturing previous state slices', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: Capturing previous state slices');
+      }
     }
 
     // Update local state with previous slices (deep copy)
@@ -341,7 +371,9 @@ class CardAnimationManager extends ChangeNotifier {
     }
 
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: Previous state captured - myHand cards: ${(_localState['myHand'] as Map?)?['cards']?.length ?? 0}, centerBoard drawPileCount: ${(_localState['centerBoard'] as Map?)?['drawPileCount'] ?? 0}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: Previous state captured - myHand cards: ${(_localState['myHand'] as Map?)?['cards']?.length ?? 0}, centerBoard drawPileCount: ${(_localState['centerBoard'] as Map?)?['drawPileCount'] ?? 0}');
+      }
     }
   }
 
@@ -361,7 +393,9 @@ class CardAnimationManager extends ChangeNotifier {
     _animationQueue.add(animationItem);
 
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: Queued animation - action: $action, playerId: $playerId, queue length: ${_animationQueue.length}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: Queued animation - action: $action, playerId: $playerId, queue length: ${_animationQueue.length}');
+      }
     }
 
     // Start processing if not already processing
@@ -377,7 +411,9 @@ class CardAnimationManager extends ChangeNotifier {
   Future<void> _processAnimationQueue() async {
     if (_isProcessing) {
       if (LOGGING_SWITCH) {
-        _logger.debug('🎬 CardAnimationManager: Already processing animations, skipping', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 CardAnimationManager: Already processing animations, skipping');
+        }
       }
       return;
     }
@@ -385,7 +421,9 @@ class CardAnimationManager extends ChangeNotifier {
     _isProcessing = true;
 
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: Starting animation queue processing - queue length: ${_animationQueue.length}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: Starting animation queue processing - queue length: ${_animationQueue.length}');
+      }
     }
 
     // Capture fixed positions once before animations start
@@ -398,7 +436,9 @@ class CardAnimationManager extends ChangeNotifier {
       _currentAnimation = _animationQueue.removeAt(0);
 
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 CardAnimationManager: Processing animation: ${_currentAnimation}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardAnimationManager: Processing animation: ${_currentAnimation}');
+        }
       }
 
       // Set isOn to true (show replica widget)
@@ -428,11 +468,15 @@ class CardAnimationManager extends ChangeNotifier {
             break;
           default:
             if (LOGGING_SWITCH) {
-              _logger.warning('🎬 CardAnimationManager: Unknown action type: ${_currentAnimation!.action}', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.warning('🎬 CardAnimationManager: Unknown action type: ${_currentAnimation!.action}');
+              }
             }
         }
       } catch (e, stackTrace) {
-        _logger.error('🎬 CardAnimationManager: Error processing animation: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('🎬 CardAnimationManager: Error processing animation: $e', error: e, stackTrace: stackTrace);
+        }
       }
 
       // Clear current animation
@@ -446,7 +490,9 @@ class CardAnimationManager extends ChangeNotifier {
     _isProcessing = false;
 
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: Animation queue processing complete', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: Animation queue processing complete');
+      }
     }
   }
 
@@ -456,7 +502,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// Will be implemented in Phase 4
   Future<void> _handleDrawCardAnimation(AnimationItem item) async {
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: _handleDrawCardAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: _handleDrawCardAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}');
+      }
     }
     // TODO: Implement in Phase 4
     await Future.delayed(const Duration(milliseconds: 100)); // Placeholder
@@ -466,7 +514,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// Will be implemented in Phase 4
   Future<void> _handlePlayCardAnimation(AnimationItem item) async {
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: _handlePlayCardAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: _handlePlayCardAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}');
+      }
     }
     // TODO: Implement in Phase 4
     await Future.delayed(const Duration(milliseconds: 100)); // Placeholder
@@ -476,7 +526,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// Will be implemented in Phase 4
   Future<void> _handleSameRankAnimation(AnimationItem item) async {
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: _handleSameRankAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: _handleSameRankAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}');
+      }
     }
     // TODO: Implement in Phase 4
     await Future.delayed(const Duration(milliseconds: 100)); // Placeholder
@@ -486,7 +538,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// Will be implemented in Phase 4
   Future<void> _handleJackSwapAnimation(AnimationItem item) async {
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: _handleJackSwapAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: _handleJackSwapAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}');
+      }
     }
     // TODO: Implement in Phase 4
     await Future.delayed(const Duration(milliseconds: 100)); // Placeholder
@@ -496,7 +550,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// Will be implemented in Phase 4
   Future<void> _handleQueenPeekAnimation(AnimationItem item) async {
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: _handleQueenPeekAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: _handleQueenPeekAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}');
+      }
     }
     // TODO: Implement in Phase 4
     await Future.delayed(const Duration(milliseconds: 100)); // Placeholder
@@ -506,7 +562,9 @@ class CardAnimationManager extends ChangeNotifier {
   /// Will be implemented in Phase 4
   Future<void> _handleInitialPeekAnimation(AnimationItem item) async {
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 CardAnimationManager: _handleInitialPeekAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationManager: _handleInitialPeekAnimation - action: ${item.action}, playerId: ${item.playerId}, actionData: ${item.actionData}');
+      }
     }
     // TODO: Implement in Phase 4
     await Future.delayed(const Duration(milliseconds: 100)); // Placeholder
@@ -525,7 +583,9 @@ class CardAnimationManager extends ChangeNotifier {
       }
     } catch (e) {
       if (LOGGING_SWITCH) {
-        _logger.debug('🎬 CardAnimationManager: Error getting bounds from key: $e', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 CardAnimationManager: Error getting bounds from key: $e');
+        }
       }
     }
     return null;

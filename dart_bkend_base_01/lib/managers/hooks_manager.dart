@@ -64,10 +64,11 @@ class HooksManager {
     final contextInfo = context != null ? ' (context: $context)' : '';
     final callbackName = callback.toString().split(' ').last.replaceAll(')', '');
     
-    _logger.info(
-      '🎣 Callback registered: $hookName -> $callbackName (priority: $priority)$contextInfo',
-      isOn: LOGGING_SWITCH,
-    );
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '🎣 Callback registered: $hookName -> $callbackName (priority: $priority)$contextInfo',
+      );
+    }
   }
 
   /// Trigger a specific hook, executing callbacks matching the context
@@ -101,20 +102,22 @@ class HooksManager {
       // Execute only callbacks matching the context or global callbacks (no context)
       if (context == null || hookCallback.context == context) {
         try {
-          _logger.debug(
-            '🎣 Executing callback: $hookName (priority: ${hookCallback.priority})',
-            isOn: LOGGING_SWITCH,
-          );
+          if (LOGGING_SWITCH) {
+            _logger.debug(
+              '🎣 Executing callback: $hookName (priority: ${hookCallback.priority})',
+            );
+          }
           
           // Call the callback with data
           hookCallback.callback(data);
           executedCount++;
           
         } catch (e) {
-          _logger.error(
-            '❌ Error in hook callback: $hookName - $e',
-            isOn: LOGGING_SWITCH,
-          );
+          if (LOGGING_SWITCH) {
+            _logger.error(
+              '❌ Error in hook callback: $hookName - $e',
+            );
+          }
           // Continue executing remaining callbacks (don't break hook chain)
         }
       }

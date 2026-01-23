@@ -47,15 +47,21 @@ class WSEventManager {
 
   /// Initialize the event manager
   void initialize() {
-    _logger.info('🔄 Initializing WebSocket Event Manager', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔄 Initializing WebSocket Event Manager');
+    }
     _setupEventListeners();
     _registerWithStateManager();
-    _logger.info('✅ WebSocket Event Manager initialized successfully', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ WebSocket Event Manager initialized successfully');
+    }
   }
 
   /// Register with StateManager
   void _registerWithStateManager() {
-    _logger.debug('🔄 Registering WebSocket state with StateManager', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('🔄 Registering WebSocket state with StateManager');
+    }
     final stateManager = StateManager();
     stateManager.registerModuleState("websocket", {
       "isConnected": _isConnected,
@@ -63,7 +69,9 @@ class WSEventManager {
       "currentRoomInfo": _currentRoomInfo,
       "sessionData": _sessionData,
     });
-    _logger.debug('✅ WebSocket state registered with StateManager', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('✅ WebSocket state registered with StateManager');
+    }
   }
 
   /// Set up event listeners for all WebSocket events

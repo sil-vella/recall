@@ -25,21 +25,31 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final userStats = dutchGameState['userStats'] as Map<String, dynamic>?;
         
-        _logger.info('🔍 Coins Display: Building widget - dutchGameState keys: ${dutchGameState.keys.toList()}', isOn: LOGGING_SWITCH);
-        _logger.info('🔍 Coins Display: userStats=$userStats', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 Coins Display: Building widget - dutchGameState keys: ${dutchGameState.keys.toList()}');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 Coins Display: userStats=$userStats');
+        }
         
         // Get coins from userStats, default to 0 if not available
         final coins = userStats?['coins'] as int? ?? 0;
         
-        _logger.info('🔍 Coins Display: coins=$coins', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 Coins Display: coins=$coins');
+        }
         
         // Return empty widget if userStats is not available (user not logged in or stats not loaded)
         if (userStats == null) {
-          _logger.warning('⚠️ Coins Display: userStats is null - hiding widget', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ Coins Display: userStats is null - hiding widget');
+          }
           return const SizedBox.shrink();
         }
         
-        _logger.info('✅ Coins Display: Rendering coins chip with value: $coins', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ Coins Display: Rendering coins chip with value: $coins');
+        }
         
         // Return coins display chip with appropriate styling for app bar
         return Padding(

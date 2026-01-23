@@ -76,7 +76,9 @@ class StateManager with ChangeNotifier {
   factory StateManager() {
     if (_instance == null) {
       _instance = StateManager._internal();
-      _logger.info('📦 StateManager: Singleton instance created', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📦 StateManager: Singleton instance created');
+      }
     }
     return _instance!;
   }
@@ -85,7 +87,9 @@ class StateManager with ChangeNotifier {
 
   bool isModuleStateRegistered(String moduleKey) {
     final isRegistered = _moduleStates.containsKey(moduleKey);
-    _logger.debug('📦 StateManager: isModuleStateRegistered($moduleKey) = $isRegistered', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: isModuleStateRegistered($moduleKey) = $isRegistered');
+    }
     return isRegistered;
   }
 
@@ -98,30 +102,42 @@ class StateManager with ChangeNotifier {
         processedState = initialState.map((key, value) => MapEntry(key.toString(), value));
       }
       
-      _logger.info('📦 StateManager: Registering module state for "$moduleKey" with type: ${processedState.runtimeType}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📦 StateManager: Registering module state for "$moduleKey" with type: ${processedState.runtimeType}');
+      }
       _moduleStates[moduleKey] = ModuleState(state: processedState);
       // Use Future.microtask to avoid calling notifyListeners during build
       Future.microtask(() {
         notifyListeners();
-        _logger.debug('📦 StateManager: Notified listeners after registering "$moduleKey"', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('📦 StateManager: Notified listeners after registering "$moduleKey"');
+        }
       });
     } else {
-      _logger.warning('📦 StateManager: Module state "$moduleKey" already registered, skipping registration', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('📦 StateManager: Module state "$moduleKey" already registered, skipping registration');
+      }
     }
   }
 
   /// ✅ Unregister module state
   void unregisterModuleState(String moduleKey) {
     if (_moduleStates.containsKey(moduleKey)) {
-      _logger.info('📦 StateManager: Unregistering module state for "$moduleKey"', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📦 StateManager: Unregistering module state for "$moduleKey"');
+      }
       _moduleStates.remove(moduleKey);
       // Use Future.microtask to avoid calling notifyListeners during build
       Future.microtask(() {
         notifyListeners();
-        _logger.debug('📦 StateManager: Notified listeners after unregistering "$moduleKey"', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('📦 StateManager: Notified listeners after unregistering "$moduleKey"');
+        }
       });
     } else {
-      _logger.warning('📦 StateManager: Module state "$moduleKey" not found, cannot unregister', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('📦 StateManager: Module state "$moduleKey" not found, cannot unregister');
+      }
     }
   }
 
@@ -129,7 +145,9 @@ class StateManager with ChangeNotifier {
     final ModuleState? storedState = _moduleStates[moduleKey];
 
     if (storedState == null) {
-      _logger.debug('📦 StateManager: getModuleState<$T>("$moduleKey") - Module state not found', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('📦 StateManager: getModuleState<$T>("$moduleKey") - Module state not found');
+      }
       return null; // Ensure we don't attempt to access a null object
     }
 
@@ -140,7 +158,9 @@ class StateManager with ChangeNotifier {
       if (storedState.state is T) {
         result = storedState.state as T;
       } else {
-        _logger.warning('📦 StateManager: getModuleState<$T>("$moduleKey") - Type mismatch, state is ${storedState.state.runtimeType}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('📦 StateManager: getModuleState<$T>("$moduleKey") - Type mismatch, state is ${storedState.state.runtimeType}');
+        }
         return null;
       }
     }
@@ -155,7 +175,9 @@ class StateManager with ChangeNotifier {
         // Convert immutable state to JSON for backward compatibility
         result = (storedState.state as ImmutableState).toJson() as T;
       } else {
-        _logger.warning('📦 StateManager: getModuleState<$T>("$moduleKey") - Cannot convert ${storedState.state.runtimeType} to Map', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('📦 StateManager: getModuleState<$T>("$moduleKey") - Cannot convert ${storedState.state.runtimeType} to Map');
+        }
         return null;
       }
     }
@@ -163,11 +185,15 @@ class StateManager with ChangeNotifier {
     else if (storedState.state is T) {
       result = storedState.state as T;
     } else {
-      _logger.warning('📦 StateManager: getModuleState<$T>("$moduleKey") - Type mismatch, state is ${storedState.state.runtimeType}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('📦 StateManager: getModuleState<$T>("$moduleKey") - Type mismatch, state is ${storedState.state.runtimeType}');
+      }
       return null;
     }
 
-    _logger.debug('📦 StateManager: getModuleState<$T>("$moduleKey") - Retrieved state (${storedState.state is ImmutableState ? "immutable" : "map"})', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: getModuleState<$T>("$moduleKey") - Retrieved state (${storedState.state is ImmutableState ? "immutable" : "map"})');
+    }
     return result;
   }
 
@@ -175,7 +201,9 @@ class StateManager with ChangeNotifier {
   /// Update module state (supports both immutable and legacy map-based states)
   void updateModuleState(String moduleKey, dynamic newState, {bool force = false}) {
     if (!_moduleStates.containsKey(moduleKey)) {
-      _logger.warning('📦 StateManager: updateModuleState("$moduleKey") - Module state not registered, cannot update', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('📦 StateManager: updateModuleState("$moduleKey") - Module state not registered, cannot update');
+      }
       return;
     }
 
@@ -186,46 +214,62 @@ class StateManager with ChangeNotifier {
       if (newState is ImmutableState) {
         // Reference equality check (fast path for immutable objects)
         if (!force && identical(existingState.state, newState)) {
-          _logger.debug('📦 StateManager: updateModuleState("$moduleKey") - No change (identical reference), skipping update', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('📦 StateManager: updateModuleState("$moduleKey") - No change (identical reference), skipping update');
+          }
           return;
         }
         
         // Structural equality check
         if (!force && existingState.state is ImmutableState && existingState.state == newState) {
-          _logger.debug('📦 StateManager: updateModuleState("$moduleKey") - No change (equal state), skipping update', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('📦 StateManager: updateModuleState("$moduleKey") - No change (equal state), skipping update');
+          }
           return;
         }
         
-        _logger.info('📦 StateManager: Updating module state "$moduleKey" (immutable)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📦 StateManager: Updating module state "$moduleKey" (immutable)');
+        }
         _moduleStates[moduleKey] = ModuleState(state: newState);
       }
       // Handle legacy map-based state updates (including LinkedMap from jsonDecode)
       else if (newState is Map) {
         if (existingState.state is ImmutableState) {
-          _logger.error('📦 StateManager: updateModuleState("$moduleKey") - Cannot update immutable state with map. Use immutable state object.', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('📦 StateManager: updateModuleState("$moduleKey") - Cannot update immutable state with map. Use immutable state object.');
+          }
           return;
         }
         
         // Convert LinkedMap/any Map to Map<String, dynamic> for merging
         final newStateMap = newState.map((key, value) => MapEntry(key.toString(), value));
         final newKeys = newStateMap.keys.toList();
-        _logger.info('📦 StateManager: Updating module state "$moduleKey" (map) - Keys to update: $newKeys', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📦 StateManager: Updating module state "$moduleKey" (map) - Keys to update: $newKeys');
+        }
       
         // Use deprecated merge for backward compatibility
         final newMergedState = existingState.merge(newStateMap);
       _moduleStates[moduleKey] = newMergedState;
       } else {
-        _logger.error('📦 StateManager: updateModuleState("$moduleKey") - Invalid state type: ${newState.runtimeType}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('📦 StateManager: updateModuleState("$moduleKey") - Invalid state type: ${newState.runtimeType}');
+        }
         return;
       }
       
       // Use Future.microtask to avoid calling notifyListeners during build
       Future.microtask(() {
         notifyListeners();
-        _logger.debug('📦 StateManager: Notified listeners after updating "$moduleKey"', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('📦 StateManager: Notified listeners after updating "$moduleKey"');
+        }
       });
     } else {
-      _logger.error('📦 StateManager: updateModuleState("$moduleKey") - Existing state is null', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('📦 StateManager: updateModuleState("$moduleKey") - Existing state is null');
+      }
     }
   }
 
@@ -241,7 +285,9 @@ class StateManager with ChangeNotifier {
         return MapEntry(key, <String, dynamic>{});
       }
     });
-    _logger.debug('📦 StateManager: getAllModuleStates() - Returning ${allStates.length} module states: ${allStates.keys.toList()}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: getAllModuleStates() - Returning ${allStates.length} module states: ${allStates.keys.toList()}');
+    }
     return allStates;
   }
 
@@ -252,28 +298,36 @@ class StateManager with ChangeNotifier {
       'module_states': moduleStates,
       'main_app_state': _mainAppState,
     };
-    _logger.debug('📦 StateManager: getAllStates() - Returning all states (${moduleStates.length} modules + main app state)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: getAllStates() - Returning all states (${moduleStates.length} modules + main app state)');
+    }
     return allStates;
   }
 
   /// Returns a list of all registered module keys
   List<String> getRegisteredModuleKeys() {
     final keys = _moduleStates.keys.toList();
-    _logger.debug('📦 StateManager: getRegisteredModuleKeys() - Returning ${keys.length} keys: $keys', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: getRegisteredModuleKeys() - Returning ${keys.length} keys: $keys');
+    }
     return keys;
   }
 
   /// Returns the number of registered module states
   int getModuleStateCount() {
     final count = _moduleStates.length;
-    _logger.debug('📦 StateManager: getModuleStateCount() - Returning $count', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: getModuleStateCount() - Returning $count');
+    }
     return count;
   }
 
   /// Returns true if any module state is registered
   bool hasModuleStates() {
     final hasStates = _moduleStates.isNotEmpty;
-    _logger.debug('📦 StateManager: hasModuleStates() - Returning $hasStates', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: hasModuleStates() - Returning $hasStates');
+    }
     return hasStates;
   }
 
@@ -286,33 +340,45 @@ class StateManager with ChangeNotifier {
       'main_state': 'idle',    // Main app state (idle, active, busy, etc.)
       ...initialState
     };
-    _logger.info('📦 StateManager: setMainAppState() - Old state: $oldState, New state: $_mainAppState', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📦 StateManager: setMainAppState() - Old state: $oldState, New state: $_mainAppState');
+    }
     // Use Future.microtask to avoid calling notifyListeners during build
     Future.microtask(() {
       notifyListeners();
-      _logger.debug('📦 StateManager: Notified listeners after setMainAppState()', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('📦 StateManager: Notified listeners after setMainAppState()');
+      }
     });
   }
 
   Map<String, dynamic> get mainAppState {
-    _logger.debug('📦 StateManager: mainAppState getter - Returning ${_mainAppState.length} keys: ${_mainAppState.keys.toList()}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: mainAppState getter - Returning ${_mainAppState.length} keys: ${_mainAppState.keys.toList()}');
+    }
     return _mainAppState;
   }
 
   void updateMainAppState(String key, dynamic value) {
     final oldValue = _mainAppState[key];
     _mainAppState[key] = value;
-    _logger.info('📦 StateManager: updateMainAppState("$key") - Old value: $oldValue, New value: $value', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📦 StateManager: updateMainAppState("$key") - Old value: $oldValue, New value: $value');
+    }
     // Use Future.microtask to avoid calling notifyListeners during build
     Future.microtask(() {
       notifyListeners();
-      _logger.debug('📦 StateManager: Notified listeners after updateMainAppState("$key")', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('📦 StateManager: Notified listeners after updateMainAppState("$key")');
+      }
     });
   }
 
   T? getMainAppState<T>(String key) {
     final value = _mainAppState[key] as T?;
-    _logger.debug('📦 StateManager: getMainAppState<$T>("$key") - Returning: $value', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('📦 StateManager: getMainAppState<$T>("$key") - Returning: $value');
+    }
     return value;
   }
 }

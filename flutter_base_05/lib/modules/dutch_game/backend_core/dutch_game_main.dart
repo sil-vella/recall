@@ -16,7 +16,9 @@ class DutchGameModule {
   DutchGameModule(this.server, this.roomManager, this.hooksManager) {
     coordinator = GameEventCoordinator(roomManager, server);
     _registerHooks();
-    _logger.info('DutchGameModule initialized with hooks', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('DutchGameModule initialized with hooks');
+    }
   }
 
   /// Register hooks for game lifecycle
@@ -33,7 +35,9 @@ class DutchGameModule {
     // room_closed: cleanup game instance
     hooksManager.registerHookCallback('room_closed', _onRoomClosed, priority: 100);
     
-    _logger.info('🎣 DutchGame: Registered hooks for game lifecycle', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎣 DutchGame: Registered hooks for game lifecycle');
+    }
   }
 
   /// Hook callback: room_created
@@ -48,11 +52,15 @@ class DutchGameModule {
       final gameType = data['game_type'] as String? ?? 'multiplayer';
 
       if (roomId == null || ownerId == null || sessionId == null) {
-        _logger.warning('🎣 room_created: missing roomId, ownerId, or sessionId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎣 room_created: missing roomId, ownerId, or sessionId');
+        }
         return;
       }
 
-      _logger.info('🎣 room_created: Creating game for room $roomId with player ID $sessionId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎣 room_created: Creating game for room $roomId with player ID $sessionId');
+      }
 
       // Check if this is a practice room (practice rooms start with "practice_room_")
       final isPracticeMode = roomId.startsWith('practice_room_');
@@ -64,9 +72,13 @@ class DutchGameModule {
         final practiceDifficulty = data['difficulty'] as String?;
         if (practiceDifficulty != null) {
           roomDifficulty = practiceDifficulty.toLowerCase();
-          _logger.info('🎣 room_created: Practice mode - using difficulty from hook data: $roomDifficulty', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎣 room_created: Practice mode - using difficulty from hook data: $roomDifficulty');
+          }
         } else {
-          _logger.warning('🎣 room_created: Practice mode but no difficulty in hook data, defaulting to medium', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('🎣 room_created: Practice mode but no difficulty in hook data, defaulting to medium');
+          }
           roomDifficulty = 'medium'; // Default for practice if not provided
         }
         
@@ -74,29 +86,47 @@ class DutchGameModule {
         final room = roomManager.getRoomInfo(roomId);
         if (room != null) {
           room.difficulty = roomDifficulty;
-          _logger.info('🎣 room_created: Set practice room difficulty to $roomDifficulty for room $roomId', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎣 room_created: Set practice room difficulty to $roomDifficulty for room $roomId');
+          }
         }
       } else {
         // For multiplayer rooms: get creator's rank from session data and set room difficulty
-        _logger.info('🎣 room_created: Multiplayer mode - getting rank for session $sessionId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎣 room_created: Multiplayer mode - getting rank for session $sessionId');
+        }
         final creatorRank = server.getUserRankForSession(sessionId);
-        _logger.info('🎣 room_created: Creator rank for session $sessionId: $creatorRank', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎣 room_created: Creator rank for session $sessionId: $creatorRank');
+        }
         if (creatorRank != null) {
-          _logger.info('🎣 room_created: Creator rank is not null, getting room info', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎣 room_created: Creator rank is not null, getting room info');
+          }
           final room = roomManager.getRoomInfo(roomId);
-          _logger.info('🎣 room_created: Room info retrieved: ${room != null ? "found" : "null"}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎣 room_created: Room info retrieved: ${room != null ? "found" : "null"}');
+          }
           if (room != null) {
             room.difficulty = creatorRank.toLowerCase();
             roomDifficulty = creatorRank.toLowerCase();
-            _logger.info('🎣 room_created: Set room difficulty to $roomDifficulty for room $roomId', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎣 room_created: Set room difficulty to $roomDifficulty for room $roomId');
+            }
           } else {
-            _logger.warning('🎣 room_created: Room $roomId not found in roomManager', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('🎣 room_created: Room $roomId not found in roomManager');
+            }
           }
         } else {
-          _logger.warning('🎣 room_created: Creator rank is null for session $sessionId', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('🎣 room_created: Creator rank is null for session $sessionId');
+          }
         }
       }
-      _logger.info('🎣 room_created: Final roomDifficulty value: $roomDifficulty', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎣 room_created: Final roomDifficulty value: $roomDifficulty');
+      }
 
       // Create GameRound instance via registry (includes ServerGameStateCallback)
       GameRegistry.instance.getOrCreate(roomId, server);
@@ -121,12 +151,18 @@ class DutchGameModule {
               playerName = usernameFromProfile;
             }
             
-            _logger.info('✅ Fetched creator profile: name=$playerName, username=$usernameFromProfile, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('✅ Fetched creator profile: name=$playerName, username=$usernameFromProfile, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}');
+            }
           } else {
-            _logger.warning('⚠️ Failed to fetch creator profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('⚠️ Failed to fetch creator profile: ${profileResult['error']}');
+            }
           }
         } catch (e) {
-          _logger.warning('⚠️ Error fetching creator profile: $e', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ Error fetching creator profile: $e');
+          }
           // Continue with default name
         }
       }
@@ -187,9 +223,13 @@ class DutchGameModule {
         },
       );
 
-      _logger.info('✅ Game created for room $roomId with creator session $sessionId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ Game created for room $roomId with creator session $sessionId');
+      }
     } catch (e) {
-      _logger.error('❌ Error in _onRoomCreated: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error in _onRoomCreated: $e');
+      }
     }
   }
 
@@ -202,11 +242,15 @@ class DutchGameModule {
       final sessionId = data['session_id'] as String?; // This is now the player ID
 
       if (roomId == null || sessionId == null) {
-        _logger.warning('🎣 room_joined: missing roomId or sessionId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎣 room_joined: missing roomId or sessionId');
+        }
         return;
       }
 
-      _logger.info('🎣 room_joined: Adding player with session ID $sessionId to room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎣 room_joined: Adding player with session ID $sessionId to room $roomId');
+      }
 
       final store = GameStateStore.instance;
       final gameState = store.getGameState(roomId);
@@ -215,7 +259,9 @@ class DutchGameModule {
       // Check if player already exists (by sessionId, not userId)
       final existingPlayer = players.any((p) => p['id'] == sessionId);
       if (existingPlayer) {
-        _logger.info('Player with session $sessionId already in game $roomId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Player with session $sessionId already in game $roomId');
+        }
         // Still send snapshot
         _sendGameSnapshot(sessionId, roomId);
         return;
@@ -234,16 +280,22 @@ class DutchGameModule {
         if (joinerRank != null) {
           room.difficulty = joinerRank.toLowerCase();
           roomDifficulty = joinerRank.toLowerCase();
-          _logger.info('🎣 room_joined: Set room difficulty to $joinerRank for room $roomId (first human player)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎣 room_joined: Set room difficulty to $joinerRank for room $roomId (first human player)');
+          }
         }
       } else if (room != null && room.difficulty != null) {
         roomDifficulty = room.difficulty;
-        _logger.info('🎣 room_joined: Room $roomId already has difficulty set to ${room.difficulty}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎣 room_joined: Room $roomId already has difficulty set to ${room.difficulty}');
+        }
       } else if (isPracticeMode && room != null && room.difficulty == null) {
         // Practice room but difficulty not set - should have been set in room_created, default to medium
         room.difficulty = 'medium';
         roomDifficulty = 'medium';
-        _logger.warning('🎣 room_joined: Practice room $roomId has no difficulty, defaulting to medium', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎣 room_joined: Practice room $roomId has no difficulty, defaulting to medium');
+        }
       }
       
       // Update game state with room difficulty
@@ -273,12 +325,18 @@ class DutchGameModule {
               playerName = usernameFromProfile;
             }
             
-            _logger.info('✅ Fetched user profile: name=$playerName, username=$usernameFromProfile, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('✅ Fetched user profile: name=$playerName, username=$usernameFromProfile, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}');
+            }
           } else {
-            _logger.warning('⚠️ Failed to fetch user profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('⚠️ Failed to fetch user profile: ${profileResult['error']}');
+            }
           }
         } catch (e) {
-          _logger.warning('⚠️ Error fetching user profile: $e', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ Error fetching user profile: $e');
+          }
           // Continue with default name
         }
       }
@@ -332,9 +390,13 @@ class DutchGameModule {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      _logger.info('✅ Player with session $sessionId added to game $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ Player with session $sessionId added to game $roomId');
+      }
     } catch (e) {
-      _logger.error('❌ Error in _onRoomJoined: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error in _onRoomJoined: $e');
+      }
     }
   }
 
@@ -346,11 +408,15 @@ class DutchGameModule {
       final sessionId = data['session_id'] as String?; // Use sessionId as player ID
 
       if (roomId == null || sessionId == null) {
-        _logger.warning('🎣 leave_room: missing roomId or sessionId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎣 leave_room: missing roomId or sessionId');
+        }
         return;
       }
 
-      _logger.info('🎣 leave_room: Removing player with session $sessionId from room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎣 leave_room: Removing player with session $sessionId from room $roomId');
+      }
 
       final store = GameStateStore.instance;
       final gameState = store.getGameState(roomId);
@@ -362,8 +428,12 @@ class DutchGameModule {
       final newPlayerCount = players.length;
       
       if (initialPlayerCount == newPlayerCount) {
-        _logger.warning('🎣 leave_room: Player $sessionId not found in game state players list', isOn: LOGGING_SWITCH);
-        _logger.warning('🎣 leave_room: Current players: ${players.map((p) => p['id']?.toString() ?? 'unknown').join(', ')}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎣 leave_room: Player $sessionId not found in game state players list');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎣 leave_room: Current players: ${players.map((p) => p['id']?.toString() ?? 'unknown').join(', ')}');
+        }
       }
       
       gameState['players'] = players;
@@ -376,7 +446,9 @@ class DutchGameModule {
       
       store.setGameState(roomId, gameState);
 
-      _logger.info('✅ Player with session $sessionId removed from game $roomId (players: $initialPlayerCount -> $newPlayerCount)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ Player with session $sessionId removed from game $roomId (players: $initialPlayerCount -> $newPlayerCount)');
+      }
 
       // CRITICAL: Broadcast the updated game state to all remaining players
       // This ensures other players see that the player has left
@@ -392,9 +464,13 @@ class DutchGameModule {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ Broadcasted game_state_updated to all players in room $roomId after player $sessionId left', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ Broadcasted game_state_updated to all players in room $roomId after player $sessionId left');
+      }
     } catch (e) {
-      _logger.error('❌ Error in _onLeaveRoom: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error in _onLeaveRoom: $e');
+      }
     }
   }
 
@@ -406,11 +482,15 @@ class DutchGameModule {
       final reason = data['reason'] as String? ?? 'unknown';
 
       if (roomId == null) {
-        _logger.warning('🎣 room_closed: missing roomId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎣 room_closed: missing roomId');
+        }
         return;
       }
 
-      _logger.info('🎣 room_closed: Cleaning up game for room $roomId (reason: $reason)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎣 room_closed: Cleaning up game for room $roomId (reason: $reason)');
+      }
 
       // Dispose GameRound instance
       GameRegistry.instance.dispose(roomId);
@@ -418,9 +498,13 @@ class DutchGameModule {
       // Clear game state
       GameStateStore.instance.clear(roomId);
 
-      _logger.info('✅ Game cleanup complete for room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ Game cleanup complete for room $roomId');
+      }
     } catch (e) {
-      _logger.error('❌ Error in _onRoomClosed: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error in _onRoomClosed: $e');
+      }
     }
   }
 
@@ -442,9 +526,13 @@ class DutchGameModule {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      _logger.info('📤 Sent game snapshot to session $sessionId for room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📤 Sent game snapshot to session $sessionId for room $roomId');
+      }
     } catch (e) {
-      _logger.error('❌ Error sending snapshot: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error sending snapshot: $e');
+      }
     }
   }
 }

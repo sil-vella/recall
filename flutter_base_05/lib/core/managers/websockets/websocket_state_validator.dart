@@ -99,12 +99,18 @@ class WebSocketStateUpdater {
   /// Update WebSocket state with validation
   static void updateState(Map<String, dynamic> updates) {
     try {
-      _logger.info('🔄 WebSocket state update requested with ${updates.length} fields', isOn: LOGGING_SWITCH);
-      _logger.debug('Update fields: ${updates.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔄 WebSocket state update requested with ${updates.length} fields');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.debug('Update fields: ${updates.keys.toList()}');
+      }
       
       // Get current state
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
-      _logger.debug('Current WebSocket state: ${currentState.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('Current WebSocket state: ${currentState.keys.toList()}');
+      }
       
       // Validate updates
       final validatedUpdates = <String, dynamic>{};
@@ -113,11 +119,15 @@ class WebSocketStateUpdater {
         final fieldName = entry.key;
         final value = entry.value;
         
-        _logger.debug('Validating field: $fieldName (${value.runtimeType})', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('Validating field: $fieldName (${value.runtimeType})');
+        }
         
         // Check if field is allowed
         if (!_stateSchema.containsKey(fieldName)) {
-          _logger.error('Field "$fieldName" is not allowed in WebSocket state schema', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Field "$fieldName" is not allowed in WebSocket state schema');
+          }
           throw WebSocketStateException(
             'Field "$fieldName" is not allowed in WebSocket state schema',
             fieldName,
@@ -129,31 +139,41 @@ class WebSocketStateUpdater {
         // Validate type (allow null for non-required fields)
         if (value != null) {
           if (spec.type == String && value is! String) {
-            _logger.error('Field "$fieldName" must be of type String, got ${value.runtimeType}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('Field "$fieldName" must be of type String, got ${value.runtimeType}');
+            }
             throw WebSocketStateException(
               'Field "$fieldName" must be of type String, got ${value.runtimeType}',
               fieldName,
             );
           } else if (spec.type == bool && value is! bool) {
-            _logger.error('Field "$fieldName" must be of type bool, got ${value.runtimeType}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('Field "$fieldName" must be of type bool, got ${value.runtimeType}');
+            }
             throw WebSocketStateException(
               'Field "$fieldName" must be of type bool, got ${value.runtimeType}',
               fieldName,
             );
           } else if (spec.type == Map && value is! Map) {
-            _logger.error('Field "$fieldName" must be of type Map, got ${value.runtimeType}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('Field "$fieldName" must be of type Map, got ${value.runtimeType}');
+            }
             throw WebSocketStateException(
               'Field "$fieldName" must be of type Map, got ${value.runtimeType}',
               fieldName,
             );
           } else if (spec.type == List && value is! List) {
-            _logger.error('Field "$fieldName" must be of type List, got ${value.runtimeType}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('Field "$fieldName" must be of type List, got ${value.runtimeType}');
+            }
             throw WebSocketStateException(
               'Field "$fieldName" must be of type List, got ${value.runtimeType}',
               fieldName,
             );
           } else if (spec.type == int && value is! int) {
-            _logger.error('Field "$fieldName" must be of type int, got ${value.runtimeType}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('Field "$fieldName" must be of type int, got ${value.runtimeType}');
+            }
             throw WebSocketStateException(
               'Field "$fieldName" must be of type int, got ${value.runtimeType}',
               fieldName,
@@ -163,7 +183,9 @@ class WebSocketStateUpdater {
         
         // Custom validation
         if (spec.validator != null && !spec.validator!(value)) {
-          _logger.error('Field "$fieldName" failed custom validation', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Field "$fieldName" failed custom validation');
+          }
           throw WebSocketStateException(
             'Field "$fieldName" failed custom validation',
             fieldName,
@@ -171,13 +193,17 @@ class WebSocketStateUpdater {
         }
         
         validatedUpdates[fieldName] = value;
-        _logger.debug('Field "$fieldName" validated successfully', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('Field "$fieldName" validated successfully');
+        }
       }
       
       // Add timestamp if not provided
       if (!validatedUpdates.containsKey('lastUpdated')) {
         validatedUpdates['lastUpdated'] = DateTime.now().toIso8601String();
-        _logger.debug('Added timestamp to WebSocket state update', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('Added timestamp to WebSocket state update');
+        }
       }
       
       // Merge with current state
@@ -186,15 +212,21 @@ class WebSocketStateUpdater {
         ...validatedUpdates,
       };
       
-      _logger.info('✅ WebSocket state updated successfully with ${validatedUpdates.length} fields', isOn: LOGGING_SWITCH);
-      _logger.debug('New state keys: ${newState.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket state updated successfully with ${validatedUpdates.length} fields');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.debug('New state keys: ${newState.keys.toList()}');
+      }
       
       // Update state manager
       _stateManager.updateModuleState('websocket', newState);
 
       
     } catch (e) {
-      _logger.error('❌ Failed to update WebSocket state: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Failed to update WebSocket state: $e');
+      }
       throw WebSocketStateException('Failed to update WebSocket state: $e');
     }
   }
@@ -202,7 +234,9 @@ class WebSocketStateUpdater {
   /// Clear WebSocket state (reset to defaults)
   static void clearState() {
     try {
-      _logger.info('🔄 Clearing WebSocket state to defaults', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔄 Clearing WebSocket state to defaults');
+      }
       
       final defaultState = <String, dynamic>{};
       for (final spec in _stateSchema.values) {
@@ -210,14 +244,20 @@ class WebSocketStateUpdater {
       }
       defaultState['lastUpdated'] = DateTime.now().toIso8601String();
       
-      _logger.debug('Default state keys: ${defaultState.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('Default state keys: ${defaultState.keys.toList()}');
+      }
       
       _stateManager.updateModuleState('websocket', defaultState);
       
-      _logger.info('✅ WebSocket state cleared successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket state cleared successfully');
+      }
       
     } catch (e) {
-      _logger.error('❌ Failed to clear WebSocket state: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Failed to clear WebSocket state: $e');
+      }
       throw WebSocketStateException('Failed to clear WebSocket state: $e');
     }
   }
@@ -261,9 +301,13 @@ class WebSocketStateHelpers {
     required bool isConnected,
     Map<String, dynamic>? sessionData,
   }) {
-    _logger.info('🔄 Updating WebSocket connection status: $isConnected', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔄 Updating WebSocket connection status: $isConnected');
+    }
     if (sessionData != null) {
-      _logger.debug('Session data provided: ${sessionData.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('Session data provided: ${sessionData.keys.toList()}');
+      }
     }
     
     final updates = <String, dynamic>{
@@ -276,14 +320,18 @@ class WebSocketStateHelpers {
     
     // Clear room data on disconnect
     if (!isConnected) {
-      _logger.info('🔌 Connection lost - clearing room data', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔌 Connection lost - clearing room data');
+      }
       updates['currentRoomId'] = null;
       updates['currentRoomInfo'] = null;
       updates['sessionData'] = null;
     }
     
     WebSocketStateUpdater.updateState(updates);
-    _logger.info('✅ Connection status updated successfully', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ Connection status updated successfully');
+    }
   }
 
   /// Update room information
@@ -291,12 +339,18 @@ class WebSocketStateHelpers {
     String? roomId,
     Map<String, dynamic>? roomInfo,
   }) {
-    _logger.info('🔄 Updating room information', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔄 Updating room information');
+    }
     if (roomId != null) {
-      _logger.debug('Room ID: $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('Room ID: $roomId');
+      }
     }
     if (roomInfo != null) {
-      _logger.debug('Room info keys: ${roomInfo.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('Room info keys: ${roomInfo.keys.toList()}');
+      }
     }
     
     final updates = <String, dynamic>{};
@@ -310,33 +364,45 @@ class WebSocketStateHelpers {
     }
     
     WebSocketStateUpdater.updateState(updates);
-    _logger.info('✅ Room information updated successfully', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ Room information updated successfully');
+    }
   }
 
   /// Clear room information
   static void clearRoomInfo() {
-    _logger.info('🔄 Clearing room information', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔄 Clearing room information');
+    }
     
     WebSocketStateUpdater.updateState({
       'currentRoomId': null,
       'currentRoomInfo': null,
     });
     
-    _logger.info('✅ Room information cleared successfully', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ Room information cleared successfully');
+    }
   }
 
   /// Update session data
   static void updateSessionData(Map<String, dynamic>? sessionData) {
-    _logger.info('🔄 Updating session data', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔄 Updating session data');
+    }
     if (sessionData != null) {
-      _logger.debug('Session data keys: ${sessionData.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('Session data keys: ${sessionData.keys.toList()}');
+      }
     }
     
     WebSocketStateUpdater.updateState({
       'sessionData': sessionData,
     });
     
-    _logger.info('✅ Session data updated successfully', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ Session data updated successfully');
+    }
   }
 
   /// Update joined rooms information
@@ -346,9 +412,15 @@ class WebSocketStateHelpers {
     required int totalRooms,
     required String timestamp,
   }) {
-    _logger.info('🔄 Updating joined rooms information', isOn: LOGGING_SWITCH);
-    _logger.debug('Session ID: $sessionId, Total rooms: $totalRooms, Timestamp: $timestamp', isOn: LOGGING_SWITCH);
-    _logger.debug('Joined rooms count: ${joinedRooms.length}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔄 Updating joined rooms information');
+    }
+    if (LOGGING_SWITCH) {
+      _logger.debug('Session ID: $sessionId, Total rooms: $totalRooms, Timestamp: $timestamp');
+    }
+    if (LOGGING_SWITCH) {
+      _logger.debug('Joined rooms count: ${joinedRooms.length}');
+    }
     
     WebSocketStateUpdater.updateState({
       'joinedRooms': joinedRooms,
@@ -357,7 +429,9 @@ class WebSocketStateHelpers {
       'joinedRoomsSessionId': sessionId,
     });
     
-    _logger.info('✅ Joined rooms information updated successfully', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ Joined rooms information updated successfully');
+    }
   }
   
   /// Update authentication status
@@ -377,6 +451,8 @@ class WebSocketStateHelpers {
       'auth_timestamp': DateTime.now().toIso8601String(),
     });
     
-    _logger.info('✅ Authentication status updated: authenticated=$isAuthenticated', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ Authentication status updated: authenticated=$isAuthenticated');
+    }
   }
 }

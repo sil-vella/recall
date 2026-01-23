@@ -493,7 +493,9 @@ class AuthManager extends ChangeNotifier {
         // 2. User was logged in but tokens are invalid AND we have guest credentials
         // But do NOT restore if tokens are invalid - let user log in fresh
         if (!isLoggedIn && isGuestAccount && guestUsername != null && guestEmail != null) {
-          Logger().info("AuthManager: Restoring guest credentials on session validation - Username: $guestUsername", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().info("AuthManager: Restoring guest credentials on session validation - Username: $guestUsername");
+          }
           await _sharedPref!.setString('username', guestUsername);
           await _sharedPref!.setString('email', guestEmail);
           if (guestUserId != null) {

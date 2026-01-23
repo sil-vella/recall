@@ -38,24 +38,34 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
         _hasExtractedParams = true;
         
         if (_downloadLink == null || _downloadLink!.isEmpty) {
-          _logger.warning('UpdateRequiredScreen: No download link provided', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('UpdateRequiredScreen: No download link provided');
+          }
         } else {
-          _logger.info('UpdateRequiredScreen: Download link: $_downloadLink', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('UpdateRequiredScreen: Download link: $_downloadLink');
+          }
         }
       } catch (e) {
-        _logger.error('UpdateRequiredScreen: Error extracting download link: $e', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('UpdateRequiredScreen: Error extracting download link: $e');
+        }
       }
     }
   }
 
   void _skipUpdate() {
-    _logger.info('UpdateRequiredScreen: User skipped update, navigating to account screen', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('UpdateRequiredScreen: User skipped update, navigating to account screen');
+    }
     context.go('/account');
   }
 
   Future<void> _launchDownloadLink() async {
     if (_downloadLink == null || _downloadLink!.isEmpty) {
-      _logger.error('UpdateRequiredScreen: Cannot launch - no download link', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('UpdateRequiredScreen: Cannot launch - no download link');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -79,7 +89,9 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
       );
 
       if (!launched) {
-        _logger.warning('UpdateRequiredScreen: Failed to launch URL', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('UpdateRequiredScreen: Failed to launch URL');
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -89,10 +101,14 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
           );
         }
       } else {
-        _logger.info('UpdateRequiredScreen: Successfully launched download link', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('UpdateRequiredScreen: Successfully launched download link');
+        }
       }
     } catch (e) {
-      _logger.error('UpdateRequiredScreen: Error launching URL: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('UpdateRequiredScreen: Error launching URL: $e');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

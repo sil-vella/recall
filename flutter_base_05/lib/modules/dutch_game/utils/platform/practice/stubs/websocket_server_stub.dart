@@ -22,12 +22,16 @@ class WebSocketServerStub {
        _onTriggerHook = onTriggerHook;
 
   void sendToSession(String sessionId, Map<String, dynamic> message) {
-    _logger.info('WebSocketServerStub: sendToSession $sessionId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('WebSocketServerStub: sendToSession $sessionId');
+    }
     _onSendToSession?.call(sessionId, message);
   }
 
   void broadcastToRoom(String roomId, Map<String, dynamic> message) {
-    _logger.info('WebSocketServerStub: broadcastToRoom $roomId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('WebSocketServerStub: broadcastToRoom $roomId');
+    }
     _onBroadcastToRoom?.call(roomId, message);
   }
 
@@ -36,7 +40,9 @@ class WebSocketServerStub {
   void broadcastToRoomExcept(String roomId, Map<String, dynamic> message, String excludeSessionId) {
     final sessions = _roomManager.getSessionsInRoom(roomId);
     final filteredSessions = sessions.where((sessionId) => sessionId != excludeSessionId).toList();
-    _logger.info('WebSocketServerStub: broadcastToRoomExcept $roomId (excluding $excludeSessionId, ${filteredSessions.length} sessions)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('WebSocketServerStub: broadcastToRoomExcept $roomId (excluding $excludeSessionId, ${filteredSessions.length} sessions)');
+    }
     
     // In practice mode, if we're excluding the only player, this is a no-op
     // Otherwise, broadcast to remaining sessions
@@ -72,7 +78,9 @@ class WebSocketServerStub {
   
   // Method to trigger hooks (needed for compatibility with backend interface)
   void triggerHook(String hookName, {Map<String, dynamic>? data, String? context}) {
-    _logger.info('WebSocketServerStub: triggerHook $hookName', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('WebSocketServerStub: triggerHook $hookName');
+    }
     _onTriggerHook?.call(hookName, data: data, context: context);
   }
 

@@ -19,7 +19,9 @@ class GameRegistry {
     return _roomIdToRound.putIfAbsent(roomId, () {
       final callback = ServerGameStateCallbackImpl(roomId, server);
       final round = DutchGameRound(callback, roomId);
-      _logger.info('GameRegistry: Created DutchGameRound for $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameRegistry: Created DutchGameRound for $roomId');
+      }
       return round;
     });
   }
@@ -27,7 +29,9 @@ class GameRegistry {
   void dispose(String roomId) {
     _roomIdToRound.remove(roomId);
     GameStateStore.instance.clear(roomId);
-    _logger.info('GameRegistry: Disposed game for $roomId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameRegistry: Disposed game for $roomId');
+    }
   }
 }
 
@@ -60,9 +64,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Initialize state queue validator with logger callback
     _validator.setLogCallback((String message, {bool isError = false}) {
       if (isError) {
-        _logger.error(message, isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error(message);
+        }
       } else {
-        _logger.info(message, isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info(message);
+        }
       }
     });
     
@@ -77,10 +85,16 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Log turn_events if present in updates
     if (updates.containsKey('turn_events')) {
       final turnEvents = updates['turn_events'] as List<dynamic>? ?? [];
-      _logger.info('🔍 TURN_EVENTS DEBUG - onGameStateChanged received turn_events: ${turnEvents.length} events', isOn: LOGGING_SWITCH);
-      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - onGameStateChanged received turn_events: ${turnEvents.length} events');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
+      }
     } else {
-      _logger.info('🔍 TURN_EVENTS DEBUG - onGameStateChanged received NO turn_events in updates. Keys: ${updates.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - onGameStateChanged received NO turn_events in updates. Keys: ${updates.keys.toList()}');
+      }
     }
     
     // Use StateQueueValidator to validate and queue the update
@@ -92,7 +106,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   void sendGameStateToPlayer(String playerId, Map<String, dynamic> updates) {
     // Validate and apply updates to state store (same as onGameStateChanged)
     // But send only to the specific player instead of broadcasting
-    _logger.info('📤 sendGameStateToPlayer: Sending state update to player $playerId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📤 sendGameStateToPlayer: Sending state update to player $playerId');
+    }
     
     try {
       // Validate updates using the same validator (direct validation, not queued)
@@ -149,9 +165,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ sendGameStateToPlayer: Sent state update to player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ sendGameStateToPlayer: Sent state update to player $playerId');
+      }
     } catch (e) {
-      _logger.error('❌ sendGameStateToPlayer: Error sending state update to player $playerId: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ sendGameStateToPlayer: Error sending state update to player $playerId: $e');
+      }
     }
   }
 
@@ -159,7 +179,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   void broadcastGameStateExcept(String excludePlayerId, Map<String, dynamic> updates) {
     // Validate and apply updates to state store (same as onGameStateChanged)
     // But broadcast to all players except the excluded one
-    _logger.info('📤 broadcastGameStateExcept: Broadcasting state update to all except player $excludePlayerId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📤 broadcastGameStateExcept: Broadcasting state update to all except player $excludePlayerId');
+    }
     
     try {
       // Validate updates using the same validator (direct validation, not queued)
@@ -218,9 +240,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'timestamp': DateTime.now().toIso8601String(),
       }, excludePlayerId);
       
-      _logger.info('✅ broadcastGameStateExcept: Broadcasted state update to all except player $excludePlayerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ broadcastGameStateExcept: Broadcasted state update to all except player $excludePlayerId');
+      }
     } catch (e) {
-      _logger.error('❌ broadcastGameStateExcept: Error broadcasting state update: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ broadcastGameStateExcept: Error broadcasting state update: $e');
+      }
     }
   }
   
@@ -230,10 +256,16 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Log turn_events if present in validated updates
     if (validatedUpdates.containsKey('turn_events')) {
       final turnEventsInUpdates = validatedUpdates['turn_events'] as List<dynamic>? ?? [];
-      _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received turn_events in validatedUpdates: ${turnEventsInUpdates.length} events', isOn: LOGGING_SWITCH);
-      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEventsInUpdates.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received turn_events in validatedUpdates: ${turnEventsInUpdates.length} events');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEventsInUpdates.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
+      }
     } else {
-      _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received NO turn_events in validatedUpdates. Keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received NO turn_events in validatedUpdates. Keys: ${validatedUpdates.keys.toList()}');
+      }
     }
     
     // Merge into state root
@@ -244,8 +276,12 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     
     // Extract turn_events from root state (they're stored at root level, not in game_state)
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
-    _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates extracted turn_events from root state: ${turnEvents.length} events', isOn: LOGGING_SWITCH);
-    _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates extracted turn_events from root state: ${turnEvents.length} events');
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
+    }
     
     // CRITICAL: If gamePhase is in updates, copy it to game_state['phase'] for client broadcast
     // Frontend expects gamePhase in game_state['phase'], not at root level
@@ -269,7 +305,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           normalizedPhase = 'game_ended'; // Pass through game_ended as-is
         }
         gameState['phase'] = normalizedPhase;
-        _logger.info('GameStateCallback: Copied gamePhase ($phase) to game_state[phase] ($normalizedPhase) for broadcast', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameStateCallback: Copied gamePhase ($phase) to game_state[phase] ($normalizedPhase) for broadcast');
+        }
       }
     }
     // Ensure phase key and playerCount
@@ -279,13 +317,19 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Extract winners from validatedUpdates (if present) - needed for game end notification
     final winners = validatedUpdates['winners'] as List<dynamic>?;
     if (winners != null) {
-      _logger.info('GameStateCallback: Including winners list in broadcast: ${winners.length} winner(s)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Including winners list in broadcast: ${winners.length} winner(s)');
+      }
     }
     
     // Owner info for gating
     final ownerId = server.getRoomOwner(roomId);
-    _logger.info('🔍 TURN_EVENTS DEBUG - Broadcasting game_state_updated with ${turnEvents.length} turn_events', isOn: LOGGING_SWITCH);
-    _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔍 TURN_EVENTS DEBUG - Broadcasting game_state_updated with ${turnEvents.length} turn_events');
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
+    }
     
     server.broadcastToRoom(roomId, {
       'event': 'game_state_updated',
@@ -375,7 +419,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
     final status = currentPlayer?['status'] as String?;
     
-    _logger.info('GameRegistry: getTimerConfig() for room $roomId - phase: $phase, status: $status', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameRegistry: getTimerConfig() for room $roomId - phase: $phase, status: $status');
+    }
     
     // Get all timer values from single source of truth
     final allTimerValues = ServerGameStateCallbackImpl.getAllTimerValues();
@@ -449,7 +495,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Get showInstructions from game state (default to false if not found)
     final showInstructions = gameState['showInstructions'] as bool? ?? false;
     
-    _logger.info('GameRegistry: getTimerConfig() returning turnTimeLimit: $turnTimeLimit for room $roomId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameRegistry: getTimerConfig() returning turnTimeLimit: $turnTimeLimit for room $roomId');
+    }
     
     return {
       'turnTimeLimit': turnTimeLimit,
@@ -461,11 +509,15 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   void triggerLeaveRoom(String playerId) {
     // Only trigger for multiplayer matches (room_*), not practice (practice_room_*)
     if (!roomId.startsWith('room_')) {
-      _logger.info('GameStateCallback: Skipping auto-leave for non-multiplayer room $roomId (player $playerId)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Skipping auto-leave for non-multiplayer room $roomId (player $playerId)');
+      }
       return;
     }
     
-    _logger.info('GameStateCallback: Triggering auto-leave for player $playerId in room $roomId (2 missed actions)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameStateCallback: Triggering auto-leave for player $playerId in room $roomId (2 missed actions)');
+    }
     
     try {
       // Get userId from session (playerId = sessionId in this system)
@@ -480,9 +532,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'left_at': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('GameStateCallback: Successfully triggered leave_room hook for player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Successfully triggered leave_room hook for player $playerId');
+      }
     } catch (e) {
-      _logger.error('GameStateCallback: Error triggering leave room for player $playerId: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameStateCallback: Error triggering leave room for player $playerId: $e');
+      }
     }
   }
 
@@ -490,12 +546,16 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   void onGameEnded(List<Map<String, dynamic>> winners, List<Map<String, dynamic>> allPlayers, {int? matchPot}) {
     // Only update stats for multiplayer matches (room_*), not practice (practice_room_*)
     if (!roomId.startsWith('room_')) {
-      _logger.info('GameStateCallback: Skipping stats update for non-multiplayer room $roomId (practice mode)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Skipping stats update for non-multiplayer room $roomId (practice mode)');
+      }
       return;
     }
 
       final pot = matchPot ?? 0;
-      _logger.info('GameStateCallback: Game ended for room $roomId - updating statistics for ${allPlayers.length} player(s), match_pot: $pot', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Game ended for room $roomId - updating statistics for ${allPlayers.length} player(s), match_pot: $pot');
+      }
 
     try {
       // Build list of winner player IDs for quick lookup
@@ -507,7 +567,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       for (final player in allPlayers) {
         final playerId = player['id']?.toString() ?? '';
         if (playerId.isEmpty) {
-          _logger.warning('GameStateCallback: Skipping player with empty ID', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('GameStateCallback: Skipping player with empty ID');
+          }
           continue;
         }
         
@@ -517,10 +579,14 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           // Fallback: Check if player object has userId (for comp players from database)
           userId = player['userId']?.toString();
           if (userId == null || userId.isEmpty) {
-            _logger.warning('GameStateCallback: No user_id found for player $playerId (tried session and player object), skipping stats update', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('GameStateCallback: No user_id found for player $playerId (tried session and player object), skipping stats update');
+            }
             continue;
           }
-          _logger.info('GameStateCallback: Using userId from player object for comp player $playerId: $userId', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('GameStateCallback: Using userId from player object for comp player $playerId: $userId');
+          }
         }
         
         // Determine if this player is a winner
@@ -547,29 +613,43 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           'win_type': winType,
         });
         
-        _logger.info('GameStateCallback: Added game result for user $userId - winner: $isWinner, pot: $playerPot', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameStateCallback: Added game result for user $userId - winner: $isWinner, pot: $playerPot');
+        }
       }
       
       if (gameResults.isEmpty) {
-        _logger.warning('GameStateCallback: No valid game results to send, skipping API call', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('GameStateCallback: No valid game results to send, skipping API call');
+        }
         return;
       }
       
       // Call Python API to update statistics
-      _logger.info('GameStateCallback: Calling Python API to update game statistics', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Calling Python API to update game statistics');
+      }
       server.pythonClient.updateGameStats(gameResults).then((result) {
         if (result['success'] == true) {
-          _logger.info('GameStateCallback: Successfully updated game statistics', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('GameStateCallback: Successfully updated game statistics');
+          }
         } else {
-          _logger.error('GameStateCallback: Failed to update game statistics: ${result['error']}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('GameStateCallback: Failed to update game statistics: ${result['error']}');
+          }
         }
       }).catchError((error) {
-        _logger.error('GameStateCallback: Error updating game statistics: $error', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('GameStateCallback: Error updating game statistics: $error');
+        }
         // Don't throw - stats update failure shouldn't break the game
       });
       
     } catch (e) {
-      _logger.error('GameStateCallback: Error in onGameEnded: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameStateCallback: Error in onGameEnded: $e');
+      }
       // Don't throw - stats update failure shouldn't break the game
     }
   }

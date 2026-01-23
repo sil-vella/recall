@@ -58,7 +58,9 @@ class RoomManagerStub {
     _rooms[roomId] = room;
     _sessionToRoom[creatorSessionId] = roomId;
     
-    _logger.info('RoomManagerStub: Created practice room $roomId (phase-based timers enabled)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('RoomManagerStub: Created practice room $roomId (phase-based timers enabled)');
+    }
     return roomId;
   }
 
@@ -67,7 +69,9 @@ class RoomManagerStub {
     if (room == null) return false;
     
     _sessionToRoom[sessionId] = roomId;
-    _logger.info('RoomManagerStub: Joined practice room $roomId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('RoomManagerStub: Joined practice room $roomId');
+    }
     return true;
   }
 

@@ -67,7 +67,9 @@ class CardAnimationDetector {
   ) {
     final animations = <CardAnimation>[];
     
-    _logger.info('🎬 CardAnimationDetector: Detecting animations - current: ${currentPositions.length}, previous: ${previousPositions.length}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationDetector: Detecting animations - current: ${currentPositions.length}, previous: ${previousPositions.length}');
+    }
     
     // Only create animations for cardIds that exist in current scan
     // Missing cardIds are preserved in scanner (state still updating), so don't animate them
@@ -81,7 +83,9 @@ class CardAnimationDetector {
         continue;
       }
       
-      _logger.info('🎬 CardAnimationDetector: Checking $cardId - old: ${oldPosition?.location ?? 'null'}, new: ${newPosition.location}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationDetector: Checking $cardId - old: ${oldPosition?.location ?? 'null'}, new: ${newPosition.location}');
+      }
       
       if (oldPosition != null) {
         // Card exists in both old and new positions
@@ -100,7 +104,9 @@ class CardAnimationDetector {
           );
           
           animations.add(animation);
-          _logger.info('🎬 CardAnimationDetector: Detected $animationType animation for $cardId: ${oldPosition.location} -> ${newPosition.location}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 CardAnimationDetector: Detected $animationType animation for $cardId: ${oldPosition.location} -> ${newPosition.location}');
+          }
         } else if (oldPosition.isDifferentFrom(newPosition)) {
           // Same location but different position - reposition
           final animationType = AnimationType.reposition;
@@ -110,7 +116,9 @@ class CardAnimationDetector {
           final isStaticLocation = oldPosition.location == 'draw_pile' || 
                                   oldPosition.location == 'discard_pile';
           if (isStaticLocation) {
-            _logger.info('🎬 CardAnimationDetector: Skipping reposition animation for static location $cardId at ${oldPosition.location}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Skipping reposition animation for static location $cardId at ${oldPosition.location}');
+            }
           } else {
             final showFaceUp = _shouldShowFaceUp(animationType, oldPosition, newPosition);
             
@@ -123,10 +131,14 @@ class CardAnimationDetector {
             );
             
             animations.add(animation);
-            _logger.info('🎬 CardAnimationDetector: Detected $animationType animation for $cardId: ${oldPosition.location} -> ${newPosition.location}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Detected $animationType animation for $cardId: ${oldPosition.location} -> ${newPosition.location}');
+            }
           }
         } else {
-          _logger.info('🎬 CardAnimationDetector: Card $cardId at same position (${oldPosition.location})', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 CardAnimationDetector: Card $cardId at same position (${oldPosition.location})');
+          }
         }
       } else {
         // Card appeared (exists in new but not old)
@@ -137,9 +149,13 @@ class CardAnimationDetector {
           if (drawPilePosition != null) {
             // Verify it's actually the draw pile (not discard pile)
             if (drawPilePosition.location != 'draw_pile') {
-              _logger.warning('🎬 CardAnimationDetector: Found position with wrong location for draw pile: ${drawPilePosition.location}', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.warning('🎬 CardAnimationDetector: Found position with wrong location for draw pile: ${drawPilePosition.location}');
+              }
             }
-            _logger.info('🎬 CardAnimationDetector: Using draw pile position: location=${drawPilePosition.location}, position=(${drawPilePosition.position.dx.toStringAsFixed(1)}, ${drawPilePosition.position.dy.toStringAsFixed(1)})', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Using draw pile position: location=${drawPilePosition.location}, position=(${drawPilePosition.position.dx.toStringAsFixed(1)}, ${drawPilePosition.position.dy.toStringAsFixed(1)})');
+            }
             final animation = CardAnimation(
               cardId: cardId,
               startPosition: drawPilePosition.copyWith(cardId: cardId),
@@ -148,9 +164,13 @@ class CardAnimationDetector {
               showFaceUp: false, // Draw animations show card back
             );
             animations.add(animation);
-            _logger.info('🎬 CardAnimationDetector: Detected draw animation for $cardId from draw_pile to ${newPosition.location}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Detected draw animation for $cardId from draw_pile to ${newPosition.location}');
+            }
           } else {
-            _logger.info('🎬 CardAnimationDetector: Card $cardId appeared at ${newPosition.location} (draw_pile position not found)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Card $cardId appeared at ${newPosition.location} (draw_pile position not found)');
+            }
           }
         }
       }
@@ -183,15 +203,21 @@ class CardAnimationDetector {
               showFaceUp: true, // Play animations show card face
             );
             animations.add(animation);
-            _logger.info('🎬 CardAnimationDetector: Detected play animation for $cardId from ${oldPosition.location} to discard_pile (card disappeared)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Detected play animation for $cardId from ${oldPosition.location} to discard_pile (card disappeared)');
+            }
           } else {
-            _logger.info('🎬 CardAnimationDetector: Card $cardId disappeared from ${oldPosition.location} (discard_pile position not found)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Card $cardId disappeared from ${oldPosition.location} (discard_pile position not found)');
+            }
           }
         }
       }
     }
     
-    _logger.info('🎬 CardAnimationDetector: Detection complete - ${animations.length} animations found', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationDetector: Detection complete - ${animations.length} animations found');
+    }
     
     // Trigger animations via ValueNotifier
     if (animations.isNotEmpty) {
@@ -207,26 +233,34 @@ class CardAnimationDetector {
 
   /// Determine animation type based on position change
   AnimationType _determineAnimationType(CardPosition oldPos, CardPosition newPos) {
-    _logger.info('🎬 CardAnimationDetector: Determining animation type for ${oldPos.location} -> ${newPos.location}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationDetector: Determining animation type for ${oldPos.location} -> ${newPos.location}');
+    }
     
     // Hand to discard = play (highest priority - check first)
     if ((oldPos.location == 'my_hand' || oldPos.location.startsWith('opponent_hand_')) && 
         newPos.location == 'discard_pile') {
-      _logger.info('🎬 CardAnimationDetector: Detected play animation (hand -> discard)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationDetector: Detected play animation (hand -> discard)');
+      }
       return AnimationType.play;
     }
     
     // Draw pile to hand = draw
     if (oldPos.location == 'draw_pile' && 
         (newPos.location == 'my_hand' || newPos.location.startsWith('opponent_hand_'))) {
-      _logger.info('🎬 CardAnimationDetector: Detected draw animation (draw_pile -> hand)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationDetector: Detected draw animation (draw_pile -> hand)');
+      }
       return AnimationType.draw;
     }
     
     // Discard to hand = collect
     if (oldPos.location == 'discard_pile' && 
         (newPos.location == 'my_hand' || newPos.location.startsWith('opponent_hand_'))) {
-      _logger.info('🎬 CardAnimationDetector: Detected collect animation (discard -> hand)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationDetector: Detected collect animation (discard -> hand)');
+      }
       return AnimationType.collect;
     }
     
@@ -234,18 +268,24 @@ class CardAnimationDetector {
     if (oldPos.location.startsWith('opponent_hand_') && 
         newPos.location.startsWith('opponent_hand_') &&
         oldPos.location != newPos.location) {
-      _logger.info('🎬 CardAnimationDetector: Detected jackSwap animation (opponent -> opponent)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationDetector: Detected jackSwap animation (opponent -> opponent)');
+      }
       return AnimationType.jackSwap;
     }
     
     // Same location but different position = reposition
     if (oldPos.location == newPos.location) {
-      _logger.info('🎬 CardAnimationDetector: Detected reposition animation (same location)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationDetector: Detected reposition animation (same location)');
+      }
       return AnimationType.reposition;
     }
     
     // Default to reposition
-    _logger.info('🎬 CardAnimationDetector: Defaulting to reposition animation', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationDetector: Defaulting to reposition animation');
+    }
     return AnimationType.reposition;
   }
 
@@ -272,13 +312,17 @@ class CardAnimationDetector {
     // First, try to find draw_pile_full or draw_pile_empty by cardId
     final drawPileFull = positions['draw_pile_full'];
     if (drawPileFull != null && drawPileFull.location == 'draw_pile') {
-      _logger.info('🎬 CardAnimationDetector: Found draw_pile_full position: (${drawPileFull.position.dx.toStringAsFixed(1)}, ${drawPileFull.position.dy.toStringAsFixed(1)})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationDetector: Found draw_pile_full position: (${drawPileFull.position.dx.toStringAsFixed(1)}, ${drawPileFull.position.dy.toStringAsFixed(1)})');
+      }
       return drawPileFull;
     }
     
     final drawPileEmpty = positions['draw_pile_empty'];
     if (drawPileEmpty != null && drawPileEmpty.location == 'draw_pile') {
-      _logger.info('🎬 CardAnimationDetector: Found draw_pile_empty position: (${drawPileEmpty.position.dx.toStringAsFixed(1)}, ${drawPileEmpty.position.dy.toStringAsFixed(1)})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationDetector: Found draw_pile_empty position: (${drawPileEmpty.position.dx.toStringAsFixed(1)}, ${drawPileEmpty.position.dy.toStringAsFixed(1)})');
+      }
       return drawPileEmpty;
     }
     
@@ -290,12 +334,16 @@ class CardAnimationDetector {
       if (position.location == 'draw_pile' && 
           !cardId.startsWith('discard_pile_') && 
           cardId != 'discard_pile_empty') {
-        _logger.info('🎬 CardAnimationDetector: Found draw_pile position from $cardId: (${position.position.dx.toStringAsFixed(1)}, ${position.position.dy.toStringAsFixed(1)})', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardAnimationDetector: Found draw_pile position from $cardId: (${position.position.dx.toStringAsFixed(1)}, ${position.position.dy.toStringAsFixed(1)})');
+        }
         return position;
       }
     }
     
-    _logger.warning('🎬 CardAnimationDetector: No draw_pile position found', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.warning('🎬 CardAnimationDetector: No draw_pile position found');
+    }
     return null;
   }
 
@@ -312,7 +360,9 @@ class CardAnimationDetector {
   /// Clear all tracked positions
   void clear() {
     // This is handled by CardPositionScanner
-    _logger.info('🎬 CardAnimationDetector: Clear called (positions managed by scanner)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationDetector: Clear called (positions managed by scanner)');
+    }
   }
 
   // ========== State-Based Action Detection ==========
@@ -357,7 +407,9 @@ class CardAnimationDetector {
           now.difference(lastQueuedTime) < _deduplicationWindow) {
         // Same action was queued recently, skip to prevent duplicates
         if (LOGGING_SWITCH) {
-          _logger.debug('🎬 CardAnimationDetector: Skipping duplicate action - action: $action, playerId: $actionPlayerId (queued ${now.difference(lastQueuedTime).inMilliseconds}ms ago)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('🎬 CardAnimationDetector: Skipping duplicate action - action: $action, playerId: $actionPlayerId (queued ${now.difference(lastQueuedTime).inMilliseconds}ms ago)');
+          }
         }
         return false;
       }
@@ -371,7 +423,9 @@ class CardAnimationDetector {
       );
 
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 CardAnimationDetector: Action detected - action: $action, playerId: $actionPlayerId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardAnimationDetector: Action detected - action: $action, playerId: $actionPlayerId');
+        }
       }
 
       // Capture previous state slices (OLD state - before recomputation)
@@ -397,18 +451,24 @@ class CardAnimationDetector {
       if (LOGGING_SWITCH) {
         final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
         if (actionPlayerId != currentUserId) {
-          _logger.debug('🎬 CardAnimationDetector: Cleared action for CPU player $actionPlayerId (preventing re-queueing, backend manages game logic)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('🎬 CardAnimationDetector: Cleared action for CPU player $actionPlayerId (preventing re-queueing, backend manages game logic)');
+          }
         }
       }
 
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 CardAnimationDetector: Previous state captured, animation queued, and action cleared from state', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardAnimationDetector: Previous state captured, animation queued, and action cleared from state');
+        }
       }
 
       return true;
     } catch (e, stackTrace) {
       // Action detection error should not block state updates
-      _logger.error('🎬 CardAnimationDetector: Error in state-based action detection (non-blocking): $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('🎬 CardAnimationDetector: Error in state-based action detection (non-blocking): $e', error: e, stackTrace: stackTrace);
+      }
       return false;
     }
   }
@@ -422,7 +482,9 @@ class CardAnimationDetector {
       final currentGameId = newState['currentGameId']?.toString() ?? '';
       if (currentGameId.isEmpty) {
         if (LOGGING_SWITCH) {
-          _logger.debug('🎬 CardAnimationDetector: No currentGameId, skipping action detection', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('🎬 CardAnimationDetector: No currentGameId, skipping action detection');
+          }
         }
         return null;
       }
@@ -431,7 +493,9 @@ class CardAnimationDetector {
       final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
       if (currentGame.isEmpty) {
         if (LOGGING_SWITCH) {
-          _logger.debug('🎬 CardAnimationDetector: Current game not found, skipping action detection', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('🎬 CardAnimationDetector: Current game not found, skipping action detection');
+          }
         }
         return null;
       }
@@ -440,7 +504,9 @@ class CardAnimationDetector {
       final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
       if (gameState.isEmpty) {
         if (LOGGING_SWITCH) {
-          _logger.debug('🎬 CardAnimationDetector: Game state not found, skipping action detection', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('🎬 CardAnimationDetector: Game state not found, skipping action detection');
+          }
         }
         return null;
       }
@@ -457,7 +523,9 @@ class CardAnimationDetector {
 
         if (action != null && action.isNotEmpty && actionData != null && playerId.isNotEmpty) {
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 CardAnimationDetector: Found action in player $playerId - action: $action, actionData: $actionData', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Found action in player $playerId - action: $action, actionData: $actionData');
+            }
           }
 
           return {
@@ -469,12 +537,16 @@ class CardAnimationDetector {
       }
 
       if (LOGGING_SWITCH) {
-        _logger.debug('🎬 CardAnimationDetector: No actions detected in any player', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 CardAnimationDetector: No actions detected in any player');
+        }
       }
       return null;
 
     } catch (e, stackTrace) {
-      _logger.error('🎬 CardAnimationDetector: Error detecting player actions: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('🎬 CardAnimationDetector: Error detecting player actions: $e', error: e, stackTrace: stackTrace);
+      }
       return null;
     }
   }
@@ -511,13 +583,17 @@ class CardAnimationDetector {
           player.remove('actionData');
 
           if (LOGGING_SWITCH && hadAction) {
-            _logger.info('🎬 CardAnimationDetector: Cleared action from state for player $playerId - previous action: $actionType', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardAnimationDetector: Cleared action from state for player $playerId - previous action: $actionType');
+            }
           }
           break;
         }
       }
     } catch (e, stackTrace) {
-      _logger.error('🎬 CardAnimationDetector: Error clearing action from state: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('🎬 CardAnimationDetector: Error clearing action from state: $e', error: e, stackTrace: stackTrace);
+      }
     }
   }
 }

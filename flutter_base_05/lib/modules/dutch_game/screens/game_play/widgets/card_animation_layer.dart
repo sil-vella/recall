@@ -67,7 +67,9 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
     final animations = _animationDetector.animationTriggers.value;
     if (animations == null || animations.isEmpty) return;
     
-    _logger.info('🎬 CardAnimationLayer: Received ${animations.length} animations', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationLayer: Received ${animations.length} animations');
+    }
     
     // Start all animations
     for (final animation in animations) {
@@ -79,7 +81,9 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
   void addAnimations(List<CardAnimation> animations) {
     if (animations.isEmpty) return;
     
-    _logger.info('🎬 CardAnimationLayer: Adding ${animations.length} animations directly', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationLayer: Adding ${animations.length} animations directly');
+    }
     
     for (final animation in animations) {
       _startAnimation(animation);
@@ -90,11 +94,15 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
   void _startAnimation(CardAnimation animation) {
     // Skip if animation already active for this cardId
     if (_activeAnimations.containsKey(animation.cardId)) {
-      _logger.info('🎬 CardAnimationLayer: Animation already active for ${animation.cardId}, skipping', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationLayer: Animation already active for ${animation.cardId}, skipping');
+      }
       return;
     }
     
-    _logger.info('🎬 CardAnimationLayer: Starting animation for ${animation.cardId}: ${animation.type}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationLayer: Starting animation for ${animation.cardId}: ${animation.type}');
+    }
     
     // Create animation controller
     final controller = AnimationController(
@@ -141,7 +149,9 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
     // Trigger rebuild to show animated card
     if (mounted) {
       setState(() {
-        _logger.info('🎬 CardAnimationLayer: setState called for ${animation.cardId}, active animations: ${_activeAnimations.length}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardAnimationLayer: setState called for ${animation.cardId}, active animations: ${_activeAnimations.length}');
+        }
       });
     }
     
@@ -168,7 +178,9 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
       if (stackContext != null) {
         stackRenderBox = stackContext.findRenderObject() as RenderBox?;
         if (stackRenderBox != null) {
-          _logger.info('🎬 CardAnimationLayer: Using Stack key for coordinate conversion', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 CardAnimationLayer: Using Stack key for coordinate conversion');
+          }
         }
       }
     }
@@ -177,12 +189,16 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
     if (stackRenderBox == null) {
       stackRenderBox = context.findRenderObject() as RenderBox?;
       if (stackRenderBox != null) {
-        _logger.info('🎬 CardAnimationLayer: Using widget RenderBox for coordinate conversion', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardAnimationLayer: Using widget RenderBox for coordinate conversion');
+        }
       }
     }
     
     if (stackRenderBox == null) {
-      _logger.info('🎬 CardAnimationLayer: Cannot convert coordinates - stackRenderBox is null, using global position', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardAnimationLayer: Cannot convert coordinates - stackRenderBox is null, using global position');
+      }
       return globalPosition;
     }
     
@@ -198,14 +214,18 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
       globalPosition.dy - stackGlobalPosition.dy,
     );
     
-    _logger.info('🎬 CardAnimationLayer: Coordinate conversion - card global: (${globalPosition.dx.toStringAsFixed(1)}, ${globalPosition.dy.toStringAsFixed(1)}), stack global: (${stackGlobalPosition.dx.toStringAsFixed(1)}, ${stackGlobalPosition.dy.toStringAsFixed(1)}), stack size: (${stackSize.width.toStringAsFixed(1)}, ${stackSize.height.toStringAsFixed(1)}), stack-relative: (${converted.dx.toStringAsFixed(1)}, ${converted.dy.toStringAsFixed(1)})', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationLayer: Coordinate conversion - card global: (${globalPosition.dx.toStringAsFixed(1)}, ${globalPosition.dy.toStringAsFixed(1)}), stack global: (${stackGlobalPosition.dx.toStringAsFixed(1)}, ${stackGlobalPosition.dy.toStringAsFixed(1)}), stack size: (${stackSize.width.toStringAsFixed(1)}, ${stackSize.height.toStringAsFixed(1)}), stack-relative: (${converted.dx.toStringAsFixed(1)}, ${converted.dy.toStringAsFixed(1)})');
+    }
     
     return converted;
   }
 
   /// Handle animation completion
   void _completeAnimation(String cardId) {
-    _logger.info('🎬 CardAnimationLayer: Animation completed for $cardId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationLayer: Animation completed for $cardId');
+    }
     
     // Cleanup after a short delay to allow final frame to render
     Future.delayed(const Duration(milliseconds: 50), () {
@@ -224,7 +244,9 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
     
     controller?.dispose();
     
-    _logger.info('🎬 CardAnimationLayer: Cleaned up animation for $cardId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationLayer: Cleaned up animation for $cardId');
+    }
     
     if (mounted) {
       setState(() {});
@@ -324,11 +346,15 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
       return const SizedBox.shrink();
     }
     
-    _logger.info('🎬 CardAnimationLayer: Building with ${_activeAnimations.length} active animations', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationLayer: Building with ${_activeAnimations.length} active animations');
+    }
     
     // Get screen size to ensure full coverage
     final screenSize = MediaQuery.of(context).size;
-    _logger.info('🎬 CardAnimationLayer: Screen size: ${screenSize.width}x${screenSize.height}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardAnimationLayer: Screen size: ${screenSize.width}x${screenSize.height}');
+    }
     
     // Use Positioned.fill to fill the entire Stack area
     // This works regardless of Stack constraints (even with unbounded height)
@@ -471,7 +497,9 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
                 if (positionAnimation.status == AnimationStatus.forward) {
                   final frameCount = (positionAnimation.value.dx * 10).toInt();
                   if (frameCount == 0 || frameCount % 5 == 0) {
-                    _logger.info('🎬 CardAnimationLayer: Rendering $cardId at (${currentPosition.dx.toStringAsFixed(1)}, ${currentPosition.dy.toStringAsFixed(1)}) with size ${currentSize.width.toStringAsFixed(1)}x${currentSize.height.toStringAsFixed(1)}, animation status: ${positionAnimation.status}', isOn: LOGGING_SWITCH);
+                    if (LOGGING_SWITCH) {
+                      _logger.info('🎬 CardAnimationLayer: Rendering $cardId at (${currentPosition.dx.toStringAsFixed(1)}, ${currentPosition.dy.toStringAsFixed(1)}) with size ${currentSize.width.toStringAsFixed(1)}x${currentSize.height.toStringAsFixed(1)}, animation status: ${positionAnimation.status}');
+                    }
                   }
                 }
                 

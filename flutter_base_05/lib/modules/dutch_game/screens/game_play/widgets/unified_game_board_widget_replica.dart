@@ -44,8 +44,9 @@ class _UnifiedGameBoardWidgetReplicaState extends State<UnifiedGameBoardWidgetRe
   void initState() {
     super.initState();
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 UnifiedGameBoardWidgetReplica: initState - registering section keys', isOn: LOGGING_SWITCH);
-    }
+        _logger.info('🎬 UnifiedGameBoardWidgetReplica: initState - registering section keys');
+      
+      }
     
     // Register section keys with animation manager
     _animationManager.registerSectionKey('myHand', _myHandKey);
@@ -57,8 +58,9 @@ class _UnifiedGameBoardWidgetReplicaState extends State<UnifiedGameBoardWidgetRe
   @override
   void dispose() {
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 UnifiedGameBoardWidgetReplica: dispose', isOn: LOGGING_SWITCH);
-    }
+        _logger.info('🎬 UnifiedGameBoardWidgetReplica: dispose');
+      
+      }
     super.dispose();
   }
 
@@ -71,7 +73,8 @@ class _UnifiedGameBoardWidgetReplicaState extends State<UnifiedGameBoardWidgetRe
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _animationManager.updateCachedBounds();
       if (LOGGING_SWITCH) {
-        _logger.debug('🎬 UnifiedGameBoardWidgetReplica: Updated cached bounds after build', isOn: LOGGING_SWITCH);
+        _logger.debug('🎬 UnifiedGameBoardWidgetReplica: Updated cached bounds after build');
+        
       }
     });
     
@@ -113,7 +116,8 @@ class _UnifiedGameBoardWidgetReplicaState extends State<UnifiedGameBoardWidgetRe
       // Register with animation manager
       _animationManager.registerCardKey(cardId, _cardKeys[key]!);
       if (LOGGING_SWITCH) {
-        _logger.debug('🎬 UnifiedGameBoardWidgetReplica: Registered card key for cardId: $cardId, keyType: $keyType', isOn: LOGGING_SWITCH);
+        _logger.debug('🎬 UnifiedGameBoardWidgetReplica: Registered card key for cardId: $cardId, keyType: $keyType');
+        
       }
     }
     return _cardKeys[key]!;

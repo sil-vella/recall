@@ -334,10 +334,14 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
                 _animationPhase = 3;
               });
               
-              _logger.info('🃏 JackSwapDemo: Starting swap animation - phase: $_animationPhase', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('🃏 JackSwapDemo: Starting swap animation - phase: $_animationPhase');
+              }
               
               _swapAnimationController.forward(from: 0.0).then((_) {
-                _logger.info('🃏 JackSwapDemo: Swap animation completed', isOn: LOGGING_SWITCH);
+                if (LOGGING_SWITCH) {
+                  _logger.info('🃏 JackSwapDemo: Swap animation completed');
+                }
                   if (!mounted) return;
                   
                   // Phase 4: Complete - cards are face down
@@ -372,17 +376,23 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
   }
   
   void _setupSwapAnimations() {
-    _logger.info('🃏 JackSwapDemo: Setting up swap animations - phase: $_animationPhase, example: $_currentExample', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🃏 JackSwapDemo: Setting up swap animations - phase: $_animationPhase, example: $_currentExample');
+    }
     
     // Get positions after layout
     final firstCardRenderBox = _firstCardKey.currentContext?.findRenderObject() as RenderBox?;
     final secondCardRenderBox = _secondCardKey.currentContext?.findRenderObject() as RenderBox?;
     final stackRenderBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     
-    _logger.info('🃏 JackSwapDemo: RenderBox check - firstCard: ${firstCardRenderBox != null}, secondCard: ${secondCardRenderBox != null}, stack: ${stackRenderBox != null}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🃏 JackSwapDemo: RenderBox check - firstCard: ${firstCardRenderBox != null}, secondCard: ${secondCardRenderBox != null}, stack: ${stackRenderBox != null}');
+    }
     
     if (firstCardRenderBox == null || secondCardRenderBox == null || stackRenderBox == null) {
-      _logger.warning('🃏 JackSwapDemo: Cannot setup animations - missing RenderBoxes', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('🃏 JackSwapDemo: Cannot setup animations - missing RenderBoxes');
+      }
       return;
     }
     
@@ -390,14 +400,18 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
     _firstCardBaseSize = firstCardRenderBox.size;
     _secondCardBaseSize = secondCardRenderBox.size;
     
-    _logger.info('🃏 JackSwapDemo: Card sizes - first: ${_firstCardBaseSize}, second: ${_secondCardBaseSize}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🃏 JackSwapDemo: Card sizes - first: ${_firstCardBaseSize}, second: ${_secondCardBaseSize}');
+    }
     
     // Get positions relative to stack
     final firstCardPosition = firstCardRenderBox.localToGlobal(Offset.zero);
     final secondCardPosition = secondCardRenderBox.localToGlobal(Offset.zero);
     final stackPosition = stackRenderBox.localToGlobal(Offset.zero);
     
-    _logger.info('🃏 JackSwapDemo: Positions - firstCard: $firstCardPosition, secondCard: $secondCardPosition, stack: $stackPosition', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🃏 JackSwapDemo: Positions - firstCard: $firstCardPosition, secondCard: $secondCardPosition, stack: $stackPosition');
+    }
     
     final firstCardCenter = Offset(
       firstCardPosition.dx - stackPosition.dx + firstCardRenderBox.size.width / 2,
@@ -409,11 +423,15 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
       secondCardPosition.dy - stackPosition.dy + secondCardRenderBox.size.height / 2,
     );
     
-    _logger.info('🃏 JackSwapDemo: Calculated centers - first: $firstCardCenter, second: $secondCardCenter', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🃏 JackSwapDemo: Calculated centers - first: $firstCardCenter, second: $secondCardCenter');
+    }
     
     // Calculate size ratio
     final sizeRatio = firstCardRenderBox.size.width / secondCardRenderBox.size.width;
-    _logger.info('🃏 JackSwapDemo: Size ratio: $sizeRatio', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🃏 JackSwapDemo: Size ratio: $sizeRatio');
+    }
     
     // Create swap animations
     _firstCardSwapAnimation = Tween<Offset>(
@@ -432,7 +450,9 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
       curve: const Interval(0.0, 0.8, curve: Curves.easeInOut),
     ));
     
-    _logger.info('🃏 JackSwapDemo: Swap animations created - first: ${_firstCardSwapAnimation.value} -> ${secondCardCenter}, second: ${_secondCardSwapAnimation.value} -> $firstCardCenter', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🃏 JackSwapDemo: Swap animations created - first: ${_firstCardSwapAnimation.value} -> ${secondCardCenter}, second: ${_secondCardSwapAnimation.value} -> $firstCardCenter');
+    }
     
     // Size animations (only if cards are different sizes)
     if (_isFirstCardMyHand() != _isSecondCardMyHand()) {
@@ -768,13 +788,17 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
                   final secondCardData = _getSecondCardData();
               
                   if (firstCardData == null || secondCardData == null) {
-                    _logger.warning('🃏 JackSwapDemo: Missing card data in animation builder', isOn: LOGGING_SWITCH);
+                    if (LOGGING_SWITCH) {
+                      _logger.warning('🃏 JackSwapDemo: Missing card data in animation builder');
+                    }
                     return const SizedBox.shrink();
                   }
                   
                   // Use stored base sizes (set in _setupSwapAnimations)
                   if (_firstCardBaseSize == null || _secondCardBaseSize == null) {
-                    _logger.warning('🃏 JackSwapDemo: Missing base sizes in animation builder - first: ${_firstCardBaseSize != null}, second: ${_secondCardBaseSize != null}', isOn: LOGGING_SWITCH);
+                    if (LOGGING_SWITCH) {
+                      _logger.warning('🃏 JackSwapDemo: Missing base sizes in animation builder - first: ${_firstCardBaseSize != null}, second: ${_secondCardBaseSize != null}');
+                    }
                     return const SizedBox.shrink();
                   }
                   
@@ -782,9 +806,13 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
                   try {
                     final firstOffset = _firstCardSwapAnimation.value;
                     final secondOffset = _secondCardSwapAnimation.value;
-                    _logger.info('🃏 JackSwapDemo: Animation values - first: $firstOffset, second: $secondOffset, controller: ${_swapAnimationController.value}', isOn: LOGGING_SWITCH);
+                    if (LOGGING_SWITCH) {
+                      _logger.info('🃏 JackSwapDemo: Animation values - first: $firstOffset, second: $secondOffset, controller: ${_swapAnimationController.value}');
+                    }
                   } catch (e) {
-                    _logger.error('🃏 JackSwapDemo: Error accessing animation values: $e', isOn: LOGGING_SWITCH);
+                    if (LOGGING_SWITCH) {
+                      _logger.error('🃏 JackSwapDemo: Error accessing animation values: $e');
+                    }
                     return const SizedBox.shrink();
                   }
                   

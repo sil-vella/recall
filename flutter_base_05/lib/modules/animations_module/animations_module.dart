@@ -18,13 +18,17 @@ class AnimationsModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
-    _logger.info('✅ AnimationsModule initialized with context.', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ AnimationsModule initialized with context.');
+    }
   }
 
   /// ✅ Cleanup logic for AnimationsModule
   @override
   void dispose() {
-    _logger.info('Cleaning up AnimationsModule resources.', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Cleaning up AnimationsModule resources.');
+    }
 
     for (final controller in _controllers) {
       if (controller.isAnimating) {
@@ -39,14 +43,18 @@ class AnimationsModule extends ModuleBase {
     }
     _confettiControllers.clear();
 
-    _logger.info('AnimationsModule fully disposed.', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('AnimationsModule fully disposed.');
+    }
     super.dispose();
   }
 
   /// ✅ Registers an AnimationController for later cleanup
   void registerController(AnimationController controller) {
     _controllers.add(controller);
-    _logger.info('Registered AnimationController: $controller', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Registered AnimationController: $controller');
+    }
   }
 
   /// ✅ Method to trigger confetti animation
@@ -56,14 +64,18 @@ class AnimationsModule extends ModuleBase {
     }
 
     _confettiControllers[key]!.play();
-    _logger.info('🎉 Confetti started: $key', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎉 Confetti started: $key');
+    }
   }
 
   /// ✅ Stop confetti animation
   void stopConfetti({required String key}) {
     if (_confettiControllers.containsKey(key)) {
       _confettiControllers[key]!.stop();
-      _logger.info('⏹️ Confetti stopped: $key', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('⏹️ Confetti stopped: $key');
+      }
     }
   }
 
@@ -84,25 +96,33 @@ class AnimationsModule extends ModuleBase {
     if (_confettiControllers.containsKey(key)) {
       _confettiControllers[key]!.dispose();
       _confettiControllers.remove(key);
-      _logger.info('🗑️ Removed confetti controller: $key', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🗑️ Removed confetti controller: $key');
+      }
     }
   }
 
   /// ✅ Play success animation
   void playSuccessAnimation() {
     playConfetti(key: 'success');
-    _logger.info('✅ Success animation played', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ Success animation played');
+    }
   }
 
   /// ✅ Play celebration animation
   void playCelebrationAnimation() {
     playConfetti(key: 'celebration');
-    _logger.info('🎉 Celebration animation played', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎉 Celebration animation played');
+    }
   }
 
   /// ✅ Play level up animation
   void playLevelUpAnimation() {
     playConfetti(key: 'level_up');
-    _logger.info('📈 Level up animation played', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📈 Level up animation played');
+    }
   }
 }

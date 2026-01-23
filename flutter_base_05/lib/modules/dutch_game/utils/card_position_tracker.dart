@@ -100,7 +100,9 @@ class CardPositionTracker {
   /// This should be called once at match start
   void cacheStaticPosition(String location, Offset position, Size size) {
     if (!isStaticLocation(location)) {
-      _logger.warning('🎬 CardPositionTracker: Attempted to cache non-static location: $location', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('🎬 CardPositionTracker: Attempted to cache non-static location: $location');
+      }
       return;
     }
 
@@ -114,7 +116,9 @@ class CardPositionTracker {
     );
 
     _staticPositions[location] = staticPosition;
-    _logger.info('🎬 CardPositionTracker: Cached static position for $location at (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size: ${size.width.toStringAsFixed(1)}x${size.height.toStringAsFixed(1)}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionTracker: Cached static position for $location at (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size: ${size.width.toStringAsFixed(1)}x${size.height.toStringAsFixed(1)}');
+    }
   }
 
   /// Get cached static position for a location
@@ -132,11 +136,15 @@ class CardPositionTracker {
   void registerCardPosition(CardPosition position) {
     // Skip registration for static locations - they use cached positions
     if (isStaticLocation(position.location)) {
-      _logger.info('🎬 CardPositionTracker: Skipping registration for static location ${position.location} (cardId: ${position.cardId})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardPositionTracker: Skipping registration for static location ${position.location} (cardId: ${position.cardId})');
+      }
       return;
     }
 
-    _logger.info('🎬 CardPositionTracker: Registering position for ${position.cardId} at ${position.location} (${position.position.dx.toStringAsFixed(1)}, ${position.position.dy.toStringAsFixed(1)})', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionTracker: Registering position for ${position.cardId} at ${position.location} (${position.position.dx.toStringAsFixed(1)}, ${position.position.dy.toStringAsFixed(1)})');
+    }
     _currentPositions[position.cardId] = position;
   }
 
@@ -173,7 +181,9 @@ class CardPositionTracker {
   }) {
     final renderObject = key.currentContext?.findRenderObject();
     if (renderObject == null || renderObject is! RenderBox) {
-      _logger.info('🎬 CardPositionTracker: Cannot calculate position for $cardId - renderObject is null or not RenderBox', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardPositionTracker: Cannot calculate position for $cardId - renderObject is null or not RenderBox');
+      }
       return null;
     }
 
@@ -185,7 +195,9 @@ class CardPositionTracker {
     // Get size
     final size = renderBox.size;
     
-    _logger.info('🎬 CardPositionTracker: Calculated position for $cardId: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size: ${size.width.toStringAsFixed(1)}x${size.height.toStringAsFixed(1)}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionTracker: Calculated position for $cardId: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size: ${size.width.toStringAsFixed(1)}x${size.height.toStringAsFixed(1)}');
+    }
 
     return CardPosition(
       cardId: cardId,
@@ -215,24 +227,38 @@ class CardPositionTracker {
   List<CardMovement> detectMovements() {
     final movements = <CardMovement>[];
     
-    _logger.info('🎬 CardPositionTracker: Detecting movements - current: ${_currentPositions.length}, previous: ${_previousPositions.length}, static: ${_staticPositions.length}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionTracker: Detecting movements - current: ${_currentPositions.length}, previous: ${_previousPositions.length}, static: ${_staticPositions.length}');
+    }
     
     // Log previous positions for debugging
-    _logger.info('🎬 CardPositionTracker: Previous positions:', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionTracker: Previous positions:');
+    }
     for (final entry in _previousPositions.entries) {
-      _logger.info('🎬 CardPositionTracker:   Previous: ${entry.key} at ${entry.value.location}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardPositionTracker:   Previous: ${entry.key} at ${entry.value.location}');
+      }
     }
     
     // Log current positions for debugging
-    _logger.info('🎬 CardPositionTracker: Current positions:', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionTracker: Current positions:');
+    }
     for (final entry in _currentPositions.entries) {
-      _logger.info('🎬 CardPositionTracker:   Current: ${entry.key} at ${entry.value.location}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardPositionTracker:   Current: ${entry.key} at ${entry.value.location}');
+      }
     }
 
     // Log static positions for debugging
-    _logger.info('🎬 CardPositionTracker: Static positions:', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionTracker: Static positions:');
+    }
     for (final entry in _staticPositions.entries) {
-      _logger.info('🎬 CardPositionTracker:   Static: ${entry.key} at (${entry.value.position.dx.toStringAsFixed(1)}, ${entry.value.position.dy.toStringAsFixed(1)})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 CardPositionTracker:   Static: ${entry.key} at (${entry.value.position.dx.toStringAsFixed(1)}, ${entry.value.position.dy.toStringAsFixed(1)})');
+      }
     }
 
     // Check for cards that moved (exist in both old and new, but different position)
@@ -244,10 +270,14 @@ class CardPositionTracker {
       if (oldPosition != null) {
         // Card exists in both old and new positions
         if (oldPosition.isDifferentFrom(newPosition)) {
-          _logger.info('🎬 CardPositionTracker: Detected movement for $cardId: ${oldPosition.location} -> ${newPosition.location}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 CardPositionTracker: Detected movement for $cardId: ${oldPosition.location} -> ${newPosition.location}');
+          }
           movements.add(CardMovement(old: oldPosition, new_: newPosition));
         } else {
-          _logger.info('🎬 CardPositionTracker: Card $cardId at same position (${oldPosition.location})', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 CardPositionTracker: Card $cardId at same position (${oldPosition.location})');
+          }
         }
       } else {
         // Card appeared in hand (exists in new but not old)
@@ -257,10 +287,14 @@ class CardPositionTracker {
           if (drawPilePosition != null) {
             // Create a CardPosition for this specific card at draw_pile
             final fromDrawPile = drawPilePosition.copyWith(cardId: cardId);
-            _logger.info('🎬 CardPositionTracker: Card $cardId appeared in hand, animating from draw_pile', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardPositionTracker: Card $cardId appeared in hand, animating from draw_pile');
+            }
             movements.add(CardMovement(old: fromDrawPile, new_: newPosition));
           } else {
-            _logger.info('🎬 CardPositionTracker: Card $cardId appeared at ${newPosition.location} (draw_pile position not cached yet)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardPositionTracker: Card $cardId appeared at ${newPosition.location} (draw_pile position not cached yet)');
+            }
           }
         }
       }
@@ -280,13 +314,19 @@ class CardPositionTracker {
           if (discardPilePosition != null) {
             // Create a CardPosition for this specific card at discard_pile
             final toDiscardPile = discardPilePosition.copyWith(cardId: cardId);
-            _logger.info('🎬 CardPositionTracker: Card $cardId disappeared from hand, animating to discard_pile', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardPositionTracker: Card $cardId disappeared from hand, animating to discard_pile');
+            }
             movements.add(CardMovement(old: oldPosition, new_: toDiscardPile));
           } else {
-            _logger.info('🎬 CardPositionTracker: Card $cardId disappeared from ${oldPosition.location} (discard_pile position not cached yet)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 CardPositionTracker: Card $cardId disappeared from ${oldPosition.location} (discard_pile position not cached yet)');
+            }
           }
         } else {
-          _logger.info('🎬 CardPositionTracker: Card $cardId disappeared from ${oldPosition.location} (not in current positions)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 CardPositionTracker: Card $cardId disappeared from ${oldPosition.location} (not in current positions)');
+          }
         }
       }
     }
@@ -317,7 +357,9 @@ class CardPositionTracker {
   void removeCardPosition(String cardId) {
     _currentPositions.remove(cardId);
     _previousPositions.remove(cardId);
-    _logger.info('🎬 CardPositionTracker: Removed position registration for $cardId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionTracker: Removed position registration for $cardId');
+    }
   }
 
   /// Get count of tracked positions

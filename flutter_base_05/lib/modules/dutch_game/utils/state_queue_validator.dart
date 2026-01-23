@@ -540,7 +540,9 @@ class StateQueueValidator {
 
   /// Set the handler for applying validated updates (platform-specific)
   void setUpdateHandler(StateUpdateHandler handler) {
-    _logger.info('StateQueueValidator: setUpdateHandler called', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('StateQueueValidator: setUpdateHandler called');
+    }
     _updateHandler = handler;
   }
 
@@ -551,7 +553,9 @@ class StateQueueValidator {
   /// If the queue is empty, processing starts immediately.
   void enqueueUpdate(Map<String, dynamic> update) {
     _updateQueue.add(update);
-    _logger.debug('StateQueueValidator: Enqueued update with keys: ${update.keys.join(', ')}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('StateQueueValidator: Enqueued update with keys: ${update.keys.join(', ')}');
+    }
     
     // Start processing if not already processing
     if (!_isProcessing) {
@@ -580,23 +584,39 @@ class StateQueueValidator {
 
           // Apply the validated update via handler
           if (_updateHandler != null) {
-            _logger.debug('StateQueueValidator: About to call handler with keys: ${validatedUpdate.keys.join(', ')}', isOn: LOGGING_SWITCH);
-            _logger.info('StateQueueValidator: Handler is NOT NULL, calling it now', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.debug('StateQueueValidator: About to call handler with keys: ${validatedUpdate.keys.join(', ')}');
+            }
+            if (LOGGING_SWITCH) {
+              _logger.info('StateQueueValidator: Handler is NOT NULL, calling it now');
+            }
             try {
-              _logger.info('StateQueueValidator: Calling _updateHandler!() now', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('StateQueueValidator: Calling _updateHandler!() now');
+              }
               _updateHandler!(validatedUpdate);
-              _logger.info('StateQueueValidator: _updateHandler!() call returned (no exception)', isOn: LOGGING_SWITCH);
-              _logger.debug('StateQueueValidator: Handler completed successfully, applied validated update with keys: ${validatedUpdate.keys.join(', ')}', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('StateQueueValidator: _updateHandler!() call returned (no exception)');
+              }
+              if (LOGGING_SWITCH) {
+                _logger.debug('StateQueueValidator: Handler completed successfully, applied validated update with keys: ${validatedUpdate.keys.join(', ')}');
+              }
             } catch (e, stackTrace) {
-              _logger.error('StateQueueValidator: Handler threw exception: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('StateQueueValidator: Handler threw exception: $e', error: e, stackTrace: stackTrace);
+              }
               rethrow;
             }
           } else {
-            _logger.error('StateQueueValidator: No update handler set, skipping update', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('StateQueueValidator: No update handler set, skipping update');
+            }
           }
         } catch (e) {
           // Log error but continue processing queue
-          _logger.error('StateQueueValidator: Validation failed for update: $e', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('StateQueueValidator: Validation failed for update: $e');
+          }
         }
       }
     } finally {
@@ -607,7 +627,9 @@ class StateQueueValidator {
   /// Clear all pending updates from the queue
   void clearQueue() {
     _updateQueue.clear();
-    _logger.debug('StateQueueValidator: Cleared update queue', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('StateQueueValidator: Cleared update queue');
+    }
   }
 
   /// Validate a state update against the schema
@@ -625,7 +647,9 @@ class StateQueueValidator {
       final fieldSpec = _stateSchema[key];
       if (fieldSpec == null) {
         final error = 'Unknown state field: "$key". Allowed fields: ${_stateSchema.keys.join(', ')}';
-        _logger.error('StateQueueValidator: Schema validation failed - $error', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('StateQueueValidator: Schema validation failed - $error');
+        }
         throw DutchStateException(error, fieldName: key);
       }
 
@@ -634,7 +658,9 @@ class StateQueueValidator {
         final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
         validatedUpdates[key] = validatedValue;
       } catch (e) {
-        _logger.error('StateQueueValidator: Field validation failed for "$key": $e', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('StateQueueValidator: Field validation failed for "$key": $e');
+        }
         rethrow;
       }
     }
@@ -662,7 +688,9 @@ class StateQueueValidator {
     if (value == null) {
       if (spec.required) {
         final error = 'Field "$key" is required and cannot be null';
-        _logger.error('StateQueueValidator: $error', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('StateQueueValidator: $error');
+        }
         throw DutchStateException(error, fieldName: key);
       }
       // If field is nullable, allow null values
@@ -675,14 +703,18 @@ class StateQueueValidator {
     // Type validation
     if (!ValidationUtils.isValidType(value, spec.type)) {
       final error = 'Field "$key" must be of type ${spec.type}, got ${value.runtimeType}';
-      _logger.error('StateQueueValidator: $error', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('StateQueueValidator: $error');
+      }
       throw DutchStateException(error, fieldName: key);
     }
 
     // Allowed values validation
     if (spec.allowedValues != null && !ValidationUtils.isAllowedValue(value, spec.allowedValues!)) {
       final error = 'Field "$key" value "$value" is not allowed. Allowed values: ${spec.allowedValues!.join(', ')}';
-      _logger.error('StateQueueValidator: $error', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('StateQueueValidator: $error');
+      }
       throw DutchStateException(error, fieldName: key);
     }
 
@@ -694,7 +726,9 @@ class StateQueueValidator {
           if (spec.max != null) 'max: ${spec.max}',
         ].join(', ');
         final error = 'Field "$key" value $value is out of range ($rangeDesc)';
-        _logger.error('StateQueueValidator: $error', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('StateQueueValidator: $error');
+        }
         throw DutchStateException(error, fieldName: key);
       }
     }

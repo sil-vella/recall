@@ -102,7 +102,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   void sendGameStateToPlayer(String playerId, Map<String, dynamic> updates) {
     // Validate and apply updates to state store (same as onGameStateChanged)
     // But send only to the specific player instead of broadcasting
-    _logger.info('📤 sendGameStateToPlayer: Sending state update to player $playerId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📤 sendGameStateToPlayer: Sending state update to player $playerId');
+    }
     
     try {
       // Validate updates using the same validator (direct validation, not queued)
@@ -253,9 +255,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       if (LOGGING_SWITCH) {
         _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received turn_events in validatedUpdates: ${turnEventsInUpdates.length} events');
       }
-      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEventsInUpdates.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEventsInUpdates.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
+      }
     } else {
-      _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received NO turn_events in validatedUpdates. Keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received NO turn_events in validatedUpdates. Keys: ${validatedUpdates.keys.toList()}');
+      }
     }
     
     // Merge into state root
@@ -293,7 +299,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           normalizedPhase = 'game_ended'; // Pass through game_ended as-is
         }
         gameState['phase'] = normalizedPhase;
-        _logger.info('GameStateCallback: Copied gamePhase ($phase) to game_state[phase] ($normalizedPhase) for broadcast', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameStateCallback: Copied gamePhase ($phase) to game_state[phase] ($normalizedPhase) for broadcast');
+        }
       }
     }
     // Ensure phase key and playerCount
@@ -313,7 +321,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     if (LOGGING_SWITCH) {
       _logger.info('🔍 TURN_EVENTS DEBUG - Broadcasting game_state_updated with ${turnEvents.length} turn_events');
     }
-    _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
+    }
     
     server.broadcastToRoom(roomId, {
       'event': 'game_state_updated',
@@ -403,7 +413,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
     final status = currentPlayer?['status'] as String?;
     
-    _logger.info('GameRegistry: getTimerConfig() for room $roomId - phase: $phase, status: $status', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameRegistry: getTimerConfig() for room $roomId - phase: $phase, status: $status');
+    }
     
     // Get all timer values from single source of truth
     final allTimerValues = ServerGameStateCallbackImpl.getAllTimerValues();
@@ -477,7 +489,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Get showInstructions from game state (default to false if not found)
     final showInstructions = gameState['showInstructions'] as bool? ?? false;
     
-    _logger.info('GameRegistry: getTimerConfig() returning turnTimeLimit: $turnTimeLimit for room $roomId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameRegistry: getTimerConfig() returning turnTimeLimit: $turnTimeLimit for room $roomId');
+    }
     
     return {
       'turnTimeLimit': turnTimeLimit,
@@ -489,11 +503,15 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   void triggerLeaveRoom(String playerId) {
     // Only trigger for multiplayer matches (room_*), not practice (practice_room_*)
     if (!roomId.startsWith('room_')) {
-      _logger.info('GameStateCallback: Skipping auto-leave for non-multiplayer room $roomId (player $playerId)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Skipping auto-leave for non-multiplayer room $roomId (player $playerId)');
+      }
       return;
     }
     
-    _logger.info('GameStateCallback: Triggering auto-leave for player $playerId in room $roomId (2 missed actions)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameStateCallback: Triggering auto-leave for player $playerId in room $roomId (2 missed actions)');
+    }
     
     try {
       // Get userId from session (playerId = sessionId in this system)
@@ -522,7 +540,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   void onGameEnded(List<Map<String, dynamic>> winners, List<Map<String, dynamic>> allPlayers, {int? matchPot}) {
     // Only update stats for multiplayer matches (room_*), not practice (practice_room_*)
     if (!roomId.startsWith('room_')) {
-      _logger.info('GameStateCallback: Skipping stats update for non-multiplayer room $roomId (practice mode)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Skipping stats update for non-multiplayer room $roomId (practice mode)');
+      }
       return;
     }
 

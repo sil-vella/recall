@@ -34,7 +34,9 @@ class ActionTextWidget extends StatelessWidget {
         final gameState = gameData?['game_state'] as Map<String, dynamic>?;
         final showInstructions = gameState?['showInstructions'] as bool? ?? false;
         
-        _logger.info('ActionTextWidget: isVisible=$isVisible, text=$text, showInstructions=$showInstructions', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('ActionTextWidget: isVisible=$isVisible, text=$text, showInstructions=$showInstructions');
+        }
         
         // Don't render if not visible, text is empty, or instructions are disabled
         if (!isVisible || text.isEmpty || !showInstructions) {

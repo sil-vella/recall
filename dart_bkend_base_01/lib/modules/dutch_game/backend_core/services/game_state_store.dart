@@ -81,7 +81,9 @@ class GameStateStore {
     // Log isClearAndCollect if present in gameState
     if (gameState.containsKey('isClearAndCollect')) {
       final value = gameState['isClearAndCollect'];
-      _logger.info('💾 GameStateStore.setGameState: isClearAndCollect in gameState: value=$value (type: ${value.runtimeType})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('💾 GameStateStore.setGameState: isClearAndCollect in gameState: value=$value (type: ${value.runtimeType})');
+      }
     }
     state['game_state'] = gameState;
     // Removed lastUpdated - causes unnecessary state updates

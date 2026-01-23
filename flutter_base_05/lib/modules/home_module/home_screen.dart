@@ -27,41 +27,57 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _logger.info('HomeScreen: initState called', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('HomeScreen: initState called');
+    }
     // Trigger home screen main hook
     // Note: HooksManager automatically re-triggers hooks for late-registering modules,
     // so modules that register after this trigger will still receive the hook
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        _logger.debug('HomeScreen: Triggering home screen main hook', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('HomeScreen: Triggering home screen main hook');
+        }
         final appManager = Provider.of<AppManager>(context, listen: false);
         appManager.triggerHomeScreenMainHook(context);
-        _logger.debug('HomeScreen: Home screen main hook triggered successfully', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('HomeScreen: Home screen main hook triggered successfully');
+        }
       } catch (e, stackTrace) {
-        _logger.error('HomeScreen: Error triggering home screen main hook', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('HomeScreen: Error triggering home screen main hook', error: e, stackTrace: stackTrace);
+        }
       }
     });
   }
 
   @override
   void dispose() {
-    _logger.debug('HomeScreen: dispose called', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('HomeScreen: dispose called');
+    }
     try {
       // Clean up app bar features when screen is disposed
       clearAppBarActions();
       // Clean up home screen button features
       unregisterHomeScreenButton('dutch_game_play');
       super.dispose();
-      _logger.debug('HomeScreen: dispose completed successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('HomeScreen: dispose completed successfully');
+      }
     } catch (e, stackTrace) {
-      _logger.error('HomeScreen: Error in dispose', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('HomeScreen: Error in dispose', error: e, stackTrace: stackTrace);
+      }
       super.dispose();
     }
   }
 
   @override
   Widget buildContent(BuildContext context) {
-    _logger.debug('HomeScreen: buildContent called', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('HomeScreen: buildContent called');
+    }
     
     try {
       return Center(
@@ -84,7 +100,9 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
         ),
       );
     } catch (e, stackTrace) {
-      _logger.error('HomeScreen: Error in buildContent', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('HomeScreen: Error in buildContent', error: e, stackTrace: stackTrace);
+      }
       // Return a fallback widget to prevent red screen
       return Center(
         child: Text(

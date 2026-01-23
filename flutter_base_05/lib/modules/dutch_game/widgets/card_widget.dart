@@ -625,7 +625,9 @@ class CardWidget extends StatelessWidget {
                   height: dimensions.height * 0.9,
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
-                    _logger.error('🖼️ CardWidget: Asset load error for card_back.png', isOn: LOGGING_SWITCH);
+                    if (LOGGING_SWITCH) {
+                      _logger.error('🖼️ CardWidget: Asset load error for card_back.png');
+                    }
                     return Icon(
                       Icons.broken_image,
                       size: dimensions.width * 0.4,
@@ -662,7 +664,9 @@ class CardWidget extends StatelessWidget {
                     );
                   },
                   errorBuilder: (context, error, stackTrace) {
-                    _logger.error('🖼️ CardWidget: Network image load error, falling back to asset', isOn: LOGGING_SWITCH);
+                    if (LOGGING_SWITCH) {
+                      _logger.error('🖼️ CardWidget: Network image load error, falling back to asset');
+                    }
                     // Fallback to asset image if network fails
                     return Image(
                       image: AssetImage('assets/images/card_back.png'),
@@ -670,7 +674,9 @@ class CardWidget extends StatelessWidget {
                       height: dimensions.height * 0.9,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
-                        _logger.error('🖼️ CardWidget: Asset fallback also failed', isOn: LOGGING_SWITCH);
+                        if (LOGGING_SWITCH) {
+                          _logger.error('🖼️ CardWidget: Asset fallback also failed');
+                        }
                         return Icon(
                           Icons.broken_image,
                           size: dimensions.width * 0.4,

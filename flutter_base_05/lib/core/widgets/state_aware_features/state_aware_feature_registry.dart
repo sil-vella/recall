@@ -13,7 +13,9 @@ class StateAwareFeatureRegistry {
   
   /// Register state-aware global app bar features
   static void registerGlobalAppBarFeatures(BuildContext context) {
-    _logger.info('🔧 StateAwareFeatureRegistry: Registering global app bar features', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔧 StateAwareFeatureRegistry: Registering global app bar features');
+    }
     
     // Register coins display feature (appears first, leftmost)
     final coinsFeature = FeatureDescriptor(
@@ -23,7 +25,9 @@ class StateAwareFeatureRegistry {
       priority: 50, // Medium priority - appears before connection status
     );
     
-    _logger.info('🔧 StateAwareFeatureRegistry: Registering coins display feature', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔧 StateAwareFeatureRegistry: Registering coins display feature');
+    }
     
     // Register connection status feature (appears last, rightmost)
     final connectionFeature = FeatureDescriptor(
@@ -40,7 +44,9 @@ class StateAwareFeatureRegistry {
       context: context,
     );
     
-    _logger.info('✅ StateAwareFeatureRegistry: Coins feature registered with scope: global_app_bar', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ StateAwareFeatureRegistry: Coins feature registered with scope: global_app_bar');
+    }
     
     FeatureRegistryManager.instance.register(
       scopeKey: 'global_app_bar',
@@ -48,7 +54,9 @@ class StateAwareFeatureRegistry {
       context: context,
     );
     
-    _logger.info('✅ StateAwareFeatureRegistry: All global app bar features registered', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ StateAwareFeatureRegistry: All global app bar features registered');
+    }
   }
   
   /// Unregister global app bar features

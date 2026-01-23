@@ -386,14 +386,18 @@ class PlayerAction {
   /// Clear Jack swap selections
   static void _clearJackSwapSelections() {
     final logger = Logger();
-    logger.info('Clearing Jack swap selections', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      logger.info('Clearing Jack swap selections');
+    }
     
     _firstSelectedCardId = null;
     _firstSelectedPlayerId = null;
     _secondSelectedCardId = null;
     _secondSelectedPlayerId = null;
     
-    logger.info('Jack swap selections cleared successfully', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      logger.info('Jack swap selections cleared successfully');
+    }
   }
 
   /// Reset Jack swap selections (call this when Jack swap is cancelled)
@@ -409,7 +413,9 @@ class PlayerAction {
   static bool isJackSwapInProgress() {
     final inProgress = _firstSelectedCardId != null;
     final logger = Logger();
-    logger.info('Jack swap in progress check: $inProgress', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      logger.info('Jack swap in progress check: $inProgress');
+    }
     return inProgress;
   }
 

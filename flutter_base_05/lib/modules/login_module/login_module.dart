@@ -86,25 +86,35 @@ class LoginModule extends ModuleBase {
 
   /// ✅ Handle refresh token expiration
   void _handleRefreshTokenExpired() {
-    Logger().info('LoginModule: _handleRefreshTokenExpired called', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      Logger().info('LoginModule: _handleRefreshTokenExpired called');
+    }
     if (_currentContext != null) {
       // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      Logger().info('LoginModule: _handleRefreshTokenExpired - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: _handleRefreshTokenExpired - isLoggedIn: $isLoggedIn');
+      }
       
       if (isLoggedIn) {
-        Logger().info('LoginModule: User is logged in, performing logout and navigating', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: User is logged in, performing logout and navigating');
+        }
         _performSynchronousLogout();
         _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
       } else {
-        Logger().info('LoginModule: User is already logged out, navigating to account screen', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: User is already logged out, navigating to account screen');
+        }
         // Still navigate to account screen even if already logged out
         _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
       }
     } else {
-      Logger().warning('LoginModule: _handleRefreshTokenExpired called but _currentContext is null, skipping navigation', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: _handleRefreshTokenExpired called but _currentContext is null, skipping navigation');
+      }
     }
   }
 
@@ -115,7 +125,9 @@ class LoginModule extends ModuleBase {
       final isGuestAccount = _sharedPref?.getBool('is_guest_account') ?? false;
       
       if (isGuestAccount) {
-        Logger().info("LoginModule: Synchronous guest account logout - preserving permanent credentials", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Synchronous guest account logout - preserving permanent credentials");
+        }
       }
       
       // Clear JWT tokens using AuthManager
@@ -129,7 +141,9 @@ class LoginModule extends ModuleBase {
         _sharedPref?.remove('user_id');
         _sharedPref?.remove('username');
         _sharedPref?.remove('email');
-        Logger().debug("LoginModule: Guest account session keys cleared in synchronous logout", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().debug("LoginModule: Guest account session keys cleared in synchronous logout");
+        }
         // DO NOT clear: guest_username, guest_email, guest_user_id, is_guest_account
       } else {
         // Regular account: Clear all credentials (existing behavior)
@@ -154,25 +168,35 @@ class LoginModule extends ModuleBase {
 
   /// ✅ Handle token refresh failure
   void _handleTokenRefreshFailed() {
-    Logger().info('LoginModule: _handleTokenRefreshFailed called', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      Logger().info('LoginModule: _handleTokenRefreshFailed called');
+    }
     if (_currentContext != null) {
       // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      Logger().info('LoginModule: _handleTokenRefreshFailed - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: _handleTokenRefreshFailed - isLoggedIn: $isLoggedIn');
+      }
       
       if (isLoggedIn) {
-        Logger().info('LoginModule: User is logged in, performing logout and navigating', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: User is logged in, performing logout and navigating');
+        }
         _performSynchronousLogout();
         _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
       } else {
-        Logger().info('LoginModule: User is already logged out, navigating to account screen', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: User is already logged out, navigating to account screen');
+        }
         // Still navigate to account screen even if already logged out
         _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
       }
     } else {
-      Logger().warning('LoginModule: _handleTokenRefreshFailed called but _currentContext is null, skipping navigation', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: _handleTokenRefreshFailed called but _currentContext is null, skipping navigation');
+      }
     }
   }
 
@@ -180,50 +204,70 @@ class LoginModule extends ModuleBase {
   void _handleAuthRequired(Map<String, dynamic> data) {
     final reason = data['reason'] ?? 'unknown';
     final message = data['message'] ?? 'Authentication required';
-    Logger().info('LoginModule: _handleAuthRequired called - reason: $reason, message: $message', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      Logger().info('LoginModule: _handleAuthRequired called - reason: $reason, message: $message');
+    }
     
     if (_currentContext != null) {
       // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      Logger().info('LoginModule: _handleAuthRequired - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: _handleAuthRequired - isLoggedIn: $isLoggedIn');
+      }
       
       if (isLoggedIn) {
-        Logger().info('LoginModule: User is logged in, performing logout and navigating', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: User is logged in, performing logout and navigating');
+        }
         _performSynchronousLogout();
         _navigateToAccountScreen(reason, message);
       } else {
-        Logger().info('LoginModule: User is already logged out, navigating to account screen', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: User is already logged out, navigating to account screen');
+        }
         // Still navigate to account screen even if already logged out
         _navigateToAccountScreen(reason, message);
       }
     } else {
-      Logger().warning('LoginModule: _handleAuthRequired called but _currentContext is null, skipping navigation', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: _handleAuthRequired called but _currentContext is null, skipping navigation');
+      }
     }
   }
 
   /// ✅ Handle general auth error
   void _handleAuthError() {
-    Logger().info('LoginModule: _handleAuthError called', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      Logger().info('LoginModule: _handleAuthError called');
+    }
     if (_currentContext != null) {
       // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      Logger().info('LoginModule: _handleAuthError - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: _handleAuthError - isLoggedIn: $isLoggedIn');
+      }
       
       if (isLoggedIn) {
-        Logger().info('LoginModule: User is logged in, performing logout and navigating', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: User is logged in, performing logout and navigating');
+        }
         _performSynchronousLogout();
         _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
       } else {
-        Logger().info('LoginModule: User is already logged out, navigating to account screen', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: User is already logged out, navigating to account screen');
+        }
         // Still navigate to account screen even if already logged out
         _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
       }
     } else {
-      Logger().warning('LoginModule: _handleAuthError called but _currentContext is null, skipping navigation', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: _handleAuthError called but _currentContext is null, skipping navigation');
+      }
     }
   }
 
@@ -231,19 +275,29 @@ class LoginModule extends ModuleBase {
 
   /// ✅ Navigate to account screen with auth parameters
   void _navigateToAccountScreen(String reason, String message) {
-    Logger().info('LoginModule: _navigateToAccountScreen called - reason: $reason, message: $message', isOn: LOGGING_SWITCH);
-    Logger().info('LoginModule: Current context: ${_currentContext != null ? "available" : "null"}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      Logger().info('LoginModule: _navigateToAccountScreen called - reason: $reason, message: $message');
+    }
+    if (LOGGING_SWITCH) {
+      Logger().info('LoginModule: Current context: ${_currentContext != null ? "available" : "null"}');
+    }
     try {
     final navigationManager = NavigationManager();
-      Logger().info('LoginModule: NavigationManager obtained, navigating to /account', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: NavigationManager obtained, navigating to /account');
+      }
     // Use NavigationManager's queuing system to ensure router is ready
     navigationManager.navigateToWithDelay('/account', parameters: {
       'auth_reason': reason,
       'auth_message': message,
     });
-      Logger().info('LoginModule: Navigation to /account initiated', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: Navigation to /account initiated');
+      }
     } catch (e, stackTrace) {
-      Logger().error('LoginModule: Error navigating to account screen: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().error('LoginModule: Error navigating to account screen: $e', error: e, stackTrace: stackTrace);
+      }
     }
   }
 
@@ -314,9 +368,13 @@ class LoginModule extends ModuleBase {
     try {
       // Log registration attempt
       if (guestEmail != null && guestPassword != null) {
-        Logger().info("LoginModule: Registration request initiated (with guest conversion) - Username: $username, Email: $email, Guest Email: $guestEmail", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Registration request initiated (with guest conversion) - Username: $username, Email: $email, Guest Email: $guestEmail");
+        }
       } else {
-        Logger().info("LoginModule: Regular registration request initiated - Username: $username, Email: $email", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Regular registration request initiated - Username: $username, Email: $email");
+        }
       }
       
       // Prepare request data
@@ -331,7 +389,9 @@ class LoginModule extends ModuleBase {
         requestData["convert_from_guest"] = true;
         requestData["guest_email"] = guestEmail;
         requestData["guest_password"] = guestPassword;
-        Logger().info("LoginModule: Registering with guest account conversion - Guest Email: $guestEmail", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Registering with guest account conversion - Guest Email: $guestEmail");
+        }
       }
       
       // Use the correct backend route
@@ -344,18 +404,24 @@ class LoginModule extends ModuleBase {
         if (response["success"] == true || response["message"] == "User created successfully") {
           // Log successful registration
           if (guestEmail != null && guestPassword != null) {
-            Logger().info("LoginModule: Guest account conversion successful - Username: $username, Email: $email, clearing guest credentials", isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              Logger().info("LoginModule: Guest account conversion successful - Username: $username, Email: $email, clearing guest credentials");
+            }
             await _sharedPref!.remove('guest_username');
             await _sharedPref!.remove('guest_email');
             await _sharedPref!.remove('guest_user_id');
             await _sharedPref!.setBool('is_guest_account', false);
           } else {
-            Logger().info("LoginModule: Regular registration successful - Username: $username, Email: $email", isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              Logger().info("LoginModule: Regular registration successful - Username: $username, Email: $email");
+            }
           }
           return {"success": "Registration successful. Please log in."};
         } else if (response["error"] != null) {
           // Log registration failure
-          Logger().warning("LoginModule: Registration failed - Username: $username, Email: $email, Error: ${response["error"]}", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().warning("LoginModule: Registration failed - Username: $username, Email: $email, Error: ${response["error"]}");
+          }
           // Handle rate limiting errors
           if (response["status"] == 429) {
             return {
@@ -377,16 +443,22 @@ class LoginModule extends ModuleBase {
   Future<Map<String, dynamic>> registerGuestUser({
     required BuildContext context,
   }) async {
-    Logger().info("LoginModule: Guest registration request initiated", isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      Logger().info("LoginModule: Guest registration request initiated");
+    }
     _initDependencies(context);
 
     if (_connectionModule == null) {
-      Logger().error("LoginModule: Connection module not available for guest registration", isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().error("LoginModule: Connection module not available for guest registration");
+      }
       return {"error": "Service not available."};
     }
 
     try {
-      Logger().debug("LoginModule: Calling /public/register-guest endpoint", isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().debug("LoginModule: Calling /public/register-guest endpoint");
+      }
       // Call guest registration endpoint
       final response = await _connectionModule!.sendPostRequest(
         "/public/register-guest",
@@ -395,7 +467,9 @@ class LoginModule extends ModuleBase {
 
       if (response is Map) {
         if (response["success"] == true || response["message"] == "Guest account created successfully") {
-          Logger().info("LoginModule: Guest registration successful, processing credentials", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().info("LoginModule: Guest registration successful, processing credentials");
+          }
           // Extract credentials from response
           final credentials = response["data"]?["credentials"] as Map<String, dynamic>?;
           final userData = response["data"]?["user"] as Map<String, dynamic>?;
@@ -406,7 +480,9 @@ class LoginModule extends ModuleBase {
             final password = credentials["password"]?.toString() ?? '';
             final userId = userData["_id"]?.toString() ?? userData["id"]?.toString() ?? '';
             
-            Logger().info("LoginModule: Storing guest credentials - Username: $username, User ID: $userId", isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              Logger().info("LoginModule: Storing guest credentials - Username: $username, User ID: $userId");
+            }
             
             // Store credentials in PERMANENT SharedPreferences keys (never cleared on logout)
             await _sharedPref!.setString('guest_username', username);
@@ -419,7 +495,9 @@ class LoginModule extends ModuleBase {
             await _sharedPref!.setString('email', email);
             await _sharedPref!.setString('user_id', userId);
             
-            Logger().debug("LoginModule: Guest credentials stored, attempting auto-login", isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              Logger().debug("LoginModule: Guest credentials stored, attempting auto-login");
+            }
             
             // Auto-login the guest user
             final loginResult = await loginUser(
@@ -429,7 +507,9 @@ class LoginModule extends ModuleBase {
             );
             
             if (loginResult['success'] != null) {
-              Logger().info("LoginModule: Guest account created and auto-login successful - Username: $username", isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                Logger().info("LoginModule: Guest account created and auto-login successful - Username: $username");
+              }
               return {
                 "success": "Guest account created and logged in successfully",
                 "username": username,
@@ -437,7 +517,9 @@ class LoginModule extends ModuleBase {
                 "credentials": credentials,
               };
             } else {
-              Logger().warning("LoginModule: Guest registration succeeded but auto-login failed - Username: $username, Error: ${loginResult['error']}", isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                Logger().warning("LoginModule: Guest registration succeeded but auto-login failed - Username: $username, Error: ${loginResult['error']}");
+              }
               // Registration succeeded but login failed
               return {
                 "success": "Guest account created. Please log in with username: $username",
@@ -449,7 +531,9 @@ class LoginModule extends ModuleBase {
             }
           }
           
-          Logger().warning("LoginModule: Guest registration response missing credentials or user data", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().warning("LoginModule: Guest registration response missing credentials or user data");
+          }
           return {"success": "Guest account created successfully"};
         } else if (response["error"] != null) {
           // Handle rate limiting errors
@@ -483,7 +567,9 @@ class LoginModule extends ModuleBase {
 
     try {
       // Log login attempt
-      Logger().info("LoginModule: Login request initiated - Email: $email", isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info("LoginModule: Login request initiated - Email: $email");
+      }
       
       // Use the correct backend route
       final response = await _connectionModule!.sendPostRequest(
@@ -503,7 +589,9 @@ class LoginModule extends ModuleBase {
         String errorMessage = response?["message"] ?? response?["error"] ?? "Unknown error occurred";
         
         // Log login failure
-        Logger().warning("LoginModule: Login failed - Email: $email, Error: $errorMessage", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().warning("LoginModule: Login failed - Email: $email, Error: $errorMessage");
+        }
         
         // Handle rate limiting errors
         if (response?["status"] == 429) {
@@ -532,7 +620,9 @@ class LoginModule extends ModuleBase {
         final isGuestAccount = accountType == 'guest' || email.endsWith('@guest.local');
         
         if (isGuestAccount) {
-          Logger().info("LoginModule: Guest account login detected - Username: ${userData['username']}, Email: $email", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().info("LoginModule: Guest account login detected - Username: ${userData['username']}, Email: $email");
+          }
         }
         
         // Extract TTL values from backend response
@@ -561,19 +651,25 @@ class LoginModule extends ModuleBase {
         
         // Set guest account flag based on account_type from backend
         if (isGuestAccount) {
-          Logger().info("LoginModule: Storing permanent guest credentials - Username: $username, User ID: $userId", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().info("LoginModule: Storing permanent guest credentials - Username: $username, User ID: $userId");
+          }
           await _sharedPref!.setString('guest_username', username);
           await _sharedPref!.setString('guest_email', email);
           await _sharedPref!.setString('guest_user_id', userId);
           await _sharedPref!.setBool('is_guest_account', true);
         } else {
           // Explicitly set to false for regular accounts to clear any previous guest account flag
-          Logger().info("LoginModule: Regular account login - clearing guest account flag", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().info("LoginModule: Regular account login - clearing guest account flag");
+          }
           await _sharedPref!.setBool('is_guest_account', false);
         }
         
         // Log successful login
-        Logger().info("LoginModule: Login successful - Username: $username, Email: $email, Account Type: ${isGuestAccount ? 'guest' : 'regular'}", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Login successful - Username: $username, Email: $email, Account Type: ${isGuestAccount ? 'guest' : 'regular'}");
+        }
         
         // Update state manager
         final stateManager = StateManager();
@@ -630,12 +726,16 @@ class LoginModule extends ModuleBase {
     }
 
     try {
-      Logger().info("LoginModule: Google Sign-In request initiated", isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info("LoginModule: Google Sign-In request initiated");
+      }
       
       // Check if guest account conversion is requested
       final isConvertingGuest = guestEmail != null && guestPassword != null;
       if (isConvertingGuest) {
-        Logger().info("LoginModule: Guest account conversion requested for Google Sign-In - Guest Email: $guestEmail", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Guest account conversion requested for Google Sign-In - Guest Email: $guestEmail");
+        }
       }
 
       // Initialize Google Sign-In
@@ -654,9 +754,13 @@ class LoginModule extends ModuleBase {
       final String clientIdDisplay = webClientId != null && webClientId.isNotEmpty
           ? '${webClientId.substring(0, webClientId.length > 20 ? 20 : webClientId.length)}...'
           : 'Not configured';
-      Logger().info("LoginModule: Google Sign-In initialized - Platform: ${kIsWeb ? 'Web' : 'Android'}, ${kIsWeb ? 'Client ID' : 'Server Client ID (Web)'}: $clientIdDisplay", isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info("LoginModule: Google Sign-In initialized - Platform: ${kIsWeb ? 'Web' : 'Android'}, ${kIsWeb ? 'Client ID' : 'Server Client ID (Web)'}: $clientIdDisplay");
+      }
       if (!kIsWeb) {
-        Logger().info("LoginModule: Android OAuth client is auto-detected via package name + SHA-1 fingerprint", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Android OAuth client is auto-detected via package name + SHA-1 fingerprint");
+        }
       }
 
       // Trigger the authentication flow
@@ -666,9 +770,13 @@ class LoginModule extends ModuleBase {
         try {
           // Try silent sign-in first (for returning users)
           googleUser = await googleSignIn.signInSilently();
-          Logger().info("LoginModule: Silent sign-in attempted on web", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().info("LoginModule: Silent sign-in attempted on web");
+          }
         } catch (e) {
-          Logger().info("LoginModule: Silent sign-in failed, will prompt user: $e", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().info("LoginModule: Silent sign-in failed, will prompt user: $e");
+          }
         }
       }
       
@@ -677,15 +785,27 @@ class LoginModule extends ModuleBase {
         try {
           googleUser = await googleSignIn.signIn();
         } catch (e) {
-          Logger().error("LoginModule: Google Sign-In failed - Error: $e, Error Type: ${e.runtimeType}", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().error("LoginModule: Google Sign-In failed - Error: $e, Error Type: ${e.runtimeType}");
+          }
           // Extract more details from PlatformException if available
           if (e.toString().contains("sign_in_failed") || e.toString().contains("10")) {
-            Logger().error("LoginModule: This is error code 10 - likely SHA-1 fingerprint mismatch. Check Google Cloud Console Android OAuth client configuration.", isOn: LOGGING_SWITCH);
-            Logger().error("LoginModule: Current Server Client ID (Web): ${webClientId ?? 'Not set'}", isOn: LOGGING_SWITCH);
-            Logger().error("LoginModule: Platform: ${kIsWeb ? 'Web' : 'Android'}", isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              Logger().error("LoginModule: This is error code 10 - likely SHA-1 fingerprint mismatch. Check Google Cloud Console Android OAuth client configuration.");
+            }
+            if (LOGGING_SWITCH) {
+              Logger().error("LoginModule: Current Server Client ID (Web): ${webClientId ?? 'Not set'}");
+            }
+            if (LOGGING_SWITCH) {
+              Logger().error("LoginModule: Platform: ${kIsWeb ? 'Web' : 'Android'}");
+            }
             if (!kIsWeb) {
-              Logger().error("LoginModule: Verify Android OAuth client has SHA-1: 8F:60:94:F1:E5:ED:DD:FD:FF:4F:5A:79:FF:BB:B7:E9:33:AD:B2:76", isOn: LOGGING_SWITCH);
-              Logger().error("LoginModule: Verify package name: com.reignofplay.dutch", isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                Logger().error("LoginModule: Verify Android OAuth client has SHA-1: 8F:60:94:F1:E5:ED:DD:FD:FF:4F:5A:79:FF:BB:B7:E9:33:AD:B2:76");
+              }
+              if (LOGGING_SWITCH) {
+                Logger().error("LoginModule: Verify package name: com.reignofplay.dutch");
+              }
             }
           }
           return {"error": "Google Sign-In failed: $e"};
@@ -694,7 +814,9 @@ class LoginModule extends ModuleBase {
 
       if (googleUser == null) {
         // User cancelled the sign-in
-        Logger().info("LoginModule: Google Sign-In cancelled by user", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Google Sign-In cancelled by user");
+        }
         return {"error": "Sign-in cancelled"};
       }
 
@@ -702,9 +824,13 @@ class LoginModule extends ModuleBase {
       GoogleSignInAuthentication googleAuth;
       try {
         googleAuth = await googleUser.authentication;
-        Logger().info("LoginModule: Google authentication obtained - Email: ${googleUser.email}, Has ID Token: ${googleAuth.idToken != null}, Has Access Token: ${googleAuth.accessToken != null}", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Google authentication obtained - Email: ${googleUser.email}, Has ID Token: ${googleAuth.idToken != null}, Has Access Token: ${googleAuth.accessToken != null}");
+        }
       } catch (e) {
-        Logger().error("LoginModule: Failed to get Google authentication - Error: $e", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().error("LoginModule: Failed to get Google authentication - Error: $e");
+        }
         return {"error": "Failed to get authentication: $e"};
       }
 
@@ -717,11 +843,15 @@ class LoginModule extends ModuleBase {
 
       if (idToken != null) {
         // Preferred: Use ID token if available
-        Logger().info("LoginModule: Google Sign-In - ID token obtained, sending to backend", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Google Sign-In - ID token obtained, sending to backend");
+        }
         requestPayload = {"id_token": idToken};
       } else if (accessToken != null && kIsWeb) {
         // Fallback for web: Use access token to get user info, then send to backend
-        Logger().info("LoginModule: Google Sign-In - No ID token, using access token to fetch user info (web)", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Google Sign-In - No ID token, using access token to fetch user info (web)");
+        }
         
         try {
           // Fetch user info from Google using access token
@@ -732,7 +862,9 @@ class LoginModule extends ModuleBase {
 
           if (userInfoResponse.statusCode == 200) {
             final userInfo = json.decode(userInfoResponse.body);
-            Logger().info("LoginModule: User info fetched from Google API - Email: ${userInfo['email']}", isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              Logger().info("LoginModule: User info fetched from Google API - Email: ${userInfo['email']}");
+            }
             
             // Send access token and user info to backend
             requestPayload = {
@@ -740,15 +872,21 @@ class LoginModule extends ModuleBase {
               "user_info": userInfo,
             };
           } else {
-            Logger().error("LoginModule: Failed to fetch user info from Google API: ${userInfoResponse.statusCode}", isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              Logger().error("LoginModule: Failed to fetch user info from Google API: ${userInfoResponse.statusCode}");
+            }
             return {"error": "Failed to get user information from Google"};
           }
         } catch (e) {
-          Logger().error("LoginModule: Error fetching user info from Google: $e", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().error("LoginModule: Error fetching user info from Google: $e");
+          }
           return {"error": "Failed to get user information from Google"};
         }
       } else {
-        Logger().warning("LoginModule: Google Sign-In - No ID token or access token received", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().warning("LoginModule: Google Sign-In - No ID token or access token received");
+        }
         return {"error": "Failed to get Google authentication token. Please ensure Google Sign-In is properly configured."};
       }
 
@@ -757,7 +895,9 @@ class LoginModule extends ModuleBase {
         requestPayload["convert_from_guest"] = true;
         requestPayload["guest_email"] = guestEmail;
         requestPayload["guest_password"] = guestPassword;
-        Logger().info("LoginModule: Adding guest account conversion info to Google Sign-In request", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Adding guest account conversion info to Google Sign-In request");
+        }
       }
 
       // Send to backend
@@ -770,7 +910,9 @@ class LoginModule extends ModuleBase {
       if (response?["error"] != null || response?["message"]?.contains("error") == true) {
         String errorMessage = response?["message"] ?? response?["error"] ?? "Unknown error occurred";
         
-        Logger().warning("LoginModule: Google Sign-In failed - Error: $errorMessage", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().warning("LoginModule: Google Sign-In failed - Error: $errorMessage");
+        }
         
         // Handle rate limiting errors
         if (response?["status"] == 429) {
@@ -828,14 +970,18 @@ class LoginModule extends ModuleBase {
           await _sharedPref!.remove('guest_username');
           await _sharedPref!.remove('guest_email');
           await _sharedPref!.remove('guest_user_id');
-          Logger().info("LoginModule: Cleared guest account credentials after Google Sign-In conversion", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            Logger().info("LoginModule: Cleared guest account credentials after Google Sign-In conversion");
+          }
         }
         
         // Set guest account flag (should be false for Google Sign-In)
         await _sharedPref!.setBool('is_guest_account', false);
         
         // Log successful Google Sign-In
-        Logger().info("LoginModule: Google Sign-In successful - Username: $username, Email: $email", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Google Sign-In successful - Username: $username, Email: $email");
+        }
         
         // Update state manager
         final stateManager = StateManager();
@@ -876,8 +1022,12 @@ class LoginModule extends ModuleBase {
 
       return {"error": "Unexpected server response"};
     } catch (e, stackTrace) {
-      Logger().error("LoginModule: Google Sign-In error: $e", isOn: LOGGING_SWITCH);
-      Logger().error("LoginModule: Google Sign-In error stack trace: $stackTrace", isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().error("LoginModule: Google Sign-In error: $e");
+      }
+      if (LOGGING_SWITCH) {
+        Logger().error("LoginModule: Google Sign-In error stack trace: $stackTrace");
+      }
       
       // Handle specific Google Sign-In errors
       final errorString = e.toString().toLowerCase();
@@ -913,9 +1063,13 @@ class LoginModule extends ModuleBase {
       final isGuestAccount = await _sharedPref!.getBool('is_guest_account') ?? false;
       
       if (isGuestAccount) {
-        Logger().info("LoginModule: Guest account logout - preserving permanent credentials", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info("LoginModule: Guest account logout - preserving permanent credentials");
+        }
       } else {
-        Logger().debug("LoginModule: Regular account logout", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().debug("LoginModule: Regular account logout");
+        }
       }
       
       // Clear JWT tokens using AuthManager
@@ -929,7 +1083,9 @@ class LoginModule extends ModuleBase {
         await _sharedPref!.remove('user_id');
         await _sharedPref!.remove('username');
         await _sharedPref!.remove('email');
-        Logger().debug("LoginModule: Guest account session keys cleared, permanent credentials preserved", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().debug("LoginModule: Guest account session keys cleared, permanent credentials preserved");
+        }
         // DO NOT clear: guest_username, guest_email, guest_user_id, is_guest_account
       } else {
         // Regular account: Clear all credentials (existing behavior)
@@ -958,17 +1114,23 @@ class LoginModule extends ModuleBase {
   /// Stores profile data in StateManager under "login" state
   Future<bool> fetchAndUpdateUserProfile() async {
     try {
-      Logger().info('LoginModule: Fetching user profile...', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: Fetching user profile...');
+      }
       
       if (_connectionModule == null) {
-        Logger().error('LoginModule: ConnectionsApiModule not available', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().error('LoginModule: ConnectionsApiModule not available');
+        }
         return false;
       }
       
       final response = await _connectionModule!.sendGetRequest('/userauth/users/profile');
       
       if (response is Map && response.containsKey('error')) {
-        Logger().warning('LoginModule: Failed to fetch profile: ${response['error']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().warning('LoginModule: Failed to fetch profile: ${response['error']}');
+        }
         return false;
       }
       
@@ -986,14 +1148,20 @@ class LoginModule extends ModuleBase {
       });
       
       if (pictureUrl != null && pictureUrl.isNotEmpty) {
-        Logger().info('LoginModule: Profile picture updated: $pictureUrl', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: Profile picture updated: $pictureUrl');
+        }
       } else {
-        Logger().info('LoginModule: No profile picture available', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: No profile picture available');
+        }
       }
       
       return true;
     } catch (e) {
-      Logger().error('LoginModule: Error fetching user profile: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        Logger().error('LoginModule: Error fetching user profile: $e');
+      }
       return false;
     }
   }

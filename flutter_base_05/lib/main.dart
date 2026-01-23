@@ -105,7 +105,9 @@ class _MyAppState extends State<MyApp> {
         });
         
         // Test log after app is fully loaded
-        _logger.info('🚀 App fully loaded and initialized successfully!', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🚀 App fully loaded and initialized successfully!');
+        }
       }
 
     } catch (e) {
@@ -162,18 +164,20 @@ void _setupErrorHandlers() {
   // Handle Flutter framework errors
   FlutterError.onError = (FlutterErrorDetails details) {
     // Log to our logger system
-    logger.error(
-      'Flutter Framework Error: ${details.exception}',
-      error: details.exception,
-      stackTrace: details.stack,
-      isOn: LOGGING_SWITCH,
-    );
+    if (LOGGING_SWITCH) {
+      logger.error(
+        'Flutter Framework Error: ${details.exception}',
+        error: details.exception,
+        stackTrace: details.stack,
+      );
+    }
     
     // Log additional context
-    logger.debug(
-      'Flutter Error Details - Library: ${details.library}, Context: ${details.context}',
-      isOn: LOGGING_SWITCH,
-    );
+    if (LOGGING_SWITCH) {
+      logger.debug(
+        'Flutter Error Details - Library: ${details.library}, Context: ${details.context}',
+      );
+    }
     
     // Present error (shows red screen in debug mode)
     FlutterError.presentError(details);
@@ -193,12 +197,13 @@ void _setupErrorHandlers() {
   // Handle platform errors (async errors not caught by Flutter)
   PlatformDispatcher.instance.onError = (error, stack) {
     // Log to our logger system
-    logger.error(
-      'Platform Error: $error',
-      error: error,
-      stackTrace: stack,
-      isOn: LOGGING_SWITCH,
-    );
+    if (LOGGING_SWITCH) {
+      logger.error(
+        'Platform Error: $error',
+        error: error,
+        stackTrace: stack,
+      );
+    }
     
     // Track in analytics
     _trackError(

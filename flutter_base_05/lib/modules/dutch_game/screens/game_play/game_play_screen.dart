@@ -328,12 +328,16 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     final currentGameId = dutchGameState['currentGameId']?.toString();
     _previousGameId = currentGameId;
     
-    _logger.info('GamePlay: Screen loaded with game ID: $_previousGameId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GamePlay: Screen loaded with game ID: $_previousGameId');
+    }
     
     // Check if returning to same game and cancel pending leave timer
     if (currentGameId != null && 
         currentGameId == GameCoordinator().pendingLeaveGameId) {
-      _logger.info('GamePlay: Returning to same game $currentGameId - cancelling leave timer', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GamePlay: Returning to same game $currentGameId - cancelling leave timer');
+      }
       GameCoordinator().cancelLeaveGameTimer(currentGameId);
     }
     
@@ -374,7 +378,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   void deactivate() {
     // Check if we're navigating away from a game
     if (_previousGameId != null && _previousGameId!.isNotEmpty) {
-      _logger.info('GamePlay: Navigating away from game $_previousGameId - starting 30-second leave timer', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GamePlay: Navigating away from game $_previousGameId - starting 30-second leave timer');
+      }
       
       // Start 30-second timer before leaving (gives user chance to return)
       // Timer is managed by GameCoordinator (singleton) so it survives widget disposal
@@ -388,7 +394,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   void dispose() {
     // Don't cancel timer here - it's managed by GameCoordinator and needs to survive disposal
     // The timer will be cancelled if user returns to the same game (in initState)
-    _logger.info('GamePlay: Disposing - leave timer continues in GameCoordinator', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GamePlay: Disposing - leave timer continues in GameCoordinator');
+    }
     
     // Clean up any game-specific resources
     super.dispose();
@@ -408,7 +416,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       // Skip automatic instruction triggering if a demo action is active
       // Demo logic will handle showing instructions manually
       if (DemoActionHandler.isDemoActionActive()) {
-        _logger.info('📚 _checkAndShowInitialInstructions: Demo action active, skipping automatic instruction triggering', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📚 _checkAndShowInitialInstructions: Demo action active, skipping automatic instruction triggering');
+        }
         return;
       }
       
@@ -439,10 +449,14 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         // Fallback to practice settings if not in game state
         final practiceSettings = dutchGameState['practiceSettings'] as Map<String, dynamic>?;
         showInstructions = practiceSettings?['showInstructions'] as bool? ?? false;
-        _logger.info('📚 _checkAndShowInitialInstructions: showInstructions not in gameState, checking practiceSettings=$showInstructions', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📚 _checkAndShowInitialInstructions: showInstructions not in gameState, checking practiceSettings=$showInstructions');
+        }
       }
       if (!showInstructions) {
-        _logger.info('📚 _checkAndShowInitialInstructions: Instructions disabled, skipping', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📚 _checkAndShowInitialInstructions: Instructions disabled, skipping');
+        }
         return;
       }
       
@@ -453,14 +467,18 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
           : (rawPhase ?? 'playing');
       
       if (gamePhase == 'waiting') {
-        _logger.info('📚 _checkAndShowInitialInstructions: In waiting phase, showInstructions=$showInstructions', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📚 _checkAndShowInitialInstructions: In waiting phase, showInstructions=$showInstructions');
+        }
         // Check if initial instructions haven't been dismissed
         final instructionsData = dutchGameState['instructions'] as Map<String, dynamic>? ?? {};
         final dontShowAgain = Map<String, bool>.from(
           instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
         );
         
-        _logger.info('📚 _checkAndShowInitialInstructions: dontShowAgain[initial]=${dontShowAgain['initial']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📚 _checkAndShowInitialInstructions: dontShowAgain[initial]=${dontShowAgain['initial']}');
+        }
         
         if (dontShowAgain['initial'] != true) {
           // Check if initial instructions are already showing
@@ -482,16 +500,24 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                 'dontShowAgain': dontShowAgain,
               },
             });
-            _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions triggered from screen init', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions triggered from screen init');
+            }
           } else {
-            _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already showing', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already showing');
+            }
           }
         } else {
-          _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already marked as dontShowAgain', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already marked as dontShowAgain');
+          }
         }
       }
     } catch (e) {
-      _logger.error('Error checking initial instructions: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error checking initial instructions: $e');
+      }
     }
   }
 
@@ -517,24 +543,29 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     } catch (e) {
       // ScaffoldMessenger might not be available if widget is being disposed
       // Just log the error instead of crashing
-      _logger.warning('GamePlay: Could not show snackbar - $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('GamePlay: Could not show snackbar - $e');
+      }
     }
   }
 
   @override
   Widget buildContent(BuildContext context) {
-    _logger.info('GamePlayScreen: buildContent called', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GamePlayScreen: buildContent called');
+    }
     
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1000),
         child: LayoutBuilder(
           builder: (context, constraints) {
-        _logger.info(
-          'GamePlayScreen: LayoutBuilder - maxHeight=${constraints.maxHeight}, '
-          'maxWidth=${constraints.maxWidth}',
-          isOn: LOGGING_SWITCH,
-        );
+        if (LOGGING_SWITCH) {
+          _logger.info(
+            'GamePlayScreen: LayoutBuilder - maxHeight=${constraints.maxHeight}, '
+            'maxWidth=${constraints.maxWidth}',
+          );
+        }
         
         return Stack(
           key: _mainStackKey,

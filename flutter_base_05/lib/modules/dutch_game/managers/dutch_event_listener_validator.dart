@@ -196,11 +196,15 @@ class DutchGameEventListenerValidator {
   void _handleDirectEvent(String eventType, Map<String, dynamic> data) {
     try {
         // Log incoming event
-        _logger.info("📥 Received event: $eventType with data: $data", isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info("📥 Received event: $eventType with data: $data");
+        }
         
         // Validate event type
       if (!_eventConfigs.containsKey(eventType)) {
-          _logger.warning("❌ Unknown event type: $eventType", isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning("❌ Unknown event type: $eventType");
+          }
           return;
         }
 
@@ -218,9 +222,13 @@ class DutchGameEventListenerValidator {
         };
 
       // Route directly to DutchEventManager based on event type
-      _logger.info("🔄 Routing event: $eventType to manager", isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info("🔄 Routing event: $eventType to manager");
+      }
       _routeEventToManager(eventType, eventPayload);
-      _logger.info("✅ Successfully processed event: $eventType", isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info("✅ Successfully processed event: $eventType");
+      }
 
       } catch (e) {
     }
@@ -231,7 +239,9 @@ class DutchGameEventListenerValidator {
     final eventConfig = _eventConfigs[eventType];
     final handlerMethod = eventConfig?.handlerMethod;
     
-    _logger.info("🎯 Calling handler method: $handlerMethod for event: $eventType", isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info("🎯 Calling handler method: $handlerMethod for event: $eventType");
+    }
     
     if (handlerMethod == null) {
       return;

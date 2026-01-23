@@ -749,7 +749,9 @@ class MessageHandler {
         final gameState = stateStore.getGameState(roomId);
         final phase = gameState['phase'] as String?;
         if (phase != null && phase != 'waiting_for_players') {
-          _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)');
+          }
           RandomJoinTimerManager.instance.cleanup(roomId);
           return;
         }
@@ -843,7 +845,9 @@ class MessageHandler {
         final gameState = store.getGameState(roomId);
         final phase = gameState['phase'] as String?;
         if (phase != null && phase != 'waiting_for_players') {
-          _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)');
+          }
           RandomJoinTimerManager.instance.cleanup(roomId);
           return;
         }

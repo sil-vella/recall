@@ -18,7 +18,9 @@ class DemoStateSetup {
     required String gameId,
     required Map<String, dynamic> gameState,
   }) async {
-    _logger.info('🎮 DemoStateSetup: Setting up state for action: $actionType', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up state for action: $actionType');
+    }
 
     switch (actionType) {
       case 'initial_peek':
@@ -38,7 +40,9 @@ class DemoStateSetup {
       case 'collect_rank':
         return await setupCollectRankState(gameId, gameState);
       default:
-        _logger.warning('⚠️ DemoStateSetup: Unknown action type: $actionType, returning original state', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Unknown action type: $actionType, returning original state');
+        }
         return gameState;
     }
   }
@@ -49,7 +53,9 @@ class DemoStateSetup {
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
-    _logger.info('🎮 DemoStateSetup: Setting up initial peek state', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up initial peek state');
+    }
 
     // Game should already be in initial_peek phase after startMatch
     // Just ensure player status is correct
@@ -84,7 +90,9 @@ class DemoStateSetup {
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
-    _logger.info('🎮 DemoStateSetup: Setting up drawing state', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up drawing state');
+    }
 
     // Game should be started (phase: 'playing')
     // Player should be in drawing_card status
@@ -119,7 +127,9 @@ class DemoStateSetup {
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
-    _logger.info('🎮 DemoStateSetup: Setting up playing state', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up playing state');
+    }
 
     // First set up drawing state, then advance to playing
     var updatedState = await setupDrawingState(gameId, gameState);
@@ -131,7 +141,9 @@ class DemoStateSetup {
       final idOnlyCard = drawPile.removeLast();
       final cardId = idOnlyCard['cardId']?.toString() ?? '';
       
-      _logger.info('🎮 DemoStateSetup: Drawing card $cardId from draw pile', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 DemoStateSetup: Drawing card $cardId from draw pile');
+      }
 
       // Get full card data from originalDeck (draw pile has ID-only cards)
       Map<String, dynamic>? drawnCard;
@@ -143,7 +155,9 @@ class DemoStateSetup {
           final cardIdInDeck = card['cardId']?.toString() ?? '';
           if (cardIdInDeck == cardId) {
             drawnCard = Map<String, dynamic>.from(card);
-            _logger.info('✅ DemoStateSetup: Found full card data for $cardId', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('✅ DemoStateSetup: Found full card data for $cardId');
+            }
             break;
           }
         }
@@ -151,7 +165,9 @@ class DemoStateSetup {
 
       // If not found in originalDeck, use the ID-only card (shouldn't happen with test deck)
       if (drawnCard == null) {
-        _logger.warning('⚠️ DemoStateSetup: Card $cardId not found in originalDeck, using ID-only card', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Card $cardId not found in originalDeck, using ID-only card');
+        }
         drawnCard = Map<String, dynamic>.from(idOnlyCard);
       }
 
@@ -176,7 +192,9 @@ class DemoStateSetup {
         player['status'] = 'playing_card';
         player['isCurrentPlayer'] = true;
         
-        _logger.info('✅ DemoStateSetup: Added drawn card to hand (now ${hand.length} cards)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ DemoStateSetup: Added drawn card to hand (now ${hand.length} cards)');
+        }
       }
 
       updatedState['drawPile'] = drawPile;
@@ -187,9 +205,13 @@ class DemoStateSetup {
         'status': 'playing_card',
       } : null;
       
-      _logger.info('✅ DemoStateSetup: Playing state set up with drawn card: ${drawnCard['rank']} of ${drawnCard['suit']}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DemoStateSetup: Playing state set up with drawn card: ${drawnCard['rank']} of ${drawnCard['suit']}');
+      }
     } else {
-      _logger.warning('⚠️ DemoStateSetup: Draw pile is empty, cannot set up playing state with drawn card', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('⚠️ DemoStateSetup: Draw pile is empty, cannot set up playing state with drawn card');
+      }
     }
 
     // Update game state store
@@ -207,7 +229,9 @@ class DemoStateSetup {
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
-    _logger.info('🎮 DemoStateSetup: Setting up same rank state', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up same rank state');
+    }
 
     // Start from initial game state (NOT playing state) to ensure only 4 face-down cards
     // Get original deck to retrieve full card data
@@ -245,7 +269,9 @@ class DemoStateSetup {
       
       // Ensure we have exactly 4 cards (the initial deal)
       if (hand.length != 4) {
-        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.');
+        }
         hand.clear();
         for (int i = 0; i < 4 && i < initialHand.length; i++) {
           hand.add(Map<String, dynamic>.from(initialHand[i]));
@@ -299,7 +325,9 @@ class DemoStateSetup {
         if (playedCardIndex == -1) {
           playedCardIndex = 0;
           playedCardRank = handFullData[0]['rank']?.toString();
-          _logger.warning('⚠️ DemoStateSetup: No unique rank card found, using first card (rank: $playedCardRank). Will swap matching cards.', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ DemoStateSetup: No unique rank card found, using first card (rank: $playedCardRank). Will swap matching cards.');
+          }
         }
 
         // Get the card to play (full data)
@@ -311,7 +339,9 @@ class DemoStateSetup {
         // Add to discard pile (with full data for face-up display)
         discardPile.insert(0, playedCardFullData);
         
-        _logger.info('🎮 DemoStateSetup: Playing card with rank $playedCardRank to discard pile', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎮 DemoStateSetup: Playing card with rank $playedCardRank to discard pile');
+        }
 
         // CRITICAL: Remove any cards from hand that match the played card's rank
         // Swap them with cards from draw pile that don't match
@@ -334,7 +364,9 @@ class DemoStateSetup {
             final cardRank = fullCard['rank']?.toString();
             if (cardRank == playedCardRank) {
               cardsToSwap.add(i);
-              _logger.info('⚠️ DemoStateSetup: Found matching rank card in hand (rank: $cardRank), will swap', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('⚠️ DemoStateSetup: Found matching rank card in hand (rank: $cardRank), will swap');
+              }
             }
           }
         }
@@ -362,7 +394,9 @@ class DemoStateSetup {
                 final replacementCard = drawPile.removeAt(drawIndex);
                 hand[swapIndex] = replacementCard; // Replace matching card
                 foundReplacement = true;
-                _logger.info('✅ DemoStateSetup: Swapped matching card (rank: $playedCardRank) with card from draw pile (rank: $drawCardRank)', isOn: LOGGING_SWITCH);
+                if (LOGGING_SWITCH) {
+                  _logger.info('✅ DemoStateSetup: Swapped matching card (rank: $playedCardRank) with card from draw pile (rank: $drawCardRank)');
+                }
                 break;
               }
             }
@@ -371,7 +405,9 @@ class DemoStateSetup {
           if (!foundReplacement) {
             // No replacement found - remove the matching card from hand
             hand.removeAt(swapIndex);
-            _logger.warning('⚠️ DemoStateSetup: No replacement card found, removed matching card from hand', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('⚠️ DemoStateSetup: No replacement card found, removed matching card from hand');
+            }
           }
         }
 
@@ -382,7 +418,9 @@ class DemoStateSetup {
         players[0]['status'] = 'same_rank_window';
         players[0]['isCurrentPlayer'] = false; // Not current player during same rank window
         
-        _logger.info('✅ DemoStateSetup: Same rank state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card). Discard pile top: rank $playedCardRank.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ DemoStateSetup: Same rank state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card). Discard pile top: rank $playedCardRank.');
+        }
       }
     }
 
@@ -412,7 +450,9 @@ class DemoStateSetup {
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
-    _logger.info('🎮 DemoStateSetup: Setting up queen peek state', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up queen peek state');
+    }
 
     // Start from initial game state (NOT playing state) to ensure only 4 face-down cards
     // Get original deck to retrieve full card data
@@ -449,7 +489,9 @@ class DemoStateSetup {
       
       // Ensure we have exactly 4 cards (the initial deal)
       if (hand.length != 4) {
-        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.');
+        }
         hand.clear();
         for (int i = 0; i < 4 && i < initialHand.length; i++) {
           hand.add(Map<String, dynamic>.from(initialHand[i]));
@@ -467,7 +509,9 @@ class DemoStateSetup {
         ) as Map<String, dynamic>?;
       } catch (e) {
         // Queen not found in deck, create a placeholder
-        _logger.warning('⚠️ DemoStateSetup: Queen not found in deck, creating placeholder', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Queen not found in deck, creating placeholder');
+        }
         queenCard = {
           'cardId': 'card_demo_queen_hearts_0',
           'rank': 'queen',
@@ -480,14 +524,18 @@ class DemoStateSetup {
       if (queenCard != null) {
         // Add Queen to discard pile (with full data for face-up display)
         discardPile.insert(0, Map<String, dynamic>.from(queenCard));
-        _logger.info('✅ DemoStateSetup: Added Queen to discard pile: ${queenCard['rank']} of ${queenCard['suit']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ DemoStateSetup: Added Queen to discard pile: ${queenCard['rank']} of ${queenCard['suit']}');
+        }
       }
 
       players[0]['hand'] = hand;
       players[0]['status'] = 'queen_peek';
       players[0]['isCurrentPlayer'] = true;
       
-      _logger.info('✅ DemoStateSetup: Queen peek state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DemoStateSetup: Queen peek state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).');
+      }
     }
 
     updatedState['players'] = players;
@@ -512,7 +560,9 @@ class DemoStateSetup {
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
-    _logger.info('🎮 DemoStateSetup: Setting up jack swap state', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up jack swap state');
+    }
 
     // Start from initial game state (NOT playing state) to ensure only 4 face-down cards
     // Get original deck to retrieve full card data
@@ -549,7 +599,9 @@ class DemoStateSetup {
       
       // Ensure we have exactly 4 cards (the initial deal)
       if (hand.length != 4) {
-        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.');
+        }
         hand.clear();
         for (int i = 0; i < 4 && i < initialHand.length; i++) {
           hand.add(Map<String, dynamic>.from(initialHand[i]));
@@ -567,7 +619,9 @@ class DemoStateSetup {
         ) as Map<String, dynamic>?;
       } catch (e) {
         // Jack not found in deck, create a placeholder
-        _logger.warning('⚠️ DemoStateSetup: Jack not found in deck, creating placeholder', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Jack not found in deck, creating placeholder');
+        }
         jackCard = {
           'cardId': 'card_demo_jack_hearts_0',
           'rank': 'jack',
@@ -580,14 +634,18 @@ class DemoStateSetup {
       if (jackCard != null) {
         // Add Jack to discard pile (with full data for face-up display)
         discardPile.insert(0, Map<String, dynamic>.from(jackCard));
-        _logger.info('✅ DemoStateSetup: Added Jack to discard pile: ${jackCard['rank']} of ${jackCard['suit']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ DemoStateSetup: Added Jack to discard pile: ${jackCard['rank']} of ${jackCard['suit']}');
+        }
       }
 
       players[0]['hand'] = hand;
       players[0]['status'] = 'jack_swap';
       players[0]['isCurrentPlayer'] = true;
       
-      _logger.info('✅ DemoStateSetup: Jack swap state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DemoStateSetup: Jack swap state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).');
+      }
     }
 
     updatedState['players'] = players;
@@ -612,7 +670,9 @@ class DemoStateSetup {
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
-    _logger.info('🎮 DemoStateSetup: Setting up call dutch state', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up call dutch state');
+    }
 
     // Start from initial game state (NOT playing state) to ensure only 4 face-down cards
     final gameStateStore = GameStateStore.instance;
@@ -645,7 +705,9 @@ class DemoStateSetup {
       
       // Ensure we have exactly 4 cards (the initial deal)
       if (hand.length != 4) {
-        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.');
+        }
         hand.clear();
         for (int i = 0; i < 4 && i < initialHand.length; i++) {
           hand.add(Map<String, dynamic>.from(initialHand[i]));
@@ -660,7 +722,9 @@ class DemoStateSetup {
       players[0]['status'] = 'playing_card';
       players[0]['isCurrentPlayer'] = true;
       
-      _logger.info('✅ DemoStateSetup: Call dutch state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DemoStateSetup: Call dutch state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).');
+      }
     }
 
     // Ensure finalRoundActive is false and player hasn't called yet
@@ -688,7 +752,9 @@ class DemoStateSetup {
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
-    _logger.info('🎮 DemoStateSetup: Setting up collect rank state', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 DemoStateSetup: Setting up collect rank state');
+    }
 
     // Get original deck to retrieve full card data
     final gameStateStore = GameStateStore.instance;
@@ -725,7 +791,9 @@ class DemoStateSetup {
       
       // Ensure we have exactly 4 cards
       if (hand.length != 4) {
-        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.');
+        }
         hand.clear();
         for (int i = 0; i < 4 && i < initialHand.length; i++) {
           hand.add(Map<String, dynamic>.from(initialHand[i]));
@@ -757,7 +825,9 @@ class DemoStateSetup {
             if (fullCard != null && fullCard['rank']?.toString().toLowerCase() == preferredRank) {
               collectionRank = preferredRank;
               collectionCard = Map<String, dynamic>.from(fullCard);
-              _logger.info('✅ DemoStateSetup: Found collection rank card in hand: ${collectionCard['rank']} of ${collectionCard['suit']}', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('✅ DemoStateSetup: Found collection rank card in hand: ${collectionCard['rank']} of ${collectionCard['suit']}');
+              }
               break;
             }
           } catch (e) {
@@ -784,10 +854,14 @@ class DemoStateSetup {
                 'points': 0,
               };
             }
-            _logger.info('✅ DemoStateSetup: Added collection card to hand: ${collectionCard['rank']} of ${collectionCard['suit']}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('✅ DemoStateSetup: Added collection card to hand: ${collectionCard['rank']} of ${collectionCard['suit']}');
+            }
           }
         } catch (e) {
-          _logger.warning('⚠️ DemoStateSetup: Could not find ace card in deck', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ DemoStateSetup: Could not find ace card in deck');
+          }
         }
       }
 
@@ -817,10 +891,14 @@ class DemoStateSetup {
             discardPile.clear();
             discardPile.add(Map<String, dynamic>.from(matchingCard));
             discardTopCard = matchingCard;
-            _logger.info('✅ DemoStateSetup: Set discard pile top card to match collection rank: ${matchingCard['rank']} of ${matchingCard['suit']}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('✅ DemoStateSetup: Set discard pile top card to match collection rank: ${matchingCard['rank']} of ${matchingCard['suit']}');
+            }
           }
         } else {
-          _logger.info('✅ DemoStateSetup: Discard pile top card already matches collection rank: $collectionRank', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('✅ DemoStateSetup: Discard pile top card already matches collection rank: $collectionRank');
+          }
         }
       } else {
         // No discard pile, create one with a card matching collection rank
@@ -839,7 +917,9 @@ class DemoStateSetup {
         if (matchingCard != null) {
           discardPile.add(Map<String, dynamic>.from(matchingCard));
           discardTopCard = matchingCard;
-          _logger.info('✅ DemoStateSetup: Created discard pile with card matching collection rank: ${matchingCard['rank']} of ${matchingCard['suit']}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('✅ DemoStateSetup: Created discard pile with card matching collection rank: ${matchingCard['rank']} of ${matchingCard['suit']}');
+          }
         }
       }
 
@@ -849,7 +929,9 @@ class DemoStateSetup {
       
       if (collectionCard != null) {
         collectionRankCards.add(Map<String, dynamic>.from(collectionCard));
-        _logger.info('✅ DemoStateSetup: Added collection card to collection_rank_cards: ${collectionCard['rank']} of ${collectionCard['suit']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ DemoStateSetup: Added collection card to collection_rank_cards: ${collectionCard['rank']} of ${collectionCard['suit']}');
+        }
       }
 
       // Set player's collection rank and collection cards
@@ -859,7 +941,9 @@ class DemoStateSetup {
       players[0]['status'] = 'waiting'; // Player can collect during waiting status
       players[0]['isCurrentPlayer'] = false;
 
-      _logger.info('✅ DemoStateSetup: Collect rank state set up. Collection rank: $collectionRank, Collection cards: ${collectionRankCards.length}, Discard pile top: ${discardTopCard?['rank'] ?? "none"}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DemoStateSetup: Collect rank state set up. Collection rank: $collectionRank, Collection cards: ${collectionRankCards.length}, Discard pile top: ${discardTopCard?['rank'] ?? "none"}');
+      }
     }
 
     updatedState['players'] = players;

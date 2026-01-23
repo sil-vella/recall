@@ -15,7 +15,9 @@ void main(List<String> args) async {
   try {
     final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;
     
-    logger.info('🎮 Initializing Dart Game Server (DEBUG MODE - Local)...', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      logger.info('🎮 Initializing Dart Game Server (DEBUG MODE - Local)...');
+    }
     
     // Create WebSocket server with localhost URL (for local development)
     final wsServer = WebSocketServer(pythonApiUrl: 'http://localhost:5001');
@@ -28,19 +30,31 @@ void main(List<String> args) async {
     // Start server
     final server = await shelf_io.serve(handler, '0.0.0.0', port);
     
-    logger.info('✅ Game server running on ws://${server.address.host}:${server.port}', isOn: LOGGING_SWITCH);
-    logger.info('🔗 Python API URL: http://localhost:5001', isOn: LOGGING_SWITCH);
-    logger.info('📡 Waiting for connections...', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      logger.info('✅ Game server running on ws://${server.address.host}:${server.port}');
+    }
+    if (LOGGING_SWITCH) {
+      logger.info('🔗 Python API URL: http://localhost:5001');
+    }
+    if (LOGGING_SWITCH) {
+      logger.info('📡 Waiting for connections...');
+    }
     
     // Handle shutdown signals
     ProcessSignal.sigint.watch().listen((signal) async {
-      logger.info('🛑 Shutting down server...', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        logger.info('🛑 Shutting down server...');
+      }
       await server.close(force: true);
       exit(0);
     });
   } catch (e, stackTrace) {
-    logger.error('❌ Failed to start Dart Game Server: $e', isOn: LOGGING_SWITCH);
-    logger.error('Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      logger.error('❌ Failed to start Dart Game Server: $e');
+    }
+    if (LOGGING_SWITCH) {
+      logger.error('Stack trace: $stackTrace');
+    }
     stderr.writeln('❌ Failed to start Dart Game Server: $e');
     stderr.writeln('Stack trace: $stackTrace');
     exit(1);

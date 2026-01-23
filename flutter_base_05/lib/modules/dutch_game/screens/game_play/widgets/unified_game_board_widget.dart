@@ -854,7 +854,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final currentPlayerStatus = _getCurrentUserStatus();
     
     if (currentPlayerStatus == 'jack_swap') {
-      _logger.info('🃏 OpponentsPanelWidget: Status is jack_swap - opponent cards are interactive', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🃏 OpponentsPanelWidget: Status is jack_swap - opponent cards are interactive');
+      }
     }
     if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {
       final cardId = card['cardId']?.toString();
@@ -891,15 +893,21 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           }
         } else if (currentPlayerStatus == 'jack_swap') {
           try {
-            _logger.info('🃏 OpponentsPanelWidget: Card tapped during jack_swap - Card: $cardId, Player: $cardOwnerId, Game: $currentGameId', isOn: LOGGING_SWITCH);
-            _logger.info('🃏 OpponentsPanelWidget: Current jack swap selection count: ${PlayerAction.getJackSwapSelectionCount()}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🃏 OpponentsPanelWidget: Card tapped during jack_swap - Card: $cardId, Player: $cardOwnerId, Game: $currentGameId');
+            }
+            if (LOGGING_SWITCH) {
+              _logger.info('🃏 OpponentsPanelWidget: Current jack swap selection count: ${PlayerAction.getJackSwapSelectionCount()}');
+            }
             await PlayerAction.selectCardForJackSwap(
               cardId: cardId,
               playerId: cardOwnerId,
               gameId: currentGameId,
             );
             final selectionCount = PlayerAction.getJackSwapSelectionCount();
-            _logger.info('🃏 OpponentsPanelWidget: After selection, jack swap count: $selectionCount', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🃏 OpponentsPanelWidget: After selection, jack swap count: $selectionCount');
+            }
             if (selectionCount == 1) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -1810,7 +1818,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Reset selectedIndex when status changes from jack_swap to waiting (timer expired)
     if (_previousPlayerStatus == 'jack_swap' && playerStatus == 'waiting') {
-      _logger.info('🃏 UnifiedGameBoardWidget: Status changed from jack_swap to waiting - resetting selectedIndex', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🃏 UnifiedGameBoardWidget: Status changed from jack_swap to waiting - resetting selectedIndex');
+      }
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
@@ -2295,13 +2305,19 @@ _updateMyHandHeight();
   }
 
   Future<void> _handleCallFinalRound(BuildContext context, String gameId) async {
-    _logger.info('🎯 MyHandWidget - _handleCallFinalRound called with gameId: $gameId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎯 MyHandWidget - _handleCallFinalRound called with gameId: $gameId');
+    }
     if (_isProcessingAction) {
-      _logger.info('🚫 MyHandWidget - Action already in progress, ignoring call final round', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🚫 MyHandWidget - Action already in progress, ignoring call final round');
+      }
       return;
     }
     if (gameId.isEmpty) {
-      _logger.warning('⚠️ MyHandWidget - gameId is empty', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('⚠️ MyHandWidget - gameId is empty');
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Error: No active game found'),
@@ -2315,18 +2331,28 @@ _updateMyHandHeight();
       setState(() {
         _isProcessingAction = true;
       });
-      _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true (call final round)', isOn: LOGGING_SWITCH);
-      _logger.info('🎯 MyHandWidget - Creating PlayerAction.callFinalRound with gameId: $gameId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true (call final round)');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('🎯 MyHandWidget - Creating PlayerAction.callFinalRound with gameId: $gameId');
+      }
       final callFinalRoundAction = PlayerAction.callFinalRound(gameId: gameId);
-      _logger.info('🎯 MyHandWidget - Executing callFinalRoundAction...', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎯 MyHandWidget - Executing callFinalRoundAction...');
+      }
       await callFinalRoundAction.execute();
-      _logger.info('✅ MyHandWidget - callFinalRoundAction.execute() completed', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ MyHandWidget - callFinalRoundAction.execute() completed');
+      }
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
           setState(() {
             _isProcessingAction = false;
           });
-          _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round)');
+          }
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2341,7 +2367,9 @@ _updateMyHandHeight();
         setState(() {
           _isProcessingAction = false;
         });
-        _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round error)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round error)');
+        }
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -2355,23 +2383,31 @@ _updateMyHandHeight();
 
   void _handleMyHandCardSelection(BuildContext context, int index, Map<String, dynamic> card) async {
     if (_isProcessingAction) {
-      _logger.info('🚫 MyHandWidget - Action already in progress, ignoring card selection', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🚫 MyHandWidget - Action already in progress, ignoring card selection');
+      }
       return;
     }
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
     final currentPlayerStatus = _getCurrentUserStatus();
-    _logger.info('🎯 MyHandWidget - Card tapped: ${card['cardId']}, Status: $currentPlayerStatus', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎯 MyHandWidget - Card tapped: ${card['cardId']}, Status: $currentPlayerStatus');
+    }
       
     if (currentPlayerStatus == 'jack_swap') {
-      _logger.info('🃏 MyHandWidget: Status is jack_swap - cards are interactive', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🃏 MyHandWidget: Status is jack_swap - cards are interactive');
+      }
     }
     if (currentPlayerStatus == 'playing_card' || 
         currentPlayerStatus == 'jack_swap' || 
         currentPlayerStatus == 'queen_peek' ||
         currentPlayerStatus == 'same_rank_window' ||
         currentPlayerStatus == 'initial_peek') {
-      _logger.info('🎮 MyHandWidget - Status matches allowed statuses: $currentPlayerStatus', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 MyHandWidget - Status matches allowed statuses: $currentPlayerStatus');
+      }
       final updatedMyHand = {
         ...currentMyHand,
         'selectedIndex': index,
@@ -2382,7 +2418,9 @@ _updateMyHandHeight();
         'myHand': updatedMyHand,
       });
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
-      _logger.info('🎮 MyHandWidget - currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 MyHandWidget - currentGameId: $currentGameId');
+      }
       if (currentGameId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2394,9 +2432,13 @@ _updateMyHandHeight();
         return;
       }
       try {
-        _logger.info('🎮 MyHandWidget - Inside try block, checking status: $currentPlayerStatus', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎮 MyHandWidget - Inside try block, checking status: $currentPlayerStatus');
+        }
         if (currentPlayerStatus == 'same_rank_window') {
-          _logger.info('🎮 MyHandWidget - Status is same_rank_window', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎮 MyHandWidget - Status is same_rank_window');
+          }
           final sameRankAction = PlayerAction.sameRankPlay(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',
@@ -2413,15 +2455,21 @@ _updateMyHandHeight();
           );
         } else if (currentPlayerStatus == 'jack_swap') {
           final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-          _logger.info('🃏 MyHandWidget: Card tapped during jack_swap - Card: ${card['cardId']}, Player: $currentUserId, Game: $currentGameId', isOn: LOGGING_SWITCH);
-          _logger.info('🃏 MyHandWidget: Current jack swap selection count: ${PlayerAction.getJackSwapSelectionCount()}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🃏 MyHandWidget: Card tapped during jack_swap - Card: ${card['cardId']}, Player: $currentUserId, Game: $currentGameId');
+          }
+          if (LOGGING_SWITCH) {
+            _logger.info('🃏 MyHandWidget: Current jack swap selection count: ${PlayerAction.getJackSwapSelectionCount()}');
+          }
           await PlayerAction.selectCardForJackSwap(
             cardId: card['cardId']?.toString() ?? '',
             playerId: currentUserId,
             gameId: currentGameId,
           );
           final selectionCount = PlayerAction.getJackSwapSelectionCount();
-          _logger.info('🃏 MyHandWidget: After selection, jack swap count: $selectionCount', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🃏 MyHandWidget: After selection, jack swap count: $selectionCount');
+          }
           if (selectionCount == 1) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -2483,7 +2531,9 @@ _updateMyHandHeight();
 
           if (isDemoMode) {
             // Demo mode: use DemoFunctionality to show card details
-            _logger.info('🎮 MyHandWidget: Demo mode - adding card to initial peek via DemoFunctionality', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎮 MyHandWidget: Demo mode - adding card to initial peek via DemoFunctionality');
+            }
             
             // Check if already selected (using DemoFunctionality's tracking)
             final demoSelectedIds = DemoFunctionality.instance.getInitialPeekSelectedCardIds();
@@ -2587,31 +2637,47 @@ _updateMyHandHeight();
             }
           }
         } else {
-          _logger.info('🎮 MyHandWidget - Entering else block for playing_card status', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎮 MyHandWidget - Entering else block for playing_card status');
+          }
           setState(() {
             _isProcessingAction = true;
           });
-          _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true', isOn: LOGGING_SWITCH);
-          _logger.info('🎮 MyHandWidget - About to execute playerPlayCard: cardId=${card['cardId']}, gameId=$currentGameId', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true');
+          }
+          if (LOGGING_SWITCH) {
+            _logger.info('🎮 MyHandWidget - About to execute playerPlayCard: cardId=${card['cardId']}, gameId=$currentGameId');
+          }
           try {
           final playAction = PlayerAction.playerPlayCard(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',
           );
-            _logger.info('🎮 MyHandWidget - Calling playAction.execute()', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎮 MyHandWidget - Calling playAction.execute()');
+            }
           await playAction.execute();
           } catch (e, stackTrace) {
-            _logger.error('❌ MyHandWidget - Error executing playAction: $e', isOn: LOGGING_SWITCH);
-            _logger.error('❌ MyHandWidget - Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('❌ MyHandWidget - Error executing playAction: $e');
+            }
+            if (LOGGING_SWITCH) {
+              _logger.error('❌ MyHandWidget - Stack trace: $stackTrace');
+            }
             rethrow;
           }
-          _logger.info('🎮 MyHandWidget - playAction.execute() completed', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎮 MyHandWidget - playAction.execute() completed');
+          }
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               setState(() {
                 _isProcessingAction = false;
               });
-              _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false');
+              }
             }
           });
         }
@@ -2620,7 +2686,9 @@ _updateMyHandHeight();
           setState(() {
             _isProcessingAction = false;
           });
-          _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (error case)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (error case)');
+          }
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

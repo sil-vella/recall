@@ -21,21 +21,31 @@ class HomeScreenFeatureRegistrar {
 
   /// Register Dutch game play button
   void registerDutchGamePlayButton(BuildContext context) {
-    _logger.info('🎮 HomeScreenFeatureRegistrar: Registering Dutch game play button', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 HomeScreenFeatureRegistrar: Registering Dutch game play button');
+    }
     
     final feature = HomeScreenButtonFeatureDescriptor(
       featureId: 'dutch_game_play',
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: 'Play Dutch',
       onTap: () {
-        _logger.info('HomeScreen: Dutch game play button pressed', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('HomeScreen: Dutch game play button pressed');
+        }
         try {
           final navigationManager = Provider.of<NavigationManager>(context, listen: false);
-          _logger.debug('HomeScreen: NavigationManager obtained, navigating to /dutch/lobby', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('HomeScreen: NavigationManager obtained, navigating to /dutch/lobby');
+          }
           navigationManager.navigateTo('/dutch/lobby');
-          _logger.debug('HomeScreen: Navigation to /dutch/lobby initiated', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('HomeScreen: Navigation to /dutch/lobby initiated');
+          }
         } catch (e, stackTrace) {
-          _logger.error('HomeScreen: Error in Dutch game play button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('HomeScreen: Error in Dutch game play button handler', error: e, stackTrace: stackTrace);
+          }
         }
       },
       imagePath: 'assets/images/backgrounds/play_001.png',
@@ -53,26 +63,38 @@ class HomeScreenFeatureRegistrar {
       context: context,
     );
     
-    _logger.info('✅ HomeScreenFeatureRegistrar: Dutch game play button registered', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ HomeScreenFeatureRegistrar: Dutch game play button registered');
+    }
   }
 
   /// Register Dutch game demo button
   void registerDutchGameDemoButton(BuildContext context) {
-    _logger.info('🎮 HomeScreenFeatureRegistrar: Registering Dutch game demo button', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 HomeScreenFeatureRegistrar: Registering Dutch game demo button');
+    }
     
     final feature = HomeScreenButtonFeatureDescriptor(
       featureId: 'dutch_game_demo',
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: 'Demo',
       onTap: () {
-        _logger.info('HomeScreen: Dutch game demo button pressed', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('HomeScreen: Dutch game demo button pressed');
+        }
         try {
           final navigationManager = Provider.of<NavigationManager>(context, listen: false);
-          _logger.debug('HomeScreen: NavigationManager obtained, navigating to /dutch/demo', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('HomeScreen: NavigationManager obtained, navigating to /dutch/demo');
+          }
           navigationManager.navigateTo('/dutch/demo');
-          _logger.debug('HomeScreen: Navigation to /dutch/demo initiated', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('HomeScreen: Navigation to /dutch/demo initiated');
+          }
         } catch (e, stackTrace) {
-          _logger.error('HomeScreen: Error in Dutch game demo button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('HomeScreen: Error in Dutch game demo button handler', error: e, stackTrace: stackTrace);
+          }
         }
       },
       imagePath: 'assets/images/backgrounds/demo-feature-background.png',
@@ -90,7 +112,9 @@ class HomeScreenFeatureRegistrar {
       context: context,
     );
     
-    _logger.info('✅ HomeScreenFeatureRegistrar: Dutch game demo button registered', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ HomeScreenFeatureRegistrar: Dutch game demo button registered');
+    }
   }
 
   /// Unregister all home screen features

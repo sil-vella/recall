@@ -46,7 +46,9 @@ class InstructionsWidget extends StatelessWidget {
         // Get optional custom close callback (function reference stored in state)
         final onCloseCallback = instructionsData['onClose'] as void Function()?;
         
-        _logger.info('InstructionsWidget: isVisible=$isVisible, title=$title, key=$instructionKey, currentlyShowing=$_currentlyShowingKey', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('InstructionsWidget: isVisible=$isVisible, title=$title, key=$instructionKey, currentlyShowing=$_currentlyShowingKey');
+        }
         
         // Don't render if not visible
         if (!isVisible || content.isEmpty) {
@@ -79,7 +81,9 @@ class InstructionsWidget extends StatelessWidget {
             );
         });
         } else if (!shouldShow) {
-          _logger.info('InstructionsWidget: Skipping duplicate modal for key=$instructionKey (already showing)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('InstructionsWidget: Skipping duplicate modal for key=$instructionKey (already showing)');
+          }
         }
         
         return const SizedBox.shrink();
@@ -137,7 +141,9 @@ class InstructionsWidget extends StatelessWidget {
     // Use root context if available, otherwise fall back to provided context
     final dialogContext = rootNavigator ?? context;
     
-    _logger.info('InstructionsWidget: Showing modal with rootNavigator=${rootNavigator != null}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('InstructionsWidget: Showing modal with rootNavigator=${rootNavigator != null}');
+    }
     
     // Use root navigator to ensure modal is independent of screen constraints
     showDialog(
@@ -266,11 +272,15 @@ class InstructionsWidget extends StatelessWidget {
         
         // Execute custom close callback if provided (for tapping outside dismissal)
         if (onCloseCallback != null) {
-          _logger.info('InstructionsWidget: Executing custom close callback for key=$instructionKey (dismissed by tapping outside)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('InstructionsWidget: Executing custom close callback for key=$instructionKey (dismissed by tapping outside)');
+          }
           try {
             onCloseCallback();
           } catch (e) {
-            _logger.error('InstructionsWidget: Error executing custom close callback: $e', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('InstructionsWidget: Error executing custom close callback: $e');
+            }
           }
         }
         
@@ -305,15 +315,21 @@ class InstructionsWidget extends StatelessWidget {
     void Function()? onCloseCallback,
   ) {
     try {
-      _logger.info('InstructionsWidget: Closing instructions modal, key=$instructionKey, hasCustomCallback=${onCloseCallback != null}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('InstructionsWidget: Closing instructions modal, key=$instructionKey, hasCustomCallback=${onCloseCallback != null}');
+      }
       
       // Execute custom close callback if provided (instruction-specific action)
       if (onCloseCallback != null) {
-        _logger.info('InstructionsWidget: Executing custom close callback for key=$instructionKey', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('InstructionsWidget: Executing custom close callback for key=$instructionKey');
+        }
         try {
           onCloseCallback();
         } catch (e) {
-          _logger.error('InstructionsWidget: Error executing custom close callback: $e', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('InstructionsWidget: Error executing custom close callback: $e');
+          }
         }
       }
       
@@ -346,7 +362,9 @@ class InstructionsWidget extends StatelessWidget {
       });
       
     } catch (e) {
-      _logger.error('InstructionsWidget: Failed to close instructions: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('InstructionsWidget: Failed to close instructions: $e');
+      }
       // Clear the flag even on error
       if (_currentlyShowingKey == instructionKey) {
         _currentlyShowingKey = null;

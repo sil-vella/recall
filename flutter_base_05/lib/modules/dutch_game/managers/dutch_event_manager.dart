@@ -93,7 +93,9 @@ class DutchEventManager {
 
   /// Handle game_state_partial_update event
   void handleGameStatePartialUpdate(Map<String, dynamic> data) {
-    _logger.info("handleGameStatePartialUpdate: $data", isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info("handleGameStatePartialUpdate: $data");
+    }
     DutchEventHandlerCallbacks.handleGameStatePartialUpdate(data);
   }
 
@@ -192,7 +194,9 @@ class DutchEventManager {
           
           // Navigate to game play screen if this is a random join
           if (isRandomJoin) {
-            _logger.info('🎮 Random join room created, navigating to game play screen', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎮 Random join room created, navigating to game play screen');
+            }
             
             // Clear the random join flag
             DutchGameHelpers.updateUIState({
@@ -263,12 +267,16 @@ class DutchEventManager {
     // Register websocket_join_room hook callback (for joining existing rooms)
     HooksManager().registerHookWithData('websocket_join_room', (data) {
       try {
-        _logger.info('🔍 websocket_join_room hook triggered with data: $data', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 websocket_join_room hook triggered with data: $data');
+        }
         
         final status = data['status']?.toString() ?? 'unknown';
         final roomId = data['room_id']?.toString() ?? '';
         
-        _logger.info('🔍 websocket_join_room: status=$status, roomId=$roomId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 websocket_join_room: status=$status, roomId=$roomId');
+        }
         
         // 🎯 CRITICAL: For any successful room join, set currentGameId and currentRoomId
         // This ensures player 2 (and any joining player) has the game ID set before receiving game_state_updated
@@ -278,7 +286,9 @@ class DutchEventManager {
           
           // Set currentGameId if not already set (important for player 2 joining)
           if (currentGameId != roomId) {
-            _logger.info('🔍 websocket_join_room: Setting currentGameId to $roomId (was: $currentGameId)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🔍 websocket_join_room: Setting currentGameId to $roomId (was: $currentGameId)');
+            }
             DutchGameHelpers.updateUIState({
               'currentGameId': roomId,
               'currentRoomId': roomId,
@@ -291,10 +301,14 @@ class DutchEventManager {
         final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final isRandomJoinInProgress = dutchState['isRandomJoinInProgress'] == true;
         
-        _logger.info('🔍 websocket_join_room: isRandomJoinInProgress=$isRandomJoinInProgress, dutchState keys: ${dutchState.keys.toList()}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 websocket_join_room: isRandomJoinInProgress=$isRandomJoinInProgress, dutchState keys: ${dutchState.keys.toList()}');
+        }
         
         if (status == 'success' && isRandomJoinInProgress && roomId.isNotEmpty) {
-          _logger.info('🎮 Random join: joined existing room, waiting for game_state_updated before navigating', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎮 Random join: joined existing room, waiting for game_state_updated before navigating');
+          }
           
           // Clear the random join flag
           DutchGameHelpers.updateUIState({
@@ -304,12 +318,18 @@ class DutchEventManager {
           // CRITICAL: Don't navigate immediately - wait for game_state_updated event
           // This ensures the game has actual player data before showing the screen
           // Navigation will be handled by handleGameStateUpdated when it receives valid game state
-          _logger.info('🎮 Random join: Deferring navigation until game_state_updated is received', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎮 Random join: Deferring navigation until game_state_updated is received');
+          }
         } else {
-          _logger.info('🔍 websocket_join_room: Navigation skipped - status=$status, isRandomJoinInProgress=$isRandomJoinInProgress, roomId=$roomId', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🔍 websocket_join_room: Navigation skipped - status=$status, isRandomJoinInProgress=$isRandomJoinInProgress, roomId=$roomId');
+          }
         }
       } catch (e) {
-        _logger.error('❌ Error in websocket_join_room hook callback: $e', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('❌ Error in websocket_join_room hook callback: $e');
+        }
       }
     });
     

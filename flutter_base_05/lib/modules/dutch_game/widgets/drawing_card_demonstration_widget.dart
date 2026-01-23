@@ -305,8 +305,12 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
         final availableWidth = constraints.maxWidth;
         final needsScroll = contentWidth > availableWidth;
         
-        _logger.debug('🎴 DrawDemo: _buildHand - cardsToShow.length: ${cardsToShow.length}, cardDimensions: ${cardDimensions.width}x${cardDimensions.height}, spacing: $spacing', isOn: LOGGING_SWITCH);
-        _logger.debug('🎴 DrawDemo: _buildHand - contentWidth: $contentWidth, availableWidth: $availableWidth, needsScroll: $needsScroll', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎴 DrawDemo: _buildHand - cardsToShow.length: ${cardsToShow.length}, cardDimensions: ${cardDimensions.width}x${cardDimensions.height}, spacing: $spacing');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎴 DrawDemo: _buildHand - contentWidth: $contentWidth, availableWidth: $availableWidth, needsScroll: $needsScroll');
+        }
         
         final cardWidgets = List.generate(cardsToShow.length, (index) {
           final cardData = cardsToShow[index];
@@ -321,7 +325,9 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
           final cardKey = isLastCard ? _lastHandCardKey : null;
           
           final paddingRight = index < cardsToShow.length - 1 ? spacing : 0.0;
-          _logger.debug('🎴 DrawDemo: _buildHand - card[$index]: isDrawnCard=$isDrawnCard, isLastCard=$isLastCard, paddingRight=$paddingRight', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.debug('🎴 DrawDemo: _buildHand - card[$index]: isDrawnCard=$isDrawnCard, isLastCard=$isLastCard, paddingRight=$paddingRight');
+          }
 
           return Padding(
             padding: EdgeInsets.only(
@@ -339,7 +345,9 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
           );
         });
         
-        _logger.debug('🎴 DrawDemo: _buildHand - Returning SizedBox with height: ${cardDimensions.height}, needsScroll: $needsScroll', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎴 DrawDemo: _buildHand - Returning SizedBox with height: ${cardDimensions.height}, needsScroll: $needsScroll');
+        }
         
         return SizedBox(
           height: cardDimensions.height,

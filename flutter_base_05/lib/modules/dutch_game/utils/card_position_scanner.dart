@@ -133,9 +133,13 @@ class CardPositionScanner {
       if (position != null) {
         // If duplicate cardId, overwrite with latest (newest position)
         scannedPositions[cardId] = position;
-        _logger.info('🎬 CardPositionScanner: Scanned $cardId at $keyData.location (${position.position.dx.toStringAsFixed(1)}, ${position.position.dy.toStringAsFixed(1)})', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardPositionScanner: Scanned $cardId at $keyData.location (${position.position.dx.toStringAsFixed(1)}, ${position.position.dy.toStringAsFixed(1)})');
+        }
       } else {
-        _logger.info('🎬 CardPositionScanner: Cannot calculate position for $cardId - renderObject not available', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardPositionScanner: Cannot calculate position for $cardId - renderObject not available');
+        }
       }
     }
     
@@ -144,7 +148,9 @@ class CardPositionScanner {
       if (!scannedPositions.containsKey(entry.key)) {
         // Preserve old position - state still updating, card not in current scan
         scannedPositions[entry.key] = entry.value;
-        _logger.info('🎬 CardPositionScanner: Preserved position for $entry.key (missing from scan, state still updating)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 CardPositionScanner: Preserved position for $entry.key (missing from scan, state still updating)');
+        }
       }
     }
     
@@ -152,7 +158,9 @@ class CardPositionScanner {
     _currentPositions.clear();
     _currentPositions.addAll(scannedPositions);
     
-    _logger.info('🎬 CardPositionScanner: Scan complete - ${_currentPositions.length} positions tracked', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionScanner: Scan complete - ${_currentPositions.length} positions tracked');
+    }
     
     return Map.unmodifiable(_currentPositions);
   }
@@ -210,21 +218,27 @@ class CardPositionScanner {
   void saveCurrentAsPrevious() {
     _previousPositions.clear();
     _previousPositions.addAll(_currentPositions);
-    _logger.info('🎬 CardPositionScanner: Saved ${_previousPositions.length} positions as previous', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionScanner: Saved ${_previousPositions.length} positions as previous');
+    }
   }
 
   /// Clear all positions (including previous)
   void clearPositions() {
     _currentPositions.clear();
     _previousPositions.clear();
-    _logger.info('🎬 CardPositionScanner: Cleared all positions', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionScanner: Cleared all positions');
+    }
   }
 
   /// Remove a specific card's position
   void removeCardPosition(String cardId) {
     _currentPositions.remove(cardId);
     _previousPositions.remove(cardId);
-    _logger.info('🎬 CardPositionScanner: Removed position for $cardId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 CardPositionScanner: Removed position for $cardId');
+    }
   }
 
   /// Get count of tracked positions

@@ -27,7 +27,9 @@ class WSEventListener {
 
   /// Register all Socket.IO event listeners
   void registerAllListeners() {
-    _logger.info('🎧 Registering all WebSocket event listeners', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎧 Registering all WebSocket event listeners');
+    }
     
     // Connection events
     _registerConnectListener();
@@ -63,23 +65,33 @@ class WSEventListener {
     // Authentication events
     _registerAuthenticationListeners();
     
-    _logger.info('✅ All WebSocket event listeners registered successfully', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ All WebSocket event listeners registered successfully');
+    }
   }
 
   /// Register connection event listener
   void _registerConnectListener() {
-    _logger.debug('🎧 Registering connect event listener', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('🎧 Registering connect event listener');
+    }
     _socket?.on('connected', (data) {
-      _logger.debug('📡 Connected event received', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('📡 Connected event received');
+      }
       _eventHandler.handleConnect(data);
     });
   }
 
   /// Register disconnect event listener
   void _registerDisconnectListener() {
-    _logger.debug('🎧 Registering disconnect event listener', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('🎧 Registering disconnect event listener');
+    }
     _socket?.on('disconnect', (data) {
-      _logger.debug('📡 Disconnect event received', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('📡 Disconnect event received');
+      }
       _eventHandler.handleDisconnect(data);
     });
   }
@@ -107,10 +119,16 @@ class WSEventListener {
 
   /// Register join room success listener
   void _registerJoinRoomSuccessListener() {
-    _logger.debug('🎧 Registering join_room_success event listener', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('🎧 Registering join_room_success event listener');
+    }
     _socket?.on('join_room_success', (data) {
-      _logger.info('📡 join_room_success event received in WSEventListener', isOn: LOGGING_SWITCH);
-      _logger.debug('join_room_success data: $data', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📡 join_room_success event received in WSEventListener');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.debug('join_room_success data: $data');
+      }
       _eventHandler.handleJoinRoomSuccess(data);
     });
   }
@@ -205,9 +223,13 @@ class WSEventListener {
 
   /// Register rooms list listener
   void _registerRoomsListListener() {
-    _logger.debug('🎧 Registering rooms_list event listener', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('🎧 Registering rooms_list event listener');
+    }
     _socket?.on('rooms_list', (data) {
-      _logger.debug('📡 rooms_list event received', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('📡 rooms_list event received');
+      }
       _eventHandler.handleRoomsList(data);
     });
   }
@@ -240,7 +262,9 @@ class WSEventListener {
   
   /// Register game event acknowledgment listeners
   void _registerGameEventAcknowledgmentListeners() {
-    _logger.debug('🎧 Registering game event acknowledgment listeners', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('🎧 Registering game event acknowledgment listeners');
+    }
     
     final gameEvents = [
       'start_match', 'draw_card', 'play_card', 'discard_card',
@@ -250,7 +274,9 @@ class WSEventListener {
     
     for (final event in gameEvents) {
       _socket?.on('${event}_acknowledged', (data) {
-        _logger.info('✅ Acknowledged: $event', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ Acknowledged: $event');
+        }
         _eventHandler.handleCustomEvent(event, data);
       });
     }
@@ -258,20 +284,28 @@ class WSEventListener {
   
   /// Register authentication event listeners
   void _registerAuthenticationListeners() {
-    _logger.debug('🎧 Registering authentication event listeners', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('🎧 Registering authentication event listeners');
+    }
     
     _socket?.on('authenticated', (data) {
-      _logger.info('🔐 Authentication successful', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔐 Authentication successful');
+      }
       _eventHandler.handleAuthenticationSuccess(data);
     });
     
     _socket?.on('authentication_failed', (data) {
-      _logger.error('❌ Authentication failed', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Authentication failed');
+      }
       _eventHandler.handleAuthenticationFailed(data);
     });
     
     _socket?.on('authentication_error', (data) {
-      _logger.error('❌ Authentication error', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Authentication error');
+      }
       _eventHandler.handleAuthenticationError(data);
     });
   }

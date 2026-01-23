@@ -57,7 +57,9 @@ class DemoInstructionsWidgetState extends State<DemoInstructionsWidget> {
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final demoInstructionsPhase = dutchGameState['demoInstructionsPhase']?.toString() ?? '';
         
-        _logger.info('DemoInstructionsWidget: demoPhase=$demoInstructionsPhase, type=${demoInstructionsPhase.runtimeType}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('DemoInstructionsWidget: demoPhase=$demoInstructionsPhase, type=${demoInstructionsPhase.runtimeType}');
+        }
         
         // Get instructions for current demo phase
         final instructions = DemoFunctionality.instance.getInstructionsForPhase(demoInstructionsPhase);
@@ -72,7 +74,9 @@ class DemoInstructionsWidgetState extends State<DemoInstructionsWidget> {
         final paragraph = instructions['paragraph']?.toString() ?? '';
         final hasButton = instructions['hasButton'] as bool? ?? false;
         
-    _logger.info('DemoInstructionsWidget: demoPhase=$_previousPhase, isVisible=$isVisible, title="$title", paragraph="${paragraph.length > 50 ? paragraph.substring(0, 50) + '...' : paragraph}"', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('DemoInstructionsWidget: demoPhase=$_previousPhase, isVisible=$isVisible, title="$title", paragraph="${paragraph.length > 50 ? paragraph.substring(0, 50) + '...' : paragraph}"');
+    }
         
         // Don't render if not visible or no content
         if (!isVisible || title.isEmpty || paragraph.isEmpty) {
@@ -130,7 +134,9 @@ class DemoInstructionsWidgetState extends State<DemoInstructionsWidget> {
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
                     onPressed: () {
-                      _logger.info('DemoInstructionsWidget: "Let\'s go" button pressed for phase: $_previousPhase', isOn: LOGGING_SWITCH);
+                      if (LOGGING_SWITCH) {
+                        _logger.info('DemoInstructionsWidget: "Let\'s go" button pressed for phase: $_previousPhase');
+                      }
                       if (_previousPhase == 'initial') {
                         DemoFunctionality.instance.transitionToInitialPeek();
                       } else if (_previousPhase == 'wrong_same_rank_penalty') {
@@ -141,7 +147,9 @@ class DemoInstructionsWidgetState extends State<DemoInstructionsWidget> {
                         });
                         // Start opponent simulation (end same rank window and simulate opponents)
                         DemoFunctionality.instance.endSameRankWindowAndSimulateOpponents().catchError((error, stackTrace) {
-                          _logger.error('DemoInstructionsWidget: Error starting opponent simulation: $error', error: error, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+                          if (LOGGING_SWITCH) {
+                            _logger.error('DemoInstructionsWidget: Error starting opponent simulation: $error', error: error, stackTrace: stackTrace);
+                          }
                         });
                       }
                     },

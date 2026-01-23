@@ -31,8 +31,12 @@ class StateAwareConnectionStatusFeature extends StatelessWidget {
         final isConnecting = websocketManager.isConnecting;
         
         // Debug logging for connection indicator
-        _logger.debug('🔍 Connection Indicator: websocketState=$websocketState', isOn: LOGGING_SWITCH);
-        _logger.debug('🔍 Connection Indicator: isConnected=$isConnected, isConnecting=$isConnecting', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🔍 Connection Indicator: websocketState=$websocketState');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.debug('🔍 Connection Indicator: isConnected=$isConnected, isConnecting=$isConnecting');
+        }
         
         // Determine icon and color based on state
         IconData icon;

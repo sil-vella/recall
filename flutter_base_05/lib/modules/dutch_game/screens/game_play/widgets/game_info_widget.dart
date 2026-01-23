@@ -97,15 +97,31 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final isPracticeGame = currentGameId.startsWith('practice_room_');
         
         // 🔍 DEBUG: Log the values that determine start button visibility
-        _logger.info('🔍 GameInfoWidget DEBUG:', isOn: LOGGING_SWITCH);
-        _logger.info('  currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
-        _logger.info('  gamePhase: $gamePhase', isOn: LOGGING_SWITCH);
-        _logger.info('  isRoomOwner: $isRoomOwner', isOn: LOGGING_SWITCH);
-        _logger.info('  isInGame: $isInGame', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 GameInfoWidget DEBUG:');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('  currentGameId: $currentGameId');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('  gamePhase: $gamePhase');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('  isRoomOwner: $isRoomOwner');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('  isInGame: $isInGame');
+        }
         
-        _logger.info('  Start button condition: isPracticeGame($isPracticeGame) && gamePhase($gamePhase) == "waiting"', isOn: LOGGING_SWITCH);
-        _logger.info('  Should show start button: ${isPracticeGame && gamePhase == 'waiting'}', isOn: LOGGING_SWITCH);
-        _logger.info('  Full gameInfo: $gameInfo', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('  Start button condition: isPracticeGame($isPracticeGame) && gamePhase($gamePhase) == "waiting"');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('  Should show start button: ${isPracticeGame && gamePhase == 'waiting'}');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('  Full gameInfo: $gameInfo');
+        }
         
         // Get additional game state for context
         final isGameActive = dutchGameState['isGameActive'] ?? false;
@@ -301,8 +317,12 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         _isStartingMatch = true;
       });
       
-      _logger.info('🎮 GameInfoWidget: ===== START MATCH BUTTON PRESSED =====', isOn: LOGGING_SWITCH);
-      _logger.info('🎮 GameInfoWidget: Initiating start match flow', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 GameInfoWidget: ===== START MATCH BUTTON PRESSED =====');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 GameInfoWidget: Initiating start match flow');
+      }
       
       // Get current game state to check if it's a dutch game
       final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -310,28 +330,44 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
       final currentGamePhase = gameInfo['gamePhase']?.toString() ?? 'unknown';
       
-      _logger.info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
-      _logger.info('🎮 GameInfoWidget: Current game phase: $currentGamePhase', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 GameInfoWidget: Current game ID: $currentGameId');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 GameInfoWidget: Current game phase: $currentGamePhase');
+      }
       
       // Check if this is a practice game (practice games start with 'practice_room_')
       final isPracticeGame = currentGameId.startsWith('practice_room_');
-      _logger.info('🎮 GameInfoWidget: Dutch game check - isPracticeGame: $isPracticeGame', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 GameInfoWidget: Dutch game check - isPracticeGame: $isPracticeGame');
+      }
       
       // Use GameCoordinator for both practice and multiplayer games
       // The event emitter will route to practice bridge if transport mode is practice
       final gameCoordinator = GameCoordinator();
       
       if (isPracticeGame) {
-        _logger.info('🎮 GameInfoWidget: Practice game detected - routing to GameCoordinator (will use practice bridge)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎮 GameInfoWidget: Practice game detected - routing to GameCoordinator (will use practice bridge)');
+        }
       } else {
-        _logger.info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator');
+        }
       }
       
-      _logger.info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()');
+      }
       final result = await gameCoordinator.startMatch();
-      _logger.info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result');
+      }
       
-      _logger.info('🎮 GameInfoWidget: ===== START MATCH FLOW COMPLETED =====', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 GameInfoWidget: ===== START MATCH FLOW COMPLETED =====');
+      }
       
       // Reset loading state after a delay to allow UI to update
       // The widget will hide when gamePhase changes, but we reset here as a fallback
@@ -344,7 +380,9 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       });
       
     } catch (e, stackTrace) {
-      _logger.error('🎮 GameInfoWidget: ❌ Error in _handleStartMatch: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('🎮 GameInfoWidget: ❌ Error in _handleStartMatch: $e', error: e, stackTrace: stackTrace);
+      }
       
       // Reset loading state on error
       if (mounted) {

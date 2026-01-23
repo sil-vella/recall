@@ -57,7 +57,9 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
   /// Show initial instructions from GameInstructionsProvider
   void _showInitialInstructions() {
     try {
-      _logger.info('📚 DemoScreen: Showing initial instructions on screen load', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📚 DemoScreen: Showing initial instructions on screen load');
+      }
       
       // Get initial instructions from provider
       final initialInstructions = GameInstructionsProvider.getInitialInstructions();
@@ -71,7 +73,9 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
       
       // Check if user has marked this instruction as "don't show again"
       if (dontShowAgain[GameInstructionsProvider.KEY_INITIAL] == true) {
-        _logger.info('📚 DemoScreen: Initial instructions marked as "don\'t show again", skipping', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📚 DemoScreen: Initial instructions marked as "don\'t show again", skipping');
+        }
         return;
       }
       
@@ -87,9 +91,13 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         },
       });
       
-      _logger.info('✅ DemoScreen: Initial instructions shown', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DemoScreen: Initial instructions shown');
+      }
     } catch (e) {
-      _logger.error('❌ DemoScreen: Error showing initial instructions: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ DemoScreen: Error showing initial instructions: $e');
+      }
     }
   }
 
@@ -164,11 +172,15 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () async {
-            _logger.info('🎮 DemoScreen: Start Demo button tapped - starting sequential demos', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎮 DemoScreen: Start Demo button tapped - starting sequential demos');
+            }
             try {
               await _demoActionHandler.startSequentialDemos();
             } catch (e) {
-              _logger.error('❌ DemoScreen: Error starting sequential demos: $e', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('❌ DemoScreen: Error starting sequential demos: $e');
+              }
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -235,11 +247,15 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
                 color: Colors.transparent,
                 child: InkWell(
           onTap: () async {
-            _logger.info('🎮 DemoScreen: Demo action button tapped: $actionType', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎮 DemoScreen: Demo action button tapped: $actionType');
+            }
             try {
               await _demoActionHandler.startDemoAction(actionType);
             } catch (e) {
-              _logger.error('❌ DemoScreen: Error starting demo action: $e', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('❌ DemoScreen: Error starting demo action: $e');
+              }
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

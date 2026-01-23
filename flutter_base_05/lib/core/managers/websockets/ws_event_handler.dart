@@ -32,19 +32,29 @@ class WSEventHandler {
   /// Handle connection event
   void handleConnect(dynamic data) {
     try {
-      _logger.info('🔌 WebSocket connection established', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔌 WebSocket connection established');
+      }
       if (data is Map<String, dynamic>) {
-        _logger.debug('Connection data: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
-        _logger.debug('Session ID: ${data['session_id']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('Connection data: ${data.keys.toList()}');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.debug('Session ID: ${data['session_id']}');
+        }
       }
       
       // Use validated state updater
-      _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus()', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus()');
+      }
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: true,
         sessionData: data is Map<String, dynamic> ? data : null,
       );
-      _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed');
+      }
       
       // 🎣 Trigger websocket_connect hook for other modules
       HooksManager().triggerHookWithData('websocket_connect', {
@@ -53,18 +63,26 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ WebSocket connection handled successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket connection handled successfully');
+      }
     } catch (e) {
-      _logger.error('❌ Error handling WebSocket connection: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error handling WebSocket connection: $e');
+      }
     }
   }
 
   /// Handle disconnection event
   void handleDisconnect(dynamic data) {
     try {
-      _logger.info('🔌 WebSocket connection lost', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔌 WebSocket connection lost');
+      }
       if (data is Map<String, dynamic>) {
-        _logger.debug('Disconnect data: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('Disconnect data: ${data.keys.toList()}');
+        }
       }
       
       // Use validated state updater
@@ -79,18 +97,26 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ WebSocket disconnection handled successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket disconnection handled successfully');
+      }
     } catch (e) {
-      _logger.error('❌ Error handling WebSocket disconnection: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error handling WebSocket disconnection: $e');
+      }
     }
   }
 
   /// Handle connection error event
   void handleConnectError(dynamic data) {
     try {
-      _logger.error('❌ WebSocket connection error occurred', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ WebSocket connection error occurred');
+      }
       if (data is Map<String, dynamic>) {
-        _logger.debug('Error data: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('Error data: ${data.keys.toList()}');
+        }
       }
       
       // Use validated state updater
@@ -105,18 +131,26 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ WebSocket connection error handled successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket connection error handled successfully');
+      }
     } catch (e) {
-      _logger.error('❌ Error handling WebSocket connection error: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error handling WebSocket connection error: $e');
+      }
     }
   }
 
   /// Handle session data event
   void handleSessionData(dynamic data) {
     try {
-      _logger.info('📊 WebSocket session data received', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📊 WebSocket session data received');
+      }
       if (data is Map<String, dynamic>) {
-        _logger.debug('Session data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('Session data keys: ${data.keys.toList()}');
+        }
       }
       
       // Use validated state updater
@@ -124,16 +158,22 @@ class WSEventHandler {
         data is Map<String, dynamic> ? data : null,
       );
       
-      _logger.info('✅ WebSocket session data handled successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket session data handled successfully');
+      }
     } catch (e) {
-      _logger.error('❌ Error handling WebSocket session data: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error handling WebSocket session data: $e');
+      }
     }
   }
 
     /// Handle room joined event
   void handleRoomJoined(dynamic data) {
     try {
-      _logger.info('🚪 WebSocket room joined event received', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🚪 WebSocket room joined event received');
+      }
       
       // Convert LinkedMap to Map<String, dynamic> if needed
       final Map<String, dynamic> convertedData;
@@ -147,8 +187,12 @@ class WSEventHandler {
       final roomData = convertedData;
       final ownerId = convertedData['owner_id'] ?? '';
       
-      _logger.debug('Room ID: $roomId, Owner ID: $ownerId', isOn: LOGGING_SWITCH);
-      _logger.debug('Room data keys: ${roomData.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('Room ID: $roomId, Owner ID: $ownerId');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.debug('Room data keys: ${roomData.keys.toList()}');
+      }
       
       // Get current user ID from login module state
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -156,7 +200,9 @@ class WSEventHandler {
       
       // Check if current user is the room owner
       final isRoomOwner = currentUserId == ownerId;
-      _logger.debug('Current user ID: $currentUserId, Is room owner: $isRoomOwner', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('Current user ID: $currentUserId, Is room owner: $isRoomOwner');
+      }
       
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
@@ -214,17 +260,25 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ WebSocket room joined event handled successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket room joined event handled successfully');
+      }
     } catch (e) {
-      _logger.error('❌ Error handling WebSocket room joined event: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error handling WebSocket room joined event: $e');
+      }
     }
   }
 
   /// Handle join room success event
   void handleJoinRoomSuccess(dynamic data) {
     try {
-      _logger.info('✅ WebSocket join_room_success event received', isOn: LOGGING_SWITCH);
-      _logger.debug('Join room success data: $data', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket join_room_success event received');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.debug('Join room success data: $data');
+      }
       
       // Convert LinkedMap to Map<String, dynamic> if needed
       final Map<String, dynamic> convertedData;
@@ -272,9 +326,13 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ WebSocket join_room_success event handled successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ WebSocket join_room_success event handled successfully');
+      }
     } catch (e) {
-      _logger.error('❌ Error handling join_room_success: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error handling join_room_success: $e');
+      }
     }
   }
 
@@ -743,10 +801,14 @@ class WSEventHandler {
   /// Handle rooms_list event (response to list_rooms request)
   void handleRoomsList(dynamic data) {
     try {
-      _logger.info('📋 Rooms list received', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📋 Rooms list received');
+      }
       
       if (data is! Map<String, dynamic>) {
-        _logger.warning('Invalid rooms_list data format', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('Invalid rooms_list data format');
+        }
         return;
       }
       
@@ -781,7 +843,9 @@ class WSEventHandler {
         'lastUpdated': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ Updated available games: ${availableGames.length} games', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ Updated available games: ${availableGames.length} games');
+      }
       
       // Trigger custom event callback
       _eventManager.triggerCallbacks('rooms_list', {
@@ -792,28 +856,36 @@ class WSEventHandler {
       });
       
     } catch (e) {
-      _logger.error('Error handling rooms_list: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error handling rooms_list: $e');
+      }
     }
   }
   
   /// Handle authentication success
   void handleAuthenticationSuccess(dynamic data) {
     try {
-      _logger.info('🔐 User authenticated', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔐 User authenticated');
+      }
       
       WebSocketStateHelpers.updateAuthenticationStatus(
         isAuthenticated: true,
         userId: data is Map ? data['user_id'] : null,
       );
     } catch (e) {
-      _logger.error('Error handling authentication success: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error handling authentication success: $e');
+      }
     }
   }
   
   /// Handle authentication failure
   void handleAuthenticationFailed(dynamic data) {
     try {
-      _logger.warning('Authentication failed', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('Authentication failed');
+      }
       
       WebSocketStateHelpers.updateAuthenticationStatus(
         isAuthenticated: false,
@@ -822,14 +894,18 @@ class WSEventHandler {
       
       // Authentication failure - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
-      _logger.error('Error handling authentication failure: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error handling authentication failure: $e');
+      }
     }
   }
   
   /// Handle authentication error
   void handleAuthenticationError(dynamic data) {
     try {
-      _logger.error('Authentication error', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Authentication error');
+      }
       
       WebSocketStateHelpers.updateAuthenticationStatus(
         isAuthenticated: false,
@@ -838,13 +914,17 @@ class WSEventHandler {
       
       // Authentication error - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
-      _logger.error('Error handling authentication error: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error handling authentication error: $e');
+      }
     }
   }
   /// Handle custom events (like game event acknowledgments)
   void handleCustomEvent(String eventType, dynamic data) {
     try {
-      _logger.info('🎮 Custom event received: $eventType', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 Custom event received: $eventType');
+      }
       
       // Trigger event callbacks
       _eventManager.triggerCallbacks(eventType, data);
@@ -857,7 +937,9 @@ class WSEventHandler {
       });
       
     } catch (e) {
-      _logger.error('Error handling custom event $eventType: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error handling custom event $eventType: $e');
+      }
     }
   }
 } 

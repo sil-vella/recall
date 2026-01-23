@@ -38,16 +38,24 @@ class MessagesWidget extends StatelessWidget {
         final isGameEnded = gamePhase == 'game_ended';
         
         final contentPreview = content.length > 50 ? '${content.substring(0, 50)}...' : content;
-        _logger.info('📬 MessagesWidget: State update - isVisible=$isVisible, gamePhase=$gamePhase, isGameEnded=$isGameEnded, title="$title", content="$contentPreview", type=$messageType', isOn: LOGGING_SWITCH);
-        _logger.info('📬 MessagesWidget: Full messagesData keys: ${messagesData.keys.toList()}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📬 MessagesWidget: State update - isVisible=$isVisible, gamePhase=$gamePhase, isGameEnded=$isGameEnded, title="$title", content="$contentPreview", type=$messageType');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('📬 MessagesWidget: Full messagesData keys: ${messagesData.keys.toList()}');
+        }
         
         // Don't render if not visible, content is empty, or game hasn't ended
         if (!isVisible || content.isEmpty || !isGameEnded) {
-          _logger.info('📬 MessagesWidget: Not rendering - isVisible=$isVisible, content.isEmpty=${content.isEmpty}, isGameEnded=$isGameEnded', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('📬 MessagesWidget: Not rendering - isVisible=$isVisible, content.isEmpty=${content.isEmpty}, isGameEnded=$isGameEnded');
+          }
           return const SizedBox.shrink();
         }
         
-        _logger.info('📬 MessagesWidget: Rendering modal with title="$title" (game phase is game_ended)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📬 MessagesWidget: Rendering modal with title="$title" (game phase is game_ended)');
+        }
         
         return _buildModalOverlay(context, title, content, messageType, showCloseButton, autoClose, autoCloseDelay);
       },
@@ -221,7 +229,9 @@ class MessagesWidget extends StatelessWidget {
   
   void _closeMessage(BuildContext context) {
     try {
-      _logger.info('MessagesWidget: Closing message modal', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('MessagesWidget: Closing message modal');
+      }
       
       // Update state to hide messages
       StateManager().updateModuleState('dutch_game', {
@@ -238,7 +248,9 @@ class MessagesWidget extends StatelessWidget {
       });
       
     } catch (e) {
-      _logger.error('MessagesWidget: Failed to close message: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('MessagesWidget: Failed to close message: $e');
+      }
     }
   }
 }

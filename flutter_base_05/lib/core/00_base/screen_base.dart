@@ -496,12 +496,13 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
               final topBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
               final bottomBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
               
-              _logger.info(
-                'BaseScreen LayoutBuilder: maxHeight=${constraints.maxHeight}, '
-                'maxWidth=${constraints.maxWidth}, bottomPadding=$bottomPadding, '
-                'totalBottomSpace=$totalBottomSpace, bannerAdModule=${bannerAdModule != null}',
-                isOn: LOGGING_SWITCH,
-              );
+              if (LOGGING_SWITCH) {
+                _logger.info(
+                  'BaseScreen LayoutBuilder: maxHeight=${constraints.maxHeight}, '
+                  'maxWidth=${constraints.maxWidth}, bottomPadding=$bottomPadding, '
+                  'totalBottomSpace=$totalBottomSpace, bannerAdModule=${bannerAdModule != null}',
+                );
+              }
               
               return Column(
                 mainAxisSize: MainAxisSize.max,
@@ -529,12 +530,13 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, contentConstraints) {
-                        _logger.info(
-                          'BaseScreen: Content area for ${widget.runtimeType}, '
-                          'contentConstraints.maxHeight=${contentConstraints.maxHeight}, '
-                          'contentConstraints.maxWidth=${contentConstraints.maxWidth}',
-                          isOn: LOGGING_SWITCH,
-                        );
+                        if (LOGGING_SWITCH) {
+                          _logger.info(
+                            'BaseScreen: Content area for ${widget.runtimeType}, '
+                            'contentConstraints.maxHeight=${contentConstraints.maxHeight}, '
+                            'contentConstraints.maxWidth=${contentConstraints.maxWidth}',
+                          );
+                        }
                         // Pass full constraints to content - screens take full size
                         return buildContent(context);
                       },

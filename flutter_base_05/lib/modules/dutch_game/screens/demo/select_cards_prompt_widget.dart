@@ -98,7 +98,9 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
           shouldShow = true;
         }
         
-        _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, hasDrawnCard=$hasDrawnCard, shouldShow=$shouldShow', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, hasDrawnCard=$hasDrawnCard, shouldShow=$shouldShow');
+        }
         
         if (!shouldShow || promptText.isEmpty) {
           return const SizedBox.shrink();

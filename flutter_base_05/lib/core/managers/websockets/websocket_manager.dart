@@ -186,13 +186,17 @@ class WebSocketManager {
       }
       
       // Update connection state in StateManager since connection is established
-      _logger.info('🔌 Connection established in initialize(), updating StateManager', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔌 Connection established in initialize(), updating StateManager');
+      }
       _isConnected = true;
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: true,
         sessionData: null, // No session data available yet
       );
-      _logger.info('✅ StateManager updated with connection status in initialize()', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ StateManager updated with connection status in initialize()');
+      }
       
       // Token refresh is now handled by AuthManager
       // No need to setup token refresh here
@@ -515,18 +519,24 @@ class WebSocketManager {
       
       // Check if connection is already established (from initialize())
       if (_socket!.connected) {
-        _logger.info('🔌 Connection already established, updating state immediately', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔌 Connection already established, updating state immediately');
+        }
         // Connection already established, update state immediately
         _isConnected = true;
         _isConnecting = false;
         
-        _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus() for pre-established connection', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus() for pre-established connection');
+        }
         // Update StateManager for UI indicators
         WebSocketStateHelpers.updateConnectionStatus(
           isConnected: true,
           sessionData: null, // No session data available for pre-established connection
         );
-        _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed for pre-established connection', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed for pre-established connection');
+        }
         
         // 🎣 Trigger websocket_connected hook for other modules
         HooksManager().triggerHookWithData('websocket_connected', {
@@ -545,23 +555,33 @@ class WebSocketManager {
       
       // Set up a one-time listener for the connect event
       void onConnect(dynamic data) {
-        _logger.info('🔌 onConnect callback executing with data: $data', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔌 onConnect callback executing with data: $data');
+        }
         
         // Update our tracked connection state
-        _logger.info('🔄 Updating _isConnected to true', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔄 Updating _isConnected to true');
+        }
         _isConnected = true;
         _isConnecting = false; // Reset connecting state
         
-        _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus()', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus()');
+        }
         // Update StateManager for UI indicators
         WebSocketStateHelpers.updateConnectionStatus(
           isConnected: true,
           sessionData: data is Map<String, dynamic> ? data : null,
         );
-        _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed');
+        }
         
         // 🎣 Trigger websocket_connected hook for other modules
-        _logger.info('🎣 Triggering websocket_connected hook', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎣 Triggering websocket_connected hook');
+        }
         HooksManager().triggerHookWithData('websocket_connected', {
           'websocket_manager': this,
           'socket_id': _socket!.id,
@@ -570,19 +590,25 @@ class WebSocketManager {
           'timestamp': DateTime.now().toIso8601String(),
         });
         
-        _logger.info('✅ Completing completer with true', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ Completing completer with true');
+        }
         completer.complete(true);
       }
       
       // Set up a one-time listener for connection errors
       void onConnectError(dynamic error) {
-        _logger.error('❌ onConnectError callback executing with error: $error', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('❌ onConnectError callback executing with error: $error');
+        }
         
         // Update our tracked connection state
         _isConnected = false;
         _isConnecting = false;
         
-        _logger.error('❌ Completing completer with false due to error', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('❌ Completing completer with false due to error');
+        }
         completer.complete(false);
       }
       

@@ -25,16 +25,24 @@ class DemoModeBridge {
     Map<String, dynamic> data,
   ) async {
     try {
-      _logger.info('📨 DemoModeBridge: Handling event $eventType', isOn: LOGGING_SWITCH);
-      _logger.info('📨 DemoModeBridge: Event data: $data', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📨 DemoModeBridge: Handling event $eventType');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('📨 DemoModeBridge: Event data: $data');
+      }
 
       // Route to demo functionality
       final result = await _demoFunctionality.handleAction(eventType, data);
       
-      _logger.info('✅ DemoModeBridge: Successfully handled event $eventType', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DemoModeBridge: Successfully handled event $eventType');
+      }
       return result;
     } catch (e, stackTrace) {
-      _logger.error('❌ DemoModeBridge: Error handling event $eventType: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ DemoModeBridge: Error handling event $eventType: $e', error: e, stackTrace: stackTrace);
+      }
       return {'success': false, 'error': e.toString()};
     }
   }

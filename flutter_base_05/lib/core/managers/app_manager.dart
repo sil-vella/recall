@@ -62,30 +62,46 @@ class AppManager extends ChangeNotifier {
         _registerGlobalHooks();
         
         // Validate session on startup
-        _logger.info('AppManager: Validating session on startup', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('AppManager: Validating session on startup');
+        }
         final authStatus = await _authManager.validateSessionOnStartup();
-        _logger.info('AppManager: Session validation result: $authStatus', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('AppManager: Session validation result: $authStatus');
+        }
         
         // Initialize WebSocketManager after authentication (if user is authenticated)
         // Note: authStatus is an AuthStatus enum, not a string
         if (authStatus == AuthStatus.loggedIn) {
-          _logger.info('AppManager: User is authenticated, initializing WebSocketManager', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('AppManager: User is authenticated, initializing WebSocketManager');
+          }
           try {
             // Initialize WebSocketManager
             final webSocketManager = WebSocketManager.instance;
             final initialized = await webSocketManager.initialize();
-            _logger.info('AppManager: WebSocketManager initialization result: $initialized', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('AppManager: WebSocketManager initialization result: $initialized');
+            }
           } catch (e) {
-            _logger.error('AppManager: Error initializing WebSocketManager: $e', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('AppManager: Error initializing WebSocketManager: $e');
+            }
           }
         } else {
-          _logger.info('AppManager: User is not authenticated (status: $authStatus), skipping WebSocket initialization', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('AppManager: User is not authenticated (status: $authStatus), skipping WebSocket initialization');
+          }
         }
         
         // Handle authentication state
-        _logger.info('AppManager: Handling authentication state', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('AppManager: Handling authentication state');
+        }
         await _authManager.handleAuthState(context, authStatus);
-        _logger.info('AppManager: Authentication state handled', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('AppManager: Authentication state handled');
+        }
         
         _isInitialized = true;
         notifyListeners();
@@ -107,21 +123,27 @@ class AppManager extends ChangeNotifier {
   void _checkForAppUpdates(BuildContext context) {
     // Skip version check on web - web apps update automatically
     if (kIsWeb) {
-      _logger.info('AppManager: Skipping version check on web platform', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('AppManager: Skipping version check on web platform');
+      }
       return;
     }
     
     // Run asynchronously without blocking app startup
     Future.microtask(() async {
       try {
-        _logger.info('AppManager: Starting version check', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('AppManager: Starting version check');
+        }
         
         // Get ModuleManager to access ConnectionsApiModule
         final moduleManager = Provider.of<ModuleManager>(context, listen: false);
         final apiModule = moduleManager.getModuleByType<ConnectionsApiModule>();
         
         if (apiModule == null) {
-          _logger.warning('AppManager: ConnectionsApiModule not available for version check', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('AppManager: ConnectionsApiModule not available for version check');
+          }
           return;
         }
         
@@ -141,11 +163,15 @@ class AppManager extends ChangeNotifier {
           final serverVersion = result['server_version'];
           final downloadLink = result['download_link']?.toString() ?? '';
           
-          _logger.info('AppManager: Version check completed - Current: $currentVersion, Server: $serverVersion, Update Available: $updateAvailable, Update Required: $updateRequired', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('AppManager: Version check completed - Current: $currentVersion, Server: $serverVersion, Update Available: $updateAvailable, Update Required: $updateRequired');
+          }
           
           // If update is required, navigate to blocking update screen
           if (updateRequired && downloadLink.isNotEmpty) {
-            _logger.info('AppManager: Update required - navigating to update screen', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('AppManager: Update required - navigating to update screen');
+            }
             
             // Wait for router to be initialized before navigating
             final navigationManager = Provider.of<NavigationManager>(context, listen: false);
@@ -158,7 +184,9 @@ class AppManager extends ChangeNotifier {
             final router = navigationManager.router;
             final updateRoute = '/update-required?download_link=${Uri.encodeComponent(downloadLink)}';
             router.go(updateRoute);
-            _logger.info('AppManager: Navigated to update screen', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('AppManager: Navigated to update screen');
+            }
             return; // Exit early - don't trigger hook since we're blocking
           }
           
@@ -172,12 +200,16 @@ class AppManager extends ChangeNotifier {
             'timestamp': DateTime.now().toIso8601String(),
           });
         } else {
-          _logger.warning('AppManager: Version check failed: ${result['error']}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('AppManager: Version check failed: ${result['error']}');
+          }
         }
         
       } catch (e) {
         // Don't let version check errors affect app startup
-        _logger.error('AppManager: Error during version check: $e', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('AppManager: Error during version check: $e');
+        }
       }
     });
   }

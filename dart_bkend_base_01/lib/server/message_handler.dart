@@ -10,7 +10,7 @@ import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for testing game finding/initialization, match creation, and registration differences
+const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization, match creation, and registration differences
 
 class MessageHandler {
   final RoomManager _roomManager;

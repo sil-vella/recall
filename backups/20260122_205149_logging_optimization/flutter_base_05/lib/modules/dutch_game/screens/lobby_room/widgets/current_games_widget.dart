@@ -7,7 +7,7 @@ import '../../../managers/game_coordinator.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for lobby screen recomputation debugging
+const bool LOGGING_SWITCH = false; // Enabled for lobby screen recomputation debugging
 
 /// Widget to display all joined rooms with join functionality
 /// 

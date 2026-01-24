@@ -303,7 +303,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   String? _previousGameId;
   
-  // GlobalKey for the main Stack to get exact position for animations
+  // GlobalKey for the main Stack
   final GlobalKey _mainStackKey = GlobalKey(); // Track game ID to detect navigation away
   
   // Cached background widget - only builds once on screen load

@@ -13,7 +13,6 @@ import '../models/state/my_hand_state.dart'; // For future migration
 import '../models/state/center_board_state.dart'; // For future migration
 // ignore: unused_import
 import '../models/state/opponents_panel_state.dart'; // For future migration
-import '../../dutch_game/utils/card_animation_detector.dart';
 
 /// Validated state updater for dutch game state management
 /// Ensures all state updates follow consistent structure and validation rules
@@ -26,7 +25,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for animation system testing and joinedGamesSlice debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for joinedGamesSlice debugging
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -267,106 +266,6 @@ class DutchGameStateUpdater {
       };
       if (LOGGING_SWITCH) {
         _logger.debug('🎬 DutchGameStateUpdater: New state keys: ${newState.keys.toList()}');
-      }
-      
-      // ========== ANIMATION DETECTION ==========
-      // CRITICAL: Capture previous state slices BEFORE widget recomputation
-      // This preserves the old state for the animation layer to use
-      // The animation layer will animate from OLD state positions to NEW state positions
-      // 
-      // NOTE: Only widget slices (myHand, centerBoard, opponentsPanel) are from OLD state
-      // The players state (with action fields) comes from NEW state (newState parameter)
-      // The animation detector extracts players from newState['games'][gameId]['gameData']['game_state']['players']
-      final previousSlices = {
-        'myHand': currentState['myHand'],      // OLD state - before widget recomputation
-        'centerBoard': currentState['centerBoard'],  // OLD state - before widget recomputation
-        'opponentsPanel': currentState['opponentsPanel'], // OLD state - before widget recomputation
-      };
-      
-      if (LOGGING_SWITCH) {
-        // Log widget slice state BEFORE recomputation (OLD state - passed to animation detector)
-        final myHandBefore = previousSlices['myHand'] as Map<String, dynamic>?;
-        final centerBoardBefore = previousSlices['centerBoard'] as Map<String, dynamic>?;
-        final opponentsPanelBefore = previousSlices['opponentsPanel'] as Map<String, dynamic>?;
-        
-        final beforeSummary = {
-          'myHand': myHandBefore != null ? {
-            'cards': (myHandBefore['cards'] as List?)?.length ?? 0,
-            'selectedIndex': myHandBefore['selectedIndex'] ?? -1,
-            'playerStatus': myHandBefore['playerStatus'] ?? 'unknown',
-          } : null,
-          'centerBoard': centerBoardBefore != null ? {
-            'drawPileCount': centerBoardBefore['drawPileCount'] ?? 0,
-            'topDiscard': centerBoardBefore['topDiscard'] != null ? 'present' : 'null',
-            'topDraw': centerBoardBefore['topDraw'] != null ? 'present' : 'null',
-          } : null,
-          'opponentsPanel': opponentsPanelBefore != null ? {
-            'opponents': (opponentsPanelBefore['opponents'] as List?)?.length ?? 0,
-            'opponentsData': (opponentsPanelBefore['opponents'] as List?)?.map((opp) {
-              if (opp is Map<String, dynamic>) {
-                return {
-                  'id': opp['id']?.toString() ?? 'unknown',
-                  'handCount': (opp['hand'] as List?)?.length ?? 0,
-                  'status': opp['status']?.toString() ?? 'unknown',
-                  'score': opp['score'] ?? 0,
-                  'hasAction': opp['action'] != null ? opp['action'].toString() : null,
-                };
-              }
-              return null;
-            }).where((e) => e != null).toList(),
-            'currentTurnIndex': opponentsPanelBefore['currentTurnIndex'] ?? -1,
-            'turn_events': (opponentsPanelBefore['turn_events'] as List?)?.length ?? 0,
-            'currentPlayerStatus': opponentsPanelBefore['currentPlayerStatus']?.toString() ?? 'unknown',
-          } : null,
-        };
-        
-        _logger.info('🎬 DutchGameStateUpdater: Widget slices BEFORE recomputation (OLD state - passed to animation detector): $beforeSummary');
-        
-        // Log players state from newState (NEW state - contains action fields for detection)
-        try {
-          final currentGameId = newState['currentGameId']?.toString() ?? '';
-          if (currentGameId.isNotEmpty) {
-            final games = newState['games'] as Map<String, dynamic>? ?? {};
-            final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-            final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-            final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-            final newPlayers = gameState['players'] as List<dynamic>? ?? [];
-            
-            final newPlayersWithActions = <String, String>{};
-            for (final player in newPlayers) {
-              if (player is Map<String, dynamic>) {
-                final playerId = player['id']?.toString() ?? '';
-                final action = player['action']?.toString();
-                if (playerId.isNotEmpty && action != null && action.isNotEmpty) {
-                  newPlayersWithActions[playerId] = action;
-                }
-              }
-            }
-            
-            _logger.info('🎬 DutchGameStateUpdater: Players state in newState (NEW state - for action detection): count=${newPlayers.length}, playersWithActions=${newPlayersWithActions.isEmpty ? 'none' : newPlayersWithActions}');
-          }
-        } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.debug('🎬 DutchGameStateUpdater: Failed to extract new players state: $e');
-          }
-        }
-        
-        _logger.info('🎬 DutchGameStateUpdater: Passing state to animation detector - currentGameId: ${newState['currentGameId']}, games: ${(newState['games'] as Map<String, dynamic>? ?? {}).length}');
-      }
-      
-      // Pass state to animation detector BEFORE widget recomputation
-      // The detector will:
-      // - Detect actions from newState (contains action data in players)
-      // - Capture previousSlices (OLD state) in CardAnimationManager for animation layer
-      // - Queue animations
-      // - Clear actions from newState (to prevent re-queueing)
-      try {
-        CardAnimationDetector().detectAndQueueActionsFromState(previousSlices, newState);
-      } catch (e, stackTrace) {
-        // Non-blocking error handling - animation detection should not block state updates
-        if (LOGGING_SWITCH) {
-          _logger.error('🎬 DutchGameStateUpdater: Error in animation detection (non-blocking): $e', error: e, stackTrace: stackTrace);
-        }
       }
       
       // Rebuild dependent widget slices only if relevant fields changed
@@ -987,7 +886,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for animation system testing and joinedGamesSlice debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for joinedGamesSlice debugging
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

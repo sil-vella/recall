@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for deck config loading and YAML testing
+const bool LOGGING_SWITCH = false; // Enabled for deck config loading and YAML testing
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {

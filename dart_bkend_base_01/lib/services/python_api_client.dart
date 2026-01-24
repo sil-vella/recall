@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for rank-based matching, comp player testing, and registration differences
+const bool LOGGING_SWITCH = false; // Enabled for rank-based matching, comp player testing, and registration differences
 
 class PythonApiClient {
   final String baseUrl;

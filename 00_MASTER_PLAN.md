@@ -149,6 +149,20 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Needs**: Complete the flow from initial peek to game start, ensure all players complete peek before proceeding, handle timeout/auto-complete scenarios
   - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` and related event handlers
   - **Impact**: Core game feature - players must complete initial peek before game can start
+- [ ] **Modify initial peek UI to persist selected card data for minimum 5 seconds**
+  - **Issue**: When players peek at cards during initial peek phase, the card data (rank/suit) is cleared from state immediately after the peek action, causing the UI to hide the card information too quickly
+  - **Current Behavior**: Card data is shown when peeked, but disappears as soon as the state is updated/cleared
+  - **Expected Behavior**: Selected cards' data (rank/suit) should remain visible in the UI for at least 5 seconds, even if the game state is cleared or updated
+  - **Implementation**:
+    - Add local state management in the initial peek UI widget to track peeked cards with timestamps
+    - When a card is peeked, store the card data locally with a timestamp
+    - Display card data from local state if available, even if state has been cleared
+    - Use a timer to clear local peek data after 5 seconds minimum
+    - Ensure the 5-second minimum is enforced even if state updates occur during this period
+  - **Location**: 
+    - Flutter UI components for initial peek (likely in `MyHandWidget` or related card display widgets)
+    - Initial peek event handlers in `dutch_game_round.dart` or `game_event_coordinator.dart`
+  - **Impact**: User experience - ensures players have adequate time to view and remember their peeked cards before the information disappears
 - [ ] **Complete instructions logic**
   - **Status**: Partially implemented - `showInstructions` flag is stored and passed through, timer logic checks it
   - **Current State**: `showInstructions` is stored in game state, timer logic respects it (timers disabled when `showInstructions == true`), value is passed from practice widget to game logic

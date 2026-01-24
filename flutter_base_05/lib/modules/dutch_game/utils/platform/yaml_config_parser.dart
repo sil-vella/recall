@@ -166,6 +166,7 @@ class DeckConfig {
   /// Build cards from configuration
   List<Card> buildCards(String gameId) {
     final cards = <Card>[];
+    int globalIndex = 0; // Global counter for card IDs
     
     // Add cards for each suit and rank
     for (final suit in suits) {
@@ -179,7 +180,7 @@ class DeckConfig {
         
         // Add the specified quantity of this rank for this suit
         for (int i = 0; i < quantityPerSuit; i++) {
-          final cardId = _generateCardId(gameId, rank, suit, i);
+          final cardId = _generateCardId(gameId, globalIndex);
           final card = Card(
             cardId: cardId,
             rank: rank,
@@ -188,6 +189,7 @@ class DeckConfig {
             specialPower: specialPower,
           );
           cards.add(card);
+          globalIndex++;
         }
       }
     }
@@ -204,7 +206,7 @@ class DeckConfig {
         final suit = jokerConfig['suit'] ?? 'joker';
         
         for (int i = 0; i < quantityTotal; i++) {
-          final cardId = _generateCardId(gameId, jokerType, suit, i);
+          final cardId = _generateCardId(gameId, globalIndex);
           final card = Card(
             cardId: cardId,
             rank: jokerType,
@@ -213,6 +215,7 @@ class DeckConfig {
             specialPower: specialPower,
           );
           cards.add(card);
+          globalIndex++;
         }
       }
     }
@@ -221,10 +224,10 @@ class DeckConfig {
   }
   
   /// Generate unique card ID
-  String _generateCardId(String gameId, String rank, String suit, int index) {
+  String _generateCardId(String gameId, int index) {
     final timestamp = DateTime.now().microsecondsSinceEpoch.toString();
-    final random = (timestamp.hashCode + gameId.hashCode + rank.hashCode + suit.hashCode + index).abs();
-    return 'card_${gameId}_${rank}_${suit}_${index}_$random';
+    final random = (timestamp.hashCode + gameId.hashCode + index).abs();
+    return 'card_${gameId}_${index}_$random';
   }
   
   /// Validate deck configuration

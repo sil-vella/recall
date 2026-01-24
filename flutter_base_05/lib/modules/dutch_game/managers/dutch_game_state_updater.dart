@@ -25,7 +25,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for joinedGamesSlice debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for joinedGamesSlice debugging
   
   // Dependencies
   final StateManager _stateManager = StateManager();

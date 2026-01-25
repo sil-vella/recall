@@ -144,6 +144,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       gameState['phase'] = gameState['phase'] ?? 'playing';
       gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
       
+      // Filter gameState to remove fields that shouldn't be sent to frontend
+      final filteredGameState = _filterGameStateForFrontend(gameState);
+      
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
       
@@ -154,7 +157,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       server.sendToSession(playerId, {
         'event': 'game_state_updated',
         'game_id': roomId,
-        'game_state': gameState,
+        'game_state': filteredGameState,
         'turn_events': turnEvents,
         if (ownerId != null) 'owner_id': ownerId,
         if (myCardsToPeek != null) 'myCardsToPeek': myCardsToPeek, // Include myCardsToPeek if present in updates
@@ -219,6 +222,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       gameState['phase'] = gameState['phase'] ?? 'playing';
       gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
       
+      // Filter gameState to remove fields that shouldn't be sent to frontend
+      final filteredGameState = _filterGameStateForFrontend(gameState);
+      
       // Extract winners from validatedUpdates (if present) - needed for game end notification
       final winners = validatedUpdates['winners'] as List<dynamic>?;
       
@@ -229,7 +235,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       server.broadcastToRoomExcept(roomId, {
         'event': 'game_state_updated',
         'game_id': roomId,
-        'game_state': gameState,
+        'game_state': filteredGameState,
         'turn_events': turnEvents,
         if (winners != null) 'winners': winners, // Include winners list for game end notification
         if (ownerId != null) 'owner_id': ownerId,
@@ -246,6 +252,14 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     }
   }
   
+  /// Filter gameState to remove fields that shouldn't be sent to frontend
+  /// Currently removes originalDeck to reduce payload size
+  Map<String, dynamic> _filterGameStateForFrontend(Map<String, dynamic> gameState) {
+    final filtered = Map<String, dynamic>.from(gameState);
+    filtered.remove('originalDeck');
+    return filtered;
+  }
+
   /// Apply validated updates to GameStateStore and broadcast
   /// This is called by StateQueueValidator after validation
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
@@ -308,6 +322,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     gameState['phase'] = gameState['phase'] ?? 'playing';
     gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
     
+    // Filter gameState to remove fields that shouldn't be sent to frontend
+    final filteredGameState = _filterGameStateForFrontend(gameState);
+    
     // Extract winners from validatedUpdates (if present) - needed for game end notification
     final winners = validatedUpdates['winners'] as List<dynamic>?;
     if (winners != null) {
@@ -328,7 +345,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     server.broadcastToRoom(roomId, {
       'event': 'game_state_updated',
       'game_id': roomId,
-      'game_state': gameState,
+      'game_state': filteredGameState,
       'turn_events': turnEvents, // Include turn_events for animations
       if (winners != null) 'winners': winners, // Include winners list for game end notification
       if (ownerId != null) 'owner_id': ownerId,

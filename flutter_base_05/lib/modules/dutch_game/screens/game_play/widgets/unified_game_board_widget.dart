@@ -12,6 +12,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
+import 'snapshot_unified_game_board_widget.dart';
 
 const bool LOGGING_SWITCH = true; // Enabled for testing and debugging - position tracker
 
@@ -77,6 +78,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// GlobalKey for game board section
   final GlobalKey _gameBoardKey = GlobalKey(debugLabel: 'game_board_section');
   
+  // ========== Snapshot Trigger Tracking ==========
+  /// Last snapshot trigger timestamp (to avoid duplicate captures)
+  int? _lastSnapshotTriggerTimestamp;
+  
+  /// Snapshot overlay widget (shows old state)
+  Widget? _snapshotOverlay;
+  
   // ========== Card Position Tracker ==========
   /// Map of cardId -> CardPositionInfo (updated on state changes)
   final Map<String, CardPositionInfo> _cardPositions = {};
@@ -118,35 +126,104 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
+        // Check for snapshot trigger from state updater (only log, don't capture for now)
+        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final snapshotTrigger = dutchGameState['snapshotTrigger'] as Map<String, dynamic>?;
+        
+        // Check for snapshot trigger and create overlay if needed
+        Widget? snapshotOverlay;
+        if (snapshotTrigger != null) {
+          final triggerTimestamp = snapshotTrigger['timestamp'] as int?;
+          final action = snapshotTrigger['action']?.toString() ?? 'unknown';
+          final playerId = snapshotTrigger['playerId']?.toString() ?? 'unknown';
+          final oldState = snapshotTrigger['oldState'] as Map<String, dynamic>?;
+          
+          // Only capture if this is a new trigger (different timestamp) and oldState is available
+          if (triggerTimestamp != null && 
+              triggerTimestamp != _lastSnapshotTriggerTimestamp && 
+              oldState != null) {
+            if (LOGGING_SWITCH) {
+              _logger.info('📸 Snapshot: ✅ Snapshot trigger detected (timestamp: $triggerTimestamp)');
+              _logger.info('📸 Snapshot: Action: $action, Player: $playerId');
+              _logger.info('📸 Snapshot: Creating snapshot overlay with old state');
+            }
+            
+            _lastSnapshotTriggerTimestamp = triggerTimestamp;
+            
+            // Create snapshot overlay using old state
+            snapshotOverlay = SnapshotUnifiedGameBoardWidget(oldState: oldState);
+            
+            // Auto-remove snapshot after 0.2 seconds
+            Future.delayed(const Duration(milliseconds: 200), () {
+              if (mounted) {
+                setState(() {
+                  _snapshotOverlay = null;
+                });
+                if (LOGGING_SWITCH) {
+                  _logger.info('📸 Snapshot: 🗑️ Snapshot overlay removed (0.2 second timeout)');
+                }
+              }
+            });
+          } else if (triggerTimestamp != null && triggerTimestamp == _lastSnapshotTriggerTimestamp) {
+            // Use existing snapshot overlay if same trigger
+            snapshotOverlay = _snapshotOverlay;
+          }
+        }
+        
+        // Update snapshot overlay state
+        if (snapshotOverlay != null && snapshotOverlay != _snapshotOverlay) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _snapshotOverlay = snapshotOverlay;
+              });
+            }
+          });
+        }
+        
         // Update card positions after state change and layout
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _updateCardPositions();
         });
         
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            // New layout: Opponents spread evenly, Game Board above My Hand
-            return Column(
-              children: [
-                // Opponents Panel Section - spread evenly vertically
-                Expanded(
-                  child: _buildOpponentsPanel(),
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Main widget tree
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // New layout: Opponents spread evenly, Game Board above My Hand
+                return Column(
+                  children: [
+                    // Opponents Panel Section - spread evenly vertically
+                    Expanded(
+                      child: _buildOpponentsPanel(),
+                    ),
+                    
+                    // Spacer above game board (doubled)
+                    const SizedBox(height: 32),
+                    
+                    // Game Board Section - Draw Pile, Match Pot, Discard Pile (just above My Hand)
+                    _buildGameBoard(),
+                    
+                    // Small spacer below game board
+                    const SizedBox(height: 16),
+                    
+                    // My Hand Section - at the bottom
+                    _buildMyHand(),
+                  ],
+                );
+              },
+            ),
+            
+            // Snapshot overlay (shows old state while new state updates behind it)
+            if (_snapshotOverlay != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _snapshotOverlay!,
                 ),
-                
-                // Spacer above game board (doubled)
-                const SizedBox(height: 32),
-                
-                // Game Board Section - Draw Pile, Match Pot, Discard Pile (just above My Hand)
-                _buildGameBoard(),
-                
-                // Small spacer below game board
-                const SizedBox(height: 16),
-                
-                // My Hand Section - at the bottom
-                _buildMyHand(),
-              ],
-            );
-          },
+              ),
+          ],
         );
       },
     );

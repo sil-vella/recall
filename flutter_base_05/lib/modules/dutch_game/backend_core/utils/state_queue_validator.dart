@@ -324,6 +324,12 @@ class StateQueueValidator {
       defaultValue: [],
       description: 'Cards the current player has peeked at (with full data)',
     ),
+    'myHandCards': DutchStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      required: false,
+      description: 'Current player\'s hand cards (used during initial state setup and widget synchronization)',
+    ),
     'cards_to_peek': DutchStateFieldSpec(
       type: List,
       defaultValue: [],
@@ -475,6 +481,14 @@ class StateQueueValidator {
       description: 'User dutch_game module statistics from database (wins, losses, points, coins, level, rank, etc.)',
     ),
     // Removed userStatsLastUpdated - causes unnecessary state updates
+    
+    // Snapshot Trigger (for action interception and widget snapshot capture)
+    'snapshotTrigger': DutchStateFieldSpec(
+      type: Map,
+      required: false,
+      nullable: true,
+      description: 'Trigger for capturing widget snapshot when action is intercepted. Contains action, actionData, playerId, gameId, and timestamp.',
+    ),
     
     // Coin Deduction Tracking
     'coinsDeductedGames': DutchStateFieldSpec(

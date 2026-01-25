@@ -1673,9 +1673,14 @@ class DutchGameRound {
       
       // Add action data for animation system
       player['action'] = 'drawn_card';
-      player['actionData'] = {'cardId': drawnCard['cardId']};
+      player['actionData'] = {
+        'card1Data': {
+          'cardId': drawnCard['cardId'],
+          'playerId': actualPlayerId,
+        },
+      };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set drawn_card action for player $actualPlayerId - cardId: ${drawnCard['cardId']}');
+        _logger.info('🎬 ACTION_DATA: Set drawn_card action for player $actualPlayerId - card1Data: {cardId: ${drawnCard['cardId']}, playerId: $actualPlayerId}');
       };
       
       // For computer players, also add to known_cards (they need full data for logic)
@@ -2482,11 +2487,16 @@ class DutchGameRound {
       // Update player's hand back to game state (hand list was modified with nulls)
       player['hand'] = hand;
       
-      // Add action data for animation system (cardIndex captured before removal)
+      // Add action data for animation system
       player['action'] = 'play_card';
-      player['actionData'] = {'cardIndex': cardIndex};
+      player['actionData'] = {
+        'card1Data': {
+          'cardId': cardId,
+          'playerId': actualPlayerId,
+        },
+      };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set play_card action for player $actualPlayerId - cardIndex: $cardIndex');
+        _logger.info('🎬 ACTION_DATA: Set play_card action for player $actualPlayerId - card1Data: {cardId: $cardId, playerId: $actualPlayerId}');
       };
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
@@ -3043,11 +3053,16 @@ class DutchGameRound {
       // Update player's hand back to game state (hand list was modified with nulls)
       player['hand'] = hand;
       
-      // Add action data for animation system (cardIndex captured before removal)
+      // Add action data for animation system
       player['action'] = 'same_rank';
-      player['actionData'] = {'cardIndex': cardIndex};
+      player['actionData'] = {
+        'card1Data': {
+          'cardId': cardId,
+          'playerId': playerId,
+        },
+      };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set same_rank action for player $playerId - cardIndex: $cardIndex');
+        _logger.info('🎬 ACTION_DATA: Set same_rank action for player $playerId - card1Data: {cardId: $cardId, playerId: $playerId}');
       };
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
@@ -3326,11 +3341,17 @@ class DutchGameRound {
         if (actingPlayer.isNotEmpty) {
           actingPlayer['action'] = 'jack_swap';
           actingPlayer['actionData'] = {
-            'card1': {'cardIndex': firstCardIndex, 'playerId': firstPlayerId},
-            'card2': {'cardIndex': secondCardIndex, 'playerId': secondPlayerId},
+            'card1Data': {
+              'cardId': firstCardId,
+              'playerId': firstPlayerId,
+            },
+            'card2Data': {
+              'cardId': secondCardId,
+              'playerId': secondPlayerId,
+            },
           };
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 ACTION_DATA: Set jack_swap action for acting player $actingPlayerId - card1: index $firstCardIndex (player $firstPlayerId), card2: index $secondCardIndex (player $secondPlayerId)');
+            _logger.info('🎬 ACTION_DATA: Set jack_swap action for acting player $actingPlayerId - card1Data: {cardId: $firstCardId, playerId: $firstPlayerId}, card2Data: {cardId: $secondCardId, playerId: $secondPlayerId}');
           };
         }
       }
@@ -3636,11 +3657,13 @@ class DutchGameRound {
       // Add action data for animation system (to the peeking player)
       peekingPlayer['action'] = 'queen_peek';
       peekingPlayer['actionData'] = {
-        'cardIndex': targetCardIndex,
-        'playerId': targetPlayerId,
+        'card1Data': {
+          'cardId': targetCardId,
+          'playerId': targetPlayerId,
+        },
       };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set queen_peek action for player $peekingPlayerId - cardIndex: $targetCardIndex, ownerPlayerId: $targetPlayerId');
+        _logger.info('🎬 ACTION_DATA: Set queen_peek action for player $peekingPlayerId - card1Data: {cardId: $targetCardId, playerId: $targetPlayerId}');
       };
       
       if (isHuman) {

@@ -1351,29 +1351,20 @@ class GameEventCoordinator {
       // This matches the draw card pattern exactly
       playerInGamesMap['cardsToPeek'] = cardsToPeek;
       
-      // Find card indexes in player's hand for action data
-      final playerHand = playerInGamesMap['hand'] as List<dynamic>? ?? [];
-      final cardIndexes = <int>[];
-      for (final cardId in cardIds) {
-        int cardIndex = -1;
-        for (int i = 0; i < playerHand.length; i++) {
-          final card = playerHand[i];
-          if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId) {
-            cardIndex = i;
-            break;
-          }
-        }
-        cardIndexes.add(cardIndex);
-      }
-      
       // Add action data for animation system
       playerInGamesMap['action'] = 'initial_peek';
       playerInGamesMap['actionData'] = {
-        'cardIndex1': cardIndexes[0],
-        'cardIndex2': cardIndexes[1],
+        'card1Data': {
+          'cardId': cardIds[0],
+          'playerId': playerId,
+        },
+        'card2Data': {
+          'cardId': cardIds[1],
+          'playerId': playerId,
+        },
       };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set initial_peek action for player $playerId - cardIndex1: ${cardIndexes[0]}, cardIndex2: ${cardIndexes[1]}');
+        _logger.info('🎬 ACTION_DATA: Set initial_peek action for player $playerId - card1Data: {cardId: ${cardIds[0]}, playerId: $playerId}, card2Data: {cardId: ${cardIds[1]}, playerId: $playerId}');
       }
       
       // Use callback method to send to player (matches draw card pattern)

@@ -1,0 +1,106 @@
+---
+description: Create or update active implementation plans in the Documentation/00_Active_plans directory. Use when starting new implementations or when implementation changes occur.
+alwaysApply: false
+---
+
+# Create/Update Active Plan
+
+## Overview
+
+This rule guides the agent to maintain active implementation plans in `/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/Documentation/00_Active_plans`. Plans document current implementation work and must be kept up-to-date as changes occur.
+
+## When to Create a New Plan
+
+Create a new active plan when:
+- Starting a new feature implementation
+- Beginning work on a new module or component
+- Initiating a significant refactoring effort
+- Starting a multi-step development task
+
+## When to Update an Existing Plan
+
+Update the existing plan when:
+- Making modifications to the current implementation
+- Completing steps in the implementation
+- Changing approach or direction
+- Adding new requirements or constraints
+- Fixing bugs or issues discovered during implementation
+
+## Plan File Location
+
+All active plans must be stored in:
+```
+/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/Documentation/00_Active_plans/
+```
+
+## Plan File Naming
+
+Use descriptive, kebab-case names:
+- `feature-name-implementation.md`
+- `module-name-refactor.md`
+- `bug-fix-description.md`
+
+## Plan Structure
+
+Each plan should include:
+
+1. **Title**: Clear description of what's being implemented
+2. **Status**: Current state (In Progress, Completed, On Hold, etc.)
+3. **Objective**: What the implementation aims to achieve
+4. **Steps/Tasks**: Breakdown of implementation steps
+5. **Current Progress**: What has been completed
+6. **Next Steps**: What needs to be done next
+7. **Files Modified**: List of files changed during implementation
+8. **Notes**: Any important considerations or decisions
+
+## Workflow
+
+1. **At Start**: Check if a relevant plan exists in `00_Active_plans/`
+   - If no plan exists → Create a new plan file
+   - If plan exists → Review and update it
+
+2. **During Implementation**: After each significant modification:
+   - Update the "Current Progress" section
+   - Add any new files to "Files Modified"
+   - Update "Next Steps" if priorities change
+   - Add notes about decisions or issues encountered
+
+3. **On Completion**: Mark plan as completed and archive if needed
+
+## Example Plan Template
+
+```markdown
+# [Feature/Module Name] Implementation Plan
+
+**Status**: In Progress  
+**Created**: [Date]  
+**Last Updated**: [Date]
+
+## Objective
+[Clear description of what this implementation achieves]
+
+## Implementation Steps
+- [ ] Step 1: [Description]
+- [x] Step 2: [Description] ✅
+- [ ] Step 3: [Description]
+
+## Current Progress
+[What has been completed so far]
+
+## Next Steps
+[What needs to be done next]
+
+## Files Modified
+- `path/to/file1.dart`
+- `path/to/file2.py`
+
+## Notes
+[Important decisions, issues, or considerations]
+```
+
+## Important Reminders
+
+- **Always update the plan** after making code changes
+- **Keep the plan current** - outdated plans are not useful
+- **Be specific** about what was changed and why
+- **Document decisions** that affect the implementation approach

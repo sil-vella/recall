@@ -1,6 +1,28 @@
 ---
+description: Guidance for enabling LOGGING_SWITCH constants in files to enable debug logging for testing. When working with files that contain LOGGING_SWITCH, this rule reminds to enable the switch and check server.log for debugging output.
+globs:
+  - "**/*.dart"
+  - "**/*.py"
 alwaysApply: false
 ---
-# Overview
+# Enable Logging Switch for Testing
 
-Enable LOGGING_SWITCH  in related files to test these latest changes by reading logs in the @server.log file.
+## Overview
+
+Enable `LOGGING_SWITCH` constants in related files to test latest changes by reading logs in the `server.log` file.
+
+## Usage
+
+When working with files that contain `LOGGING_SWITCH`:
+1. Set `LOGGING_SWITCH = false` in the file you're debugging
+2. Run the application to generate logs
+3. Check `python_base_04/tools/logger/server.log` for debug output
+4. Remember to set `LOGGING_SWITCH = false` when done testing
+
+## Files Using LOGGING_SWITCH
+
+This pattern is commonly found in:
+- Flutter/Dart game files (`flutter_base_05/lib/modules/dutch_game/**/*.dart`)
+- Python backend files (`python_base_04/**/*.py`)
+- State management and validation utilities
+- Game logic and round management files

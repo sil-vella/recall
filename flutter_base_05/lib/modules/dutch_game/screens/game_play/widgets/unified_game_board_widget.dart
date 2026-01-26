@@ -13,24 +13,7 @@ import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing and debugging - position tracker
-
-/// Card position information structure
-/// Tracks GlobalKey, position (top-left in global coordinates), and size for each card
-class CardPositionInfo {
-  final GlobalKey key;
-  final Offset position; // Top-left position in global coordinates
-  final Size size; // RenderBox size
-  
-  CardPositionInfo({
-    required this.key,
-    required this.position,
-    required this.size,
-  });
-  
-  @override
-  String toString() => 'CardPositionInfo(pos: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size: ${size.width.toStringAsFixed(1)}x${size.height.toStringAsFixed(1)})';
-}
+const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -76,16 +59,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   
   /// GlobalKey for game board section
   final GlobalKey _gameBoardKey = GlobalKey(debugLabel: 'game_board_section');
-  
-  // ========== Card Position Tracker ==========
-  /// Map of cardId -> CardPositionInfo (updated on state changes)
-  final Map<String, CardPositionInfo> _cardPositions = {};
-  
-  /// Last time positions were updated (for rate limiting)
-  DateTime? _lastPositionUpdateTime;
-  
-  /// Minimum interval between position updates (1 second)
-  static const Duration _minUpdateInterval = Duration(seconds: 1);
 
   @override
   void initState() {
@@ -118,11 +91,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Update card positions after state change and layout
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _updateCardPositions();
-        });
-        
         return Stack(
           clipBehavior: Clip.none,
           children: [
@@ -169,171 +137,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return _cardKeys[key]!;
   }
   
-  // ========== Card Position Tracker Methods ==========
-  
-  /// Update positions for all tracked cards from their GlobalKeys
-  /// Called after each state update and layout completion
-  /// Rate limited to maximum once per second
-  void _updateCardPositions() {
-    if (!mounted) {
-      if (LOGGING_SWITCH) {
-        _logger.debug('📍 PositionTracker: Widget not mounted, skipping position update');
-      }
-      return;
-    }
-    
-    // Rate limiting: Don't update more than once per second
-    final now = DateTime.now();
-    if (_lastPositionUpdateTime != null) {
-      final timeSinceLastUpdate = now.difference(_lastPositionUpdateTime!);
-      if (timeSinceLastUpdate < _minUpdateInterval) {
-        // Silently skip - rate limiting is working as intended (no logging to reduce noise)
-        return;
-      }
-    }
-    
-    _lastPositionUpdateTime = now;
-    
-    // Only log when actually performing an update (not when rate limited)
-    if (LOGGING_SWITCH) {
-      _logger.debug('📍 PositionTracker: Starting position update - ${_cardKeys.length} keys to check');
-    }
-    
-    final updatedPositions = <String, CardPositionInfo>{};
-    int skippedCount = 0;
-    int renderedCount = 0;
-    int notRenderedCount = 0;
-    
-    // Iterate through all card keys and update positions
-    // Track ALL cards, including those with opacity 0.0 (stacked in piles)
-    for (final entry in _cardKeys.entries) {
-      final keyString = entry.key; // e.g., 'draw_pile_card_10', 'my_hand_card_5', 'opponent_player1_card_3'
-      final globalKey = entry.value;
-      
-      // Extract cardId from key string
-      // Key formats:
-      // - 'draw_pile_card_10' -> 'card_10'
-      // - 'discard_pile_card_20' -> 'card_20'
-      // - 'my_hand_card_5' -> 'card_5'
-      // - 'opponent_player1_card_3' -> 'card_3'
-      // - 'draw_pile_empty' -> skip
-      // - 'discard_pile_empty' -> skip
-      
-      // Skip special placeholder keys
-      if (keyString.endsWith('_empty') || keyString.endsWith('_pile')) {
-        skippedCount++;
-        continue;
-      }
-      
-      // Find the last occurrence of 'card_' to extract the actual cardId
-      final cardIndex = keyString.lastIndexOf('card_');
-      if (cardIndex == -1) {
-        // No 'card_' found, skip this key
-        skippedCount++;
-        continue;
-      }
-      
-      // Extract cardId (everything from 'card_' onwards)
-      final cardId = keyString.substring(cardIndex);
-      
-      // Get render object and calculate position
-      // Try to get the render object - even if widget has opacity 0.0, it should still be in the tree
-      final context = globalKey.currentContext;
-      if (context == null) {
-        // Widget not yet in tree - skip
-        notRenderedCount++;
-        continue;
-      }
-      
-      final renderObject = context.findRenderObject();
-      if (renderObject == null || renderObject is! RenderBox) {
-        // Widget not yet rendered or not a RenderBox - skip
-        notRenderedCount++;
-        continue;
-      }
-      
-      final renderBox = renderObject;
-      
-      // Check if the widget is actually laid out (has valid size)
-      // Widgets with opacity 0.0 might still be laid out, so we check size
-      if (!renderBox.hasSize) {
-        // Widget not yet laid out - skip
-        notRenderedCount++;
-        continue;
-      }
-      
-      // Get position in global coordinates (top-left corner)
-      // Even if opacity is 0.0, the widget should have a position
-      final position = renderBox.localToGlobal(Offset.zero);
-      
-      // Get size
-      final size = renderBox.size;
-      
-      // Store position info for ALL cards, regardless of opacity
-      // This includes cards stacked in draw/discard piles with opacity 0.0
-      updatedPositions[cardId] = CardPositionInfo(
-        key: globalKey,
-        position: position,
-        size: size,
-      );
-      
-      renderedCount++;
-    }
-    
-    // Update the positions map
-    _cardPositions.clear();
-    _cardPositions.addAll(updatedPositions);
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('📍 PositionTracker: Update complete - ${_cardPositions.length} positions tracked');
-      _logger.info('📍 PositionTracker: Stats - rendered: $renderedCount, not rendered: $notRenderedCount, skipped: $skippedCount');
-      
-      if (_cardPositions.isNotEmpty) {
-        // Log all card positions
-        _logger.info('📍 PositionTracker: All card positions:');
-        for (final entry in _cardPositions.entries) {
-          final cardId = entry.key;
-          final positionInfo = entry.value;
-          _logger.info('📍   $cardId: pos=(${positionInfo.position.dx.toStringAsFixed(1)}, ${positionInfo.position.dy.toStringAsFixed(1)}), size=${positionInfo.size.width.toStringAsFixed(1)}x${positionInfo.size.height.toStringAsFixed(1)}');
-        }
-      } else {
-        _logger.warning('📍 PositionTracker: No positions tracked - all cards may not be rendered yet');
-      }
-    }
-  }
-  
-  /// Get position info for a specific cardId
-  /// Returns null if card is not tracked or not yet rendered
-  CardPositionInfo? getCardPosition(String cardId) {
-    return _cardPositions[cardId];
-  }
-  
-  /// Get all tracked card positions
-  Map<String, CardPositionInfo> getAllCardPositions() {
-    return Map.unmodifiable(_cardPositions);
-  }
-  
-  /// Get positions for cards in a specific location (e.g., 'draw_pile', 'discard_pile', 'my_hand')
-  Map<String, CardPositionInfo> getCardPositionsByLocation(String location) {
-    final filtered = <String, CardPositionInfo>{};
-    
-    for (final entry in _cardKeys.entries) {
-      final keyString = entry.key;
-      if (keyString.startsWith('${location}_')) {
-        // Extract cardId using same logic as _updateCardPositions
-        final cardIndex = keyString.lastIndexOf('card_');
-        if (cardIndex != -1) {
-          final cardId = keyString.substring(cardIndex);
-          if (_cardPositions.containsKey(cardId)) {
-            filtered[cardId] = _cardPositions[cardId]!;
-          }
-        }
-      }
-    }
-    
-    return filtered;
-  }
-
   // ========== Opponents Panel Methods ==========
 
   /// Protect cardsToPeek data for 5 seconds

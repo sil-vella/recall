@@ -53,6 +53,13 @@ class DutchGameRound {
   
   DutchGameRound(this._stateCallback, this._gameId);
 
+  /// Generate a random 6-digit number for action IDs
+  String _generateActionId() {
+    final random = Random();
+    final number = random.nextInt(900000) + 100000; // 100000 to 999999
+    return number.toString();
+  }
+  
   /// Helper method to clear action data from a specific player or all players
   /// [playerId] If provided, clears action for that player only. If null, clears for all players.
   /// [gamesMap] Optional games map to use instead of reading from state.
@@ -1672,7 +1679,7 @@ class DutchGameRound {
       player['drawnCard'] = idOnlyDrawnCard;
       
       // Add action data for animation system
-      player['action'] = 'drawn_card';
+      player['action'] = 'drawn_card_${_generateActionId()}';
       player['actionData'] = {
         'card1Data': {
           'cardId': drawnCard['cardId'],
@@ -2488,7 +2495,7 @@ class DutchGameRound {
       player['hand'] = hand;
       
       // Add action data for animation system
-      player['action'] = 'play_card';
+      player['action'] = 'play_card_${_generateActionId()}';
       player['actionData'] = {
         'card1Data': {
           'cardId': cardId,
@@ -3054,7 +3061,7 @@ class DutchGameRound {
       player['hand'] = hand;
       
       // Add action data for animation system
-      player['action'] = 'same_rank';
+      player['action'] = 'same_rank_${_generateActionId()}';
       player['actionData'] = {
         'card1Data': {
           'cardId': cardId,
@@ -3339,7 +3346,7 @@ class DutchGameRound {
         );
         
         if (actingPlayer.isNotEmpty) {
-          actingPlayer['action'] = 'jack_swap';
+          actingPlayer['action'] = 'jack_swap_${_generateActionId()}';
           actingPlayer['actionData'] = {
             'card1Data': {
               'cardId': firstCardId,
@@ -3655,7 +3662,7 @@ class DutchGameRound {
       peekingPlayer['cardsToPeek'] = [fullCardData];
       
       // Add action data for animation system (to the peeking player)
-      peekingPlayer['action'] = 'queen_peek';
+      peekingPlayer['action'] = 'queen_peek_${_generateActionId()}';
       peekingPlayer['actionData'] = {
         'card1Data': {
           'cardId': targetCardId,

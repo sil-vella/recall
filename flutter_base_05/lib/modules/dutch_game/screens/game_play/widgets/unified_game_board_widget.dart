@@ -12,6 +12,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
+import '../functionality/playscreenfunctions.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
@@ -54,11 +55,29 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Map of cardId -> GlobalKey for all cards (reused across rebuilds)
   final Map<String, GlobalKey> _cardKeys = {};
   
-  /// GlobalKey for myhand section
-  final GlobalKey _myHandKey = GlobalKey(debugLabel: 'my_hand_section');
-  
   /// GlobalKey for game board section
   final GlobalKey _gameBoardKey = GlobalKey(debugLabel: 'game_board_section');
+  
+  /// GlobalKey for draw pile section
+  final GlobalKey _drawPileKey = GlobalKey(debugLabel: 'draw_pile_section');
+  
+  /// GlobalKey for discard pile section
+  final GlobalKey _discardPileKey = GlobalKey(debugLabel: 'discard_pile_section');
+  
+  /// GlobalKey for the main Stack (for overlay positioning)
+  final GlobalKey _mainStackKey = GlobalKey(debugLabel: 'main_stack');
+  
+  /// PlayScreenFunctions instance for getting RenderBox information
+  late final PlayScreenFunctions _playScreenFunctions = PlayScreenFunctions(
+    drawPileKey: _drawPileKey,
+    discardPileKey: _discardPileKey,
+    gameBoardKey: _gameBoardKey,
+  )..onCardBoundsChanged = () {
+      // Trigger rebuild when card bounds change
+      if (mounted) {
+        setState(() {});
+      }
+    };
 
   @override
   void initState() {
@@ -88,10 +107,26 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   @override
   Widget build(BuildContext context) {
+    // Schedule position update (rate-limited and uses postFrameCallback)
+    _playScreenFunctions.updatePilePositions(
+      onUpdate: (message) {
+        if (LOGGING_SWITCH) {
+          _logger.debug(message);
+        }
+      },
+      onBoundsChanged: () {
+        // Trigger rebuild when bounds change to update the overlay borders
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+    
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
         return Stack(
+          key: _mainStackKey,
           clipBehavior: Clip.none,
           children: [
             // Main widget tree
@@ -120,6 +155,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 );
               },
             ),
+            // Overlay with red borders around piles (using cached bounds data)
+            _buildPileBordersOverlay(),
           ],
         );
       },
@@ -136,6 +173,76 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
     return _cardKeys[key]!;
   }
+  
+  // ========== Position and Size Getter Methods ==========
+  
+  /// Get cached draw pile bounds (position and size)
+  /// Returns the last cached value from PlayScreenFunctions
+  Map<String, dynamic>? getDrawPileBounds() => _playScreenFunctions.getCachedDrawPileBounds();
+  
+  /// Get cached discard pile bounds (position and size)
+  /// Returns the last cached value from PlayScreenFunctions
+  Map<String, dynamic>? getDiscardPileBounds() => _playScreenFunctions.getCachedDiscardPileBounds();
+  
+  /// Get cached bounds for a specific my hand card by index
+  /// Returns the last cached value from PlayScreenFunctions
+  Map<String, dynamic>? getMyHandCardBounds(int index) => _playScreenFunctions.getCachedMyHandCardBounds(index);
+  
+  /// Get all cached my hand card bounds
+  Map<int, Map<String, dynamic>> getMyHandCardBoundsAll() => _playScreenFunctions.getCachedMyHandCardBoundsAll();
+  
+  /// Get cached game board bounds (position and size)
+  /// Returns the last cached value from PlayScreenFunctions
+  Map<String, dynamic>? getGameBoardBounds() => _playScreenFunctions.getCachedGameBoardBounds();
+  
+  // ========== Pile Borders Overlay ==========
+  
+  /// Build overlay with red borders around piles using cached bounds data
+  /// Uses global screen positions directly
+  Widget _buildPileBordersOverlay() {
+    return IgnorePointer(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Get the Stack's global position to convert global coordinates to local
+          final stackContext = _mainStackKey.currentContext;
+          Offset stackGlobalOffset = Offset.zero;
+          if (stackContext != null) {
+            final stackRenderBox = stackContext.findRenderObject() as RenderBox?;
+            if (stackRenderBox != null) {
+              stackGlobalOffset = stackRenderBox.localToGlobal(Offset.zero);
+            }
+          }
+          
+          return CustomPaint(
+            painter: PileBordersPainter(
+              drawPileBounds: getDrawPileBounds(),
+              discardPileBounds: getDiscardPileBounds(),
+              myHandCardBounds: getMyHandCardBoundsAll(),
+              myHandCardKeys: _playScreenFunctions.getCachedMyHandCardKeysAll(),
+              opponentCardBounds: _playScreenFunctions.getCachedOpponentCardBoundsAll(),
+              opponentCardKeys: _playScreenFunctions.getCachedOpponentCardKeysAll(),
+              gameBoardBounds: getGameBoardBounds(),
+              stackGlobalOffset: stackGlobalOffset,
+            ),
+            size: Size.infinite,
+          );
+        },
+      ),
+    );
+  }
+  
+  /// Get RenderBox for draw pile widget
+  RenderBox? getDrawPileRenderBox() {
+    return _playScreenFunctions.getDrawPileRenderBox();
+  }
+  
+  /// Get RenderBox for discard pile widget
+  RenderBox? getDiscardPileRenderBox() {
+    return _playScreenFunctions.getDiscardPileRenderBox();
+  }
+  
+  /// Get PlayScreenFunctions instance for accessing additional functionality
+  PlayScreenFunctions get playScreenFunctions => _playScreenFunctions;
   
   // ========== Opponents Panel Methods ==========
 
@@ -630,7 +737,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             final cardDataToUse = isDrawnCard && drawnCard != null
                 ? drawnCard 
                 : (peekedCardData ?? collectionRankCardData);
-            final cardKey = _getOrCreateCardKey(cardId, 'opponent_$playerId');
+            final cardKey = _getOrCreateCardKey('${playerId}_$i', 'opponent');
             final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
             collectionRankWidgets[cardId] = cardWidget;
           }
@@ -642,10 +749,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         for (int index = 0; index < cards.length; index++) {
           final card = cards[index];
           if (card == null) {
+            final blankSlotKey = _getOrCreateCardKey('${playerId}_$index', 'opponent');
             cardWidgets.add(
               Padding(
                 padding: EdgeInsets.only(right: cardPadding),
-                child: _buildBlankCardSlot(cardDimensions),
+                child: Container(
+                  key: blankSlotKey,
+                  child: _buildBlankCardSlot(cardDimensions),
+                ),
               ),
             );
             continue;
@@ -730,7 +841,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           if (cardId == null) {
             continue;
           }
-          final cardKey = _getOrCreateCardKey(cardId, 'opponent_$playerId');
+          final cardKey = _getOrCreateCardKey('${playerId}_$index', 'opponent');
           final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey, currentPlayerStatus: currentPlayerStatus);
           cardWidgets.add(
             Padding(
@@ -744,11 +855,31 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         }
         
         // Use Wrap widget to allow cards to wrap to next line
-        return Wrap(
+        final wrapWidget = Wrap(
           spacing: 0, // Spacing is handled by card padding
           runSpacing: cardPadding, // Vertical spacing between wrapped rows
           children: cardWidgets,
         );
+        
+        // Update opponent card bounds after build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // Update bounds for ALL indices (including empty slots)
+          // All indices from 0 to cards.length - 1 should have bounds tracked
+          for (int i = 0; i < cards.length; i++) {
+            final keyString = '${playerId}_$i';
+            final cardKey = _getOrCreateCardKey(keyString, 'opponent');
+            _playScreenFunctions.updateOpponentCardBounds(playerId, i, cardKey, keyString: keyString);
+          }
+          // Clear bounds only for indices beyond the current list length
+          // maxIndex is cards.length - 1 to handle list shrinking
+          _playScreenFunctions.clearMissingOpponentCardBounds(
+            playerId,
+            List.generate(cards.length, (i) => i), // All indices from 0 to length-1
+            maxIndex: cards.length > 0 ? cards.length - 1 : null,
+          );
+        });
+        
+        return wrapWidget;
       },
     );
   }
@@ -1121,17 +1252,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final isDrawingStatus = playerStatus == 'drawing_card';
     final statusChipColor = isDrawingStatus ? _getStatusChipColor(playerStatus) : null;
     
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Builder(
-            builder: (context) {
-              final cardDimensions = CardDimensions.getUnifiedDimensions();
-              
-              Widget drawPileContent;
+    return Container(
+      key: _drawPileKey,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Builder(
+              builder: (context) {
+                final cardDimensions = CardDimensions.getUnifiedDimensions();
+                
+                Widget drawPileContent;
               
               if (drawPile.isEmpty) {
                 // Empty draw pile - render placeholder
@@ -1271,6 +1404,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -1353,17 +1487,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
     final hasCards = discardPile.isNotEmpty;
     
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Builder(
-            builder: (context) {
-              final cardDimensions = CardDimensions.getUnifiedDimensions();
-              
-              if (!hasCards) {
+    return Container(
+      key: _discardPileKey,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Builder(
+              builder: (context) {
+                final cardDimensions = CardDimensions.getUnifiedDimensions();
+                
+                if (!hasCards) {
                 // Empty discard pile
                 final emptyKey = _getOrCreateCardKey('discard_pile_empty', 'discard_pile');
                 return CardWidget(
@@ -1480,6 +1616,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             },
           ),
         ],
+      ),
       ),
     );
   }
@@ -1871,13 +2008,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // For timer color, always get the status chip color (including same_rank_window)
     final timerColor = _getStatusChipColor(playerStatus);
     
-    // Update myhand height in state after build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-_updateMyHandHeight();
-    });
+    // Note: My hand height tracking removed - now tracking individual cards
     
     return Container(
-      key: _myHandKey,
       child: Padding(
         padding: const EdgeInsets.all(1.0),
         child: Column(
@@ -2103,7 +2236,8 @@ _updateMyHandHeight();
                     ? drawnCard 
                     : (peekedCardData ?? collectionRankCardData);
                 // Use calculated dimensions from LayoutBuilder
-                final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
+                final playerId = _getCurrentUserId();
+                final cardKey = _getOrCreateCardKey('${playerId}_$i', 'my_hand');
                 final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey, cardDimensions, currentPlayerStatus: currentPlayerStatus);
                 collectionRankWidgets[cardId] = cardWidget;
               }
@@ -2119,10 +2253,15 @@ _updateMyHandHeight();
           
           // Handle null cards (blank slots from same-rank plays)
           if (card == null) {
+            final playerId = _getCurrentUserId();
+            final blankSlotKey = _getOrCreateCardKey('${playerId}_$index', 'my_hand');
             cardWidgets.add(
               Padding(
                 padding: EdgeInsets.only(right: cardPadding),
-                child: _buildMyHandBlankCardSlot(cardDimensions),
+                child: Container(
+                  key: blankSlotKey,
+                  child: _buildMyHandBlankCardSlot(cardDimensions),
+                ),
               ),
             );
             continue;
@@ -2202,7 +2341,8 @@ _updateMyHandHeight();
                   final collectionCardId = collectionCard['cardId']?.toString();
                   if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
                     // Rebuild collection widgets with fixed dimensions
-                    final collectionCardKey = _getOrCreateCardKey(collectionCardId, 'my_hand');
+                    final playerId = _getCurrentUserId();
+                    final collectionCardKey = _getOrCreateCardKey('${playerId}_$index', 'my_hand');
                     final collectionCardWidget = _buildMyHandCardWidget(
                       collectionCard, 
                       false, 
@@ -2255,7 +2395,8 @@ _updateMyHandHeight();
             if (cardId == null) {
               continue;
             }
-            final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
+            final playerId = _getCurrentUserId();
+            final cardKey = _getOrCreateCardKey('${playerId}_$index', 'my_hand');
             final cardWidget = _buildMyHandCardWidget(
               cardDataToUse, 
               isSelected, 
@@ -2281,12 +2422,32 @@ _updateMyHandHeight();
           }
           
           // Use Wrap widget to allow cards to wrap to next line
-          return Wrap(
+          final wrapWidget = Wrap(
             spacing: 0, // Spacing is handled by card padding
             runSpacing: cardPadding, // Vertical spacing between wrapped rows
             alignment: WrapAlignment.start, // Align cards to the left
             children: cardWidgets,
           );
+          
+          // Update card bounds after build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final playerId = _getCurrentUserId();
+            // Update bounds for ALL indices (including empty slots)
+            // All indices from 0 to cards.length - 1 should have bounds tracked
+            for (int i = 0; i < cards.length; i++) {
+              final keyString = '${playerId}_$i';
+              final cardKey = _getOrCreateCardKey(keyString, 'my_hand');
+              _playScreenFunctions.updateMyHandCardBounds(i, cardKey, keyString: keyString);
+            }
+            // Clear bounds only for indices beyond the current list length
+            // maxIndex is cards.length - 1 to handle list shrinking
+            _playScreenFunctions.clearMissingMyHandCardBounds(
+              List.generate(cards.length, (i) => i), // All indices from 0 to length-1
+              maxIndex: cards.length > 0 ? cards.length - 1 : null,
+            );
+          });
+          
+          return wrapWidget;
         },
       );
       },
@@ -2307,19 +2468,14 @@ _updateMyHandHeight();
   }
 
   /// Update myhand section height in state (for overlay positioning)
+  /// NOTE: This method is no longer used - individual cards are tracked instead
+  @Deprecated('Individual cards are now tracked instead of the whole myHand section')
   void _updateMyHandHeight() {
     if (!mounted) return;
     
-    final context = _myHandKey.currentContext;
-    if (context != null) {
-      final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-      if (renderBox != null && renderBox.hasSize) {
-        final height = renderBox.size.height;
-        StateManager().updateModuleState('dutch_game', {
-          'myHandHeight': height,
-        });
-      }
-    }
+    // Method deprecated - individual cards are tracked via updateMyHandCardBounds
+    // Keeping method stub to avoid breaking any external references
+    // No-op since we now track individual cards
   }
 
   Future<void> _handleCallFinalRound(BuildContext context, String gameId) async {
@@ -2968,6 +3124,143 @@ _updateMyHandHeight();
         color: AppColors.textSecondary,
       ),
     );
+  }
+}
+
+/// Custom painter that draws red borders around piles using global screen positions
+class PileBordersPainter extends CustomPainter {
+  final Map<String, dynamic>? drawPileBounds;
+  final Map<String, dynamic>? discardPileBounds;
+  final Map<int, Map<String, dynamic>> myHandCardBounds;
+  final Map<int, String> myHandCardKeys;
+  final Map<String, Map<int, Map<String, dynamic>>> opponentCardBounds;
+  final Map<String, Map<int, String>> opponentCardKeys;
+  final Map<String, dynamic>? gameBoardBounds;
+  final Offset stackGlobalOffset;
+
+  PileBordersPainter({
+    this.drawPileBounds,
+    this.discardPileBounds,
+    required this.myHandCardBounds,
+    required this.myHandCardKeys,
+    required this.opponentCardBounds,
+    required this.opponentCardKeys,
+    this.gameBoardBounds,
+    required this.stackGlobalOffset,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0;
+
+    // Draw border for draw pile
+    _drawBorder(canvas, paint, drawPileBounds, 'Draw Pile');
+    
+    // Draw border for discard pile
+    _drawBorder(canvas, paint, discardPileBounds, 'Discard Pile');
+    
+    // Draw borders for each my hand card
+    for (final entry in myHandCardBounds.entries) {
+      final index = entry.key;
+      final bounds = entry.value;
+      // Use the key string if available, otherwise fall back to index
+      final keyString = myHandCardKeys[index] ?? 'Card $index';
+      _drawBorder(canvas, paint, bounds, keyString);
+    }
+    
+    // Draw borders for each opponent card
+    for (final playerEntry in opponentCardBounds.entries) {
+      final playerId = playerEntry.key;
+      final playerCardBounds = playerEntry.value;
+      final playerCardKeys = opponentCardKeys[playerId] ?? {};
+      
+      for (final entry in playerCardBounds.entries) {
+        final index = entry.key;
+        final bounds = entry.value;
+        // Use the key string if available, otherwise fall back to playerId_index
+        final keyString = playerCardKeys[index] ?? '${playerId}_$index';
+        _drawBorder(canvas, paint, bounds, keyString);
+      }
+    }
+    
+    // Draw border for game board
+    _drawBorder(canvas, paint, gameBoardBounds, 'Game Board');
+  }
+
+  void _drawBorder(
+    Canvas canvas,
+    Paint paint,
+    Map<String, dynamic>? bounds,
+    String label,
+  ) {
+    if (bounds == null) return;
+
+    final globalPosition = bounds['position'] as Offset?;
+    final boundsSize = bounds['size'] as Size?;
+
+    if (globalPosition == null || boundsSize == null) return;
+
+    // Convert global position to local coordinates relative to the Stack
+    final localPosition = globalPosition - stackGlobalOffset;
+
+    // Draw rectangle border
+    final rect = Rect.fromLTWH(
+      localPosition.dx,
+      localPosition.dy,
+      boundsSize.width,
+      boundsSize.height,
+    );
+    canvas.drawRect(rect, paint);
+
+    // Draw label background and text
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+
+    // Draw label background
+    final labelRect = Rect.fromLTWH(
+      localPosition.dx + 2,
+      localPosition.dy + 2,
+      textPainter.width + 8,
+      textPainter.height + 4,
+    );
+    final labelPaint = Paint()
+      ..color = Colors.red.withOpacity(0.8)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(labelRect, const Radius.circular(4)),
+      labelPaint,
+    );
+
+    // Draw label text
+    textPainter.paint(
+      canvas,
+      Offset(localPosition.dx + 6, localPosition.dy + 4),
+    );
+  }
+
+  @override
+  bool shouldRepaint(PileBordersPainter oldDelegate) {
+    return oldDelegate.drawPileBounds != drawPileBounds ||
+        oldDelegate.discardPileBounds != discardPileBounds ||
+        oldDelegate.myHandCardBounds != myHandCardBounds ||
+        oldDelegate.myHandCardKeys != myHandCardKeys ||
+        oldDelegate.opponentCardBounds != opponentCardBounds ||
+        oldDelegate.opponentCardKeys != opponentCardKeys ||
+        oldDelegate.gameBoardBounds != gameBoardBounds ||
+        oldDelegate.stackGlobalOffset != stackGlobalOffset;
   }
 }
 

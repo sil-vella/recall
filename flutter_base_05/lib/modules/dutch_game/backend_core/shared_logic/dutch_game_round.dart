@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
+const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -1680,15 +1680,17 @@ class DutchGameRound {
       player['drawnCard'] = idOnlyDrawnCard;
       
       // Add action data for animation system
+      // Card is added to end of hand, so index is hand.length - 1
+      final drawnCardIndex = hand.length - 1;
       player['action'] = 'drawn_card_${_generateActionId()}';
       player['actionData'] = {
         'card1Data': {
-          'cardId': drawnCard['cardId'],
+          'cardIndex': drawnCardIndex,
           'playerId': actualPlayerId,
         },
       };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set drawn_card action for player $actualPlayerId - card1Data: {cardId: ${drawnCard['cardId']}, playerId: $actualPlayerId}');
+        _logger.info('🎬 ACTION_DATA: Set drawn_card action for player $actualPlayerId - card1Data: {cardIndex: $drawnCardIndex, playerId: $actualPlayerId}');
       };
       
       // For computer players, also add to known_cards (they need full data for logic)
@@ -2499,12 +2501,12 @@ class DutchGameRound {
       player['action'] = 'play_card_${_generateActionId()}';
       player['actionData'] = {
         'card1Data': {
-          'cardId': cardId,
+          'cardIndex': cardIndex,
           'playerId': actualPlayerId,
         },
       };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set play_card action for player $actualPlayerId - card1Data: {cardId: $cardId, playerId: $actualPlayerId}');
+        _logger.info('🎬 ACTION_DATA: Set play_card action for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
       };
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
@@ -3065,12 +3067,12 @@ class DutchGameRound {
       player['action'] = 'same_rank_${_generateActionId()}';
       player['actionData'] = {
         'card1Data': {
-          'cardId': cardId,
+          'cardIndex': cardIndex,
           'playerId': playerId,
         },
       };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set same_rank action for player $playerId - card1Data: {cardId: $cardId, playerId: $playerId}');
+        _logger.info('🎬 ACTION_DATA: Set same_rank action for player $playerId - card1Data: {cardIndex: $cardIndex, playerId: $playerId}');
       };
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
@@ -3350,16 +3352,16 @@ class DutchGameRound {
           actingPlayer['action'] = 'jack_swap_${_generateActionId()}';
           actingPlayer['actionData'] = {
             'card1Data': {
-              'cardId': firstCardId,
+              'cardIndex': firstCardIndex,
               'playerId': firstPlayerId,
             },
             'card2Data': {
-              'cardId': secondCardId,
+              'cardIndex': secondCardIndex,
               'playerId': secondPlayerId,
             },
           };
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 ACTION_DATA: Set jack_swap action for acting player $actingPlayerId - card1Data: {cardId: $firstCardId, playerId: $firstPlayerId}, card2Data: {cardId: $secondCardId, playerId: $secondPlayerId}');
+            _logger.info('🎬 ACTION_DATA: Set jack_swap action for acting player $actingPlayerId - card1Data: {cardIndex: $firstCardIndex, playerId: $firstPlayerId}, card2Data: {cardIndex: $secondCardIndex, playerId: $secondPlayerId}');
           };
         }
       }
@@ -3663,15 +3665,16 @@ class DutchGameRound {
       peekingPlayer['cardsToPeek'] = [fullCardData];
       
       // Add action data for animation system (to the peeking player)
+      // targetCardIndex can be -1 if card is in drawnCard, otherwise it's the index in hand
       peekingPlayer['action'] = 'queen_peek_${_generateActionId()}';
       peekingPlayer['actionData'] = {
         'card1Data': {
-          'cardId': targetCardId,
+          'cardIndex': targetCardIndex ?? -1,
           'playerId': targetPlayerId,
         },
       };
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set queen_peek action for player $peekingPlayerId - card1Data: {cardId: $targetCardId, playerId: $targetPlayerId}');
+        _logger.info('🎬 ACTION_DATA: Set queen_peek action for player $peekingPlayerId - card1Data: {cardIndex: ${targetCardIndex ?? -1}, playerId: $targetPlayerId}');
       };
       
       if (isHuman) {

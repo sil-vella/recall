@@ -13,8 +13,9 @@ import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
 import '../functionality/playscreenfunctions.dart';
+import '../functionality/animations.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -134,18 +135,199 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     StateManager().addListener(_onStateChanged);
   }
   
-  /// Handle state changes - update prev_state cache after delay
-  void _onStateChanged() {
+  /// Handle state changes - update prev_state cache after animations complete
+  void _onStateChanged() async {
     if (!mounted) return;
     
-    // Update prev_state cache after a short delay to allow animations
-    // This will be replaced with animation completion callbacks later
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) {
-        _updatePrevStateCache();
-        setState(() {});
+    // Get current state
+    final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    
+    // If already processing, cache this state update (replacing any previous cached state)
+    if (_isProcessingStateChange) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _onStateChanged: Already processing, caching state update');
       }
-    });
+      _cachedStateUpdate = currentState;
+      return;
+    }
+    
+    // Process this state update
+    await _processStateUpdate(currentState);
+  }
+  
+  /// Process a state update - handle animations and update prev_state
+  Future<void> _processStateUpdate(Map<String, dynamic> currentState) async {
+    if (!mounted) return;
+    
+    _isProcessingStateChange = true;
+    
+    try {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _processStateUpdate: Starting state change processing');
+      }
+      
+      // Clear any cached state (we're processing now)
+      _cachedStateUpdate = null;
+      
+      // Cancel any existing timeout timer
+      _animationTimeoutTimer?.cancel();
+      _animationTimeoutTimer = null;
+      
+      final games = currentState['games'] as Map<String, dynamic>? ?? {};
+      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      
+      if (currentGameId.isEmpty) {
+        // No game active, just update prev_state
+        _updatePrevStateCache();
+        if (mounted) setState(() {});
+        return;
+      }
+      
+      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+      final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      
+      // Collect all actions from players and trigger animations
+      List<Future<void>> animationFutures = [];
+      
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _processStateUpdate: Checking ${players.length} players for actions');
+      }
+      
+      for (var player in players) {
+        if (player is! Map<String, dynamic>) continue;
+        
+        final playerId = player['id']?.toString();
+        final action = player['action']?.toString();
+        final actionData = player['actionData'] as Map<String, dynamic>?;
+        
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 _processStateUpdate: Player $playerId - action: $action, actionData: $actionData');
+        }
+        
+        if (action != null && actionData != null && Animations.requiresAnimation(action)) {
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _processStateUpdate: Action $action requires animation');
+          }
+          
+          // Validate action data
+          if (Animations.validateActionData(action, actionData)) {
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 _processStateUpdate: Action data validated successfully');
+            }
+            
+            // Check if already in active animations or already processed
+            if (!_activeAnimations.containsKey(action)) {
+              if (LOGGING_SWITCH) {
+                _logger.info('🎬 _processStateUpdate: Triggering animation for action: $action');
+              }
+              // Trigger animation in overlay
+              final future = _triggerAnimation(action, actionData);
+              if (future != null) {
+                animationFutures.add(future);
+              }
+            } else {
+              if (LOGGING_SWITCH) {
+                _logger.info('🎬 _processStateUpdate: Action $action already in active animations, skipping');
+              }
+            }
+          } else {
+            if (LOGGING_SWITCH) {
+              _logger.warning('🎬 _processStateUpdate: Action data validation failed for action: $action');
+            }
+          }
+        }
+      }
+      
+      // Set up 4-second timeout to bypass animation wait if needed
+      bool timeoutTriggered = false;
+      if (animationFutures.isNotEmpty) {
+        _animationTimeoutTimer = Timer(const Duration(seconds: 4), () {
+          if (mounted && !timeoutTriggered) {
+            timeoutTriggered = true;
+            if (LOGGING_SWITCH) {
+              _logger.warning('🎬 _processStateUpdate: Animation timeout (4s) - clearing animations and continuing');
+            }
+            
+            // Clear all active animations
+            for (final animData in _activeAnimations.values) {
+              final controller = animData['controller'] as AnimationController?;
+              controller?.dispose();
+            }
+            _activeAnimations.clear();
+            
+            // Hide overlay
+            if (mounted) {
+              setState(() {});
+            }
+            
+            // Continue with state update
+            _completeStateUpdate();
+          }
+        });
+      }
+      
+      // Wait for all animations to complete BEFORE updating prev_state
+      if (animationFutures.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 _processStateUpdate: Waiting for ${animationFutures.length} animation(s) to complete...');
+        }
+        
+        try {
+          await Future.wait(animationFutures);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _processStateUpdate: All animations completed, now updating prev_state');
+          }
+        } catch (e) {
+          if (LOGGING_SWITCH) {
+            _logger.error('🎬 _processStateUpdate: Animation error: $e');
+          }
+        }
+        
+        // Cancel timeout timer if animations completed in time
+        _animationTimeoutTimer?.cancel();
+        _animationTimeoutTimer = null;
+      } else {
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 _processStateUpdate: No animations to wait for, updating prev_state immediately');
+        }
+      }
+      
+      // Complete state update
+      _completeStateUpdate();
+    } finally {
+      _isProcessingStateChange = false;
+    }
+  }
+  
+  /// Complete state update - update prev_state and process any cached state
+  void _completeStateUpdate() {
+    if (!mounted) return;
+    
+    // Update prev_state cache
+    _updatePrevStateCache();
+    setState(() {});
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _completeStateUpdate: prev_state updated');
+    }
+    
+    // Check if there's a cached state update to process
+    final cachedState = _cachedStateUpdate;
+    if (cachedState != null) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _completeStateUpdate: Found cached state update, processing...');
+      }
+      _cachedStateUpdate = null; // Clear cache before processing
+      
+      // Process cached state update (this will set _isProcessingStateChange again)
+      _processStateUpdate(cachedState);
+    } else {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _completeStateUpdate: No cached state update, processing complete');
+      }
+    }
   }
 
   @override
@@ -153,6 +335,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
     _glowAnimationController?.dispose();
+    _animationTimeoutTimer?.cancel();
+    
+    // Dispose all active animation controllers
+    for (final animData in _activeAnimations.values) {
+      final controller = animData['controller'] as AnimationController?;
+      controller?.dispose();
+    }
+    _activeAnimations.clear();
+    
     StateManager().removeListener(_onStateChanged);
     super.dispose();
   }
@@ -207,8 +398,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 );
               },
             ),
-            // Overlay with red borders around piles (using cached bounds data)
-            _buildPileBordersOverlay(),
+            // Animation overlay layer for card transitions
+            _buildAnimationOverlay(),
           ],
         );
       },
@@ -247,39 +438,337 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Returns the last cached value from PlayScreenFunctions
   Map<String, dynamic>? getGameBoardBounds() => _playScreenFunctions.getCachedGameBoardBounds();
   
-  // ========== Pile Borders Overlay ==========
+  // ========== Animation Overlay ==========
   
-  /// Build overlay with red borders around piles using cached bounds data
-  /// Uses global screen positions directly
-  Widget _buildPileBordersOverlay() {
+  /// Active animations map: actionName -> animation data
+  final Map<String, Map<String, dynamic>> _activeAnimations = {};
+  
+  /// Flag to prevent concurrent state change handling
+  bool _isProcessingStateChange = false;
+  
+  /// Cached state update - stores the latest state update attempt while processing
+  Map<String, dynamic>? _cachedStateUpdate;
+  
+  /// Timer for animation timeout (4 seconds)
+  Timer? _animationTimeoutTimer;
+  
+  /// Build animation overlay layer for card transitions
+  Widget _buildAnimationOverlay() {
+    if (_activeAnimations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    // Get the Stack's global position to convert global coordinates to local
+    final stackContext = _mainStackKey.currentContext;
+    Offset stackGlobalOffset = Offset.zero;
+    if (stackContext != null) {
+      final stackRenderBox = stackContext.findRenderObject() as RenderBox?;
+      if (stackRenderBox != null) {
+        stackGlobalOffset = stackRenderBox.localToGlobal(Offset.zero);
+      }
+    }
+    
     return IgnorePointer(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Get the Stack's global position to convert global coordinates to local
-          final stackContext = _mainStackKey.currentContext;
-          Offset stackGlobalOffset = Offset.zero;
-          if (stackContext != null) {
-            final stackRenderBox = stackContext.findRenderObject() as RenderBox?;
-            if (stackRenderBox != null) {
-              stackGlobalOffset = stackRenderBox.localToGlobal(Offset.zero);
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: _activeAnimations.values.map((animData) {
+          return _buildAnimatedCard(animData, stackGlobalOffset);
+        }).toList(),
+      ),
+    );
+  }
+  
+  /// Trigger animation for an action - creates animation controller and adds to overlay
+  Future<void>? _triggerAnimation(String actionName, Map<String, dynamic> actionData) {
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerAnimation: Starting for action: $actionName');
+      _logger.info('🎬 _triggerAnimation: actionData: $actionData');
+    }
+    
+    // Check if already cached/processed
+    if (_activeAnimations.containsKey(actionName)) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _triggerAnimation: Action $actionName already in active animations, skipping');
+      }
+      return null;
+    }
+    
+    final animationType = Animations.getAnimationTypeForAction(actionName);
+    if (animationType == AnimationType.none) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _triggerAnimation: AnimationType is none, skipping');
+      }
+      return null;
+    }
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerAnimation: AnimationType: $animationType');
+    }
+    
+    final duration = Animations.getAnimationDuration(animationType);
+    final curve = Animations.getAnimationCurve(animationType);
+    
+    // Get current user's playerId to determine if this is my hand or opponent's hand
+    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerAnimation: Current user ID: $currentUserId');
+    }
+    
+    // Get source and destination bounds
+    Map<String, dynamic>? sourceBounds;
+    Map<String, dynamic>? destBounds;
+    
+    final card1Data = actionData['card1Data'] as Map<String, dynamic>?;
+    if (card1Data != null) {
+      final playerId = card1Data['playerId']?.toString();
+      final cardIndex = card1Data['cardIndex'] as int?;
+      
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _triggerAnimation: card1Data - playerId: $playerId, cardIndex: $cardIndex');
+      }
+      
+      if (playerId != null && cardIndex != null) {
+        // Check if this is the current user's hand or an opponent's hand
+        final isMyHand = playerId == currentUserId;
+        
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 _triggerAnimation: isMyHand: $isMyHand (playerId: $playerId, currentUserId: $currentUserId)');
+        }
+        
+        // Get destination bounds based on whether it's my hand or opponent's hand
+        if (isMyHand) {
+          destBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _triggerAnimation: My hand bounds for index $cardIndex: $destBounds');
+          }
+        } else {
+          // Log all available opponent bounds for debugging
+          if (LOGGING_SWITCH) {
+            final allOpponentBounds = _playScreenFunctions.getCachedOpponentCardBoundsAll();
+            _logger.info('🎬 _triggerAnimation: Available opponent bounds keys: ${allOpponentBounds.keys.toList()}');
+            if (allOpponentBounds.containsKey(playerId)) {
+              _logger.info('🎬 _triggerAnimation: Opponent $playerId has bounds for indices: ${allOpponentBounds[playerId]?.keys.toList()}');
+            } else {
+              _logger.warning('🎬 _triggerAnimation: Opponent $playerId NOT found in cached bounds!');
             }
           }
           
-          return CustomPaint(
-            painter: PileBordersPainter(
-              drawPileBounds: getDrawPileBounds(),
-              discardPileBounds: getDiscardPileBounds(),
-              myHandCardBounds: getMyHandCardBoundsAll(),
-              myHandCardKeys: _playScreenFunctions.getCachedMyHandCardKeysAll(),
-              opponentCardBounds: _playScreenFunctions.getCachedOpponentCardBoundsAll(),
-              opponentCardKeys: _playScreenFunctions.getCachedOpponentCardKeysAll(),
-              gameBoardBounds: getGameBoardBounds(),
-              stackGlobalOffset: stackGlobalOffset,
-            ),
-            size: Size.infinite,
+          destBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _triggerAnimation: Opponent ($playerId) hand bounds for index $cardIndex: $destBounds');
+          }
+        }
+        
+        // For moveCard, source is draw pile
+        if (animationType == AnimationType.moveCard) {
+          sourceBounds = _playScreenFunctions.getCachedDrawPileBounds();
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _triggerAnimation: Draw pile bounds: $sourceBounds');
+          }
+        }
+      } else {
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎬 _triggerAnimation: Missing playerId or cardIndex in card1Data');
+        }
+      }
+    } else {
+      if (LOGGING_SWITCH) {
+        _logger.warning('🎬 _triggerAnimation: Missing card1Data in actionData');
+      }
+    }
+    
+    if (sourceBounds == null || destBounds == null) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('🎬 _triggerAnimation: Missing bounds - sourceBounds: ${sourceBounds != null}, destBounds: ${destBounds != null}');
+      }
+      return null;
+    }
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerAnimation: Successfully got bounds - proceeding with animation');
+    }
+    
+    // Create animation controller
+    final controller = AnimationController(
+      duration: duration,
+      vsync: this,
+    );
+    
+    final animation = CurvedAnimation(
+      parent: controller,
+      curve: curve,
+    );
+    
+    // Get card data for the animation
+    Map<String, dynamic>? cardData;
+    if (card1Data != null) {
+      final playerId = card1Data['playerId']?.toString();
+      final cardIndex = card1Data['cardIndex'] as int?;
+      
+      if (playerId != null && cardIndex != null) {
+        // Get card data from game state
+        final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final games = currentState['games'] as Map<String, dynamic>? ?? {};
+        final currentGameId = currentState['currentGameId']?.toString() ?? '';
+        
+        if (currentGameId.isNotEmpty && games.containsKey(currentGameId)) {
+          final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+          final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+          final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+          final players = gameState['players'] as List<dynamic>? ?? [];
+          
+          // Find the player
+          for (var player in players) {
+            if (player is Map<String, dynamic> && player['id']?.toString() == playerId) {
+              final hand = player['hand'] as List<dynamic>? ?? [];
+              if (cardIndex < hand.length) {
+                final card = hand[cardIndex];
+                if (card is Map<String, dynamic>) {
+                  cardData = card;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Store animation data
+    _activeAnimations[actionName] = {
+      'animationType': animationType,
+      'sourceBounds': sourceBounds,
+      'destBounds': destBounds,
+      'controller': controller,
+      'animation': animation,
+      'cardData': cardData, // Store card data for rendering
+    };
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerAnimation: Animation stored, starting animation controller');
+    }
+    
+    // Trigger rebuild to show animation (this just shows the overlay, doesn't update prev_state)
+    if (mounted) {
+      setState(() {});
+    }
+    
+    // Start animation and return future that completes when animation finishes
+    // The future from controller.forward() completes when the animation finishes
+    return controller.forward().then((_) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _triggerAnimation: Animation completed for $actionName');
+      }
+      
+      // Animation complete - remove from active animations
+      if (mounted) {
+        _activeAnimations.remove(actionName);
+        controller.dispose();
+        setState(() {}); // Remove animation from overlay
+      }
+    }).catchError((error) {
+      if (LOGGING_SWITCH) {
+        _logger.error('🎬 _triggerAnimation: Animation error for $actionName: $error');
+      }
+      if (mounted) {
+        _activeAnimations.remove(actionName);
+        controller.dispose();
+      }
+      // Re-throw to propagate error
+      throw error;
+    });
+  }
+  
+  /// Build an animated card widget for the overlay
+  /// This is just a visual overlay card, not tracking its own position
+  Widget _buildAnimatedCard(Map<String, dynamic> animData, Offset stackGlobalOffset) {
+    final animationType = animData['animationType'] as AnimationType?;
+    final sourceBounds = animData['sourceBounds'] as Map<String, dynamic>?;
+    final destBounds = animData['destBounds'] as Map<String, dynamic>?;
+    final animationController = animData['controller'] as AnimationController?;
+    final animation = animData['animation'] as Animation<double>?;
+    final cardData = animData['cardData'] as Map<String, dynamic>?;
+    
+    if (animationType == null || sourceBounds == null || animationController == null || animation == null) {
+      return const SizedBox.shrink();
+    }
+    
+    // Get source position and size (convert global to local)
+    final sourcePosition = sourceBounds['position'] as Offset?;
+    final sourceSize = sourceBounds['size'] as Size?;
+    
+    if (sourcePosition == null || sourceSize == null) {
+      return const SizedBox.shrink();
+    }
+    
+    final localSourcePosition = sourcePosition - stackGlobalOffset;
+    
+    // Calculate destination position if available (for interpolation)
+    Offset? localDestPosition;
+    Size? destSize;
+    if (destBounds != null) {
+      final destPosition = destBounds['position'] as Offset?;
+      destSize = destBounds['size'] as Size?;
+      if (destPosition != null) {
+        localDestPosition = destPosition - stackGlobalOffset;
+      }
+    }
+    
+    // Use destination size if available, otherwise use source size
+    final cardSize = destSize ?? sourceSize;
+    
+    // Build card widget using actual CardWidget
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        // For moveCard animation, interpolate between source and destination positions
+        // For other animations, just use source position
+        Offset cardPosition = localSourcePosition;
+        if (animationType == AnimationType.moveCard && localDestPosition != null) {
+          cardPosition = Offset.lerp(localSourcePosition, localDestPosition, animation.value) ?? localSourcePosition;
+        }
+        
+        // Build card widget
+        Widget cardWidget;
+        if (cardData != null) {
+          // Use actual card data to render CardWidget
+          final cardModel = CardModel.fromMap(cardData);
+          cardWidget = CardWidget(
+            card: cardModel,
+            dimensions: cardSize,
+            config: CardDisplayConfig.forDiscardPile(), // Use discard pile config (face up)
+            showBack: false, // Show face up during animation
+            isSelected: false,
           );
-        },
-      ),
+        } else {
+          // Fallback to card back if no card data available
+          cardWidget = CardWidget(
+            card: CardModel(
+              cardId: 'animated_card',
+              rank: '?',
+              suit: '?',
+              points: 0,
+            ),
+            dimensions: cardSize,
+            config: CardDisplayConfig.forDiscardPile(),
+            showBack: true, // Show back if no data
+            isSelected: false,
+          );
+        }
+        
+        // For moveCard, keep fully visible during movement
+        // For other animations, use opacity based on animation value
+        final opacity = animationType == AnimationType.moveCard ? 1.0 : animation.value;
+        
+        return Positioned(
+          left: cardPosition.dx,
+          top: cardPosition.dy,
+          child: Opacity(
+            opacity: opacity,
+            child: cardWidget,
+          ),
+        );
+      },
     );
   }
   
@@ -906,6 +1395,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           );
         }
         
+        // Add extra empty slot at the end with opacity 0 (for animation space)
+        final extraSlotIndex = cards.length;
+        final extraSlotKey = _getOrCreateCardKey('${playerId}_$extraSlotIndex', 'opponent');
+        cardWidgets.add(
+          Opacity(
+            opacity: 0.0, // Always invisible but still takes up space
+            child: Padding(
+              padding: EdgeInsets.only(right: cardPadding),
+              child: Container(
+                key: extraSlotKey,
+                child: _buildBlankCardSlot(cardDimensions),
+              ),
+            ),
+          ),
+        );
+        
         // Use Wrap widget to allow cards to wrap to next line
         final wrapWidget = Wrap(
           spacing: 0, // Spacing is handled by card padding
@@ -915,19 +1420,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         
         // Update opponent card bounds after build
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          // Update bounds for ALL indices (including empty slots)
-          // All indices from 0 to cards.length - 1 should have bounds tracked
-          for (int i = 0; i < cards.length; i++) {
+          // Update bounds for ALL indices (including empty slots and extra slot)
+          // All indices from 0 to cards.length should have bounds tracked (including extra slot)
+          for (int i = 0; i <= cards.length; i++) {
             final keyString = '${playerId}_$i';
             final cardKey = _getOrCreateCardKey(keyString, 'opponent');
             _playScreenFunctions.updateOpponentCardBounds(playerId, i, cardKey, keyString: keyString);
           }
-          // Clear bounds only for indices beyond the current list length
-          // maxIndex is cards.length - 1 to handle list shrinking
+          // Clear bounds only for indices beyond the current list length + extra slot
+          // maxIndex is cards.length to include the extra slot
           _playScreenFunctions.clearMissingOpponentCardBounds(
             playerId,
-            List.generate(cards.length, (i) => i), // All indices from 0 to length-1
-            maxIndex: cards.length > 0 ? cards.length - 1 : null,
+            List.generate(cards.length + 1, (i) => i), // All indices from 0 to length (including extra slot)
+            maxIndex: cards.length, // Include extra slot at index cards.length
           );
         });
         
@@ -2473,6 +2978,23 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             }
           }
           
+          // Add extra empty slot at the end with opacity 0 (for animation space)
+          final extraSlotIndex = cards.length;
+          final playerId = _getCurrentUserId();
+          final extraSlotKey = _getOrCreateCardKey('${playerId}_$extraSlotIndex', 'my_hand');
+          cardWidgets.add(
+            Opacity(
+              opacity: 0.0, // Always invisible but still takes up space
+              child: Padding(
+                padding: EdgeInsets.only(right: cardPadding),
+                child: Container(
+                  key: extraSlotKey,
+                  child: _buildMyHandBlankCardSlot(cardDimensions),
+                ),
+              ),
+            ),
+          );
+          
           // Use Wrap widget to allow cards to wrap to next line
           final wrapWidget = Wrap(
             spacing: 0, // Spacing is handled by card padding
@@ -2484,18 +3006,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           // Update card bounds after build
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final playerId = _getCurrentUserId();
-            // Update bounds for ALL indices (including empty slots)
-            // All indices from 0 to cards.length - 1 should have bounds tracked
-            for (int i = 0; i < cards.length; i++) {
+            // Update bounds for ALL indices (including empty slots and extra slot)
+            // All indices from 0 to cards.length should have bounds tracked (including extra slot)
+            for (int i = 0; i <= cards.length; i++) {
               final keyString = '${playerId}_$i';
               final cardKey = _getOrCreateCardKey(keyString, 'my_hand');
               _playScreenFunctions.updateMyHandCardBounds(i, cardKey, keyString: keyString);
             }
-            // Clear bounds only for indices beyond the current list length
-            // maxIndex is cards.length - 1 to handle list shrinking
+            // Clear bounds only for indices beyond the current list length + extra slot
+            // maxIndex is cards.length to include the extra slot
             _playScreenFunctions.clearMissingMyHandCardBounds(
-              List.generate(cards.length, (i) => i), // All indices from 0 to length-1
-              maxIndex: cards.length > 0 ? cards.length - 1 : null,
+              List.generate(cards.length + 1, (i) => i), // All indices from 0 to length (including extra slot)
+              maxIndex: cards.length, // Include extra slot at index cards.length
             );
           });
           
@@ -3177,141 +3699,3 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 }
-
-/// Custom painter that draws red borders around piles using global screen positions
-class PileBordersPainter extends CustomPainter {
-  final Map<String, dynamic>? drawPileBounds;
-  final Map<String, dynamic>? discardPileBounds;
-  final Map<int, Map<String, dynamic>> myHandCardBounds;
-  final Map<int, String> myHandCardKeys;
-  final Map<String, Map<int, Map<String, dynamic>>> opponentCardBounds;
-  final Map<String, Map<int, String>> opponentCardKeys;
-  final Map<String, dynamic>? gameBoardBounds;
-  final Offset stackGlobalOffset;
-
-  PileBordersPainter({
-    this.drawPileBounds,
-    this.discardPileBounds,
-    required this.myHandCardBounds,
-    required this.myHandCardKeys,
-    required this.opponentCardBounds,
-    required this.opponentCardKeys,
-    this.gameBoardBounds,
-    required this.stackGlobalOffset,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0;
-
-    // Draw border for draw pile
-    _drawBorder(canvas, paint, drawPileBounds, 'Draw Pile');
-    
-    // Draw border for discard pile
-    _drawBorder(canvas, paint, discardPileBounds, 'Discard Pile');
-    
-    // Draw borders for each my hand card
-    for (final entry in myHandCardBounds.entries) {
-      final index = entry.key;
-      final bounds = entry.value;
-      // Use the key string if available, otherwise fall back to index
-      final keyString = myHandCardKeys[index] ?? 'Card $index';
-      _drawBorder(canvas, paint, bounds, keyString);
-    }
-    
-    // Draw borders for each opponent card
-    for (final playerEntry in opponentCardBounds.entries) {
-      final playerId = playerEntry.key;
-      final playerCardBounds = playerEntry.value;
-      final playerCardKeys = opponentCardKeys[playerId] ?? {};
-      
-      for (final entry in playerCardBounds.entries) {
-        final index = entry.key;
-        final bounds = entry.value;
-        // Use the key string if available, otherwise fall back to playerId_index
-        final keyString = playerCardKeys[index] ?? '${playerId}_$index';
-        _drawBorder(canvas, paint, bounds, keyString);
-      }
-    }
-    
-    // Draw border for game board
-    _drawBorder(canvas, paint, gameBoardBounds, 'Game Board');
-  }
-
-  void _drawBorder(
-    Canvas canvas,
-    Paint paint,
-    Map<String, dynamic>? bounds,
-    String label,
-  ) {
-    if (bounds == null) return;
-
-    final globalPosition = bounds['position'] as Offset?;
-    final boundsSize = bounds['size'] as Size?;
-
-    if (globalPosition == null || boundsSize == null) return;
-
-    // Convert global position to local coordinates relative to the Stack
-    final localPosition = globalPosition - stackGlobalOffset;
-
-    // Draw rectangle border
-    final rect = Rect.fromLTWH(
-      localPosition.dx,
-      localPosition.dy,
-      boundsSize.width,
-      boundsSize.height,
-    );
-    canvas.drawRect(rect, paint);
-
-    // Draw label background and text
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-
-    // Draw label background
-    final labelRect = Rect.fromLTWH(
-      localPosition.dx + 2,
-      localPosition.dy + 2,
-      textPainter.width + 8,
-      textPainter.height + 4,
-    );
-    final labelPaint = Paint()
-      ..color = Colors.red.withOpacity(0.8)
-      ..style = PaintingStyle.fill;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(labelRect, const Radius.circular(4)),
-      labelPaint,
-    );
-
-    // Draw label text
-    textPainter.paint(
-      canvas,
-      Offset(localPosition.dx + 6, localPosition.dy + 4),
-    );
-  }
-
-  @override
-  bool shouldRepaint(PileBordersPainter oldDelegate) {
-    return oldDelegate.drawPileBounds != drawPileBounds ||
-        oldDelegate.discardPileBounds != discardPileBounds ||
-        oldDelegate.myHandCardBounds != myHandCardBounds ||
-        oldDelegate.myHandCardKeys != myHandCardKeys ||
-        oldDelegate.opponentCardBounds != opponentCardBounds ||
-        oldDelegate.opponentCardKeys != opponentCardKeys ||
-        oldDelegate.gameBoardBounds != gameBoardBounds ||
-        oldDelegate.stackGlobalOffset != stackGlobalOffset;
-  }
-}
-

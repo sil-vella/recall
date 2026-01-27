@@ -2,7 +2,7 @@
 
 **Status**: In Progress  
 **Created**: January 26, 2026  
-**Last Updated**: January 27, 2026
+**Last Updated**: January 27, 2026 (Evening)
 
 ## Objective
 
@@ -15,16 +15,87 @@ Implement a simple, non-position-tracking animation system for card movements in
 - [x] Create PlayScreenFunctions class for centralized bounds management ✅
 - [x] Create overlay system with red borders for visual debugging ✅
 - [x] Implement cache cleanup for missing cards ✅
-- [ ] Define list of possible change types/animations
-- [ ] Create animation detection system in widget slices
-- [ ] Implement predefined animation library with parameters
-- [ ] Create overlay card animation system
-- [ ] Add opacity transition logic
-- [ ] Integrate with existing card rendering
+- [x] Implement state interception system with prev_state caching ✅
+- [x] Replace border overlay with animation overlay layer ✅
+- [x] Create Animations utility class for action-to-animation mapping ✅
+- [x] Implement smooth card animations using actual CardWidget ✅
+- [x] Fix playerId lookup for correct animation targeting ✅
+- [x] Add cached state update system with timeout protection ✅
+- [x] Update actionData to use cardIndex instead of cardId ✅
+- [ ] Define remaining animation types (swap, peek, etc.)
+- [ ] Implement additional animation handlers
+- [ ] Add animation parameters tuning
+- [ ] Optimize animation performance
 
 ## Current Progress
 
-### Completed (January 27, 2026)
+### Completed (January 27, 2026 - Evening)
+
+**Animation Overlay System:**
+- Removed border overlay debugging system
+- Created animation overlay layer that shows animated cards during transitions
+- Animation overlay uses actual `CardWidget` with real card data (not placeholders)
+- Cards smoothly animate from source to destination positions
+- Overlay automatically hides when animations complete
+- Cards disappear from overlay after animation finishes
+
+**State Interception System:**
+- Implemented `_prevStateCache` in unified widget to cache previous state slices
+- Widgets now read from `prev_state_*` slices instead of direct state
+- State updates are intercepted in `_onStateChanged()` method
+- Animations run before state updates, providing smooth transitions
+- Added `_isProcessingStateChange` flag to prevent concurrent processing
+- Implemented cached state update system:
+  - Latest state update attempt is cached (replaces any previous cache)
+  - After animations complete, cached state is processed
+  - Ensures newest state is always applied after animations
+
+**Animation Timeout Protection:**
+- Added 4-second timeout timer for animations
+- If animations don't complete in 4 seconds:
+  - All active animations are cleared and disposed
+  - Animation overlay is hidden
+  - State update continues with latest cached state
+- Prevents indefinite blocking from stuck animations
+
+**Animations Utility Class:**
+- Created `animations.dart` in functionality directory
+- Maps action names to `AnimationType` enum
+- Provides animation duration and curve configuration
+- Validates action data structure
+- Prevents duplicate animations with action caching
+- Currently supports `moveCard` animation type
+- Ready for extension with additional animation types
+
+**Action Data Refinement:**
+- Replaced `cardId` with `cardIndex` in all action declarations
+- Updated `drawn_card`, `play_card`, `same_rank`, `jack_swap`, `queen_peek` actions
+- Aligns with bound tracking system that uses indices
+- Enables accurate card position lookup for animations
+
+**PlayerId Lookup Fix:**
+- Fixed animation destination bounds lookup
+- Now correctly identifies my hand vs opponent hands
+- Uses `DutchEventHandlerCallbacks.getCurrentUserId()` for comparison
+- Properly retrieves bounds from correct source (my hand or opponent)
+- Added extensive logging for debugging playerId matching
+
+**Logging Enhancement:**
+- Enabled `LOGGING_SWITCH = true` in unified widget
+- Added comprehensive logging throughout animation system:
+  - State change processing
+  - Animation triggering
+  - PlayerId matching
+  - Bounds lookup
+  - Animation completion
+  - Cached state processing
+
+**Extra Empty Slot:**
+- Added invisible empty slot at end of both my hand and opponent hands
+- Provides space for animations and ensures continuous bound tracking
+- Maintains border tracking for this extra slot
+
+### Completed (January 27, 2026 - Morning)
 
 **Bound Tracking Infrastructure:**
 - Created `PlayScreenFunctions` class in `playscreenfunctions.dart` for centralized bounds management
@@ -54,25 +125,44 @@ Implement a simple, non-position-tracking animation system for card movements in
 
 ## Next Steps
 
-1. **State Interception System** (Priority):
-   - Intercept state updates in unified widget
-   - Cache widget's own slice keys prefixed with `prev_state_*`
-   - Have actual widgets listen to `prev_state_*` local slices instead of original state
-   - Update `prev_state_*` with new state after animations complete
-   - This provides time for animations before state updates
+1. **Additional Animation Types**:
+   - Implement `swap` animation for jack_swap actions
+   - Implement `peek` animation for queen_peek actions
+   - Add fade/slide animations for other action types
+   - Define animation parameters for each type
 
-2. Define list of possible change types/animations
-3. Create animation detection system in widget slices
-4. Implement predefined animation library with parameters
-5. Create overlay card animation system using cached bounds
-6. Add opacity transition logic
-7. Integrate with existing card rendering
+2. **Animation Refinement**:
+   - Tune animation durations and curves
+   - Add scale/rotation effects if needed
+   - Optimize animation performance
+   - Test with various screen sizes
+
+3. **Error Handling**:
+   - Add fallback for missing bounds
+   - Handle edge cases (empty hands, missing cards)
+   - Improve timeout handling
+
+4. **Testing**:
+   - Test with multiple rapid state updates
+   - Verify timeout behavior
+   - Test with different player counts
+   - Verify animations work for all action types
 
 ## Files Modified
 
-- `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` - Added `_generateActionId()` helper and updated action declarations
+- `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` 
+  - Added `_generateActionId()` helper and updated action declarations
+  - Replaced `cardId` with `cardIndex` in all action `actionData` payloads
 - `flutter_base_05/lib/modules/dutch_game/screens/game_play/functionality/playscreenfunctions.dart` - **NEW FILE** - Centralized bounds tracking and management
-- `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/unified_game_board_widget.dart` - Added GlobalKeys, bounds tracking, overlay system
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/functionality/animations.dart` - **NEW FILE** - Animation utility class for action-to-animation mapping
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/unified_game_board_widget.dart` 
+  - Added GlobalKeys, bounds tracking
+  - Removed border overlay, added animation overlay
+  - Implemented state interception with prev_state caching
+  - Added cached state update system with timeout
+  - Fixed playerId lookup for animations
+  - Added extra empty slots for animation space
+  - Enabled comprehensive logging
 
 ## Notes
 
@@ -137,36 +227,76 @@ All action declarations now include randomized 6-digit suffixes (e.g., `drawn_ca
 - Only clears indices beyond current list length
 - Maintains bounds for empty slots as long as they're within valid index range
 
-### State Interception System (Next Phase)
+### Animation Overlay System (✅ Implemented)
 
-**Approach:**
-The unified widget will intercept state updates and maintain a "previous state" cache to enable smooth animations:
+**Architecture:**
+- Animation overlay layer replaces border debugging overlay
+- Uses `_activeAnimations` map to track active animations by action name
+- Each animation stores: animationType, sourceBounds, destBounds, controller, animation, cardData
+- Overlay only renders when `_activeAnimations` is not empty
+
+**Animation Execution:**
+- `_triggerAnimation()` creates AnimationController and CurvedAnimation
+- Gets source bounds (e.g., draw pile) and destination bounds (card in hand)
+- Retrieves actual card data from game state for rendering
+- Stores animation data and starts controller
+- Returns Future that completes when animation finishes
+
+**Card Rendering:**
+- Uses actual `CardWidget` with real card data (not placeholders)
+- Card size comes from bounds data (prefers destination size)
+- For `moveCard` animations: interpolates position from source to destination
+- Card stays fully visible during movement (opacity: 1.0)
+- Card disappears when animation completes (removed from `_activeAnimations`)
+
+**Animation Types:**
+- Currently implemented: `moveCard` (for drawn_card actions)
+- Ready for extension: `swap`, `peek`, `fadeIn`, `fadeOut`, etc.
+- Each type has configurable duration and curve
+
+**PlayerId Matching:**
+- Correctly identifies my hand vs opponent hands
+- Uses `DutchEventHandlerCallbacks.getCurrentUserId()` for comparison
+- Retrieves bounds from correct source based on playerId match
+- Logs available opponent bounds for debugging
+
+### State Interception System (✅ Implemented)
+
+**Implementation:**
+The unified widget intercepts state updates and maintains a "previous state" cache to enable smooth animations:
 
 1. **State Interception:**
-   - Unified widget listens to StateManager changes
-   - When state changes detected, cache current state slices with `prev_state_*` prefix
-   - Examples: `prev_state_myHand`, `prev_state_opponents`, `prev_state_gameState`
+   - Unified widget listens to StateManager changes via `_onStateChanged()`
+   - Maintains `_prevStateCache` map with `prev_state_*` prefixed keys
+   - Initializes cache in `initState()` with `_initializePrevStateCache()`
+   - Updates cache after animations complete with `_updatePrevStateCache()`
 
 2. **Widget Listening:**
-   - Actual widgets (myHand, opponents, etc.) listen to `prev_state_*` slices instead of original state
-   - This allows animations to run from old state to new state
-   - Widgets render based on previous state while animations execute
+   - Widgets read from `_getPrevStateDutchGame()` instead of direct state
+   - This provides previous state data while animations run
+   - Widgets render based on previous state during animation execution
 
 3. **State Update Timing:**
-   - After animations complete, update `prev_state_*` slices with new state
-   - This creates a delay between state change and widget update
-   - Provides time window for overlay animations to complete
+   - `_onStateChanged()` detects actions and triggers animations
+   - Waits for all animations to complete with `await Future.wait(animationFutures)`
+   - Only after animations complete, updates `prev_state_*` cache
+   - Then triggers `setState()` to update UI
 
-4. **Benefits:**
-   - Animations can reference both old and new state
-   - Smooth transitions without flickering
-   - Non-blocking - widgets continue to show previous state during animation
-   - Can detect what changed by comparing prev_state vs current state
+4. **Cached State Update System:**
+   - If state update arrives while processing, caches it in `_cachedStateUpdate`
+   - Latest state always replaces previous cached state
+   - After animations complete, processes cached state if present
+   - Ensures newest state is always applied
 
-**Implementation Notes:**
-- Need to identify which state slices the unified widget manages
-- Create local state cache with `prev_state_*` prefix
-- Modify widget builders to read from `prev_state_*` instead of direct state
-- Add animation completion callbacks to trigger `prev_state_*` updates
-- Ensure state synchronization after animations
+5. **Timeout Protection:**
+   - 4-second timer prevents indefinite blocking
+   - On timeout: clears animations, hides overlay, continues with state update
+   - Processes any cached state after timeout
+
+**Benefits Achieved:**
+- ✅ Animations run before state updates
+- ✅ Smooth transitions without flickering
+- ✅ Non-blocking - widgets show previous state during animation
+- ✅ Handles multiple rapid state updates correctly
+- ✅ Prevents animation blocking with timeout
 

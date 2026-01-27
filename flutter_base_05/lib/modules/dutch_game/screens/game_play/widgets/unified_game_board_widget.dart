@@ -78,6 +78,37 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         setState(() {});
       }
     };
+  
+  // ========== State Interception (prev_state_* slices) ==========
+  /// Local cache of state slices with prev_state_* prefix for animation timing
+  /// This cache holds the previous state that widgets read from, allowing animations
+  /// to run before the widgets update to the new state
+  Map<String, dynamic> _prevStateCache = {};
+  
+  /// Initialize prev_state cache from actual state
+  void _initializePrevStateCache() {
+    final actualState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    _prevStateCache = Map<String, dynamic>.from(actualState);
+  }
+  
+  /// Update prev_state cache from actual state (called after animations complete)
+  void _updatePrevStateCache() {
+    final actualState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    _prevStateCache = Map<String, dynamic>.from(actualState);
+  }
+  
+  /// Get prev_state dutch_game state (for widgets to read from)
+  /// Returns the cached previous state, allowing animations time to complete
+  /// before widgets update to new state
+  Map<String, dynamic> _getPrevStateDutchGame() {
+    // If cache is empty, initialize from actual state
+    if (_prevStateCache.isEmpty) {
+      _initializePrevStateCache();
+    }
+    
+    // Return cached prev_state version
+    return Map<String, dynamic>.from(_prevStateCache);
+  }
 
   @override
   void initState() {
@@ -95,6 +126,26 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       parent: _glowAnimationController!,
       curve: Curves.easeInOut,
     ));
+    
+    // Initialize prev_state cache from actual state
+    _initializePrevStateCache();
+    
+    // Listen to state changes and update prev_state after a delay (for animations)
+    StateManager().addListener(_onStateChanged);
+  }
+  
+  /// Handle state changes - update prev_state cache after delay
+  void _onStateChanged() {
+    if (!mounted) return;
+    
+    // Update prev_state cache after a short delay to allow animations
+    // This will be replaced with animation completion callbacks later
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _updatePrevStateCache();
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -102,6 +153,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
     _glowAnimationController?.dispose();
+    StateManager().removeListener(_onStateChanged);
     super.dispose();
   }
 
@@ -269,7 +321,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   /// Build the opponents panel widget
   Widget _buildOpponentsPanel() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final opponentsPanel = dutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
     final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
     final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
@@ -345,7 +397,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final dutchGameState = _getPrevStateDutchGame();
         final currentPlayerRaw = dutchGameState['currentPlayer'];
         Map<String, dynamic>? currentPlayerData;
         if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
@@ -986,7 +1038,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   void _handleOpponentCardClick(Map<String, dynamic> card, String cardOwnerId) async {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     final currentPlayerStatus = _getCurrentUserStatus();
     
@@ -1236,7 +1288,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   // ========== Draw Pile Methods ==========
 
   Widget _buildDrawPile() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
     final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
@@ -1419,7 +1471,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   void _handleDrawPileClick() async {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
     final currentPlayerStatus = centerBoard['playerStatus']?.toString() ?? 'unknown';
     
@@ -1476,7 +1528,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   // ========== Discard Pile Methods ==========
 
   Widget _buildDiscardPile() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
     final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
@@ -1622,7 +1674,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   void _handleDiscardPileClick() async {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'unknown';
     final gameState = dutchGameState['gameState'] as Map<String, dynamic>? ?? {};
     final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? true; // Default to true for backward compatibility
@@ -1678,7 +1730,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   // ========== Match Pot Methods ==========
 
   Widget _buildMatchPot(double gameboardRowWidth) {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
     final matchPot = centerBoard['matchPot'] as int? ?? 0;
     final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'waiting';
@@ -1771,7 +1823,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   Widget _buildMyHand() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
     final cards = myHand['cards'] as List<dynamic>? ?? [];
     final selectedIndex = myHand['selectedIndex'] ?? -1;
@@ -2169,7 +2221,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               return const SizedBox.shrink();
             }
             
-            final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+            final dutchGameState = _getPrevStateDutchGame();
             final currentPlayerStatus = _getCurrentUserStatus();
             final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
             final drawnCardId = drawnCard?['cardId']?.toString();
@@ -2462,7 +2514,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Get current user's status from the same source as PlayerStatusChip
   /// This ensures consistency between status chip and card lighting
   String _getCurrentUserStatus() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final dutchGameState = _getPrevStateDutchGame();
     final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
     return myHand['playerStatus']?.toString() ?? 'unknown';
   }
@@ -2934,7 +2986,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           cardDataToUse = cardMap;
         } else {
           // Last resort: try to get from myDrawnCard in state
-          final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+          final dutchGameState = _getPrevStateDutchGame();
           final myDrawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
           if (myDrawnCard != null && 
               myDrawnCard.containsKey('rank') && 
@@ -3035,8 +3087,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Get profile picture URL from game_state (SSOT) if not provided
     if (profilePictureUrl == null || profilePictureUrl.isEmpty) {
-      final stateManager = StateManager();
-      final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final dutchGameState = _getPrevStateDutchGame();
       final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
       final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
       final gameData = games[currentGameId] as Map<String, dynamic>?;

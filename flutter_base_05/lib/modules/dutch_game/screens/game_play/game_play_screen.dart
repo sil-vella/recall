@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../../../utils/widgets/felt_texture_widget.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import 'widgets/game_info_widget.dart';
@@ -18,67 +18,6 @@ import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
-
-/// Custom painter for felt texture - creates grainy noise effect
-/// Uses seeded random for consistent, stable texture pattern
-class FeltTexturePainter extends CustomPainter {
-  // Use a fixed seed so the texture pattern is always the same
-  static const int _seed = 42;
-  
-  // Cache the generated pattern points to avoid regenerating on every paint
-  List<_GrainPoint>? _cachedPoints;
-  Size? _cachedSize;
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Regenerate pattern only if size changed
-    if (_cachedPoints == null || _cachedSize != size) {
-      _cachedSize = size;
-      _cachedPoints = [];
-      
-      // Reset random with same seed for consistent pattern
-      final random = math.Random(_seed);
-      final pointCount = (size.width * size.height * 0.15).round();
-      
-      for (int i = 0; i < pointCount; i++) {
-        _cachedPoints!.add(_GrainPoint(
-          x: random.nextDouble() * size.width,
-          y: random.nextDouble() * size.height,
-          opacity: random.nextDouble() * 0.3 + 0.1, // 0.1 to 0.4 opacity
-        ));
-      }
-    }
-    
-    final paint = Paint()
-      ..color = Colors.black
-      ..strokeWidth = 0.5;
-    
-    // Draw cached pattern
-    for (final point in _cachedPoints!) {
-      paint.color = Colors.black.withValues(alpha: point.opacity);
-      canvas.drawCircle(Offset(point.x, point.y), 0.5, paint);
-    }
-  }
-  
-  @override
-  bool shouldRepaint(FeltTexturePainter oldDelegate) {
-    // Only repaint if size changed
-    return oldDelegate._cachedSize != _cachedSize;
-  }
-}
-
-/// Helper class to store grain point data
-class _GrainPoint {
-  final double x;
-  final double y;
-  final double opacity;
-  
-  _GrainPoint({
-    required this.x,
-    required this.y,
-    required this.opacity,
-  });
-}
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -179,12 +118,12 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
           
           return Stack(
             children: [
-              // Background color and texture
-              Container(
-                color: AppColors.pokerTableGreen,
-                child: CustomPaint(
-                  painter: FeltTexturePainter(),
-                  size: Size(width, height),
+              // Background color and texture - using reusable FeltTextureWidget
+              Positioned.fill(
+                child: FeltTextureWidget(
+                  backgroundColor: AppColors.pokerTableGreen,
+                  // Using default parameters (seed: 42, pointDensity: 0.15, etc.)
+                  // See THEME_SYSTEM.md for customization options
                 ),
               ),
               // Left side spotlights (2 evenly spaced) - bright at edge, quick fade

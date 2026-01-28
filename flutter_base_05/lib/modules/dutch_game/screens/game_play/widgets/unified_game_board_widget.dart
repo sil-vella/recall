@@ -11,6 +11,7 @@ import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../utils/widgets/felt_texture_widget.dart';
 import '../../demo/demo_functionality.dart';
 import '../functionality/playscreenfunctions.dart';
 import '../functionality/animations.dart';
@@ -908,6 +909,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Store animation data
     _activeAnimations[actionName] = {
+      'actionName': actionName, // Store action name to identify action type
       'animationType': animationType,
       'sourceBounds': sourceBounds,
       'destBounds': destBounds,
@@ -1233,6 +1235,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final animationController = animData['controller'] as AnimationController?;
     final animation = animData['animation'] as Animation<double>?;
     final cardData = animData['cardData'] as Map<String, dynamic>?;
+    final actionName = animData['actionName'] as String?;
     
     if (animationType == null || sourceBounds == null || animationController == null || animation == null) {
       return const SizedBox.shrink();
@@ -1263,17 +1266,37 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     if (animationType == AnimationType.moveWithEmptySlot) {
       Widget emptySlotWidget = _buildBlankCardSlot(sourceSize);
       
-      return Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Empty slot at source position (stays in place)
+      // Check if this is a draw_reposition animation (needs empty slot at destination too)
+      final baseActionName = actionName != null ? Animations.extractBaseActionName(actionName) : null;
+      final isReposition = baseActionName == 'draw_reposition';
+      
+      // Build list of children for Stack
+      List<Widget> stackChildren = [
+        // Empty slot at source position (stays in place)
+        Positioned(
+          left: localSourcePosition.dx,
+          top: localSourcePosition.dy,
+          child: emptySlotWidget,
+        ),
+      ];
+      
+      // For draw_reposition, also add empty slot at destination position
+      if (isReposition && localDestPosition != null && destSize != null) {
+        Widget destEmptySlotWidget = _buildBlankCardSlot(destSize);
+        stackChildren.add(
+          // Empty slot at destination position (stays in place)
           Positioned(
-            left: localSourcePosition.dx,
-            top: localSourcePosition.dy,
-            child: emptySlotWidget,
+            left: localDestPosition.dx,
+            top: localDestPosition.dy,
+            child: destEmptySlotWidget,
           ),
-          // Moving card (animates from source to destination)
-          AnimatedBuilder(
+        );
+      }
+      
+      // Add moving card animation
+      stackChildren.add(
+        // Moving card (animates from source to destination)
+        AnimatedBuilder(
             animation: animation,
             builder: (context, child) {
               // Interpolate position from source to destination
@@ -1328,7 +1351,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               );
             },
           ),
-        ],
+      );
+      
+      return Stack(
+        clipBehavior: Clip.none,
+        children: stackChildren,
       );
     }
     
@@ -2137,15 +2164,29 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return SizedBox(
       width: dimensions.width,
       height: dimensions.height,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.transparent, // No background, border only
-          borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            color: AppColors.borderDefault,
-            width: 1,
-            style: BorderStyle.solid,
-          ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Stack(
+          children: [
+            // Background with felt texture (same as table)
+            Positioned.fill(
+              child: FeltTextureWidget(
+                backgroundColor: AppColors.pokerTableGreen,
+                // Using default parameters to match table texture
+              ),
+            ),
+            // Border overlay
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(borderRadius),
+                border: Border.all(
+                  color: AppColors.borderDefault,
+                  width: 1,
+                  style: BorderStyle.solid,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

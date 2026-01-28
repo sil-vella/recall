@@ -746,6 +746,152 @@ lib/utils/consts/
 
 ---
 
+## Felt Texture Widget
+
+### Overview
+
+The `FeltTextureWidget` provides a reusable felt texture effect that simulates the grainy appearance of felt material. This is commonly used for poker table backgrounds and other surfaces that need a textured appearance.
+
+### Location
+
+```dart
+lib/utils/widgets/felt_texture_widget.dart
+```
+
+### Basic Usage
+
+```dart
+import '../../../../utils/widgets/felt_texture_widget.dart';
+
+FeltTextureWidget(
+  backgroundColor: AppColors.pokerTableGreen,
+)
+```
+
+### Parameters
+
+The `FeltTextureWidget` accepts the following configurable parameters:
+
+#### Required Parameters
+
+- **`backgroundColor`** (`Color`): The base color that shows through the texture
+  ```dart
+  backgroundColor: AppColors.pokerTableGreen
+  ```
+
+#### Optional Parameters
+
+- **`seed`** (`int`, default: `42`): Random seed for consistent texture pattern
+  - Use different seeds to generate different patterns
+  - Same seed always produces the same pattern
+  ```dart
+  seed: 42  // Default - consistent pattern
+  seed: 100 // Different pattern
+  ```
+
+- **`pointDensity`** (`double`, default: `0.15`): Multiplier for grain point density
+  - Range: `0.1` (sparse) to `0.3` (dense)
+  - Formula: `pointCount = width * height * pointDensity`
+  ```dart
+  pointDensity: 0.15  // Default - medium density
+  pointDensity: 0.1   // Sparse texture
+  pointDensity: 0.25  // Dense texture
+  ```
+
+- **`opacityRange`** (`FeltOpacityRange`, default: `FeltOpacityRange(min: 0.1, max: 0.4)`): Opacity range for grain points
+  - Each grain point gets a random opacity within this range
+  ```dart
+  opacityRange: FeltOpacityRange(min: 0.1, max: 0.4)  // Default
+  opacityRange: FeltOpacityRange(min: 0.2, max: 0.5)  // More visible
+  opacityRange: FeltOpacityRange(min: 0.05, max: 0.2) // Subtle
+  ```
+
+- **`grainColor`** (`Color`, default: `Colors.black`): Color of the grain points
+  ```dart
+  grainColor: Colors.black  // Default
+  grainColor: Colors.white  // Light texture on dark background
+  grainColor: AppColors.primaryColor  // Themed texture
+  ```
+
+- **`grainRadius`** (`double`, default: `0.5`): Radius of each grain point in pixels
+  ```dart
+  grainRadius: 0.5  // Default - fine grain
+  grainRadius: 1.0  // Larger grain
+  grainRadius: 0.3  // Finer grain
+  ```
+
+- **`strokeWidth`** (`double`, default: `0.5`): Stroke width for grain points
+  ```dart
+  strokeWidth: 0.5  // Default
+  strokeWidth: 1.0  // Thicker strokes
+  ```
+
+### Complete Example
+
+```dart
+// Default felt texture (poker table style)
+FeltTextureWidget(
+  backgroundColor: AppColors.pokerTableGreen,
+)
+
+// Custom felt texture with different parameters
+FeltTextureWidget(
+  backgroundColor: AppColors.scaffoldBackgroundColor,
+  seed: 100,
+  pointDensity: 0.2,
+  opacityRange: FeltOpacityRange(min: 0.15, max: 0.5),
+  grainColor: Colors.white,
+  grainRadius: 0.8,
+  strokeWidth: 0.6,
+)
+
+// Subtle texture for card backgrounds
+FeltTextureWidget(
+  backgroundColor: AppColors.card,
+  pointDensity: 0.08,
+  opacityRange: FeltOpacityRange(min: 0.05, max: 0.15),
+  grainRadius: 0.3,
+)
+```
+
+### Performance Considerations
+
+- **Caching**: The texture pattern is cached and only regenerated when:
+  - Size changes
+  - Any parameter changes
+  - Different seed is used
+  
+- **Repaint Optimization**: Uses `RepaintBoundary` in the widget to minimize repaints
+
+- **Point Count**: Higher `pointDensity` values increase the number of points and may impact performance on very large surfaces
+
+### Best Practices
+
+1. **Use consistent seeds** for the same surface type to maintain visual consistency
+2. **Adjust pointDensity** based on surface size - larger surfaces may need lower density
+3. **Match grainColor** to the background for subtle effects, or use contrasting colors for more visible texture
+4. **Consider opacity range** - wider ranges create more variation, narrower ranges create more uniform texture
+
+### FeltOpacityRange Class
+
+```dart
+class FeltOpacityRange {
+  final double min;  // Minimum opacity (0.0 to 1.0)
+  final double max;  // Maximum opacity (0.0 to 1.0)
+  
+  const FeltOpacityRange({
+    required this.min,
+    required this.max,
+  });
+}
+```
+
+**Constraints:**
+- `min` and `max` must be between 0.0 and 1.0
+- `min` must be less than or equal to `max`
+
+---
+
 ## Related Documentation
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall application architecture
@@ -765,5 +911,6 @@ The Flutter Base 05 theme system provides:
 - ✅ **Centralized configuration** in a single file
 - ✅ **Type-safe API** preventing styling errors
 - ✅ **Easy theme switching** via enum change
+- ✅ **Reusable felt texture widget** with configurable parameters
 
 By following this system, developers can create consistent, maintainable, and beautiful UIs that automatically adapt to theme changes.

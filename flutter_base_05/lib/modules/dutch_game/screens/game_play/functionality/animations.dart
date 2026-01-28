@@ -16,6 +16,7 @@ enum AnimationType {
   moveWithEmptySlot,
   swap,
   peek,
+  flashCard,
   none,
 }
 
@@ -41,11 +42,13 @@ class Animations {
       case 'same_rank':
         return AnimationType.moveWithEmptySlot; // Card moves from hand to discard pile, with empty slot at start
       case 'draw_reposition':
-        return AnimationType.moveCard; // Drawn card moves from original position to reposition destination
+        return AnimationType.moveWithEmptySlot; // Drawn card moves from original position to reposition destination, with empty slot at start
       case 'jack_swap':
         return AnimationType.swap; // TODO: Define actual animation type
       case 'queen_peek':
-        return AnimationType.peek; // TODO: Define actual animation type
+        return AnimationType.flashCard; // Flash border on peeked card
+      case 'initial_peek':
+        return AnimationType.flashCard; // Flash border on peeked cards
       default:
         return AnimationType.none;
     }
@@ -88,13 +91,15 @@ class Animations {
       case AnimationType.move:
         return const Duration(milliseconds: 500); // TODO: Define actual duration
       case AnimationType.moveCard:
-        return const Duration(milliseconds: 500); // TODO: Define actual duration
+        return const Duration(milliseconds: 1000);
       case AnimationType.moveWithEmptySlot:
-        return const Duration(milliseconds: 500); // Same as moveCard
+        return const Duration(milliseconds: 1000);
       case AnimationType.swap:
         return const Duration(milliseconds: 600); // TODO: Define actual duration
       case AnimationType.peek:
         return const Duration(milliseconds: 400); // TODO: Define actual duration
+      case AnimationType.flashCard:
+        return const Duration(milliseconds: 1500); // 3 flashes: 500ms each
       case AnimationType.none:
         return Duration.zero;
     }
@@ -122,6 +127,8 @@ class Animations {
         return Curves.easeInOut; // TODO: Define actual curve
       case AnimationType.peek:
         return Curves.easeOut; // TODO: Define actual curve
+      case AnimationType.flashCard:
+        return Curves.easeInOut; // Smooth flash transitions
       case AnimationType.none:
         return Curves.linear;
     }
@@ -184,8 +191,9 @@ class Animations {
       return false;
     }
     
-    // For jack_swap, also check card2Data
-    if (actionName.startsWith('jack_swap')) {
+    // For jack_swap and initial_peek, also check card2Data (they require 2 cards)
+    // queen_peek only has card1Data (1 card), so no additional validation needed
+    if (actionName.startsWith('jack_swap') || actionName.startsWith('initial_peek')) {
       if (!actionData.containsKey('card2Data')) return false;
       
       final card2Data = actionData['card2Data'] as Map<String, dynamic>?;
@@ -195,6 +203,7 @@ class Animations {
         return false;
       }
     }
+    // Note: queen_peek only requires card1Data, which is already validated above
     
     return true;
   }

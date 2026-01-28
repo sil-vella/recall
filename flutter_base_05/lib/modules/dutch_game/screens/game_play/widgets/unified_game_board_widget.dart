@@ -519,14 +519,130 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       }
     }
     
+    // Separate flashCard animations from other animations
+    List<Widget> flashCardBorders = [];
+    List<Widget> otherAnimations = [];
+    
+    for (final animData in _activeAnimations.values) {
+      final animationType = animData['animationType'] as AnimationType?;
+      if (animationType == AnimationType.flashCard) {
+        // Build flash borders for flashCard animation
+        final borders = _buildFlashCardBorders(animData, stackGlobalOffset);
+        flashCardBorders.addAll(borders);
+      } else {
+        // Build regular animated card
+        otherAnimations.add(_buildAnimatedCard(animData, stackGlobalOffset));
+      }
+    }
+    
     return IgnorePointer(
       child: Stack(
         clipBehavior: Clip.none,
-        children: _activeAnimations.values.map((animData) {
-          return _buildAnimatedCard(animData, stackGlobalOffset);
-        }).toList(),
+        children: [
+          ...otherAnimations,
+          ...flashCardBorders,
+        ],
       ),
     );
+  }
+  
+  /// Build flash borders for flashCard animation - renders borders on all peeked cards simultaneously
+  List<Widget> _buildFlashCardBorders(Map<String, dynamic> animData, Offset stackGlobalOffset) {
+    final animationController = animData['controller'] as AnimationController?;
+    final animation = animData['animation'] as Animation<double>?;
+    final cardBoundsList = animData['cardBoundsList'] as List<dynamic>?;
+    
+    if (animationController == null || animation == null || cardBoundsList == null) {
+      return [];
+    }
+    
+    // Use peeking color from theme
+    final borderColor = AppColors.statusPeeking;
+    const borderWidth = 4.0;
+    
+    // Create 3 flashes: flash at 0.0-0.33, 0.33-0.66, 0.66-1.0
+    // Each flash: fade in (0-0.1), stay visible (0.1-0.4), fade out (0.4-0.5)
+    return cardBoundsList.map((cardBounds) {
+      if (cardBounds is! Map<String, dynamic>) return const SizedBox.shrink();
+      
+      final position = cardBounds['position'] as Offset?;
+      final size = cardBounds['size'] as Size?;
+      
+      if (position == null || size == null) return const SizedBox.shrink();
+      
+      final localPosition = position - stackGlobalOffset;
+      
+      return AnimatedBuilder(
+        animation: animation,
+        builder: (context, child) {
+          // Calculate opacity for 3 flashes
+          double opacity = 0.0;
+          final value = animation.value;
+          
+          // Flash 1: 0.0 - 0.33
+          if (value >= 0.0 && value < 0.33) {
+            final flashValue = value / 0.33;
+            if (flashValue < 0.2) {
+              // Fade in
+              opacity = flashValue / 0.2;
+            } else if (flashValue < 0.8) {
+              // Stay visible
+              opacity = 1.0;
+            } else {
+              // Fade out
+              opacity = 1.0 - ((flashValue - 0.8) / 0.2);
+            }
+          }
+          // Flash 2: 0.33 - 0.66
+          else if (value >= 0.33 && value < 0.66) {
+            final flashValue = (value - 0.33) / 0.33;
+            if (flashValue < 0.2) {
+              // Fade in
+              opacity = flashValue / 0.2;
+            } else if (flashValue < 0.8) {
+              // Stay visible
+              opacity = 1.0;
+            } else {
+              // Fade out
+              opacity = 1.0 - ((flashValue - 0.8) / 0.2);
+            }
+          }
+          // Flash 3: 0.66 - 1.0
+          else if (value >= 0.66 && value <= 1.0) {
+            final flashValue = (value - 0.66) / 0.34;
+            if (flashValue < 0.2) {
+              // Fade in
+              opacity = flashValue / 0.2;
+            } else if (flashValue < 0.8) {
+              // Stay visible
+              opacity = 1.0;
+            } else {
+              // Fade out
+              opacity = 1.0 - ((flashValue - 0.8) / 0.2);
+            }
+          }
+          
+          return Positioned(
+            left: localPosition.dx,
+            top: localPosition.dy,
+            child: Opacity(
+              opacity: opacity,
+              child: Container(
+                width: size.width,
+                height: size.height,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: borderColor,
+                    width: borderWidth,
+                  ),
+                  borderRadius: BorderRadius.circular(8.0), // Match card border radius
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }).toList();
   }
   
   /// Trigger animation for an action - creates animation controller and adds to overlay
@@ -563,6 +679,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
     if (LOGGING_SWITCH) {
       _logger.info('🎬 _triggerAnimation: Current user ID: $currentUserId');
+    }
+    
+    // Special handling for flashCard animations (initial_peek, queen_peek, etc.) - dynamically handles any number of players and cards
+    if (animationType == AnimationType.flashCard) {
+      return _triggerFlashCardAnimation(actionName, actionData);
     }
     
     // Get source and destination bounds
@@ -618,9 +739,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             if (LOGGING_SWITCH) {
               _logger.info('🎬 _triggerAnimation: Draw pile bounds (source): $sourceBounds');
             }
-          } else if (baseActionName == 'draw_reposition' || baseActionName == 'jack_swap') {
-            // Draw reposition / Jack swap: source is card1Index, destination is card2Index
-            // Both actions use card1Data and card2Data with cardIndex and playerId
+          } else if (baseActionName == 'jack_swap') {
+            // Jack swap: source is card1Index, destination is card2Index
+            // Both positions can be in different players' hands
             final card2Data = actionData['card2Data'] as Map<String, dynamic>?;
             final card2Index = card2Data?['cardIndex'] as int?;
             final card2PlayerId = card2Data?['playerId']?.toString();
@@ -650,25 +771,67 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               }
               
               if (LOGGING_SWITCH) {
-                _logger.info('🎬 _triggerAnimation: $baseActionName - Source (card1Index $cardIndex, playerId $playerId): $sourceBounds');
-                _logger.info('🎬 _triggerAnimation: $baseActionName - Destination (card2Index $card2Index, playerId $card2PlayerId): $destBounds');
+                _logger.info('🎬 _triggerAnimation: jack_swap - Source (card1Index $cardIndex, playerId $playerId): $sourceBounds');
+                _logger.info('🎬 _triggerAnimation: jack_swap - Destination (card2Index $card2Index, playerId $card2PlayerId): $destBounds');
               }
             } else {
               if (LOGGING_SWITCH) {
-                _logger.warning('🎬 _triggerAnimation: Missing card2Index in card2Data for $baseActionName');
+                _logger.warning('🎬 _triggerAnimation: Missing card2Index in card2Data for jack_swap');
               }
             }
           }
         } else if (animationType == AnimationType.moveWithEmptySlot) {
-          // moveWithEmptySlot: source is hand, destination is discard pile
-          // This is used for play_card and same_rank actions
-          sourceBounds = isMyHand 
-              ? _playScreenFunctions.getCachedMyHandCardBounds(cardIndex)
-              : _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
-          destBounds = _playScreenFunctions.getCachedDiscardPileBounds();
-          if (LOGGING_SWITCH) {
-            _logger.info('🎬 _triggerAnimation: moveWithEmptySlot - Hand card bounds (source): $sourceBounds');
-            _logger.info('🎬 _triggerAnimation: moveWithEmptySlot - Discard pile bounds (destination): $destBounds');
+          final baseActionName = Animations.extractBaseActionName(actionName);
+          if (baseActionName == 'play_card' || baseActionName == 'same_rank') {
+            // play_card / same_rank: source is hand, destination is discard pile
+            sourceBounds = isMyHand 
+                ? _playScreenFunctions.getCachedMyHandCardBounds(cardIndex)
+                : _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+            destBounds = _playScreenFunctions.getCachedDiscardPileBounds();
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 _triggerAnimation: moveWithEmptySlot ($baseActionName) - Hand card bounds (source): $sourceBounds');
+              _logger.info('🎬 _triggerAnimation: moveWithEmptySlot ($baseActionName) - Discard pile bounds (destination): $destBounds');
+            }
+          } else if (baseActionName == 'draw_reposition') {
+            // draw_reposition: source is card1Index (drawn card's original position), destination is card2Index (reposition destination)
+            // Both positions are in the hand
+            final card2Data = actionData['card2Data'] as Map<String, dynamic>?;
+            final card2Index = card2Data?['cardIndex'] as int?;
+            final card2PlayerId = card2Data?['playerId']?.toString();
+            
+            if (card2Index != null) {
+              // Source: card1Index (drawn card's original position)
+              if (isMyHand) {
+                sourceBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
+              } else {
+                sourceBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+              }
+              
+              // Destination: card2Index (reposition destination)
+              // Check if card2 is in my hand or opponent's hand
+              final isCard2MyHand = card2PlayerId != null && card2PlayerId == DutchEventHandlerCallbacks.getCurrentUserId();
+              if (isCard2MyHand) {
+                destBounds = _playScreenFunctions.getCachedMyHandCardBounds(card2Index);
+              } else if (card2PlayerId != null) {
+                destBounds = _playScreenFunctions.getCachedOpponentCardBounds(card2PlayerId, card2Index);
+              } else {
+                // Fallback: assume same player
+                if (isMyHand) {
+                  destBounds = _playScreenFunctions.getCachedMyHandCardBounds(card2Index);
+                } else {
+                  destBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, card2Index);
+                }
+              }
+              
+              if (LOGGING_SWITCH) {
+                _logger.info('🎬 _triggerAnimation: moveWithEmptySlot (draw_reposition) - Source (card1Index $cardIndex, playerId $playerId): $sourceBounds');
+                _logger.info('🎬 _triggerAnimation: moveWithEmptySlot (draw_reposition) - Destination (card2Index $card2Index, playerId $card2PlayerId): $destBounds');
+              }
+            } else {
+              if (LOGGING_SWITCH) {
+                _logger.warning('🎬 _triggerAnimation: Missing card2Index in card2Data for draw_reposition');
+              }
+            }
           }
         }
       } else {
@@ -743,14 +906,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       }
     }
     
-    // Determine if this is my hand (for moveWithEmptySlot empty slot rendering)
-    bool isMyHandForSlot = false;
-    if (animationType == AnimationType.moveWithEmptySlot && card1Data != null) {
-      final playerId = card1Data['playerId']?.toString();
-      final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-      isMyHandForSlot = playerId == currentUserId;
-    }
-    
     // Store animation data
     _activeAnimations[actionName] = {
       'animationType': animationType,
@@ -759,7 +914,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       'controller': controller,
       'animation': animation,
       'cardData': cardData, // Store card data for rendering
-      'isMyHand': isMyHandForSlot, // Store for empty slot rendering
     };
     
     if (LOGGING_SWITCH) {
@@ -796,6 +950,276 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         controller.dispose();
       }
       // Re-throw to propagate error
+      throw error;
+    });
+  }
+  
+  /// Trigger flashCard animation - dynamically handles any number of players and cards
+  /// Supports actions like initial_peek (multiple players, 2 cards each) and queen_peek (1 player, 1 card)
+  Future<void>? _triggerFlashCardAnimation(String actionName, Map<String, dynamic> actionData) {
+    final baseActionName = Animations.extractBaseActionName(actionName);
+    
+    // Check if we've already started a flashCard animation for this action type
+    // For initial_peek: only process the first action (all players flash together)
+    // For queen_peek: each action is independent
+    if (baseActionName == 'initial_peek') {
+      // Check if any flashCard animation is already active
+      for (final animData in _activeAnimations.values) {
+        if (animData['animationType'] == AnimationType.flashCard) {
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _triggerFlashCardAnimation: FlashCard animation already active, skipping duplicate action: $actionName');
+          }
+          // Mark this action as processed but don't create a new animation
+          Animations.markActionAsProcessed(actionName);
+          return null;
+        }
+      }
+    }
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerFlashCardAnimation: Starting flashCard animation for $actionName');
+    }
+    
+    // Collect all players' peeked cards from game state
+    final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final games = currentState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameId = currentState['currentGameId']?.toString() ?? '';
+    
+    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('🎬 _triggerFlashCardAnimation: Missing game state');
+      }
+      return null;
+    }
+    
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+    
+    // Extract playerId from the actionData that triggered this animation
+    // Try to find any cardData to get the playerId
+    String? triggerPlayerId;
+    for (var key in actionData.keys) {
+      if (key.endsWith('Data') && actionData[key] is Map<String, dynamic>) {
+        final cardData = actionData[key] as Map<String, dynamic>;
+        triggerPlayerId = cardData['playerId']?.toString();
+        if (triggerPlayerId != null) break;
+      }
+    }
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerFlashCardAnimation: Trigger actionData: $actionData');
+      _logger.info('🎬 _triggerFlashCardAnimation: Trigger playerId: $triggerPlayerId, baseActionName: $baseActionName');
+    }
+    
+    // Collect all peeked card bounds
+    List<Map<String, dynamic>> cardBoundsList = [];
+    
+    // Determine which players to process based on action type
+    List<Map<String, dynamic>> playersToProcess = [];
+    
+    if (baseActionName == 'initial_peek') {
+      // initial_peek: process all players (multi-player action)
+      playersToProcess = players.whereType<Map<String, dynamic>>().toList();
+    } else if (baseActionName == 'queen_peek') {
+      // queen_peek: process only the triggering player (single-player action)
+      if (triggerPlayerId != null) {
+        final triggerPlayer = players.firstWhere(
+          (p) => p is Map<String, dynamic> && p['id']?.toString() == triggerPlayerId,
+          orElse: () => <String, dynamic>{},
+        );
+        if (triggerPlayer is Map<String, dynamic> && triggerPlayer.isNotEmpty) {
+          playersToProcess = [triggerPlayer];
+        }
+      }
+    } else {
+      // Default: process all players (for future extensibility)
+      playersToProcess = players.whereType<Map<String, dynamic>>().toList();
+    }
+    
+    for (var player in playersToProcess) {
+      final playerId = player['id']?.toString();
+      if (playerId == null) continue;
+      
+      // Get player's action queue to find matching action
+      final actionValue = player['action'];
+      Map<String, dynamic>? playerActionData;
+      
+      // For the triggering player, use the actionData passed in (more reliable)
+      if (playerId == triggerPlayerId) {
+        playerActionData = actionData;
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 _triggerFlashCardAnimation: Using passed-in actionData for trigger player $playerId');
+        }
+      } else {
+        // For other players, read from their action queue
+        if (actionValue is List) {
+          for (var actionItem in actionValue) {
+            if (actionItem is Map<String, dynamic>) {
+              final actionNameItem = actionItem['name']?.toString();
+              if (actionNameItem != null && Animations.extractBaseActionName(actionNameItem) == baseActionName) {
+                playerActionData = actionItem['data'] as Map<String, dynamic>?;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      if (playerActionData == null) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎬 _triggerFlashCardAnimation: No $baseActionName action data found for player $playerId');
+        }
+        continue;
+      }
+      
+      // Dynamically extract all card data (card1Data, card2Data, card3Data, etc.)
+      final cardDataList = <Map<String, dynamic>>[];
+      int cardIndex = 1;
+      while (true) {
+        final cardDataKey = 'card${cardIndex}Data';
+        final cardData = playerActionData[cardDataKey] as Map<String, dynamic>?;
+        if (cardData == null) break;
+        cardDataList.add(cardData);
+        cardIndex++;
+      }
+      
+      if (cardDataList.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎬 _triggerFlashCardAnimation: No card data found in actionData for player $playerId');
+        }
+        continue;
+      }
+      
+      final isMyHand = playerId == currentUserId;
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _triggerFlashCardAnimation: Player $playerId (isMyHand: $isMyHand) - Found ${cardDataList.length} card(s) to flash');
+        _logger.info('🎬 _triggerFlashCardAnimation: Hand length: ${hand.length}, actionData: $playerActionData');
+      }
+      
+      // Process each card dynamically
+      for (int i = 0; i < cardDataList.length; i++) {
+        final cardData = cardDataList[i];
+        final cardIndex = cardData['cardIndex'] as int?;
+        final cardPlayerId = cardData['playerId']?.toString();
+        
+        if (cardIndex == null) continue;
+        
+        // For queen_peek, the card might be in a different player's hand
+        final targetPlayerId = cardPlayerId ?? playerId;
+        final isTargetMyHand = targetPlayerId == currentUserId;
+        
+        // Get the target player's hand for verification
+        final targetPlayer = players.firstWhere(
+          (p) => p is Map<String, dynamic> && p['id']?.toString() == targetPlayerId,
+          orElse: () => <String, dynamic>{},
+        );
+        final targetHand = (targetPlayer is Map<String, dynamic> ? targetPlayer['hand'] : null) as List<dynamic>? ?? [];
+        
+        // Log card ID at this index to verify it matches
+        String? cardIdAtIndex;
+        if (cardIndex >= 0 && cardIndex < targetHand.length) {
+          final card = targetHand[cardIndex];
+          if (card is Map<String, dynamic>) {
+            cardIdAtIndex = card['cardId']?.toString();
+          } else if (card is String) {
+            cardIdAtIndex = card;
+          }
+        }
+        
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 _triggerFlashCardAnimation: Card ${i + 1} - index: $cardIndex (cardId: $cardIdAtIndex), targetPlayerId: $targetPlayerId');
+        }
+        
+        // Get bounds for this card
+        Map<String, dynamic>? cardBounds;
+        if (isTargetMyHand) {
+          cardBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _triggerFlashCardAnimation: My hand card${i + 1} bounds for index $cardIndex: $cardBounds');
+          }
+        } else {
+          cardBounds = _playScreenFunctions.getCachedOpponentCardBounds(targetPlayerId, cardIndex);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _triggerFlashCardAnimation: Opponent $targetPlayerId card${i + 1} bounds for index $cardIndex: $cardBounds');
+          }
+        }
+        
+        if (cardBounds != null) {
+          cardBoundsList.add(cardBounds);
+        }
+      }
+    }
+    
+    if (cardBoundsList.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('🎬 _triggerFlashCardAnimation: No card bounds found for flashCard animation');
+      }
+      return null;
+    }
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerFlashCardAnimation: Found ${cardBoundsList.length} cards to flash');
+    }
+    
+    // Mark action as processed
+    Animations.markActionAsProcessed(actionName);
+    
+    // Create animation controller for 3 flashes (1500ms total: 500ms per flash)
+    final duration = Animations.getAnimationDuration(AnimationType.flashCard);
+    final curve = Animations.getAnimationCurve(AnimationType.flashCard);
+    
+    final controller = AnimationController(
+      duration: duration,
+      vsync: this,
+    );
+    
+    final animation = CurvedAnimation(
+      parent: controller,
+      curve: curve,
+    );
+    
+    // Store animation data with all card bounds
+    _activeAnimations[actionName] = {
+      'animationType': AnimationType.flashCard,
+      'cardBoundsList': cardBoundsList, // List of all card bounds to flash
+      'controller': controller,
+      'animation': animation,
+    };
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 _triggerFlashCardAnimation: FlashCard animation stored, starting animation controller');
+    }
+    
+    // Trigger rebuild to show animation
+    if (mounted) {
+      setState(() {});
+    }
+    
+    // Start animation and return future that completes when animation finishes
+    return controller.forward().then((_) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _triggerFlashCardAnimation: FlashCard animation completed for $actionName');
+      }
+      
+      // Animation complete - remove from active animations
+      if (mounted) {
+        _activeAnimations.remove(actionName);
+        controller.dispose();
+        setState(() {}); // Remove animation from overlay
+      }
+    }).catchError((error) {
+      if (LOGGING_SWITCH) {
+        _logger.error('🎬 _triggerFlashCardAnimation: Animation error for $actionName: $error');
+      }
+      if (mounted) {
+        _activeAnimations.remove(actionName);
+        controller.dispose();
+      }
       throw error;
     });
   }
@@ -837,12 +1261,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // For moveWithEmptySlot, we need to render both an empty slot at source and the moving card
     if (animationType == AnimationType.moveWithEmptySlot) {
-      // Get isMyHand from animation data to determine which blank slot widget to use
-      final isMyHand = animData['isMyHand'] as bool? ?? false;
-      
-      Widget emptySlotWidget = isMyHand 
-          ? _buildMyHandBlankCardSlot(sourceSize)
-          : _buildBlankCardSlot(sourceSize);
+      Widget emptySlotWidget = _buildBlankCardSlot(sourceSize);
       
       return Stack(
         clipBehavior: Clip.none,
@@ -1713,9 +2132,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   Widget _buildBlankCardSlot([Size? cardDimensions]) {
     final dimensions = cardDimensions ?? CardDimensions.getUnifiedDimensions();
-    final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
-        .withSaturation(0.2)
-        .toColor();
     // Use dynamic border radius from SSOT to match card widgets
     final borderRadius = CardDimensions.calculateBorderRadius(dimensions);
     return SizedBox(
@@ -1723,7 +2139,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       height: dimensions.height,
       child: Container(
         decoration: BoxDecoration(
-          color: cardBackColor,
+          color: Colors.transparent, // No background, border only
           borderRadius: BorderRadius.circular(borderRadius),
           border: Border.all(
             color: AppColors.borderDefault,
@@ -3019,7 +3435,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 padding: EdgeInsets.only(right: cardPadding),
                 child: Container(
                   key: blankSlotKey,
-                  child: _buildMyHandBlankCardSlot(cardDimensions),
+                  child: _buildBlankCardSlot(cardDimensions),
                 ),
               ),
             );
@@ -3189,7 +3605,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 padding: EdgeInsets.only(right: cardPadding),
                 child: Container(
                   key: extraSlotKey,
-                  child: _buildMyHandBlankCardSlot(cardDimensions),
+                  child: _buildBlankCardSlot(cardDimensions),
                 ),
               ),
             ),
@@ -3659,29 +4075,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
-  Widget _buildMyHandBlankCardSlot([Size? cardDimensions]) {
-    final dimensions = cardDimensions ?? CardDimensions.getUnifiedDimensions();
-    final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
-        .withSaturation(0.2)
-        .toColor();
-    // Use dynamic border radius from SSOT to match card widgets
-    final borderRadius = CardDimensions.calculateBorderRadius(dimensions);
-    return SizedBox(
-      width: dimensions.width,
-      height: dimensions.height,
-      child: Container(
-        decoration: BoxDecoration(
-          color: cardBackColor,
-          borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            color: AppColors.borderDefault,
-            width: 1,
-            style: BorderStyle.solid,
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey, Size cardDimensions, {String? currentPlayerStatus}) {
     // For drawn cards in user's hand, always show face up

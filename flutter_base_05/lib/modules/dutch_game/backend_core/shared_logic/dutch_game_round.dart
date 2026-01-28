@@ -57,6 +57,9 @@ class DutchGameRound {
   /// Helper method to clear action data from a specific player or all players
   /// [playerId] If provided, clears action for that player only. If null, clears for all players.
   /// [gamesMap] Optional games map to use instead of reading from state.
+  /// 
+  /// Note: This method clears ALL actions from the games map, including actions declared in
+  /// the coordinator (e.g., initial_peek) and actions declared in game_round (e.g., drawn_card, play_card).
   void _clearPlayerAction({String? playerId, Map<String, dynamic>? gamesMap}) {
     try {
       final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
@@ -3196,8 +3199,7 @@ class DutchGameRound {
         'turn_events': turnEvents, // Add turn event for animation
       });
       
-      // Clear action immediately after state update is sent
-      _clearPlayerAction(playerId: playerId, gamesMap: currentGamesForSameRank);
+      // Action will be cleared in _moveToNextPlayer after animations complete
       
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile');
@@ -3743,17 +3745,36 @@ class DutchGameRound {
       // STEP 2: Set cardsToPeek to full card data and send only to peeking player
       peekingPlayer['cardsToPeek'] = [fullCardData];
       
-      // Add action data for animation system (to the peeking player)
+      // Add action data for animation system (to the peeking player) - using queue format
       // targetCardIndex can be -1 if card is in drawnCard, otherwise it's the index in hand
-      peekingPlayer['action'] = 'queen_peek_${_generateActionId()}';
-      peekingPlayer['actionData'] = {
+      final actionName = 'queen_peek_${_generateActionId()}';
+      final actionData = {
         'card1Data': {
           'cardIndex': targetCardIndex ?? -1,
           'playerId': targetPlayerId,
         },
       };
+      
+      // Add to action queue (list) instead of replacing (consistent with other actions)
+      if (!peekingPlayer.containsKey('action') || peekingPlayer['action'] == null) {
+        peekingPlayer['action'] = [];
+      }
+      if (peekingPlayer['action'] is! List) {
+        // Convert existing single action to list format
+        final existingAction = peekingPlayer['action'];
+        final existingActionData = peekingPlayer['actionData'];
+        peekingPlayer['action'] = [
+          {'name': existingAction, 'data': existingActionData}
+        ];
+        peekingPlayer.remove('actionData');
+      }
+      (peekingPlayer['action'] as List).add({
+        'name': actionName,
+        'data': actionData,
+      });
+      
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set queen_peek action for player $peekingPlayerId - card1Data: {cardIndex: ${targetCardIndex ?? -1}, playerId: $targetPlayerId}');
+        _logger.info('🎬 ACTION_DATA: Added queen_peek action to queue for player $peekingPlayerId - card1Data: {cardIndex: ${targetCardIndex ?? -1}, playerId: $targetPlayerId}');
       };
       
       if (isHuman) {

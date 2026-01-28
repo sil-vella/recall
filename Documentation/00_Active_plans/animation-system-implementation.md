@@ -2,7 +2,7 @@
 
 **Status**: In Progress  
 **Created**: January 26, 2026  
-**Last Updated**: January 27, 2026 (Evening)
+**Last Updated**: January 28, 2026
 
 ## Objective
 
@@ -22,12 +22,53 @@ Implement a simple, non-position-tracking animation system for card movements in
 - [x] Fix playerId lookup for correct animation targeting ✅
 - [x] Add cached state update system with timeout protection ✅
 - [x] Update actionData to use cardIndex instead of cardId ✅
-- [ ] Define remaining animation types (swap, peek, etc.)
-- [ ] Implement additional animation handlers
+- [x] Implement flashCard animation for initial_peek ✅
+- [x] Implement flashCard animation for queen_peek ✅
+- [x] Create dynamic flashCard animation handler (handles 1+ players, 1+ cards) ✅
+- [x] Fix index mismatch issues in initial_peek action declaration ✅
+- [x] Fix auto-completion overwriting manually selected cards ✅
+- [x] Update queen_peek to use queue format ✅
+- [ ] Define remaining animation types (swap, etc.)
+- [ ] Implement swap animation handler for jack_swap
 - [ ] Add animation parameters tuning
 - [ ] Optimize animation performance
 
 ## Current Progress
+
+### Completed (January 28, 2026)
+
+**FlashCard Animation System:**
+- Implemented `flashCard` animation type for card border flashing
+- Created `_triggerFlashCardAnimation()` method with dynamic logic:
+  - Handles any number of players (1 or more)
+  - Handles any number of cards per player (1 or more)
+  - Dynamically extracts card data (card1Data, card2Data, card3Data, etc.)
+  - Supports cross-player card peeking (queen_peek can peek at other players' cards)
+  - Action-specific processing (initial_peek: all players, queen_peek: single player)
+- Mapped `initial_peek` to `flashCard` animation
+- Mapped `queen_peek` to `flashCard` animation
+- Animation flashes border 3 times using `AppColors.statusPeeking` color
+- Border rendered in animation overlay (not on actual widgets)
+- Duration: 1500ms with `Curves.easeInOut`
+
+**Initial Peek Implementation:**
+- Fixed index mismatch bug: now uses `playerInGamesMap['hand']` instead of `player['hand']` from gameState
+- Ensures indices match frontend rendering (gamesMap is source of truth for UI)
+- Added extensive logging to verify card IDs at calculated indices
+- Fixed auto-completion bug: `_autoCompleteRemainingHumanPlayers` now checks if `cardsToPeek` is already set before overwriting
+- Prevents timer from overwriting manually selected cards
+- Added safety comments clarifying per-player index calculation
+
+**Queen Peek Implementation:**
+- Updated `queen_peek` action to use queue format (consistent with other actions)
+- Action now stored as list: `[{'name': 'queen_peek_123456', 'data': {...}}]`
+- Works for both human and computer players
+- Computer players use decision logic to select target card
+- Animation correctly handles single-card peeks (1 card vs 2 cards for initial_peek)
+
+**Testing Configuration:**
+- Updated `predefined_hands.yaml` to move all queens from player_0 to players 1-3
+- Enables easier testing of queen peek functionality
 
 ### Completed (January 27, 2026 - Evening)
 
@@ -127,8 +168,7 @@ Implement a simple, non-position-tracking animation system for card movements in
 
 1. **Additional Animation Types**:
    - Implement `swap` animation for jack_swap actions
-   - Implement `peek` animation for queen_peek actions
-   - Add fade/slide animations for other action types
+   - Add fade/slide animations for other action types if needed
    - Define animation parameters for each type
 
 2. **Animation Refinement**:
@@ -153,8 +193,19 @@ Implement a simple, non-position-tracking animation system for card movements in
 - `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` 
   - Added `_generateActionId()` helper and updated action declarations
   - Replaced `cardId` with `cardIndex` in all action `actionData` payloads
+  - Updated `queen_peek` to use queue format (list of actions)
+  - Fixed `_clearPlayerAction` to clear all actions including coordinator-declared ones
+- `flutter_base_05/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart`
+  - Fixed `_completeInitialPeek` to use `playerInGamesMap['hand']` for index calculation
+  - Added extensive logging for index verification
+  - Fixed `_autoCompleteRemainingHumanPlayers` to check existing `cardsToPeek` before overwriting
+  - Added `_generateActionId()` helper method
 - `flutter_base_05/lib/modules/dutch_game/screens/game_play/functionality/playscreenfunctions.dart` - **NEW FILE** - Centralized bounds tracking and management
-- `flutter_base_05/lib/modules/dutch_game/screens/game_play/functionality/animations.dart` - **NEW FILE** - Animation utility class for action-to-animation mapping
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/functionality/animations.dart`
+  - Added `AnimationType.flashCard` enum value
+  - Mapped `initial_peek` to `flashCard` animation
+  - Mapped `queen_peek` to `flashCard` animation
+  - Updated validation to handle `queen_peek` (only requires card1Data)
 - `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/unified_game_board_widget.dart` 
   - Added GlobalKeys, bounds tracking
   - Removed border overlay, added animation overlay
@@ -163,6 +214,11 @@ Implement a simple, non-position-tracking animation system for card movements in
   - Fixed playerId lookup for animations
   - Added extra empty slots for animation space
   - Enabled comprehensive logging
+  - Implemented `_triggerFlashCardAnimation()` with dynamic logic
+  - Added `_buildFlashCardBorders()` for rendering flashing borders
+  - Updated `_buildAnimationOverlay()` to handle flashCard animations
+- `flutter_base_05/assets/predefined_hands.yaml`
+  - Moved all queens from player_0 to players 1-3 for testing
 
 ## Notes
 
@@ -250,8 +306,10 @@ All action declarations now include randomized 6-digit suffixes (e.g., `drawn_ca
 - Card disappears when animation completes (removed from `_activeAnimations`)
 
 **Animation Types:**
-- Currently implemented: `moveCard` (for drawn_card actions)
-- Ready for extension: `swap`, `peek`, `fadeIn`, `fadeOut`, etc.
+- Currently implemented: 
+  - `moveCard` (for drawn_card, play_card actions)
+  - `flashCard` (for initial_peek, queen_peek actions)
+- Ready for extension: `swap`, `fadeIn`, `fadeOut`, etc.
 - Each type has configurable duration and curve
 
 **PlayerId Matching:**
@@ -299,4 +357,38 @@ The unified widget intercepts state updates and maintains a "previous state" cac
 - ✅ Non-blocking - widgets show previous state during animation
 - ✅ Handles multiple rapid state updates correctly
 - ✅ Prevents animation blocking with timeout
+
+### FlashCard Animation System (✅ Implemented - January 28, 2026)
+
+**Implementation:**
+- Created reusable `_triggerFlashCardAnimation()` method that handles:
+  - **Multiple action types**: `initial_peek` (multi-player, 2 cards each) and `queen_peek` (single-player, 1 card)
+  - **Dynamic card extraction**: Automatically finds `card1Data`, `card2Data`, `card3Data`, etc.
+  - **Cross-player support**: Handles cases where card is in different player's hand (queen_peek)
+  - **Action-specific logic**: 
+    - `initial_peek`: Processes all players, prevents duplicate animations
+    - `queen_peek`: Processes only triggering player, each action is independent
+
+**Visual Effect:**
+- Flashes border 3 times over 1500ms duration
+- Uses `AppColors.statusPeeking` (Pink/Magenta) color
+- Border width: 4.0, Border radius: 8.0
+- Rendered in animation overlay (separate from actual widgets)
+- Each flash cycle: fade in → hold → fade out
+
+**Index Calculation Fix:**
+- Fixed critical bug where `initial_peek` used wrong hand source
+- Now uses `playerInGamesMap['hand']` (from gamesMap) instead of `player['hand']` (from gameState)
+- Ensures indices match frontend rendering and bounds lookup
+- Added verification logging to confirm card IDs match at calculated indices
+
+**Auto-Completion Fix:**
+- Fixed bug where timer auto-completion overwrote manually selected cards
+- `_autoCompleteRemainingHumanPlayers` now checks if `cardsToPeek` is already set
+- Prevents overwriting user's manual selections
+
+**Queue Format:**
+- Updated `queen_peek` to use action queue format (consistent with other actions)
+- Actions stored as: `[{'name': 'queen_peek_123456', 'data': {...}}]`
+- Enables proper animation processing and action tracking
 

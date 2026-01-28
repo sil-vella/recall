@@ -10,38 +10,38 @@ hands:
       suit: "hearts"
     - rank: "3"
       suit: "diamonds"
-    - rank: "queen"
+    - rank: "2"
       suit: "clubs"
     - rank: "jack"
       suit: "spades"
   
-  player_1:  # First computer player (no jacks - only player_0 has jack)
+  player_1:  # First computer player (has queen)
     - rank: "king"
       suit: "hearts"
     - rank: "ace"
       suit: "diamonds"
-    - rank: "2"
-      suit: "clubs"
+    - rank: "queen"
+      suit: "hearts"
     - rank: "3"
       suit: "spades"
   
-  player_2:  # Second computer player (no jacks - only player_0 has jack)
+  player_2:  # Second computer player (has queen)
     - rank: "king"
       suit: "diamonds"
     - rank: "4"
       suit: "hearts"
-    - rank: "ace"
-      suit: "clubs"
+    - rank: "queen"
+      suit: "diamonds"
     - rank: "2"
       suit: "spades"
   
-  player_3:  # Third computer player (has jack)
+  player_3:  # Third computer player (has queen and jack)
     - rank: "king"
       suit: "clubs"
     - rank: "jack"
       suit: "hearts"
-    - rank: "4"
-      suit: "diamonds"
+    - rank: "queen"
+      suit: "clubs"
     - rank: "ace"
       suit: "spades"
 

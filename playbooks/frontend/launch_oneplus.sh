@@ -41,6 +41,11 @@ if [ ! -w "$LOG_DIR" ]; then
     exit 1
 fi
 
+# Clear log file at start of each run to avoid continuation from previous runs
+echo "🧹 Clearing previous log entries..."
+> "$SERVER_LOG_FILE"
+echo "✅ Log file cleared, starting fresh session"
+
 # Launch Flutter app with OnePlus device configuration
 echo "🎯 Launching Flutter app with OnePlus configuration..."
 
@@ -58,9 +63,20 @@ else
     echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
+# Function to strip ANSI escape codes from a string
+strip_ansi() {
+    echo "$1" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g'
+}
+
 # Function to filter and display only Logger calls
 filter_logs() {
+    # Track last logged message to avoid duplicates
+    last_logged=""
+    
     while IFS= read -r line; do
+        # Strip any ANSI escape codes from the input line first
+        line=$(strip_ansi "$line")
+        
         # Check if this is a Logger call (contains timestamp, level, and AppLogger)
         # Android logcat format: MM-DD HH:MM:SS.mmm  PID  TID  TAG  MESSAGE
         # Flutter logs may come in different formats, so we check for AppLogger pattern
@@ -86,7 +102,16 @@ filter_logs() {
                 continue
             fi
             
-            # Determine color based on level
+            # Create a unique log entry identifier to avoid duplicates
+            log_entry="[$timestamp] [$level] $message"
+            
+            # Skip if this is the same as the last logged entry (avoid duplicates)
+            if [ "$log_entry" = "$last_logged" ]; then
+                continue
+            fi
+            last_logged="$log_entry"
+            
+            # Determine color based on level (for console display only)
             case "$level" in
                 ERROR)
                     color="\033[31m"  # Red
@@ -105,13 +130,13 @@ filter_logs() {
                     ;;
             esac
             
-            # Write clean formatted log to Python server log file
+            # Write clean formatted log to Python server log file (NO ANSI codes)
             # Note: DutchGameStateUpdater logs are now written directly by the Logger class
             # This script-based logging is a fallback for logs that don't use direct file writing
-            echo "[$timestamp] [$level] $message" >> "$SERVER_LOG_FILE"
+            echo "$log_entry" >> "$SERVER_LOG_FILE"
             
-            # Display to console with color coding
-            echo -e "${color}[$timestamp] [$level] $message\033[0m"
+            # Display to console with color coding (ANSI codes only for terminal)
+            echo -e "${color}$log_entry\033[0m"
         fi
     done
 }
@@ -132,6 +157,7 @@ LOG_PID=""
     # Extract message part which contains: [timestamp] [LEVEL] [AppLogger] message
     # logcat format: I/flutter ( PID): [timestamp] [LEVEL] [AppLogger] message
     # We need to extract everything starting from the first [
+    # Note: ANSI codes will be stripped in filter_logs function
     adb -s 84fbcf31 logcat flutter:I dart:I *:S 2>&1 | \
     grep "\[.*\] \[.*\] \[AppLogger\]" | \
     sed -E 's/^[^[]*//' | \

@@ -105,6 +105,27 @@ class DutchGameRound {
     return number.toString();
   }
 
+  /// SSOT: Add a single action to a player's action queue (list format).
+  /// Used by drawn_card, play_card, draw_reposition, same_rank, queen_peek, jack_swap (human and comp).
+  /// Ensures player['action'] is a List and appends { 'name': actionName, 'data': actionData }.
+  void _addActionToPlayerQueue(Map<String, dynamic> player, String actionName, Map<String, dynamic> actionData) {
+    if (!player.containsKey('action') || player['action'] == null) {
+      player['action'] = [];
+    }
+    if (player['action'] is! List) {
+      final existingAction = player['action'];
+      final existingActionData = player['actionData'];
+      player['action'] = [
+        {'name': existingAction, 'data': existingActionData}
+      ];
+      player.remove('actionData');
+    }
+    (player['action'] as List).add({
+      'name': actionName,
+      'data': actionData,
+    });
+  }
+
   /// Helper method to sanitize all players' drawnCard data to ID-only format before broadcasting
   /// This prevents opponents from seeing full card data when state updates are broadcast
   /// Should be called before any onGameStateChanged() that broadcasts to all players
@@ -1698,27 +1719,10 @@ class DutchGameRound {
         },
       };
       
-      // Add to action queue (list) instead of replacing
-      if (!player.containsKey('action') || player['action'] == null) {
-        player['action'] = [];
-      }
-      if (player['action'] is! List) {
-        // Convert existing single action to list format
-        final existingAction = player['action'];
-        final existingActionData = player['actionData'];
-        player['action'] = [
-          {'name': existingAction, 'data': existingActionData}
-        ];
-        player.remove('actionData');
-      }
-      (player['action'] as List).add({
-        'name': actionName,
-        'data': actionData,
-      });
-      
+      _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
         _logger.info('🎬 ACTION_DATA: Added drawn_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $drawnCardIndex, playerId: $actualPlayerId}');
-      };
+      }
       
       // For computer players, also add to known_cards (they need full data for logic)
       if (!isHuman) {
@@ -2238,6 +2242,19 @@ class DutchGameRound {
         'rank': '?',      // Face-down: hide rank
         'points': 0,      // Face-down: hide points
       });
+      // Destination index: card was added to end of hand (same shape as drawn_card)
+      final collectedCardIndex = hand.length - 1;
+      final actionName = 'collect_from_discard_${_generateActionId()}';
+      final actionData = {
+        'card1Data': {
+          'cardIndex': collectedCardIndex,
+          'playerId': playerId,
+        },
+      };
+      _addActionToPlayerQueue(player, actionName, actionData);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 ACTION_DATA: Added collect_from_discard action to queue for player $playerId - card1Data: {cardIndex: $collectedCardIndex, playerId: $playerId} (source: discard pile)');
+      }
       
       // Add to player's collection_rank_cards (full data)
       // Reuse collectionRankCards variable declared earlier for debug logging
@@ -2525,27 +2542,10 @@ class DutchGameRound {
         },
       };
       
-      // Add to action queue (list) instead of replacing
-      if (!player.containsKey('action') || player['action'] == null) {
-        player['action'] = [];
-      }
-      if (player['action'] is! List) {
-        // Convert existing single action to list format
-        final existingAction = player['action'];
-        final existingActionData = player['actionData'];
-        player['action'] = [
-          {'name': existingAction, 'data': existingActionData}
-        ];
-        player.remove('actionData');
-      }
-      (player['action'] as List).add({
-        'name': actionName,
-        'data': actionData,
-      });
-      
+      _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
         _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
-      };
+      }
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(cardToPlayFullData);
@@ -2718,28 +2718,10 @@ class DutchGameRound {
               'playerId': actualPlayerId,
             },
           };
-          
-          // Add to action queue (list) instead of replacing
-          if (!player.containsKey('action') || player['action'] == null) {
-            player['action'] = [];
-          }
-          if (player['action'] is! List) {
-            // Convert existing single action to list format
-            final existingAction = player['action'];
-            final existingActionData = player['actionData'];
-            player['action'] = [
-              {'name': existingAction, 'data': existingActionData}
-            ];
-            player.remove('actionData');
-          }
-          (player['action'] as List).add({
-            'name': actionName,
-            'data': actionData,
-          });
-          
+          _addActionToPlayerQueue(player, actionName, actionData);
           if (LOGGING_SWITCH) {
             _logger.info('🎬 ACTION_DATA: Added draw_reposition action to queue for player $actualPlayerId - card1Data: {cardIndex: $originalIndex (drawn card)}, card2Data: {cardIndex: $cardIndex (reposition destination), playerId: $actualPlayerId}');
-          };
+          }
         }
         
         if (originalIndex != null) {
@@ -3142,26 +3124,10 @@ class DutchGameRound {
         },
       };
       
-      // Add to action queue (list) instead of replacing
-      if (!player.containsKey('action') || player['action'] == null) {
-        player['action'] = [];
-      }
-      if (player['action'] is! List) {
-        // Convert existing single action to list format
-        final existingAction = player['action'];
-        final existingActionData = player['actionData'];
-        player['action'] = [
-          {'name': existingAction, 'data': existingActionData}
-        ];
-        player.remove('actionData');
-      }
-      (player['action'] as List).add({
-        'name': actionName,
-        'data': actionData,
-      });
+      _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set same_rank action for player $playerId - card1Data: {cardIndex: $cardIndex, playerId: $playerId}');
-      };
+        _logger.info('🎬 ACTION_DATA: Added same_rank action to queue for player $playerId - card1Data: {cardIndex: $cardIndex, playerId: $playerId}');
+      }
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(playedCardFullData);
@@ -3424,17 +3390,16 @@ class DutchGameRound {
       firstPlayerHand[firstCardIndex] = secondCardIdOnly;
       secondPlayerHand[secondCardIndex] = firstCardIdOnly;
       
-      // Add action data for animation system (only to the acting player - currentPlayer who played the Jack)
-      // actingPlayerId was already determined earlier when clearing action
+      // Add action to queue for animation (SSOT: same queue format as drawn_card, play_card, queen_peek, etc.)
+      // actingPlayerId is the player who played the Jack (human or comp)
       if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
         final actingPlayer = players.firstWhere(
           (p) => p['id']?.toString() == actingPlayerId,
           orElse: () => <String, dynamic>{},
         );
-        
         if (actingPlayer.isNotEmpty) {
-          actingPlayer['action'] = 'jack_swap_${_generateActionId()}';
-          actingPlayer['actionData'] = {
+          final actionName = 'jack_swap_${_generateActionId()}';
+          final actionData = {
             'card1Data': {
               'cardIndex': firstCardIndex,
               'playerId': firstPlayerId,
@@ -3444,9 +3409,10 @@ class DutchGameRound {
               'playerId': secondPlayerId,
             },
           };
+          _addActionToPlayerQueue(actingPlayer, actionName, actionData);
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 ACTION_DATA: Set jack_swap action for acting player $actingPlayerId - card1Data: {cardIndex: $firstCardIndex, playerId: $firstPlayerId}, card2Data: {cardIndex: $secondCardIndex, playerId: $secondPlayerId}');
-          };
+            _logger.info('🎬 ACTION_DATA: Added jack_swap action to queue for acting player $actingPlayerId - card1Data: {cardIndex: $firstCardIndex, playerId: $firstPlayerId}, card2Data: {cardIndex: $secondCardIndex, playerId: $secondPlayerId}');
+          }
         }
       }
 
@@ -3523,15 +3489,11 @@ class DutchGameRound {
         'games': currentGames, // Games map with modifications (drawnCard sanitized)
         'turn_events': turnEvents, // Add turn events for animations
       });
-      
-      // Clear action immediately after state update is sent
-      if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
-        _clearPlayerAction(playerId: actingPlayerId, gamesMap: currentGames);
-      }
+      // Do not clear action here: queue format is consumed by UI for animation; clearing would remove it before UI reads it (same as play_card, drawn_card, etc.)
 
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Jack swap completed - state updated');
-      };
+      }
 
       // Update all players' known_cards after successful Jack swap
       updateKnownCards('jack_swap', firstPlayerId, [firstCardId, secondCardId], swapData: {
@@ -3755,27 +3717,10 @@ class DutchGameRound {
         },
       };
       
-      // Add to action queue (list) instead of replacing (consistent with other actions)
-      if (!peekingPlayer.containsKey('action') || peekingPlayer['action'] == null) {
-        peekingPlayer['action'] = [];
-      }
-      if (peekingPlayer['action'] is! List) {
-        // Convert existing single action to list format
-        final existingAction = peekingPlayer['action'];
-        final existingActionData = peekingPlayer['actionData'];
-        peekingPlayer['action'] = [
-          {'name': existingAction, 'data': existingActionData}
-        ];
-        peekingPlayer.remove('actionData');
-      }
-      (peekingPlayer['action'] as List).add({
-        'name': actionName,
-        'data': actionData,
-      });
-      
+      _addActionToPlayerQueue(peekingPlayer, actionName, actionData);
       if (LOGGING_SWITCH) {
         _logger.info('🎬 ACTION_DATA: Added queen_peek action to queue for player $peekingPlayerId - card1Data: {cardIndex: ${targetCardIndex ?? -1}, playerId: $targetPlayerId}');
-      };
+      }
       
       if (isHuman) {
         // For human players, also update main state myCardsToPeek

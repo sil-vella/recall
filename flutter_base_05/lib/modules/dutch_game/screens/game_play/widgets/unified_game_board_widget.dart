@@ -234,6 +234,45 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         allActions.addAll(actionQueue);
       }
       
+      // Expand jack_swap into two sequential anims: 1st moveWithEmptySlot (card1→slot2), 2nd moveCard (card2→slot1)
+      final expandedActions = <Map<String, dynamic>>[];
+      for (final actionItem in allActions) {
+        final name = actionItem['name']?.toString() ?? '';
+        final baseName = Animations.extractBaseActionName(name);
+        if (baseName == 'jack_swap') {
+          final data = actionItem['data'] as Map<String, dynamic>?;
+          final card1Data = data?['card1Data'] as Map<String, dynamic>?;
+          final card2Data = data?['card2Data'] as Map<String, dynamic>?;
+          if (card1Data != null && card2Data != null) {
+            final lastUnderscore = name.lastIndexOf('_');
+            final suffix = lastUnderscore >= 0 && lastUnderscore < name.length - 1
+                ? name.substring(lastUnderscore + 1)
+                : '';
+            final id = suffix.length == 6 ? int.tryParse(suffix) : null;
+            final baseId = id ?? 0;
+            expandedActions.add({
+              'name': 'jack_swap_1_${baseId + 1}',
+              'data': {'card1Data': card1Data, 'card2Data': card2Data},
+              'playerId': actionItem['playerId'],
+            });
+            expandedActions.add({
+              'name': 'jack_swap_2_${baseId + 2}',
+              'data': {'card1Data': card2Data, 'card2Data': card1Data},
+              'playerId': actionItem['playerId'],
+            });
+            Animations.markActionAsProcessed(name);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 _processStateUpdate: Expanded jack_swap into jack_swap_1 (moveWithEmptySlot) + jack_swap_2 (moveCard)');
+            }
+          } else {
+            expandedActions.add(actionItem);
+          }
+        } else {
+          expandedActions.add(actionItem);
+        }
+      }
+      allActions = expandedActions;
+      
       // Set up 4-second timeout to bypass animation wait if needed
       bool timeoutTriggered = false;
       if (allActions.isNotEmpty) {
@@ -731,7 +770,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   _logger.warning('🎬 _triggerAnimation: Opponent $playerId NOT found in cached bounds!');
                 }
               }
-              
               destBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
               if (LOGGING_SWITCH) {
                 _logger.info('🎬 _triggerAnimation: Opponent ($playerId) hand bounds for index $cardIndex: $destBounds');
@@ -740,46 +778,20 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             if (LOGGING_SWITCH) {
               _logger.info('🎬 _triggerAnimation: Draw pile bounds (source): $sourceBounds');
             }
-          } else if (baseActionName == 'jack_swap') {
-            // Jack swap: source is card1Index, destination is card2Index
-            // Both positions can be in different players' hands
-            final card2Data = actionData['card2Data'] as Map<String, dynamic>?;
-            final card2Index = card2Data?['cardIndex'] as int?;
-            final card2PlayerId = card2Data?['playerId']?.toString();
-            
-            if (card2Index != null) {
-              // Source: card1Index from card1Data
-              if (isMyHand) {
-                sourceBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
-              } else {
-                sourceBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
-              }
-              
-              // Destination: card2Index from card2Data
-              // Check if card2 is in my hand or opponent's hand
-              final isCard2MyHand = card2PlayerId != null && card2PlayerId == DutchEventHandlerCallbacks.getCurrentUserId();
-              if (isCard2MyHand) {
-                destBounds = _playScreenFunctions.getCachedMyHandCardBounds(card2Index);
-              } else if (card2PlayerId != null) {
-                destBounds = _playScreenFunctions.getCachedOpponentCardBounds(card2PlayerId, card2Index);
-              } else {
-                // Fallback: assume same player
-                if (isMyHand) {
-                  destBounds = _playScreenFunctions.getCachedMyHandCardBounds(card2Index);
-                } else {
-                  destBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, card2Index);
-                }
-              }
-              
-              if (LOGGING_SWITCH) {
-                _logger.info('🎬 _triggerAnimation: jack_swap - Source (card1Index $cardIndex, playerId $playerId): $sourceBounds');
-                _logger.info('🎬 _triggerAnimation: jack_swap - Destination (card2Index $card2Index, playerId $card2PlayerId): $destBounds');
-              }
+          } else if (baseActionName == 'collect_from_discard') {
+            // Collect from discard: source is discard pile, destination is hand (same data shape as drawn_card)
+            sourceBounds = _playScreenFunctions.getCachedDiscardPileBounds();
+            if (isMyHand) {
+              destBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
             } else {
-              if (LOGGING_SWITCH) {
-                _logger.warning('🎬 _triggerAnimation: Missing card2Index in card2Data for jack_swap');
-              }
+              destBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
             }
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 _triggerAnimation: collect_from_discard - Discard pile bounds (source): $sourceBounds');
+              _logger.info('🎬 _triggerAnimation: collect_from_discard - Hand bounds (dest): $destBounds');
+            }
+          } else if (baseActionName == 'jack_swap') {
+            // Original jack_swap only seen before expansion; jack_swap_1/jack_swap_2 handled in moveWithEmptySlot
           }
         } else if (animationType == AnimationType.moveWithEmptySlot) {
           final baseActionName = Animations.extractBaseActionName(actionName);
@@ -793,30 +805,27 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               _logger.info('🎬 _triggerAnimation: moveWithEmptySlot ($baseActionName) - Hand card bounds (source): $sourceBounds');
               _logger.info('🎬 _triggerAnimation: moveWithEmptySlot ($baseActionName) - Discard pile bounds (destination): $destBounds');
             }
-          } else if (baseActionName == 'draw_reposition') {
-            // draw_reposition: source is card1Index (drawn card's original position), destination is card2Index (reposition destination)
-            // Both positions are in the hand
+          } else if (baseActionName == 'draw_reposition' || baseActionName == 'jack_swap' || baseActionName == 'jack_swap_1' || baseActionName == 'jack_swap_2') {
+            // draw_reposition / jack_swap_1 (empty at source) / jack_swap_2 (empty at dest): source = card1Index, dest = card2Index (both in hand)
             final card2Data = actionData['card2Data'] as Map<String, dynamic>?;
             final card2Index = card2Data?['cardIndex'] as int?;
             final card2PlayerId = card2Data?['playerId']?.toString();
             
             if (card2Index != null) {
-              // Source: card1Index (drawn card's original position)
+              // Source: card1Index
               if (isMyHand) {
                 sourceBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
               } else {
                 sourceBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
               }
               
-              // Destination: card2Index (reposition destination)
-              // Check if card2 is in my hand or opponent's hand
+              // Destination: card2Index
               final isCard2MyHand = card2PlayerId != null && card2PlayerId == DutchEventHandlerCallbacks.getCurrentUserId();
               if (isCard2MyHand) {
                 destBounds = _playScreenFunctions.getCachedMyHandCardBounds(card2Index);
               } else if (card2PlayerId != null) {
                 destBounds = _playScreenFunctions.getCachedOpponentCardBounds(card2PlayerId, card2Index);
               } else {
-                // Fallback: assume same player
                 if (isMyHand) {
                   destBounds = _playScreenFunctions.getCachedMyHandCardBounds(card2Index);
                 } else {
@@ -825,12 +834,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               }
               
               if (LOGGING_SWITCH) {
-                _logger.info('🎬 _triggerAnimation: moveWithEmptySlot (draw_reposition) - Source (card1Index $cardIndex, playerId $playerId): $sourceBounds');
-                _logger.info('🎬 _triggerAnimation: moveWithEmptySlot (draw_reposition) - Destination (card2Index $card2Index, playerId $card2PlayerId): $destBounds');
+                _logger.info('🎬 _triggerAnimation: moveWithEmptySlot ($baseActionName) - Source (card1Index $cardIndex, playerId $playerId): $sourceBounds');
+                _logger.info('🎬 _triggerAnimation: moveWithEmptySlot ($baseActionName) - Destination (card2Index $card2Index, playerId $card2PlayerId): $destBounds');
               }
             } else {
               if (LOGGING_SWITCH) {
-                _logger.warning('🎬 _triggerAnimation: Missing card2Index in card2Data for draw_reposition');
+                _logger.warning('🎬 _triggerAnimation: Missing card2Index in card2Data for $baseActionName');
               }
             }
           }
@@ -1262,29 +1271,28 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       }
     }
     
-    // For moveWithEmptySlot, we need to render both an empty slot at source and the moving card
+    // For moveWithEmptySlot, we need to render empty slot(s) and the moving card
     if (animationType == AnimationType.moveWithEmptySlot) {
-      Widget emptySlotWidget = _buildBlankCardSlot(sourceSize);
-      
-      // Check if this is a draw_reposition animation (needs empty slot at destination too)
       final baseActionName = actionName != null ? Animations.extractBaseActionName(actionName) : null;
       final isReposition = baseActionName == 'draw_reposition';
+      final isEmptyAtDestOnly = baseActionName == 'jack_swap_2'; // Second jack anim: empty at destination only
       
-      // Build list of children for Stack
-      List<Widget> stackChildren = [
-        // Empty slot at source position (stays in place)
-        Positioned(
-          left: localSourcePosition.dx,
-          top: localSourcePosition.dy,
-          child: emptySlotWidget,
-        ),
-      ];
-      
-      // For draw_reposition, also add empty slot at destination position
-      if (isReposition && localDestPosition != null && destSize != null) {
+      List<Widget> stackChildren = [];
+      // Empty slot at source (unless jack_swap_2: empty at dest only)
+      if (!isEmptyAtDestOnly) {
+        Widget emptySlotWidget = _buildBlankCardSlot(sourceSize);
+        stackChildren.add(
+          Positioned(
+            left: localSourcePosition.dx,
+            top: localSourcePosition.dy,
+            child: emptySlotWidget,
+          ),
+        );
+      }
+      // Empty slot at destination: draw_reposition (both), or jack_swap_2 (dest only)
+      if ((isReposition || isEmptyAtDestOnly) && localDestPosition != null && destSize != null) {
         Widget destEmptySlotWidget = _buildBlankCardSlot(destSize);
         stackChildren.add(
-          // Empty slot at destination position (stays in place)
           Positioned(
             left: localDestPosition.dx,
             top: localDestPosition.dy,

@@ -103,6 +103,19 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Expected Behavior**: Opponents columns should maintain proper spacing and layout regardless of match pot image visibility
   - **Location**: Flutter UI components for opponents panel (likely in `unified_game_board_widget.dart` or related opponent display widgets)
   - **Impact**: User experience - layout issues affect game playability and visual consistency
+- [ ] **Highlight borders for peeking and selected cards: remove border radius**
+  - **Issue**: Highlight borders used for peeking (e.g. queen peek, initial peek) and for selected cards use rounded corners; they should be sharp (no border radius)
+  - **Current Behavior**: Peek and selection highlight borders are drawn with border radius
+  - **Expected Behavior**: These highlights should be drawn **without border radius** (rectangular borders only)
+  - **Location**: Flutter UI where peek highlights and selection highlights are built (e.g. flashCard overlay, card selection decoration in hand/discard widgets)
+  - **Impact**: Visual consistency and clearer emphasis on peek/selection state
+- [ ] **Unify full-data card display with opponents-style UI (rank/suit only; special-card backgrounds)**
+  - **Issue**: Cards that show full data (e.g. in hand, discard pile) currently use full "play card" style; they should match the opponents section style: rank and suit only, with special-card backgrounds
+  - **Current Behavior**: My hand and discard show full playing-card artwork/style; opponents section shows compact rank/suit (and special backgrounds for face cards)
+  - **Expected Behavior**: All cards that reveal full data should follow the **same UI as the opponents section**: display **only rank and suit** (no full play-card artwork). Special cards (King, Jack, Queen, Joker) should have a **background relative to that rank** (e.g. distinct background per rank type)
+  - **Scope**: My hand, discard pile, and any other areas that show full card data
+  - **Location**: Flutter card display widgets for hand, discard, and shared card component used by opponents section; ensure one consistent "compact full-data" style
+  - **Impact**: Consistent visual language across the board; clearer distinction between hidden (back) and revealed (rank/suit + special background) cards
 
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
@@ -176,6 +189,13 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Solution**: Before making Jack swap decision, validate that selected cards actually exist in the player's current hand, not just in `known_cards`
   - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
   - **Impact**: Improves CPU player decision accuracy, reduces failed swap attempts
+- [ ] **Fine-tune computer Jack swap decisions: avoid frequent self-hand swaps**
+  - **Issue**: Computer players are swapping cards from their own hands too often; same-hand swaps should be rare
+  - **Current Behavior**: Jack swap decision logic allows or prefers swapping within the same player's hand, leading to frequent self-hand swaps
+  - **Expected Behavior**: Jack swap should predominantly swap cards **between different players**; swapping two cards within the same hand should be infrequent (e.g. only when no beneficial cross-player swap exists)
+  - **Implementation**: Adjust `getJackSwapDecision()` (and related selection logic) to strongly prefer cross-player swaps; deprioritize or restrict same-hand swaps (e.g. low probability, or only when hand size/strategy justifies it)
+  - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` (and Flutter equivalent if present) - Jack swap decision and card selection
+  - **Impact**: More realistic and strategic computer play; Jack swap used for disruption across players rather than within own hand
 - [ ] **Add computer player Queen peek decision rule: peek at opponent when all own cards are known**
   - **Issue**: Computer players need smarter Queen peek decision logic
   - **Current Behavior**: Computer players use existing rules (peek_own_unknown_cards, peek_random_other_player, skip_queen_peek)
@@ -449,5 +469,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2025-01-XX (Added JWT authentication system between Dart backend and Python)
+**Last Updated**: 2025-01-27 (Added Jack swap fine-tuning, highlight borders no radius, full-data card UI unification)
 

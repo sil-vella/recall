@@ -37,6 +37,8 @@ class Animations {
     switch (baseActionName) {
       case 'drawn_card':
         return AnimationType.moveCard; // Card moves from draw pile to hand
+      case 'collect_from_discard':
+        return AnimationType.moveCard; // Card moves from discard pile to hand (same as draw but source = discard)
       case 'play_card':
         return AnimationType.moveWithEmptySlot; // Card moves from hand to discard pile, with empty slot at start
       case 'same_rank':
@@ -44,7 +46,11 @@ class Animations {
       case 'draw_reposition':
         return AnimationType.moveWithEmptySlot; // Drawn card moves from original position to reposition destination, with empty slot at start
       case 'jack_swap':
-        return AnimationType.swap; // TODO: Define actual animation type
+        return AnimationType.moveWithEmptySlot; // Expanded at queue: jack_swap_1 (empty at source) + jack_swap_2 (empty at dest)
+      case 'jack_swap_1':
+        return AnimationType.moveWithEmptySlot; // First of two: card1 moves to slot2, empty slot at source
+      case 'jack_swap_2':
+        return AnimationType.moveWithEmptySlot; // Second of two: card2 moves to slot1, empty slot at destination
       case 'queen_peek':
         return AnimationType.flashCard; // Flash border on peeked card
       case 'initial_peek':

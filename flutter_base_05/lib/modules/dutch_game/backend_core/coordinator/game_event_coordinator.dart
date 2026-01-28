@@ -642,8 +642,7 @@ class GameEventCoordinator {
       'points': 0,      // Face-down: hide points
     };
 
-    // Load predefined hands configuration if available
-    // Predefined hands are only enabled when instructions are ON (for learning/testing)
+    // Load predefined hands configuration if available (for testing e.g. jack swap; controlled by enabled in YAML)
     final predefinedHandsLoader = PredefinedHandsLoader();
     final predefinedHandsConfig = await predefinedHandsLoader.loadConfig();
     final enabledRaw = predefinedHandsConfig['enabled'];
@@ -654,15 +653,16 @@ class GameEventCoordinator {
     if (LOGGING_SWITCH) {
       _logger.info('✅ _handleStartMatch: parsed predefinedHands enabled: value=$enabledParsed');
     }
-    bool usePredefinedHands = enabledParsed && showInstructions;
+    // Use predefined hands when YAML enabled: true (for testing e.g. jack swap), regardless of showInstructions
+    bool usePredefinedHands = enabledParsed;
     
     if (usePredefinedHands) {
       if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Predefined hands enabled (instructions ON)');
+        _logger.info('GameEventCoordinator: Predefined hands enabled (config enabled: true)');
       }
-    } else if (predefinedHandsConfig['enabled'] == true && !showInstructions) {
+    } else {
       if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Predefined hands disabled (instructions OFF)');
+        _logger.info('GameEventCoordinator: Predefined hands disabled (config enabled: false or missing)');
       }
     }
     

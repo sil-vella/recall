@@ -3,6 +3,9 @@
 # Flutter app launcher with filtered Logger output only
 # Shows only your custom Logger calls, filters out all system logs
 
+# Note: We'll use process groups for cleanup but won't enable full job control
+# as it can interfere with VS Code's terminal handling
+
 echo "🚀 Launching Flutter app on OnePlus device (84fbcf31) with filtered Logger output..."
 
 # Check if adb is available
@@ -151,8 +154,88 @@ adb -s 84fbcf31 logcat -c
 # Flutter Logger prints: [timestamp] [LEVEL] [AppLogger] message
 # The MESSAGE part contains the Flutter log format, so we extract it
 echo "📱 Starting logcat capture for AppLogger messages..."
+
+# Store PIDs for cleanup
 LOG_PID=""
+LOG_PGID=""
+ADB_LOGCAT_PIDS=""
+CLEANUP_DONE=false
+
+# Function to cleanup all logcat processes
+cleanup() {
+    # Prevent multiple cleanup calls
+    if [ "$CLEANUP_DONE" = true ]; then
+        return
+    fi
+    CLEANUP_DONE=true
+    
+    echo "🛑 Stopping logcat capture and cleaning up..."
+    
+    # Kill the background logcat pipeline process and its children
+    if [ ! -z "$LOG_PID" ]; then
+        # Kill the process and all its children
+        pkill -P $LOG_PID 2>/dev/null || true
+        kill -TERM $LOG_PID 2>/dev/null || true
+        sleep 0.3
+        # Force kill if still running
+        pkill -9 -P $LOG_PID 2>/dev/null || true
+        kill -KILL $LOG_PID 2>/dev/null || true
+    fi
+    
+    # Kill process group if we have it
+    if [ ! -z "$LOG_PGID" ] && [ "$LOG_PGID" != "0" ]; then
+        kill -TERM -$LOG_PGID 2>/dev/null || true
+        sleep 0.3
+        kill -KILL -$LOG_PGID 2>/dev/null || true
+    fi
+    
+    # Kill any orphaned adb logcat processes for this device
+    ADB_LOGCAT_PIDS=$(pgrep -f "adb.*84fbcf31.*logcat" 2>/dev/null || true)
+    if [ ! -z "$ADB_LOGCAT_PIDS" ]; then
+        echo "🧹 Killing orphaned adb logcat processes: $ADB_LOGCAT_PIDS"
+        for pid in $ADB_LOGCAT_PIDS; do
+            kill -TERM $pid 2>/dev/null || true
+        done
+        sleep 0.3
+        for pid in $ADB_LOGCAT_PIDS; do
+            kill -KILL $pid 2>/dev/null || true
+        done
+    fi
+    
+    # Also kill any adb logcat processes that might be writing to our log file
+    ADB_LOGCAT_PIDS=$(pgrep -f "logcat.*flutter.*dart" 2>/dev/null || true)
+    if [ ! -z "$ADB_LOGCAT_PIDS" ]; then
+        for pid in $ADB_LOGCAT_PIDS; do
+            kill -TERM $pid 2>/dev/null || true
+        done
+        sleep 0.3
+        for pid in $ADB_LOGCAT_PIDS; do
+            kill -KILL $pid 2>/dev/null || true
+        done
+    fi
+    
+    # Kill any grep/sed processes that might be part of our pipeline
+    PIPELINE_PIDS=$(pgrep -f "grep.*AppLogger|sed.*AppLogger" 2>/dev/null || true)
+    if [ ! -z "$PIPELINE_PIDS" ]; then
+        for pid in $PIPELINE_PIDS; do
+            kill -TERM $pid 2>/dev/null || true
+        done
+        sleep 0.3
+        for pid in $PIPELINE_PIDS; do
+            kill -KILL $pid 2>/dev/null || true
+        done
+    fi
+    
+    echo "✅ Cleanup completed"
+}
+
+# Set up trap to cleanup on exit
+trap cleanup EXIT INT TERM HUP
+
+# Start logcat in a new process group
 (
+    # Create new process group
+    set -m
     # Capture Flutter and Dart logs, suppress other tags
     # Extract message part which contains: [timestamp] [LEVEL] [AppLogger] message
     # logcat format: I/flutter ( PID): [timestamp] [LEVEL] [AppLogger] message
@@ -165,15 +248,8 @@ LOG_PID=""
 ) &
 LOG_PID=$!
 
-# Trap to cleanup logcat process on exit
-cleanup() {
-    if [ ! -z "$LOG_PID" ]; then
-        echo "🛑 Stopping logcat capture..."
-        kill $LOG_PID 2>/dev/null || true
-        wait $LOG_PID 2>/dev/null || true
-    fi
-}
-trap cleanup EXIT INT TERM
+# Get the process group ID
+LOG_PGID=$(ps -o pgid= -p $LOG_PID 2>/dev/null | tr -d ' ' || echo "")
 
 # Give logcat a moment to start
 sleep 1
@@ -186,6 +262,7 @@ if ! kill -0 $LOG_PID 2>/dev/null; then
 fi
 
 # Launch Flutter app (logs will be captured via logcat)
+# Run flutter in foreground - when it exits, cleanup will be triggered
 flutter run \
     -d 84fbcf31 \
     --dart-define=API_URL="$API_URL" \
@@ -203,8 +280,13 @@ flutter run \
     --dart-define=DEBUG_MODE=true \
     --dart-define=ENABLE_REMOTE_LOGGING=true
 
-# Cleanup will happen automatically via trap
+FLUTTER_EXIT_CODE=$?
 
-echo "✅ Flutter app launch completed"
+# Cleanup will happen automatically via trap, but ensure it runs
+cleanup
+
+echo "✅ Flutter app launch completed (exit code: $FLUTTER_EXIT_CODE)"
 echo "📝 Logger output written to: $SERVER_LOG_FILE"
 echo "🔍 To view logs: tail -f $SERVER_LOG_FILE"
+
+exit $FLUTTER_EXIT_CODE

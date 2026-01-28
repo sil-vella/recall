@@ -391,4 +391,3 @@ The unified widget intercepts state updates and maintains a "previous state" cac
 - Updated `queen_peek` to use action queue format (consistent with other actions)
 - Actions stored as: `[{'name': 'queen_peek_123456', 'data': {...}}]`
 - Enables proper animation processing and action tracking
-

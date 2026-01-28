@@ -71,13 +71,21 @@ class DutchGameRound {
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       for (final p in players) {
         if (playerId == null || p['id']?.toString() == playerId) {
-          final hadAction = p.containsKey('action');
-          final actionType = p['action']?.toString();
-          p.remove('action');
-          p.remove('actionData');
-          if (LOGGING_SWITCH && hadAction) {
-            _logger.info('🎬 ACTION_DATA: Cleared action${playerId != null ? ' for player $playerId' : ' for all players'} - previous action: $actionType');
-          };
+          final hadAction = p.containsKey('action') && p['action'] != null;
+          if (hadAction) {
+            final actionValue = p['action'];
+            String actionInfo;
+            if (actionValue is List) {
+              actionInfo = '${actionValue.length} action(s) in queue';
+            } else {
+              actionInfo = actionValue?.toString() ?? 'null';
+            }
+            p.remove('action');
+            p.remove('actionData'); // Remove legacy actionData if it exists
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 ACTION_DATA: Cleared action queue${playerId != null ? ' for player $playerId' : ' for all players'} - previous: $actionInfo');
+            };
+          }
         }
       }
     } catch (e) {
@@ -1499,9 +1507,6 @@ class DutchGameRound {
         return false;
       }
       
-      // Clear previous action data for this player
-      _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
-      
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Drawing card for player $actualPlayerId from $source pile');
       };
@@ -1682,15 +1687,34 @@ class DutchGameRound {
       // Add action data for animation system
       // Card is added to end of hand, so index is hand.length - 1
       final drawnCardIndex = hand.length - 1;
-      player['action'] = 'drawn_card_${_generateActionId()}';
-      player['actionData'] = {
+      final actionName = 'drawn_card_${_generateActionId()}';
+      final actionData = {
         'card1Data': {
           'cardIndex': drawnCardIndex,
           'playerId': actualPlayerId,
         },
       };
+      
+      // Add to action queue (list) instead of replacing
+      if (!player.containsKey('action') || player['action'] == null) {
+        player['action'] = [];
+      }
+      if (player['action'] is! List) {
+        // Convert existing single action to list format
+        final existingAction = player['action'];
+        final existingActionData = player['actionData'];
+        player['action'] = [
+          {'name': existingAction, 'data': existingActionData}
+        ];
+        player.remove('actionData');
+      }
+      (player['action'] as List).add({
+        'name': actionName,
+        'data': actionData,
+      });
+      
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set drawn_card action for player $actualPlayerId - card1Data: {cardIndex: $drawnCardIndex, playerId: $actualPlayerId}');
+        _logger.info('🎬 ACTION_DATA: Added drawn_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $drawnCardIndex, playerId: $actualPlayerId}');
       };
       
       // For computer players, also add to known_cards (they need full data for logic)
@@ -1802,14 +1826,9 @@ class DutchGameRound {
           'turn_events': turnEvents, // Include turn events
         });
         
-        // Clear action immediately after state update is sent
-        _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
       } else {
         // For computer players, update status in games map
         _updatePlayerStatusInGamesMap('playing_card', playerId: actualPlayerId);
-        
-        // Clear action immediately after status update (for CPU players)
-        _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
       }
       
       // Start play timer for ALL players (human and CPU) if status is playing_card
@@ -2349,9 +2368,6 @@ class DutchGameRound {
         return false;
       }
       
-      // Clear previous action data for this player
-      _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
-      
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       
       // Find the player in the players list
@@ -2498,15 +2514,34 @@ class DutchGameRound {
       player['hand'] = hand;
       
       // Add action data for animation system
-      player['action'] = 'play_card_${_generateActionId()}';
-      player['actionData'] = {
+      final actionName = 'play_card_${_generateActionId()}';
+      final actionData = {
         'card1Data': {
           'cardIndex': cardIndex,
           'playerId': actualPlayerId,
         },
       };
+      
+      // Add to action queue (list) instead of replacing
+      if (!player.containsKey('action') || player['action'] == null) {
+        player['action'] = [];
+      }
+      if (player['action'] is! List) {
+        // Convert existing single action to list format
+        final existingAction = player['action'];
+        final existingActionData = player['actionData'];
+        player['action'] = [
+          {'name': existingAction, 'data': existingActionData}
+        ];
+        player.remove('actionData');
+      }
+      (player['action'] as List).add({
+        'name': actionName,
+        'data': actionData,
+      });
+      
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set play_card action for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
+        _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
       };
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
@@ -2565,9 +2600,6 @@ class DutchGameRound {
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn events for animations
       });
-      
-      // Clear action immediately after state update is sent
-      _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGamesForPlay);
       
       if (LOGGING_SWITCH) {
         _logger.info('🔍 STATE_UPDATE DEBUG - State update sent. Reposition will happen AFTER this and AFTER _handleSameRankWindow()');
@@ -2660,13 +2692,51 @@ class DutchGameRound {
           _logger.info('🔍 REPOSITION DEBUG - This happens AFTER state update at line 1529 and AFTER _handleSameRankWindow()');
         };
         
-        // First, find and remove the drawn card from its original position
+        // First, find the drawn card's original position
         int? originalIndex;
         for (int i = 0; i < hand.length; i++) {
           if (hand[i] != null && hand[i] is Map<String, dynamic> && hand[i]['cardId'] == drawnCard['cardId']) {
             originalIndex = i;
             break;
           }
+        }
+        
+        // Add action data for animation system (draw_reposition)
+        // card1Index: drawn card's original index, card2Index: played card's index (reposition destination)
+        if (originalIndex != null) {
+          final actionName = 'draw_reposition_${_generateActionId()}';
+          final actionData = {
+            'card1Data': {
+              'cardIndex': originalIndex, // Drawn card's original index
+              'playerId': actualPlayerId,
+            },
+            'card2Data': {
+              'cardIndex': cardIndex, // Played card's index (reposition destination)
+              'playerId': actualPlayerId,
+            },
+          };
+          
+          // Add to action queue (list) instead of replacing
+          if (!player.containsKey('action') || player['action'] == null) {
+            player['action'] = [];
+          }
+          if (player['action'] is! List) {
+            // Convert existing single action to list format
+            final existingAction = player['action'];
+            final existingActionData = player['actionData'];
+            player['action'] = [
+              {'name': existingAction, 'data': existingActionData}
+            ];
+            player.remove('actionData');
+          }
+          (player['action'] as List).add({
+            'name': actionName,
+            'data': actionData,
+          });
+          
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 ACTION_DATA: Added draw_reposition action to queue for player $actualPlayerId - card1Data: {cardIndex: $originalIndex (drawn card)}, card2Data: {cardIndex: $cardIndex (reposition destination), playerId: $actualPlayerId}');
+          };
         }
         
         if (originalIndex != null) {
@@ -2830,9 +2900,6 @@ class DutchGameRound {
       final gameData = currentGames[_gameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
-      
-      // Clear previous action data for this player
-      _clearPlayerAction(playerId: playerId, gamesMap: currentGames);
       
       if (gameState == null) {
         if (LOGGING_SWITCH) {
@@ -3064,13 +3131,31 @@ class DutchGameRound {
       player['hand'] = hand;
       
       // Add action data for animation system
-      player['action'] = 'same_rank_${_generateActionId()}';
-      player['actionData'] = {
+      final actionName = 'same_rank_${_generateActionId()}';
+      final actionData = {
         'card1Data': {
           'cardIndex': cardIndex,
           'playerId': playerId,
         },
       };
+      
+      // Add to action queue (list) instead of replacing
+      if (!player.containsKey('action') || player['action'] == null) {
+        player['action'] = [];
+      }
+      if (player['action'] is! List) {
+        // Convert existing single action to list format
+        final existingAction = player['action'];
+        final existingActionData = player['actionData'];
+        player['action'] = [
+          {'name': existingAction, 'data': existingActionData}
+        ];
+        player.remove('actionData');
+      }
+      (player['action'] as List).add({
+        'name': actionName,
+        'data': actionData,
+      });
       if (LOGGING_SWITCH) {
         _logger.info('🎬 ACTION_DATA: Set same_rank action for player $playerId - card1Data: {cardIndex: $cardIndex, playerId: $playerId}');
       };
@@ -3221,9 +3306,6 @@ class DutchGameRound {
       // Clear previous action data for the acting player (currentPlayer who played the Jack)
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       final actingPlayerId = currentPlayer?['id']?.toString();
-      if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
-        _clearPlayerAction(playerId: actingPlayerId, gamesMap: currentGames);
-      }
 
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
 
@@ -3614,9 +3696,6 @@ class DutchGameRound {
         _logger.info('Dutch: Found target card: ${targetCard['rank']} of ${targetCard['suit']} at index $targetCardIndex');
       };
       
-      // Clear previous action data for the peeking player
-      _clearPlayerAction(playerId: peekingPlayerId, gamesMap: currentGames);
-
       // Get full card data (convert from ID-only if needed)
       final fullCardData = _stateCallback.getCardById(gameState, targetCardId);
       if (fullCardData == null) {
@@ -3696,9 +3775,6 @@ class DutchGameRound {
         };
       }
       
-      // Clear action immediately after state update is sent
-      _clearPlayerAction(playerId: peekingPlayerId, gamesMap: currentGames);
-
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Queen peek completed successfully');
       };
@@ -5318,6 +5394,10 @@ class DutchGameRound {
         _logger.info('Dutch: Moving to next player (with 2 second delay)');
       };
       
+      // Clear all player actions before moving to next player
+      // This ensures the animation queue is cleared after all animations have been processed
+      _clearPlayerAction();
+      
       // Add 2 second delay before moving to next player
       await Future.delayed(const Duration(seconds: 2));
       
@@ -5430,9 +5510,6 @@ class DutchGameRound {
       // CRITICAL: Update currentPlayer in the games map before updating status
       // This ensures we read the correct currentPlayer
       final currentGames = _stateCallback.currentGamesMap;
-      
-      // Clear all players' action data when moving to next player
-      _clearPlayerAction(gamesMap: currentGames);
       
       final gameId = _gameId;
       if (currentGames.containsKey(gameId)) {

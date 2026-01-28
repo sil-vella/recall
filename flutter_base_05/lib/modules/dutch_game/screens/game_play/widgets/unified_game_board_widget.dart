@@ -188,8 +188,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
       final players = gameState['players'] as List<dynamic>? ?? [];
       
-      // Collect all actions from players and trigger animations
-      List<Future<void>> animationFutures = [];
+      // Collect all actions from all players first
+      List<Map<String, dynamic>> allActions = [];
       
       if (LOGGING_SWITCH) {
         _logger.info('🎬 _processStateUpdate: Checking ${players.length} players for actions');
@@ -199,50 +199,43 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (player is! Map<String, dynamic>) continue;
         
         final playerId = player['id']?.toString();
-        final action = player['action']?.toString();
-        final actionData = player['actionData'] as Map<String, dynamic>?;
+        final actionValue = player['action'];
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 _processStateUpdate: Player $playerId - action: $action, actionData: $actionData');
-        }
+        // Handle both list format (queue) and legacy single action format
+        List<Map<String, dynamic>> actionQueue = [];
         
-        if (action != null && actionData != null && Animations.requiresAnimation(action)) {
+        if (actionValue is List) {
+          // New queue format: list of {'name': 'action_name_id', 'data': {...}}
+          for (var actionItem in actionValue) {
+            if (actionItem is Map<String, dynamic>) {
+              final actionName = actionItem['name']?.toString();
+              final actionData = actionItem['data'] as Map<String, dynamic>?;
+              if (actionName != null && actionData != null) {
+                actionQueue.add({'name': actionName, 'data': actionData, 'playerId': playerId});
+              }
+            }
+          }
+          if (LOGGING_SWITCH && actionQueue.isNotEmpty) {
+            _logger.info('🎬 _processStateUpdate: Player $playerId - Found ${actionQueue.length} action(s) in queue');
+          }
+        } else if (actionValue != null) {
+          // Legacy format: single action string with separate actionData
+          final actionName = actionValue.toString();
+          final actionData = player['actionData'] as Map<String, dynamic>?;
+          if (actionData != null) {
+            actionQueue.add({'name': actionName, 'data': actionData, 'playerId': playerId});
+          }
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 _processStateUpdate: Action $action requires animation');
-          }
-          
-          // Validate action data
-          if (Animations.validateActionData(action, actionData)) {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎬 _processStateUpdate: Action data validated successfully');
-            }
-            
-            // Check if already in active animations or already processed
-            if (!_activeAnimations.containsKey(action)) {
-              if (LOGGING_SWITCH) {
-                _logger.info('🎬 _processStateUpdate: Triggering animation for action: $action');
-              }
-              // Trigger animation in overlay
-              final future = _triggerAnimation(action, actionData);
-              if (future != null) {
-                animationFutures.add(future);
-              }
-            } else {
-              if (LOGGING_SWITCH) {
-                _logger.info('🎬 _processStateUpdate: Action $action already in active animations, skipping');
-              }
-            }
-          } else {
-            if (LOGGING_SWITCH) {
-              _logger.warning('🎬 _processStateUpdate: Action data validation failed for action: $action');
-            }
+            _logger.info('🎬 _processStateUpdate: Player $playerId - Found legacy single action format: $actionName');
           }
         }
+        
+        allActions.addAll(actionQueue);
       }
       
       // Set up 4-second timeout to bypass animation wait if needed
       bool timeoutTriggered = false;
-      if (animationFutures.isNotEmpty) {
+      if (allActions.isNotEmpty) {
         _animationTimeoutTimer = Timer(const Duration(seconds: 4), () {
           if (mounted && !timeoutTriggered) {
             timeoutTriggered = true;
@@ -266,31 +259,89 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             _completeStateUpdate();
           }
         });
-      }
-      
-      // Wait for all animations to complete BEFORE updating prev_state
-      if (animationFutures.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 _processStateUpdate: Waiting for ${animationFutures.length} animation(s) to complete...');
-        }
         
+        // Process actions sequentially - await each animation before starting the next
         try {
-          await Future.wait(animationFutures);
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 _processStateUpdate: All animations completed, now updating prev_state');
+            _logger.info('🎬 _processStateUpdate: Processing ${allActions.length} action(s) sequentially...');
+          }
+          
+          for (var actionItem in allActions) {
+            final action = actionItem['name']?.toString();
+            final actionData = actionItem['data'] as Map<String, dynamic>?;
+            final actionPlayerId = actionItem['playerId']?.toString();
+            
+            if (action == null || actionData == null) continue;
+            
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 _processStateUpdate: Player $actionPlayerId - Processing action: $action');
+              _logger.info('🎬 _processStateUpdate: Action $action requiresAnimation: ${Animations.requiresAnimation(action)}');
+            }
+            
+            if (Animations.requiresAnimation(action)) {
+              if (LOGGING_SWITCH) {
+                _logger.info('🎬 _processStateUpdate: Action $action requires animation');
+              }
+              
+              // Validate action data
+              if (Animations.validateActionData(action, actionData)) {
+                if (LOGGING_SWITCH) {
+                  _logger.info('🎬 _processStateUpdate: Action data validated successfully');
+                }
+                
+                // Check if already in active animations or already processed
+                if (_activeAnimations.containsKey(action)) {
+                  if (LOGGING_SWITCH) {
+                    _logger.info('🎬 _processStateUpdate: Action $action already in active animations, skipping');
+                  }
+                  continue;
+                } else if (Animations.isActionProcessed(action)) {
+                  if (LOGGING_SWITCH) {
+                    _logger.info('🎬 _processStateUpdate: Action $action already processed, skipping');
+                  }
+                  continue;
+                } else {
+                  if (LOGGING_SWITCH) {
+                    _logger.info('🎬 _processStateUpdate: Triggering animation for action: $action');
+                  }
+                  // Trigger animation and await its completion before processing next action
+                  final future = _triggerAnimation(action, actionData);
+                  if (future != null) {
+                    if (LOGGING_SWITCH) {
+                      _logger.info('🎬 _processStateUpdate: Waiting for animation $action to complete...');
+                    }
+                    await future;
+                    if (LOGGING_SWITCH) {
+                      _logger.info('🎬 _processStateUpdate: Animation $action completed, proceeding to next action');
+                    }
+                  }
+                }
+              } else {
+                if (LOGGING_SWITCH) {
+                  _logger.warning('🎬 _processStateUpdate: Action data validation failed for action: $action');
+                }
+              }
+            }
+          }
+          
+          // Cancel timeout since all animations completed
+          _animationTimeoutTimer?.cancel();
+          _animationTimeoutTimer = null;
+          
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _processStateUpdate: All animations completed sequentially, now updating prev_state');
           }
         } catch (e) {
           if (LOGGING_SWITCH) {
             _logger.error('🎬 _processStateUpdate: Animation error: $e');
           }
+          // Cancel timeout on error
+          _animationTimeoutTimer?.cancel();
+          _animationTimeoutTimer = null;
         }
-        
-        // Cancel timeout timer if animations completed in time
-        _animationTimeoutTimer?.cancel();
-        _animationTimeoutTimer = null;
       } else {
         if (LOGGING_SWITCH) {
-          _logger.info('🎬 _processStateUpdate: No animations to wait for, updating prev_state immediately');
+          _logger.info('🎬 _processStateUpdate: No animations to process, updating prev_state immediately');
         }
       }
       
@@ -535,35 +586,89 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           _logger.info('🎬 _triggerAnimation: isMyHand: $isMyHand (playerId: $playerId, currentUserId: $currentUserId)');
         }
         
-        // Get destination bounds based on whether it's my hand or opponent's hand
-        if (isMyHand) {
-          destBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
-          if (LOGGING_SWITCH) {
-            _logger.info('🎬 _triggerAnimation: My hand bounds for index $cardIndex: $destBounds');
-          }
-        } else {
-          // Log all available opponent bounds for debugging
-          if (LOGGING_SWITCH) {
-            final allOpponentBounds = _playScreenFunctions.getCachedOpponentCardBoundsAll();
-            _logger.info('🎬 _triggerAnimation: Available opponent bounds keys: ${allOpponentBounds.keys.toList()}');
-            if (allOpponentBounds.containsKey(playerId)) {
-              _logger.info('🎬 _triggerAnimation: Opponent $playerId has bounds for indices: ${allOpponentBounds[playerId]?.keys.toList()}');
+        // For moveCard, determine source and destination based on action type
+        if (animationType == AnimationType.moveCard) {
+          final baseActionName = Animations.extractBaseActionName(actionName);
+          if (baseActionName == 'drawn_card') {
+            // Drawn card: source is draw pile, destination is hand
+            sourceBounds = _playScreenFunctions.getCachedDrawPileBounds();
+            // Get destination bounds based on whether it's my hand or opponent's hand
+            if (isMyHand) {
+              destBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
+              if (LOGGING_SWITCH) {
+                _logger.info('🎬 _triggerAnimation: My hand bounds for index $cardIndex: $destBounds');
+              }
             } else {
-              _logger.warning('🎬 _triggerAnimation: Opponent $playerId NOT found in cached bounds!');
+              // Log all available opponent bounds for debugging
+              if (LOGGING_SWITCH) {
+                final allOpponentBounds = _playScreenFunctions.getCachedOpponentCardBoundsAll();
+                _logger.info('🎬 _triggerAnimation: Available opponent bounds keys: ${allOpponentBounds.keys.toList()}');
+                if (allOpponentBounds.containsKey(playerId)) {
+                  _logger.info('🎬 _triggerAnimation: Opponent $playerId has bounds for indices: ${allOpponentBounds[playerId]?.keys.toList()}');
+                } else {
+                  _logger.warning('🎬 _triggerAnimation: Opponent $playerId NOT found in cached bounds!');
+                }
+              }
+              
+              destBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+              if (LOGGING_SWITCH) {
+                _logger.info('🎬 _triggerAnimation: Opponent ($playerId) hand bounds for index $cardIndex: $destBounds');
+              }
+            }
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 _triggerAnimation: Draw pile bounds (source): $sourceBounds');
+            }
+          } else if (baseActionName == 'draw_reposition' || baseActionName == 'jack_swap') {
+            // Draw reposition / Jack swap: source is card1Index, destination is card2Index
+            // Both actions use card1Data and card2Data with cardIndex and playerId
+            final card2Data = actionData['card2Data'] as Map<String, dynamic>?;
+            final card2Index = card2Data?['cardIndex'] as int?;
+            final card2PlayerId = card2Data?['playerId']?.toString();
+            
+            if (card2Index != null) {
+              // Source: card1Index from card1Data
+              if (isMyHand) {
+                sourceBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
+              } else {
+                sourceBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+              }
+              
+              // Destination: card2Index from card2Data
+              // Check if card2 is in my hand or opponent's hand
+              final isCard2MyHand = card2PlayerId != null && card2PlayerId == DutchEventHandlerCallbacks.getCurrentUserId();
+              if (isCard2MyHand) {
+                destBounds = _playScreenFunctions.getCachedMyHandCardBounds(card2Index);
+              } else if (card2PlayerId != null) {
+                destBounds = _playScreenFunctions.getCachedOpponentCardBounds(card2PlayerId, card2Index);
+              } else {
+                // Fallback: assume same player
+                if (isMyHand) {
+                  destBounds = _playScreenFunctions.getCachedMyHandCardBounds(card2Index);
+                } else {
+                  destBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, card2Index);
+                }
+              }
+              
+              if (LOGGING_SWITCH) {
+                _logger.info('🎬 _triggerAnimation: $baseActionName - Source (card1Index $cardIndex, playerId $playerId): $sourceBounds');
+                _logger.info('🎬 _triggerAnimation: $baseActionName - Destination (card2Index $card2Index, playerId $card2PlayerId): $destBounds');
+              }
+            } else {
+              if (LOGGING_SWITCH) {
+                _logger.warning('🎬 _triggerAnimation: Missing card2Index in card2Data for $baseActionName');
+              }
             }
           }
-          
-          destBounds = _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+        } else if (animationType == AnimationType.moveWithEmptySlot) {
+          // moveWithEmptySlot: source is hand, destination is discard pile
+          // This is used for play_card and same_rank actions
+          sourceBounds = isMyHand 
+              ? _playScreenFunctions.getCachedMyHandCardBounds(cardIndex)
+              : _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+          destBounds = _playScreenFunctions.getCachedDiscardPileBounds();
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 _triggerAnimation: Opponent ($playerId) hand bounds for index $cardIndex: $destBounds');
-          }
-        }
-        
-        // For moveCard, source is draw pile
-        if (animationType == AnimationType.moveCard) {
-          sourceBounds = _playScreenFunctions.getCachedDrawPileBounds();
-          if (LOGGING_SWITCH) {
-            _logger.info('🎬 _triggerAnimation: Draw pile bounds: $sourceBounds');
+            _logger.info('🎬 _triggerAnimation: moveWithEmptySlot - Hand card bounds (source): $sourceBounds');
+            _logger.info('🎬 _triggerAnimation: moveWithEmptySlot - Discard pile bounds (destination): $destBounds');
           }
         }
       } else {
@@ -587,6 +692,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     if (LOGGING_SWITCH) {
       _logger.info('🎬 _triggerAnimation: Successfully got bounds - proceeding with animation');
     }
+    
+    // Mark action as processed immediately to prevent duplicate animations
+    // This prevents the same action from being processed again from cached state
+    Animations.markActionAsProcessed(actionName);
     
     // Create animation controller
     final controller = AnimationController(
@@ -634,6 +743,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       }
     }
     
+    // Determine if this is my hand (for moveWithEmptySlot empty slot rendering)
+    bool isMyHandForSlot = false;
+    if (animationType == AnimationType.moveWithEmptySlot && card1Data != null) {
+      final playerId = card1Data['playerId']?.toString();
+      final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+      isMyHandForSlot = playerId == currentUserId;
+    }
+    
     // Store animation data
     _activeAnimations[actionName] = {
       'animationType': animationType,
@@ -642,6 +759,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       'controller': controller,
       'animation': animation,
       'cardData': cardData, // Store card data for rendering
+      'isMyHand': isMyHandForSlot, // Store for empty slot rendering
     };
     
     if (LOGGING_SWITCH) {
@@ -660,9 +778,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         _logger.info('🎬 _triggerAnimation: Animation completed for $actionName');
       }
       
-      // Animation complete - remove from active animations
+      // Animation complete - remove from active animations and mark as processed
       if (mounted) {
         _activeAnimations.remove(actionName);
+        // Mark action as processed to prevent duplicate animations from cached state
+        // Note: We don't have direct access to Animations._processedActions, 
+        // but the check in _processStateUpdate using isActionProcessed should prevent duplicates
         controller.dispose();
         setState(() {}); // Remove animation from overlay
       }
@@ -714,18 +835,101 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       }
     }
     
-    // Use destination size if available, otherwise use source size
-    final cardSize = destSize ?? sourceSize;
+    // For moveWithEmptySlot, we need to render both an empty slot at source and the moving card
+    if (animationType == AnimationType.moveWithEmptySlot) {
+      // Get isMyHand from animation data to determine which blank slot widget to use
+      final isMyHand = animData['isMyHand'] as bool? ?? false;
+      
+      Widget emptySlotWidget = isMyHand 
+          ? _buildMyHandBlankCardSlot(sourceSize)
+          : _buildBlankCardSlot(sourceSize);
+      
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Empty slot at source position (stays in place)
+          Positioned(
+            left: localSourcePosition.dx,
+            top: localSourcePosition.dy,
+            child: emptySlotWidget,
+          ),
+          // Moving card (animates from source to destination)
+          AnimatedBuilder(
+            animation: animation,
+            builder: (context, child) {
+              // Interpolate position from source to destination
+              Offset cardPosition = localSourcePosition;
+              Size cardSize = sourceSize;
+              
+              if (localDestPosition != null) {
+                // Interpolate position
+                cardPosition = Offset.lerp(localSourcePosition, localDestPosition, animation.value) ?? localSourcePosition;
+                
+                // Interpolate size if destination size is available
+                if (destSize != null) {
+                  cardSize = Size.lerp(sourceSize, destSize, animation.value) ?? sourceSize;
+                }
+              }
+              
+              // Build card widget
+              Widget cardWidget;
+              if (cardData != null) {
+                // Use actual card data to render CardWidget
+                final cardModel = CardModel.fromMap(cardData);
+                cardWidget = CardWidget(
+                  card: cardModel,
+                  dimensions: cardSize,
+                  config: CardDisplayConfig.forDiscardPile(), // Use discard pile config (face up)
+                  showBack: false, // Show face up during animation
+                  isSelected: false,
+                );
+              } else {
+                // Fallback to card back if no card data available
+                cardWidget = CardWidget(
+                  card: CardModel(
+                    cardId: 'animated_card',
+                    rank: '?',
+                    suit: '?',
+                    points: 0,
+                  ),
+                  dimensions: cardSize,
+                  config: CardDisplayConfig.forDiscardPile(),
+                  showBack: true, // Show back if no data
+                  isSelected: false,
+                );
+              }
+              
+              return Positioned(
+                left: cardPosition.dx,
+                top: cardPosition.dy,
+                child: Opacity(
+                  opacity: 1.0, // Fully visible during movement
+                  child: cardWidget,
+                ),
+              );
+            },
+          ),
+        ],
+      );
+    }
     
-    // Build card widget using actual CardWidget
+    // Build card widget using actual CardWidget (for other animation types)
     return AnimatedBuilder(
       animation: animation,
       builder: (context, child) {
         // For moveCard animation, interpolate between source and destination positions
         // For other animations, just use source position
         Offset cardPosition = localSourcePosition;
+        Size cardSize = sourceSize;
+        
         if (animationType == AnimationType.moveCard && localDestPosition != null) {
+          // Interpolate position
           cardPosition = Offset.lerp(localSourcePosition, localDestPosition, animation.value) ?? localSourcePosition;
+          
+          // Interpolate size if destination size is available
+          if (destSize != null) {
+            cardSize = Size.lerp(sourceSize, destSize, animation.value) ?? sourceSize;
+          }
         }
         
         // Build card widget
@@ -1388,7 +1592,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             Padding(
               padding: EdgeInsets.only(
                 right: cardPadding,
-                left: isDrawnCard ? cardPadding * 2 : 0,
               ),
               child: cardWidget,
             ),
@@ -2760,7 +2963,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             final cardDimensions = Size(cardWidth, cardHeight);
             final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
             final cardPadding = containerWidth * 0.02;
-            const drawnCardExtraPadding = 16.0; // Extra left padding for drawn card
             
             for (int i = 0; i < cards.length; i++) {
               final card = cards[i];
@@ -2940,7 +3142,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 Padding(
                   padding: EdgeInsets.only(
                     right: cardPadding,
-                    left: isDrawnCard ? drawnCardExtraPadding : 0,
                   ),
                   child: stackWidget,
                 ),
@@ -2970,7 +3171,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 Padding(
                   padding: EdgeInsets.only(
                     right: cardPadding,
-                    left: isDrawnCard ? drawnCardExtraPadding : 0,
                   ),
                   child: cardWidget,
                 ),
@@ -3546,27 +3746,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       isSelected: isSelected,
       onTap: () => _handleMyHandCardSelection(context, index, cardMap),
     );
-    
-    if (isDrawnCard) {
-      cardWidget = SizedBox(
-        width: cardDimensions.width,
-        height: cardDimensions.height,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFBC02D).withOpacity(0.6),
-                blurRadius: 12,
-                spreadRadius: 2,
-                offset: const Offset(0, 0),
-              ),
-            ],
-          ),
-          child: cardWidget,
-        ),
-      );
-    }
     
     // Apply glow effect based on current player status
     final glowColor = currentPlayerStatus != null 

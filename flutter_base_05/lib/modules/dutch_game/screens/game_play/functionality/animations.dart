@@ -13,6 +13,7 @@ enum AnimationType {
   scaleOut,
   move,
   moveCard,
+  moveWithEmptySlot,
   swap,
   peek,
   none,
@@ -30,15 +31,17 @@ class Animations {
   /// Action names come in format: 'action_name_${actionId}' (e.g., 'drawn_card_123456')
   static AnimationType getAnimationTypeForAction(String actionName) {
     // Extract base action name (remove the ID suffix)
-    final baseActionName = _extractBaseActionName(actionName);
+    final baseActionName = extractBaseActionName(actionName);
     
     switch (baseActionName) {
       case 'drawn_card':
         return AnimationType.moveCard; // Card moves from draw pile to hand
       case 'play_card':
-        return AnimationType.move; // TODO: Define actual animation type
+        return AnimationType.moveWithEmptySlot; // Card moves from hand to discard pile, with empty slot at start
       case 'same_rank':
-        return AnimationType.move; // TODO: Define actual animation type
+        return AnimationType.moveWithEmptySlot; // Card moves from hand to discard pile, with empty slot at start
+      case 'draw_reposition':
+        return AnimationType.moveCard; // Drawn card moves from original position to reposition destination
       case 'jack_swap':
         return AnimationType.swap; // TODO: Define actual animation type
       case 'queen_peek':
@@ -50,7 +53,7 @@ class Animations {
   
   /// Extract base action name from action string (removes ID suffix)
   /// Example: 'drawn_card_123456' -> 'drawn_card'
-  static String _extractBaseActionName(String actionName) {
+  static String extractBaseActionName(String actionName) {
     // Action names are in format: 'action_name_${6digitId}'
     // Find the last underscore and remove everything after it
     final lastUnderscoreIndex = actionName.lastIndexOf('_');
@@ -86,6 +89,8 @@ class Animations {
         return const Duration(milliseconds: 500); // TODO: Define actual duration
       case AnimationType.moveCard:
         return const Duration(milliseconds: 500); // TODO: Define actual duration
+      case AnimationType.moveWithEmptySlot:
+        return const Duration(milliseconds: 500); // Same as moveCard
       case AnimationType.swap:
         return const Duration(milliseconds: 600); // TODO: Define actual duration
       case AnimationType.peek:
@@ -111,6 +116,8 @@ class Animations {
         return Curves.easeInOutCubic; // TODO: Define actual curve
       case AnimationType.moveCard:
         return Curves.easeInOutCubic; // TODO: Define actual curve
+      case AnimationType.moveWithEmptySlot:
+        return Curves.easeInOutCubic; // Same as moveCard
       case AnimationType.swap:
         return Curves.easeInOut; // TODO: Define actual curve
       case AnimationType.peek:
@@ -252,6 +259,19 @@ class Animations {
   /// Get count of processed actions (for debugging)
   static int getProcessedActionsCount() {
     return _processedActions.length;
+  }
+  
+  /// Check if an action has already been processed
+  static bool isActionProcessed(String actionName) {
+    return _processedActions.contains(actionName);
+  }
+  
+  /// Mark an action as processed (called when animation starts)
+  static void markActionAsProcessed(String actionName) {
+    _processedActions.add(actionName);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 ANIMATION: Marked action as processed - $actionName');
+    }
   }
   
   /// Animate moveCard (card moving from draw pile to hand)

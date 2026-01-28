@@ -30,6 +30,17 @@ cd flutter_base_05
 SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log"
 echo "📝 Writing Logger output to: $SERVER_LOG_FILE"
 
+# Ensure log file directory exists and is writable
+LOG_DIR=$(dirname "$SERVER_LOG_FILE")
+if [ ! -d "$LOG_DIR" ]; then
+    echo "⚠️  Creating log directory: $LOG_DIR"
+    mkdir -p "$LOG_DIR"
+fi
+if [ ! -w "$LOG_DIR" ]; then
+    echo "❌ Error: Log directory is not writable: $LOG_DIR"
+    exit 1
+fi
+
 # Launch Flutter app with OnePlus device configuration
 echo "🎯 Launching Flutter app with OnePlus configuration..."
 
@@ -51,6 +62,8 @@ fi
 filter_logs() {
     while IFS= read -r line; do
         # Check if this is a Logger call (contains timestamp, level, and AppLogger)
+        # Android logcat format: MM-DD HH:MM:SS.mmm  PID  TID  TAG  MESSAGE
+        # Flutter logs may come in different formats, so we check for AppLogger pattern
         if echo "$line" | grep -q "\[.*\] \[.*\] \[AppLogger\]"; then
             # Extract original timestamp, level, and message from Flutter log
             # Format: [timestamp] [LEVEL] [AppLogger] message
@@ -103,7 +116,50 @@ filter_logs() {
     done
 }
 
-# Launch Flutter and filter output
+# Clear logcat buffer to start fresh
+echo "🧹 Clearing logcat buffer..."
+adb -s 84fbcf31 logcat -c
+
+# Start adb logcat in background to capture Android logs
+# Filter for Flutter/Dart tags and AppLogger messages
+# logcat default format: I/flutter ( PID): MESSAGE
+# Flutter Logger prints: [timestamp] [LEVEL] [AppLogger] message
+# The MESSAGE part contains the Flutter log format, so we extract it
+echo "📱 Starting logcat capture for AppLogger messages..."
+LOG_PID=""
+(
+    # Capture Flutter and Dart logs, suppress other tags
+    # Extract message part which contains: [timestamp] [LEVEL] [AppLogger] message
+    # logcat format: I/flutter ( PID): [timestamp] [LEVEL] [AppLogger] message
+    # We need to extract everything starting from the first [
+    adb -s 84fbcf31 logcat flutter:I dart:I *:S 2>&1 | \
+    grep "\[.*\] \[.*\] \[AppLogger\]" | \
+    sed -E 's/^[^[]*//' | \
+    filter_logs
+) &
+LOG_PID=$!
+
+# Trap to cleanup logcat process on exit
+cleanup() {
+    if [ ! -z "$LOG_PID" ]; then
+        echo "🛑 Stopping logcat capture..."
+        kill $LOG_PID 2>/dev/null || true
+        wait $LOG_PID 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT INT TERM
+
+# Give logcat a moment to start
+sleep 1
+
+# Test that logcat is working by checking if we can see any flutter logs
+echo "🔍 Testing logcat capture (waiting 2 seconds)..."
+sleep 2
+if ! kill -0 $LOG_PID 2>/dev/null; then
+    echo "⚠️  Warning: Logcat process may have exited early"
+fi
+
+# Launch Flutter app (logs will be captured via logcat)
 flutter run \
     -d 84fbcf31 \
     --dart-define=API_URL="$API_URL" \
@@ -119,7 +175,9 @@ flutter run \
     --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_51MXUtTADcEzB4rlRqLVPRhD0Ti3SRZGyTEQ1crO6YoeGyEfWYBgDxouHygPawog6kKTLVWHxP6DbK1MtBylX2Z6G00JTtIRdgZ \
     --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
     --dart-define=DEBUG_MODE=true \
-    --dart-define=ENABLE_REMOTE_LOGGING=true 2>&1 | filter_logs
+    --dart-define=ENABLE_REMOTE_LOGGING=true
+
+# Cleanup will happen automatically via trap
 
 echo "✅ Flutter app launch completed"
 echo "📝 Logger output written to: $SERVER_LOG_FILE"

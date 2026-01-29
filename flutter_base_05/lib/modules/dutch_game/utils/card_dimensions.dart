@@ -27,8 +27,8 @@ class CardDimensions {
     CardSize.extraLarge: 65.0, // Capped at max
   };
   
-  /// Stack offset percentage (15% of card height)
-  static const double STACK_OFFSET_PERCENTAGE = 0.15;
+  /// Stack offset percentage (10% of card height)
+  static const double STACK_OFFSET_PERCENTAGE = 0.10;
   
   /// Container height padding (additional height for container beyond card height)
   static const double CONTAINER_HEIGHT_PADDING = 20.0;
@@ -62,7 +62,7 @@ class CardDimensions {
     return width / CARD_ASPECT_RATIO;
   }
   
-  /// Get stack offset for collection cards (15% of card height)
+  /// Get stack offset for collection cards (10% of card height)
   /// 
   /// Used when stacking collection rank cards on top of each other
   static double getStackOffset(CardSize size) {

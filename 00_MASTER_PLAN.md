@@ -127,6 +127,26 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Expected Behavior**: The row/list of cards in the player's hand (my hand section) should be centered horizontally (and vertically if applicable) within the hand area
   - **Location**: Flutter UI for my hand – `unified_game_board_widget.dart` or related MyHandWidget / hand layout
   - **Impact**: Better visual balance and polish of the game board
+- [ ] **Fix home screen feature widget sizes including the text area**
+  - **Issue**: Home screen feature widgets (e.g. Dutch game entry, practice, etc.) have sizing issues; the text area and overall widget dimensions need adjustment
+  - **Expected Behavior**: Feature widget sizes should be consistent and appropriate; text area should fit content and scale correctly
+  - **Location**: Flutter home screen – feature/widget components that display game options or feature tiles (e.g. Dutch game card, practice mode entry)
+  - **Impact**: Better home screen layout and readability
+- [ ] **Remove the "failed to initialize websocket" snackbar error**
+  - **Issue**: A snackbar shows "failed to initialize websocket" (or similar) to the user when WebSocket initialization fails
+  - **Expected Behavior**: Remove or replace this snackbar so users are not shown this error (e.g. handle silently, use a less alarming message, or show only in debug)
+  - **Location**: Flutter – WebSocket initialization/connection handling (likely in websocket manager, connection status, or game/lobby screens)
+  - **Impact**: Avoid confusing or alarming users when WebSocket fails (e.g. in practice mode or before connection is needed)
+- [ ] **Remove padding around the game play table**
+  - **Issue**: There is padding around the game play table that should be removed
+  - **Expected Behavior**: No padding around the game play table; table uses full available space
+  - **Location**: Flutter game play screen / unified game board – table container or parent layout (e.g. `unified_game_board_widget.dart` or game play screen)
+  - **Impact**: More usable table area and consistent layout
+- [ ] **Table side borders: % based on table dimensions**
+  - **Issue**: Table side borders use fixed values; they should scale with the table
+  - **Expected Behavior**: Table side borders (left/right, and any decorative borders) should be defined as a **percentage of the table dimensions** (e.g. width or height) so they scale correctly on different screen sizes
+  - **Location**: Flutter game play table widget – border width/stroke (e.g. `unified_game_board_widget.dart` or table decoration)
+  - **Impact**: Consistent visual proportions across devices and window sizes
 
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
@@ -496,5 +516,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-01-29 (Added center my hand cards to TODO)
+**Last Updated**: 2026-01-29 (Added game play table: remove padding, table side borders %-based on dimensions)
 

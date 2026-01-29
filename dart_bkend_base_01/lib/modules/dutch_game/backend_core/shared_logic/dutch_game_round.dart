@@ -5521,6 +5521,41 @@ class DutchGameRound {
     }
   }
 
+  /// Wait until all players in SSOT game state have status 'waiting', or 5 second timeout.
+  /// Retries at interval; ensures animations/special play can complete before we proceed.
+  Future<void> _waitForAllPlayersWaiting() async {
+    const maxWait = Duration(seconds: 5);
+    const retryInterval = Duration(milliseconds: 150);
+    final deadline = DateTime.now().add(maxWait);
+    while (DateTime.now().isBefore(deadline)) {
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        await Future.delayed(retryInterval);
+        continue;
+      }
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      if (players.isEmpty) {
+        await Future.delayed(retryInterval);
+        continue;
+      }
+      final allWaiting = players.every((p) {
+        if (p is! Map<String, dynamic>) return false;
+        final status = p['status']?.toString() ?? '';
+        return status == 'waiting';
+      });
+      if (allWaiting) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: All ${players.length} players in waiting status - proceeding with move to next player');
+        }
+        return;
+      }
+      await Future.delayed(retryInterval);
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Wait for all players waiting timed out after 5s, proceeding with move to next player');
+    }
+  }
+
   /// Move to the next player (simplified version for practice)
   /// Public method to move to next player (called from leave_room handler when player is auto-removed)
   Future<void> moveToNextPlayer() async {
@@ -5529,6 +5564,8 @@ class DutchGameRound {
 
   Future<void> _moveToNextPlayer() async {
     try {
+      // Before selecting next player, confirm all players are 'waiting' (SSOT gameState.players) - retry up to 5s
+      await _waitForAllPlayersWaiting();
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Moving to next player (with 2 second delay)');
       };

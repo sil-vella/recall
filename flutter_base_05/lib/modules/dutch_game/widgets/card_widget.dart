@@ -12,7 +12,7 @@ import '../../../../tools/logging/logger.dart';
 /// Size is determined at the placement widget level and passed as dimensions.
 /// Config only controls appearance (displayMode, showPoints, etc.)
 class CardWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // Enable logging for errors only
+  static const bool LOGGING_SWITCH = true; // Enable logging for errors only
   static final Logger _logger = Logger();
   final CardModel card;
   final Size dimensions; // Required - size determined at placement widget level
@@ -97,8 +97,8 @@ class CardWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
-            color: AppColors.black.withOpacity(0.1),
-            blurRadius: 4,
+            color: AppColors.black.withOpacity(0.28),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -130,57 +130,33 @@ class CardWidget extends StatelessWidget {
                 final availableWidth = constraints.maxWidth;
                 final availableHeight = constraints.maxHeight;
                 
+                // Unified layout for ALL cards: top-left 1/4 height, empty center, bottom-right 3/4 height
                 return Column(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            // Centered display mode: rank and suit in center, no corners
-            if (config.displayMode == CardDisplayMode.centeredOnly) ...[
-              Expanded(
-                child: Center(
-                          child: _buildCenteredRankAndSuit(Size(availableWidth, availableHeight)),
-                ),
-              ),
-            ] else ...[
-              // Top-left rank and suit (always shown for non-centered modes)
-              Align(
-                alignment: Alignment.topLeft,
-                        child: _buildCornerText(Size(availableWidth, availableHeight)),
-              ),
-              
-                      // Center content - suit symbols for numbered cards
-                      // For special cards with background images, center is empty (image shows)
-              Expanded(
-                child: Center(
-                          child: (isSpecialCard && specialCardImagePath != null)
-                              ? const SizedBox.shrink() // Background image shows, no center content needed
-                              : _buildCenterContent(Size(availableWidth, availableHeight)),
-                ),
-              ),
-              
-              // Bottom-right rank and suit (rotated) - only shown in fullCorners mode
-              if (config.displayMode == CardDisplayMode.fullCorners) ...[
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Transform.rotate(
-                    angle: 3.14159, // 180 degrees
-                            child: _buildCornerText(Size(availableWidth, availableHeight)),
-                  ),
-                ),
-              ],
-            ],
-            
-            // Special power indicator
-            if (config.showSpecialPower && card.hasSpecialPower) ...[
-              const SizedBox(height: 4),
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    // Top-left rank and suit - constrained to remaining 1/3 height (no overflow)
+                    Align(
+                      alignment: Alignment.topLeft,
+                      child: _buildTopLeftCornerText(Size(availableWidth, availableHeight)),
+                    ),
+                    // Center: nothing
+                    const Expanded(child: SizedBox.shrink()),
+                    // Bottom-right rank and suit - block 3/4 of card height
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: _buildBottomRightCornerText(Size(availableWidth, availableHeight)),
+                    ),
+                    // Special power indicator
+                    if (config.showSpecialPower && card.hasSpecialPower) ...[
+                      const SizedBox(height: 4),
                       _buildSpecialPowerIndicator(Size(availableWidth, availableHeight)),
-            ],
-            
-            // Points indicator
-            if (config.showPoints) ...[
-              const SizedBox(height: 2),
+                    ],
+                    // Points indicator
+                    if (config.showPoints) ...[
+                      const SizedBox(height: 2),
                       _buildPointsIndicator(Size(availableWidth, availableHeight)),
-            ],
-          ],
+                    ],
+                  ],
                 );
               },
             ),
@@ -199,327 +175,55 @@ class CardWidget extends StatelessWidget {
     if (rank == 'joker') return 'assets/images/joker.png';
     return null;
   }
-  
-  /// Build center content for numbered cards (shows appropriate number of suit symbols)
-  Widget _buildCenterContent(Size dimensions) {
-    // For numbered cards, show the number of suit symbols
-    if (card.isNumberedCard) {
-      final rankNum = int.tryParse(card.rank);
-      if (rankNum != null && rankNum >= 2 && rankNum <= 10) {
-        return _buildNumberedCardCenter(dimensions, rankNum);
-      }
-    }
+  /// Build top-left corner text (rank and suit) - block sized to 1/4 of card height after padding, text fits without overflow
+  Widget _buildTopLeftCornerText(Size dimensions) {
+    final blockHeight = dimensions.height * (1 / 4);
+    final blockWidth = dimensions.width * 0.6;
+    final initialFontSize = blockHeight * 0.45;
     
-    // For Ace, show single large suit symbol
-    if (card.isAce) {
-      return _buildCenterSuit(dimensions);
-    }
-    
-    // Default: show single suit symbol
-    return _buildCenterSuit(dimensions);
-  }
-  
-  /// Build center for numbered cards - shows appropriate number of suit symbols
-  Widget _buildNumberedCardCenter(Size dimensions, int rankNum) {
-    final suitSymbol = card.suitSymbol;
-    final suitColor = card.color;
-    
-    // Calculate font size based on available space, ensuring it fits
-    // Use the smaller dimension to ensure it fits both width and height
-    final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
-    // Ensure minDimension is valid (at least 1.0) to prevent clamp errors
-    final safeMinDimension = minDimension > 0 ? minDimension : 1.0;
-    // Calculate max font size: ensure symbols fit with spacing
-    // For higher ranks, we need smaller symbols to fit more
-    final baseFontSize = safeMinDimension * 0.2;
-    final maxFontSize1 = safeMinDimension * 0.25;
-    final maxFontSize2 = safeMinDimension * 0.2;
-    final fontSize = (rankNum <= 4) 
-        ? baseFontSize.clamp(8.0, maxFontSize1 > 8.0 ? maxFontSize1 : 8.0)
-        : (baseFontSize * 0.8).clamp(6.0, maxFontSize2 > 6.0 ? maxFontSize2 : 6.0);
-    
-    // Calculate spacing based on available space
-    final safeHeight = dimensions.height > 0 ? dimensions.height : 1.0;
-    final safeWidth = dimensions.width > 0 ? dimensions.width : 1.0;
-    final maxVerticalSpacing = safeHeight * 0.15;
-    final maxHorizontalSpacing = safeWidth * 0.2;
-    final verticalSpacing = (safeHeight * 0.08).clamp(2.0, maxVerticalSpacing > 2.0 ? maxVerticalSpacing : 2.0);
-    final horizontalSpacing = (safeWidth * 0.1).clamp(2.0, maxHorizontalSpacing > 2.0 ? maxHorizontalSpacing : 2.0);
-    
-    // Use FittedBox to ensure content scales down if needed
-    Widget buildSymbol() {
-      return FittedBox(
-        fit: BoxFit.scaleDown,
+    return SizedBox(
+      height: blockHeight,
+      width: blockWidth,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        alignment: Alignment.topLeft,
         child: Text(
-          suitSymbol,
+          '${card.rankSymbol}\n${card.suitSymbol}',
           style: TextStyle(
-            fontSize: fontSize,
-            color: suitColor,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-    
-    // Arrange suit symbols based on number
-    // For 2-6: show in a pattern
-    // For 7-10: show in a pattern with more symbols
-    if (rankNum == 2) {
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            buildSymbol(),
-            SizedBox(height: verticalSpacing * 2),
-            buildSymbol(),
-          ],
-        ),
-      );
-    } else if (rankNum == 3) {
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            buildSymbol(),
-            SizedBox(height: verticalSpacing),
-            buildSymbol(),
-            SizedBox(height: verticalSpacing),
-            buildSymbol(),
-          ],
-        ),
-      );
-    } else if (rankNum == 4) {
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                buildSymbol(),
-                SizedBox(width: horizontalSpacing),
-                buildSymbol(),
-              ],
-            ),
-            SizedBox(height: verticalSpacing * 1.5),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                buildSymbol(),
-                SizedBox(width: horizontalSpacing),
-                buildSymbol(),
-              ],
-            ),
-          ],
-        ),
-      );
-    } else if (rankNum == 5) {
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                buildSymbol(),
-                SizedBox(width: horizontalSpacing),
-                buildSymbol(),
-              ],
-            ),
-            SizedBox(height: verticalSpacing),
-            buildSymbol(),
-            SizedBox(height: verticalSpacing),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                buildSymbol(),
-                SizedBox(width: horizontalSpacing),
-                buildSymbol(),
-              ],
-            ),
-          ],
-        ),
-      );
-    } else if (rankNum == 6) {
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                buildSymbol(),
-                SizedBox(width: horizontalSpacing),
-                buildSymbol(),
-              ],
-            ),
-            SizedBox(height: verticalSpacing),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                buildSymbol(),
-                SizedBox(width: horizontalSpacing),
-                buildSymbol(),
-              ],
-            ),
-            SizedBox(height: verticalSpacing),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                buildSymbol(),
-                SizedBox(width: horizontalSpacing),
-                buildSymbol(),
-              ],
-            ),
-          ],
-        ),
-      );
-    } else {
-      // For 7-10, show a grid pattern
-      final symbolsPerRow = rankNum <= 8 ? 2 : 3;
-      final totalRows = (rankNum / symbolsPerRow).ceil();
-      
-      final rows = <Widget>[];
-      int symbolCount = 0;
-      for (int row = 0; row < totalRows; row++) {
-        final rowSymbols = <Widget>[];
-        for (int col = 0; col < symbolsPerRow && symbolCount < rankNum; col++) {
-          rowSymbols.add(buildSymbol());
-          if (col < symbolsPerRow - 1 && symbolCount < rankNum - 1) {
-            rowSymbols.add(SizedBox(width: horizontalSpacing));
-          }
-          symbolCount++;
-        }
-        rows.add(
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: rowSymbols,
-          ),
-        );
-        if (row < totalRows - 1) {
-          rows.add(SizedBox(height: verticalSpacing));
-        }
-      }
-      
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: rows,
-        ),
-      );
-    }
-  }
-
-
-
-  /// Build corner text (rank and suit)
-  Widget _buildCornerText(Size dimensions) {
-    // Calculate font size based on available space
-    final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
-    // Ensure minDimension is valid (at least 1.0) to prevent clamp errors
-    final safeMinDimension = minDimension > 0 ? minDimension : 1.0;
-    final calculatedSize = safeMinDimension * 0.12;
-    final maxSize = safeMinDimension * 0.15;
-    // Ensure clamp values are in correct order (min <= max)
-    final fontSize = calculatedSize.clamp(8.0, maxSize > 8.0 ? maxSize : 8.0);
-    
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      alignment: Alignment.topLeft,
-      child: Text(
-      '${card.rankSymbol}\n${card.suitSymbol}',
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: FontWeight.bold,
-        color: card.color,
-        height: 1.0,
-        ),
-        textAlign: TextAlign.left,
-      ),
-    );
-  }
-
-  /// Build center suit symbol (for Ace)
-  Widget _buildCenterSuit(Size dimensions) {
-    // Calculate font size based on available space
-    final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
-    // Ensure minDimension is valid (at least 1.0) to prevent clamp errors
-    final safeMinDimension = minDimension > 0 ? minDimension : 1.0;
-    final maxFontSize = safeMinDimension * 0.4;
-    final fontSize = (safeMinDimension * 0.3).clamp(12.0, maxFontSize > 12.0 ? maxFontSize : 12.0);
-    
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Text(
-      card.suitSymbol,
-      style: TextStyle(
-        fontSize: fontSize,
-        color: card.color,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
-  /// Build centered rank and suit (for opponent cards)
-  /// Shows rank and suit in the center, text size is 40% of card height
-  Widget _buildCenteredRankAndSuit(Size dimensions) {
-    // Calculate font size based on available space
-    final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
-    // Ensure minDimension is valid (at least 1.0) to prevent clamp errors
-    final safeMinDimension = minDimension > 0 ? minDimension : 1.0;
-    final maxFontSize = safeMinDimension * 0.5;
-    final fontSize = (safeMinDimension * 0.4).clamp(10.0, maxFontSize > 10.0 ? maxFontSize : 10.0);
-    
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Rank
-        Text(
-          card.rankSymbol,
-          style: TextStyle(
-            fontSize: fontSize,
+            fontSize: initialFontSize,
             fontWeight: FontWeight.bold,
             color: card.color,
             height: 1.0,
           ),
-            textAlign: TextAlign.center,
+          textAlign: TextAlign.left,
         ),
-        // Suit
-        Text(
-          card.suitSymbol,
+      ),
+    );
+  }
+
+  /// Build bottom-right corner text (rank and suit) - block sized to 3/4 of card height, text fills that space
+  Widget _buildBottomRightCornerText(Size dimensions) {
+    final blockHeight = dimensions.height * (3 / 4);
+    final blockWidth = dimensions.width * 0.6;
+    // Use large initial fontSize so FittedBox scales it down to fill the 2/3-height box
+    final initialFontSize = blockHeight * 0.45;
+    
+    return SizedBox(
+      height: blockHeight,
+      width: blockWidth,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        alignment: Alignment.bottomRight,
+        child: Text(
+          '${card.rankSymbol}\n${card.suitSymbol}',
           style: TextStyle(
-            fontSize: fontSize,
+            fontSize: initialFontSize,
+            fontWeight: FontWeight.bold,
             color: card.color,
             height: 1.0,
           ),
-            textAlign: TextAlign.center,
+          textAlign: TextAlign.right,
         ),
-      ],
       ),
     );
   }
@@ -598,8 +302,8 @@ class CardWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
-            color: AppColors.black.withOpacity(0.1),
-            blurRadius: 4,
+            color: AppColors.black.withOpacity(0.28),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -694,18 +398,27 @@ class CardWidget extends StatelessWidget {
     );
   }
 
-  /// Build selection wrapper with highlight
+  /// Build selection wrapper with overlay (same color 0.5 opacity, no border)
   /// Ensures exact dimensions are maintained
   Widget _buildSelectionWrapper(Widget child, Size dimensions) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(config.borderRadius),
-        border: Border.all(
-          color: AppColors.successColor,
-          width: 6.0,
+    final borderRadius = (config.borderRadius == 8.0)
+        ? CardDimensions.calculateBorderRadius(dimensions)
+        : config.borderRadius;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.successColor.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(borderRadius),
+              ),
+            ),
+          ),
         ),
-      ),
-      child: child,
+      ],
     );
   }
 

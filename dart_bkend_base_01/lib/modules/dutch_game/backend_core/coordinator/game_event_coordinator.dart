@@ -1036,10 +1036,8 @@ class GameEventCoordinator {
       (knownCards[playerId] as Map<String, dynamic>)[cardId] = nonCollectionCard;
       computerPlayer['known_cards'] = knownCards;
 
-      // Add the selected card full data to player's collection_rank_cards list
-      final collectionRankCards = computerPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-      collectionRankCards.add(selectedCardForCollection);
-      computerPlayer['collection_rank_cards'] = collectionRankCards;
+      // Set collection_rank_cards to exactly the one selected card (replace, don't append - ensures no duplicate from store/merge)
+      computerPlayer['collection_rank_cards'] = [selectedCardForCollection];
       computerPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
 
       if (LOGGING_SWITCH) {
@@ -1430,8 +1428,8 @@ class GameEventCoordinator {
 
         final fullCardData = _getCardById(gameState, selectedCardForCollection['cardId'] as String);
         if (fullCardData != null) {
-          final collectionRankCards = humanPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-          collectionRankCards.add(fullCardData);
+          // Set collection_rank_cards to exactly the one selected card (replace, don't append - ensures no duplicate from store/merge)
+          final collectionRankCards = [fullCardData];
           humanPlayer['collection_rank_cards'] = collectionRankCards;
           humanPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
           // Also update in games map for consistency
@@ -1491,20 +1489,11 @@ class GameEventCoordinator {
         _logger.info('GameEventCoordinator: Completed initial peek - human player set to WAITING status');
       }
 
-      // Check if all players have completed initial peek
-      if (_allPlayersCompletedInitialPeek(roomId)) {
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: All players completed initial peek, cancelling timer and completing phase');
-        }
-        // Cancel the timer since all players completed
-        _initialPeekTimers[roomId]?.cancel();
-        _initialPeekTimers[roomId] = null;
-        // Complete initial peek phase immediately
-        await _completeInitialPeek(roomId, round);
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Player completed initial peek, waiting for others or timer expiry');
-        }
+      // Phase completion (clearing cardsToPeek, transition to player_turn) happens only when
+      // the initial peek timer expires - same for both clear and clear-and-collect modes.
+      // cardsToPeek stays visible until timer expiry so the UI can show the peeked cards.
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Player completed initial peek, waiting for timer expiry');
       }
 
     } catch (e) {

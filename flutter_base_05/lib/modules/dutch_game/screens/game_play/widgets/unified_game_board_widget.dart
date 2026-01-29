@@ -586,7 +586,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
   
-  /// Build flash borders for flashCard animation - renders borders on all peeked cards simultaneously
+  /// Build flash overlays for flashCard animation - renders filled overlays on all peeked cards (same color 0.5 opacity)
   List<Widget> _buildFlashCardBorders(Map<String, dynamic> animData, Offset stackGlobalOffset) {
     final animationController = animData['controller'] as AnimationController?;
     final animation = animData['animation'] as Animation<double>?;
@@ -596,9 +596,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       return [];
     }
     
-    // Use peeking color from theme
-    final borderColor = AppColors.statusPeeking;
-    const borderWidth = 4.0;
+    // Use peeking color at 0.5 opacity for overlay (no border)
+    final overlayColor = AppColors.statusPeeking.withOpacity(0.5);
     
     // Create 3 flashes: flash at 0.0-0.33, 0.33-0.66, 0.66-1.0
     // Each flash: fade in (0-0.1), stay visible (0.1-0.4), fade out (0.4-0.5)
@@ -671,10 +670,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 width: size.width,
                 height: size.height,
                 decoration: BoxDecoration(
-                  border: Border.all(
-                    color: borderColor,
-                    width: borderWidth,
-                  ),
+                  color: overlayColor,
                   borderRadius: BorderRadius.circular(8.0), // Match card border radius
                 ),
               ),
@@ -1160,7 +1156,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           }
         }
         
-        if (cardBounds != null) {
+        // For initial_peek, skip flashing our own cards - we select them ourselves, no overlay needed on my hand
+        if (baseActionName == 'initial_peek' && isTargetMyHand) {
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 _triggerFlashCardAnimation: Skipping initial_peek flash on my hand card (index $cardIndex)');
+          }
+        } else if (cardBounds != null) {
           cardBoundsList.add(cardBounds);
         }
       }
@@ -3248,7 +3249,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     return Container(
       child: Padding(
-        padding: const EdgeInsets.all(1.0),
+        padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3354,7 +3355,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             if (cards.isEmpty)
               _buildMyHandEmptyHand()
             else
-              _buildMyHandCardsGrid(cards, cardsToPeek, selectedIndex),
+              Align(
+                alignment: Alignment.center,
+                child: _buildMyHandCardsGrid(cards, cardsToPeek, selectedIndex),
+              ),
           ],
         ),
       ),
@@ -3669,12 +3673,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             ),
           );
           
-          // Use Wrap widget to allow cards to wrap to next line
+          // Leading spacer so visible cards are centered: offset by one invisible-slot width so the visible row is centered
+          final extraSlotWidth = cardDimensions.width + cardPadding;
+          final leadingOffset = extraSlotWidth;
+          
+          // Use Wrap widget to allow cards to wrap to next line (match opponents: same spacing, center aligned)
           final wrapWidget = Wrap(
             spacing: 0, // Spacing is handled by card padding
             runSpacing: cardPadding, // Vertical spacing between wrapped rows
-            alignment: WrapAlignment.start, // Align cards to the left
-            children: cardWidgets,
+            alignment: WrapAlignment.center,
+            children: [
+              SizedBox(width: leadingOffset),
+              ...cardWidgets,
+            ],
           );
           
           // Update card bounds after build

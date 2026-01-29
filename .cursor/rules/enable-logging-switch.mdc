@@ -14,10 +14,10 @@ Enable `LOGGING_SWITCH` constants in related files to test latest changes by rea
 ## Usage
 
 When working with files that contain `LOGGING_SWITCH`:
-1. **ALWAYS set `LOGGING_SWITCH = true`** in the file you're debugging
+1. **ALWAYS set `LOGGING_*SWITCH = true`** in the file you're debugging
 2. Run the application to generate logs
 3. Check `python_base_04/tools/logger/server.log` for debug output
-4. Keep `LOGGING_SWITCH = true` to maintain logging for debugging and testing
+4. Keep `LOGGING_*SWITCH = true` to maintain logging for debugging and testing
 
 **Important**: Always turn logging switches to `true` when working with action data, state changes, or debugging game logic. This ensures all relevant information is captured in the logs.
 

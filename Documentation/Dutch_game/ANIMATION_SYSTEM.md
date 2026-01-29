@@ -40,7 +40,7 @@ All animated actions use the **same queue format** so the UI can consume them un
 | Action                 | Declared in / when                    | actionData shape |
 |------------------------|----------------------------------------|------------------|
 | `drawn_card_<id>`      | After adding drawn card to hand        | `card1Data: { cardIndex, playerId }` (destination hand index) |
-| `collect_from_discard_<id>` | After adding collected card to hand   | `card1Data: { cardIndex, playerId }` (destination hand index) |
+| `collect_from_discard_<id>` | After adding collected card to hand   | `card1Data: { cardIndex, playerId }` — **cardIndex = first collection card index** (stack position), not append index; see §2.3 |
 | `play_card_<id>`       | When playing a card to discard         | `card1Data: { cardIndex, playerId }` (source hand) |
 | `same_rank_<id>`       | When playing same-rank to discard      | `card1Data: { cardIndex, playerId }` |
 | `draw_reposition_<id>`| When repositioning drawn card in hand | `card1Data`, `card2Data`: each `{ cardIndex, playerId }` (source slot, dest slot) |
@@ -50,6 +50,10 @@ All animated actions use the **same queue format** so the UI can consume them un
 
 - **IDs**: 6-digit numeric suffix from `_generateActionId()` (100000–999999) so each action name is unique.
 - **Base name**: Obtained by stripping that suffix (e.g. `drawn_card_123456` → `drawn_card`). Used for mapping to animation type and for overlay logic (e.g. empty slot at source vs destination).
+
+### 2.3 Collection destination index (collect_from_discard)
+
+When a card is collected from the discard pile it is **appended** to the hand and added to `collection_rank_cards`. The UI renders collection cards as a **stack** at the **first** collection card’s hand index (see §5.4). The action must therefore declare **cardIndex = first collection card index** (the minimum hand index whose card is in `collection_rank_cards`), not the append index (`hand.length - 1`). Otherwise the animation would target the wrong slot. Game round computes this in `handleCollectFromDiscard`: after adding the card to hand and to `collection_rank_cards`, it scans the hand for the first index whose card is in the collection set and uses that as `cardIndex` in the action.
 
 ---
 
@@ -108,8 +112,8 @@ Each bounds entry has `position` (global Offset) and `size` (Size).
 ### 5.2 When bounds are updated
 
 - **Piles**: Via a rate-limited callback (e.g. 5-second interval) that reads `drawPileKey`, `discardPileKey`, `gameBoardKey` and updates `_drawPileBounds`, `_discardPileBounds`, `_gameBoardBounds`.
-- **My hand**: Widgets call `updateMyHandCardBounds(index, cardKey)` when laying out (e.g. from MyHandWidget). Uses `getCardBounds(cardKey)` (RenderBox) and stores result; can call `onCardBoundsChanged`.
-- **Opponents**: Widgets call `updateOpponentCardBounds(playerId, index, cardKey)`; same pattern.
+- **My hand**: A **post-frame callback** in the unified game board iterates over all hand indices and calls `updateMyHandCardBounds(i, cardKey)`. For **collection stack** indices, the same key (first collection index’s key) is used so all get the same bounds; see §5.4.
+- **Opponents**: Same pattern: post-frame callback iterates indices and calls `updateOpponentCardBounds(playerId, i, cardKey)`. Collection indices use the first collection index’s key; see §5.4.
 - **Cleanup**: `clearMissingMyHandCardBounds`, `clearMissingOpponentCardBounds` remove indices that no longer exist.
 
 ### 5.3 How animations use bounds
@@ -120,6 +124,15 @@ Each bounds entry has `position` (global Offset) and `size` (Size).
 - **flashCard**: Collects a list of card bounds (from my hand + opponents) for the peeked cards and passes them to the overlay.
 
 So overlay positions are **always** from the cache (`getCached*`), not from a second measurement at animation time.
+
+### 5.4 Collection stacks (one key per stack)
+
+Collection cards (same rank) are rendered as a **stack** at a single slot: the **first** collection card’s hand index. Bounds are normalized so that **every index that belongs to that stack** resolves to the **same** bounds (the stack position). That way animations that target any collection index (e.g. `collect_from_discard` with `cardIndex` = first collection index) use the stack position.
+
+- **My hand**: The stack is built with **one key** on the stack container (`SizedBox`), not on each inner card. Inner cards are built with `key: null`. In the post-frame bounds callback, the widget computes the set of **collection indices** (hand indices whose card is in `collection_rank_cards`), takes the **first** (minimum) index, and for every index in that set uses that index’s key when calling `updateMyHandCardBounds`. So all collection indices get the same cached bounds (the stack container’s bounds).
+- **Opponents**: The stack reuses existing card widgets; in the post-frame callback, for every index in the collection set the same key (first collection index’s key) is used when calling `updateOpponentCardBounds`. So all collection indices again share one bounds (the first card’s position = stack position).
+
+The **declaration** side (game round) must pass the **first collection index** as `cardIndex` for actions that animate to a collection (e.g. `collect_from_discard`); see §2.3.
 
 ---
 

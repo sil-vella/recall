@@ -93,6 +93,73 @@ class DutchGameRound {
     }
   }
 
+  /// Resolve all hand and collection_rank_cards to full card data (cardId, rank, suit, points, specialPower).
+  /// Used before game_ended broadcast so the UI can show final hands. Mutates the games map in place.
+  void _resolveAllHandsToFullDataInGamesMap(Map<String, dynamic> gamesMap) {
+    try {
+      final gameData = gamesMap[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      if (gameState == null) return;
+
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      for (final p in players) {
+        if (p is! Map<String, dynamic>) continue;
+        // Resolve hand
+        final hand = p['hand'] as List<dynamic>? ?? [];
+        for (int i = 0; i < hand.length; i++) {
+          final card = hand[i];
+          if (card == null) continue;
+          if (card is! Map<String, dynamic>) continue;
+          final rank = card['rank']?.toString() ?? '?';
+          final suit = card['suit']?.toString() ?? '?';
+          if (rank == '?' && suit == '?') {
+            final cardId = card['cardId']?.toString();
+            if (cardId != null && cardId.isNotEmpty) {
+              final full = _stateCallback.getCardById(gameState, cardId);
+              if (full != null) {
+                hand[i] = {
+                  'cardId': full['cardId'],
+                  'rank': full['rank'],
+                  'suit': full['suit'],
+                  'points': full['points'] ?? 0,
+                  if (full['specialPower'] != null) 'specialPower': full['specialPower'],
+                };
+              }
+            }
+          }
+        }
+        // Resolve collection_rank_cards
+        final collectionRankCards = p['collection_rank_cards'] as List<dynamic>? ?? [];
+        for (int i = 0; i < collectionRankCards.length; i++) {
+          final card = collectionRankCards[i];
+          if (card is! Map<String, dynamic>) continue;
+          final rank = card['rank']?.toString() ?? '?';
+          final suit = card['suit']?.toString() ?? '?';
+          if (rank == '?' && suit == '?') {
+            final cardId = card['cardId']?.toString();
+            if (cardId != null && cardId.isNotEmpty) {
+              final full = _stateCallback.getCardById(gameState, cardId);
+              if (full != null) {
+                collectionRankCards[i] = {
+                  'cardId': full['cardId'],
+                  'rank': full['rank'],
+                  'suit': full['suit'],
+                  'points': full['points'] ?? 0,
+                  if (full['specialPower'] != null) 'specialPower': full['specialPower'],
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error resolving hands to full data: $e');
+      }
+    }
+  }
+
   /// Helper method to sanitize all players' drawnCard data to ID-only format before broadcasting
   /// This prevents opponents from seeing full card data when state updates are broadcast
   /// Should be called before any onGameStateChanged() that broadcasts to all players
@@ -4486,6 +4553,10 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Set all players to waiting status');
         };
+        
+        // Before broadcast: replace all hand and collection_rank_cards with full card data so UI shows final hands
+        final currentGames = _stateCallback.currentGamesMap;
+        _resolveAllHandsToFullDataInGamesMap(currentGames);
         
         // Update game phase to game_ended and include winners list (must match validator allowed values)
         _stateCallback.onGameStateChanged({

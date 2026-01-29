@@ -126,6 +126,73 @@ class DutchGameRound {
     });
   }
 
+  /// Resolve all hand and collection_rank_cards to full card data (cardId, rank, suit, points, specialPower).
+  /// Used before game_ended broadcast so the UI can show final hands. Mutates the games map in place.
+  void _resolveAllHandsToFullDataInGamesMap(Map<String, dynamic> gamesMap) {
+    try {
+      final gameData = gamesMap[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      if (gameState == null) return;
+
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      for (final p in players) {
+        if (p is! Map<String, dynamic>) continue;
+        // Resolve hand
+        final hand = p['hand'] as List<dynamic>? ?? [];
+        for (int i = 0; i < hand.length; i++) {
+          final card = hand[i];
+          if (card == null) continue;
+          if (card is! Map<String, dynamic>) continue;
+          final rank = card['rank']?.toString() ?? '?';
+          final suit = card['suit']?.toString() ?? '?';
+          if (rank == '?' && suit == '?') {
+            final cardId = card['cardId']?.toString();
+            if (cardId != null && cardId.isNotEmpty) {
+              final full = _stateCallback.getCardById(gameState, cardId);
+              if (full != null) {
+                hand[i] = {
+                  'cardId': full['cardId'],
+                  'rank': full['rank'],
+                  'suit': full['suit'],
+                  'points': full['points'] ?? 0,
+                  if (full['specialPower'] != null) 'specialPower': full['specialPower'],
+                };
+              }
+            }
+          }
+        }
+        // Resolve collection_rank_cards
+        final collectionRankCards = p['collection_rank_cards'] as List<dynamic>? ?? [];
+        for (int i = 0; i < collectionRankCards.length; i++) {
+          final card = collectionRankCards[i];
+          if (card is! Map<String, dynamic>) continue;
+          final rank = card['rank']?.toString() ?? '?';
+          final suit = card['suit']?.toString() ?? '?';
+          if (rank == '?' && suit == '?') {
+            final cardId = card['cardId']?.toString();
+            if (cardId != null && cardId.isNotEmpty) {
+              final full = _stateCallback.getCardById(gameState, cardId);
+              if (full != null) {
+                collectionRankCards[i] = {
+                  'cardId': full['cardId'],
+                  'rank': full['rank'],
+                  'suit': full['suit'],
+                  'points': full['points'] ?? 0,
+                  if (full['specialPower'] != null) 'specialPower': full['specialPower'],
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error resolving hands to full data: $e');
+      }
+    }
+  }
+
   /// Helper method to sanitize all players' drawnCard data to ID-only format before broadcasting
   /// This prevents opponents from seeing full card data when state updates are broadcast
   /// Should be called before any onGameStateChanged() that broadcasts to all players
@@ -1478,6 +1545,12 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleDrawCard(String source, {String? playerId, Map<String, dynamic>? gamesMap}) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping draw card handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling draw card from $source pile');
       };
@@ -2033,6 +2106,12 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleCollectFromDiscard(String playerId, {Map<String, dynamic>? gamesMap}) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping collect card handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling collect from discard for player $playerId');
       };
@@ -2358,6 +2437,12 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handlePlayCard(String cardId, {String? playerId, Map<String, dynamic>? gamesMap}) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping play card handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling play card: $cardId');
       };
@@ -2890,6 +2975,12 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleSameRankPlay(String playerId, String cardId, {Map<String, dynamic>? gamesMap}) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping same rank play handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling same rank play for player $playerId, card $cardId');
       };
@@ -2967,32 +3058,6 @@ class DutchGameRound {
       
       final cardRank = playedCardFullData['rank']?.toString() ?? '';
       final cardSuit = playedCardFullData['suit']?.toString() ?? '';
-      
-      // Check if card is in player's collection_rank_cards (cannot be played for same rank) - only if collection mode is enabled
-      final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
-      if (isClearAndCollect) {
-        final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
-        for (var collectionCard in collectionRankCards) {
-          if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played for same rank');
-            };
-            
-            // Show error message to user via actionError state
-            _stateCallback.onActionError(
-              'This card is in your collection and cannot be played for same rank.',
-              data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
-            );
-            
-            // No status change needed - status will change automatically when same rank window expires
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: Collection rank card rejected - status will auto-expire with same rank window');
-            };
-            
-            return false;
-          }
-        }
-      }
       
       // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
@@ -3262,6 +3327,12 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping jack swap handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)');
       };
@@ -3582,6 +3653,12 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping queen peek handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling Queen peek - player $peekingPlayerId peeking at card $targetCardId from player $targetPlayerId');
       };
@@ -3899,6 +3976,12 @@ class DutchGameRound {
   /// Replicates backend's _handle_same_rank_window method in game_round.py lines 566-585
   void _handleSameRankWindow() {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping same rank window.');
+        };
+        return;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Starting same rank window - setting all players to same_rank_window status');
       };
@@ -4548,6 +4631,10 @@ class DutchGameRound {
           _logger.info('Dutch: Set all players to waiting status');
         };
         
+        // Before broadcast: replace all hand and collection_rank_cards with full card data so UI shows final hands
+        final currentGames = _stateCallback.currentGamesMap;
+        _resolveAllHandsToFullDataInGamesMap(currentGames);
+        
         // Update game phase to game_ended and include winners list (must match validator allowed values)
         _stateCallback.onGameStateChanged({
           'gamePhase': 'game_ended',
@@ -4963,13 +5050,6 @@ class DutchGameRound {
           continue;
         }
         
-        if (collectionCardIds.contains(cardId)) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Card $cardId is a collection card, skipping');
-          };
-          continue;
-        }
-        
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: DEBUG - Card $cardId is available for same rank play!');
         };
@@ -4993,6 +5073,12 @@ class DutchGameRound {
   /// Replicates backend's _handle_special_cards_window method in game_round.py lines 656-694
   void _handleSpecialCardsWindow() {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping special play window.');
+        };
+        return;
+      }
       // Check if we have any special cards played
       if (_specialCardData.isEmpty) {
         if (LOGGING_SWITCH) {
@@ -5058,6 +5144,12 @@ class DutchGameRound {
   /// Replicates backend's _process_next_special_card method in game_round.py lines 696-739
   void _processNextSpecialCard() {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping next special card processing.');
+        };
+        return;
+      }
       // Check if we're already ending the window (prevent race condition)
       if (_isEndingSpecialCardsWindow) {
         if (LOGGING_SWITCH) {

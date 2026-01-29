@@ -2,18 +2,18 @@
 # Enable/disable predefined hands dealing
 enabled: true
 
-# Predefined hands for each player (test deck: 4 aces, 8 jacks, 8 queens)
+# Predefined hands for each player (test deck: 4 aces, 4 threes, 8 jacks, 8 queens)
 # Players are indexed: 0 = first player (human in practice), 1+ = computer players
 # All 8 jacks are in players 1–3 for jack-swap testing
 hands:
-  player_0:  # Human player – no jacks (4 aces)
-    - rank: "ace"
+  player_0:  # Human player – all rank 3 (4 threes)
+    - rank: "3"
       suit: "hearts"
-    - rank: "ace"
+    - rank: "3"
       suit: "diamonds"
-    - rank: "ace"
+    - rank: "3"
       suit: "clubs"
-    - rank: "ace"
+    - rank: "3"
       suit: "spades"
 
   player_1:  # First computer player – 3 jacks + 1 queen (test deck: 2 jacks per suit)

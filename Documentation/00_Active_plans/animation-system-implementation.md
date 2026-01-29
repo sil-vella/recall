@@ -122,7 +122,7 @@ Implement a simple, non-position-tracking animation system for card movements in
 - Added extensive logging for debugging playerId matching
 
 **Logging Enhancement:**
-- Enabled `LOGGING_SWITCH = true` in unified widget
+- Enabled `LOGGING_SWITCH = false` in unified widget
 - Added comprehensive logging throughout animation system:
   - State change processing
   - Animation triggering

@@ -78,7 +78,7 @@ standard_deck:
       quantity_total: 2
       suit: "joker"
 
-# Testing deck configuration - 20 cards total: 8 jacks, 8 queens, 4 aces
+# Testing deck configuration - 24 cards total: 4 aces, 4 threes, 8 jacks, 8 queens
 testing_deck:
   suits:
     - hearts
@@ -89,6 +89,10 @@ testing_deck:
   ranks:
     ace:
       points: 1
+      special_power: null
+      quantity_per_suit: 1  # 1 per suit × 4 suits = 4 cards
+    "3":
+      points: 3
       special_power: null
       quantity_per_suit: 1  # 1 per suit × 4 suits = 4 cards
     jack:
@@ -182,7 +186,7 @@ deck_stats:
     special_cards: 8  # 4 queens + 4 jacks
   
   testing:
-    total_cards: 20  # 4 aces + 8 jacks + 8 queens = 20 cards
+    total_cards: 24  # 4 aces + 4 threes + 8 jacks + 8 queens = 24 cards
     suits: 4
     ranks_per_suit: 3  # ace (1) + jacks (2) + queens (2) = 5 per suit, but only 3 ranks
     jokers: 0

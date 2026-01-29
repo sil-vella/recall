@@ -122,6 +122,11 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Expected Behavior**: Make the shadow at the top of the collection cards widget **a bit darker**; **decrease the stack offset to 10%** (of card height)
   - **Location**: `flutter_base_05/lib/modules/dutch_game/utils/card_dimensions.dart` – `STACK_OFFSET_PERCENTAGE` (change from 0.15 to 0.10); Flutter widget that draws the collection stack (unified_game_board_widget or related) – shadow styling for the stack
   - **Impact**: Clearer visual separation of stacked collection cards and more readable stack
+- [ ] **Center my hand cards**
+  - **Issue**: My hand cards should be centered in their container
+  - **Expected Behavior**: The row/list of cards in the player's hand (my hand section) should be centered horizontally (and vertically if applicable) within the hand area
+  - **Location**: Flutter UI for my hand – `unified_game_board_widget.dart` or related MyHandWidget / hand layout
+  - **Impact**: Better visual balance and polish of the game board
 
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
@@ -491,5 +496,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2025-01-27 (Added collection stack shadow/10% offset, match-end full card reveal, winners popup all 4 players with cards/points)
+**Last Updated**: 2026-01-29 (Added center my hand cards to TODO)
 

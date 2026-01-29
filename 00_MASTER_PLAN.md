@@ -116,6 +116,12 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Scope**: My hand, discard pile, and any other areas that show full card data
   - **Location**: Flutter card display widgets for hand, discard, and shared card component used by opponents section; ensure one consistent "compact full-data" style
   - **Impact**: Consistent visual language across the board; clearer distinction between hidden (back) and revealed (rank/suit + special background) cards
+- [ ] **Collection cards stack: darker top shadow and 10% offset**
+  - **Issue**: Collection cards stack (stacked widget) needs a slightly darker shadow at the top and a smaller vertical offset between cards
+  - **Current Behavior**: Stack uses `CardDimensions.STACK_OFFSET_PERCENTAGE` (15%) for offset; shadow may be too light
+  - **Expected Behavior**: Make the shadow at the top of the collection cards widget **a bit darker**; **decrease the stack offset to 10%** (of card height)
+  - **Location**: `flutter_base_05/lib/modules/dutch_game/utils/card_dimensions.dart` – `STACK_OFFSET_PERCENTAGE` (change from 0.15 to 0.10); Flutter widget that draws the collection stack (unified_game_board_widget or related) – shadow styling for the stack
+  - **Impact**: Clearer visual separation of stacked collection cards and more readable stack
 
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
@@ -209,6 +215,22 @@ This document tracks high-level development plans, todos, and architectural deci
     - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getQueenPeekDecision()` method
     - YAML configuration for computer player strategies (if applicable)
   - **Impact**: Improves computer player AI - makes strategic use of Queen peek when own hand is fully known
+
+#### Match end and winners popup
+- [ ] **Replace all hand cards with full data before showing winners popup**
+  - **Issue**: At match end, hands still contain ID-only card data, so the UI shows placeholders/backs instead of actual cards when the winners popup is shown
+  - **Current Behavior**: Game state broadcasts final state with ID-only cards in players' hands (and possibly discard/draw); winners popup or end-of-match view shows cards without rank/suit/points
+  - **Expected Behavior**: **Before** showing the winners popup, replace every card in every player's hand (and any other visible piles if needed) from ID-only to **full card data** (rank, suit, points) so the UI can display them
+  - **Implementation**: When determining match end (e.g. four-of-a-kind or Dutch round complete), resolve all card IDs in all hands (and discard/draw if shown) to full card data (from deck definition or stored full data), update game state with this "reveal" state, then trigger winners popup
+  - **Location**: Game round or coordinator – match-end flow (e.g. `dutch_game_round.dart`, `game_event_coordinator.dart`); ensure both Flutter and Dart backend apply the same reveal before emitting final state / opening popup
+  - **Impact**: Players can see everyone's final hands and card values in the winners screen
+- [ ] **Winners popup: all 4 players in order with cards, values, and total points**
+  - **Issue**: Winners popup should show a full summary of all players, not just the winner
+  - **Current Behavior**: Popup may show only winner or a limited subset
+  - **Expected Behavior**: Winners popup must contain the **list of all 4 players in order**: **winner first**, then the **rest from least points to most** (ascending by points). For each player show: **their cards**, **each card's value** (points), and **total points**
+  - **Implementation**: Build ordered list: [winner, then remaining 3 sorted by points ascending]; for each player render name, list of cards (with rank/suit and points per card), and total points
+  - **Location**: Flutter UI – winners popup / match end dialog (e.g. in game play screen or unified game board); game state or coordinator may need to provide final player order and resolved card data (see item above)
+  - **Impact**: Clear, fair summary of match result and final hands for all players
 
 ### Low Priority
 
@@ -469,5 +491,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2025-01-27 (Added Jack swap fine-tuning, highlight borders no radius, full-data card UI unification)
+**Last Updated**: 2025-01-27 (Added collection stack shadow/10% offset, match-end full card reveal, winners popup all 4 players with cards/points)
 

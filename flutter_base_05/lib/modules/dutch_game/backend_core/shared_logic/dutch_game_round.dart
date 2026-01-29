@@ -2242,23 +2242,38 @@ class DutchGameRound {
         'rank': '?',      // Face-down: hide rank
         'points': 0,      // Face-down: hide points
       });
-      // Destination index: card was added to end of hand (same shape as drawn_card)
-      final collectedCardIndex = hand.length - 1;
+      // Add to player's collection_rank_cards (full data) before computing stack index
+      // Reuse collectionRankCards variable declared earlier for debug logging
+      collectionRankCards.add(collectedCard); // Full card data
+      // Animation target: use first collection card index (stack position), not the appended index
+      // UI shows collection as a stack at the first collection card's index
+      final collectionRankCardIds = collectionRankCards
+          .where((c) => c is Map<String, dynamic>)
+          .map((c) => (c as Map<String, dynamic>)['cardId']?.toString())
+          .where((id) => id != null && id.isNotEmpty)
+          .toSet();
+      int firstCollectionIndex = hand.length - 1;
+      for (int i = 0; i < hand.length; i++) {
+        final slot = hand[i];
+        if (slot != null && slot is Map<String, dynamic>) {
+          final cid = slot['cardId']?.toString();
+          if (cid != null && collectionRankCardIds.contains(cid)) {
+            firstCollectionIndex = i;
+            break;
+          }
+        }
+      }
       final actionName = 'collect_from_discard_${_generateActionId()}';
       final actionData = {
         'card1Data': {
-          'cardIndex': collectedCardIndex,
+          'cardIndex': firstCollectionIndex,
           'playerId': playerId,
         },
       };
       _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Added collect_from_discard action to queue for player $playerId - card1Data: {cardIndex: $collectedCardIndex, playerId: $playerId} (source: discard pile)');
+        _logger.info('🎬 ACTION_DATA: Added collect_from_discard action to queue for player $playerId - card1Data: {cardIndex: $firstCollectionIndex (stack), playerId: $playerId} (source: discard pile)');
       }
-      
-      // Add to player's collection_rank_cards (full data)
-      // Reuse collectionRankCards variable declared earlier for debug logging
-      collectionRankCards.add(collectedCard); // Full card data
       
       // Update player's collection_rank to match the collected card's rank
       player['collection_rank'] = collectedCard['rank']?.toString() ?? 'unknown';

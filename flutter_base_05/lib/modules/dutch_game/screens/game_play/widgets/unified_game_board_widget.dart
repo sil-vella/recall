@@ -2077,19 +2077,30 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         
         // Update opponent card bounds after build
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          // Update bounds for ALL indices (including empty slots and extra slot)
-          // All indices from 0 to cards.length should have bounds tracked (including extra slot)
+          // Collection stack: one key for the stack; all indices in that stack use same bounds (stack position)
+          final collectionIndices = <int>{};
+          for (int i = 0; i < cards.length; i++) {
+            final c = cards[i];
+            if (c != null && c is Map<String, dynamic>) {
+              final cid = c['cardId']?.toString();
+              if (cid != null && collectionRankCardIds.contains(cid)) {
+                collectionIndices.add(i);
+              }
+            }
+          }
+          final firstCollectionIndex = collectionIndices.isEmpty ? null : collectionIndices.reduce((a, b) => a < b ? a : b);
+          final keyForStack = firstCollectionIndex != null ? _getOrCreateCardKey('${playerId}_$firstCollectionIndex', 'opponent') : null;
           for (int i = 0; i <= cards.length; i++) {
             final keyString = '${playerId}_$i';
-            final cardKey = _getOrCreateCardKey(keyString, 'opponent');
+            final cardKey = (collectionIndices.contains(i) && keyForStack != null)
+                ? keyForStack
+                : _getOrCreateCardKey(keyString, 'opponent');
             _playScreenFunctions.updateOpponentCardBounds(playerId, i, cardKey, keyString: keyString);
           }
-          // Clear bounds only for indices beyond the current list length + extra slot
-          // maxIndex is cards.length to include the extra slot
           _playScreenFunctions.clearMissingOpponentCardBounds(
             playerId,
-            List.generate(cards.length + 1, (i) => i), // All indices from 0 to length (including extra slot)
-            maxIndex: cards.length, // Include extra slot at index cards.length
+            List.generate(cards.length + 1, (i) => i),
+            maxIndex: cards.length,
           );
         });
         
@@ -3558,23 +3569,21 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             
             if (isFirstCollectionCard) {
               // This is the first collection card, render the entire stack
-              // Get all collection rank widgets in order
+              // One key for the whole stack (on the container) so bounds = stack position for all collection indices
               List<Widget> orderedCollectionWidgets = [];
               for (var collectionCard in myCollectionRankCards) {
                 if (collectionCard is Map<String, dynamic>) {
                   final collectionCardId = collectionCard['cardId']?.toString();
                   if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
-                    // Rebuild collection widgets with fixed dimensions
-                    final playerId = _getCurrentUserId();
-                    final collectionCardKey = _getOrCreateCardKey('${playerId}_$index', 'my_hand');
+                    // No key on inner cards; stack container holds the key for bounds
                     final collectionCardWidget = _buildMyHandCardWidget(
-                      collectionCard, 
-                      false, 
-                      false, 
-                      false, 
-                      index, 
-                      collectionCard, 
-                      collectionCardKey,
+                      collectionCard,
+                      false,
+                      false,
+                      false,
+                      index,
+                      collectionCard,
+                      null, // no key - stack container has the key for bounds
                       cardDimensions,
                       currentPlayerStatus: currentPlayerStatusForGlow,
                     );
@@ -3583,17 +3592,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 }
               }
               
-              // Stack needs size constraint to render
               final cardWidth = cardDimensions.width;
               final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
+              final stackKey = _getOrCreateCardKey('${_getCurrentUserId()}_$index', 'my_hand');
               
               final stackWidget = SizedBox(
+                key: stackKey,
                 width: cardWidth,
                 height: stackHeight,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: orderedCollectionWidgets.asMap().entries.map((entry) {
-                    // Stack cards perfectly on top of each other with offset
                     return Positioned(
                       left: 0,
                       top: entry.key * stackOffset,
@@ -3671,18 +3680,29 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           // Update card bounds after build
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final playerId = _getCurrentUserId();
-            // Update bounds for ALL indices (including empty slots and extra slot)
-            // All indices from 0 to cards.length should have bounds tracked (including extra slot)
+            // Collection stack: one key for the stack; all indices in that stack use same bounds (stack position)
+            final collectionIndices = <int>{};
+            for (int i = 0; i < cards.length; i++) {
+              final c = cards[i];
+              if (c != null && c is Map<String, dynamic>) {
+                final cid = c['cardId']?.toString();
+                if (cid != null && collectionRankCardIds.contains(cid)) {
+                  collectionIndices.add(i);
+                }
+              }
+            }
+            final firstCollectionIndex = collectionIndices.isEmpty ? null : collectionIndices.reduce((a, b) => a < b ? a : b);
+            final keyForStack = firstCollectionIndex != null ? _getOrCreateCardKey('${playerId}_$firstCollectionIndex', 'my_hand') : null;
             for (int i = 0; i <= cards.length; i++) {
               final keyString = '${playerId}_$i';
-              final cardKey = _getOrCreateCardKey(keyString, 'my_hand');
+              final cardKey = (collectionIndices.contains(i) && keyForStack != null)
+                  ? keyForStack
+                  : _getOrCreateCardKey(keyString, 'my_hand');
               _playScreenFunctions.updateMyHandCardBounds(i, cardKey, keyString: keyString);
             }
-            // Clear bounds only for indices beyond the current list length + extra slot
-            // maxIndex is cards.length to include the extra slot
             _playScreenFunctions.clearMissingMyHandCardBounds(
-              List.generate(cards.length + 1, (i) => i), // All indices from 0 to length (including extra slot)
-              maxIndex: cards.length, // Include extra slot at index cards.length
+              List.generate(cards.length + 1, (i) => i),
+              maxIndex: cards.length,
             );
           });
           
@@ -4125,7 +4145,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
 
-  Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey, Size cardDimensions, {String? currentPlayerStatus}) {
+  Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey? cardKey, Size cardDimensions, {String? currentPlayerStatus}) {
     // For drawn cards in user's hand, always show face up
     // Ensure card has full data - if not, try to get it from the cardMap or myDrawnCard in state
     Map<String, dynamic> cardDataToUse = card;

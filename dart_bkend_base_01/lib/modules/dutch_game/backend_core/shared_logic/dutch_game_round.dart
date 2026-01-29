@@ -3,13 +3,14 @@
 /// This class handles the actual gameplay rounds, turn management, and game logic
 /// for dutch sessions, including turn rotation, card actions, and AI decision making.
 
+import 'dart:math';
 import '../../utils/platform/shared_imports.dart';
 import '../utils/rank_matcher.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
+const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -53,16 +54,12 @@ class DutchGameRound {
   
   DutchGameRound(this._stateCallback, this._gameId);
 
-  /// Generate a random 6-digit number for action IDs
-  String _generateActionId() {
-    final random = Random();
-    final number = random.nextInt(900000) + 100000; // 100000 to 999999
-    return number.toString();
-  }
-  
   /// Helper method to clear action data from a specific player or all players
   /// [playerId] If provided, clears action for that player only. If null, clears for all players.
   /// [gamesMap] Optional games map to use instead of reading from state.
+  /// 
+  /// Note: This method clears ALL actions from the games map, including actions declared in
+  /// the coordinator (e.g., initial_peek) and actions declared in game_round (e.g., drawn_card, play_card).
   void _clearPlayerAction({String? playerId, Map<String, dynamic>? gamesMap}) {
     try {
       final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
@@ -77,13 +74,21 @@ class DutchGameRound {
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       for (final p in players) {
         if (playerId == null || p['id']?.toString() == playerId) {
-          final hadAction = p.containsKey('action');
-          final actionType = p['action']?.toString();
-          p.remove('action');
-          p.remove('actionData');
-          if (LOGGING_SWITCH && hadAction) {
-            _logger.info('🎬 ACTION_DATA: Cleared action${playerId != null ? ' for player $playerId' : ' for all players'} - previous action: $actionType');
-          };
+          final hadAction = p.containsKey('action') && p['action'] != null;
+          if (hadAction) {
+            final actionValue = p['action'];
+            String actionInfo;
+            if (actionValue is List) {
+              actionInfo = '${actionValue.length} action(s) in queue';
+            } else {
+              actionInfo = actionValue?.toString() ?? 'null';
+            }
+            p.remove('action');
+            p.remove('actionData'); // Remove legacy actionData if it exists
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 ACTION_DATA: Cleared action queue${playerId != null ? ' for player $playerId' : ' for all players'} - previous: $actionInfo');
+            };
+          }
         }
       }
     } catch (e) {
@@ -91,6 +96,34 @@ class DutchGameRound {
         _logger.error('Dutch: Error clearing player action: $e');
       };
     }
+  }
+
+  /// Generate a random 6-digit number for action IDs
+  String _generateActionId() {
+    final random = Random();
+    final number = random.nextInt(900000) + 100000; // 100000 to 999999
+    return number.toString();
+  }
+
+  /// SSOT: Add a single action to a player's action queue (list format).
+  /// Used by drawn_card, play_card, draw_reposition, same_rank, queen_peek, jack_swap (human and comp).
+  /// Ensures player['action'] is a List and appends { 'name': actionName, 'data': actionData }.
+  void _addActionToPlayerQueue(Map<String, dynamic> player, String actionName, Map<String, dynamic> actionData) {
+    if (!player.containsKey('action') || player['action'] == null) {
+      player['action'] = [];
+    }
+    if (player['action'] is! List) {
+      final existingAction = player['action'];
+      final existingActionData = player['actionData'];
+      player['action'] = [
+        {'name': existingAction, 'data': existingActionData}
+      ];
+      player.remove('actionData');
+    }
+    (player['action'] as List).add({
+      'name': actionName,
+      'data': actionData,
+    });
   }
 
   /// Resolve all hand and collection_rank_cards to full card data (cardId, rank, suit, points, specialPower).
@@ -1512,6 +1545,12 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleDrawCard(String source, {String? playerId, Map<String, dynamic>? gamesMap}) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping draw card handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling draw card from $source pile');
       };
@@ -1564,9 +1603,6 @@ class DutchGameRound {
         };
         return false;
       }
-      
-      // Clear previous action data for this player
-      _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
       
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Drawing card for player $actualPlayerId from $source pile');
@@ -1746,16 +1782,20 @@ class DutchGameRound {
       player['drawnCard'] = idOnlyDrawnCard;
       
       // Add action data for animation system
-      player['action'] = 'drawn_card_${_generateActionId()}';
-      player['actionData'] = {
+      // Card is added to end of hand, so index is hand.length - 1
+      final drawnCardIndex = hand.length - 1;
+      final actionName = 'drawn_card_${_generateActionId()}';
+      final actionData = {
         'card1Data': {
-          'cardId': drawnCard['cardId'],
+          'cardIndex': drawnCardIndex,
           'playerId': actualPlayerId,
         },
       };
+      
+      _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set drawn_card action for player $actualPlayerId - card1Data: {cardId: ${drawnCard['cardId']}, playerId: $actualPlayerId}');
-      };
+        _logger.info('🎬 ACTION_DATA: Added drawn_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $drawnCardIndex, playerId: $actualPlayerId}');
+      }
       
       // For computer players, also add to known_cards (they need full data for logic)
       if (!isHuman) {
@@ -1866,14 +1906,9 @@ class DutchGameRound {
           'turn_events': turnEvents, // Include turn events
         });
         
-        // Clear action immediately after state update is sent
-        _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
       } else {
         // For computer players, update status in games map
         _updatePlayerStatusInGamesMap('playing_card', playerId: actualPlayerId);
-        
-        // Clear action immediately after status update (for CPU players)
-        _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
       }
       
       // Start play timer for ALL players (human and CPU) if status is playing_card
@@ -2071,6 +2106,12 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleCollectFromDiscard(String playerId, {Map<String, dynamic>? gamesMap}) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping collect card handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling collect from discard for player $playerId');
       };
@@ -2280,10 +2321,38 @@ class DutchGameRound {
         'rank': '?',      // Face-down: hide rank
         'points': 0,      // Face-down: hide points
       });
-      
-      // Add to player's collection_rank_cards (full data)
+      // Add to player's collection_rank_cards (full data) before computing stack index
       // Reuse collectionRankCards variable declared earlier for debug logging
       collectionRankCards.add(collectedCard); // Full card data
+      // Animation target: use first collection card index (stack position), not the appended index
+      // UI shows collection as a stack at the first collection card's index
+      final collectionRankCardIds = collectionRankCards
+          .where((c) => c is Map<String, dynamic>)
+          .map((c) => (c as Map<String, dynamic>)['cardId']?.toString())
+          .where((id) => id != null && id.isNotEmpty)
+          .toSet();
+      int firstCollectionIndex = hand.length - 1;
+      for (int i = 0; i < hand.length; i++) {
+        final slot = hand[i];
+        if (slot != null && slot is Map<String, dynamic>) {
+          final cid = slot['cardId']?.toString();
+          if (cid != null && collectionRankCardIds.contains(cid)) {
+            firstCollectionIndex = i;
+            break;
+          }
+        }
+      }
+      final actionName = 'collect_from_discard_${_generateActionId()}';
+      final actionData = {
+        'card1Data': {
+          'cardIndex': firstCollectionIndex,
+          'playerId': playerId,
+        },
+      };
+      _addActionToPlayerQueue(player, actionName, actionData);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 ACTION_DATA: Added collect_from_discard action to queue for player $playerId - card1Data: {cardIndex: $firstCollectionIndex (stack), playerId: $playerId} (source: discard pile)');
+      }
       
       // Update player's collection_rank to match the collected card's rank
       player['collection_rank'] = collectedCard['rank']?.toString() ?? 'unknown';
@@ -2368,6 +2437,12 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handlePlayCard(String cardId, {String? playerId, Map<String, dynamic>? gamesMap}) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping play card handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling play card: $cardId');
       };
@@ -2412,9 +2487,6 @@ class DutchGameRound {
         };
         return false;
       }
-      
-      // Clear previous action data for this player
-      _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       
@@ -2562,16 +2634,18 @@ class DutchGameRound {
       player['hand'] = hand;
       
       // Add action data for animation system
-      player['action'] = 'play_card_${_generateActionId()}';
-      player['actionData'] = {
+      final actionName = 'play_card_${_generateActionId()}';
+      final actionData = {
         'card1Data': {
-          'cardId': cardId,
+          'cardIndex': cardIndex,
           'playerId': actualPlayerId,
         },
       };
+      
+      _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set play_card action for player $actualPlayerId - card1Data: {cardId: $cardId, playerId: $actualPlayerId}');
-      };
+        _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
+      }
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(cardToPlayFullData);
@@ -2629,9 +2703,6 @@ class DutchGameRound {
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn events for animations
       });
-      
-      // Clear action immediately after state update is sent
-      _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGamesForPlay);
       
       if (LOGGING_SWITCH) {
         _logger.info('🔍 STATE_UPDATE DEBUG - State update sent. Reposition will happen AFTER this and AFTER _handleSameRankWindow()');
@@ -2724,12 +2795,32 @@ class DutchGameRound {
           _logger.info('🔍 REPOSITION DEBUG - This happens AFTER state update at line 1529 and AFTER _handleSameRankWindow()');
         };
         
-        // First, find and remove the drawn card from its original position
+        // First, find the drawn card's original position
         int? originalIndex;
         for (int i = 0; i < hand.length; i++) {
           if (hand[i] != null && hand[i] is Map<String, dynamic> && hand[i]['cardId'] == drawnCard['cardId']) {
             originalIndex = i;
             break;
+          }
+        }
+        
+        // Add action data for animation system (draw_reposition)
+        // card1Index: drawn card's original index, card2Index: played card's index (reposition destination)
+        if (originalIndex != null) {
+          final actionName = 'draw_reposition_${_generateActionId()}';
+          final actionData = {
+            'card1Data': {
+              'cardIndex': originalIndex, // Drawn card's original index
+              'playerId': actualPlayerId,
+            },
+            'card2Data': {
+              'cardIndex': cardIndex, // Played card's index (reposition destination)
+              'playerId': actualPlayerId,
+            },
+          };
+          _addActionToPlayerQueue(player, actionName, actionData);
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 ACTION_DATA: Added draw_reposition action to queue for player $actualPlayerId - card1Data: {cardIndex: $originalIndex (drawn card)}, card2Data: {cardIndex: $cardIndex (reposition destination), playerId: $actualPlayerId}');
           }
         }
         
@@ -2884,6 +2975,12 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleSameRankPlay(String playerId, String cardId, {Map<String, dynamic>? gamesMap}) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping same rank play handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling same rank play for player $playerId, card $cardId');
       };
@@ -2894,9 +2991,6 @@ class DutchGameRound {
       final gameData = currentGames[_gameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
-      
-      // Clear previous action data for this player
-      _clearPlayerAction(playerId: playerId, gamesMap: currentGames);
       
       if (gameState == null) {
         if (LOGGING_SWITCH) {
@@ -2964,32 +3058,6 @@ class DutchGameRound {
       
       final cardRank = playedCardFullData['rank']?.toString() ?? '';
       final cardSuit = playedCardFullData['suit']?.toString() ?? '';
-      
-      // Check if card is in player's collection_rank_cards (cannot be played for same rank) - only if collection mode is enabled
-      final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
-      if (isClearAndCollect) {
-        final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
-        for (var collectionCard in collectionRankCards) {
-          if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played for same rank');
-            };
-            
-            // Show error message to user via actionError state
-            _stateCallback.onActionError(
-              'This card is in your collection and cannot be played for same rank.',
-              data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
-            );
-            
-            // No status change needed - status will change automatically when same rank window expires
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: Collection rank card rejected - status will auto-expire with same rank window');
-            };
-            
-            return false;
-          }
-        }
-      }
       
       // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
@@ -3128,16 +3196,18 @@ class DutchGameRound {
       player['hand'] = hand;
       
       // Add action data for animation system
-      player['action'] = 'same_rank_${_generateActionId()}';
-      player['actionData'] = {
+      final actionName = 'same_rank_${_generateActionId()}';
+      final actionData = {
         'card1Data': {
-          'cardId': cardId,
+          'cardIndex': cardIndex,
           'playerId': playerId,
         },
       };
+      
+      _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set same_rank action for player $playerId - card1Data: {cardId: $cardId, playerId: $playerId}');
-      };
+        _logger.info('🎬 ACTION_DATA: Added same_rank action to queue for player $playerId - card1Data: {cardIndex: $cardIndex, playerId: $playerId}');
+      }
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(playedCardFullData);
@@ -3175,8 +3245,7 @@ class DutchGameRound {
         'turn_events': turnEvents, // Add turn event for animation
       });
       
-      // Clear action immediately after state update is sent
-      _clearPlayerAction(playerId: playerId, gamesMap: currentGamesForSameRank);
+      // Action will be cleared in _moveToNextPlayer after animations complete
       
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile');
@@ -3258,6 +3327,12 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping jack swap handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)');
       };
@@ -3285,9 +3360,6 @@ class DutchGameRound {
       // Clear previous action data for the acting player (currentPlayer who played the Jack)
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       final actingPlayerId = currentPlayer?['id']?.toString();
-      if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
-        _clearPlayerAction(playerId: actingPlayerId, gamesMap: currentGames);
-      }
 
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
 
@@ -3404,29 +3476,29 @@ class DutchGameRound {
       firstPlayerHand[firstCardIndex] = secondCardIdOnly;
       secondPlayerHand[secondCardIndex] = firstCardIdOnly;
       
-      // Add action data for animation system (only to the acting player - currentPlayer who played the Jack)
-      // actingPlayerId was already determined earlier when clearing action
+      // Add action to queue for animation (SSOT: same queue format as drawn_card, play_card, queen_peek, etc.)
+      // actingPlayerId is the player who played the Jack (human or comp)
       if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
         final actingPlayer = players.firstWhere(
           (p) => p['id']?.toString() == actingPlayerId,
           orElse: () => <String, dynamic>{},
         );
-        
         if (actingPlayer.isNotEmpty) {
-          actingPlayer['action'] = 'jack_swap_${_generateActionId()}';
-          actingPlayer['actionData'] = {
+          final actionName = 'jack_swap_${_generateActionId()}';
+          final actionData = {
             'card1Data': {
-              'cardId': firstCardId,
+              'cardIndex': firstCardIndex,
               'playerId': firstPlayerId,
             },
             'card2Data': {
-              'cardId': secondCardId,
+              'cardIndex': secondCardIndex,
               'playerId': secondPlayerId,
             },
           };
+          _addActionToPlayerQueue(actingPlayer, actionName, actionData);
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 ACTION_DATA: Set jack_swap action for acting player $actingPlayerId - card1Data: {cardId: $firstCardId, playerId: $firstPlayerId}, card2Data: {cardId: $secondCardId, playerId: $secondPlayerId}');
-          };
+            _logger.info('🎬 ACTION_DATA: Added jack_swap action to queue for acting player $actingPlayerId - card1Data: {cardIndex: $firstCardIndex, playerId: $firstPlayerId}, card2Data: {cardIndex: $secondCardIndex, playerId: $secondPlayerId}');
+          }
         }
       }
 
@@ -3503,15 +3575,11 @@ class DutchGameRound {
         'games': currentGames, // Games map with modifications (drawnCard sanitized)
         'turn_events': turnEvents, // Add turn events for animations
       });
-      
-      // Clear action immediately after state update is sent
-      if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
-        _clearPlayerAction(playerId: actingPlayerId, gamesMap: currentGames);
-      }
+      // Do not clear action here: queue format is consumed by UI for animation; clearing would remove it before UI reads it (same as play_card, drawn_card, etc.)
 
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Jack swap completed - state updated');
-      };
+      }
 
       // Update all players' known_cards after successful Jack swap
       updateKnownCards('jack_swap', firstPlayerId, [firstCardId, secondCardId], swapData: {
@@ -3585,6 +3653,12 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping queen peek handling.');
+        };
+        return false;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Handling Queen peek - player $peekingPlayerId peeking at card $targetCardId from player $targetPlayerId');
       };
@@ -3678,9 +3752,6 @@ class DutchGameRound {
         _logger.info('Dutch: Found target card: ${targetCard['rank']} of ${targetCard['suit']} at index $targetCardIndex');
       };
       
-      // Clear previous action data for the peeking player
-      _clearPlayerAction(playerId: peekingPlayerId, gamesMap: currentGames);
-
       // Get full card data (convert from ID-only if needed)
       final fullCardData = _stateCallback.getCardById(gameState, targetCardId);
       if (fullCardData == null) {
@@ -3728,17 +3799,20 @@ class DutchGameRound {
       // STEP 2: Set cardsToPeek to full card data and send only to peeking player
       peekingPlayer['cardsToPeek'] = [fullCardData];
       
-      // Add action data for animation system (to the peeking player)
-      peekingPlayer['action'] = 'queen_peek_${_generateActionId()}';
-      peekingPlayer['actionData'] = {
+      // Add action data for animation system (to the peeking player) - using queue format
+      // targetCardIndex can be -1 if card is in drawnCard, otherwise it's the index in hand
+      final actionName = 'queen_peek_${_generateActionId()}';
+      final actionData = {
         'card1Data': {
-          'cardId': targetCardId,
+          'cardIndex': targetCardIndex ?? -1,
           'playerId': targetPlayerId,
         },
       };
+      
+      _addActionToPlayerQueue(peekingPlayer, actionName, actionData);
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Set queen_peek action for player $peekingPlayerId - card1Data: {cardId: $targetCardId, playerId: $targetPlayerId}');
-      };
+        _logger.info('🎬 ACTION_DATA: Added queen_peek action to queue for player $peekingPlayerId - card1Data: {cardIndex: ${targetCardIndex ?? -1}, playerId: $targetPlayerId}');
+      }
       
       if (isHuman) {
         // For human players, also update main state myCardsToPeek
@@ -3759,9 +3833,6 @@ class DutchGameRound {
         };
       }
       
-      // Clear action immediately after state update is sent
-      _clearPlayerAction(playerId: peekingPlayerId, gamesMap: currentGames);
-
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Queen peek completed successfully');
       };
@@ -3905,6 +3976,12 @@ class DutchGameRound {
   /// Replicates backend's _handle_same_rank_window method in game_round.py lines 566-585
   void _handleSameRankWindow() {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping same rank window.');
+        };
+        return;
+      }
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Starting same rank window - setting all players to same_rank_window status');
       };
@@ -4401,9 +4478,8 @@ class DutchGameRound {
       for (final player in players) {
         final playerId = player['id']?.toString() ?? '';
         final playerName = player['name']?.toString() ?? 'Unknown';
-        final hand = player['hand'] as List<dynamic>? ?? [];
         final points = _calculatePlayerPoints(player, gameState);
-        final cardCount = hand.length;
+        final cardCount = _getPlayerCardCountForWinner(player);
         
         playerScores[playerId] = {
           'playerId': playerId,
@@ -4510,6 +4586,64 @@ class DutchGameRound {
     }
   }
 
+  /// Build ordered list for end-of-game display: actual winners first, then remaining players sorted by points (low to high).
+  /// Each entry has playerId, playerName, winType (null for non-winners), points, cardCount.
+  /// Callers that need "actual winners only" (e.g. onGameEnded for rewards) should use _winnersList.
+  List<Map<String, dynamic>> _buildOrderedWinnersList() {
+    final ordered = <Map<String, dynamic>>[];
+    final gameState = _getCurrentGameState();
+    if (gameState == null) return ordered;
+
+    final players = (gameState['players'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .where((p) => (p['isActive'] as bool? ?? true) == true)
+        .toList();
+    if (players.isEmpty) return ordered;
+
+    final winnerIds = _winnersList.map((w) => w['playerId']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+    final playerScores = <String, Map<String, dynamic>>{};
+    for (final player in players) {
+      final playerId = player['id']?.toString() ?? '';
+      final playerName = player['name']?.toString() ?? 'Unknown';
+      final points = _calculatePlayerPoints(player, gameState);
+      final cardCount = _getPlayerCardCountForWinner(player);
+      playerScores[playerId] = {
+        'playerId': playerId,
+        'playerName': playerName,
+        'points': points,
+        'cardCount': cardCount,
+      };
+    }
+
+    for (final w in _winnersList) {
+      final playerId = w['playerId']?.toString() ?? '';
+      final scores = playerScores[playerId];
+      ordered.add({
+        'playerId': playerId,
+        'playerName': w['playerName']?.toString() ?? scores?['playerName'] ?? 'Unknown',
+        'winType': w['winType']?.toString(),
+        'points': w['points'] ?? scores?['points'] ?? 0,
+        'cardCount': w['cardCount'] ?? scores?['cardCount'] ?? 0,
+      });
+    }
+    final nonWinners = playerScores.values.where((p) => !winnerIds.contains(p['playerId'])).toList()
+      ..sort((a, b) {
+        final pointsDiff = (a['points'] as int) - (b['points'] as int);
+        if (pointsDiff != 0) return pointsDiff;
+        return (a['cardCount'] as int) - (b['cardCount'] as int);
+      });
+    for (final p in nonWinners) {
+      ordered.add({
+        'playerId': p['playerId'],
+        'playerName': p['playerName'],
+        'winType': null,
+        'points': p['points'],
+        'cardCount': p['cardCount'],
+      });
+    }
+    return ordered;
+  }
+
   /// Check if the game should end (unified game ending check)
   /// This method checks for:
   /// 1. Empty hand win condition (player has no cards left)
@@ -4558,10 +4692,12 @@ class DutchGameRound {
         final currentGames = _stateCallback.currentGamesMap;
         _resolveAllHandsToFullDataInGamesMap(currentGames);
         
-        // Update game phase to game_ended and include winners list (must match validator allowed values)
+        // Build ordered list for frontend: winners at top, then rest by points (low to high)
+        final orderedList = _buildOrderedWinnersList();
+        // Update game phase to game_ended and include ordered list (winners first, then by points)
         _stateCallback.onGameStateChanged({
           'gamePhase': 'game_ended',
-          'winners': List<Map<String, dynamic>>.from(_winnersList), // Send winners list to frontend
+          'winners': orderedList,
         });
         
         if (LOGGING_SWITCH) {
@@ -4612,6 +4748,13 @@ class DutchGameRound {
     }
   }
   
+  /// Count actual cards for winner decision: non-null hand slots only (empty slots not counted).
+  /// Collection cards count as all cards in the collection (each card = 1), not as 1.
+  int _getPlayerCardCountForWinner(Map<String, dynamic> player) {
+    final hand = player['hand'] as List<dynamic>? ?? [];
+    return hand.where((c) => c != null).length;
+  }
+
   /// Calculate total points for a player based on remaining cards
   /// Point calculation based on game rules:
   /// - Numbered Cards (2-10): Points equal to card number
@@ -4973,13 +5116,6 @@ class DutchGameRound {
           continue;
         }
         
-        if (collectionCardIds.contains(cardId)) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Card $cardId is a collection card, skipping');
-          };
-          continue;
-        }
-        
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: DEBUG - Card $cardId is available for same rank play!');
         };
@@ -5003,6 +5139,12 @@ class DutchGameRound {
   /// Replicates backend's _handle_special_cards_window method in game_round.py lines 656-694
   void _handleSpecialCardsWindow() {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping special play window.');
+        };
+        return;
+      }
       // Check if we have any special cards played
       if (_specialCardData.isEmpty) {
         if (LOGGING_SWITCH) {
@@ -5068,6 +5210,12 @@ class DutchGameRound {
   /// Replicates backend's _process_next_special_card method in game_round.py lines 696-739
   void _processNextSpecialCard() {
     try {
+      if (_winnersList.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping next special card processing.');
+        };
+        return;
+      }
       // Check if we're already ending the window (prevent race condition)
       if (_isEndingSpecialCardsWindow) {
         if (LOGGING_SWITCH) {
@@ -5385,6 +5533,10 @@ class DutchGameRound {
         _logger.info('Dutch: Moving to next player (with 2 second delay)');
       };
       
+      // Clear all player actions before moving to next player
+      // This ensures the animation queue is cleared after all animations have been processed
+      _clearPlayerAction();
+      
       // Add 2 second delay before moving to next player
       await Future.delayed(const Duration(seconds: 2));
       
@@ -5497,9 +5649,6 @@ class DutchGameRound {
       // CRITICAL: Update currentPlayer in the games map before updating status
       // This ensures we read the correct currentPlayer
       final currentGames = _stateCallback.currentGamesMap;
-      
-      // Clear all players' action data when moving to next player
-      _clearPlayerAction(gamesMap: currentGames);
       
       final gameId = _gameId;
       if (currentGames.containsKey(gameId)) {

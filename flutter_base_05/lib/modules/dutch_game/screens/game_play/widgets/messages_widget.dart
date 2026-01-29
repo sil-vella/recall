@@ -45,10 +45,25 @@ class MessagesWidget extends StatelessWidget {
           _logger.info('📬 MessagesWidget: Full messagesData keys: ${messagesData.keys.toList()}');
         }
         
-        // Don't render if not visible, content is empty, or game hasn't ended
-        if (!isVisible || content.isEmpty || !isGameEnded) {
+        // Don't render if not visible, or game hasn't ended (allow empty content when we have ordered winners)
+        if (!isVisible || !isGameEnded) {
           if (LOGGING_SWITCH) {
-            _logger.info('📬 MessagesWidget: Not rendering - isVisible=$isVisible, content.isEmpty=${content.isEmpty}, isGameEnded=$isGameEnded');
+            _logger.info('📬 MessagesWidget: Not rendering - isVisible=$isVisible, isGameEnded=$isGameEnded');
+          }
+          return const SizedBox.shrink();
+        }
+        
+        // Get ordered winners list from current game state for end-of-game popup
+        final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+        final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>?;
+        final gameData = currentGame?['gameData'] as Map<String, dynamic>?;
+        final gameState = gameData?['game_state'] as Map<String, dynamic>?;
+        final orderedWinners = gameState?['winners'] as List<dynamic>?;
+        final hasOrderedWinners = orderedWinners != null && orderedWinners.isNotEmpty;
+        if (!hasOrderedWinners && content.isEmpty) {
+          if (LOGGING_SWITCH) {
+            _logger.info('📬 MessagesWidget: Not rendering - content empty and no ordered winners');
           }
           return const SizedBox.shrink();
         }
@@ -57,12 +72,30 @@ class MessagesWidget extends StatelessWidget {
           _logger.info('📬 MessagesWidget: Rendering modal with title="$title" (game phase is game_ended)');
         }
         
-        return _buildModalOverlay(context, title, content, messageType, showCloseButton, autoClose, autoCloseDelay);
+        return _buildModalOverlay(
+          context,
+          title,
+          content,
+          messageType,
+          showCloseButton,
+          autoClose,
+          autoCloseDelay,
+          orderedWinners: hasOrderedWinners ? orderedWinners : null,
+        );
       },
     );
   }
   
-  Widget _buildModalOverlay(BuildContext context, String title, String content, String messageType, bool showCloseButton, bool autoClose, int autoCloseDelay) {
+  Widget _buildModalOverlay(
+    BuildContext context,
+    String title,
+    String content,
+    String messageType,
+    bool showCloseButton,
+    bool autoClose,
+    int autoCloseDelay, {
+    List<dynamic>? orderedWinners,
+  }) {
     // Auto-close timer if enabled
     if (autoClose) {
       Future.delayed(Duration(milliseconds: autoCloseDelay), () {
@@ -143,19 +176,21 @@ class MessagesWidget extends StatelessWidget {
                 ),
               ),
               
-              // Content area
+              // Content area: ordered winners list (game ended) or plain message
               Flexible(
                 child: SingleChildScrollView(
                   padding: AppPadding.cardPadding,
-                  child: Text(
-                    content,
-                    style: AppTextStyles.bodyMedium().copyWith(
-                      color: AppColors.white, // Use white for maximum contrast on dark widgetContainerBackground
-                      height: 1.5,
-                      fontWeight: FontWeight.w500, // Slightly bolder for better readability
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: orderedWinners != null && orderedWinners.isNotEmpty
+                      ? _buildOrderedWinnersContent(orderedWinners)
+                      : Text(
+                          content,
+                          style: AppTextStyles.bodyMedium().copyWith(
+                            color: AppColors.white,
+                            height: 1.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                 ),
               ),
               
@@ -199,6 +234,79 @@ class MessagesWidget extends StatelessWidget {
     );
   }
   
+  /// Build content for game-ended popup: ordered list (winners at top, then by points).
+  Widget _buildOrderedWinnersContent(List<dynamic> orderedWinners) {
+    String winTypeLabel(dynamic winType) {
+      switch (winType?.toString()) {
+        case 'four_of_a_kind':
+          return 'Four of a Kind';
+        case 'empty_hand':
+          return 'No Cards Left';
+        case 'lowest_points':
+          return 'Lowest Points';
+        case 'dutch':
+          return 'Dutch Called';
+        default:
+          return 'Winner';
+      }
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (int i = 0; i < orderedWinners.length; i++) ...[
+          if (i > 0) SizedBox(height: AppPadding.smallPadding.top),
+          Builder(
+            builder: (context) {
+              final e = orderedWinners[i];
+              if (e is! Map<String, dynamic>) return const SizedBox.shrink();
+              final name = e['playerName']?.toString() ?? 'Unknown';
+              final winType = e['winType'];
+              final points = e['points'] as int?;
+              final cardCount = e['cardCount'] as int?;
+              final isWinner = winType != null && winType.toString().isNotEmpty;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '${i + 1}. ',
+                    style: AppTextStyles.bodyMedium().copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: AppTextStyles.bodyMedium().copyWith(
+                        color: AppColors.white,
+                        fontWeight: isWinner ? FontWeight.w600 : FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    isWinner
+                        ? ' (${winTypeLabel(winType)}) — ${points ?? 0} pts, ${cardCount ?? 0} cards'
+                        : (points != null && cardCount != null
+                            ? ' — ${points} pts, $cardCount cards'
+                            : ''),
+                    style: AppTextStyles.bodyMedium().copyWith(
+                      color: isWinner ? AppColors.successColor : AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
   Color _getMessageTypeColor(BuildContext context, String messageType) {
     switch (messageType) {
       case 'success':

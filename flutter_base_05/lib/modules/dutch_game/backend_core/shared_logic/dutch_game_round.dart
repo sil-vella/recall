@@ -4478,9 +4478,8 @@ class DutchGameRound {
       for (final player in players) {
         final playerId = player['id']?.toString() ?? '';
         final playerName = player['name']?.toString() ?? 'Unknown';
-        final hand = player['hand'] as List<dynamic>? ?? [];
         final points = _calculatePlayerPoints(player, gameState);
-        final cardCount = hand.length;
+        final cardCount = _getPlayerCardCountForWinner(player);
         
         playerScores[playerId] = {
           'playerId': playerId,
@@ -4587,6 +4586,64 @@ class DutchGameRound {
     }
   }
 
+  /// Build ordered list for end-of-game display: actual winners first, then remaining players sorted by points (low to high).
+  /// Each entry has playerId, playerName, winType (null for non-winners), points, cardCount.
+  /// Callers that need "actual winners only" (e.g. onGameEnded for rewards) should use _winnersList.
+  List<Map<String, dynamic>> _buildOrderedWinnersList() {
+    final ordered = <Map<String, dynamic>>[];
+    final gameState = _getCurrentGameState();
+    if (gameState == null) return ordered;
+
+    final players = (gameState['players'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .where((p) => (p['isActive'] as bool? ?? true) == true)
+        .toList();
+    if (players.isEmpty) return ordered;
+
+    final winnerIds = _winnersList.map((w) => w['playerId']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+    final playerScores = <String, Map<String, dynamic>>{};
+    for (final player in players) {
+      final playerId = player['id']?.toString() ?? '';
+      final playerName = player['name']?.toString() ?? 'Unknown';
+      final points = _calculatePlayerPoints(player, gameState);
+      final cardCount = _getPlayerCardCountForWinner(player);
+      playerScores[playerId] = {
+        'playerId': playerId,
+        'playerName': playerName,
+        'points': points,
+        'cardCount': cardCount,
+      };
+    }
+
+    for (final w in _winnersList) {
+      final playerId = w['playerId']?.toString() ?? '';
+      final scores = playerScores[playerId];
+      ordered.add({
+        'playerId': playerId,
+        'playerName': w['playerName']?.toString() ?? scores?['playerName'] ?? 'Unknown',
+        'winType': w['winType']?.toString(),
+        'points': w['points'] ?? scores?['points'] ?? 0,
+        'cardCount': w['cardCount'] ?? scores?['cardCount'] ?? 0,
+      });
+    }
+    final nonWinners = playerScores.values.where((p) => !winnerIds.contains(p['playerId'])).toList()
+      ..sort((a, b) {
+        final pointsDiff = (a['points'] as int) - (b['points'] as int);
+        if (pointsDiff != 0) return pointsDiff;
+        return (a['cardCount'] as int) - (b['cardCount'] as int);
+      });
+    for (final p in nonWinners) {
+      ordered.add({
+        'playerId': p['playerId'],
+        'playerName': p['playerName'],
+        'winType': null,
+        'points': p['points'],
+        'cardCount': p['cardCount'],
+      });
+    }
+    return ordered;
+  }
+
   /// Check if the game should end (unified game ending check)
   /// This method checks for:
   /// 1. Empty hand win condition (player has no cards left)
@@ -4635,10 +4692,12 @@ class DutchGameRound {
         final currentGames = _stateCallback.currentGamesMap;
         _resolveAllHandsToFullDataInGamesMap(currentGames);
         
-        // Update game phase to game_ended and include winners list (must match validator allowed values)
+        // Build ordered list for frontend: winners at top, then rest by points (low to high)
+        final orderedList = _buildOrderedWinnersList();
+        // Update game phase to game_ended and include ordered list (winners first, then by points)
         _stateCallback.onGameStateChanged({
           'gamePhase': 'game_ended',
-          'winners': List<Map<String, dynamic>>.from(_winnersList), // Send winners list to frontend
+          'winners': orderedList,
         });
         
         if (LOGGING_SWITCH) {
@@ -4689,6 +4748,13 @@ class DutchGameRound {
     }
   }
   
+  /// Count actual cards for winner decision: non-null hand slots only (empty slots not counted).
+  /// Collection cards count as all cards in the collection (each card = 1), not as 1.
+  int _getPlayerCardCountForWinner(Map<String, dynamic> player) {
+    final hand = player['hand'] as List<dynamic>? ?? [];
+    return hand.where((c) => c != null).length;
+  }
+
   /// Calculate total points for a player based on remaining cards
   /// Point calculation based on game rules:
   /// - Numbered Cards (2-10): Points equal to card number

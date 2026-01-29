@@ -465,12 +465,12 @@ class StateQueueValidator {
       description: 'Current game status (inactive, active, finished, etc.)',
     ),
     
-    // Winners Field (for game end)
+    // Winners Field (for game end) – ordered: actual winners first, then rest by points (low to high). Each entry: playerId, playerName, winType (null for non-winners), points, cardCount.
     'winners': DutchStateFieldSpec(
       type: List,
       required: false,
       defaultValue: [],
-      description: 'List of winners when game ends, each with playerId, playerName, and winType',
+      description: 'Ordered list when game ends: winners first then by points; each with playerId, playerName, winType (optional), points, cardCount',
     ),
     
     // User Statistics (from database)

@@ -1244,7 +1244,11 @@ When anyone has played a card with the **same rank** as your **collection card**
   /// Handle game_state_updated event
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';
-    final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+    var gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+    if (data['winners'] != null) {
+      gameState = Map<String, dynamic>.from(gameState);
+      gameState['winners'] = data['winners'];
+    }
     final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
     final turnEvents = data['turn_events'] as List<dynamic>? ?? []; // Extract turn_events for animations
     final myCardsToPeekFromEvent = data['myCardsToPeek'] as List<dynamic>?; // Extract root-level myCardsToPeek if present
@@ -1656,13 +1660,12 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (LOGGING_SWITCH) {
         _logger.info('🏆 handleGameStateUpdated: Game ended with ${winners.length} winner(s) - triggering winner modal');
       }
-      // Game has ended - notify user with winner information and win reason
-      final winnerMessages = winners.map((w) {
+      // Winners list is ordered: actual winners first (winType != null), then rest by points
+      final actualWinners = winners.where((w) => w is Map<String, dynamic> && w['winType'] != null).toList();
+      final winnerMessages = actualWinners.map((w) {
         if (w is Map<String, dynamic>) {
           final playerName = w['playerName']?.toString() ?? 'Unknown';
           final winType = w['winType']?.toString() ?? 'unknown';
-          
-          // Format win type into readable text
           String winReason;
           switch (winType) {
             case 'four_of_a_kind':
@@ -1680,7 +1683,6 @@ When anyone has played a card with the **same rank** as your **collection card**
             default:
               winReason = 'Unknown';
           }
-          
           return '$playerName ($winReason)';
         }
         return 'Unknown';
@@ -1698,11 +1700,11 @@ When anyone has played a card with the **same rank** as your **collection card**
         showModal: true, // Show modal for game end
       );
       
-      // Track game completed event
+      // Track game completed event (only actual winners)
       final gameMode = gameState['game_mode']?.toString() ?? 'multiplayer';
-      final isCurrentUserWinner = winners.any((w) {
+      final isCurrentUserWinner = actualWinners.any((w) {
         if (w is Map<String, dynamic>) {
-          return w['id']?.toString() == currentUserId;
+          return (w['playerId'] ?? w['id'])?.toString() == currentUserId;
         }
         return false;
       });
@@ -1784,6 +1786,9 @@ When anyone has played a card with the **same rank** as your **collection card**
     // Merge partial updates with current game state
     final updatedGameState = Map<String, dynamic>.from(currentGameState);
     updatedGameState.addAll(partialGameState);
+    if (data['winners'] != null) {
+      updatedGameState['winners'] = data['winners'];
+    }
     
     // Update the game data with merged state using helper method
     _updateGameData(gameId, {
@@ -1881,13 +1886,12 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (LOGGING_SWITCH) {
         _logger.info('🏆 handleGameStatePartialUpdate: Game ended with ${winners.length} winner(s) - triggering winner modal');
       }
-      // Game has ended - notify user with winner information and win reason
-      final winnerMessages = winners.map((w) {
+      // Winners list is ordered: actual winners first (winType != null), then rest by points
+      final actualWinnersPartial = winners.where((w) => w is Map<String, dynamic> && w['winType'] != null).toList();
+      final winnerMessages = actualWinnersPartial.map((w) {
         if (w is Map<String, dynamic>) {
           final playerName = w['playerName']?.toString() ?? 'Unknown';
           final winType = w['winType']?.toString() ?? 'unknown';
-          
-          // Format win type into readable text
           String winReason;
           switch (winType) {
             case 'four_of_a_kind':
@@ -1905,7 +1909,6 @@ When anyone has played a card with the **same rank** as your **collection card**
             default:
               winReason = 'Unknown';
           }
-          
           return '$playerName ($winReason)';
         }
         return 'Unknown';

@@ -193,11 +193,10 @@ class WebSocketServer {
         throw FormatException('Expected JSON object, got ${decoded.runtimeType}');
       }
 
-      // Check for authentication token
-      // Allow re-authentication if token is provided (for account conversion scenarios)
-      if (data.containsKey('token')) {
-        // Always validate token if provided, even if already authenticated
-        // This allows session remapping after account conversion (e.g., guest to Google)
+      // JWT hardening: only validate token when client explicitly sends "authenticate" event.
+      // Re-authentication (e.g. account conversion) still works by sending event: "authenticate" with token.
+      final event = data['event'] as String?;
+      if (event == 'authenticate' && data.containsKey('token')) {
         validateAndAuthenticate(sessionId, data['token'] as String);
       }
 

@@ -12,7 +12,7 @@ import '../../../../tools/logging/logger.dart';
 /// Size is determined at the placement widget level and passed as dimensions.
 /// Config only controls appearance (displayMode, showPoints, etc.)
 class CardWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = true; // Enable logging for errors only
+  static const bool LOGGING_SWITCH = false; // Enable logging for errors only
   static final Logger _logger = Logger();
   final CardModel card;
   final Size dimensions; // Required - size determined at placement widget level

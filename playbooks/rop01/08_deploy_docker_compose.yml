@@ -38,11 +38,11 @@
         mode: '0644'
       register: grafana_dashboards_sync
 
-    - name: Ensure secrets directory exists on VPS
+    - name: Ensure secrets directory exists on VPS (restrict to owner/group)
       file:
         path: "{{ app_dir }}/secrets"
         state: directory
-        mode: '0755'
+        mode: '0750'
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
 
@@ -53,11 +53,11 @@
         file_type: file
       register: secret_files_local
 
-    - name: Copy secret files to VPS (only if missing or different)
+    - name: Copy secret files to VPS (only if missing or different, mode 0600)
       copy:
         src: "{{ item.path }}"
         dest: "{{ app_dir }}/secrets/{{ item.path | basename }}"
-        mode: '0644'
+        mode: '0600'
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
         force: no

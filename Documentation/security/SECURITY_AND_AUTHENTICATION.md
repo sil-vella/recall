@@ -39,8 +39,10 @@ The application implements a comprehensive multi-layered security system across 
 │            Dart Backend (WebSocket Server)                   │
 │  ┌────────────────────────────────────────────────────┐    │
 │  │  Token Validation via Python API                   │    │
-│  │  - Session-based authentication                    │    │
-│  │  - Room access control                             │    │
+│  │  - X-Service-Key for /service/auth/validate        │    │
+│  │  - X-Service-Key for /service/dutch/update-game-stats │  │
+│  │  - Session-based authentication; allowlist: ping,  │    │
+│  │    authenticate only when unauthenticated          │    │
 │  └────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -544,21 +546,84 @@ CORS(app,
 
 **1. `/userauth/*`** - JWT Authentication Required:
 - Requires: `Authorization: Bearer <token>` header
-- Validates: JWT access token
+- Validates: JWT access token via JWTManager
 - Sets: `request.user_id`, `request.user_payload`
+- Used by: Flutter frontend (user endpoints, e.g. get-user-stats, record-game-result)
 
 **2. `/keyauth/*`** - API Key Authentication Required:
 - Requires: `X-API-Key: <api_key>` header
 - Validates: API key via APIKeyManager
 - Sets: `request.app_id`, `request.app_permissions`
+- Used by: External apps, credit system
 
-**3. `/public/*`** - No Authentication Required:
+**3. `/service/*`** - Service Key Authentication Required (Dart backend → Python):
+- Requires: `X-Service-Key: <key>` header **or** `Authorization: Bearer <key>`
+- Validates: Key must equal `Config.DART_BACKEND_SERVICE_KEY` (shared secret)
+- Sets: `request.service_authenticated = True`
+- Used by: Dart backend only (token validation, update-game-stats). Frontend never calls `/service/*`.
+- **Switch**: `Config.ENABLE_DART_SERVICE_KEY_AUTH` (default `true`). When `false`, `/service/*` requests are accepted without a key (testing only).
+- **Config**: `DART_BACKEND_SERVICE_KEY` from file `dart_backend_service_key` or env `DART_BACKEND_SERVICE_KEY`; must match Dart backend config.
+
+**4. `/public/*`** - No Authentication Required:
 - Public endpoints
 - No authentication check
+- Examples: get-comp-players, users/profile (by user id in body), legacy `/api/auth/validate` (deprecated; prefer `/service/auth/validate` for Dart)
 
-**4. Default Routes** - Public by Default:
-- No authentication required
-- Can be overridden per route
+**5. Default Routes** - Public by Default:
+- Any path not matching the above prefixes is treated as public (no auth).
+
+---
+
+## Service Key Authentication (Dart Backend → Python)
+
+**Purpose**: Authenticate server-to-server calls from the Dart game backend to the Python API. All Dart→Python calls that are not public must use the service key.
+
+**Implementation**:
+- **Python**: `core/managers/app_manager.py` – `authenticate_request()` for paths starting with `/service/`.
+- **Dart**: `lib/services/python_api_client.dart` – sends `X-Service-Key` header when calling Python service endpoints; `lib/utils/config.dart` – `pythonServiceKey`, `usePythonServiceKey`.
+
+### Python Backend
+
+**Middleware** (`core/managers/app_manager.py`):
+- For `request.path.startswith('/service/')`, `auth_required = 'service'`.
+- If `Config.ENABLE_DART_SERVICE_KEY_AUTH` is `False`: accept request without key (testing only); set `request.service_authenticated = True`.
+- Otherwise: read `X-Service-Key` header or `Authorization: Bearer <key>`; compare to `Config.DART_BACKEND_SERVICE_KEY`.
+- If key missing or wrong: return 401 (`SERVICE_KEY_INVALID`) or 503 (`SERVICE_AUTH_NOT_CONFIGURED` if key not set).
+- On success: set `request.service_authenticated = True`.
+
+**Config** (`utils/config/config.py`):
+- `DART_BACKEND_SERVICE_KEY`: Shared secret; from file `dart_backend_service_key` or env `DART_BACKEND_SERVICE_KEY`. Must match Dart backend.
+- `ENABLE_DART_SERVICE_KEY_AUTH`: From file `enable_dart_service_key_auth` or env `ENABLE_DART_SERVICE_KEY_AUTH`; default `true`. When `false`, `/service/*` accepts requests without a key (testing only).
+
+**Service endpoints** (all require service key when `ENABLE_DART_SERVICE_KEY_AUTH` is true):
+- `POST /service/auth/validate` – JWT validation for WebSocket auth. Body: `{ "token": "<user JWT>" }`. Returns `{ valid, user_id, rank, level, account_type, username, ... }`. Used by Dart when client sends `authenticate` with token.
+- `POST /service/dutch/update-game-stats` – Update game statistics after a game ends. Body: `{ "game_results": [ ... ] }`. Called by Dart backend after game ends.
+
+**Legacy**: `POST /api/auth/validate` remains public (no service key) for backward compatibility; Dart uses `/service/auth/validate` with X-Service-Key.
+
+### Dart Backend
+
+**Config** (`lib/utils/config.dart`):
+- `pythonServiceKey`: Same value as Python `DART_BACKEND_SERVICE_KEY`; from file `dart_backend_service_key` or env `DART_BACKEND_SERVICE_KEY`.
+- `usePythonServiceKey`: When `true`, send `X-Service-Key` with Python service calls; from file `use_python_service_key` or env `USE_PYTHON_SERVICE_KEY`; default `true`.
+
+**Python API client** (`lib/services/python_api_client.dart`):
+- **validateToken(token)**: `POST $baseUrl/service/auth/validate` with headers `Content-Type: application/json` and (when `usePythonServiceKey` and key set) `X-Service-Key: <pythonServiceKey>`; body `{ "token": token }`. Returns same shape as Python.
+- **updateGameStats(gameResults)**: `POST $baseUrl/service/dutch/update-game-stats` with same headers (including X-Service-Key when enabled); body `{ "game_results": gameResults }`.
+
+**Other Dart→Python calls** (no service key):
+- `POST /public/dutch/get-comp-players` – public.
+- `POST /public/users/profile` – public (user id in body).
+
+### Summary: Who Uses What
+
+| Caller        | Endpoint                          | Auth                |
+|---------------|-----------------------------------|---------------------|
+| Flutter       | `/userauth/*`                     | JWT (Bearer)        |
+| Flutter       | `/public/*`                       | None                |
+| Dart backend  | `/service/auth/validate`          | X-Service-Key       |
+| Dart backend  | `/service/dutch/update-game-stats`| X-Service-Key       |
+| Dart backend  | `/public/*`                       | None                |
 
 ---
 
@@ -631,37 +696,48 @@ Future<String?> _performStateAwareTokenRefresh(String? currentToken) async {
 
 ## Dart Backend Security
 
-### Token Validation
+### Token Validation (WebSocket Auth)
 
 **Implementation**: `dart_bkend_base_01/lib/services/python_api_client.dart`
 
 **Process**:
-1. Receives token from WebSocket client
-2. Sends token to Python backend: `POST /api/auth/validate`
-3. Python backend validates token
-4. Returns validation result with user_id
+1. Receives user JWT from WebSocket client (only when client sends event `authenticate` with `token`).
+2. Sends token to Python backend: `POST /service/auth/validate` with header `X-Service-Key: <pythonServiceKey>` (when `Config.usePythonServiceKey` is true) and body `{ "token": "<user JWT>" }`.
+3. Python validates service key first (middleware), then validates JWT and returns user info.
+4. Returns validation result with `user_id`, `rank`, `level`, etc.
 
 **API Endpoint**:
 ```dart
-POST http://python-backend/api/auth/validate
-Body: {'token': 'jwt_token_here'}
-Response: {'valid': true, 'user_id': '...'} or {'valid': false, 'error': '...'}
+POST http://python-backend/service/auth/validate
+Headers: Content-Type: application/json, X-Service-Key: <DART_BACKEND_SERVICE_KEY>
+Body: {"token": "<user JWT>"}
+Response: {"valid": true, "user_id": "...", "rank": "...", "level": 1, ...} or {"valid": false, "error": "..."}
 ```
 
-### Session Authentication
+### Service Key Usage (Dart → Python)
 
-**Implementation**: `dart_bkend_base_01/lib/server/websocket_server.dart`
+All Dart backend calls to Python **service** endpoints use the shared secret:
+- **validateToken**: `POST /service/auth/validate` with X-Service-Key (see above).
+- **updateGameStats**: `POST /service/dutch/update-game-stats` with X-Service-Key; body `{ "game_results": [ ... ] }`.
+
+Config: `Config.pythonServiceKey` (same value as Python `DART_BACKEND_SERVICE_KEY`); optional switch `Config.usePythonServiceKey` (default true) to send or omit the key. See **Service Key Authentication (Dart Backend → Python)** above.
+
+### Session Authentication (WebSocket)
+
+**Implementation**: `dart_bkend_base_01/lib/server/websocket_server.dart`, `lib/server/message_handler.dart`
 
 **Session Tracking**:
 - `_authenticatedSessions`: Map of session_id → authenticated status
 - `_sessionToUser`: Map of session_id → user_id
 
 **Authentication Flow**:
-1. Client sends token in message: `{'token': '...', 'event': 'authenticate'}`
-2. Server validates token via Python API
-3. If valid, mark session as authenticated
-4. Map session to user_id
-5. Send confirmation: `{'event': 'authenticated', 'user_id': '...'}`
+1. Client connects; server sends `connected` with `authenticated: false`.
+2. Client sends **one** message: `{ "event": "authenticate", "token": "<user JWT>" }`.
+3. Server runs token validation **only** when `event == 'authenticate'` and `token` is present; calls Python `POST /service/auth/validate` with X-Service-Key and the user JWT.
+4. If valid: mark session authenticated, map session to user_id, send `{ "event": "authenticated", "user_id": "..." }`.
+5. If invalid: send `authentication_failed` or `authentication_error`.
+
+**Unauthenticated allowlist**: Only `ping` and `authenticate` are accepted when not authenticated. All other events (create_room, join_room, game events, etc.) require an authenticated session; otherwise the handler returns an error and does not process the event.
 
 ---
 
@@ -964,7 +1040,17 @@ Response: {"success": true, "message": "API key revoked"}
    │   │   │   │
    │   │   │   └─> Set request.app_id
    │   │   │
-   │   │   └─> /public/* → No authentication
+   │   │   ├─> /service/* → Service key validation (Dart backend only)
+   │   │   │   │
+   │   │   │   ├─> If ENABLE_DART_SERVICE_KEY_AUTH false: allow (testing)
+   │   │   │   │
+   │   │   │   ├─> Extract X-Service-Key or Authorization: Bearer <key>
+   │   │   │   │
+   │   │   │   ├─> Compare to DART_BACKEND_SERVICE_KEY
+   │   │   │   │
+   │   │   │   └─> Set request.service_authenticated
+   │   │   │
+   │   │   └─> /public/* and default → No authentication
    │   │
    ├─> Rate limiting check
    │   │
@@ -1008,11 +1094,15 @@ Response: {"success": true, "message": "API key revoked"}
    │   │
    │   ├─> Wait for authentication message
    │   │   │
-   │   │   └─> Message: {'token': '...', 'event': 'authenticate'}
+   │   │   └─> Message: {'event': 'authenticate', 'token': '<user JWT>'}
    │   │
-   │   ├─> Validate token via Python API
+   │   ├─> Validate token via Python API (service key required)
    │   │   │
-   │   │   └─> POST /api/auth/validate
+   │   │   └─> POST /service/auth/validate
+   │   │       Headers: X-Service-Key: <DART_BACKEND_SERVICE_KEY>
+   │   │       Body: {"token": "<user JWT>"}
+   │   │
+   │   ├─> Python: middleware validates X-Service-Key, then handler validates JWT
    │   │
    │   ├─> Mark session as authenticated
    │   │
@@ -1274,6 +1364,17 @@ assert decrypted == "sensitive_data"
 4. Check Python API is accessible from Dart backend
 5. Review WebSocket connection logs
 
+### Service Key / Dart→Python Issues
+
+**Problem**: Dart backend gets 401 or 503 when calling `/service/auth/validate` or `/service/dutch/update-game-stats`
+
+**Solutions**:
+1. Ensure `DART_BACKEND_SERVICE_KEY` is set on both Python and Dart (same value); file `dart_backend_service_key` or env.
+2. On Python: if key is not set, middleware returns 503 (`SERVICE_AUTH_NOT_CONFIGURED`). Set the key or use `ENABLE_DART_SERVICE_KEY_AUTH=false` for testing only.
+3. On Dart: ensure `Config.usePythonServiceKey` is true and `Config.pythonServiceKey` is non-empty when calling service endpoints.
+4. Verify header: Dart sends `X-Service-Key: <key>` (or Python accepts `Authorization: Bearer <key>`).
+5. Check Python `authenticate_request()` runs before the handler (path must start with `/service/`).
+
 ---
 
 ## References
@@ -1295,8 +1396,15 @@ assert decrypted == "sensitive_data"
 - `lib/modules/connections_api_module/interceptor.dart` - Token injection
 
 **Dart Backend**:
-- `lib/server/websocket_server.dart` - WebSocket authentication
-- `lib/services/python_api_client.dart` - Token validation
+- `lib/server/websocket_server.dart` - WebSocket authentication (validate only on `authenticate` event)
+- `lib/server/message_handler.dart` - Unauthenticated allowlist (`ping`, `authenticate`)
+- `lib/services/python_api_client.dart` - Token validation and update-game-stats (X-Service-Key)
+- `lib/utils/config.dart` - `pythonServiceKey`, `usePythonServiceKey`
+
+**Python Backend** (auth / service):
+- `core/managers/app_manager.py` - Route-based auth (JWT, API key, service key)
+- `core/modules/dutch_game/api_endpoints.py` - `/service/auth/validate`, `/api/auth/validate` (legacy)
+- `utils/config/config.py` - `DART_BACKEND_SERVICE_KEY`, `ENABLE_DART_SERVICE_KEY_AUTH`
 
 ### External Documentation
 
@@ -1309,7 +1417,13 @@ assert decrypted == "sensitive_data"
 
 ## Changelog
 
-### Version 1.0.0 (Current)
+### Version 1.1.0
+- **Service key authentication**: `/service/*` routes require `X-Service-Key` (or `Authorization: Bearer <key>`) matching `DART_BACKEND_SERVICE_KEY`. Used for Dart backend → Python (token validation, update-game-stats).
+- **WebSocket JWT validation**: Dart backend calls `POST /service/auth/validate` with X-Service-Key and user JWT (only when client sends event `authenticate` with token). Python validates service key then JWT.
+- **Config switches**: `ENABLE_DART_SERVICE_KEY_AUTH` (Python), `usePythonServiceKey` (Dart) for testing; defaults require service key.
+- **Legacy**: `/api/auth/validate` remains public; Dart uses `/service/auth/validate` for auth-before-WS.
+
+### Version 1.0.0
 - JWT authentication with client fingerprinting
 - API key management system
 - Database field encryption
@@ -1323,6 +1437,6 @@ assert decrypted == "sensitive_data"
 
 ---
 
-**Last Updated**: 2024
+**Last Updated**: 2026
 **Maintained By**: Development Team
 

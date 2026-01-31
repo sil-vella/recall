@@ -97,7 +97,7 @@ services:
       - app-network
     restart: unless-stopped
 
-  # Dart Game WebSocket Server
+  # Dart Game WebSocket Server (mounts same secrets dir as Flask for service key)
   dutch_dart-game-server:
     image: silvella/dutch_dart_game_server:latest
     container_name: dutch_dart_game_server
@@ -105,6 +105,8 @@ services:
       - PORT=8080
     ports:
       - "8080:8080"
+    volumes:
+      - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped

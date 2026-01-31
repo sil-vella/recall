@@ -51,6 +51,54 @@ class Config {
     return defaultValue;
   }
 
+  /// Get configuration string value with priority: Files > Environment > Default
+  static String _getConfigString(String envName, String fileName, String defaultValue) {
+    final fileValue = _readSecretFile(fileName);
+    if (fileValue != null && fileValue.isNotEmpty && fileValue != 'vault_required') {
+      return fileValue;
+    }
+    final envValue = Platform.environment[envName];
+    if (envValue != null && envValue.isNotEmpty && envValue != 'vault_required') {
+      return envValue;
+    }
+    return defaultValue;
+  }
+
+  /// Get configuration boolean value (Files > Environment > Default). True for "true", "1", "yes".
+  static bool _getConfigBool(String envName, String fileName, bool defaultValue) {
+    final fileValue = _readSecretFile(fileName);
+    if (fileValue != null && fileValue != 'vault_required') {
+      final v = fileValue.toLowerCase().trim();
+      if (v == 'true' || v == '1' || v == 'yes') return true;
+      if (v == 'false' || v == '0' || v == 'no') return false;
+    }
+    final envValue = Platform.environment[envName];
+    if (envValue != null && envValue != 'vault_required') {
+      final v = envValue.toLowerCase().trim();
+      if (v == 'true' || v == '1' || v == 'yes') return true;
+      if (v == 'false' || v == '0' || v == 'no') return false;
+    }
+    return defaultValue;
+  }
+
+  // ========= Python API (service-to-service) =========
+
+  /// Shared secret for Dart backend -> Python API calls (update-game-stats, etc.).
+  /// Must match Python Config.DART_BACKEND_SERVICE_KEY.
+  /// Set via file dart_backend_service_key or env DART_BACKEND_SERVICE_KEY.
+  static String get pythonServiceKey => _getConfigString(
+    'DART_BACKEND_SERVICE_KEY',
+    'dart_backend_service_key',
+    '',
+  );
+
+  /// When true, send X-Service-Key with Python API calls. When false, omit key (for testing with Python ENABLE_DART_SERVICE_KEY_AUTH=false).
+  /// File: use_python_service_key; Env: USE_PYTHON_SERVICE_KEY. Default true.
+  static bool get usePythonServiceKey => _getConfigBool(
+    'USE_PYTHON_SERVICE_KEY',
+    'use_python_service_key',
+    true,
+  );
 
   // ========= Random Join Configuration =========
 

@@ -159,11 +159,14 @@ This serves `https://dutch.reignofplay.com/downloads/...` directly from the file
   - `app_download_base_url`: set to `https://dutch.reignofplay.com/downloads` (used by Flask `APP_DOWNLOAD_BASE_URL`)
   - `google_client_id`: Web OAuth Client ID (required for Google Sign-In token verification)
   - `mobile_release.json`: maintained by the APK build script (see section 7)
+  - **`dart_backend_service_key`**: shared secret for Dart backend → Python API (e.g. update-game-stats). Create this file in `python_base_04/secrets/` with the same value used by the Dart backend (see `python_base_04/secrets.example/README.md`).
   - **VPS-specific configuration** (different from local):
     - `mongodb_port`: `27017` (internal Docker network port, not host port)
     - `redis_host`: `dutch_redis-external` (Docker service name, not localhost)
     - `redis_port`: `6379` (internal Docker network port, not host port)
   - All other secret files in the local `secrets/` directory
+
+**Permissions**: The playbook creates the secrets directory with mode **0750** (owner+group only) and copies each secret file with mode **0600** (owner read/write only) for better security.
 
 **Important**: The playbook only copies secret files if they don't exist or have different content (checksum comparison), making deployments faster.
 
@@ -190,7 +193,10 @@ This makes all secret files from `python_base_04/secrets/` available inside the 
 - `app_download_base_url`
 - `google_client_id` (for Google Sign-In token verification)
 - `mobile_release.json`
+- `dart_backend_service_key` (for Dart→Python service auth; Dart container mounts the same dir)
 - All other secret files (automatically copied by the deployment playbook)
+
+**Dart container** also mounts `/opt/apps/reignofplay/dutch/secrets:/app/secrets:ro` so it can read `dart_backend_service_key` for Python API calls.
 
 **Playbook flow**:
 - Validates `docker compose` availability.

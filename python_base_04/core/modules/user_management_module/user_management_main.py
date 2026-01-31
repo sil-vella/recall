@@ -35,7 +35,7 @@ from core.services.analytics_service import AnalyticsService
 
 class UserManagementModule(BaseModule):
     # Logging switch for guest registration and conversion testing
-    LOGGING_SWITCH = True  # Enabled for rank-based matching, debugging, and registration differences testing
+    LOGGING_SWITCH = False  # Enabled for rank-based matching, debugging, and registration differences testing
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):
@@ -326,6 +326,7 @@ class UserManagementModule(BaseModule):
             user_id = self.db_manager.insert("users", user_data)
             
             if not user_id:
+                custom_log(f"UserManagement: Regular registration - insert returned no user_id for email={email}, username={username}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Failed to create user account"
@@ -1215,6 +1216,7 @@ class UserManagementModule(BaseModule):
                 user_id = self.db_manager.insert("users", user_data)
                 
                 if not user_id:
+                    custom_log(f"UserManagement: Google Sign-In - insert returned no user_id for email={email}, username={username}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                     return jsonify({
                         "success": False,
                         "error": "Failed to create user account"
@@ -1373,7 +1375,9 @@ class UserManagementModule(BaseModule):
             }), 200
             
         except Exception as e:
+            import traceback
             custom_log(f"UserManagement: Google Sign-In error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+            custom_log(f"UserManagement: Google Sign-In traceback: {traceback.format_exc()}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
             return jsonify({
                 "success": False,
                 "error": "Internal server error"

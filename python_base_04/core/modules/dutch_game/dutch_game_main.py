@@ -84,11 +84,14 @@ class DutchGameMain(BaseModule):
             # Register the find-room endpoint with JWT authentication
             self._register_route_helper("/userauth/dutch/find-room", self.find_room, methods=["POST"], auth="jwt")
 
-            # Register the update-game-stats endpoint as public (no authentication)
-            self._register_route_helper("/public/dutch/update-game-stats", self.update_game_stats, methods=["POST"])
+            # Backend-only: Dart -> Python bulk update (service key auth)
+            self._register_route_helper("/service/dutch/update-game-stats", self.update_game_stats, methods=["POST"])
 
-            # Register the get-user-stats endpoint with JWT authentication
+            # Register the get-user-stats endpoint with JWT authentication (frontend direct access)
             self._register_route_helper("/userauth/dutch/get-user-stats", self.get_user_stats, methods=["GET"], auth="jwt")
+
+            # Frontend direct access: user records own game result (JWT, user_id from token)
+            self._register_route_helper("/userauth/dutch/record-game-result", self.record_game_result, methods=["POST"], auth="jwt")
 
             # Register the deduct-game-coins endpoint with JWT authentication
             self._register_route_helper("/userauth/dutch/deduct-game-coins", self.deduct_game_coins, methods=["POST"], auth="jwt")
@@ -229,7 +232,7 @@ class DutchGameMain(BaseModule):
             }), 500
     
     def update_game_stats(self):
-        """Update user game statistics after a game ends (public endpoint)"""
+        """Update user game statistics after a game ends (service endpoint: Dart backend only, X-Service-Key auth)"""
         try:
             custom_log("📊 Python: Received game statistics update request", level="INFO", isOn=LOGGING_SWITCH)
             
@@ -532,6 +535,132 @@ class DutchGameMain(BaseModule):
             return jsonify({
                 "success": False,
                 "error": "Failed to retrieve user statistics",
+                "message": str(e)
+            }), 500
+
+    def record_game_result(self):
+        """Record current user's single game result (JWT protected; user_id from token). Frontend direct access."""
+        try:
+            user_id = request.user_id
+            if not user_id:
+                return jsonify({
+                    "success": False,
+                    "error": "User not authenticated",
+                    "message": "No user ID found in request"
+                }), 401
+
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    "success": False,
+                    "message": "Request body is required",
+                    "error": "Missing request body"
+                }), 400
+
+            is_winner = data.get('is_winner', False)
+            pot = data.get('pot', 0)
+            game_mode = data.get('game_mode', 'multiplayer')
+            duration = data.get('duration', 0)
+
+            db_manager = self.app_manager.get_db_manager(role="read_write")
+            if not db_manager:
+                return jsonify({
+                    "success": False,
+                    "message": "Database connection unavailable",
+                    "error": "Database manager not initialized"
+                }), 500
+
+            try:
+                user_id_obj = ObjectId(user_id)
+            except Exception as e:
+                return jsonify({
+                    "success": False,
+                    "message": f"Invalid user_id format: {e}",
+                    "error": "Invalid user_id"
+                }), 400
+
+            user = db_manager.find_one("users", {"_id": user_id_obj})
+            if not user:
+                return jsonify({
+                    "success": False,
+                    "error": "User not found",
+                    "message": f"User {user_id} not found"
+                }), 404
+
+            modules = user.get('modules', {})
+            dutch_game = modules.get('dutch_game', {})
+            current_wins = dutch_game.get('wins', 0)
+            current_losses = dutch_game.get('losses', 0)
+            current_total_matches = dutch_game.get('total_matches', 0)
+            current_coins = dutch_game.get('coins', 0)
+
+            new_total_matches = current_total_matches + 1
+            new_wins = current_wins + (1 if is_winner else 0)
+            new_losses = current_losses + (0 if is_winner else 1)
+            new_coins = current_coins + pot
+            new_win_rate = float(new_wins) / float(new_total_matches) if new_total_matches > 0 else 0.0
+            current_timestamp = datetime.utcnow().isoformat()
+
+            update_operation = {
+                '$set': {
+                    'modules.dutch_game.total_matches': new_total_matches,
+                    'modules.dutch_game.wins': new_wins,
+                    'modules.dutch_game.losses': new_losses,
+                    'modules.dutch_game.win_rate': new_win_rate,
+                    'modules.dutch_game.last_match_date': current_timestamp,
+                    'modules.dutch_game.last_updated': current_timestamp,
+                    'updated_at': current_timestamp
+                }
+            }
+            if is_winner and pot > 0:
+                update_operation['$inc'] = {'modules.dutch_game.coins': pot}
+
+            result = db_manager.db["users"].update_one(
+                {"_id": user_id_obj},
+                update_operation
+            )
+            if not result or result.modified_count == 0:
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to update user statistics",
+                    "error": "Update failed"
+                }), 500
+
+            analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
+            if analytics_service:
+                analytics_service.track_event(
+                    user_id=user_id,
+                    event_type='game_completed',
+                    event_data={'game_mode': game_mode, 'result': 'win' if is_winner else 'loss', 'duration': duration},
+                    metrics_enabled=METRICS_SWITCH
+                )
+                if is_winner and pot > 0:
+                    analytics_service.track_event(
+                        user_id=user_id,
+                        event_type='coin_transaction',
+                        event_data={'transaction_type': 'game_reward', 'direction': 'credit', 'amount': pot},
+                        metrics_enabled=METRICS_SWITCH
+                    )
+
+            return jsonify({
+                "success": True,
+                "message": "Game result recorded",
+                "data": {
+                    "user_id": user_id,
+                    "wins": new_wins,
+                    "losses": new_losses,
+                    "total_matches": new_total_matches,
+                    "coins": new_coins,
+                    "win_rate": new_win_rate
+                },
+                "timestamp": current_timestamp
+            }), 200
+
+        except Exception as e:
+            custom_log(f"❌ DutchGame: Error in record_game_result: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({
+                "success": False,
+                "error": "Failed to record game result",
                 "message": str(e)
             }), 500
     

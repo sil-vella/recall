@@ -20,7 +20,7 @@ class GameStateStore {
         'gameId': roomId,
         'players': <Map<String, dynamic>>[],
         'discardPile': <Map<String, dynamic>>[],
-        'drawPile': <String>[],
+        'drawPile': <Map<String, dynamic>>[],
       },
       // Removed lastUpdated - causes unnecessary state updates
     });

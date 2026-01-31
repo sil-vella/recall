@@ -363,6 +363,8 @@ class AppManager:
                 auth_required = 'jwt'
             elif request.path.startswith('/keyauth/'):
                 auth_required = 'key'
+            elif request.path.startswith('/service/'):
+                auth_required = 'service'  # Backend service key (Dart -> Python)
             elif request.path.startswith('/public/'):
                 auth_required = None  # Explicitly public
             else:
@@ -431,6 +433,31 @@ class AppManager:
                 request.app_name = api_key_data.get('app_name')
                 request.app_permissions = api_key_data.get('permissions', [])
                 request.api_key_data = api_key_data
+                return None
+
+            # Handle service authentication (Dart backend -> Python)
+            if auth_required == 'service':
+                if not getattr(Config, 'ENABLE_DART_SERVICE_KEY_AUTH', True):
+                    # Switch off: accept /service/ requests without key (testing only)
+                    request.service_authenticated = True
+                    return None
+                service_key = request.headers.get('X-Service-Key') or (
+                    request.headers.get('Authorization') or ''
+                ).replace('Bearer ', '').strip()
+                expected = getattr(Config, 'DART_BACKEND_SERVICE_KEY', None) or ''
+                if not expected:
+                    return jsonify({
+                        'error': 'Service auth not configured',
+                        'message': 'DART_BACKEND_SERVICE_KEY is not set.',
+                        'code': 'SERVICE_AUTH_NOT_CONFIGURED'
+                    }), 503
+                if not service_key or service_key != expected:
+                    return jsonify({
+                        'error': 'Invalid service key',
+                        'message': 'Valid X-Service-Key or Bearer token required.',
+                        'code': 'SERVICE_KEY_INVALID'
+                    }), 401
+                request.service_authenticated = True
                 return None
 
     @log_function_call

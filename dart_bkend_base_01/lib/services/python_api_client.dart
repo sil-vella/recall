@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching, comp player testing, and registration differences
+const bool LOGGING_SWITCH = false; // Enabled for login/account creation debugging (token validation, game stats)
 
 class PythonApiClient {
   final String baseUrl;
@@ -11,17 +12,30 @@ class PythonApiClient {
   
   PythonApiClient({required this.baseUrl});
   
-  /// Validate JWT token with Python backend
+  /// Validate JWT token with Python backend (service endpoint: requires X-Service-Key)
   Future<Map<String, dynamic>> validateToken(String token) async {
     if (LOGGING_SWITCH) {
       _logger.auth('🔍 Dart: Starting token validation with Python API');
-      _logger.auth('🌐 Dart: Calling $baseUrl/api/auth/validate');
+      _logger.auth('🌐 Dart: Calling $baseUrl/service/auth/validate');
     }
-    
+
+    final useKey = Config.usePythonServiceKey;
+    final serviceKey = useKey ? Config.pythonServiceKey : '';
+    if (useKey && serviceKey.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.auth('⚠️ Dart: USE_PYTHON_SERVICE_KEY is on but DART_BACKEND_SERVICE_KEY not set; Python may reject the request');
+      }
+    }
+
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (serviceKey.isNotEmpty) 'X-Service-Key': serviceKey,
+    };
+
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/auth/validate'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/service/auth/validate'),
+        headers: headers,
         body: jsonEncode({'token': token}),
       );
       
@@ -50,17 +64,30 @@ class PythonApiClient {
     }
   }
   
-  /// Update game statistics for players after a game ends
+  /// Update game statistics for players after a game ends (service endpoint: X-Service-Key auth)
   Future<Map<String, dynamic>> updateGameStats(List<Map<String, dynamic>> gameResults) async {
     if (LOGGING_SWITCH) {
       _logger.info('📊 Dart: Updating game statistics for ${gameResults.length} player(s)');
-      _logger.info('🌐 Dart: Calling $baseUrl/public/dutch/update-game-stats');
+      _logger.info('🌐 Dart: Calling $baseUrl/service/dutch/update-game-stats');
     }
-    
+
+    final useKey = Config.usePythonServiceKey;
+    final serviceKey = useKey ? Config.pythonServiceKey : '';
+    if (useKey && serviceKey.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('⚠️ Dart: USE_PYTHON_SERVICE_KEY is on but DART_BACKEND_SERVICE_KEY not set; Python may reject the request');
+      }
+    }
+
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (serviceKey.isNotEmpty) 'X-Service-Key': serviceKey,
+    };
+
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/public/dutch/update-game-stats'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/service/dutch/update-game-stats'),
+        headers: headers,
         body: jsonEncode({
           'game_results': gameResults,
         }),

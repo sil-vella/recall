@@ -394,6 +394,14 @@ class Config:
     JWT_COOKIE_PATH = get_file_first_config_value("jwt_cookie_path", "JWT_COOKIE_PATH", "/")
     JWT_COOKIE_MAX_AGE = int(get_file_first_config_value("jwt_cookie_max_age", "JWT_COOKIE_MAX_AGE", "3600"))  # 1 hour in seconds
 
+    # Dart backend service-to-service auth (shared secret for Dart -> Python API calls)
+    # Set via file dart_backend_service_key or env DART_BACKEND_SERVICE_KEY; must match Dart backend config.
+    DART_BACKEND_SERVICE_KEY = get_file_first_config_value("dart_backend_service_key", "DART_BACKEND_SERVICE_KEY", "")
+
+    # Switch to require service key for /service/ routes (Dart -> Python). Set false for local testing without the key.
+    # File: enable_dart_service_key_auth; Env: ENABLE_DART_SERVICE_KEY_AUTH. Default true (auth required).
+    ENABLE_DART_SERVICE_KEY_AUTH = get_file_first_config_value("enable_dart_service_key_auth", "ENABLE_DART_SERVICE_KEY_AUTH", "true").lower() in ("true", "1", "yes")
+
     # Toggle SSL for PostgreSQL
     USE_SSL = get_file_first_config_value("use_ssl", "USE_SSL", "False").lower() in ("true", "1")
 

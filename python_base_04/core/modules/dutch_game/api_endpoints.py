@@ -6,7 +6,7 @@ from bson import ObjectId
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Enabled for rank-based matching testing and registration differences
+LOGGING_SWITCH = False  # Enabled for rank-based matching testing and registration differences
 
 # Store app_manager reference (will be set by module)
 _app_manager = None
@@ -16,9 +16,18 @@ def set_app_manager(app_manager):
     global _app_manager
     _app_manager = app_manager
 
+@dutch_api.route('/service/auth/validate', methods=['POST'])
+def service_validate_token():
+    """Validate JWT from Dart backend. Requires X-Service-Key (enforced by app_manager). Same body/response as public endpoint."""
+    return _validate_token_impl()
+
 @dutch_api.route('/api/auth/validate', methods=['POST'])
 def validate_token():
-    """Validate JWT token from Dart WebSocket server"""
+    """Validate JWT token (legacy public). Prefer /service/auth/validate with X-Service-Key for Dart backend."""
+    return _validate_token_impl()
+
+def _validate_token_impl():
+    """Shared JWT validation logic. POST body: { token: userJwt }. Returns JSON response."""
     custom_log("🔐 API: Token validation request received", level="INFO", isOn=LOGGING_SWITCH)
     custom_log("🔐 API: Blueprint loaded and endpoint hit!", level="INFO", isOn=LOGGING_SWITCH)
     

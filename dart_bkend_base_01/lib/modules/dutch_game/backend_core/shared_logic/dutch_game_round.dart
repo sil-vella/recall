@@ -20,6 +20,9 @@ class DutchGameRound {
   Timer? _specialCardTimer; // Timer for special card window (10 seconds per card)
   Timer? _drawActionTimer; // Timer for draw action (applies to both human and CPU)
   Timer? _playActionTimer; // Timer for play action (applies to both human and CPU)
+  /// Cancellable delay when "move to next player" was triggered by draw/play timer expiry.
+  /// Cancelled when the player completes draw or play before the delay fires.
+  Timer? _pendingMoveToNextPlayerTimer;
   
   // Unified counter for missed draw and play actions per player
   final Map<String, int> _missedActionCounts = {};
@@ -103,6 +106,23 @@ class DutchGameRound {
     final random = Random();
     final number = random.nextInt(900000) + 100000; // 100000 to 999999
     return number.toString();
+  }
+
+  /// Normalize a pile from game state to List<Map<String, dynamic>>.
+  /// Handles drawPile/discardPile stored as List<String> (card IDs) or List<Map> (id-only or full cards).
+  static List<Map<String, dynamic>> _ensureCardMapList(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List<Map<String, dynamic>>) return raw;
+    if (raw is List<String>) {
+      return raw.map((id) => {'cardId': id, 'suit': '?', 'rank': '?', 'points': 0}).toList();
+    }
+    if (raw is List) {
+      return raw.map((e) {
+        if (e is Map<String, dynamic>) return e;
+        return {'cardId': e.toString(), 'suit': '?', 'rank': '?', 'points': 0};
+      }).toList();
+    }
+    return [];
   }
 
   /// SSOT: Add a single action to a player's action queue (list format).
@@ -1612,11 +1632,11 @@ class DutchGameRound {
       Map<String, dynamic>? drawnCard;
       
       if (source == 'deck') {
-        // Draw from draw pile
-        final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
+        // Draw from draw pile (accept List<String> or List<Map> from state)
+        final drawPile = _ensureCardMapList(gameState['drawPile']);
         if (drawPile.isEmpty) {
           // Draw pile is empty - reshuffle discard pile (except top card) into draw pile
-          final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+          final discardPile = _ensureCardMapList(gameState['discardPile']);
           
           if (discardPile.length <= 1) {
             if (LOGGING_SWITCH) {
@@ -1658,7 +1678,7 @@ class DutchGameRound {
         
         // Now draw from the (potentially reshuffled) draw pile
         // Re-fetch drawPile in case it was reshuffled above
-        final currentDrawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
+        final currentDrawPile = _ensureCardMapList(gameState['drawPile']);
         if (currentDrawPile.isEmpty) {
           if (LOGGING_SWITCH) {
             _logger.error('Dutch: Draw pile is empty after reshuffle check - cannot draw');
@@ -1691,8 +1711,8 @@ class DutchGameRound {
         }
         
       } else if (source == 'discard') {
-        // Take from discard pile
-        final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+        // Take from discard pile (accept List<String> or List<Map> from state)
+        final discardPile = _ensureCardMapList(gameState['discardPile']);
         if (discardPile.isEmpty) {
           if (LOGGING_SWITCH) {
             _logger.error('Dutch: Cannot draw from empty discard pile');
@@ -1913,6 +1933,10 @@ class DutchGameRound {
       
       // Start play timer for ALL players (human and CPU) if status is playing_card
       _startPlayActionTimer(actualPlayerId);
+
+      // Cancel any pending move-to-next from draw timer expiry (player drew before the delay fired)
+      _pendingMoveToNextPlayerTimer?.cancel();
+      _pendingMoveToNextPlayerTimer = null;
       
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Player $actualPlayerId status changed from drawing_card to playing_card');
@@ -2948,6 +2972,10 @@ class DutchGameRound {
       _playActionTimer = null;
       _drawActionTimer?.cancel();
       _drawActionTimer = null;
+
+      // Cancel any pending move-to-next from play timer expiry (player played before the delay fired)
+      _pendingMoveToNextPlayerTimer?.cancel();
+      _pendingMoveToNextPlayerTimer = null;
       
       // Reset missed action count on successful play
       _missedActionCounts[actualPlayerId] = 0;
@@ -3070,8 +3098,8 @@ class DutchGameRound {
           _logger.info('Dutch: Applying penalty for wrong same rank play - drawing card from draw pile');
         };
         
-        final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
-        final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+        final drawPile = _ensureCardMapList(gameState['drawPile']);
+        final discardPile = _ensureCardMapList(gameState['discardPile']);
         
         // Check if draw pile is empty and reshuffle if needed (same logic as regular draw)
         if (drawPile.isEmpty) {
@@ -3117,7 +3145,7 @@ class DutchGameRound {
         }
         
         // Re-fetch drawPile in case it was reshuffled above
-        final currentDrawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
+        final currentDrawPile = _ensureCardMapList(gameState['drawPile']);
         if (currentDrawPile.isEmpty) {
           if (LOGGING_SWITCH) {
             _logger.error('Dutch: Draw pile is empty after reshuffle check - cannot apply penalty');
@@ -3216,7 +3244,7 @@ class DutchGameRound {
       // This ensures widgets rebuild atomically and card position tracking works correctly
       // Use the games map we're working with (currentGames already has modifications)
       final currentGamesForSameRank = currentGames;
-      final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      final updatedDiscardPile = _ensureCardMapList(gameState['discardPile']);
       
       
       // Add turn event for same rank play (actionType is 'play' - same as regular play)
@@ -3841,6 +3869,29 @@ class DutchGameRound {
       // This adds the peeked card to the peeking player's known_cards
       updateKnownCards('queen_peek', peekingPlayerId, [targetCardId], swapData: {
         'targetPlayerId': targetPlayerId,
+      });
+
+      // Action completed successfully - cancel timer and move to next special card (same as jack_swap)
+      _specialCardTimer?.cancel();
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Cancelled special card timer after Queen peek completion');
+      }
+      if (_specialCardPlayers.isNotEmpty) {
+        final currentSpecialData = _specialCardPlayers[0];
+        final currentPlayerId = currentSpecialData['player_id']?.toString();
+        if (currentPlayerId != null && currentPlayerId.isNotEmpty) {
+          _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Player $currentPlayerId status set to waiting after Queen peek completion');
+          }
+          _specialCardPlayers.removeAt(0);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}');
+          }
+        }
+      }
+      Timer(const Duration(seconds: 1), () {
+        _processNextSpecialCard();
       });
 
       return true;
@@ -5521,69 +5572,61 @@ class DutchGameRound {
     }
   }
 
-  /// Wait until all players in SSOT game state have status 'waiting', or 5 second timeout.
-  /// Retries at interval; ensures animations/special play can complete before we proceed.
-  Future<void> _waitForAllPlayersWaiting() async {
-    const maxWait = Duration(seconds: 5);
-    const retryInterval = Duration(milliseconds: 150);
-    final deadline = DateTime.now().add(maxWait);
-    while (DateTime.now().isBefore(deadline)) {
-      final gameState = _getCurrentGameState();
-      if (gameState == null) {
-        await Future.delayed(retryInterval);
-        continue;
-      }
-      final players = gameState['players'] as List<dynamic>? ?? [];
-      if (players.isEmpty) {
-        await Future.delayed(retryInterval);
-        continue;
-      }
-      final allWaiting = players.every((p) {
-        if (p is! Map<String, dynamic>) return false;
-        final status = p['status']?.toString() ?? '';
-        return status == 'waiting';
-      });
-      if (allWaiting) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: All ${players.length} players in waiting status - proceeding with move to next player');
-        }
-        return;
-      }
-      await Future.delayed(retryInterval);
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: Wait for all players waiting timed out after 5s, proceeding with move to next player');
-    }
-  }
-
   /// Move to the next player (simplified version for practice)
   /// Public method to move to next player (called from leave_room handler when player is auto-removed)
   Future<void> moveToNextPlayer() async {
     await _moveToNextPlayer();
   }
 
-  Future<void> _moveToNextPlayer() async {
+  Future<void> _moveToNextPlayer({bool fromTimerExpiry = false}) async {
     try {
-      // Before selecting next player, confirm all players are 'waiting' (SSOT gameState.players) - retry up to 5s
-      await _waitForAllPlayersWaiting();
+      // Cancel any pending move-to-next from a previous timer expiry (so only one is ever scheduled)
+      _pendingMoveToNextPlayerTimer?.cancel();
+      _pendingMoveToNextPlayerTimer = null;
+
+      if (fromTimerExpiry) {
+        // Schedule the 2s delay so it can be cancelled if the player draws/plays late
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Moving to next player (with 2 second delay)');
+        }
+        _pendingMoveToNextPlayerTimer = Timer(const Duration(seconds: 2), () {
+          _pendingMoveToNextPlayerTimer = null;
+          _executeMoveToNextPlayerCore();
+        });
+        return;
+      }
+
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Moving to next player (with 2 second delay)');
       };
-      
+
       // Clear all player actions before moving to next player
-      // This ensures the animation queue is cleared after all animations have been processed
       _clearPlayerAction();
-      
+
       // Add 2 second delay before moving to next player
       await Future.delayed(const Duration(seconds: 2));
-      
+
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Delay complete, proceeding with move to next player');
+      }
+
+      _executeMoveToNextPlayerCore();
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error moving to next player: $e');
       };
-      
+    }
+  }
+
+  /// Core logic for moving to next player (after the 2s delay).
+  /// Called from _moveToNextPlayer (normal path) or from the cancellable timer (timer-expiry path).
+  void _executeMoveToNextPlayerCore() {
+    try {
+      // Clear all player actions before moving to next player
+      _clearPlayerAction();
       // Cancel all action timers at start of move to next player
       _cancelActionTimers();
-      
+
       // Check if game has ended (winners exist) - prevent progression if game is over
       if (_winnersList.isNotEmpty) {
         if (LOGGING_SWITCH) {
@@ -5778,10 +5821,9 @@ class DutchGameRound {
           _logger.info('Dutch: Started turn for human player ${nextPlayer['name']} - status: drawing_card');
         };
       }
-      
     } catch (e) {
       if (LOGGING_SWITCH) {
-        _logger.error('Dutch: Error moving to next player: $e');
+        _logger.error('Dutch: Error in move to next player core: $e');
       };
     }
   }
@@ -6149,8 +6191,8 @@ class DutchGameRound {
     _playActionTimer?.cancel();
     _playActionTimer = null;
     
-    // Move to next player first (normal flow)
-    _moveToNextPlayer();
+    // Move to next player first (normal flow) - use fromTimerExpiry so the 2s delay is cancellable
+    _moveToNextPlayer(fromTimerExpiry: true);
     
     // Then check missed action threshold and trigger auto-leave if needed
     _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
@@ -6241,8 +6283,8 @@ class DutchGameRound {
       };
     }
     
-    // Move to next player first (normal flow)
-    _moveToNextPlayer();
+    // Move to next player first (normal flow) - use fromTimerExpiry so the 2s delay is cancellable
+    _moveToNextPlayer(fromTimerExpiry: true);
     
     // Then check missed action threshold and trigger auto-leave if needed
     _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
@@ -6262,12 +6304,15 @@ class DutchGameRound {
     _drawActionTimer = null;
     _playActionTimer?.cancel();
     _playActionTimer = null;
+    _pendingMoveToNextPlayerTimer?.cancel();
+    _pendingMoveToNextPlayerTimer = null;
   }
 
   /// Dispose of resources
   void dispose() {
     _sameRankTimer?.cancel();
     _specialCardTimer?.cancel();
+    _pendingMoveToNextPlayerTimer?.cancel();
     _cancelActionTimers();
     if (LOGGING_SWITCH) {
       _logger.info('Dutch: DutchGameRound disposed for game $_gameId');

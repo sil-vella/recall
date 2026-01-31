@@ -23,14 +23,12 @@ This document tracks high-level development plans, todos, and architectural deci
 
 ### High Priority
 
-#### WebSocket JWT Validation
-- [ ] **Enforce JWT validation for WebSocket connections**
-  - Currently, authentication is optional - clients can connect and send events without authenticating
-  - Add authentication check in `_onMessage()` or `handleMessage()` to reject events from unauthenticated sessions
-  - Allow only `authenticate`, `ping`, and `pong` events for unauthenticated sessions
-  - Reject all game events (`create_room`, `join_room`, `start_match`, etc.) if session is not authenticated
-  - **Location**: `dart_bkend_base_01/lib/server/websocket_server.dart` and `message_handler.dart`
-  - **Impact**: Security improvement - prevents unauthorized game actions
+#### Multiplayer turn logic (skipping players)
+- [ ] **Investigate multiplayer turn logic as its skipping players**
+  - Practice works fine; multiplayer has turn-skipping issues.
+  - **Action**: Log both (practice and multiplayer) and compare turn advancement, `currentPlayer`, and `_moveToNextPlayer` / `_startNextTurn` flows.
+  - **Location**: `dart_bkend_base_01` and `flutter_base_05` – `dutch_game_round.dart`, `game_event_coordinator.dart` (turn/currentPlayer handling).
+  - **Impact**: Game integrity – ensure all players get their turn in multiplayer.
 
 #### Player Action Validation
 - [ ] **Validate player is still in game before processing any action**
@@ -54,45 +52,6 @@ This document tracks high-level development plans, todos, and architectural deci
     - If player not found, reject action with appropriate error message
     - Return early before processing the action
   - **Impact**: Game integrity - prevents actions from disconnected/removed players from affecting active games
-
-#### JWT Authentication Between Dart Backend and Python
-- [ ] **Create JWT token system for Dart backend to Python API communication**
-  - **Current State**: Dart backend calls Python API endpoints (e.g., `/public/dutch/update-game-stats`) without authentication
-  - **Issue**: Public endpoints are vulnerable to unauthorized access
-  - **Expected Behavior**: Dart backend should authenticate with Python backend using JWT tokens
-  - **Implementation Steps**:
-    1. **Dart Backend JWT Client**:
-       - Create JWT token management in Dart backend
-       - Store JWT token (received from Flutter client or obtained via service-to-service auth)
-       - Add JWT token to HTTP request headers when calling Python API
-       - Handle token refresh/expiration
-    2. **Python Backend JWT Validation**:
-       - Modify Python endpoints to accept and validate JWT tokens from Dart backend
-       - Extract user_id from JWT token for authorization
-       - Reject requests with invalid/missing tokens
-    3. **Token Exchange**:
-       - Determine token source: Flutter client passes token to Dart backend, or Dart backend obtains service token
-       - Implement token forwarding/storage mechanism
-  - **Location**: 
-    - `dart_bkend_base_01/lib/services/python_api_client.dart` - Add JWT token handling
-    - `python_base_04/core/modules/dutch_game/dutch_game_main.py` - Add JWT validation to endpoints
-    - `python_base_04/core/managers/jwt_manager.py` - Use existing JWT manager for validation
-  - **Impact**: Security improvement - prevents unauthorized API calls and ensures proper user identification
-
-- [ ] **Modify game statistics update endpoint to use JWT authentication**
-  - **Current State**: `/public/dutch/update-game-stats` endpoint is public (no authentication)
-  - **Expected Behavior**: Endpoint should require JWT authentication and extract user_id from token
-  - **Implementation**:
-    - Change endpoint from `/public/dutch/update-game-stats` to `/dutch/update-game-stats` (remove public prefix)
-    - Add JWT validation decorator/middleware to endpoint
-    - Extract `user_id` from JWT token instead of relying on request body
-    - Validate that JWT user_id matches the user_id in the game results
-    - Update Dart backend to send JWT token in Authorization header
-  - **Location**: 
-    - `python_base_04/core/modules/dutch_game/dutch_game_main.py` - Modify `update_game_stats()` method
-    - `dart_bkend_base_01/lib/services/python_api_client.dart` - Add JWT token to requests
-    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/services/game_registry.dart` - Pass JWT token when calling API
-  - **Impact**: Security improvement - ensures only authenticated requests can update game statistics, prevents unauthorized data manipulation
 
 ### Medium Priority
 
@@ -147,6 +106,12 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Expected Behavior**: Table side borders (left/right, and any decorative borders) should be defined as a **percentage of the table dimensions** (e.g. width or height) so they scale correctly on different screen sizes
   - **Location**: Flutter game play table widget – border width/stroke (e.g. `unified_game_board_widget.dart` or table decoration)
   - **Impact**: Consistent visual proportions across devices and window sizes
+- [ ] **Same rank timer UI widget: verify alignment with same rank time**
+  - **Issue**: The same rank timer shown in the UI may not match the actual same rank window duration used by game logic
+  - **Expected Behavior**: The same rank timer UI widget should display a countdown (or elapsed time) that **aligns with the same rank time** configured in game logic (e.g. `_sameRankTimer` duration in `dutch_game_round.dart`)
+  - **Verification**: Confirm the UI timer duration and the backend same-rank window duration use the same value (e.g. from `timerConfig` or a shared constant); ensure countdown start/end matches when the window opens and closes
+  - **Location**: Flutter same rank timer widget (e.g. in `unified_game_board_widget.dart` or game play screen); game logic in `dutch_game_round.dart` (same rank timer duration)
+  - **Impact**: User experience – players see an accurate representation of how long they have to play a same-rank card
 
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
@@ -220,6 +185,13 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Solution**: Before making Jack swap decision, validate that selected cards actually exist in the player's current hand, not just in `known_cards`
   - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
   - **Impact**: Improves CPU player decision accuracy, reduces failed swap attempts
+- [ ] **Jack swap after same-rank play: computer picks cards already played (discarded)**
+  - **Issue**: When a Jack is played as same-rank, it is moved to the discard pile; the special-card window then runs and the computer's Jack swap decision can choose that same Jack (or another card just played) for the swap. Those cards are no longer in any player's hand, so validation fails with "Invalid Jack swap - one or both cards not found in players' hands".
+  - **Observed in logs**: CPU plays two Jacks in same-rank (diamonds, then hearts); for each Jack's special-card window the AI selects e.g. `card_..._23_...` (jack diamonds) and `card_..._52_...` (joker in opponent hand). The jack diamonds was already played and is in the discard, so the swap fails.
+  - **Root Cause**: Jack swap decision uses card IDs / known_cards that reflect state before the same-rank play; by the time the special-card window runs, the played Jack(s) have been removed from hands.
+  - **Expected Behavior**: Jack swap selection must use only cards that currently exist in players' hands (e.g. filter candidate cards by current hand contents, or re-read hand state at decision time in the special-card window).
+  - **Location**: Same as above – `getJackSwapDecision()` and card selection in `computer_player_factory.dart` (and Flutter equivalent if present); ensure special-card window receives or reads current hand state after same-rank plays.
+  - **Impact**: Eliminates failed Jack swap attempts and "Invalid Jack swap" errors when Jacks are played via same-rank.
 - [ ] **Fine-tune computer Jack swap decisions: avoid frequent self-hand swaps**
   - **Issue**: Computer players are swapping cards from their own hands too often; same-hand swaps should be rare
   - **Current Behavior**: Jack swap decision logic allows or prefers swapping within the same player's hand, leading to frequent self-hand swaps
@@ -516,5 +488,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-01-29 (Added game play table: remove padding, table side borders %-based on dimensions)
+**Last Updated**: 2026-01-31 (Added Jack swap issue: computer picks cards already played after same-rank)
 

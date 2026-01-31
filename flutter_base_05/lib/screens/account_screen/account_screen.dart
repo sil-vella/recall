@@ -25,7 +25,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Enable for debugging guest account creation and game creation loops
+  static const bool LOGGING_SWITCH = false; // Enable for debugging login/account creation (unable to create account)
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -392,12 +392,18 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           context.go('/');
         });
       } else {
+        if (LOGGING_SWITCH) {
+          _logger.warning('AccountScreen: Login failed - result: $result');
+        }
         setState(() {
           _errorMessage = result['error'];
           _isLoading = false;
         });
       }
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('AccountScreen: Login exception', error: e);
+      }
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;
@@ -442,12 +448,18 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           context.go('/');
         });
       } else {
+        if (LOGGING_SWITCH) {
+          _logger.warning('AccountScreen: Google Sign-In failed - result: $result');
+        }
         setState(() {
           _errorMessage = result['error'];
           _isLoading = false;
         });
       }
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('AccountScreen: Google Sign-In exception', error: e);
+      }
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;
@@ -543,12 +555,18 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           });
         }
       } else {
+        if (LOGGING_SWITCH) {
+          _logger.warning('AccountScreen: Register failed - result: $result');
+        }
         setState(() {
           _errorMessage = result['error'];
           _isLoading = false;
         });
       }
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('AccountScreen: Register exception', error: e);
+      }
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;

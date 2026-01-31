@@ -203,7 +203,7 @@ class DutchGameModule {
               if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
             }
           ],
-          'drawPile': <String>[],
+          'drawPile': <Map<String, dynamic>>[],
           'discardPile': <Map<String, dynamic>>[],
           'originalDeck': <Map<String, dynamic>>[],
         },

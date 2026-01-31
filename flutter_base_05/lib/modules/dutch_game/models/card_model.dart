@@ -80,11 +80,8 @@ class CardModel {
     return '${rank.toUpperCase()} of ${suit.toUpperCase()}';
   }
 
-  /// Get the short display text (e.g., "A♠")
-  String get shortDisplayText {
-    if (rank == 'joker') return 'J';
-    return '$rankSymbol$suitSymbol';
-  }
+  /// Get the short display text (e.g., "A♠", "🃏★" for joker)
+  String get shortDisplayText => '$rankSymbol$suitSymbol';
 
   /// Check if this card has a special power
   bool get hasSpecialPower => specialPower != null && specialPower != 'none';
@@ -138,7 +135,7 @@ class CardModel {
     }
   }
 
-  /// Get the rank symbol
+  /// Get the rank symbol (joker uses icon 🃏 like suit symbols)
   String get rankSymbol {
     switch (rank.toLowerCase()) {
       case 'ace':
@@ -150,7 +147,7 @@ class CardModel {
       case 'king':
         return 'K';
       case 'joker':
-        return 'J';
+        return '✧';  // White four-pointed star (outline; ★ is used for joker suit)
       default:
         return rank;
     }

@@ -7,7 +7,7 @@
 # Global deck settings
 deck_settings:
   include_jokers: true
-  testing_mode: false  # Set to false for standard deck, true for testing deck
+  testing_mode: true  # Set to false for standard deck, true for testing deck
 
 # Standard deck configuration (52 cards + 2 jokers = 54 total)
 standard_deck:
@@ -87,14 +87,6 @@ testing_deck:
     - spades
   
   ranks:
-    ace:
-      points: 1
-      special_power: null
-      quantity_per_suit: 1  # 1 per suit × 4 suits = 4 cards
-    "3":
-      points: 3
-      special_power: null
-      quantity_per_suit: 1  # 1 per suit × 4 suits = 4 cards
     jack:
       points: 10
       special_power: "switch_cards"
@@ -103,12 +95,20 @@ testing_deck:
       points: 10
       special_power: "peek_at_card"
       quantity_per_suit: 2  # 2 per suit × 4 suits = 8 cards
+    ace:
+      points: 1
+      special_power: null
+      quantity_per_suit: 1  # 1 per suit × 4 suits = 4 cards
+    "3":
+      points: 3
+      special_power: null
+      quantity_per_suit: 1  # 1 per suit × 4 suits = 4 cards
   
   jokers:
     joker:
       points: 0
       special_power: null
-      quantity_total: 0  # No jokers in test deck
+      quantity_total: 1  # One joker for testing (e.g. my-hand display)
       suit: "joker"
 
 # Demo deck configuration - 20 cards total: 8 jacks, 8 queens, 4 aces

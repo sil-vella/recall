@@ -106,17 +106,21 @@ class CardWidget extends StatelessWidget {
       child: Stack(
         children: [
           // Background image for special cards (queen, king, jack, joker)
+          // Full height, aspect ratio preserved, aligned left (overflow clipped on right)
           if (isSpecialCard && specialCardImagePath != null)
             Positioned.fill(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(config.borderRadius),
-                child: Image(
-                  image: AssetImage(specialCardImagePath),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    // If image fails to load, continue with normal card layout
-                    return const SizedBox.shrink();
-                  },
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Image(
+                    image: AssetImage(specialCardImagePath),
+                    fit: BoxFit.fitHeight,
+                    height: dimensions.height,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 ),
               ),
             ),
@@ -166,63 +170,152 @@ class CardWidget extends StatelessWidget {
     );
   }
 
-  /// Get the path to special card image if available
+  /// Get the path to special card image if available.
+  /// Images for king, queen, jack, and joker live in assets/images/backgrounds/
+  /// (see DECK_CREATION_RESHUFFLING_AND_CONFIG.md and card_display in deck config).
   String? _getSpecialCardImagePath() {
     final rank = card.rank.toLowerCase();
-    if (rank == 'queen') return 'assets/images/queen.png';
-    if (rank == 'king') return 'assets/images/king.png';
-    if (rank == 'jack') return 'assets/images/jack.png';
-    if (rank == 'joker') return 'assets/images/joker.png';
+    if (rank == 'queen') return 'assets/images/backgrounds/queen.png';
+    if (rank == 'king') return 'assets/images/backgrounds/king.png';
+    if (rank == 'jack') return 'assets/images/backgrounds/jack.png';
+    if (rank == 'joker') return 'assets/images/backgrounds/joker.png';
     return null;
   }
-  /// Build top-left corner text (rank and suit) - block sized to 1/4 of card height after padding, text fits without overflow
+  /// Whether this card is a special rank (queen, king, jack, joker) – used for stroke size and corner inset.
+  bool get _isSpecialRank => card.isFaceCard || card.rank.toLowerCase() == 'joker';
+
+  /// Stroke width for rank/suit outline: doubled for special ranks so it reads over background images.
+  double get _strokeWidth => _isSpecialRank ? 6.0 : 3.0;
+
+  /// Inset for corner content so the stroke stays inside card bounds (no overflow, especially pointy symbols).
+  double get _cornerStrokeInset => _strokeWidth / 2;
+
+  /// Build rank/suit text. Optional white stroke (outline) only for bottom-right corner so it reads over background images.
+  Widget _buildRankSuitText(String text, double fontSize, Color fillColor, TextAlign textAlign, {double? strokeWidth, bool applyStroke = true}) {
+    final effectiveStroke = strokeWidth ?? _strokeWidth;
+    if (!applyStroke) {
+      return Text(
+        text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: fillColor,
+          height: 1.0,
+        ),
+        textAlign: textAlign,
+      );
+    }
+    return Stack(
+      children: [
+        // White stroke (outline) so text reads over background image (bottom-right only)
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            height: 1.0,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = effectiveStroke
+              ..color = AppColors.white,
+          ),
+          textAlign: textAlign,
+        ),
+        // Colored fill on top
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: fillColor,
+            height: 1.0,
+          ),
+          textAlign: textAlign,
+        ),
+      ],
+    );
+  }
+
+  /// Path to small joker icon for corner (rank). Place PNG at this path; fallback to rank symbol if missing.
+  static const String _jokerIconPath = 'assets/images/joker_icon.png';
+
+  /// Build corner content: for joker use PNG icon + suit text; otherwise rank + suit text.
+  /// Stroke (border) only on bottom-right corner; top-left has no stroke.
+  Widget _buildCornerContent(Size dimensions, double blockHeight, double blockWidth, bool isTopLeft) {
+    final initialFontSize = blockHeight * 0.45;
+    final isJoker = card.rank.toLowerCase() == 'joker';
+    final textAlign = isTopLeft ? TextAlign.left : TextAlign.right;
+    final applyStroke = !isTopLeft; // Border only on bottom-right
+
+    if (isJoker) {
+      final iconSize = initialFontSize * 1.2;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: isTopLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        children: [
+          Image.asset(
+            _jokerIconPath,
+            width: iconSize,
+            height: iconSize,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return SizedBox(
+                width: iconSize,
+                height: iconSize,
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: _buildRankSuitText(card.rankSymbol, initialFontSize, card.color, textAlign, applyStroke: applyStroke),
+                ),
+              );
+            },
+          ),
+          SizedBox(height: blockHeight * 0.05),
+          _buildRankSuitText(card.suitSymbol, initialFontSize, card.color, textAlign, applyStroke: applyStroke),
+        ],
+      );
+    }
+
+    final text = '${card.rankSymbol}\n${card.suitSymbol}';
+    return _buildRankSuitText(text, initialFontSize, card.color, textAlign, applyStroke: applyStroke);
+  }
+
+  /// Build top-left corner text (rank and suit) - block sized to 1/4 of card height after padding, text fits without overflow.
+  /// Corner content is inset by _cornerStrokeInset so the stroke stays inside card bounds.
   Widget _buildTopLeftCornerText(Size dimensions) {
     final blockHeight = dimensions.height * (1 / 4);
     final blockWidth = dimensions.width * 0.6;
-    final initialFontSize = blockHeight * 0.45;
-    
+    final inset = _cornerStrokeInset;
+
     return SizedBox(
       height: blockHeight,
       width: blockWidth,
-      child: FittedBox(
-        fit: BoxFit.contain,
-        alignment: Alignment.topLeft,
-        child: Text(
-          '${card.rankSymbol}\n${card.suitSymbol}',
-          style: TextStyle(
-            fontSize: initialFontSize,
-            fontWeight: FontWeight.bold,
-            color: card.color,
-            height: 1.0,
-          ),
-          textAlign: TextAlign.left,
+      child: Padding(
+        padding: EdgeInsets.all(inset),
+        child: FittedBox(
+          fit: BoxFit.contain,
+          alignment: Alignment.topLeft,
+          child: _buildCornerContent(dimensions, blockHeight - inset * 2, blockWidth - inset * 2, true),
         ),
       ),
     );
   }
 
-  /// Build bottom-right corner text (rank and suit) - block sized to 3/4 of card height, text fills that space
+  /// Build bottom-right corner text (rank and suit) - block sized to 3/4 of card height, text fills that space.
+  /// Corner content is inset by _cornerStrokeInset so the stroke stays inside card bounds.
   Widget _buildBottomRightCornerText(Size dimensions) {
     final blockHeight = dimensions.height * (3 / 4);
     final blockWidth = dimensions.width * 0.6;
-    // Use large initial fontSize so FittedBox scales it down to fill the 2/3-height box
-    final initialFontSize = blockHeight * 0.45;
-    
+    final inset = _cornerStrokeInset;
+
     return SizedBox(
       height: blockHeight,
       width: blockWidth,
-      child: FittedBox(
-        fit: BoxFit.contain,
-        alignment: Alignment.bottomRight,
-        child: Text(
-          '${card.rankSymbol}\n${card.suitSymbol}',
-          style: TextStyle(
-            fontSize: initialFontSize,
-            fontWeight: FontWeight.bold,
-            color: card.color,
-            height: 1.0,
-          ),
-          textAlign: TextAlign.right,
+      child: Padding(
+        padding: EdgeInsets.all(inset),
+        child: FittedBox(
+          fit: BoxFit.contain,
+          alignment: Alignment.bottomRight,
+          child: _buildCornerContent(dimensions, blockHeight - inset * 2, blockWidth - inset * 2, false),
         ),
       ),
     );

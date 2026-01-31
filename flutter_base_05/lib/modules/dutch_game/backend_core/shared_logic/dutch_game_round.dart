@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
+const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -3647,6 +3647,12 @@ class DutchGameRound {
           if (LOGGING_SWITCH) {
             _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}');
           };
+          if (_specialCardPlayers.isEmpty) {
+            _specialCardData.clear();
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Cleared special card data (no remaining cards to process)');
+            };
+          }
         }
       }
 
@@ -3887,6 +3893,12 @@ class DutchGameRound {
           _specialCardPlayers.removeAt(0);
           if (LOGGING_SWITCH) {
             _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}');
+          }
+          if (_specialCardPlayers.isEmpty) {
+            _specialCardData.clear();
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Cleared special card data (no remaining cards to process)');
+            };
           }
         }
       }
@@ -5440,6 +5452,15 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}');
         };
+        // Clear _specialCardData when list becomes empty so that if same rank window ends
+        // (or any other path) calls _handleSpecialCardsWindow() before the 1s delay fires,
+        // it sees empty data and does not reopen the special window (e.g. after human plays joker).
+        if (_specialCardPlayers.isEmpty) {
+          _specialCardData.clear();
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Cleared special card data (no remaining cards to process)');
+          };
+        }
       }
       
       // Add 1-second delay for visual indication before processing next special card
@@ -5488,6 +5509,16 @@ class DutchGameRound {
       // If empty, clear their collection_rank property (they can no longer collect cards)
       _checkAndClearEmptyCollectionRanks();
       
+      // Clear cardsToPeek for all players so UI stops showing peeked cards (queen peek, etc.)
+      final gameStateForPeek = _getCurrentGameState();
+      if (gameStateForPeek != null) {
+        _clearPeekedCards(gameStateForPeek);
+      }
+      final currentGames = _stateCallback.currentGamesMap;
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Cleared cardsToPeek for all players (special cards window ended)');
+      }
+      
       // Check if game has ended (winners exist) - prevent progression if game is over
       if (_winnersList.isNotEmpty) {
         if (LOGGING_SWITCH) {
@@ -5496,9 +5527,10 @@ class DutchGameRound {
         return;
       }
       
-      // CRITICAL: Reset gamePhase back to player_turn before moving to next player
-      // This ensures clean phase transitions and matches backend behavior
+      // CRITICAL: Reset gamePhase and broadcast cleared peek state before moving to next player
       _stateCallback.onGameStateChanged({
+        'games': currentGames,
+        'myCardsToPeek': [],
         'gamePhase': 'player_turn',
       });
       if (LOGGING_SWITCH) {

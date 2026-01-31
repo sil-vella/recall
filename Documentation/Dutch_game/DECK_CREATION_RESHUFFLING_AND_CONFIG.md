@@ -220,6 +220,15 @@ card_display:
     joker: "Joker"
 ```
 
+### Face-card background images (King, Queen, Jack, Joker)
+
+The Flutter UI shows a full-card background image for face cards (king, queen, jack) and joker when the card front is displayed. These images are loaded from assets and must be present for the visuals to appear:
+
+- **Location**: `flutter_base_05/assets/images/backgrounds/`
+- **Files**: `king.png`, `queen.png`, `jack.png`, `joker.png`
+- **Usage**: `CardWidget` (`flutter_base_05/lib/modules/dutch_game/widgets/card_widget.dart`) uses `_getSpecialCardImagePath()` to resolve the path by rank; if the asset is missing, the card still renders with rank/suit text only (no background image).
+- **Pubspec**: The folder is declared in `pubspec.yaml` under `flutter: assets:` so any PNGs placed there are bundled.
+
 ### Special Powers Configuration
 
 ```yaml

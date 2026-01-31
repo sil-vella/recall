@@ -112,6 +112,24 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Verification**: Confirm the UI timer duration and the backend same-rank window duration use the same value (e.g. from `timerConfig` or a shared constant); ensure countdown start/end matches when the window opens and closes
   - **Location**: Flutter same rank timer widget (e.g. in `unified_game_board_widget.dart` or game play screen); game logic in `dutch_game_round.dart` (same rank timer duration)
   - **Impact**: User experience – players see an accurate representation of how long they have to play a same-rank card
+- [ ] **Jack swap animation: overlay on affected card indexes (like peeking) along with swap**
+  - **Issue**: Jack swap animation should visually highlight the two cards being swapped (by card index / position) with an overlay on the affected card indexes, similar to the peek overlay, in addition to the swap animation.
+  - **Current Behavior**: Swap animation may run without overlays on the source and target card positions.
+  - **Expected Behavior**: During jack swap, show an overlay on the **affected card indexes** (the two cards being swapped) – e.g. same style as the peeking overlay – so it is clear which cards are involved, **along with** the swap animation.
+  - **Location**: Flutter jack swap animation / overlay logic (e.g. `unified_game_board_widget.dart`, jack swap demonstration widget, or card animation/overlay layer); ensure overlay targets card indexes (or positions) for both swapped cards (my hand and opponent, or two opponents).
+  - **Impact**: User experience – clearer feedback on which cards were swapped during the jack swap.
+- [ ] **Card back images: load on match start, not on first show**
+  - **Issue**: Suit/card back images should be loaded when the match starts so they are ready when first displayed, instead of loading lazily on first show (which can cause delay or flash).
+  - **Current Behavior**: Card back images (e.g. for hand, discard, draw pile) may load on first display, causing a brief delay or visible load when cards are first shown.
+  - **Expected Behavior**: Preload card back image(s) (assets and/or server-backed image) **on match start** (e.g. when game state indicates match started or when entering game play for the match) so the first time cards are shown the back image is already in cache.
+  - **Location**: Flutter – match/game start flow (e.g. game event handlers, game play screen init, or a dedicated preload step); CardWidget or card back image usage; ensure `precacheImage` or equivalent is called at match start for the relevant back image(s).
+  - **Impact**: Smoother UX – no visible load or flash when card backs are first shown.
+- [ ] **Animation overlays must not block taps on cards (underlayer remains tappable)**
+  - **Issue**: When animations are happening (e.g. draw, play, peek, jack swap), the user must still be able to tap cards. The overlay used for the animation must not disable or block the underlayer where the actual cards are.
+  - **Current Behavior**: Animation overlays may capture pointer events and prevent taps from reaching the card widgets underneath.
+  - **Expected Behavior**: **Verify** that during any animation (draw, play, queen peek, jack swap, same rank, etc.), taps on card areas still reach the underlayer (actual card widgets) so the user can interact (e.g. select card, play card) while or immediately after the animation. The overlay should be **non-hit-testable** (e.g. `IgnorePointer` or `HitTestBehavior.translucent` / pass-through) so it does not block the underlayer.
+  - **Location**: Flutter – animation overlay layer(s) (e.g. card animation layer, flash card overlay, peek overlay, jack swap overlay in `unified_game_board_widget.dart` or related); ensure overlay widgets use `IgnorePointer` or equivalent so hits pass through to the cards below.
+  - **Impact**: User experience – players can tap cards during/after animations instead of being blocked until the overlay is gone.
 
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
@@ -212,6 +230,16 @@ This document tracks high-level development plans, todos, and architectural deci
     - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getQueenPeekDecision()` method
     - YAML configuration for computer player strategies (if applicable)
   - **Impact**: Improves computer player AI - makes strategic use of Queen peek when own hand is fully known
+- [ ] **Queen peek for user: clear cardsToPeek state when past timer (or when flow advances)**
+  - **Issue**: When the human user is in queen peek and stays past the timer (or the flow advances by other logic), `cardsToPeek` state must be cleared at some point so the UI stops showing peeked cards and state stays consistent.
+  - **Current Behavior**: Peeked card data is shown via `cardsToPeek` / `myCardsToPeek`; if the user does not complete an action and the timer expires (or flow moves on), the state may not be cleared.
+  - **Expected Behavior**: Ensure that when the queen peek phase ends (timer expiry, flow advance, or explicit close), `cardsToPeek` (and `myCardsToPeek` where applicable) are cleared for the peeking player so the UI no longer shows peeked cards and state is clean for the next phase.
+  - **Implementation**: Identify all exit paths from queen peek (timer expiry, user action, flow advance); in each path, clear `player.cardsToPeek` and main state `myCardsToPeek` for the human player before or when advancing.
+  - **Location**: 
+    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` – queen peek timer and flow (e.g. `handleQueenPeek`, `_onSpecialCardTimerExpired`, special-card window end)
+    - `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` – same if logic is duplicated
+    - Event handlers / coordinator if they mutate or broadcast state on queen peek end
+  - **Impact**: Prevents stale peek data on screen and inconsistent state when queen peek ends without an explicit user action.
 
 #### Match end and winners popup
 - [ ] **Replace all hand cards with full data before showing winners popup**
@@ -318,6 +346,7 @@ Python Backend (Auth)
 - **Expected Behavior**: Timer should be cancelled/stopped immediately when player completes the peek action
 - **Location**: Timer logic in game round/event handlers, likely in `dutch_game_round.dart` or related timer management code
 - **Impact**: User experience - prevents confusion and ensures timer accurately reflects available time
+- **Related**: When the user stays past the timer (or flow advances), **cardsToPeek state must be cleared** so the UI stops showing peeked cards; see TODO "Queen peek for user: clear cardsToPeek state when past timer".
 
 ### Game State Cleanup on Navigation
 - **Issue**: Game data persists in state and game maps when navigating away from game play screen
@@ -488,5 +517,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-01-31 (Added Jack swap issue: computer picks cards already played after same-rank)
+**Last Updated**: 2026-01-31 (Added Queen peek: clear cardsToPeek state when user stays past timer or flow advances)
 

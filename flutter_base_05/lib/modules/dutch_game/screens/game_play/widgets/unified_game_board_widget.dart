@@ -16,7 +16,7 @@ import '../../demo/demo_functionality.dart';
 import '../functionality/playscreenfunctions.dart';
 import '../functionality/animations.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.

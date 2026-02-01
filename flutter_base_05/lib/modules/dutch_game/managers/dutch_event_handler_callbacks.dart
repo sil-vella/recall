@@ -11,7 +11,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and initial peek clearing debugging
   static final Logger _logger = Logger();
   
   // Analytics module cache
@@ -1244,6 +1244,16 @@ When anyone has played a card with the **same rank** as your **collection card**
   /// Handle game_state_updated event
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';
+    // 🎯 CRITICAL (WS → Practice): When in practice mode, ignore WebSocket game_state_updated
+    // so late WS events cannot overwrite practice state or block Start Match.
+    final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final practiceUser = dutchState['practiceUser'];
+    if (practiceUser != null && gameId.startsWith('room_')) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 handleGameStateUpdated: Ignoring WebSocket game_state_updated for $gameId (in practice mode)');
+      }
+      return;
+    }
     var gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     if (data['winners'] != null) {
       gameState = Map<String, dynamic>.from(gameState);
@@ -1316,6 +1326,15 @@ When anyone has played a card with the **same rank** as your **collection card**
       return; // Ignore stale events from games that were just cleared
     }
     
+    // 🎯 CRITICAL: After clear we have games empty and currentGameId empty. A stale game_state_updated
+    // from a room we just left would re-add that room. Only ignore if this gameId was recently left.
+    if (currentGames.isEmpty && currentGameId.isEmpty && DutchGameHelpers.wasGameRecentlyLeft(gameId)) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 handleGameStateUpdated: Ignoring stale game_state_updated for $gameId (recently left).');
+      }
+      return;
+    }
+    
     final wasNewGame = !currentGames.containsKey(gameId);
     
     if (wasNewGame) {
@@ -1367,6 +1386,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       // 🎯 CRITICAL: Set currentGameId and ensure games map is in main state
       // Since we cleared all other games above, this is the only game in the map
       // Note: currentGameId is a String (never null due to ?? ''), so only check isEmpty
+      DutchGameHelpers.clearRecentlyLeftGameId(gameId); // No longer "recently left" once we add it
       if (currentGameId.isEmpty) {
         if (LOGGING_SWITCH) {
           _logger.info('🔍 handleGameStateUpdated: Setting currentGameId to $gameId (was null or empty)');
@@ -1746,11 +1766,12 @@ When anyone has played a card with the **same rank** as your **collection card**
         }
       }
       
-      // Normal game state update
+      // Normal game state update (currentPlayer can be null from backend)
+      final currentPlayerDisplay = currentPlayer?.toString() ?? '—';
       _addSessionMessage(
         level: 'info',
         title: 'Game State Updated',
-        message: 'Round $roundNumber - $currentPlayer is $currentPlayerStatus',
+        message: 'Round $roundNumber - $currentPlayerDisplay is $currentPlayerStatus',
         data: {
           'game_id': gameId,
           'round_number': roundNumber,

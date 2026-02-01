@@ -39,7 +39,7 @@ class StateQueueValidator {
 
   /// Logger instance (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for animation system testing
+  static const bool LOGGING_SWITCH = false; // Enabled for match start / state updates
 
   /// Define the complete state schema with validation rules
   /// Must remain identical across Flutter and Dart backend implementations
@@ -549,6 +549,13 @@ class StateQueueValidator {
       required: false,
       nullable: true,
       description: 'Trigger for capturing widget snapshot when action is intercepted. Contains action, actionData, playerId, gameId, and timestamp.',
+    ),
+    // Coins deduction tracking (prevents duplicate deductions on game start)
+    'coinsDeductedGames': DutchStateFieldSpec(
+      type: List,
+      required: false,
+      defaultValue: [],
+      description: 'List of game IDs for which coins have already been deducted (prevents duplicate deductions)',
     ),
   };
 

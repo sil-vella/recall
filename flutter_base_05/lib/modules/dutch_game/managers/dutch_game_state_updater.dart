@@ -25,7 +25,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for action interception and snapshot testing
+  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and state key tracking
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -886,7 +886,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for joinedGamesSlice debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and joinedGamesSlice debugging
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

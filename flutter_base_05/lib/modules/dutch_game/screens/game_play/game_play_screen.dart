@@ -315,29 +315,15 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   @override
   void deactivate() {
-    // Check if we're navigating away from a game
-    if (_previousGameId != null && _previousGameId!.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('GamePlay: Navigating away from game $_previousGameId - starting 30-second leave timer');
-      }
-      
-      // Start 30-second timer before leaving (gives user chance to return)
-      // Timer is managed by GameCoordinator (singleton) so it survives widget disposal
-      GameCoordinator().startLeaveGameTimer(_previousGameId!);
-    }
-    
+    // Do not clear here. Clear runs only before any match start (createRoom, joinRoom, joinRandomGame, _startPracticeMatch).
     super.deactivate();
   }
   
   @override
   void dispose() {
-    // Don't cancel timer here - it's managed by GameCoordinator and needs to survive disposal
-    // The timer will be cancelled if user returns to the same game (in initState)
     if (LOGGING_SWITCH) {
-      _logger.info('GamePlay: Disposing - leave timer continues in GameCoordinator');
+      _logger.info('GamePlay: Disposing');
     }
-    
-    // Clean up any game-specific resources
     super.dispose();
   }
 

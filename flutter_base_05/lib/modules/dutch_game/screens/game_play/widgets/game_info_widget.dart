@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/game_coordinator.dart';
+import '../../../managers/validated_event_emitter.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
@@ -343,6 +344,16 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         _logger.info('🎮 GameInfoWidget: Dutch game check - isPracticeGame: $isPracticeGame');
       }
       
+      // CRITICAL: Ensure transport is practice before Start Match when we're in a practice game.
+      // clearAllGameStateBeforeNewGame() resets transport to WebSocket; if something else
+      // reset it (e.g. lobby init), start_match would go to backend and hang.
+      if (isPracticeGame) {
+        DutchGameEventEmitter.instance.setTransportMode(EventTransportMode.practice);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎮 GameInfoWidget: Set transport to practice before start_match');
+        }
+      }
+      
       // Use GameCoordinator for both practice and multiplayer games
       // The event emitter will route to practice bridge if transport mode is practice
       final gameCoordinator = GameCoordinator();
@@ -360,7 +371,17 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       if (LOGGING_SWITCH) {
         _logger.info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()');
       }
-      final result = await gameCoordinator.startMatch();
+      // Timeout so we never hang indefinitely (e.g. after mode switch or backend not responding)
+      const timeout = Duration(seconds: 12);
+      final result = await gameCoordinator.startMatch().timeout(
+        timeout,
+        onTimeout: () {
+          if (LOGGING_SWITCH) {
+            _logger.warning('🎮 GameInfoWidget: startMatch timed out after ${timeout.inSeconds}s');
+          }
+          return false;
+        },
+      );
       if (LOGGING_SWITCH) {
         _logger.info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result');
       }
@@ -369,15 +390,22 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         _logger.info('🎮 GameInfoWidget: ===== START MATCH FLOW COMPLETED =====');
       }
       
-      // Reset loading state after a delay to allow UI to update
-      // The widget will hide when gamePhase changes, but we reset here as a fallback
-      Future.delayed(const Duration(milliseconds: 500), () {
+      // Reset loading immediately on failure; on success allow short delay for UI (gamePhase) to update
+      if (!result) {
         if (mounted) {
           setState(() {
             _isStartingMatch = false;
           });
         }
-      });
+      } else {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() {
+              _isStartingMatch = false;
+            });
+          }
+        });
+      }
       
     } catch (e, stackTrace) {
       if (LOGGING_SWITCH) {

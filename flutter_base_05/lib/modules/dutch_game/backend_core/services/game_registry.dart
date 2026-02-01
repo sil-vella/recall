@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
+const bool LOGGING_SWITCH = false; // Enabled for match start / game initialization
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -31,6 +31,14 @@ class GameRegistry {
     GameStateStore.instance.clear(roomId);
     if (LOGGING_SWITCH) {
       _logger.info('GameRegistry: Disposed game for $roomId');
+    }
+  }
+
+  /// Clear all rounds (reset to init). Use when clearing all games (e.g. mode switch).
+  void clearAll() {
+    _roomIdToRound.clear();
+    if (LOGGING_SWITCH) {
+      _logger.info('GameRegistry: clearAll() - cleared all rounds');
     }
   }
 }

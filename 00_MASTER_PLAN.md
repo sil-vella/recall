@@ -138,6 +138,18 @@ _(No high-priority items currently.)_
     - Clear both state manager state and any in-memory game maps/registries
     - Verify no stale references remain after cleanup
   - **Impact**: Game integrity and reliability - prevents state conflicts between matches, ensures each new match starts with clean state
+- [ ] **Investigate joining rooms/games: log full state and WS events, then fix current games widget**
+  - **Issue**: Need to see every state key and WebSocket event affected when joining rooms/games so we can correctly add/clear current games in the lobby widget.
+  - **Action**:
+    1. **Enable logging** per `.cursor/rules/enable-logging-switch.mdc`: set `LOGGING_SWITCH = false` (or equivalent) in the relevant Flutter/Dart and backend files for join flow, state updates, and WS events.
+    2. **Log complete state** on join-related paths: when joining a room, when joining/entering a game, log the full state (all keys) before and after so we know exactly which keys are set/cleared.
+    3. **Log WebSocket events** for join flow: log every WS message (event type and payload) sent/received around join room, join game, and any related state pushes.
+    4. **Document** every state key that is read/written by the join flow (from logs).
+    5. **Fix current games widget** in lobby: use that list of keys to properly add games when joining and clear/update when leaving or when list changes (so the current games widget shows the correct list and stays in sync).
+  - **Location**: 
+    - Join flow: lobby screens, room/game join handlers, WebSocket client, state manager updates (Flutter and backend as needed).
+    - Lobby widget: `flutter_base_05/lib/modules/dutch_game/screens/lobby_room/widgets/current_games_widget.dart`.
+  - **Impact**: Reliable lobby UX – current games list reflects actual joined games and is cleared/updated correctly; also gives a clear map of state for future fixes (e.g. clear on match switch).
 - [ ] **Complete initial peek logic**
   - **Status**: Partially implemented - initial peek phase exists but needs completion
   - **Current State**: Game enters `initial_peek` phase on match start, players can peek at 2 cards

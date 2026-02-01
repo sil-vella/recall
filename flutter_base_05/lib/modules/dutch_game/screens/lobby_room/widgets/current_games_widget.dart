@@ -3,11 +3,10 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../game_play/widgets/game_phase_chip_widget.dart';
-import '../../../managers/game_coordinator.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for lobby screen recomputation debugging
+const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and current games widget debugging
 
 /// Widget to display all joined rooms with join functionality
 /// 
@@ -108,7 +107,7 @@ class CurrentRoomWidget extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Create a new game or join an existing one to start playing',
+              'Join a game or create a new one to start playing',
               style: AppTextStyles.bodySmall().copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -267,10 +266,10 @@ class CurrentRoomWidget extends StatelessWidget {
               
               const SizedBox(width: 8),
               
-              // Leave Game button
+              // Leave Game button - uses unified leave (WS + full state clear + slice recompute)
               ElevatedButton.icon(
-                onPressed: () {
-                  _leaveRoom(roomId);
+                onPressed: () async {
+                  await DutchGameHelpers.leaveGameAndClearStateForGameId(roomId);
                 },
                 icon: const Icon(Icons.exit_to_app),
                 label: const Text('Leave'),
@@ -318,11 +317,8 @@ class CurrentRoomWidget extends StatelessWidget {
         'joinedAt': DateTime.now().toIso8601String(),
       };
       
-      // Update dutch game state with current game data using validated state updater
-      DutchGameHelpers.updateUIState({
-        'currentGameId': gameId,
-        'games': games,
-      });
+      // Set current game state synchronously so game play screen sees it on first build (no stale/empty state)
+      DutchGameHelpers.setCurrentGameSync(gameId, games);
       
       // Navigate to game play screen
       NavigationManager().navigateTo('/dutch/game-play');
@@ -420,14 +416,4 @@ class CurrentRoomWidget extends StatelessWidget {
 
   // Removed _formatTimestamp - no longer needed after removing timestamps
 
-  /// Leave room using GameCoordinator
-  void _leaveRoom(String roomId) {
-    try {
-      // Use GameCoordinator to leave the room
-      final gameCoordinator = GameCoordinator();
-      gameCoordinator.leaveGame(gameId: roomId);
-    } catch (e) {
-      // Handle error silently
-    }
-  }
 }

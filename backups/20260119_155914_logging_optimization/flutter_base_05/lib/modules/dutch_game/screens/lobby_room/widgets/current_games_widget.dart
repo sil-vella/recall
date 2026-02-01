@@ -88,7 +88,7 @@ class CurrentRoomWidget extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Create a new game or join an existing one to start playing',
+              'Join a game or create a new one to start playing',
               style: AppTextStyles.bodySmall().copyWith(
                 color: AppColors.textSecondary,
               ),

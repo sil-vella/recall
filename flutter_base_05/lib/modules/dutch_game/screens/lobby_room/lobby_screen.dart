@@ -31,7 +31,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging and joinedGamesSlice recomputation
+  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and joinedGamesSlice recomputation
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -316,14 +316,16 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final updatedPracticeSettings = Map<String, dynamic>.from(practiceSettings);
       updatedPracticeSettings['showInstructions'] = false;
       
-      // Store practice user data and settings in dutch_game state (accessible to event handlers)
-      // Use validated state updater to ensure proper validation
+      // Store practice user data and settings SYNCHRONOUSLY so state has them before any async/queue.
+      // CRITICAL: practiceUser must be in state immediately so (1) handleGameStateUpdated ignores
+      // late WebSocket game_state_updated and (2) getCurrentUserId returns practice ID on game play screen.
+      DutchGameHelpers.setPracticeStateSync(practiceUserData, updatedPracticeSettings);
       DutchGameHelpers.updateUIState({
         'practiceUser': practiceUserData,
         'practiceSettings': updatedPracticeSettings,
       });
       if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Stored practice user data and settings in state');
+        _logger.info('🎮 _startPracticeMatch: Stored practice user data and settings in state (sync + queue)');
         _logger.info('🎮 _startPracticeMatch: showInstructions = false (always disabled for practice matches)');
       }
       

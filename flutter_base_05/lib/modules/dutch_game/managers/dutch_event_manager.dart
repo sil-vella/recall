@@ -10,7 +10,7 @@ import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for match start / event routing from bridges
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();

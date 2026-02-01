@@ -4,7 +4,7 @@ import '../../../../tools/logging/logger.dart';
 import 'player_action.dart';
 import '../utils/dutch_game_helpers.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization and leave_room event verification
+const bool LOGGING_SWITCH = false; // Enabled for match start, game finding/initialization and leave_room
 
 /// Game Coordinator for handling all player game actions
 /// 
@@ -111,6 +111,18 @@ class GameCoordinator {
       _pendingLeaveGameId = null;
     }
   }
+
+  /// Reset coordinator to init state (no timer, no pending leave). Call when clearing all games.
+  void resetToInit() {
+    if (_leaveGameTimer != null) {
+      _leaveGameTimer!.cancel();
+      _leaveGameTimer = null;
+    }
+    _pendingLeaveGameId = null;
+    if (LOGGING_SWITCH) {
+      _logger.info('GameCoordinator: resetToInit() - cleared timer and pending leave');
+    }
+  }
   
   /// Execute leave game after timer expires
   /// Handles both multiplayer and practice mode
@@ -162,6 +174,9 @@ class GameCoordinator {
       final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
       
       if (currentGameId.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('GameCoordinator.startMatch: currentGameId is empty - cannot start match (state may not be set yet or was cleared)');
+        }
         return false;
       }
       
@@ -189,7 +204,10 @@ class GameCoordinator {
       await action.execute();
       return true;
     } catch (e) {
-      return false;
+      if (LOGGING_SWITCH) {
+        _logger.error('GameCoordinator.startMatch: Error: $e');
+      }
+      rethrow;
     }
   }
 }

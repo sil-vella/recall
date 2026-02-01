@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 class Logger {
@@ -23,19 +24,19 @@ class Logger {
   /// Initialize the logger with log file
   void initialize() {
     if (_initialized) return;
-    
+
     try {
       _logFile = File(_logFileName);
       _initialized = true;
-      
-      // Log initialization
+
+      // Log initialization (deferred so init returns immediately)
       info('🚀 Logger initialized - logging to $_logFileName', isOn: true);
     } catch (e) {
       print('❌ Failed to initialize logger: $e');
     }
   }
 
-  /// General log method
+  /// General log method. I/O runs in a microtask so call flow is not blocked.
   void log(String message, {
     String name = 'Logger',
     Object? error,
@@ -43,28 +44,22 @@ class Logger {
     int level = 0,
     bool isOn = false,
   }) {
-    // Early return if logging is disabled and not forced
-    if (!CUSTOM_LOGGING_ENABLED && !isOn) {
-      return;
-    }
-    
+    if (!CUSTOM_LOGGING_ENABLED && !isOn) return;
+
     final timestamp = DateTime.now().toIso8601String();
     final levelStr = _getLevelString(level);
     final logEntry = '[$timestamp] [$levelStr] [$name] $message';
-    
-    // Always print to console for debugging
-    if (isOn || level >= 800) {
-      print(logEntry);
-      if (error != null) {
-        print('[$timestamp] [ERROR] [$name] Error: $error');
+    final errorEntry = error != null ? '[$timestamp] [ERROR] [$name] Error: $error' : null;
+    final doPrint = isOn || level >= 800;
+
+    scheduleMicrotask(() {
+      if (doPrint) {
+        print(logEntry);
+        if (errorEntry != null) print(errorEntry);
       }
-    }
-    
-    // Write to file
-    _writeToFile(logEntry);
-    if (error != null) {
-      _writeToFile('[$timestamp] [ERROR] [$name] Error: $error');
-    }
+      _writeToFile(logEntry);
+      if (errorEntry != null) _writeToFile(errorEntry);
+    });
   }
 
   /// Log an informational message

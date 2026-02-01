@@ -8,7 +8,7 @@ import '../utils/platform/practice/stubs/websocket_server_stub.dart';
 import '../utils/platform/practice/stubs/room_manager_stub.dart';
 import '../../dutch_game/managers/dutch_event_manager.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging
+const bool LOGGING_SWITCH = false; // Enabled for match start / transport / bridge
 
 /// Practice Mode Bridge
 /// 
@@ -75,12 +75,15 @@ class PracticeModeBridge {
       await initialize();
     }
 
-    // Ensure we have a session/room context
+    // Ensure we have a session/room context (required for coordinator.handle)
     if (_currentSessionId == null || _currentRoomId == null) {
       if (LOGGING_SWITCH) {
         _logger.warning('⚠️ PracticeModeBridge: No active session/room for event $event');
       }
-      return;
+      throw StateError(
+        'PracticeModeBridge: No active practice session. '
+        'Start Match may have been pressed after clearing or without starting practice from lobby.',
+      );
     }
 
     try {

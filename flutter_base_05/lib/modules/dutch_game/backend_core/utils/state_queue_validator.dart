@@ -39,7 +39,7 @@ class StateQueueValidator {
   /// Logger callback (platform-specific, optional)
   void Function(String message, {bool isError})? _logCallback;
 
-  static const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for match start / state updates
 
   /// Define the complete state schema with validation rules
   /// Extracted from validated_state_manager.dart - must remain identical

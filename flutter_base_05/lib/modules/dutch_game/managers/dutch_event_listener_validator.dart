@@ -4,6 +4,7 @@ import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/websockets/websocket_events.dart';
 import '../../../tools/logging/logger.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
+import '../../dutch_game/utils/dutch_game_helpers.dart';
 
 /// Event configuration class
 class EventConfig {
@@ -16,7 +17,7 @@ class EventConfig {
 /// Dutch Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class DutchGameEventListenerValidator {
-  static const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for match start / event listener validation
   static DutchGameEventListenerValidator? _instance;
   
   static DutchGameEventListenerValidator get instance {
@@ -221,6 +222,21 @@ class DutchGameEventListenerValidator {
           ...validatedData,
         };
 
+      // Gate: for game-scoped events, only process if the game is still in state (ignore stale WS events).
+      // Allow events when isRandomJoinInProgress: we just joined a room and the first game_state_updated
+      // will add it to state.
+      final gameId = _getGameIdFromPayload(eventType, eventPayload);
+      if (gameId != null && gameId.isNotEmpty) {
+        final inState = DutchGameHelpers.isGameStillInState(gameId);
+        final randomJoinInProgress = DutchGameHelpers.isRandomJoinInProgress;
+        if (!inState && !randomJoinInProgress) {
+          if (LOGGING_SWITCH) {
+            _logger.info("⏭️ Ignoring Dutch WS event: $eventType for game_id=$gameId (game not in state)");
+          }
+          return;
+        }
+      }
+
       // Route directly to DutchEventManager based on event type
       if (LOGGING_SWITCH) {
         _logger.info("🔄 Routing event: $eventType to manager");
@@ -282,6 +298,19 @@ class DutchGameEventListenerValidator {
       
     } catch (e) {
     }
+  }
+
+  /// Extract game_id or room_id from payload for game-scoped events. Returns null if event has no game scope.
+  String? _getGameIdFromPayload(String eventType, Map<String, dynamic> eventPayload) {
+    if (eventPayload.containsKey('game_id')) {
+      final id = eventPayload['game_id']?.toString();
+      return id != null && id.isNotEmpty ? id : null;
+    }
+    if (eventPayload.containsKey('room_id')) {
+      final id = eventPayload['room_id']?.toString();
+      return id != null && id.isNotEmpty ? id : null;
+    }
+    return null;
   }
 
   /// Validate event data against schema

@@ -1,5 +1,6 @@
 import 'package:dutch/tools/logging/logger.dart';
 
+import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../utils/field_specifications.dart';
 import '../practice/practice_mode_bridge.dart';
@@ -10,6 +11,8 @@ enum EventTransportMode {
   websocket,
   practice,
   demo,
+  /// Cleared during clearAllGameStateBeforeNewGame; practice/WS re-apply on next action or from game_id in emit.
+  unset,
 }
 
 /// Validated event emitter for dutch game WebSocket events
@@ -29,9 +32,9 @@ class DutchGameEventEmitter {
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final DemoModeBridge _demoBridge = DemoModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging and leave_room event verification
+  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation, mode switching and leave_room event verification
   
-  // Current transport mode (defaults to WebSocket for backward compatibility)
+  // Current transport mode (defaults to WebSocket for backward compatibility; unset after clear so practice/WS re-apply)
   EventTransportMode _transportMode = EventTransportMode.websocket;
   
   /// Set the transport mode
@@ -292,6 +295,41 @@ class DutchGameEventEmitter {
         }
       }
 
+      // Sync transport from game_id when present so play screen actions always route correctly
+      // When mode is unset (after clearAllGameStateBeforeNewGame), practice/WS re-apply from game_id or default to websocket
+      final gameId = eventPayload['game_id']?.toString() ?? '';
+      if (gameId.isNotEmpty) {
+        if (gameId.startsWith('practice_room_')) {
+          if (_transportMode != EventTransportMode.practice) {
+            _transportMode = EventTransportMode.practice;
+            if (LOGGING_SWITCH) {
+              _logger.info('🎯 EventEmitter: Synced transport to practice from game_id $gameId');
+            }
+          }
+        } else if (gameId.startsWith('room_')) {
+          if (_transportMode != EventTransportMode.websocket) {
+            _transportMode = EventTransportMode.websocket;
+            if (LOGGING_SWITCH) {
+              _logger.info('🎯 EventEmitter: Synced transport to websocket from game_id $gameId');
+            }
+          }
+        } else if (gameId.startsWith('demo_game_')) {
+          if (_transportMode != EventTransportMode.demo) {
+            _transportMode = EventTransportMode.demo;
+            if (LOGGING_SWITCH) {
+              _logger.info('🎯 EventEmitter: Synced transport to demo from game_id $gameId');
+            }
+          }
+        }
+      }
+      // When still unset (no game_id or unknown prefix), default to websocket so create_room/join_room/leave_room work
+      if (_transportMode == EventTransportMode.unset) {
+        _transportMode = EventTransportMode.websocket;
+        if (LOGGING_SWITCH) {
+          _logger.info('🎯 EventEmitter: Transport was unset, defaulting to websocket for $eventType');
+        }
+      }
+
       if (LOGGING_SWITCH) {
         _logger.info('Sending event to backend: $eventPayload');
         _logger.info('🎯 EventEmitter: Transport mode is $_transportMode for event $eventType');
@@ -470,10 +508,27 @@ class DutchGameEventEmitter {
     }
   }
   
-  /// Get current session ID
+  /// Get current session ID (player_id / session_id in event payload).
+  /// In practice mode returns practice_session_$userId; in WS mode returns socket.id.
+  /// Aligns with getCurrentUserId() so backend and UI use the same identity.
   String _getSessionId() {
     try {
-      return _wsManager.socket?.id ?? 'unknown_session';
+      // Practice mode: use practice user session ID so backend finds the player
+      final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final practiceUser = dutchGameState['practiceUser'] as Map<String, dynamic>?;
+      if (practiceUser != null && practiceUser['isPracticeUser'] == true) {
+        final practiceUserId = practiceUser['userId']?.toString();
+        if (practiceUserId != null && practiceUserId.isNotEmpty) {
+          final practiceSessionId = 'practice_session_$practiceUserId';
+          if (LOGGING_SWITCH) {
+            _logger.debug('DutchGameEventEmitter._getSessionId: practice mode -> $practiceSessionId');
+          }
+          return practiceSessionId;
+        }
+      }
+      // WebSocket mode: use socket ID (sessionId = player ID in multiplayer)
+      final sessionId = _wsManager.socket?.id ?? 'unknown_session';
+      return sessionId;
     } catch (e) {
       return 'unknown_session';
     }

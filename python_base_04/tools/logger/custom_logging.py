@@ -5,7 +5,10 @@ import functools
 import inspect
 import types
 import re
-from logging.handlers import RotatingFileHandler
+import atexit
+from queue import Queue
+from logging.handlers import RotatingFileHandler, QueueHandler, QueueListener
+
 # Flags to enable or disable specific logging functionalities
 CUSTOM_LOGGING_ENABLED = True
 GAMEPLAY_LOGGING_ENABLED = False
@@ -35,15 +38,22 @@ class SimpleFormatter(logging.Formatter):
     def __init__(self):
         super().__init__("%(asctime)s - %(message)s", "%Y-%m-%d %H:%M:%S")
 
-# Logger for custom_log
+# Logger for custom_log: queue + background writer so logging never blocks call flow
 custom_log_file_name = 'server.log'
 custom_log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), custom_log_file_name)
 custom_logger = logging.getLogger('custom_log')
 custom_logger.setLevel(logging.DEBUG)
-# Use RotatingFileHandler for log rotation (max 10MB, keep 5 backup files)
-custom_handler = RotatingFileHandler(custom_log_file_path, maxBytes=10*1024*1024, backupCount=5, mode='a')
-custom_handler.setFormatter(CustomFormatter())
-custom_logger.addHandler(custom_handler)
+# Actual file writer (runs in background thread)
+_custom_file_handler = RotatingFileHandler(
+    custom_log_file_path, maxBytes=10*1024*1024, backupCount=5, mode='a'
+)
+_custom_file_handler.setFormatter(CustomFormatter())
+# Queue so handle() returns immediately; background thread does the file I/O
+_custom_log_queue = Queue()
+custom_logger.addHandler(QueueHandler(_custom_log_queue))
+_custom_listener = QueueListener(_custom_log_queue, _custom_file_handler, respect_handler_level=True)
+_custom_listener.start()
+atexit.register(_custom_listener.stop)
 
 # Logger for game_play_log
 game_play_log_file_name = 'game_play.log'

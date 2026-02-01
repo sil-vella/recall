@@ -1,6 +1,6 @@
 import '../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timestamp removal testing
+const bool LOGGING_SWITCH = false; // Enabled for match start / state store
 
 /// In-memory game state store keyed by roomId.
 /// Holds a mutable Map<String,dynamic> representing the current game state
@@ -126,6 +126,14 @@ class GameStateStore {
 
   void clear(String roomId) {
     _roomIdToState.remove(roomId);
+  }
+
+  /// Clear all room state (reset to init). Use when clearing all games (e.g. mode switch).
+  void clearAll() {
+    _roomIdToState.clear();
+    if (LOGGING_SWITCH) {
+      _logger.info('GameStateStore: clearAll() - cleared all room state');
+    }
   }
 }
 

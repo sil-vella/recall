@@ -12,7 +12,7 @@ import '../../backend_core/services/game_state_store.dart';
 import 'demo_state_setup.dart';
 import 'demo_functionality.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for demo debugging
+const bool LOGGING_SWITCH = false; // Enabled for match start / demo start_match flow
 
 /// Demo Action Handler
 /// 

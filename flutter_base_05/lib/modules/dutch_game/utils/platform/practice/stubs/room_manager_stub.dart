@@ -31,7 +31,7 @@ class RoomManagerStub {
   final Map<String, RoomInfoStub> _rooms = {};
   final Map<String, String> _sessionToRoom = {};
 
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = false; // Enabled for practice bridge / match start
 
   RoomManagerStub();
 

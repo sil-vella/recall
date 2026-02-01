@@ -10,8 +10,11 @@ import '../../login_module/login_module.dart';
 import '../managers/validated_event_emitter.dart';
 import '../../dutch_game/managers/dutch_game_state_updater.dart';
 import '../backend_core/services/game_state_store.dart';
+import '../backend_core/services/game_registry.dart';
 import '../practice/practice_mode_bridge.dart';
 import '../managers/game_coordinator.dart';
+import 'state_queue_validator.dart';
+import '../backend_core/utils/state_queue_validator.dart' as backend_validator;
 
 /// Convenient helper methods for dutch game operations
 /// Provides type-safe, validated methods for common game actions
@@ -21,7 +24,31 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging and leave_room event verification
+  static const bool LOGGING_SWITCH = false; // Enabled for game clearing (leaveAllGamesAndClearState / clearAllGameStateBeforeNewGame) and leave_room verification
+  
+  /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
+  static final Set<String> _recentlyLeftGameIds = {};
+  static bool wasGameRecentlyLeft(String gameId) => gameId.isNotEmpty && _recentlyLeftGameIds.contains(gameId);
+  static void clearRecentlyLeftGameId(String gameId) {
+    _recentlyLeftGameIds.remove(gameId);
+  }
+
+  /// Returns true if [gameId] is still in dutch_game state (in games map or is currentGameId).
+  /// Used by Dutch WS listeners to ignore stale events for games we've left or cleared.
+  static bool isGameStillInState(String gameId) {
+    if (gameId.isEmpty) return false;
+    final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final games = dutchState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameId = dutchState['currentGameId']?.toString() ?? '';
+    return games.containsKey(gameId) || currentGameId == gameId;
+  }
+
+  /// True when a random-join is in progress (we sent join_random_game and are waiting for room/game_state).
+  /// Used to allow initial game_state_updated for the new room even before it is in state.
+  static bool get isRandomJoinInProgress {
+    final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    return dutchState['isRandomJoinInProgress'] == true;
+  }
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -454,6 +481,25 @@ class DutchGameHelpers {
     _stateUpdater.updateState(updates);
   }
 
+  /// Set practice user and settings synchronously so state has them before any async/queue.
+  /// CRITICAL for WS→Practice: ensures practiceUser is in state so handleGameStateUpdated
+  /// ignores late WebSocket game_state_updated and getCurrentUserId returns practice ID.
+  static void setPracticeStateSync(Map<String, dynamic> practiceUserData, Map<String, dynamic> practiceSettings) {
+    _stateUpdater.updateStateSync({
+      'practiceUser': practiceUserData,
+      'practiceSettings': practiceSettings,
+    });
+  }
+
+  /// Set current game state synchronously before navigating to game play screen.
+  /// Ensures the game play screen reads the new game on first build (avoids showing stale or empty state).
+  static void setCurrentGameSync(String gameId, Map<String, dynamic> games) {
+    _stateUpdater.updateStateSync({
+      'currentGameId': gameId,
+      'games': games,
+    });
+  }
+
   /// Join a random available game or auto-create and start a new one
   /// Uses join_random_game WebSocket event
   static Future<Map<String, dynamic>> joinRandomGame({bool isClearAndCollect = true}) async {
@@ -582,8 +628,16 @@ class DutchGameHelpers {
       // Check if response contains error
       if (response is Map && response.containsKey('error')) {
         final errorMessage = response['message'] ?? response['error'] ?? 'Failed to fetch user stats';
+        // Session expired / Unauthorized is expected when not logged in yet (e.g. before guest creation)
+        final isSessionOrAuth = errorMessage.toString().toLowerCase().contains('session expired') ||
+            errorMessage.toString().toLowerCase().contains('please log in again') ||
+            (response['error']?.toString().toLowerCase() == 'unauthorized');
         if (LOGGING_SWITCH) {
-          _logger.error('❌ DutchGameHelpers: API error: $errorMessage');
+          if (isSessionOrAuth) {
+            _logger.warning('⚠️ DutchGameHelpers: API auth/session (expected when not logged in): $errorMessage');
+          } else {
+            _logger.error('❌ DutchGameHelpers: API error: $errorMessage');
+          }
         }
         return {
           'success': false,
@@ -934,6 +988,86 @@ class DutchGameHelpers {
     }
   }
 
+  /// Leaves the given game/room via existing WS logic and completely clears all state
+  /// for this gameId, then triggers slice recomputation (joinedGamesSlice, etc.).
+  /// Use this for explicit "Leave" from lobby or when removing the user from one game.
+  /// For room_*: sends leave_room via GameCoordinator (does not change core WS module).
+  /// For practice_room_*: ends practice session and clears backend state.
+  static Future<void> leaveGameAndClearStateForGameId(String gameId) async {
+    if (gameId.isEmpty) return;
+    try {
+      _recentlyLeftGameIds.add(gameId);
+      if (LOGGING_SWITCH) {
+        _logger.info('🚪 DutchGameHelpers: leaveGameAndClearStateForGameId($gameId) (marked recently left)');
+      }
+      final gameCoordinator = GameCoordinator();
+      gameCoordinator.cancelLeaveGameTimer(gameId);
+      if (gameId.startsWith('room_')) {
+        try {
+          await gameCoordinator.leaveGame(gameId: gameId);
+          if (LOGGING_SWITCH) {
+            _logger.info('🚪 DutchGameHelpers: Sent leave_room for $gameId');
+          }
+        } catch (e) {
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ DutchGameHelpers: leave_room failed for $gameId: $e');
+          }
+        }
+      } else if (gameId.startsWith('practice_room_')) {
+        try {
+          PracticeModeBridge.instance.endPracticeSession();
+          if (LOGGING_SWITCH) {
+            _logger.info('🚪 DutchGameHelpers: Ended practice session for $gameId');
+          }
+        } catch (e) {
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ DutchGameHelpers: endPracticeSession for $gameId: $e');
+          }
+        }
+      }
+      try {
+        GameStateStore.instance.clear(gameId);
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DutchGameHelpers: GameStateStore.clear($gameId): $e');
+        }
+      }
+      removePlayerFromGame(gameId: gameId);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DutchGameHelpers: leaveGameAndClearStateForGameId($gameId) done');
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ DutchGameHelpers: leaveGameAndClearStateForGameId($gameId): $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Leaves all games the user is in: gets all gameIds from state and calls
+  /// [leaveGameAndClearStateForGameId] for each. Use when switching modes or logging out.
+  static Future<void> leaveAllGamesAndClearState() async {
+    try {
+      final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final games = dutchState['games'] as Map<String, dynamic>? ?? {};
+      final ids = games.keys.map((e) => e.toString()).toList();
+      if (LOGGING_SWITCH) {
+        _logger.info('🚪 DutchGameHelpers: leaveAllGamesAndClearState - ${ids.length} games');
+      }
+      for (final gameId in ids) {
+        await leaveGameAndClearStateForGameId(gameId);
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ DutchGameHelpers: leaveAllGamesAndClearState done');
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ DutchGameHelpers: leaveAllGamesAndClearState: $e');
+      }
+      rethrow;
+    }
+  }
+
   /// Remove player from specific game in games map and clear current game references
   /// This is called when a player leaves a game (after timer expires)
   /// Only clears game state, not websocket state (websocket module handles that)
@@ -976,7 +1110,6 @@ class DutchGameHelpers {
         // Clear widget-specific state slices
         updates['discardPile'] = <Map<String, dynamic>>[];
         updates['drawPileCount'] = 0;
-        updates['discardPileCount'] = 0;
         updates['turn_events'] = <Map<String, dynamic>>[];
         
         // Clear round information
@@ -1037,7 +1170,6 @@ class DutchGameHelpers {
         // Clear widget-specific state slices
         'discardPile': <Map<String, dynamic>>[],
         'drawPileCount': 0,
-        'discardPileCount': 0,
         
         // Clear turn events and animation data
         'turn_events': <Map<String, dynamic>>[],
@@ -1088,172 +1220,115 @@ class DutchGameHelpers {
     }
   }
 
-  /// Clear all existing games, game maps, and game logic state before starting a new game
-  /// This prevents overlapping or old game state from interfering with new games
-  /// Should be called BEFORE: random join, create/join room, or practice match start
-  /// 
-  /// This method:
-  /// - Triggers leave_room events for WebSocket rooms (multiplayer)
-  /// - Ends practice sessions for practice rooms
-  /// - Clears all game state from StateManager
-  /// - Clears GameStateStore entries
+  /// Clear all existing games, game maps, and game logic state before starting a new game.
+  /// SSOT for "before starting a match" — called at the very beginning of createRoom, joinRoom,
+  /// joinRandomGame, and lobby create/join/practice. Leaves all games (WS leave_room for multi)
+  /// and clears state before any new match init or WS send to backend.
   static Future<void> clearAllGameStateBeforeNewGame() async {
     try {
       if (LOGGING_SWITCH) {
-        _logger.info('🧹 DutchGameHelpers: Clearing ALL game state before starting new game');
+        _logger.info('🧹 DutchGameHelpers: Clearing ALL game state before starting new game (reset to init)');
       }
       
-      // 1. Get current state to find all games
-      final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      final games = dutchState['games'] as Map<String, dynamic>? ?? {};
-      final currentGameId = dutchState['currentGameId']?.toString() ?? '';
-      
-      // 1a. Cancel any active leave game timers (we're leaving immediately)
+      // 1. Reset all game-related components to init state (coordinator, emitter, validator queue, store)
+      // Order matches init: coordinator and emitter first, then validator queue so no stale updates re-apply.
       try {
-        final gameCoordinator = GameCoordinator();
-        gameCoordinator.cancelLeaveGameTimer(null); // Cancel any active timer
+        GameCoordinator().resetToInit();
         if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Cancelled any active leave game timers');
+          _logger.info('🧹 DutchGameHelpers: GameCoordinator.resetToInit()');
         }
       } catch (e) {
         if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error cancelling leave game timer: $e');
+          _logger.warning('⚠️ DutchGameHelpers: Error resetting coordinator: $e');
         }
       }
-      
-      // 1b. Reset transport mode to WebSocket FIRST (before leaving rooms)
-      // This ensures leave_room events route to WebSocket, not practice bridge
-      // This prevents mode conflicts when switching from practice to WebSocket or vice versa
       try {
-        final eventEmitter = _eventEmitter; // Use existing instance
-        eventEmitter.setTransportMode(EventTransportMode.websocket);
+        // Per MODE_SWITCHING_VERIFICATION: reset to WebSocket FIRST so leave_room routes to WS
+        _eventEmitter.setTransportMode(EventTransportMode.websocket);
         if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Reset transport mode to WebSocket (before leaving rooms)');
+          _logger.info('🧹 DutchGameHelpers: Reset transport to WebSocket (before leaving rooms)');
         }
       } catch (e) {
         if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error resetting transport mode: $e');
+          _logger.warning('⚠️ DutchGameHelpers: Error setting transport: $e');
         }
       }
-      
-      // 2. Trigger room leaving logic for active games
-      // This ensures backend/practice bridge properly handles player leaving
-      
-      // 2a. Leave current game if it exists (WebSocket room or practice room)
-      if (currentGameId.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Leaving current game: $currentGameId');
-        }
-        
-        // For WebSocket rooms (multiplayer), send leave_room event
-        if (currentGameId.startsWith('room_')) {
-          try {
-            final gameCoordinator = GameCoordinator();
-            await gameCoordinator.leaveGame(gameId: currentGameId);
-            if (LOGGING_SWITCH) {
-              _logger.info('🧹 DutchGameHelpers: Sent leave_room event for WebSocket room: $currentGameId');
-            }
-          } catch (e) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DutchGameHelpers: Error leaving WebSocket room $currentGameId: $e');
-            }
-          }
-        }
-        // For practice rooms, end practice session (handles cleanup)
-        else if (currentGameId.startsWith('practice_room_')) {
-          try {
-            final practiceBridge = PracticeModeBridge.instance;
-            practiceBridge.endPracticeSession();
-            if (LOGGING_SWITCH) {
-              _logger.info('🧹 DutchGameHelpers: Ended practice session for room: $currentGameId');
-            }
-          } catch (e) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DutchGameHelpers: Error ending practice session for $currentGameId: $e');
-            }
-          }
-        }
-      }
-      
-      // 2b. Leave any other games in the games map (in case there are multiple)
-      for (final gameId in games.keys) {
-        if (gameId.toString() == currentGameId) continue; // Already handled above
-        
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Leaving game from games map: $gameId');
-        }
-        
-        // For WebSocket rooms, send leave_room event
-        if (gameId.toString().startsWith('room_')) {
-          try {
-            final gameCoordinator = GameCoordinator();
-            await gameCoordinator.leaveGame(gameId: gameId.toString());
-            if (LOGGING_SWITCH) {
-              _logger.info('🧹 DutchGameHelpers: Sent leave_room event for WebSocket room: $gameId');
-            }
-          } catch (e) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DutchGameHelpers: Error leaving WebSocket room $gameId: $e');
-            }
-          }
-        }
-        // For practice rooms, clear from GameStateStore (practice session already ended above)
-        else if (gameId.toString().startsWith('practice_room_')) {
-          try {
-            final gameStateStore = GameStateStore.instance;
-            gameStateStore.clear(gameId.toString());
-            if (LOGGING_SWITCH) {
-              _logger.info('🧹 DutchGameHelpers: Cleared GameStateStore for practice room: $gameId');
-            }
-          } catch (e) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DutchGameHelpers: Error clearing GameStateStore for $gameId: $e');
-            }
-          }
-        }
-      }
-      
-      // 3. Clear all games from GameStateStore (practice mode backend state)
-      final gameStateStore = GameStateStore.instance;
-      for (final gameId in games.keys) {
-        try {
-          gameStateStore.clear(gameId.toString());
-          if (LOGGING_SWITCH) {
-            _logger.info('🧹 DutchGameHelpers: Cleared GameStateStore for game: $gameId');
-          }
-        } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DutchGameHelpers: Error clearing GameStateStore for $gameId: $e');
-          }
-        }
-      }
-      
-      // 4. End any existing practice session (catch-all to ensure practice bridge is fully cleaned up)
-      // This ensures practice bridge is cleaned up even if current game wasn't a practice room
-      // NOTE: This is safe to call even if no practice session exists (method handles null checks)
       try {
-        final practiceBridge = PracticeModeBridge.instance;
-        practiceBridge.endPracticeSession();
+        StateQueueValidator.instance.clearQueue();
         if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Ended existing practice session (catch-all cleanup)');
+          _logger.info('🧹 DutchGameHelpers: Flutter StateQueueValidator queue cleared');
+        }
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DutchGameHelpers: Error clearing Flutter validator queue: $e');
+        }
+      }
+      try {
+        backend_validator.StateQueueValidator.instance.clearQueue();
+        if (LOGGING_SWITCH) {
+          _logger.info('🧹 DutchGameHelpers: Backend StateQueueValidator queue cleared');
+        }
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DutchGameHelpers: Error clearing backend validator queue: $e');
+        }
+      }
+      
+      // 2. SSOT: Leave all games and clear state (before any new match init / WS to backend)
+      await leaveAllGamesAndClearState();
+      
+      // 2b. CRITICAL: Clear currentGameId and games synchronously so game play screen never sees old state.
+      _stateUpdater.updateStateSync({
+        'currentGameId': '',
+        'games': <String, dynamic>{},
+        'joinedGames': <Map<String, dynamic>>[],
+        'totalJoinedGames': 0,
+      });
+      if (LOGGING_SWITCH) {
+        _logger.info('🧹 DutchGameHelpers: Synchronously cleared currentGameId, games, joinedGames');
+      }
+      
+      // 3. End practice session and clear backend store (practice bridge + GameStateStore)
+      try {
+        PracticeModeBridge.instance.endPracticeSession();
+        if (LOGGING_SWITCH) {
+          _logger.info('🧹 DutchGameHelpers: Ended practice session');
         }
       } catch (e, stackTrace) {
         if (LOGGING_SWITCH) {
           _logger.warning('⚠️ DutchGameHelpers: Error ending practice session: $e');
           _logger.warning('⚠️ DutchGameHelpers: Stack trace:\n$stackTrace');
         }
-        // Continue execution - don't let practice session cleanup block mode switching
+      }
+      try {
+        GameStateStore.instance.clearAll();
+        if (LOGGING_SWITCH) {
+          _logger.info('🧹 DutchGameHelpers: GameStateStore.clearAll() (all room state reset)');
+        }
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DutchGameHelpers: Error clearing GameStateStore: $e');
+        }
+      }
+      try {
+        GameRegistry.instance.clearAll();
+        if (LOGGING_SWITCH) {
+          _logger.info('🧹 DutchGameHelpers: GameRegistry.clearAll() (all rounds reset)');
+        }
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DutchGameHelpers: Error clearing GameRegistry: $e');
+        }
       }
       
-      // 4a. Clear practice user data and settings to ensure clean mode switch
-      // This prevents practice mode state from interfering with WebSocket mode
+      // 4. Clear practice user data and settings synchronously so getCurrentUserId/_getSessionId use WS identity
       try {
-        _stateUpdater.updateState({
+        _stateUpdater.updateStateSync({
           'practiceUser': null,
           'practiceSettings': null,
         });
         if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Cleared practice user data and settings');
+          _logger.info('🧹 DutchGameHelpers: Cleared practice user data and settings (sync)');
         }
       } catch (e) {
         if (LOGGING_SWITCH) {
@@ -1290,10 +1365,28 @@ class DutchGameHelpers {
         // Clear random join flags (CRITICAL: Must be cleared when staying in same mode)
         'isRandomJoinInProgress': false,
         'randomJoinIsClearAndCollect': null,
-        
-        // Clear same rank trigger counter
-        'sameRankTriggerCount': 0,
       });
+      
+      // 7. CRITICAL (WS → Practice): Clear state queue again so any updates enqueued by
+      // leaveAllGamesAndClearState (removePlayerFromGame → updateState) cannot be processed
+      // later and overwrite practice state when _startPracticeMatch sets currentGameId/games.
+      try {
+        StateQueueValidator.instance.clearQueue();
+        if (LOGGING_SWITCH) {
+          _logger.info('🧹 DutchGameHelpers: Flush queue after clear (prevent stale updates overwriting practice)');
+        }
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DutchGameHelpers: Error flushing queue: $e');
+        }
+      }
+      try {
+        backend_validator.StateQueueValidator.instance.clearQueue();
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DutchGameHelpers: Error flushing backend queue: $e');
+        }
+      }
       
       if (LOGGING_SWITCH) {
         _logger.info('✅ DutchGameHelpers: All game state cleared successfully before new game');

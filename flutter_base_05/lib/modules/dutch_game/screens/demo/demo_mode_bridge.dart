@@ -1,7 +1,7 @@
 import 'package:dutch/tools/logging/logger.dart';
 import 'demo_functionality.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for demo debugging
+const bool LOGGING_SWITCH = false; // Enabled for match start / transport / demo bridge
 
 /// Demo Mode Bridge
 /// 

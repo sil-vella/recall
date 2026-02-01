@@ -33,6 +33,14 @@ class GameRegistry {
       _logger.info('GameRegistry: Disposed game for $roomId');
     }
   }
+
+  /// Clear all rounds (reset to init). Use when clearing all games (e.g. mode switch).
+  void clearAll() {
+    _roomIdToRound.clear();
+    if (LOGGING_SWITCH) {
+      _logger.info('GameRegistry: clearAll() - cleared all rounds');
+    }
+  }
 }
 
 /// Server implementation of GameStateCallback for backend-authoritative play.
@@ -63,10 +71,12 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   ServerGameStateCallbackImpl(this.roomId, this.server) {
     // Initialize state queue validator with logger callback
     _validator.setLogCallback((String message, {bool isError = false}) {
-      if (LOGGING_SWITCH) {
-        if (isError) {
+      if (isError) {
+        if (LOGGING_SWITCH) {
           _logger.error(message);
-        } else {
+        }
+      } else {
+        if (LOGGING_SWITCH) {
           _logger.info(message);
         }
       }
@@ -85,6 +95,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final turnEvents = updates['turn_events'] as List<dynamic>? ?? [];
       if (LOGGING_SWITCH) {
         _logger.info('🔍 TURN_EVENTS DEBUG - onGameStateChanged received turn_events: ${turnEvents.length} events');
+      }
+      if (LOGGING_SWITCH) {
         _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
       }
     } else {
@@ -288,6 +300,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
     if (LOGGING_SWITCH) {
       _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates extracted turn_events from root state: ${turnEvents.length} events');
+    }
+    if (LOGGING_SWITCH) {
       _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
     }
     
@@ -641,10 +655,12 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         _logger.info('GameStateCallback: Calling Python API to update game statistics');
       }
       server.pythonClient.updateGameStats(gameResults).then((result) {
-        if (LOGGING_SWITCH) {
-          if (result['success'] == true) {
+        if (result['success'] == true) {
+          if (LOGGING_SWITCH) {
             _logger.info('GameStateCallback: Successfully updated game statistics');
-          } else {
+          }
+        } else {
+          if (LOGGING_SWITCH) {
             _logger.error('GameStateCallback: Failed to update game statistics: ${result['error']}');
           }
         }

@@ -114,7 +114,7 @@ Home screen buttons are rendered in **carousel mode** when the `contract: 'home_
 
 #### Carousel Features
 
-- **Viewport Fraction**: Each item takes 60% of the viewport width (`viewportFraction: 0.6`)
+- **Viewport Fraction**: Each item takes 70% of the viewport width (`viewportFraction: 0.7`)
 - **Opacity Effects**: 
   - Current item: 100% opacity
   - Adjacent items: 50% opacity
@@ -136,9 +136,9 @@ SizedBox(
   height: screenHeight * 0.5,
   child: Stack(
     children: [
-      // PageView with 60% viewport fraction
+      // PageView with 70% viewport fraction
       PageView.builder(
-        viewportFraction: 0.6,
+        viewportFraction: 0.7,
         // ... items with opacity transitions
       ),
       // Left arrow (when can go left)
@@ -152,39 +152,46 @@ SizedBox(
 
 #### Individual Button Rendering
 
-Each button in the carousel is rendered as a full-width container with:
+Each button in the carousel is rendered as a **full-width** container with:
+- **Width**: `double.infinity` so the button fills the carousel page (parent)
 - **Background**: Solid color (`backgroundColor`) or image (`imagePath`)
-- **Content**: Centered text (horizontally and vertically)
+- **Content**: Centered text with **wrapping** (`softWrap: true`); text is given a bounded width via `LayoutBuilder` so long labels wrap onto multiple lines
 - **Styling**: Custom text style, padding, and height
 - **Interaction**: Tap callback (`onTap`)
+
+**Sizes** (defined in `feature_slot.dart`):
+- **Button margin**: `EdgeInsets.symmetric(horizontal: 16, vertical: 8)`
+- **Button padding** (inner): `feature.padding ?? EdgeInsets.symmetric(horizontal: 48, vertical: 32)`
+- **Text container padding**: `EdgeInsets.symmetric(horizontal: 32, vertical: 24)`
+- **Default text size**: `fontSize: 56` (headingLarge × 2)
 
 **Button Example**:
 ```dart
 Container(
   width: double.infinity,
   height: calculatedHeight,
-  margin: const EdgeInsets.symmetric(horizontal: 8.0),
-  decoration: BoxDecoration(
-    color: feature.backgroundColor,
-    image: feature.imagePath != null
-        ? DecorationImage(
-            image: AssetImage(feature.imagePath!),
-            fit: BoxFit.cover,
-          )
-        : null,
-    borderRadius: BorderRadius.circular(12),
-  ),
+  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  decoration: BoxDecoration(...),
   child: Material(
-    color: Colors.transparent,
     child: InkWell(
       onTap: feature.onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Center(
-        child: Text(
-          feature.text,
-          style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
-            fontSize: 56, // Larger text for carousel
-            fontWeight: FontWeight.bold,
+      child: Container(
+        width: double.infinity,
+        padding: feature.padding ?? EdgeInsets.symmetric(horizontal: 48, vertical: 32),
+        child: Center(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Container(
+                width: constraints.maxWidth,
+                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                child: Text(
+                  feature.text,
+                  softWrap: true,  // Text wraps to multiple lines
+                  textAlign: TextAlign.center,
+                  ...
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -399,6 +406,7 @@ FeatureRegistryManager.instance.clearScope(
 4. **Carousel Usage**:
    - Always specify `contract: 'home_screen_button'` for carousel mode
    - Set `useTemplate: false` to avoid template wrapper
+   - Each button is full width of its carousel page; text wraps for long labels
    - Ensure buttons have sufficient visual contrast for 50% opacity on adjacent items
    - Test swipe gestures and arrow navigation
 
@@ -424,7 +432,7 @@ FeatureRegistryManager.instance.clearScope(
 The carousel is implemented as a private widget (`_HomeScreenCarousel`) within `FeatureSlot`:
 
 **Key Features**:
-- Uses `PageController` with `viewportFraction: 0.6` for 60% item width
+- Uses `PageController` with `viewportFraction: 0.7` for 70% item width
 - `AnimatedBuilder` provides smooth opacity transitions
 - Navigation arrows use `Positioned` widgets for overlay placement
 - Automatically sorts features by priority on initialization
@@ -446,9 +454,28 @@ double opacity = distance < 0.5
 - Vertically centered using `Positioned` with `top: 0, bottom: 0` and `Center` widget
 - 300ms animated transitions using `Curves.easeInOut`
 
+## Where Sizes Are Defined
+
+| What | Location | Value / logic |
+|------|----------|----------------|
+| **Feature height** | `home_screen_features.dart` (registration) | `heightPercentage: 0.5` (50% of available height) |
+| **Feature height** | `feature_slot.dart` `_buildHomeScreenButtonFeature` | `availableHeight * feature.heightPercentage!` or `feature.height ?? 80` |
+| **Button width** | `feature_slot.dart` | `double.infinity` (full width of carousel page) |
+| **Button margin** | `feature_slot.dart` | `EdgeInsets.symmetric(horizontal: 16, vertical: 8)` |
+| **Button padding** | `feature_contracts.dart` + `feature_slot.dart` | `feature.padding ?? EdgeInsets.symmetric(horizontal: 48, vertical: 32)` |
+| **Text container padding** | `feature_slot.dart` | `EdgeInsets.symmetric(horizontal: 32, vertical: 24)` |
+| **Default text size** | `feature_slot.dart` | `fontSize: 56` |
+| **Carousel height** | `feature_slot.dart` `_HomeScreenCarousel` | `screenHeight * 0.5` (50%) |
+| **Carousel item width** | `feature_slot.dart` `PageController` | `viewportFraction: 0.7` (70% of viewport) |
+| **Carousel item padding** | `feature_slot.dart` | `EdgeInsets.symmetric(horizontal: 8.0)` |
+| **Arrow buttons** | `feature_slot.dart` | 48×48 |
+| **Home content max width** | `home_screen.dart` | `BoxConstraints(maxWidth: 1000)` |
+
+Text wrapping is achieved by laying out the text label inside a `LayoutBuilder` and giving the text container `width: constraints.maxWidth`, with `Text(..., softWrap: true)`.
+
 ## Related Files
 
-- `lib/core/widgets/feature_slot.dart` - Feature rendering widget (includes `_HomeScreenCarousel`)
+- `lib/core/widgets/feature_slot.dart` - Feature rendering widget (includes `_HomeScreenCarousel`, `_buildHomeScreenButtonFeature`)
 - `lib/modules/dutch_game/managers/feature_registry_manager.dart` - Feature registry
 - `lib/modules/dutch_game/managers/feature_contracts.dart` - Feature descriptors
 - `lib/modules/dutch_game/screens/home_screen/features/home_screen_features.dart` - Home screen feature registration
@@ -457,13 +484,18 @@ double opacity = distance < 0.5
 
 ## Recent Updates
 
-### 2025-01-XX - Carousel Implementation
+### 2026-01-31 - Carousel and button layout
+- **Changed**: Carousel viewport fraction 60% → 70% (`viewportFraction: 0.7`)
+- **Changed**: Button content uses full width of parent (`width: double.infinity` on inner container)
+- **Changed**: Button text wraps; text area uses `LayoutBuilder` and `width: constraints.maxWidth` with `softWrap: true`
+
+### 2025-01-XX - Carousel implementation
 - **Added**: Swipeable carousel mode for home screen buttons
 - **Added**: Navigation arrows (left/right) with visual feedback
 - **Added**: Opacity transitions (100% current, 50% adjacent)
 - **Added**: 1000px max width constraint for home screen content
 - **Changed**: Scope key from `'home_screen_main'` to `'HomeScreen'`
-- **Changed**: Buttons now use 60% viewport width in carousel
+- **Changed**: Buttons use 70% viewport width in carousel
 - **Changed**: Automatic priority-based sorting and initial page selection
 
 ## Future Improvements
@@ -478,5 +510,5 @@ double opacity = distance < 0.5
 
 ---
 
-**Last Updated**: 2025-01-XX
+**Last Updated**: 2026-01-31
 

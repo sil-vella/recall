@@ -23,35 +23,7 @@ This document tracks high-level development plans, todos, and architectural deci
 
 ### High Priority
 
-#### Multiplayer turn logic (skipping players)
-- [ ] **Investigate multiplayer turn logic as its skipping players**
-  - Practice works fine; multiplayer has turn-skipping issues.
-  - **Action**: Log both (practice and multiplayer) and compare turn advancement, `currentPlayer`, and `_moveToNextPlayer` / `_startNextTurn` flows.
-  - **Location**: `dart_bkend_base_01` and `flutter_base_05` – `dutch_game_round.dart`, `game_event_coordinator.dart` (turn/currentPlayer handling).
-  - **Impact**: Game integrity – ensure all players get their turn in multiplayer.
-
-#### Player Action Validation
-- [ ] **Validate player is still in game before processing any action**
-  - **Issue**: Players who leave a game can still see game updates (they remain subscribed to room broadcasts) and may attempt to perform actions
-  - **Current Behavior**: Actions from players who have left may be processed if validation is missing
-  - **Expected Behavior**: All game actions must verify that the player is still in the game's players list before processing
-  - **Actions to Validate**: 
-    - `draw_card` - verify player exists in game state players list
-    - `play_card` - verify player exists in game state players list
-    - `same_rank_play` - verify player exists in game state players list
-    - `queen_peek` - verify player exists in game state players list
-    - `jack_swap` - verify both players exist in game state players list
-    - `collect_from_discard` - verify player exists in game state players list
-    - Any other game action events
-  - **Location**: 
-    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart` - Add validation in `handle()` method before routing to game logic
-    - Or in individual action handlers in `dutch_game_round.dart` (draw, play, etc.)
-  - **Implementation**: 
-    - Get current game state
-    - Check if playerId (sessionId) exists in `gameState['players']` list
-    - If player not found, reject action with appropriate error message
-    - Return early before processing the action
-  - **Impact**: Game integrity - prevents actions from disconnected/removed players from affecting active games
+_(No high-priority items currently.)_
 
 ### Medium Priority
 
@@ -96,16 +68,12 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Expected Behavior**: Remove or replace this snackbar so users are not shown this error (e.g. handle silently, use a less alarming message, or show only in debug)
   - **Location**: Flutter – WebSocket initialization/connection handling (likely in websocket manager, connection status, or game/lobby screens)
   - **Impact**: Avoid confusing or alarming users when WebSocket fails (e.g. in practice mode or before connection is needed)
-- [ ] **Remove padding around the game play table**
-  - **Issue**: There is padding around the game play table that should be removed
-  - **Expected Behavior**: No padding around the game play table; table uses full available space
-  - **Location**: Flutter game play screen / unified game board – table container or parent layout (e.g. `unified_game_board_widget.dart` or game play screen)
-  - **Impact**: More usable table area and consistent layout
 - [ ] **Table side borders: % based on table dimensions**
   - **Issue**: Table side borders use fixed values; they should scale with the table
   - **Expected Behavior**: Table side borders (left/right, and any decorative borders) should be defined as a **percentage of the table dimensions** (e.g. width or height) so they scale correctly on different screen sizes
-  - **Location**: Flutter game play table widget – border width/stroke (e.g. `unified_game_board_widget.dart` or table decoration)
+  - **Location**: Flutter game play table widget – border width/stroke (e.g. `unified_game_board_widget.dart` or game play screen table decoration)
   - **Impact**: Consistent visual proportions across devices and window sizes
+  - **Done**: Outer border (dark brown/charcoal) is now 1% of table width, max 10px (`game_play_screen.dart`). Inner gradient border (20px margin, 6px width) remains fixed; can be made %-based later if desired.
 - [ ] **Same rank timer UI widget: verify alignment with same rank time**
   - **Issue**: The same rank timer shown in the UI may not match the actual same rank window duration used by game logic
   - **Expected Behavior**: The same rank timer UI widget should display a countdown (or elapsed time) that **aligns with the same rank time** configured in game logic (e.g. `_sameRankTimer` duration in `dutch_game_round.dart`)
@@ -124,12 +92,12 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Expected Behavior**: Preload card back image(s) (assets and/or server-backed image) **on match start** (e.g. when game state indicates match started or when entering game play for the match) so the first time cards are shown the back image is already in cache.
   - **Location**: Flutter – match/game start flow (e.g. game event handlers, game play screen init, or a dedicated preload step); CardWidget or card back image usage; ensure `precacheImage` or equivalent is called at match start for the relevant back image(s).
   - **Impact**: Smoother UX – no visible load or flash when card backs are first shown.
-- [ ] **Animation overlays must not block taps on cards (underlayer remains tappable)**
-  - **Issue**: When animations are happening (e.g. draw, play, peek, jack swap), the user must still be able to tap cards. The overlay used for the animation must not disable or block the underlayer where the actual cards are.
-  - **Current Behavior**: Animation overlays may capture pointer events and prevent taps from reaching the card widgets underneath.
-  - **Expected Behavior**: **Verify** that during any animation (draw, play, queen peek, jack swap, same rank, etc.), taps on card areas still reach the underlayer (actual card widgets) so the user can interact (e.g. select card, play card) while or immediately after the animation. The overlay should be **non-hit-testable** (e.g. `IgnorePointer` or `HitTestBehavior.translucent` / pass-through) so it does not block the underlayer.
-  - **Location**: Flutter – animation overlay layer(s) (e.g. card animation layer, flash card overlay, peek overlay, jack swap overlay in `unified_game_board_widget.dart` or related); ensure overlay widgets use `IgnorePointer` or equivalent so hits pass through to the cards below.
-  - **Impact**: User experience – players can tap cards during/after animations instead of being blocked until the overlay is gone.
+- [ ] **Game play screen app bar: replace title with app logo**
+  - **Issue**: Check if we have existing logic to replace the game play screen title in the app bar with the app logo.
+  - **Action**: Verify whether the game play screen (or base screen / app bar) already supports or implements showing the app logo in the app bar instead of a text title; if so, document where; if not, add as enhancement.
+  - **Expected Behavior**: Game play screen app bar shows the app logo (e.g. `Image.asset` or existing logo widget) instead of or in addition to the screen title.
+  - **Location**: Flutter – game play screen (e.g. `game_play_screen.dart`), BaseScreen/app bar, or shared app bar / theme configuration.
+  - **Impact**: Consistent branding and polish on the game play screen.
 
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
@@ -256,6 +224,14 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Implementation**: Build ordered list: [winner, then remaining 3 sorted by points ascending]; for each player render name, list of cards (with rank/suit and points per card), and total points
   - **Location**: Flutter UI – winners popup / match end dialog (e.g. in game play screen or unified game board); game state or coordinator may need to provide final player order and resolved card data (see item above)
   - **Impact**: Clear, fair summary of match result and final hands for all players
+- [ ] **Game end popup: winner celebration and close → lobby or stats**
+  - **Issue**: Game end popup should celebrate when the current user is the winner and the close action should lead somewhere meaningful (lobby or updated stats).
+  - **Expected Behavior**:
+    1. **Winner check**: In the game end popup modal, detect if the current user is the winner (e.g. compare winner id with current user/session id).
+    2. **Celebratory animations**: If the user is the winner, add celebratory animations (Flutter ideally – e.g. confetti, glow, short sequence). Non-winners see the standard popup without celebration.
+    3. **Close button**: The close button should **navigate to the lobby screen** or open **another modal/screen showing the user's new stats** (e.g. updated rank, level, coins, match summary).
+  - **Location**: Flutter – game end / winners popup modal (game play screen or unified game board); navigation to lobby or stats screen/modal.
+  - **Impact**: Better UX for match end – clear feedback for winner and a clear next step (lobby or stats) after closing.
 
 ### Low Priority
 

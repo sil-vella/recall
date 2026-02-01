@@ -121,8 +121,16 @@ class GameEventCoordinator {
           await _handleCompletedInitialPeek(roomId, round, sessionId, data);
           break;
         case 'draw_card':
-          final gamesMap = _getCurrentGamesMap(roomId);
           final playerId = _getPlayerIdFromSession(sessionId, roomId);
+          if (playerId == null || playerId.isEmpty) {
+            server.sendToSession(sessionId, {
+              'event': 'error',
+              'message': 'Player not in game',
+              'room_id': roomId,
+            });
+            break;
+          }
+          final gamesMap = _getCurrentGamesMap(roomId);
           await round.handleDrawCard(
             (data['source'] as String?) ?? 'deck',
             playerId: playerId,
@@ -132,8 +140,16 @@ class GameEventCoordinator {
         case 'play_card':
           final cardId = (data['card_id'] as String?) ?? (data['cardId'] as String?);
           if (cardId != null && cardId.isNotEmpty) {
-            final gamesMap = _getCurrentGamesMap(roomId);
             final playerId = _getPlayerIdFromSession(sessionId, roomId);
+            if (playerId == null || playerId.isEmpty) {
+              server.sendToSession(sessionId, {
+                'event': 'error',
+                'message': 'Player not in game',
+                'room_id': roomId,
+              });
+              break;
+            }
+            final gamesMap = _getCurrentGamesMap(roomId);
             await round.handlePlayCard(
               cardId,
               playerId: playerId,

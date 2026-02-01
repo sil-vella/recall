@@ -190,23 +190,30 @@ class _FeatureSlotState extends State<FeatureSlot> {
           onTap: feature.onTap,
           borderRadius: BorderRadius.circular(12),
           child: Container(
+            width: double.infinity,
             padding: feature.padding ?? const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
             child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              child: Text(
-                feature.text,
-                  style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
-                  color: AppColors.textOnPrimary,
-                  fontWeight: FontWeight.bold,
-                    fontSize: 56, // Double the default headingLarge size (28 * 2)
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      feature.text,
+                      style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
+                        color: AppColors.textOnPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 56, // Double the default headingLarge size (28 * 2)
+                      ),
+                      textAlign: TextAlign.center,
+                      softWrap: true,
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -265,7 +272,7 @@ class _HomeScreenCarouselState extends State<_HomeScreenCarousel> {
 
     _pageController = PageController(
       initialPage: _currentPage,
-      viewportFraction: 0.6, // Each item takes 60% of viewport
+      viewportFraction: 0.7, // Each item takes 70% of viewport
     );
   }
 

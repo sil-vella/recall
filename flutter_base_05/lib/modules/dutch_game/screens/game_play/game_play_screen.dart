@@ -505,39 +505,39 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
             'maxWidth=${constraints.maxWidth}',
           );
         }
-        
+        // Outer border: 2% of table width, max 25
+        final tableWidth = constraints.maxWidth;
+        final outerBorderWidth = (tableWidth * 0.02).clamp(0.0, 25.0);
+
         return Stack(
           key: _mainStackKey,
           clipBehavior: Clip.none,
           children: [
-            // Main game content - takes full size of content area
-            // Wrapped in container with layered casino table border effect
-            Container(
-              margin: EdgeInsets.all(AppPadding.mediumPadding.top),
-              child: Stack(
-                children: [
-                  // Outer border layer - dark gray/charcoal
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: AppColors.casinoOuterBorderColor,
-                        width: 20.0,
-                      ),
-                      borderRadius: BorderRadius.circular(24.0),
-                      boxShadow: [
-                        // Strong outer shadow for depth
-                        BoxShadow(
-                          color: AppColors.black.withValues(alpha: 0.8),
-                          blurRadius: 35.0,
-                          spreadRadius: 5.0,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+            // Main game content - full size of content area (no outer padding/margin)
+            Stack(
+              children: [
+                // Outer border layer - dark gray/charcoal (% of table width)
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: AppColors.casinoOuterBorderColor,
+                      width: outerBorderWidth,
                     ),
+                    borderRadius: BorderRadius.circular(24.0),
+                    boxShadow: [
+                      // Strong outer shadow for depth
+                      BoxShadow(
+                        color: AppColors.black.withValues(alpha: 0.8),
+                        blurRadius: 35.0,
+                        spreadRadius: 5.0,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  // Inner border layer - gradient brown border (fades from light to dark)
+                ),
+                  // Inner border layer - inset by outer border width so outer border stays visible
                   Container(
-                    margin: const EdgeInsets.all(20.0),
+                    margin: EdgeInsets.all(outerBorderWidth),
                     child: CustomPaint(
                       painter: GradientBorderPainter(
                         startColor: AppColors.casinoBorderColor, // Light brown (outer edge)
@@ -553,11 +553,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                       ),
                     ),
                   ),
-                  // Main content with felt texture overlay
-                  // Margin matches inner border margin (20px) + border width (6px) = 26px
-                  // This ensures content starts right after the inner border with no gap
+                  // Main content - inset by outer border + gradient width (6px)
                   Container(
-                    margin: const EdgeInsets.all(26.0),
+                    margin: EdgeInsets.all(outerBorderWidth + 6.0),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8.0),
                       color: AppColors.pokerTableGreen, // Fill background to prevent black edges
@@ -594,7 +592,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                   ),
                 ],
               ),
-            ),
         
         // Instructions Modal Widget - handles its own state subscription
         const InstructionsWidget(),

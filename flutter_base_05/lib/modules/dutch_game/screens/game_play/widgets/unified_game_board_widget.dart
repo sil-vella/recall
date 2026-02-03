@@ -16,7 +16,7 @@ import '../../demo/demo_functionality.dart';
 import '../functionality/playscreenfunctions.dart';
 import '../functionality/animations.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -250,6 +250,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 : '';
             final id = suffix.length == 6 ? int.tryParse(suffix) : null;
             final baseId = id ?? 0;
+            // Flash overlay on both card indexes first, then the two move anims
+            expandedActions.add({
+              'name': 'jack_swap_flash_$suffix',
+              'data': {'card1Data': card1Data, 'card2Data': card2Data},
+              'playerId': actionItem['playerId'],
+            });
             expandedActions.add({
               'name': 'jack_swap_1_${baseId + 1}',
               'data': {'card1Data': card1Data, 'card2Data': card2Data},
@@ -262,7 +268,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             });
             Animations.markActionAsProcessed(name);
             if (LOGGING_SWITCH) {
-              _logger.info('🎬 _processStateUpdate: Expanded jack_swap into jack_swap_1 (moveWithEmptySlot) + jack_swap_2 (moveCard)');
+              _logger.info('🎬 _processStateUpdate: Expanded jack_swap into jack_swap_flash + jack_swap_1 (moveWithEmptySlot) + jack_swap_2 (moveCard)');
             }
           } else {
             expandedActions.add(actionItem);
@@ -466,23 +472,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             // Main widget tree
             LayoutBuilder(
               builder: (context, constraints) {
-                // New layout: Opponents spread evenly, Game Board above My Hand
+                if (LOGGING_SWITCH) {
+                  _logger.info('[GameBoard overflow] build: root constraints maxW=${constraints.maxWidth} maxH=${constraints.maxHeight} minW=${constraints.minWidth} minH=${constraints.minHeight}');
+                }
+                // Layout: Opponents section takes all space (3 cols); game board in middle col at bottom; My Hand below
                 return Column(
                   children: [
-                    // Opponents Panel Section - spread evenly vertically
+                    // Opponents Panel Section (3 columns; game board lives in middle column, aligned to bottom)
                     Expanded(
                       child: _buildOpponentsPanel(),
                     ),
-                    
-                    // Spacer above game board (doubled)
-                    const SizedBox(height: 32),
-                    
-                    // Game Board Section - Draw Pile, Match Pot, Discard Pile (just above My Hand)
-                    _buildGameBoard(),
-                    
-                    // Small spacer below game board
                     const SizedBox(height: 16),
-                    
                     // My Hand Section - at the bottom
                     _buildMyHand(),
                   ],
@@ -586,7 +586,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
   
-  /// Build flash overlays for flashCard animation - renders filled overlays on all peeked cards (same color 0.5 opacity)
+  /// Build flash overlays for flashCard animation - renders filled overlays on all peeked cards (color by action: queen_peek, initial_peek, jack_swap_flash)
   List<Widget> _buildFlashCardBorders(Map<String, dynamic> animData, Offset stackGlobalOffset) {
     final animationController = animData['controller'] as AnimationController?;
     final animation = animData['animation'] as Animation<double>?;
@@ -596,8 +596,23 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       return [];
     }
     
-    // Use peeking color at 0.5 opacity for overlay (no border)
-    final overlayColor = AppColors.statusPeeking.withOpacity(0.5);
+    // Overlay color by action type (theme: statusQueenPeek, statusInitialPeek, statusJackSwap, statusPeeking)
+    final baseActionName = Animations.extractBaseActionName(animData['actionName']?.toString() ?? '');
+    final Color overlayBaseColor;
+    switch (baseActionName) {
+      case 'jack_swap_flash':
+        overlayBaseColor = AppColors.statusJackSwap;
+        break;
+      case 'queen_peek':
+        overlayBaseColor = AppColors.statusQueenPeek;
+        break;
+      case 'initial_peek':
+        overlayBaseColor = AppColors.statusInitialPeek;
+        break;
+      default:
+        overlayBaseColor = AppColors.statusPeeking;
+    }
+    final overlayColor = overlayBaseColor.withOpacity(0.5);
     
     // Create 3 flashes: flash at 0.0-0.33, 0.33-0.66, 0.66-1.0
     // Each flash: fade in (0-0.1), stay visible (0.1-0.4), fade out (0.4-0.5)
@@ -610,6 +625,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       if (position == null || size == null) return const SizedBox.shrink();
       
       final localPosition = position - stackGlobalOffset;
+      // Use same border radius as cards (CardDimensions) so overlay matches card shape
+      final overlayBorderRadius = CardDimensions.calculateBorderRadius(size);
       
       return AnimatedBuilder(
         animation: animation,
@@ -671,7 +688,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 height: size.height,
                 decoration: BoxDecoration(
                   color: overlayColor,
-                  borderRadius: BorderRadius.circular(8.0), // Match card border radius
+                  borderRadius: BorderRadius.circular(overlayBorderRadius),
                 ),
               ),
             ),
@@ -1027,6 +1044,27 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Determine which players to process based on action type
     List<Map<String, dynamic>> playersToProcess = [];
     
+    if (baseActionName == 'jack_swap_flash') {
+      // jack_swap_flash: use only card1Data and card2Data from actionData (two affected indexes)
+      final card1Data = actionData['card1Data'] as Map<String, dynamic>?;
+      final card2Data = actionData['card2Data'] as Map<String, dynamic>?;
+      if (card1Data != null && card2Data != null) {
+        for (final cardData in [card1Data, card2Data]) {
+          final cardIndex = cardData['cardIndex'] as int?;
+          final targetPlayerId = cardData['playerId']?.toString();
+          if (cardIndex == null || targetPlayerId == null) continue;
+          final isTargetMyHand = targetPlayerId == currentUserId;
+          Map<String, dynamic>? cardBounds;
+          if (isTargetMyHand) {
+            cardBounds = _playScreenFunctions.getCachedMyHandCardBounds(cardIndex);
+          } else {
+            cardBounds = _playScreenFunctions.getCachedOpponentCardBounds(targetPlayerId, cardIndex);
+          }
+          if (cardBounds != null) cardBoundsList.add(cardBounds);
+        }
+      }
+    }
+    
     if (baseActionName == 'initial_peek') {
       // initial_peek: process all players (multi-player action)
       playersToProcess = players.whereType<Map<String, dynamic>>().toList();
@@ -1041,7 +1079,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           playersToProcess = [triggerPlayer];
         }
       }
-    } else {
+    } else if (baseActionName != 'jack_swap_flash') {
       // Default: process all players (for future extensibility)
       playersToProcess = players.whereType<Map<String, dynamic>>().toList();
     }
@@ -1195,9 +1233,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       curve: curve,
     );
     
-    // Store animation data with all card bounds
+    // Store animation data with all card bounds (actionName used for overlay color per theme)
     _activeAnimations[actionName] = {
       'animationType': AnimationType.flashCard,
+      'actionName': actionName,
       'cardBoundsList': cardBoundsList, // List of all card bounds to flash
       'controller': controller,
       'animation': animation,
@@ -1609,29 +1648,48 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           final isCurrentPlayer = playerId == currentPlayerId;
           final knownCards = player['known_cards'] as Map<String, dynamic>?;
           
-          // Add opponent widget wrapped in Expanded for equal width
-          // Add horizontal padding to both sides of each column
-          opponentWidgets.add(
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
-                child: _buildOpponentCard(
-                  player, 
-                  cardsToPeek, 
-                  player['collection_rank_cards'] as List<dynamic>? ?? [],
-                  isCurrentTurn, 
-                  isGameActive, 
-                  isCurrentPlayer, 
-                  currentPlayerStatus,
-                  knownCards,
-                  isInitialPeekPhase,
-                  phase, // Pass phase for timer calculation
-                  timerConfig, // Pass timerConfig from game_state
-                  opponentIndex: displayIndex, // Pass display index for alignment (0=left, 1=middle, 2=right)
-                ),
-              ),
+          // Opponent columns keep their padding; game board lives in middle column
+          final opponentContent = Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
+            child: _buildOpponentCard(
+              player,
+              cardsToPeek,
+              player['collection_rank_cards'] as List<dynamic>? ?? [],
+              isCurrentTurn,
+              isGameActive,
+              isCurrentPlayer,
+              currentPlayerStatus,
+              knownCards,
+              isInitialPeekPhase,
+              phase,
+              timerConfig,
+              opponentIndex: displayIndex,
             ),
           );
+
+          // Game board in middle column (index 1), or in the only column when there is a single opponent.
+          // Game board height is intrinsic (as much as children require); pile widths stay within parent column.
+          final bool isColumnWithGameBoard = displayIndex == 1 || entries.length == 1;
+          if (isColumnWithGameBoard) {
+            opponentWidgets.add(
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: opponentContent),
+                    _buildGameBoard(),
+                  ],
+                ),
+              ),
+            );
+          } else {
+            opponentWidgets.add(
+              Expanded(
+                child: opponentContent,
+              ),
+            );
+          }
         }
         
         return Row(
@@ -1891,13 +1949,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (availableWidth <= 0 || !availableWidth.isFinite) {
           return const SizedBox.shrink();
         }
-        // All card sizes are relative to available space (after padding), not total column width
-        final cardWidth = CardDimensions.clampCardWidth(availableWidth * 0.22); // 22% of available width, clamped to max
+        // Size so 4 cards fit in one row; 5th item (extra animation slot) wraps. Each child has Padding(right: cardPadding), so 4 cards use 4*cardWidth + 4*cardPadding.
+        final cardPadding = availableWidth * 0.02;
+        final cardWidth = CardDimensions.clampCardWidth((availableWidth - 4 * cardPadding) / 4);
         final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
         final cardDimensions = Size(cardWidth, cardHeight);
         final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
-        // Card padding is relative to available width (after column padding)
-        final cardPadding = availableWidth * 0.02;
         
         final collectionRankCardIds = playerCollectionRankCards
             .where((c) => c is Map<String, dynamic>)
@@ -2014,9 +2071,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               final cardWidth = cardDimensions.width;
               final cardHeight = cardDimensions.height;
               final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
-              final stackWidget = SizedBox(
+              final stackWidget = Container(
                 width: cardWidth,
                 height: stackHeight,
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.black.withValues(alpha: 0.45),
+                      blurRadius: 8,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: orderedCollectionWidgets.asMap().entries.map((entry) {
@@ -2425,6 +2491,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   // ========== Game Board Methods ==========
 
+  /// Horizontal padding used by draw/discard pile (Padding.all(2) => 2 left + 2 right).
+  static const double _gameBoardPileHorizontalPadding = 4;
+
+  /// Card dimensions for game board piles: use full column width minus padding, clamped to max.
+  static Size _gameBoardPileCardDimensions(double columnWidth) {
+    final cardWidth = CardDimensions.clampCardWidth(columnWidth - _gameBoardPileHorizontalPadding);
+    final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
+    return Size(cardWidth, cardHeight);
+  }
+
   Widget _buildGameBoard() {
     // Update game board height in state after build
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2433,20 +2509,38 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     return Container(
       key: _gameBoardKey,
-      padding: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      padding: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Get the actual width of the gameboard row
+          // Use full parent width; column flex 2:1:2 (draw : match pot : discard) so pile cards get more space.
           final gameboardRowWidth = constraints.maxWidth;
-          
+          final gameboardMaxHeight = constraints.maxHeight;
+          if (LOGGING_SWITCH) {
+            _logger.info('[GameBoard overflow] _buildGameBoard: constraints maxW=$gameboardRowWidth maxH=$gameboardMaxHeight');
+          }
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.max,
             children: [
-              _buildDrawPile(),
-              _buildMatchPot(gameboardRowWidth), // Match pot in the middle
-              _buildDiscardPile(),
+              Expanded(
+                flex: 2,
+                child: LayoutBuilder(
+                  builder: (context, c) => _buildDrawPile(availableWidth: c.maxWidth),
+                ),
+              ),
+              Expanded(
+                flex: 1,
+                child: LayoutBuilder(
+                  builder: (context, c) => _buildMatchPot(c.maxWidth),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: LayoutBuilder(
+                  builder: (context, c) => _buildDiscardPile(availableWidth: c.maxWidth),
+                ),
+              ),
             ],
           );
         },
@@ -2472,7 +2566,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   // ========== Draw Pile Methods ==========
 
-  Widget _buildDrawPile() {
+  /// Draw pile card size: scales with [availableWidth] (like opponent hand cards), clamped to [CardDimensions.MAX_CARD_WIDTH].
+  Widget _buildDrawPile({double? availableWidth}) {
+    if (LOGGING_SWITCH) {
+      _logger.info('[GameBoard overflow] _buildDrawPile: availableWidth=$availableWidth');
+    }
     final dutchGameState = _getPrevStateDutchGame();
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
@@ -2490,34 +2588,42 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final statusChipColor = isDrawingStatus ? _getStatusChipColor(playerStatus) : null;
     
     return Container(
-      key: _drawPileKey,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.all(2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             Builder(
               builder: (context) {
-                final cardDimensions = CardDimensions.getUnifiedDimensions();
-                
+                final Size cardDimensions = availableWidth != null && availableWidth > 0
+                    ? _gameBoardPileCardDimensions(availableWidth)
+                    : CardDimensions.getUnifiedDimensions();
+                if (LOGGING_SWITCH) {
+                  _logger.info('[GameBoard overflow] _buildDrawPile: cardDimensions=${cardDimensions.width}x${cardDimensions.height} (with padding 2 total 4)');
+                }
                 Widget drawPileContent;
               
               if (drawPile.isEmpty) {
-                // Empty draw pile - render placeholder
+                // Empty draw pile - render placeholder. Key on card-sized SizedBox so animation bounds match card size.
                 final emptyKey = _getOrCreateCardKey('draw_pile_empty', 'draw_pile');
-                drawPileContent = CardWidget(
-                  key: emptyKey,
-                  card: CardModel(
-                    cardId: 'draw_pile_empty',
-                    rank: '?',
-                    suit: '?',
-                    points: 0,
+                drawPileContent = SizedBox(
+                  key: _drawPileKey,
+                  width: cardDimensions.width,
+                  height: cardDimensions.height,
+                  child: CardWidget(
+                    key: emptyKey,
+                    card: CardModel(
+                      cardId: 'draw_pile_empty',
+                      rank: '?',
+                      suit: '?',
+                      points: 0,
+                    ),
+                    dimensions: cardDimensions,
+                    config: CardDisplayConfig.forDrawPile(),
+                    showBack: true,
+                    onTap: _handleDrawPileClick,
                   ),
-                  dimensions: cardDimensions,
-                  config: CardDisplayConfig.forDrawPile(),
-                  showBack: true,
-                  onTap: _handleDrawPileClick,
                 );
               } else {
                 // Render all cards in draw pile with stacking effect
@@ -2612,6 +2718,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 }
                 
                 drawPileContent = SizedBox(
+                  key: _drawPileKey,
                   width: cardDimensions.width,
                   height: cardDimensions.height,
                   child: Stack(
@@ -2712,7 +2819,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   // ========== Discard Pile Methods ==========
 
-  Widget _buildDiscardPile() {
+  /// Discard pile card size: scales with [availableWidth] (like opponent hand cards), clamped to [CardDimensions.MAX_CARD_WIDTH].
+  Widget _buildDiscardPile({double? availableWidth}) {
+    if (LOGGING_SWITCH) {
+      _logger.info('[GameBoard overflow] _buildDiscardPile: availableWidth=$availableWidth');
+    }
     final dutchGameState = _getPrevStateDutchGame();
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
@@ -2725,32 +2836,38 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final hasCards = discardPile.isNotEmpty;
     
     return Container(
-      key: _discardPileKey,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.all(2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             Builder(
               builder: (context) {
-                final cardDimensions = CardDimensions.getUnifiedDimensions();
+                final Size cardDimensions = availableWidth != null && availableWidth > 0
+                    ? _gameBoardPileCardDimensions(availableWidth)
+                    : CardDimensions.getUnifiedDimensions();
                 
                 if (!hasCards) {
-                // Empty discard pile
+                // Empty discard pile. Key on card-sized SizedBox so animation bounds match card size.
                 final emptyKey = _getOrCreateCardKey('discard_pile_empty', 'discard_pile');
-                return CardWidget(
-                  key: emptyKey,
-                  card: CardModel(
-                    cardId: 'discard_pile_empty',
-                    rank: '?',
-                    suit: '?',
-                    points: 0,
+                return SizedBox(
+                  key: _discardPileKey,
+                  width: cardDimensions.width,
+                  height: cardDimensions.height,
+                  child: CardWidget(
+                    key: emptyKey,
+                    card: CardModel(
+                      cardId: 'discard_pile_empty',
+                      rank: '?',
+                      suit: '?',
+                      points: 0,
+                    ),
+                    dimensions: cardDimensions,
+                    config: CardDisplayConfig.forDiscardPile(),
+                    showBack: true,
+                    onTap: _handleDiscardPileClick,
                   ),
-                  dimensions: cardDimensions,
-                  config: CardDisplayConfig.forDiscardPile(),
-                  showBack: true,
-                  onTap: _handleDiscardPileClick,
                 );
               }
               
@@ -2843,6 +2960,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               }
               
               return SizedBox(
+                key: _discardPileKey,
                 width: cardDimensions.width,
                 height: cardDimensions.height,
                 child: Stack(
@@ -2914,7 +3032,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   // ========== Match Pot Methods ==========
 
-  Widget _buildMatchPot(double gameboardRowWidth) {
+  /// [columnWidth] is the allocated width for this column (1/3 of game board row); pot stays within it.
+  Widget _buildMatchPot(double columnWidth) {
     final dutchGameState = _getPrevStateDutchGame();
     final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
     final matchPot = centerBoard['matchPot'] as int? ?? 0;
@@ -2932,52 +3051,36 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     final shouldShowPot = isGameActive && gamePhase != 'waiting';
     
-    // Calculate width: 20% of gameboard row width
-    final calculatedWidth = gameboardRowWidth * 0.2;
+    // Use full allocated column width so pot never overflows
+    final potColumnWidth = columnWidth;
+    // Text size scales with column width (clamped)
+    final fontSize = (potColumnWidth * 0.28).clamp(14.0, 32.0);
+    final iconSize = (potColumnWidth * 0.45).clamp(20.0, 40.0);
+    if (LOGGING_SWITCH) {
+      _logger.info('[GameBoard overflow] _buildMatchPot: columnWidth=$columnWidth potColumnWidth=$potColumnWidth fontSize=$fontSize iconSize=$iconSize');
+    }
     
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+    return SizedBox(
+      width: potColumnWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Top row: amount (no glow)
           Text(
-            'Win',
-            style: AppTextStyles.headingSmall().copyWith(
-              color: shouldShowPot 
-                  ? AppColors.primaryColor
-                  : AppColors.textSecondary,
+            shouldShowPot ? matchPot.toString() : '—',
+            style: AppTextStyles.headingLarge().copyWith(
+              color: shouldShowPot ? AppColors.primaryColor : AppColors.textSecondary,
               fontWeight: FontWeight.bold,
+              fontSize: fontSize,
             ),
           ),
-          const SizedBox(height: 8),
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Image.asset(
-                'assets/images/coins.png',
-                width: calculatedWidth,
-                fit: BoxFit.contain,
-              ),
-              Text(
-                shouldShowPot ? matchPot.toString() : '—',
-                style: AppTextStyles.headingLarge().copyWith(
-                  color: AppColors.black,
-                  shadows: [
-                    Shadow(
-                      offset: Offset.zero,
-                      blurRadius: 4.0,
-                      color: AppColors.white,
-                    ),
-                    Shadow(
-                      offset: Offset.zero,
-                      blurRadius: 8.0,
-                      color: AppColors.white.withValues(alpha: 0.5),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          const SizedBox(height: 4),
+          // Bottom row: coin icon (same as app bar)
+          Icon(
+            Icons.monetization_on,
+            size: iconSize,
+            color: AppColors.accentColor2,
           ),
         ],
       ),
@@ -3600,10 +3703,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
               final stackKey = _getOrCreateCardKey('${_getCurrentUserId()}_$index', 'my_hand');
               
-              final stackWidget = SizedBox(
+              final stackWidget = Container(
                 key: stackKey,
                 width: cardWidth,
                 height: stackHeight,
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.black.withValues(alpha: 0.45),
+                      blurRadius: 8,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: orderedCollectionWidgets.asMap().entries.map((entry) {

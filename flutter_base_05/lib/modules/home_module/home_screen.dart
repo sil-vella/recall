@@ -14,6 +14,9 @@ class HomeScreen extends BaseScreen {
 
   @override
   String computeTitle(BuildContext context) => 'Home';
+
+  @override
+  bool get useLogoInAppBar => true;
 }
 
 class _HomeScreenState extends BaseScreenState<HomeScreen> {

@@ -20,7 +20,7 @@ import 'collection_card_demonstration_widget.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class InstructionsWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   static final Logger _logger = Logger();
   
   // Track currently showing instruction key to prevent duplicate modals

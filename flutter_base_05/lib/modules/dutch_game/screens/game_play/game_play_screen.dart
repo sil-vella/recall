@@ -17,7 +17,7 @@ import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -227,6 +227,9 @@ class GamePlayScreen extends BaseScreen {
   String computeTitle(BuildContext context) => 'Dutch Game';
 
   @override
+  bool get useLogoInAppBar => true;
+
+  @override
   Decoration? getBackground(BuildContext context) {
     return BoxDecoration(
       color: AppColors.pokerTableGreen,
@@ -241,6 +244,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   final Logger _logger = Logger();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   String? _previousGameId;
+  bool _cardBackPrecached = false;
   
   // GlobalKey for the main Stack
   final GlobalKey _mainStackKey = GlobalKey(); // Track game ID to detect navigation away
@@ -280,6 +284,16 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       GameCoordinator().cancelLeaveGameTimer(currentGameId);
     }
     
+    // Preload card back and special-card backgrounds once when entering game play (match start)
+    if (!_cardBackPrecached && mounted) {
+      _cardBackPrecached = true;
+      precacheImage(const AssetImage('assets/images/card_back.png'), context);
+      precacheImage(const AssetImage('assets/images/backgrounds/queen.png'), context);
+      precacheImage(const AssetImage('assets/images/backgrounds/king.png'), context);
+      precacheImage(const AssetImage('assets/images/backgrounds/jack.png'), context);
+      precacheImage(const AssetImage('assets/images/backgrounds/joker.png'), context);
+    }
+    
     // Check for initial instructions after dependencies are set (game state should be ready)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowInitialInstructions();
@@ -292,7 +306,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       if (!_websocketManager.isInitialized) {
         final initialized = await _websocketManager.initialize();
         if (!initialized) {
-          _showSnackBar('Failed to initialize WebSocket', isError: true);
+          if (LOGGING_SWITCH) {
+            _logger.error('GamePlay: Failed to initialize WebSocket');
+          }
           return;
         }
       }
@@ -301,15 +317,27 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       if (!_websocketManager.isConnected) {
         final connected = await _websocketManager.connect();
         if (!connected) {
-          _showSnackBar('Failed to connect to WebSocket', isError: true);
+          if (LOGGING_SWITCH) {
+            _logger.error('GamePlay: Failed to connect to WebSocket');
+          }
           return;
         }
-        _showSnackBar('WebSocket connected successfully!');
+        if (LOGGING_SWITCH) {
+          _logger.info('GamePlay: WebSocket connected successfully');
+        }
       } else {
-        _showSnackBar('WebSocket already connected!');
+        if (LOGGING_SWITCH) {
+          _logger.info('GamePlay: WebSocket already connected');
+        }
       }
-    } catch (e) {
-      _showSnackBar('WebSocket initialization error: $e', isError: true);
+    } catch (e, stackTrace) {
+      if (LOGGING_SWITCH) {
+        _logger.error(
+          'GamePlay: WebSocket initialization error',
+          error: e,
+          stackTrace: stackTrace,
+        );
+      }
     }
   }
   
@@ -452,27 +480,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     // The WSEventManager handles all WebSocket events automatically
   }
 
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    // Check if the widget is still mounted before accessing context
-    if (!mounted) return;
-    
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: isError ? AppColors.errorColor : AppColors.successColor,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      // ScaffoldMessenger might not be available if widget is being disposed
-      // Just log the error instead of crashing
-      if (LOGGING_SWITCH) {
-        _logger.warning('GamePlay: Could not show snackbar - $e');
-      }
-    }
-  }
 
   @override
   Widget buildContent(BuildContext context) {

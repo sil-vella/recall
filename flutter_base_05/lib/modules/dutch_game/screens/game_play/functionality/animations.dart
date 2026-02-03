@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for animation system debugging and action data tracking
+const bool LOGGING_SWITCH = true; // Enabled for animation system debugging and action data tracking
 
 /// AnimationTypes enum for different animation types
 enum AnimationType {
@@ -55,6 +55,8 @@ class Animations {
         return AnimationType.flashCard; // Flash border on peeked card
       case 'initial_peek':
         return AnimationType.flashCard; // Flash border on peeked cards
+      case 'jack_swap_flash':
+        return AnimationType.flashCard; // Flash overlay on both swapped card indexes
       default:
         return AnimationType.none;
     }

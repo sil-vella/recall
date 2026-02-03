@@ -31,7 +31,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and joinedGamesSlice recomputation
+  static const bool LOGGING_SWITCH = true; // Enabled for join/games investigation and joinedGamesSlice recomputation
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -42,16 +42,17 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     // Set Current Rooms section to be expanded on load
     _expandedSection = 'Current Rooms';
     
-    // CRITICAL: Ensure joinedGamesSlice is computed from games map on lobby screen load
-    // This ensures games appear even if no state updates have occurred yet
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Defer until after first frame: (1) clear game state so lobby loads fresh, (2) recompute joinedGamesSlice, (3) WebSocket init and setup so ScaffoldMessenger/context is valid
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await DutchGameHelpers.clearAllGameStateBeforeNewGame();
+      if (!mounted) return;
       _ensureJoinedGamesSliceComputed();
-    });
-    
-    _initializeWebSocket().then((_) {
-      _setupEventCallbacks();
-      _initializeRoomState();
-      _featureRegistrar.registerDefaults(context);
+      _initializeWebSocket().then((_) {
+        if (!mounted) return;
+        _setupEventCallbacks();
+        _initializeRoomState();
+        _featureRegistrar.registerDefaults(context);
+      });
     });
   }
 

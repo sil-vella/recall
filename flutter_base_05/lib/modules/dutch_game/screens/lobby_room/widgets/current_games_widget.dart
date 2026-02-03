@@ -6,7 +6,7 @@ import '../../game_play/widgets/game_phase_chip_widget.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and current games widget debugging
+const bool LOGGING_SWITCH = true; // Enabled for join/games investigation and current games widget debugging
 
 /// Widget to display all joined rooms with join functionality
 /// 

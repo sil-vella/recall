@@ -13,6 +13,17 @@ This document tracks high-level development plans, todos, and architectural deci
 - ✅ TTL management for rooms implemented in Dart backend
 - ✅ Game state management integrated in Dart backend
 - ✅ Player ID validation patterns updated for practice mode
+- ✅ Remove WebSocket init/connect snackbars from game play screen; replaced with Logger calls behind `if (LOGGING_SWITCH)` (see `Documentation/flutter_base_05/LOGGING_SYSTEM.md`)
+- ✅ Center my hand cards – hand row centered in its area (unified_game_board_widget.dart: Align + Wrap with WrapAlignment.center and leading spacer)
+- ✅ Collection stack – darker top shadow and 10% stack offset (card_dimensions.dart STACK_OFFSET_PERCENTAGE = 0.10; unified_game_board_widget collection stack Container with boxShadow)
+- ✅ Peek/selection overlay – same border radius as cards (flash overlay uses CardDimensions.calculateBorderRadius; selection overlay in CardWidget already matched)
+- ✅ App bar logo – Home and Game play screens show `assets/images/logo.png` at full app bar height (BaseScreen.useLogoInAppBar, kAppBarLogoAsset in screen_base.dart); Lobby shows "Game Lobby" text
+- ✅ Complete initial peek logic – flow from initial peek to game start (all players done / timeout) in dutch_game_round.dart
+- ✅ Initial peek UI – peeked card data visible for at least 5 seconds (local state + timer in unified_game_board_widget / MyHand)
+- ✅ Unify full-data card display with opponents-style UI (rank/suit only; special-card backgrounds)
+- ✅ Queen peek: clear cardsToPeek when phase ends (timer expiry, flow advance, or explicit close)
+- ✅ CPU Queen peek rule: peek at opponent when all own cards are known (peek_opponent_when_all_own_known in getQueenPeekDecision)
+- ✅ Jack swap validation fixes: validate cards exist in hand before decision; filter by current hand after same-rank play (no picking discarded cards)
 
 ### In Progress
 - 🔄 Room TTL implementation (recently completed, needs testing)
@@ -34,40 +45,11 @@ _(No high-priority items currently.)_
   - **Expected Behavior**: Opponents columns should maintain proper spacing and layout regardless of match pot image visibility
   - **Location**: Flutter UI components for opponents panel (likely in `unified_game_board_widget.dart` or related opponent display widgets)
   - **Impact**: User experience - layout issues affect game playability and visual consistency
-- [ ] **Highlight borders for peeking and selected cards: remove border radius**
-  - **Issue**: Highlight borders used for peeking (e.g. queen peek, initial peek) and for selected cards use rounded corners; they should be sharp (no border radius)
-  - **Current Behavior**: Peek and selection highlight borders are drawn with border radius
-  - **Expected Behavior**: These highlights should be drawn **without border radius** (rectangular borders only)
-  - **Location**: Flutter UI where peek highlights and selection highlights are built (e.g. flashCard overlay, card selection decoration in hand/discard widgets)
-  - **Impact**: Visual consistency and clearer emphasis on peek/selection state
-- [ ] **Unify full-data card display with opponents-style UI (rank/suit only; special-card backgrounds)**
-  - **Issue**: Cards that show full data (e.g. in hand, discard pile) currently use full "play card" style; they should match the opponents section style: rank and suit only, with special-card backgrounds
-  - **Current Behavior**: My hand and discard show full playing-card artwork/style; opponents section shows compact rank/suit (and special backgrounds for face cards)
-  - **Expected Behavior**: All cards that reveal full data should follow the **same UI as the opponents section**: display **only rank and suit** (no full play-card artwork). Special cards (King, Jack, Queen, Joker) should have a **background relative to that rank** (e.g. distinct background per rank type)
-  - **Scope**: My hand, discard pile, and any other areas that show full card data
-  - **Location**: Flutter card display widgets for hand, discard, and shared card component used by opponents section; ensure one consistent "compact full-data" style
-  - **Impact**: Consistent visual language across the board; clearer distinction between hidden (back) and revealed (rank/suit + special background) cards
-- [ ] **Collection cards stack: darker top shadow and 10% offset**
-  - **Issue**: Collection cards stack (stacked widget) needs a slightly darker shadow at the top and a smaller vertical offset between cards
-  - **Current Behavior**: Stack uses `CardDimensions.STACK_OFFSET_PERCENTAGE` (15%) for offset; shadow may be too light
-  - **Expected Behavior**: Make the shadow at the top of the collection cards widget **a bit darker**; **decrease the stack offset to 10%** (of card height)
-  - **Location**: `flutter_base_05/lib/modules/dutch_game/utils/card_dimensions.dart` – `STACK_OFFSET_PERCENTAGE` (change from 0.15 to 0.10); Flutter widget that draws the collection stack (unified_game_board_widget or related) – shadow styling for the stack
-  - **Impact**: Clearer visual separation of stacked collection cards and more readable stack
-- [ ] **Center my hand cards**
-  - **Issue**: My hand cards should be centered in their container
-  - **Expected Behavior**: The row/list of cards in the player's hand (my hand section) should be centered horizontally (and vertically if applicable) within the hand area
-  - **Location**: Flutter UI for my hand – `unified_game_board_widget.dart` or related MyHandWidget / hand layout
-  - **Impact**: Better visual balance and polish of the game board
 - [ ] **Fix home screen feature widget sizes including the text area**
   - **Issue**: Home screen feature widgets (e.g. Dutch game entry, practice, etc.) have sizing issues; the text area and overall widget dimensions need adjustment
   - **Expected Behavior**: Feature widget sizes should be consistent and appropriate; text area should fit content and scale correctly
   - **Location**: Flutter home screen – feature/widget components that display game options or feature tiles (e.g. Dutch game card, practice mode entry)
   - **Impact**: Better home screen layout and readability
-- [ ] **Remove the "failed to initialize websocket" snackbar error**
-  - **Issue**: A snackbar shows "failed to initialize websocket" (or similar) to the user when WebSocket initialization fails
-  - **Expected Behavior**: Remove or replace this snackbar so users are not shown this error (e.g. handle silently, use a less alarming message, or show only in debug)
-  - **Location**: Flutter – WebSocket initialization/connection handling (likely in websocket manager, connection status, or game/lobby screens)
-  - **Impact**: Avoid confusing or alarming users when WebSocket fails (e.g. in practice mode or before connection is needed)
 - [ ] **Table side borders: % based on table dimensions**
   - **Issue**: Table side borders use fixed values; they should scale with the table
   - **Expected Behavior**: Table side borders (left/right, and any decorative borders) should be defined as a **percentage of the table dimensions** (e.g. width or height) so they scale correctly on different screen sizes
@@ -92,13 +74,6 @@ _(No high-priority items currently.)_
   - **Expected Behavior**: Preload card back image(s) (assets and/or server-backed image) **on match start** (e.g. when game state indicates match started or when entering game play for the match) so the first time cards are shown the back image is already in cache.
   - **Location**: Flutter – match/game start flow (e.g. game event handlers, game play screen init, or a dedicated preload step); CardWidget or card back image usage; ensure `precacheImage` or equivalent is called at match start for the relevant back image(s).
   - **Impact**: Smoother UX – no visible load or flash when card backs are first shown.
-- [ ] **Game play screen app bar: replace title with app logo**
-  - **Issue**: Check if we have existing logic to replace the game play screen title in the app bar with the app logo.
-  - **Action**: Verify whether the game play screen (or base screen / app bar) already supports or implements showing the app logo in the app bar instead of a text title; if so, document where; if not, add as enhancement.
-  - **Expected Behavior**: Game play screen app bar shows the app logo (e.g. `Image.asset` or existing logo widget) instead of or in addition to the screen title.
-  - **Location**: Flutter – game play screen (e.g. `game_play_screen.dart`), BaseScreen/app bar, or shared app bar / theme configuration.
-  - **Impact**: Consistent branding and polish on the game play screen.
-
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
 - [ ] Implement `user_joined_rooms` event (list rooms user is in)
@@ -150,46 +125,12 @@ _(No high-priority items currently.)_
     - Join flow: lobby screens, room/game join handlers, WebSocket client, state manager updates (Flutter and backend as needed).
     - Lobby widget: `flutter_base_05/lib/modules/dutch_game/screens/lobby_room/widgets/current_games_widget.dart`.
   - **Impact**: Reliable lobby UX – current games list reflects actual joined games and is cleared/updated correctly; also gives a clear map of state for future fixes (e.g. clear on match switch).
-- [ ] **Complete initial peek logic**
-  - **Status**: Partially implemented - initial peek phase exists but needs completion
-  - **Current State**: Game enters `initial_peek` phase on match start, players can peek at 2 cards
-  - **Needs**: Complete the flow from initial peek to game start, ensure all players complete peek before proceeding, handle timeout/auto-complete scenarios
-  - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` and related event handlers
-  - **Impact**: Core game feature - players must complete initial peek before game can start
-- [ ] **Modify initial peek UI to persist selected card data for minimum 5 seconds**
-  - **Issue**: When players peek at cards during initial peek phase, the card data (rank/suit) is cleared from state immediately after the peek action, causing the UI to hide the card information too quickly
-  - **Current Behavior**: Card data is shown when peeked, but disappears as soon as the state is updated/cleared
-  - **Expected Behavior**: Selected cards' data (rank/suit) should remain visible in the UI for at least 5 seconds, even if the game state is cleared or updated
-  - **Implementation**:
-    - Add local state management in the initial peek UI widget to track peeked cards with timestamps
-    - When a card is peeked, store the card data locally with a timestamp
-    - Display card data from local state if available, even if state has been cleared
-    - Use a timer to clear local peek data after 5 seconds minimum
-    - Ensure the 5-second minimum is enforced even if state updates occur during this period
-  - **Location**: 
-    - Flutter UI components for initial peek (likely in `MyHandWidget` or related card display widgets)
-    - Initial peek event handlers in `dutch_game_round.dart` or `game_event_coordinator.dart`
-  - **Impact**: User experience - ensures players have adequate time to view and remember their peeked cards before the information disappears
 - [ ] **Complete instructions logic**
   - **Status**: Partially implemented - `showInstructions` flag is stored and passed through, timer logic checks it
   - **Current State**: `showInstructions` is stored in game state, timer logic respects it (timers disabled when `showInstructions == true`), value is passed from practice widget to game logic
   - **Needs**: Complete UI implementation to show/hide instructions based on flag, ensure instructions are displayed correctly in practice mode, verify timer behavior matches instructions visibility
   - **Location**: Flutter UI components (practice match widget, game play screen), timer logic in `dutch_game_round.dart`
   - **Impact**: User experience - players need clear instructions in practice mode
-- [ ] **Fix CPU player Jack swap decision logic to validate cards exist in hand**
-  - **Issue**: CPU players sometimes attempt Jack swaps with cards that are no longer in their hand
-  - **Root Cause**: CPU decision logic uses `known_cards` (which may contain "forgotten" played cards due to difficulty-based remember probability), but by execution time the card has already been played and removed from hand
-  - **Current Behavior**: Decision is made based on stale `known_cards` data, validation correctly catches invalid swaps but wastes decision attempts
-  - **Solution**: Before making Jack swap decision, validate that selected cards actually exist in the player's current hand, not just in `known_cards`
-  - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
-  - **Impact**: Improves CPU player decision accuracy, reduces failed swap attempts
-- [ ] **Jack swap after same-rank play: computer picks cards already played (discarded)**
-  - **Issue**: When a Jack is played as same-rank, it is moved to the discard pile; the special-card window then runs and the computer's Jack swap decision can choose that same Jack (or another card just played) for the swap. Those cards are no longer in any player's hand, so validation fails with "Invalid Jack swap - one or both cards not found in players' hands".
-  - **Observed in logs**: CPU plays two Jacks in same-rank (diamonds, then hearts); for each Jack's special-card window the AI selects e.g. `card_..._23_...` (jack diamonds) and `card_..._52_...` (joker in opponent hand). The jack diamonds was already played and is in the discard, so the swap fails.
-  - **Root Cause**: Jack swap decision uses card IDs / known_cards that reflect state before the same-rank play; by the time the special-card window runs, the played Jack(s) have been removed from hands.
-  - **Expected Behavior**: Jack swap selection must use only cards that currently exist in players' hands (e.g. filter candidate cards by current hand contents, or re-read hand state at decision time in the special-card window).
-  - **Location**: Same as above – `getJackSwapDecision()` and card selection in `computer_player_factory.dart` (and Flutter equivalent if present); ensure special-card window receives or reads current hand state after same-rank plays.
-  - **Impact**: Eliminates failed Jack swap attempts and "Invalid Jack swap" errors when Jacks are played via same-rank.
 - [ ] **Fine-tune computer Jack swap decisions: avoid frequent self-hand swaps**
   - **Issue**: Computer players are swapping cards from their own hands too often; same-hand swaps should be rare
   - **Current Behavior**: Jack swap decision logic allows or prefers swapping within the same player's hand, leading to frequent self-hand swaps
@@ -197,30 +138,6 @@ _(No high-priority items currently.)_
   - **Implementation**: Adjust `getJackSwapDecision()` (and related selection logic) to strongly prefer cross-player swaps; deprioritize or restrict same-hand swaps (e.g. low probability, or only when hand size/strategy justifies it)
   - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` (and Flutter equivalent if present) - Jack swap decision and card selection
   - **Impact**: More realistic and strategic computer play; Jack swap used for disruption across players rather than within own hand
-- [ ] **Add computer player Queen peek decision rule: peek at opponent when all own cards are known**
-  - **Issue**: Computer players need smarter Queen peek decision logic
-  - **Current Behavior**: Computer players use existing rules (peek_own_unknown_cards, peek_random_other_player, skip_queen_peek)
-  - **Expected Behavior**: If all cards in the computer player's own hand are known (no unknown cards), the computer should peek at an opponent's hand instead
-  - **Implementation**: 
-    - Add new decision rule: `peek_opponent_when_all_own_known`
-    - Check if computer player has any unknown cards in their hand
-    - If all cards are known, prioritize peeking at opponent's hand over skipping
-    - This rule should have higher priority than `skip_queen_peek` but lower than `peek_own_unknown_cards`
-  - **Location**: 
-    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getQueenPeekDecision()` method
-    - YAML configuration for computer player strategies (if applicable)
-  - **Impact**: Improves computer player AI - makes strategic use of Queen peek when own hand is fully known
-- [ ] **Queen peek for user: clear cardsToPeek state when past timer (or when flow advances)**
-  - **Issue**: When the human user is in queen peek and stays past the timer (or the flow advances by other logic), `cardsToPeek` state must be cleared at some point so the UI stops showing peeked cards and state stays consistent.
-  - **Current Behavior**: Peeked card data is shown via `cardsToPeek` / `myCardsToPeek`; if the user does not complete an action and the timer expires (or flow moves on), the state may not be cleared.
-  - **Expected Behavior**: Ensure that when the queen peek phase ends (timer expiry, flow advance, or explicit close), `cardsToPeek` (and `myCardsToPeek` where applicable) are cleared for the peeking player so the UI no longer shows peeked cards and state is clean for the next phase.
-  - **Implementation**: Identify all exit paths from queen peek (timer expiry, user action, flow advance); in each path, clear `player.cardsToPeek` and main state `myCardsToPeek` for the human player before or when advancing.
-  - **Location**: 
-    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` – queen peek timer and flow (e.g. `handleQueenPeek`, `_onSpecialCardTimerExpired`, special-card window end)
-    - `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` – same if logic is duplicated
-    - Event handlers / coordinator if they mutate or broadcast state on queen peek end
-  - **Impact**: Prevents stale peek data on screen and inconsistent state when queen peek ends without an explicit user action.
-
 #### Match end and winners popup
 - [ ] **Replace all hand cards with full data before showing winners popup**
   - **Issue**: At match end, hands still contain ID-only card data, so the UI shows placeholders/backs instead of actual cards when the winners popup is shown
@@ -334,7 +251,7 @@ Python Backend (Auth)
 - **Expected Behavior**: Timer should be cancelled/stopped immediately when player completes the peek action
 - **Location**: Timer logic in game round/event handlers, likely in `dutch_game_round.dart` or related timer management code
 - **Impact**: User experience - prevents confusion and ensures timer accurately reflects available time
-- **Related**: When the user stays past the timer (or flow advances), **cardsToPeek state must be cleared** so the UI stops showing peeked cards; see TODO "Queen peek for user: clear cardsToPeek state when past timer".
+- **Related**: When the user stays past the timer (or flow advances), **cardsToPeek state is cleared** so the UI stops showing peeked cards (done).
 
 ### Game State Cleanup on Navigation
 - **Issue**: Game data persists in state and game maps when navigating away from game play screen
@@ -505,5 +422,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-01-31 (Added Queen peek: clear cardsToPeek state when user stays past timer or flow advances)
+**Last Updated**: 2026-02-03 (Queen peek clear cardsToPeek, CPU Queen peek rule, Jack swap validation fixes marked done)
 

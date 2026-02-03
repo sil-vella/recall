@@ -26,6 +26,9 @@ abstract class BaseScreen extends StatefulWidget {
   /// Optional method to provide a custom app bar
   PreferredSizeWidget? getAppBar(BuildContext context) => null;
 
+  /// When true, the default app bar shows [kAppBarLogoAsset] at full app bar height instead of [computeTitle].
+  bool get useLogoInAppBar => false;
+
   /// Optional method to provide a floating action button
   Widget? getFloatingActionButton(BuildContext context) => null;
 
@@ -424,13 +427,28 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
 
 
+  /// Asset path for app bar logo (used when [BaseScreen.useLogoInAppBar] is true).
+  static const String kAppBarLogoAsset = 'assets/images/logo_icon.png';
+
   @override
   Widget build(BuildContext context) {
     final appBar = widget.getAppBar(context) ?? AppBar(
-      title: Text(
-        widget.computeTitle(context),
-        style: AppTextStyles.headingMedium(color: AppColors.white),
-      ),
+      title: widget.useLogoInAppBar
+          ? SizedBox(
+              height: kToolbarHeight,
+              child: Image.asset(
+                kAppBarLogoAsset,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Text(
+                  widget.computeTitle(context),
+                  style: AppTextStyles.headingMedium(color: AppColors.white),
+                ),
+              ),
+            )
+          : Text(
+              widget.computeTitle(context),
+              style: AppTextStyles.headingMedium(color: AppColors.white),
+            ),
       backgroundColor: AppColors.primaryColor,
       elevation: 0,
       leading: Builder(

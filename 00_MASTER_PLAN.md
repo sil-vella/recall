@@ -30,6 +30,12 @@ This document tracks high-level development plans, todos, and architectural deci
 - ✅ **Account screen email**: show actual email (profile API returns plain email from JWT; account screen fallback from SharedPreferences when state has det_)
 - ✅ **WebSocket auth timeout**: 10s wait + single retry via emitAuthenticate() in ensureWebSocketReady
 - ✅ **Current rooms panel**: removed from lobby screen
+- ✅ **Opponents columns spacing**: layout fixed when match pot image is visible (unified_game_board_widget / opponent widgets)
+- ✅ **Home screen feature widget sizes**: text area and widget dimensions consistent (home feature components)
+- ✅ **Same rank timer UI alignment**: UI timer duration aligned with game logic (timerConfig / dutch_game_round)
+- ✅ **Clear game state when switching matches**: centralized cleanup in start_match, leave, mode switch (game_event_coordinator, dutch_event_handler_callbacks, dutch_game_state_updater; Flutter + Dart backend)
+- ✅ **Room management**: get_public_rooms endpoint (match Python backend), user_joined_rooms event, room access control (allowed_users, allowed_roles)
+- ✅ **Complete instructions logic**: UI for show/hide instructions from showInstructions in practice mode; timer behavior aligned with instructions visibility
 
 ### In Progress
 - 🔄 Room TTL implementation (recently completed, needs testing)
@@ -45,13 +51,13 @@ _(No high-priority items currently.)_
 ### Medium Priority
 
 #### UI/Visual Issues
-- [ ] **Fix opponents columns spacing causing vertical layout issues when match pot image is showing (Dart backend version)**
+- [x] **Fix opponents columns spacing causing vertical layout issues when match pot image is showing (Dart backend version)** (Done)
   - **Issue**: Opponents panel columns have spacing issues that cause vertical layout problems when the match pot image is displayed
   - **Current Behavior**: Layout breaks or overlaps when match pot image is visible
   - **Expected Behavior**: Opponents columns should maintain proper spacing and layout regardless of match pot image visibility
   - **Location**: Flutter UI components for opponents panel (likely in `unified_game_board_widget.dart` or related opponent display widgets)
   - **Impact**: User experience - layout issues affect game playability and visual consistency
-- [ ] **Fix home screen feature widget sizes including the text area**
+- [x] **Fix home screen feature widget sizes including the text area** (Done)
   - **Issue**: Home screen feature widgets (e.g. Dutch game entry, practice, etc.) have sizing issues; the text area and overall widget dimensions need adjustment
   - **Expected Behavior**: Feature widget sizes should be consistent and appropriate; text area should fit content and scale correctly
   - **Location**: Flutter home screen – feature/widget components that display game options or feature tiles (e.g. Dutch game card, practice mode entry)
@@ -62,7 +68,7 @@ _(No high-priority items currently.)_
   - **Location**: Flutter game play table widget – border width/stroke (e.g. `unified_game_board_widget.dart` or game play screen table decoration)
   - **Impact**: Consistent visual proportions across devices and window sizes
   - **Done**: Outer border (dark brown/charcoal) is now 1% of table width, max 10px (`game_play_screen.dart`). Inner gradient border (20px margin, 6px width) remains fixed; can be made %-based later if desired.
-- [ ] **Same rank timer UI widget: verify alignment with same rank time**
+- [x] **Same rank timer UI widget: verify alignment with same rank time** (Done)
   - **Issue**: The same rank timer shown in the UI may not match the actual same rank window duration used by game logic
   - **Expected Behavior**: The same rank timer UI widget should display a countdown (or elapsed time) that **aligns with the same rank time** configured in game logic (e.g. `_sameRankTimer` duration in `dutch_game_round.dart`)
   - **Verification**: Confirm the UI timer duration and the backend same-rank window duration use the same value (e.g. from `timerConfig` or a shared constant); ensure countdown start/end matches when the window opens and closes
@@ -81,15 +87,15 @@ _(No high-priority items currently.)_
   - **Location**: Flutter – match/game start flow (e.g. game event handlers, game play screen init, or a dedicated preload step); CardWidget or card back image usage; ensure `precacheImage` or equivalent is called at match start for the relevant back image(s).
   - **Impact**: Smoother UX – no visible load or flash when card backs are first shown.
 #### Room Management Features
-- [ ] Implement `get_public_rooms` endpoint (matching Python backend)
-- [ ] Implement `user_joined_rooms` event (list rooms user is in)
-- [ ] Add room access control (`allowed_users`, `allowed_roles` lists)
+- [x] Implement `get_public_rooms` endpoint (matching Python backend) (Done)
+- [x] Implement `user_joined_rooms` event (list rooms user is in) (Done)
+- [x] Add room access control (`allowed_users`, `allowed_roles` lists) (Done)
 
 #### Game Features
 - [ ] Add comprehensive error handling for game events
 - [ ] Implement game state persistence (optional, for recovery)
 - [ ] Add game replay/logging system
-- [ ] **Properly clear game maps and game-related state when switching from one match to another**
+- [x] **Properly clear game maps and game-related state when switching from one match to another** (Done)
   - **Issue**: When starting a new match, old game data may persist in game maps and state, causing conflicts or incorrect behavior
   - **Current Behavior**: Game maps (`games` in state manager) and game-related state may retain data from previous matches when starting a new game
   - **Expected Behavior**: All game maps and game-related state should be completely cleared before starting a new match to ensure clean state
@@ -131,7 +137,7 @@ _(No high-priority items currently.)_
     - Join flow: lobby screens, room/game join handlers, WebSocket client, state manager updates (Flutter and backend as needed).
     - Lobby widget: `flutter_base_05/lib/modules/dutch_game/screens/lobby_room/widgets/current_games_widget.dart`.
   - **Impact**: Reliable lobby UX – current games list reflects actual joined games and is cleared/updated correctly; also gives a clear map of state for future fixes (e.g. clear on match switch).
-- [ ] **Complete instructions logic**
+- [x] **Complete instructions logic** (Done)
   - **Status**: Partially implemented - `showInstructions` flag is stored and passed through, timer logic checks it
   - **Current State**: `showInstructions` is stored in game state, timer logic respects it (timers disabled when `showInstructions == true`), value is passed from practice widget to game logic
   - **Needs**: Complete UI implementation to show/hide instructions based on flag, ensure instructions are displayed correctly in practice mode, verify timer behavior matches instructions visibility
@@ -428,5 +434,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-02-04 (Completed: winner celebration, coin stream, account email, WS auth timeout, current rooms removed; game end popup todo marked done)
+**Last Updated**: 2026-02-04 (Completed: room management get_public_rooms/user_joined_rooms/access control, instructions logic; five todos marked done)
 

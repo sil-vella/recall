@@ -251,35 +251,95 @@ events:
     
     # NEW: YAML-driven strategy rules (ordered from expert down to easy)
     strategy_rules:
-      # Rule 1 (Expert/Hard): Swap if player knows another player's card (lowest points available) 
-      # and has a card in their own known cards with higher points
-      - name: "swap_lowest_opponent_for_higher_own"
+      # Rule 1: When isClearAndCollect, if any player (excl. acting) has 3 cards in collection: swap last in list
+      # If 2+ players have 3 in collection, swap last card from each; else swap last from one with non-collection from another
+      - name: "collection_three_swap"
         priority: 1
-        description: "Swap if player knows opponent's lowest point card and has higher point card in own known cards"
+        description: "When clear-and-collect, swap involving players with 3+ in collection (last in list)"
         condition:
           type: "and"
           conditions:
-            # Check if acting player has known cards
-            - field: "acting_player.known_cards"
-              operator: "not_empty"
-            # Check if there are other players with known cards
-            - field: "all_players"
+            - field: "isClearAndCollect"
+              operator: "equals"
+              value: true
+            - field: "other_players_with_three_in_collection"
               operator: "not_empty"
         action:
           type: "use_special_play"
           select_targets: true
-          target_strategy: "lowest_opponent_higher_own"
-        # Probability-based execution (expert/hard use this rule)
+          target_strategy: "collection_three_swap"
         execution_probability:
           expert: 1.0    # 100% chance to execute if condition met
           hard: 0.95     # 95% chance to execute if condition met
           medium: 0.7    # 70% chance to execute if condition met
           easy: 0.5      # 50% chance to execute if condition met
       
-      # Rule 2 (Medium/Easy): Random 2 cards (excluding collection cards) from any 2 other players
-      - name: "swap_random_two_players"
+      # Rule 2: If any player (excl. acting) has only 1 card in hand, swap that card with any other player's card
+      - name: "one_card_player_priority"
         priority: 2
-        description: "Random swap of 2 cards (excluding collection cards) from any 2 other players"
+        description: "Swap involving a player with only 1 card (priority); other card from any other player (excl. acting)"
+        condition:
+          type: "and"
+          conditions:
+            - field: "other_players_with_one_card"
+              operator: "not_empty"
+            - field: "all_players"
+              operator: "not_empty"
+        action:
+          type: "use_special_play"
+          select_targets: true
+          target_strategy: "one_card_player_priority"
+        execution_probability:
+          expert: 1.0    # 100% chance to execute if condition met
+          hard: 0.95     # 95% chance to execute if condition met
+          medium: 0.7    # 70% chance to execute if condition met
+          easy: 0.5      # 50% chance to execute if condition met
+      
+      # Rule 3 (Expert/Hard): Swap if player knows opponent's lowest point card and has higher point card in own known cards
+      - name: "swap_lowest_opponent_for_higher_own"
+        priority: 3
+        description: "Swap if player knows opponent's lowest point card and has higher point card in own known cards"
+        condition:
+          type: "and"
+          conditions:
+            - field: "acting_player.known_cards"
+              operator: "not_empty"
+            - field: "all_players"
+              operator: "not_empty"
+        action:
+          type: "use_special_play"
+          select_targets: true
+          target_strategy: "lowest_opponent_higher_own"
+        execution_probability:
+          expert: 1.0    # 100% chance to execute if condition met
+          hard: 0.95     # 95% chance to execute if condition met
+          medium: 0.7    # 70% chance to execute if condition met
+          easy: 0.5      # 50% chance to execute if condition met
+      
+      # Rule 4: Random swap of 2 cards from other players only (excl. collection, not our hand)
+      - name: "random_swap_except_own"
+        priority: 4
+        description: "Randomly swap 2 cards (excl. collection) from any players except our hand"
+        condition:
+          type: "and"
+          conditions:
+            # At least 2 other players (or 1 with 2+ playable cards)
+            - field: "all_players"
+              operator: "not_empty"
+        action:
+          type: "use_special_play"
+          select_targets: true
+          target_strategy: "random_except_own"
+        execution_probability:
+          expert: 0.0    # 0% (expert uses rule 1 or 2)
+          hard: 0.0      # 0% (hard uses rule 1 or 2 or skip)
+          medium: 0.5    # 50% chance when rule 1/2 don't execute
+          easy: 0.4      # 40% chance when rule 1/2/3 don't execute
+      
+      # Rule 5 (Medium/Easy): Random swap: our card <-> other player's card
+      - name: "swap_random_two_players"
+        priority: 5
+        description: "Random swap of 2 cards (excluding collection) from any 2 other players"
         condition:
           type: "and"
           conditions:
@@ -293,27 +353,27 @@ events:
           type: "use_special_play"
           select_targets: true
           target_strategy: "random_two_players"
-        # Probability-based execution (easy/medium always do random swap instead of skip)
+        # Probability-based execution (easy/medium do random swap instead of skip)
         execution_probability:
-          expert: 0.0    # 0% chance (expert uses rule 1)
-          hard: 0.05     # 5% chance (hard prefers rule 1)
-          medium: 1.0    # 100% chance (medium always does random swap if rule 1 doesn't execute)
-          easy: 1.0      # 100% chance (easy always does random swap if rule 1 doesn't execute)
+          expert: 0.0    # 0% chance (expert uses rule 1 or 2)
+          hard: 0.0      # 0% chance (hard uses rule 1 or 2 or skip)
+          medium: 0.4    # 40% chance when rule 1/2/3 don't execute
+          easy: 0.6      # 60% chance when rule 1/2/3/4 don't execute
       
-      # Rule 3: Skip swap (fallback for hard/expert only)
+      # Rule 6: Skip swap (fallback)
       - name: "skip_jack_swap"
-        priority: 3
+        priority: 6
         description: "Skip using Jack swap"
         condition:
           type: "always"
         action:
           type: "skip_special_play"
-        # Only skip for hard/expert if both rules 1 and 2 don't execute
+        # Only skip when rules 1–5 don't execute
         execution_probability:
-          expert: 0.0    # 0% chance (expert always uses rule 1)
-          hard: 0.0      # 0% chance (hard almost always uses rule 1, rule 2 as backup)
-          medium: 0.0    # 0% chance (medium always uses rule 2 if rule 1 doesn't execute)
-          easy: 0.0      # 0% chance (easy always uses rule 2 if rule 1 doesn't execute)
+          expert: 0.0    # 0% chance (expert uses rule 1, 2 or 3)
+          hard: 0.0      # 0% chance (hard uses rule 1, 2 or 3 or skip)
+          medium: 0.0    # 0% chance (medium uses rule 2, 3, 4 or 5 if rule 1 doesn't execute)
+          easy: 0.0      # 0% chance (easy uses rule 2, 3, 4 or 5 if rule 1 doesn't execute)
       
   queen_peek:
     # Decision logic for Queen peek
@@ -363,12 +423,11 @@ events:
           type: "use_special_play"
           select_targets: true
           target_strategy: "random_other_player"
-        # Probability-based execution (medium/easy use this rule more)
         execution_probability:
-          expert: 0.0    # 0% chance (expert uses rule 1)
-          hard: 0.05     # 5% chance (hard prefers rule 1)
-          medium: 0.3    # 30% chance (medium uses this as fallback)
-          easy: 0.5      # 50% chance (easy uses this more often)
+          expert: 1.0    # 100% chance to execute if condition met
+          hard: 0.95     # 95% chance to execute if condition met
+          medium: 0.7    # 70% chance to execute if condition met
+          easy: 0.5      # 50% chance to execute if condition met
       
       # Rule 3: Skip peek (fallback)
       - name: "skip_queen_peek"

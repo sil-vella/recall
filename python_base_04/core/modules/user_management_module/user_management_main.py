@@ -1634,11 +1634,16 @@ class UserManagementModule(BaseModule):
             if not user:
                 return jsonify({'error': 'User not found'}), 404
             
-            # Return profile data
+            # Prefer plain email/username from JWT (set at login) so clients see actual values
+            # DB stores encrypted (det_...) values; JWT claims hold the plain text
+            payload = getattr(request, 'user_payload', None) or {}
+            plain_email = payload.get('email') if isinstance(payload.get('email'), str) else None
+            plain_username = payload.get('username') if isinstance(payload.get('username'), str) else None
+            
             profile_data = {
                 'user_id': user_id,
-                'email': user.get('email'),
-                'username': user.get('username'),
+                'email': plain_email or user.get('email'),
+                'username': plain_username or user.get('username'),
                 'profile': user.get('profile', {}),
                 'modules': user.get('modules', {})
             }

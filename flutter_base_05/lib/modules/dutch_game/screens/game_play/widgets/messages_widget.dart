@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:confetti/confetti.dart';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
@@ -68,8 +70,9 @@ class MessagesWidget extends StatelessWidget {
           return const SizedBox.shrink();
         }
         
+        final isCurrentUserWinner = messagesData['isCurrentUserWinner'] == true;
         if (LOGGING_SWITCH) {
-          _logger.info('📬 MessagesWidget: Rendering modal with title="$title" (game phase is game_ended)');
+          _logger.info('📬 MessagesWidget: Rendering modal with title="$title" (game phase is game_ended), isCurrentUserWinner=$isCurrentUserWinner');
         }
         
         return _buildModalOverlay(
@@ -81,6 +84,7 @@ class MessagesWidget extends StatelessWidget {
           autoClose,
           autoCloseDelay,
           orderedWinners: hasOrderedWinners ? orderedWinners : null,
+          isCurrentUserWinner: isCurrentUserWinner,
         );
       },
     );
@@ -95,6 +99,7 @@ class MessagesWidget extends StatelessWidget {
     bool autoClose,
     int autoCloseDelay, {
     List<dynamic>? orderedWinners,
+    bool isCurrentUserWinner = false,
   }) {
     // Auto-close timer if enabled
     if (autoClose) {
@@ -114,7 +119,7 @@ class MessagesWidget extends StatelessWidget {
     // Calculate text color based on the header background to ensure readability
     final headerTextColor = ThemeConfig.getTextColorForBackground(headerBackgroundColor);
     
-    return Material(
+    final modalContent = Material(
       color: AppColors.black.withValues(alpha: 0.54), // Semi-transparent background
       child: Center(
         child: Container(
@@ -232,6 +237,14 @@ class MessagesWidget extends StatelessWidget {
         ),
       ),
     );
+    
+    if (isCurrentUserWinner) {
+      return _WinnerCelebrationOverlay(
+        durationSeconds: 3,
+        child: modalContent,
+      );
+    }
+    return modalContent;
   }
   
   /// Build content for game-ended popup: ordered list (winners at top, then by points).
@@ -341,6 +354,8 @@ class MessagesWidget extends StatelessWidget {
         _logger.info('MessagesWidget: Closing message modal');
       }
       
+      final wasGameEnded = StateManager().getModuleState<Map<String, dynamic>>('dutch_game')?['gamePhase']?.toString() == 'game_ended';
+      
       // Update state to hide messages
       StateManager().updateModuleState('dutch_game', {
         'messages': {
@@ -352,13 +367,70 @@ class MessagesWidget extends StatelessWidget {
           'autoClose': false,
           'autoCloseDelay': 3000,
         },
-        // Removed lastUpdated - causes unnecessary state updates
       });
       
+      if (wasGameEnded) {
+        NavigationManager().navigateTo('/dutch/lobby');
+      }
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('MessagesWidget: Failed to close message: $e');
       }
     }
+  }
+}
+
+/// Wraps the winners modal with confetti for 3 seconds when the current user is the winner.
+class _WinnerCelebrationOverlay extends StatefulWidget {
+  final Widget child;
+  final int durationSeconds;
+
+  const _WinnerCelebrationOverlay({
+    required this.child,
+    this.durationSeconds = 3,
+  });
+
+  @override
+  State<_WinnerCelebrationOverlay> createState() => _WinnerCelebrationOverlayState();
+}
+
+class _WinnerCelebrationOverlayState extends State<_WinnerCelebrationOverlay> {
+  late ConfettiController _confettiController;
+
+  @override
+  void initState() {
+    super.initState();
+    _confettiController = ConfettiController(duration: Duration(seconds: widget.durationSeconds));
+    _confettiController.play();
+  }
+
+  @override
+  void dispose() {
+    _confettiController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        widget.child,
+        IgnorePointer(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirectionality: BlastDirectionality.explosive,
+              shouldLoop: false,
+              numberOfParticles: 20,
+              emissionFrequency: 0.05,
+              maxBlastForce: 30,
+              minBlastForce: 10,
+              gravity: 0.2,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

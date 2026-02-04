@@ -386,6 +386,14 @@ _sub = _registry.changes.listen((scope) {
 });
 ```
 
+## Optional GlobalKey for App Bar Feature Slot
+
+Screens can opt in to having the app bar feature slot (the widget that contains coins display and connection status) built with a stable `GlobalKey`. When enabled, callers can resolve the slot's `RenderBox` to get its position and size (e.g. for overlay animations such as a coin stream from the winners popup to the coins display).
+
+- **Override:** In your screen widget (e.g. `GamePlayScreen`), override `useGlobalKeyForAppBarFeatureSlot` to return `true`.
+- **Access:** From the screen's state, use `appBarFeatureSlotKeyIfUsed` to get the key when non-null. Resolve position via `key.currentContext?.findRenderObject() as RenderBox?`, then `renderBox.localToGlobal(Offset.zero)` and `renderBox.size`.
+- **Default:** `false`; only override to `true` on screens that need to target the app bar slot (e.g. game play for the winner coin stream).
+
 ## Priority System
 
 Features are rendered in priority order (lowest number first):

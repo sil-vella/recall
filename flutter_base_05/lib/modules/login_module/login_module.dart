@@ -1136,16 +1136,26 @@ class LoginModule extends ModuleBase {
       
       final profile = response['profile'] as Map<String, dynamic>?;
       final pictureUrl = profile?['picture'] as String?;
+      // Plain email/username from backend (from JWT); use for display instead of encrypted DB values
+      final profileEmail = response['email'] as String?;
+      final profileUsername = response['username'] as String?;
       
       // Update StateManager with profile data
       final stateManager = StateManager();
       final currentLoginState = stateManager.getModuleState<Map<String, dynamic>>("login") ?? {};
       
-      stateManager.updateModuleState("login", {
+      final updates = <String, dynamic>{
         ...currentLoginState,
         "profile": profile ?? {},
         "profilePicture": pictureUrl,
-      });
+      };
+      if (profileEmail != null && profileEmail.isNotEmpty) {
+        updates["email"] = profileEmail;
+      }
+      if (profileUsername != null && profileUsername.isNotEmpty) {
+        updates["username"] = profileUsername;
+      }
+      stateManager.updateModuleState("login", updates);
       
       if (pictureUrl != null && pictureUrl.isNotEmpty) {
         if (LOGGING_SWITCH) {

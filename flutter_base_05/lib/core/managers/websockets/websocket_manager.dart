@@ -904,6 +904,15 @@ class WebSocketManager {
     }
   }
 
+  /// Re-emit authenticate with current token (e.g. after auth timeout retry).
+  Future<void> emitAuthenticate() async {
+    final loginModule = _moduleManager.getModuleByType<LoginModule>();
+    final token = await loginModule?.getCurrentToken();
+    if (token != null && _socket != null && _socket!.connected) {
+      _socket!.emit('authenticate', {'token': token});
+    }
+  }
+
   /// Get current connection status
   Map<String, dynamic> getStatus() {
       return {

@@ -864,7 +864,8 @@ When anyone has played a card with the **same rank** as your **collection card**
   
   /// Add a session message to the message board
   /// [showModal] - If true, displays the modal. Only set to true for game end messages.
-  static void _addSessionMessage({required String? level, required String? title, required String? message, Map<String, dynamic>? data, bool showModal = false}) {
+  /// [isCurrentUserWinner] - When showModal is true for game end, store in messages so UI can show celebration/coin stream.
+  static void _addSessionMessage({required String? level, required String? title, required String? message, Map<String, dynamic>? data, bool showModal = false, bool? isCurrentUserWinner}) {
     if (LOGGING_SWITCH) {
       _logger.info('📨 _addSessionMessage: Called with level=$level, title="$title", message="$message", showModal=$showModal');
     }
@@ -909,8 +910,11 @@ When anyone has played a card with the **same rank** as your **collection card**
       messagesUpdate['showCloseButton'] = true;
       messagesUpdate['autoClose'] = false;
       messagesUpdate['autoCloseDelay'] = 3000;
+      if (isCurrentUserWinner != null) {
+        messagesUpdate['isCurrentUserWinner'] = isCurrentUserWinner;
+      }
       if (LOGGING_SWITCH) {
-        _logger.info('📨 _addSessionMessage: Setting modal visible - title="$title", content="$message", type=$level');
+        _logger.info('📨 _addSessionMessage: Setting modal visible - title="$title", content="$message", type=$level, isCurrentUserWinner=$isCurrentUserWinner');
       }
     } else {
       // Don't modify modal fields for non-game-end messages - preserve existing state
@@ -1708,6 +1712,12 @@ When anyone has played a card with the **same rank** as your **collection card**
         return 'Unknown';
       }).join(', ');
       
+      final isCurrentUserWinner = actualWinners.any((w) {
+        if (w is Map<String, dynamic>) {
+          return (w['playerId'] ?? w['id'])?.toString() == currentUserId;
+        }
+        return false;
+      });
       _addSessionMessage(
         level: 'success',
         title: 'Game Ended',
@@ -1718,16 +1728,11 @@ When anyone has played a card with the **same rank** as your **collection card**
           'game_ended': true,
         },
         showModal: true, // Show modal for game end
+        isCurrentUserWinner: isCurrentUserWinner,
       );
       
       // Track game completed event (only actual winners)
       final gameMode = gameState['game_mode']?.toString() ?? 'multiplayer';
-      final isCurrentUserWinner = actualWinners.any((w) {
-        if (w is Map<String, dynamic>) {
-          return (w['playerId'] ?? w['id'])?.toString() == currentUserId;
-        }
-        return false;
-      });
       _trackGameEvent('game_completed', {
         'game_id': gameId,
         'game_mode': gameMode,
@@ -1935,6 +1940,14 @@ When anyone has played a card with the **same rank** as your **collection card**
         return 'Unknown';
       }).join(', ');
       
+      final currentUserIdPartial = getCurrentUserId();
+      final isCurrentUserWinnerPartial = actualWinnersPartial.any((w) {
+        if (w is Map<String, dynamic>) {
+          return (w['playerId'] ?? w['id'])?.toString() == currentUserIdPartial;
+        }
+        return false;
+      });
+      
       // Update gamePhase and show modal in the same state update to avoid race condition
       if (LOGGING_SWITCH) {
         _logger.info('🏆 handleGameStatePartialUpdate: Updating gamePhase and showing winner modal');
@@ -1972,6 +1985,7 @@ When anyone has played a card with the **same rank** as your **collection card**
           'game_ended': true,
         },
         showModal: true, // Show modal for game end
+        isCurrentUserWinner: isCurrentUserWinnerPartial,
       );
     } else {
       // Normal partial update - ensure modal is hidden if game hasn't ended

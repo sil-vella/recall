@@ -6,7 +6,6 @@ import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../tools/logging/logger.dart';
-import '../../managers/game_coordinator.dart';
 import '../../managers/validated_event_emitter.dart';
 import '../../../dutch_game/managers/dutch_event_manager.dart';
 import '../../practice/practice_mode_bridge.dart';
@@ -14,7 +13,6 @@ import '../../backend_core/services/game_state_store.dart';
 import '../../../dutch_game/utils/dutch_game_helpers.dart';
 import 'widgets/create_join_game_widget.dart';
 import 'widgets/join_random_game_widget.dart';
-import 'widgets/current_games_widget.dart';
 import 'widgets/practice_match_widget.dart';
 import 'widgets/collapsible_section_widget.dart';
 import 'features/lobby_features.dart';
@@ -39,8 +37,8 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   void initState() {
     super.initState();
     
-    // Set Current Rooms section to be expanded on load
-    _expandedSection = 'Current Rooms';
+    // Default expanded section on load (none)
+    _expandedSection = null;
     
     // Defer until after first frame: (1) clear game state so lobby loads fresh, (2) recompute joinedGamesSlice, (3) WebSocket init and setup so ScaffoldMessenger/context is valid
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -240,56 +238,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       if (mounted) _showSnackBar('Failed to create room: $e', isError: true);
     }
   }
-
-  Future<void> _joinRoom(String roomId) async {
-    try {
-      // 🎯 CRITICAL: Clear all existing game state before starting new game
-      // This prevents overlapping or old game state from interfering
-      await DutchGameHelpers.clearAllGameStateBeforeNewGame();
-      
-      // Check if user has enough coins (default 25)
-      // Fetch fresh stats from API before checking
-      final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
-      if (!hasEnoughCoins) {
-        if (mounted) _showSnackBar('Insufficient coins to join a game. Required: 25', isError: true);
-        return;
-      }
-      
-      // Clear practice user data when switching to multiplayer
-      DutchGameHelpers.updateUIState({
-        'practiceUser': null,
-      });
-      
-      // Ensure we're in WebSocket mode for multiplayer
-      final eventEmitter = DutchGameEventEmitter.instance;
-      eventEmitter.setTransportMode(EventTransportMode.websocket);
-      
-      // Ensure WebSocket is ready (logged in, initialized, and connected)
-      final isReady = await DutchGameHelpers.ensureWebSocketReady();
-      if (!isReady) {
-        if (mounted) {
-          _showSnackBar('Unable to connect to game server', isError: true);
-        }
-        return;
-      }
-      
-      // Now proceed with room joining using GameCoordinator
-      final gameCoordinator = GameCoordinator();
-      final success = await gameCoordinator.joinGame(
-        gameId: roomId,
-        playerName: 'Player', // TODO: Get actual player name from state
-      );
-      
-      if (success) {
-        if (mounted) _showSnackBar('Successfully joined room!');
-      } else {
-        if (mounted) _showSnackBar('Failed to join room', isError: true);
-      }
-    } catch (e) {
-      if (mounted) _showSnackBar('Failed to join room: $e', isError: true);
-    }
-  }
-
 
   Future<void> _startPracticeMatch(Map<String, dynamic> practiceSettings) async {
     try {
@@ -543,18 +491,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Current Rooms Section (Collapsible) - First
-              CollapsibleSectionWidget(
-                title: 'Current Rooms',
-                icon: Icons.meeting_room,
-                isExpanded: _expandedSection == 'Current Rooms',
-                onExpandedChanged: () => _handleSectionToggled('Current Rooms'),
-                child: CurrentRoomWidget(
-                  onJoinRoom: _joinRoom,
-                ),
-              ),
-              
-              // Join Random Game Section (Collapsible) - Second
+              // Join Random Game Section (Collapsible) - First
               CollapsibleSectionWidget(
                 title: 'Join Random Game',
                 icon: Icons.flash_on,
@@ -567,7 +504,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 ),
               ),
               
-              // Practice Match Section (Collapsible) - Third
+              // Practice Match Section (Collapsible) - Second
               CollapsibleSectionWidget(
                 title: 'Practice Match',
                 icon: Icons.school,
@@ -578,7 +515,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 ),
               ),
               
-              // Create & Join Room Section (Collapsible) - Last
+              // Create & Join Room Section (Collapsible) - Third
               CollapsibleSectionWidget(
                 title: 'Create & Join Room',
                 icon: Icons.group_add,

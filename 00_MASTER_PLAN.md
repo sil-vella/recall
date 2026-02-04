@@ -24,6 +24,12 @@ This document tracks high-level development plans, todos, and architectural deci
 - ✅ Queen peek: clear cardsToPeek when phase ends (timer expiry, flow advance, or explicit close)
 - ✅ CPU Queen peek rule: peek at opponent when all own cards are known (peek_opponent_when_all_own_known in getQueenPeekDecision)
 - ✅ Jack swap validation fixes: validate cards exist in hand before decision; filter by current hand after same-rank play (no picking discarded cards)
+- ✅ **App bar feature slot**: optional GlobalKey for parent access (e.g. coin stream target)
+- ✅ **Winner celebration**: confetti (3s) on game end when current user wins; close button navigates to lobby
+- ✅ **Coin stream**: popup to app bar coins slot (post-match coin animation)
+- ✅ **Account screen email**: show actual email (profile API returns plain email from JWT; account screen fallback from SharedPreferences when state has det_)
+- ✅ **WebSocket auth timeout**: 10s wait + single retry via emitAuthenticate() in ensureWebSocketReady
+- ✅ **Current rooms panel**: removed from lobby screen
 
 ### In Progress
 - 🔄 Room TTL implementation (recently completed, needs testing)
@@ -62,13 +68,13 @@ _(No high-priority items currently.)_
   - **Verification**: Confirm the UI timer duration and the backend same-rank window duration use the same value (e.g. from `timerConfig` or a shared constant); ensure countdown start/end matches when the window opens and closes
   - **Location**: Flutter same rank timer widget (e.g. in `unified_game_board_widget.dart` or game play screen); game logic in `dutch_game_round.dart` (same rank timer duration)
   - **Impact**: User experience – players see an accurate representation of how long they have to play a same-rank card
-- [ ] **Jack swap animation: overlay on affected card indexes (like peeking) along with swap**
+- [x] **Jack swap animation: overlay on affected card indexes (like peeking) along with swap** (Done)
   - **Issue**: Jack swap animation should visually highlight the two cards being swapped (by card index / position) with an overlay on the affected card indexes, similar to the peek overlay, in addition to the swap animation.
   - **Current Behavior**: Swap animation may run without overlays on the source and target card positions.
   - **Expected Behavior**: During jack swap, show an overlay on the **affected card indexes** (the two cards being swapped) – e.g. same style as the peeking overlay – so it is clear which cards are involved, **along with** the swap animation.
   - **Location**: Flutter jack swap animation / overlay logic (e.g. `unified_game_board_widget.dart`, jack swap demonstration widget, or card animation/overlay layer); ensure overlay targets card indexes (or positions) for both swapped cards (my hand and opponent, or two opponents).
   - **Impact**: User experience – clearer feedback on which cards were swapped during the jack swap.
-- [ ] **Card back images: load on match start, not on first show**
+- [x] **Card back images: load on match start, not on first show** (Done)
   - **Issue**: Suit/card back images should be loaded when the match starts so they are ready when first displayed, instead of loading lazily on first show (which can cause delay or flash).
   - **Current Behavior**: Card back images (e.g. for hand, discard, draw pile) may load on first display, causing a brief delay or visible load when cards are first shown.
   - **Expected Behavior**: Preload card back image(s) (assets and/or server-backed image) **on match start** (e.g. when game state indicates match started or when entering game play for the match) so the first time cards are shown the back image is already in cache.
@@ -139,21 +145,21 @@ _(No high-priority items currently.)_
   - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` (and Flutter equivalent if present) - Jack swap decision and card selection
   - **Impact**: More realistic and strategic computer play; Jack swap used for disruption across players rather than within own hand
 #### Match end and winners popup
-- [ ] **Replace all hand cards with full data before showing winners popup**
+- [x] **Replace all hand cards with full data before showing winners popup** (Done)
   - **Issue**: At match end, hands still contain ID-only card data, so the UI shows placeholders/backs instead of actual cards when the winners popup is shown
   - **Current Behavior**: Game state broadcasts final state with ID-only cards in players' hands (and possibly discard/draw); winners popup or end-of-match view shows cards without rank/suit/points
   - **Expected Behavior**: **Before** showing the winners popup, replace every card in every player's hand (and any other visible piles if needed) from ID-only to **full card data** (rank, suit, points) so the UI can display them
   - **Implementation**: When determining match end (e.g. four-of-a-kind or Dutch round complete), resolve all card IDs in all hands (and discard/draw if shown) to full card data (from deck definition or stored full data), update game state with this "reveal" state, then trigger winners popup
   - **Location**: Game round or coordinator – match-end flow (e.g. `dutch_game_round.dart`, `game_event_coordinator.dart`); ensure both Flutter and Dart backend apply the same reveal before emitting final state / opening popup
   - **Impact**: Players can see everyone's final hands and card values in the winners screen
-- [ ] **Winners popup: all 4 players in order with cards, values, and total points**
+- [x] **Winners popup: all 4 players in order with cards, values, and total points** (Done)
   - **Issue**: Winners popup should show a full summary of all players, not just the winner
   - **Current Behavior**: Popup may show only winner or a limited subset
   - **Expected Behavior**: Winners popup must contain the **list of all 4 players in order**: **winner first**, then the **rest from least points to most** (ascending by points). For each player show: **their cards**, **each card's value** (points), and **total points**
   - **Implementation**: Build ordered list: [winner, then remaining 3 sorted by points ascending]; for each player render name, list of cards (with rank/suit and points per card), and total points
   - **Location**: Flutter UI – winners popup / match end dialog (e.g. in game play screen or unified game board); game state or coordinator may need to provide final player order and resolved card data (see item above)
   - **Impact**: Clear, fair summary of match result and final hands for all players
-- [ ] **Game end popup: winner celebration and close → lobby or stats**
+- [x] **Game end popup: winner celebration and close → lobby or stats** (Done)
   - **Issue**: Game end popup should celebrate when the current user is the winner and the close action should lead somewhere meaningful (lobby or updated stats).
   - **Expected Behavior**:
     1. **Winner check**: In the game end popup modal, detect if the current user is the winner (e.g. compare winner id with current user/session id).
@@ -422,5 +428,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-02-03 (Queen peek clear cardsToPeek, CPU Queen peek rule, Jack swap validation fixes marked done)
+**Last Updated**: 2026-02-04 (Completed: winner celebration, coin stream, account email, WS auth timeout, current rooms removed; game end popup todo marked done)
 

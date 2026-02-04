@@ -2276,7 +2276,11 @@ Authorization: Bearer {jwt_token}
 - Prevents unauthorized account linking
 - Requires email verification from Google
 
-#### 3. Error Handling
+#### 3. Stored email shows as `det_...` in the database
+
+**This is expected.** The backend receives the real email from Google (from the ID token or from the userinfo API when using the access-token flow). That same email is then stored using **deterministic encryption** (see [Data Encryption at Rest](#2-data-encryption-at-rest)), so in MongoDB the `email` field appears as a long string starting with `det_`. The actual address (e.g. `silvester.vella@gmail.com`) is what is encrypted; it is not missing or wrong. The app shows the real email in the UI and in APIs because it comes from the sign-in response and JWT, not from decrypting the stored value.
+
+#### 4. Error Handling
 
 **Security-Conscious Error Messages**:
 - Generic error messages for invalid tokens
@@ -2776,6 +2780,13 @@ Fields defined in `Config.SENSITIVE_FIELDS` are automatically encrypted:
 - `DatabaseManager` automatically decrypts sensitive fields when reading from database
 - Methods like `find_one()` and `find()` return decrypted data
 - Encryption/decryption is transparent to application code
+- **Note for `det_` (deterministic) fields**: Email and username are stored as one-way deterministic hashes (`det_...`). The application does not recover the original plain value from the database; the plain email/username are provided in login/sign-in API responses and in JWT claims, and are used for lookups by encrypting the query the same way before searching.
+
+**Why the email field shows `det_...` in MongoDB (e.g. Google Sign-In)**:
+- The **actual email** from the provider (e.g. `silvester.vella@gmail.com` from Google) **is** received and used.
+- The backend stores it in **encrypted form** for privacy at rest: the value is passed through deterministic encryption, so in MongoDB you see a long string like `det_27f03fa667fb4ad986dd08bde9fd318d5361bfc483f63491005f43211b8e4be`.
+- Lookups work because the same plain email is hashed the same way when querying (e.g. `find_one({"email": "silvester.vella@gmail.com"})`).
+- The UI and APIs show the real email because it comes from the sign-in response and JWT, not from reading the stored `det_` value back to plain text.
 
 **Example Encrypted Values**:
 ```json

@@ -1043,8 +1043,16 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           final stateManager = StateManager();
           final loginState = stateManager.getModuleState("login");
           final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-          final username = loginState?["username"] ?? "";
-          final email = loginState?["email"] ?? "";
+          // Prefer plain email/username: DB stores encrypted (det_...); profile API and SharedPreferences hold actual values
+          final rawUsername = loginState?["username"] ?? "";
+          final rawEmail = loginState?["email"] ?? "";
+          final sharedPref = SharedPrefManager();
+          final username = rawUsername.startsWith("det_")
+              ? (sharedPref.getString("username") ?? rawUsername)
+              : rawUsername;
+          final email = rawEmail.startsWith("det_")
+              ? (sharedPref.getString("email") ?? rawEmail)
+              : rawEmail;
           
           // Update guest account status only when login state actually changes (prevents rebuild loop)
           if (isLoggedIn != _lastLoggedInState) {

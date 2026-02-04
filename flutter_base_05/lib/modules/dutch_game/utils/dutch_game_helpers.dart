@@ -373,11 +373,20 @@ class DutchGameHelpers {
       }
     }
     
-    // Wait for authentication to complete (with timeout)
+    // Wait for authentication to complete (with timeout; backend may call Python to validate token)
+    const int authTimeoutSeconds = 10;
     if (LOGGING_SWITCH) {
       _logger.info('DutchGameHelpers: Waiting for authentication to complete...');
     }
-    final authCompleted = await _waitForAuthentication(timeoutSeconds: 5);
+    bool authCompleted = await _waitForAuthentication(timeoutSeconds: authTimeoutSeconds);
+    if (!authCompleted) {
+      // One retry: re-emit authenticate in case the first response was lost or backend was slow
+      if (LOGGING_SWITCH) {
+        _logger.warning('DutchGameHelpers: Auth timeout, retrying once...');
+      }
+      await wsManager.emitAuthenticate();
+      authCompleted = await _waitForAuthentication(timeoutSeconds: authTimeoutSeconds);
+    }
     if (!authCompleted) {
       if (LOGGING_SWITCH) {
         _logger.warning('DutchGameHelpers: Authentication did not complete within timeout');

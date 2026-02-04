@@ -29,6 +29,10 @@ abstract class BaseScreen extends StatefulWidget {
   /// When true, the default app bar shows [kAppBarLogoAsset] at full app bar height instead of [computeTitle].
   bool get useLogoInAppBar => false;
 
+  /// When true, the app bar feature slot (coins, connection status) is built with a stable [GlobalKey]
+  /// so callers can resolve its position for overlays (e.g. coin stream animation to coins display).
+  bool get useGlobalKeyForAppBarFeatureSlot => false;
+
   /// Optional method to provide a floating action button
   Widget? getFloatingActionButton(BuildContext context) => null;
 
@@ -63,12 +67,21 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   BannerAdModule? bannerAdModule;
   final Logger _logger = Logger();
 
+  /// Stable key for the app bar feature slot when [BaseScreen.useGlobalKeyForAppBarFeatureSlot] is true.
+  /// Used to resolve slot position for overlays (e.g. coin stream to coins display).
+  final GlobalKey appBarFeatureSlotKey = GlobalKey();
+
+  /// Returns the app bar feature slot key when the screen opts in, otherwise null.
+  GlobalKey? get appBarFeatureSlotKeyIfUsed =>
+      widget.useGlobalKeyForAppBarFeatureSlot ? appBarFeatureSlotKey : null;
+
   /// Get the scope key for this screen's feature registry
   String get featureScopeKey => widget.runtimeType.toString();
 
   /// Build app bar action features using the feature slot system
   Widget buildAppBarActionFeatures(BuildContext context) {
     return FeatureSlot(
+      key: widget.useGlobalKeyForAppBarFeatureSlot ? appBarFeatureSlotKey : null,
       scopeKey: featureScopeKey,
       slotId: 'app_bar_actions',
       useTemplate: false,

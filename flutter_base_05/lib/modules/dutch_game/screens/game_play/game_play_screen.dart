@@ -230,6 +230,9 @@ class GamePlayScreen extends BaseScreen {
   bool get useLogoInAppBar => true;
 
   @override
+  bool get useGlobalKeyForAppBarFeatureSlot => true;
+
+  @override
   Decoration? getBackground(BuildContext context) {
     return BoxDecoration(
       color: AppColors.pokerTableGreen,
@@ -245,6 +248,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   String? _previousGameId;
   bool _cardBackPrecached = false;
+  final Set<String> _coinStreamShownGameIds = {};
   
   // GlobalKey for the main Stack
   final GlobalKey _mainStackKey = GlobalKey(); // Track game ID to detect navigation away
@@ -594,11 +598,172 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         
             // Messages Modal Widget - handles its own state subscription
             const MessagesWidget(),
+            // Coin stream overlay when user wins (non-practice, non-promotional)
+            ListenableBuilder(
+              listenable: StateManager(),
+              builder: (context, _) {
+                final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+                final gamePhase = dutchState['gamePhase']?.toString();
+                final messages = dutchState['messages'] as Map<String, dynamic>? ?? {};
+                final isCurrentUserWinner = messages['isCurrentUserWinner'] == true;
+                final currentGameId = dutchState['currentGameId']?.toString() ?? '';
+                final userStats = dutchState['userStats'] as Map<String, dynamic>?;
+                final subscriptionTier = userStats?['subscription_tier']?.toString() ?? 'promotional';
+                final showCoinStream = gamePhase == 'game_ended' &&
+                    isCurrentUserWinner &&
+                    !currentGameId.startsWith('practice_room_') &&
+                    subscriptionTier != 'promotional' &&
+                    appBarFeatureSlotKeyIfUsed != null &&
+                    !_coinStreamShownGameIds.contains(currentGameId);
+                if (!showCoinStream) return const SizedBox.shrink();
+                return _GameEndCoinStreamTrigger(
+                  targetKey: appBarFeatureSlotKeyIfUsed!,
+                  gameId: currentGameId,
+                  onShown: () {
+                    setState(() {
+                      _coinStreamShownGameIds.add(currentGameId);
+                    });
+                  },
+                );
+              },
+            ),
           ],
         );
       },
       ),
     ),
+    );
+  }
+}
+
+/// Triggers the coin stream overlay once when game ends and user is winner (non-practice, non-promotional).
+class _GameEndCoinStreamTrigger extends StatefulWidget {
+  final GlobalKey targetKey;
+  final String gameId;
+  final VoidCallback onShown;
+
+  const _GameEndCoinStreamTrigger({
+    required this.targetKey,
+    required this.gameId,
+    required this.onShown,
+  });
+
+  @override
+  State<_GameEndCoinStreamTrigger> createState() => _GameEndCoinStreamTriggerState();
+}
+
+class _GameEndCoinStreamTriggerState extends State<_GameEndCoinStreamTrigger> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final overlay = Overlay.of(context);
+      late OverlayEntry entry;
+      entry = OverlayEntry(
+        builder: (context) => _CoinStreamOverlay(
+          targetKey: widget.targetKey,
+          onComplete: () {
+            entry.remove();
+          },
+        ),
+      );
+      overlay.insert(entry);
+      widget.onShown();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+/// Full-screen overlay that animates coins from center to the app bar coins slot.
+class _CoinStreamOverlay extends StatefulWidget {
+  final GlobalKey targetKey;
+  final VoidCallback onComplete;
+
+  const _CoinStreamOverlay({
+    required this.targetKey,
+    required this.onComplete,
+  });
+
+  @override
+  State<_CoinStreamOverlay> createState() => _CoinStreamOverlayState();
+}
+
+class _CoinStreamOverlayState extends State<_CoinStreamOverlay> with SingleTickerProviderStateMixin {
+  static const int _particleCount = 12;
+  static const Duration _duration = Duration(milliseconds: 2000);
+
+  late AnimationController _controller;
+  Offset? _targetOffset;
+  Size? _targetSize;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _duration);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = widget.targetKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null) {
+        setState(() {
+          _targetOffset = box.localToGlobal(Offset.zero);
+          _targetSize = box.size;
+        });
+        _controller.forward();
+      } else {
+        widget.onComplete();
+      }
+    });
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        widget.onComplete();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_targetOffset == null || _targetSize == null) {
+      return const SizedBox.shrink();
+    }
+    final size = MediaQuery.sizeOf(context);
+    final source = Offset(size.width * 0.5, size.height * 0.4);
+    final target = Offset(
+      _targetOffset!.dx + _targetSize!.width * 0.5,
+      _targetOffset!.dy + _targetSize!.height * 0.5,
+    );
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Stack(
+            children: List.generate(_particleCount, (i) {
+              final stagger = i / _particleCount;
+              final t = ((_controller.value * 1.2) - stagger).clamp(0.0, 1.0);
+              final curveT = Curves.easeInOutCubic.transform(t);
+              final x = source.dx + (target.dx - source.dx) * curveT;
+              final y = source.dy + (target.dy - source.dy) * curveT;
+              return Positioned(
+                left: x - 12,
+                top: y - 12,
+                child: Icon(
+                  Icons.monetization_on,
+                  size: 24,
+                  color: AppColors.accentColor2.withValues(alpha: 1.0 - t * 0.5),
+                ),
+              );
+            }),
+          );
+        },
+      ),
     );
   }
 }

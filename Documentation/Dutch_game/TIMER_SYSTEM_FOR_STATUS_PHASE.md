@@ -193,12 +193,25 @@ The `getTimerConfig()` method:
    - Uses `getTimerConfig()['turnTimeLimit']`
 
 4. **Special Card Timer** (`dutch_game_round.dart`):
-   - Called for queen peek or jack swap actions
-   - Uses `getTimerConfig()['turnTimeLimit']`
+   - Called for queen peek or jack swap actions (time to perform the action)
+   - Uses `getTimerConfig()['turnTimeLimit']` (or direct `getAllTimerValues()['queen_peek']` / `['jack_swap']`)
 
-5. **Initial Peek Timer** (`game_event_coordinator.dart`):
+5. **Peeking Phase Timer** (`dutch_game_round.dart`):
+   - **Only for Queen peek**: After a queen peek action completes, the player is set to `peeking` status. This timer runs for the duration in `getAllTimerValues()['peeking']` (e.g. 10s) before the game advances to the next special card. This ensures the peeking phase is not overridden by the next queen_peek.
+   - When it expires, `_onPeekingPhaseTimerExpired()` clears the peeking player's `cardsToPeek`, sets status to `waiting`, and calls `_processNextSpecialCard()`.
+
+6. **Initial Peek Timer** (`game_event_coordinator.dart`):
    - Called during initial peek phase
    - Reads from `game_state['timerConfig']['initial_peek']`
+
+### Queen peek: two-phase flow
+
+Queen peek uses two timers so the peeking phase is not overridden by the next special card:
+
+1. **Special Card Timer** (status `queen_peek`): Gives the player time to choose a card to peek at. When they do, `handleQueenPeek()` runs.
+2. **Peeking Phase Timer** (status `peeking`): After the peek, the player is set to `peeking` and this timer runs (duration `peeking`). The game does **not** call `_processNextSpecialCard()` until it expires. When it expires, `_onPeekingPhaseTimerExpired()` clears the player's `cardsToPeek`, sets status to `waiting`, then calls `_processNextSpecialCard()`.
+
+This way the next queen_peek (or end of special cards window) is only processed after the current player has finished their peeking phase.
 
 ## UI Timer Usage
 
@@ -270,15 +283,18 @@ static Map<String, int> getAllTimerValues() {
 1. **Draw Timer**: When player status becomes `drawing_card`
 2. **Play Timer**: When player status becomes `playing_card`
 3. **Same Rank Timer**: When same rank window phase begins
-4. **Special Card Timer**: When queen peek or jack swap status is set
-5. **Initial Peek Timer**: When game enters `initial_peek` phase
+4. **Special Card Timer**: When queen peek or jack swap status is set (time to perform the action)
+5. **Peeking Phase Timer**: When a queen peek action **completes** (player is set to `peeking`); runs for `peeking` duration before advancing to the next special card
+6. **Initial Peek Timer**: When game enters `initial_peek` phase
 
 ### When Timers Cancel
 
 - Successful action completion (draw/play card)
+- Queen peek completion cancels the special card timer and starts the peeking-phase timer; when the peeking-phase timer expires, the game advances to the next special card
 - Moving to next player
 - Timer expiry
 - Game state changes that invalidate the timer
+- `_endSpecialCardsWindow()` and game-over cleanup cancel both `_specialCardTimer` and `_peekingPhaseTimer`
 
 ## Practice Mode
 

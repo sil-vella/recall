@@ -3,7 +3,7 @@ import 'package:dutch/tools/logging/logger.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../managers/dutch_game_state_updater.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for demo debugging
+const bool LOGGING_SWITCH = false; // Enabled for demo debugging
 
 /// Demo Phase Instructions
 /// 

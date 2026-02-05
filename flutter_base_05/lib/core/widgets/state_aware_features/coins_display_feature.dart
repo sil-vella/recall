@@ -51,22 +51,24 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
           _logger.info('✅ Coins Display: Rendering coins chip with value: $coins');
         }
         
-        // Return coins display chip with appropriate styling for app bar
+        // Return coins display chip with gold styling (same as winning pot)
+        final goldColor = AppColors.matchPotGold;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Chip(
             avatar: Icon(
               Icons.monetization_on,
               size: 18,
-              color: AppColors.accentColor2,
+              color: goldColor,
             ),
             label: Text(
               coins.toString(),
               style: AppTextStyles.label().copyWith(
                 fontWeight: FontWeight.bold,
+                color: goldColor,
               ),
             ),
-            backgroundColor: AppColors.accentColor2.withOpacity(0.2),
+            backgroundColor: goldColor.withOpacity(0.2),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,

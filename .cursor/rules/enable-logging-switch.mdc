@@ -1,5 +1,5 @@
 ---
-description: Guidance for enabling LOGGING_SWITCH constants in files to enable debug logging for testing. When working with files that contain LOGGING_SWITCH, this rule reminds to enable the switch and check server.log for debugging output.
+description: Instructions for the AI to enable LOGGING_SWITCH (and similar) constants in the relevant files when working on related logic, so debug output appears in server.log for testing.
 globs:
   - "**/*.dart"
   - "**/*.py"
@@ -7,24 +7,21 @@ alwaysApply: false
 ---
 # Enable Logging Switch for Testing
 
-## Overview
+**Do not modify this rule unless explicitly instructed.**
 
-Enable `LOGGING_SWITCH` constants in related files to test latest changes by reading logs in the `server.log` file.
+## Purpose (for the AI)
 
-## Usage
+This rule is **for the AI**: when you work on logic that has a `LOGGING_SWITCH` (or similar) constant, **you** should enable the relevant switch(es) in the files that implement that logic so the user can see debug output in `server.log` and verify behavior.
 
-When working with files that contain `LOGGING_SWITCH`:
-1. **ALWAYS set `LOGGING_*SWITCH = true`** in the file you're debugging
-2. Run the application to generate logs
-3. Check `python_base_04/tools/logger/server.log` for debug output
-4. Keep `LOGGING_*SWITCH = true` to maintain logging for debugging and testing
+## What to do
 
-**Important**: Always turn logging switches to `true` when working with action data, state changes, or debugging game logic. This ensures all relevant information is captured in the logs.
+1. **Enable the right switches**: Set `LOGGING_*SWITCH = true` in the file(s) that contain the logic you are changing or that are relevant to the task (e.g. game clearing, mode switching, Dutch game helpers, queen peek, Jack swap, etc.). Do not enable everywhere—only where it helps trace the current task.
+2. Add or keep `if (LOGGING_SWITCH) { ... }` log calls where they help trace the paths you care about.
+3. Logs go to `python_base_04/tools/logger/server.log` (or the configured logger output).
 
-## Files Using LOGGING_SWITCH
+## Where LOGGING_SWITCH appears
 
-This pattern is commonly found in:
-- Flutter/Dart game files (`flutter_base_05/lib/modules/dutch_game/**/*.dart`)
-- Python backend files (`python_base_04/**/*.py`)
-- State management and validation utilities
-- Game logic and round management files
+- Flutter/Dart: `flutter_base_05/lib/modules/dutch_game/**/*.dart` (helpers, coordinators, round, managers, event emitter, etc.)
+- Dart backend: `dart_bkend_base_01/**/*.dart`
+- Python: `python_base_04/**/*.py`
+- Match the switch to the logic: e.g. game clearing / mode switching / leave_room → helpers, game_coordinator, validated_event_emitter, player_action.

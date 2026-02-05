@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
+const bool LOGGING_SWITCH = false; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -23,7 +23,9 @@ class DutchGameRound {
   /// Cancellable delay when "move to next player" was triggered by draw/play timer expiry.
   /// Cancelled when the player completes draw or play before the delay fires.
   Timer? _pendingMoveToNextPlayerTimer;
-  
+  /// Timer for peeking phase after a queen peek completes. We wait for this before processing the next special card.
+  Timer? _peekingPhaseTimer;
+
   // Unified counter for missed draw and play actions per player
   final Map<String, int> _missedActionCounts = {};
   
@@ -3877,34 +3879,23 @@ class DutchGameRound {
         'targetPlayerId': targetPlayerId,
       });
 
-      // Action completed successfully - cancel timer and move to next special card (same as jack_swap)
+      // Action completed successfully - cancel queen_peek timer; do NOT advance yet.
+      // Player is now in 'peeking' status (viewing the card). Wait for peeking phase to complete
+      // before setting them to waiting and processing the next special card.
       _specialCardTimer?.cancel();
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Cancelled special card timer after Queen peek completion');
       }
-      if (_specialCardPlayers.isNotEmpty) {
-        final currentSpecialData = _specialCardPlayers[0];
-        final currentPlayerId = currentSpecialData['player_id']?.toString();
-        if (currentPlayerId != null && currentPlayerId.isNotEmpty) {
-          _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: Player $currentPlayerId status set to waiting after Queen peek completion');
-          }
-          _specialCardPlayers.removeAt(0);
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}');
-          }
-          if (_specialCardPlayers.isEmpty) {
-            _specialCardData.clear();
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: Cleared special card data (no remaining cards to process)');
-            };
-          }
-        }
-      }
-      Timer(const Duration(seconds: 1), () {
-        _processNextSpecialCard();
+
+      final peekingDuration = ServerGameStateCallbackImpl.getAllTimerValues()['peeking'] ?? 10;
+      _peekingPhaseTimer?.cancel();
+      _peekingPhaseTimer = Timer(Duration(seconds: peekingDuration), () {
+        _peekingPhaseTimer = null;
+        _onPeekingPhaseTimerExpired();
       });
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Started ${peekingDuration}s peeking-phase timer - will advance to next special card when it expires');
+      }
 
       return true;
 
@@ -4739,6 +4730,8 @@ class DutchGameRound {
           _logger.info('Dutch: Cancelled same rank timer');
         };
         
+        _peekingPhaseTimer?.cancel();
+        _peekingPhaseTimer = null;
         _specialCardTimer?.cancel();
         _specialCardTimer = null;
         if (LOGGING_SWITCH) {
@@ -5479,6 +5472,59 @@ class DutchGameRound {
     }
   }
 
+  /// Called when the peeking-phase timer expires after a queen peek. Sets the peeking player to waiting,
+  /// clears their cardsToPeek, then advances to the next special card (or ends the window).
+  void _onPeekingPhaseTimerExpired() {
+    try {
+      if (_winnersList.isNotEmpty) return;
+      if (_isEndingSpecialCardsWindow) return;
+
+      if (_specialCardPlayers.isEmpty) {
+        _processNextSpecialCard();
+        return;
+      }
+
+      final currentSpecialData = _specialCardPlayers[0];
+      final currentPlayerId = currentSpecialData['player_id']?.toString();
+      if (currentPlayerId == null || currentPlayerId.isEmpty) {
+        _specialCardPlayers.removeAt(0);
+        _processNextSpecialCard();
+        return;
+      }
+
+      final gameState = _getCurrentGameState();
+      if (gameState != null) {
+        final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+        final player = players.firstWhere(
+          (p) => p['id'] == currentPlayerId,
+          orElse: () => <String, dynamic>{},
+        );
+        if (player.isNotEmpty) {
+          player['cardsToPeek'] = <Map<String, dynamic>>[];
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Cleared cardsToPeek for player $currentPlayerId (peeking phase ended)');
+          }
+        }
+      }
+
+      _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
+      _specialCardPlayers.removeAt(0);
+      if (_specialCardPlayers.isEmpty) _specialCardData.clear();
+
+      final currentGames = _stateCallback.currentGamesMap;
+      _stateCallback.onGameStateChanged({'games': currentGames});
+
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Peeking phase ended for $currentPlayerId - advancing to next special card');
+      }
+      _processNextSpecialCard();
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _onPeekingPhaseTimerExpired: $e');
+      }
+    }
+  }
+
   /// End the special cards window and move to next player
   /// Replicates backend's _end_special_cards_window method in game_round.py lines 768-789
   void _endSpecialCardsWindow() {
@@ -5495,6 +5541,8 @@ class DutchGameRound {
       _isEndingSpecialCardsWindow = true;
       
       // Cancel any running timer
+      _peekingPhaseTimer?.cancel();
+      _peekingPhaseTimer = null;
       _specialCardTimer?.cancel();
       
       // Clear special card data
@@ -6343,6 +6391,7 @@ class DutchGameRound {
   /// Dispose of resources
   void dispose() {
     _sameRankTimer?.cancel();
+    _peekingPhaseTimer?.cancel();
     _specialCardTimer?.cancel();
     _pendingMoveToNextPlayerTimer?.cancel();
     _cancelActionTimers();

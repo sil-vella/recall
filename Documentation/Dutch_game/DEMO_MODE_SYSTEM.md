@@ -166,7 +166,7 @@ UI screen displaying a grid of demo action buttons. Each button triggers a speci
 - Player Status: `queen_peek`
 - Hand: Contains a Queen card
 
-**Completion Detection**: Status changes from `queen_peek` to `waiting` or `playing_card`
+**Completion Detection**: Status changes from `queen_peek` to `peeking` (after peek action), then after the peeking-phase timer expires to `waiting` (or the next phase when the special cards window advances). Demo can treat completion when status becomes `peeking` (action executed) or when it becomes `waiting` after the peeking phase.
 
 ### Jack Swap
 
@@ -272,7 +272,7 @@ Demo action completion is detected in `dutch_event_handler_callbacks.dart`:
 - `drawing`: `drawing_card` → `playing_card`
 - `playing`: `playing_card` → `same_rank_window`
 - `same_rank`: `same_rank_window` → `waiting`
-- `queen_peek`: `queen_peek` → `waiting` or `playing_card`
+- `queen_peek`: `queen_peek` → `peeking` (after peek action), then after peeking-phase timer → `waiting` or next phase
 - `jack_swap`: `jack_swap` → `waiting` or `playing_card`
 - `call_dutch`: `playing_card` → `waiting`
 - `collect_rank`: Any → `waiting` (when not already waiting)

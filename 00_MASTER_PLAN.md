@@ -36,9 +36,13 @@ This document tracks high-level development plans, todos, and architectural deci
 - ✅ **Clear game state when switching matches**: centralized cleanup in start_match, leave, mode switch (game_event_coordinator, dutch_event_handler_callbacks, dutch_game_state_updater; Flutter + Dart backend)
 - ✅ **Room management**: get_public_rooms endpoint (match Python backend), user_joined_rooms event, room access control (allowed_users, allowed_roles)
 - ✅ **Complete instructions logic**: UI for show/hide instructions from showInstructions in practice mode; timer behavior aligned with instructions visibility
+- ✅ **Jack swap AI**: YAML-driven rules (priority order): collection_three_swap (isClearAndCollect, 3+ in collection), one_card_player_priority, lowest_opponent_higher_own, random_except_own, random_two_players, skip; both random strategies enforce different players; doc `COMP_PLAYER_JACK_SWAP.md`
+- ✅ **Queen peek AI**: Rule 2 (peek_random_other_player) execution probability aligned with Rule 1 (Expert 100%, Hard 95%, Medium 70%, Easy 50%)
+- ✅ **Room TTL**: Configurable `WS_ROOM_TTL` (default 180s) and `WS_ROOM_TTL_PERIODIC_TIMER` (default 60s); TTL extended on create (first join) and on each join; periodic cleanup closes expired rooms with reason `ttl_expired`; logging in room_manager (LOGGING_SWITCH). Done and tested.
 
 ### In Progress
-- 🔄 Room TTL implementation (recently completed, needs testing)
+
+_(No items currently.)_
 
 ---
 
@@ -92,6 +96,18 @@ _(No high-priority items currently.)_
 - [x] Add room access control (`allowed_users`, `allowed_roles` lists) (Done)
 
 #### Game Features
+- [ ] **Queen peek: test and fix timers**
+  - **Scope**: Test Queen peek flow end-to-end; ensure timers do not cancel or cut short Queen peek (e.g. same-rank or other timers firing and clearing `cardsToPeek` or ending the peek phase early). Test when a player has **multiple peeks** (e.g. from same-rank plays) and that each peek gets its full timer and is not cancelled prematurely.
+  - **Peeking phase ordering**: Check that the **peeking phase is allowed to complete** before moving to the next `queen_peek` (or next phase). Do not advance to the next Queen peek / turn until the current peek phase has finished (timer or user complete).
+  - **Same-rank timer**: Current same-rank play window is too short; **increase duration** (e.g. in `timerConfig` / `same_rank_window`) so players have enough time to play a same-rank card. Keep UI timer aligned with backend value.
+  - **Expected**: Queen peek phase runs for full configured duration unless the player completes the peek; no other timer (same-rank, draw/play, etc.) should clear or shorten the peek. Multiple peeks in a turn/round each get their own full window. Next queen_peek only after current peeking phase completes.
+  - **Location**: Timer logic in `dutch_game_round.dart`, `game_event_coordinator.dart`; Queen peek / `cardsToPeek` handling; timer config (e.g. `game_registry.dart`, backend timerConfig); same-rank window config.
+  - **Impact**: Reliable Queen peek UX and fair same-rank play window.
+- [ ] **Game clearing on mode switch (Dart backend → practice)**
+  - **Issue**: When switching from Dart backend mode to practice mode, previous games are not cleared and the new practice match does not start cleanly after multiple attempts. Game clearing logic (leave/match switch) is not running or not effective on this path.
+  - **Expected**: Switching from Dart backend (multiplayer) to practice mode should clear all previous game state and game maps so the new practice match starts fresh. Same for practice → Dart backend if applicable.
+  - **Location**: Mode-switch / leave flow in Flutter (e.g. lobby, navigation, `dutch_event_handler_callbacks.dart`, `dutch_game_state_updater.dart`, `DutchGameHelpers.leaveAllGamesAndClearState` / `clearAllGameStateBeforeNewGame`); ensure clear is invoked when entering practice from backend (and vice versa) and that state + `games` map are fully cleared.
+  - **Impact**: Reliable mode switching and clean practice matches after playing on backend.
 - [ ] Add comprehensive error handling for game events
 - [ ] Implement game state persistence (optional, for recovery)
 - [ ] Add game replay/logging system
@@ -125,9 +141,10 @@ _(No high-priority items currently.)_
     - Clear both state manager state and any in-memory game maps/registries
     - Verify no stale references remain after cleanup
   - **Impact**: Game integrity and reliability - prevents state conflicts between matches, ensures each new match starts with clean state
-- [ ] **Investigate joining rooms/games: log full state and WS events, then fix current games widget**
-  - **Issue**: Need to see every state key and WebSocket event affected when joining rooms/games so we can correctly add/clear current games in the lobby widget.
-  - **Action**:
+- [x] **Investigate joining rooms/games: log full state and WS events, then fix current games widget** (Done)
+  - **Done**: Join/leave flow investigated; current-games list in lobby stays in sync when joining/leaving rooms and games (state + WS events aligned).
+  - **Issue** (historical): Need to see every state key and WebSocket event affected when joining rooms/games so we can correctly add/clear current games in the lobby widget.
+  - **Action** (completed):
     1. **Enable logging** per `.cursor/rules/enable-logging-switch.mdc`: set `LOGGING_SWITCH = false` (or equivalent) in the relevant Flutter/Dart and backend files for join flow, state updates, and WS events.
     2. **Log complete state** on join-related paths: when joining a room, when joining/entering a game, log the full state (all keys) before and after so we know exactly which keys are set/cleared.
     3. **Log WebSocket events** for join flow: log every WS message (event type and payload) sent/received around join room, join game, and any related state pushes.
@@ -143,13 +160,11 @@ _(No high-priority items currently.)_
   - **Needs**: Complete UI implementation to show/hide instructions based on flag, ensure instructions are displayed correctly in practice mode, verify timer behavior matches instructions visibility
   - **Location**: Flutter UI components (practice match widget, game play screen), timer logic in `dutch_game_round.dart`
   - **Impact**: User experience - players need clear instructions in practice mode
-- [ ] **Fine-tune computer Jack swap decisions: avoid frequent self-hand swaps**
+- [x] **Fine-tune computer Jack swap decisions: avoid frequent self-hand swaps** (Done)
   - **Issue**: Computer players are swapping cards from their own hands too often; same-hand swaps should be rare
-  - **Current Behavior**: Jack swap decision logic allows or prefers swapping within the same player's hand, leading to frequent self-hand swaps
-  - **Expected Behavior**: Jack swap should predominantly swap cards **between different players**; swapping two cards within the same hand should be infrequent (e.g. only when no beneficial cross-player swap exists)
-  - **Implementation**: Adjust `getJackSwapDecision()` (and related selection logic) to strongly prefer cross-player swaps; deprioritize or restrict same-hand swaps (e.g. low probability, or only when hand size/strategy justifies it)
-  - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` (and Flutter equivalent if present) - Jack swap decision and card selection
-  - **Impact**: More realistic and strategic computer play; Jack swap used for disruption across players rather than within own hand
+  - **Expected Behavior**: Jack swap should predominantly swap cards **between different players**
+  - **Done**: YAML rules and selection logic updated: `random_except_own` and `random_two_players` always choose cards from different players; new rules (collection_three_swap, one_card_player_priority) target other players only; `COMP_PLAYER_JACK_SWAP.md` documents all options. Flutter + Dart backend.
+  - **Location**: `computer_player_factory.dart`, `computer_player_config.yaml` (Flutter assets + Dart backend)
 #### Match end and winners popup
 - [x] **Replace all hand cards with full data before showing winners popup** (Done)
   - **Issue**: At match end, hands still contain ID-only card data, so the UI shows placeholders/backs instead of actual cards when the winners popup is shown
@@ -246,11 +261,12 @@ Python Backend (Auth)
 
 ## 📝 Notes
 
-### Room TTL Implementation
-- Default TTL: 24 hours (86400 seconds)
-- TTL extended on each join/activity
-- Automatic cleanup every 60 seconds
-- Expired rooms closed with reason `'ttl_expired'`
+### Room TTL Implementation (done)
+- **WS_ROOM_TTL**: default 180s (3 min); configurable via env or `secrets/ws_room_ttl`
+- **WS_ROOM_TTL_PERIODIC_TIMER**: default 60s (check interval); configurable via env or `secrets/ws_room_ttl_periodic_timer`
+- TTL set/extended on room create (first join) and on each join via `reinstateRoomTtl`
+- Periodic timer runs every N seconds, closes rooms where `now > ttlExpiresAt` with reason `'ttl_expired'`
+- Empty rooms are closed on last leave (reason `'empty'`) before TTL; TTL expiry applies when room still has sessions but no activity for TTL period
 
 ### Player ID System
 - Multiplayer: `sessionId` (WebSocket session ID)
@@ -434,5 +450,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-02-04 (Completed: room management get_public_rooms/user_joined_rooms/access control, instructions logic; five todos marked done)
+**Last Updated**: 2026-02-05 (Room TTL done: configurable TTL and periodic timer, first-join extends TTL, logging; plan todo updated)
 

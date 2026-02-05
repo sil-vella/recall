@@ -15,7 +15,7 @@ This document describes the complete timer system and game leaving logic in the 
 
 ## Related Documentation
 
-- **[Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)** - Complete documentation of the phase-based timer configuration system, timer value declaration, and priority logic
+- **[Timer System for Status Phase](./TIMER_SYSTEM_FOR_STATUS_PHASE.md)** - Complete documentation of the phase-based timer configuration system, timer value declaration, and priority logic
 - **[Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md)** - How computer players use timer values for decision delays and miss chance mechanics
 
 ---
@@ -30,7 +30,7 @@ The Dutch game uses several types of timers to manage game flow and player actio
 - **Purpose**: Limits time for a player to draw a card
 - **Duration**: Determined by `getTimerConfig()` based on status `drawing_card` (current: 10 seconds)
 - **Location**: `DutchGameRound._drawActionTimer`
-- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
+- **Configuration**: See [Timer System for Status Phase](./TIMER_SYSTEM_FOR_STATUS_PHASE.md)
 - **When Started**: 
   - When a player's turn begins (status changes to `drawing_card`)
   - After `handleDrawCard()` completes successfully
@@ -49,7 +49,7 @@ The Dutch game uses several types of timers to manage game flow and player actio
 - **Purpose**: Limits time for a player to play a card after drawing
 - **Duration**: Determined by `getTimerConfig()` based on status `playing_card` (current: 30 seconds)
 - **Location**: `DutchGameRound._playActionTimer`
-- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
+- **Configuration**: See [Timer System for Status Phase](./TIMER_SYSTEM_FOR_STATUS_PHASE.md)
 - **When Started**: 
   - After player successfully draws a card (status changes to `playing_card`)
 - **When Cancelled**:
@@ -71,7 +71,7 @@ The Dutch game uses several types of timers to manage game flow and player actio
 - **Purpose**: Provides a window for other players to play matching rank cards
 - **Duration**: Determined by `getTimerConfig()` based on phase `same_rank_window` or status `same_rank_window` (current: 10 seconds)
 - **Location**: `DutchGameRound._sameRankTimer`
-- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
+- **Configuration**: See [Timer System for Status Phase](./TIMER_SYSTEM_FOR_STATUS_PHASE.md)
 - **When Started**: 
   - When a card is played and triggers same rank window
 - **When Cancelled**:
@@ -82,22 +82,30 @@ The Dutch game uses several types of timers to manage game flow and player actio
 
 #### 4. Special Card Timer
 - **Purpose**: Provides time for special card actions (Queen peek, Jack swap)
-- **Duration**: Determined by `getTimerConfig()` based on status `queen_peek` (15s) or `jack_swap` (20s)
+- **Duration**: Determined by `getTimerConfig()` or `getAllTimerValues()` for status `queen_peek` or `jack_swap`
 - **Location**: `DutchGameRound._specialCardTimer`
-- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
+- **Configuration**: See [Timer System for Status Phase](./TIMER_SYSTEM_FOR_STATUS_PHASE.md)
 - **When Started**: 
-  - When a special card (Queen/Jack) is played
+  - When a special card (Queen/Jack) is played (when `_processNextSpecialCard()` sets that player's status)
 - **When Cancelled**:
-  - When special card action is completed
+  - When special card action is completed (for Jack swap, we then advance after a short delay; for Queen peek, see Peeking Phase Timer below)
   - When timer expires
   - When moving to next player
 - **On Expiry**: Resets player status and moves to next player
+
+#### 4b. Peeking Phase Timer (Queen peek only)
+- **Purpose**: After a player completes a queen peek, they enter **`peeking`** status (viewing the card). This timer ensures the game does **not** advance to the next queen_peek (or end the special cards window) until the peeking phase is over, so the peeking state is not overridden.
+- **Duration**: `getAllTimerValues()['peeking']` (e.g. 10s)
+- **Location**: `DutchGameRound._peekingPhaseTimer`
+- **When Started**: When `handleQueenPeek()` completes (queen_peek timer is cancelled, peeking-phase timer is started)
+- **When Cancelled**: When `_endSpecialCardsWindow()` runs, on game over, or on dispose
+- **On Expiry**: `_onPeekingPhaseTimerExpired()` clears the peeking player's `cardsToPeek`, sets their status to `waiting`, then calls `_processNextSpecialCard()` to advance to the next special card or end the window
 
 #### 5. Initial Peek Timer
 - **Purpose**: Limits time for players to peek at initial cards before game starts
 - **Duration**: Determined by `game_state['timerConfig']['initial_peek']` (current: 15 seconds)
 - **Location**: `GameEventCoordinator._initialPeekTimers` (per room)
-- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
+- **Configuration**: See [Timer System for Status Phase](./TIMER_SYSTEM_FOR_STATUS_PHASE.md)
 - **When Started**: 
   - When match starts and game enters `initial_peek` phase
 - **When Cancelled**:
@@ -107,7 +115,7 @@ The Dutch game uses several types of timers to manage game flow and player actio
 
 ### Timer Configuration
 
-The timer system uses **phase-based configuration** where timer durations are determined by game phase and player status. See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md) for complete details.
+The timer system uses **phase-based configuration** where timer durations are determined by game phase and player status. See [Timer System for Status Phase](./TIMER_SYSTEM_FOR_STATUS_PHASE.md) for complete details.
 
 **Key Points**:
 - Timer values are declared in `game_registry.dart` switch cases

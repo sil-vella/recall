@@ -138,14 +138,25 @@ class Config {
   // ========= WebSocket Room Configuration =========
 
   /// Room TTL in seconds (time until room expires)
-  /// Default: 86400 (24 hours)
+  /// Default: 180 (3 minutes)
   /// Can be overridden via:
   /// - Environment variable: WS_ROOM_TTL
   /// - Secret file: ws_room_ttl
   static int WS_ROOM_TTL = _getConfigInt(
     'WS_ROOM_TTL',
     'ws_room_ttl',
-    86400, // 24 hours
+    180, // 3 minutes
+  );
+
+  /// TTL monitor check interval in seconds (how often to scan for expired rooms)
+  /// Default: 60 (1 minute)
+  /// Can be overridden via:
+  /// - Environment variable: WS_ROOM_TTL_PERIODIC_TIMER
+  /// - Secret file: ws_room_ttl_periodic_timer
+  static int WS_ROOM_TTL_PERIODIC_TIMER = _getConfigInt(
+    'WS_ROOM_TTL_PERIODIC_TIMER',
+    'ws_room_ttl_periodic_timer',
+    60, // 1 minute
   );
 
   /// Stale room cleanup age in seconds (rooms older than this are considered stale)

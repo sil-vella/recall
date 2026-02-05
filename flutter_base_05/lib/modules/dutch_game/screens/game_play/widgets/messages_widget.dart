@@ -13,7 +13,7 @@ import '../../../../../utils/consts/theme_consts.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class MessagesWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = true; // Enabled for winner modal debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for winner modal debugging
   static final Logger _logger = Logger();
   
   const MessagesWidget({Key? key}) : super(key: key);

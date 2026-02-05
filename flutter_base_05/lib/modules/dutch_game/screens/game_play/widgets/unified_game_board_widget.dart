@@ -16,7 +16,7 @@ import '../../demo/demo_functionality.dart';
 import '../functionality/playscreenfunctions.dart';
 import '../functionality/animations.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -2512,34 +2512,36 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       padding: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Use full parent width; column flex 2:1:2 (draw : match pot : discard) so pile cards get more space.
+          // Top row: match pot (full width). Bottom row: 2 cols — draw (left), discard (right).
           final gameboardRowWidth = constraints.maxWidth;
           final gameboardMaxHeight = constraints.maxHeight;
           if (LOGGING_SWITCH) {
             _logger.info('[GameBoard overflow] _buildGameBoard: constraints maxW=$gameboardRowWidth maxH=$gameboardMaxHeight');
           }
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.max,
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                flex: 2,
-                child: LayoutBuilder(
-                  builder: (context, c) => _buildDrawPile(availableWidth: c.maxWidth),
-                ),
-              ),
-              Expanded(
-                flex: 1,
-                child: LayoutBuilder(
-                  builder: (context, c) => _buildMatchPot(c.maxWidth),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: LayoutBuilder(
-                  builder: (context, c) => _buildDiscardPile(availableWidth: c.maxWidth),
-                ),
+              // Top: winning pot row (same conditions: practice hidden, tier/phase)
+              _buildMatchPotRow(gameboardRowWidth),
+              const SizedBox(height: 8),
+              // Bottom: 2 columns — draw pile (left), discard pile (right)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, c) => _buildDrawPile(availableWidth: c.maxWidth),
+                    ),
+                  ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, c) => _buildDiscardPile(availableWidth: c.maxWidth),
+                    ),
+                  ),
+                ],
               ),
             ],
           );
@@ -3032,57 +3034,73 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   // ========== Match Pot Methods ==========
 
-  /// [columnWidth] is the allocated width for this column (1/3 of game board row); pot stays within it.
-  Widget _buildMatchPot(double columnWidth) {
+  /// Full-width row on top of the game board: "Winning pot: {amount} [icon]".
+  /// Same conditions: hidden for practice games; amount vs '—' by isGameActive and gamePhase.
+  /// [rowWidth] is the full game board width (used to scale font/icon).
+  Widget _buildMatchPotRow(double rowWidth) {
     final dutchGameState = _getPrevStateDutchGame();
     final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
     final matchPot = centerBoard['matchPot'] as int? ?? 0;
     final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'waiting';
     final isGameActive = dutchGameState['isGameActive'] ?? false;
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-    
-    // Check if this is a practice game (practice games start with 'practice_room_')
-    final isPracticeGame = currentGameId.startsWith('practice_room_');
-    
+
     // Only show match pot if not a practice game
+    final isPracticeGame = currentGameId.startsWith('practice_room_');
     if (isPracticeGame) {
       return const SizedBox.shrink();
     }
-    
+
     final shouldShowPot = isGameActive && gamePhase != 'waiting';
-    
-    // Use full allocated column width so pot never overflows
-    final potColumnWidth = columnWidth;
-    // Text size scales with column width (clamped)
-    final fontSize = (potColumnWidth * 0.28).clamp(14.0, 32.0);
-    final iconSize = (potColumnWidth * 0.45).clamp(20.0, 40.0);
+
+    // Winning pot row: 2x size for text/icon; use theme gold (accentColor2)
+    final fontSize = (rowWidth * 0.05).clamp(20.0, 40.0);
+    final iconSize = (rowWidth * 0.05).clamp(25.0, 58.0);
     if (LOGGING_SWITCH) {
-      _logger.info('[GameBoard overflow] _buildMatchPot: columnWidth=$columnWidth potColumnWidth=$potColumnWidth fontSize=$fontSize iconSize=$iconSize');
+      _logger.info('[GameBoard overflow] _buildMatchPotRow: rowWidth=$rowWidth fontSize=$fontSize iconSize=$iconSize');
     }
-    
-    return SizedBox(
-      width: potColumnWidth,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Top row: amount (no glow)
-          Text(
-            shouldShowPot ? matchPot.toString() : '—',
-            style: AppTextStyles.headingLarge().copyWith(
-              color: shouldShowPot ? AppColors.primaryColor : AppColors.textSecondary,
-              fontWeight: FontWeight.bold,
-              fontSize: fontSize,
+
+    // Dedicated gold so it is not overridden by theme (e.g. Dutch theme accentColor2 is green)
+    const potColor = AppColors.matchPotGold;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: rowWidth),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 4,
+          spacing: 4,
+          children: [
+            Text(
+              'Winning pot: ',
+              style: AppTextStyles.headingLarge().copyWith(
+                color: shouldShowPot ? potColor : AppColors.textSecondary,
+                fontWeight: FontWeight.bold,
+                fontSize: fontSize,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          // Bottom row: coin icon (same as app bar)
-          Icon(
-            Icons.monetization_on,
-            size: iconSize,
-            color: AppColors.accentColor2,
-          ),
-        ],
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  '${shouldShowPot ? matchPot.toString() : '—'} ',
+                  style: AppTextStyles.headingLarge().copyWith(
+                    color: shouldShowPot ? potColor : AppColors.textSecondary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: fontSize,
+                  ),
+                ),
+                Icon(
+                  Icons.monetization_on,
+                  size: iconSize,
+                  color: potColor,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

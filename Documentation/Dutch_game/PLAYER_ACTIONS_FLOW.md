@@ -578,9 +578,12 @@ switch (event) {
 
 5. **handleQueenPeek()**
    - Validates card exists and belongs to target player
+   - Sets player status to **`peeking`** (viewing the card)
    - Adds card to peeking player's `known_cards`
-   - Updates player status
-   - Broadcasts state update (card details only to peeking player)
+   - Broadcasts state (ID-only cardsToPeek to others, full card to peeking player only)
+   - Cancels the queen_peek special-card timer; **does not** advance to the next special card yet
+   - Starts **peeking-phase timer** (`_peekingPhaseTimer`) using `getAllTimerValues()['peeking']` (e.g. 10s)
+   - When the peeking-phase timer expires, **`_onPeekingPhaseTimerExpired()`** runs: clears that player's `cardsToPeek`, sets status to `waiting`, removes them from the special-card list, then calls **`_processNextSpecialCard()`** so the next queen_peek (or end of window) is processed only after the peeking phase completes
 
 6. **handleJackSwap()**
    - Validates both cards exist
@@ -854,15 +857,20 @@ switch (event) {
 3. Action executes and emits `queen_peek` event
 4. Backend `handleQueenPeek()` processes:
    - Validates card exists and belongs to target player
+   - Sets player status to **`peeking`** (viewing the card)
    - Adds card to peeking player's `known_cards`
-   - Updates player status
+   - Broadcasts state (ID-only cardsToPeek to others, full card to peeking player only)
+   - Cancels the queen_peek special-card timer and starts the **peeking-phase timer** (duration from `timerConfig['peeking']`, e.g. 10s)
+   - Does **not** advance to the next special card until the peeking phase ends
 5. State update broadcasts (card details only to peeking player)
-6. UI shows peeked card details
+6. UI shows peeked card details while player is in **`peeking`** status
+7. When the **peeking-phase timer** expires, `_onPeekingPhaseTimerExpired()` runs: clears that player's `cardsToPeek`, sets status to `waiting`, then advances to the next special card (next queen_peek or end of special cards window)
 
 **Special Handling:**
 - Only available when Queen is played
 - Can peek at any player's card
 - Card details only visible to peeking player
+- **Peeking phase**: The game waits for the peeking-phase duration before processing the next player's queen_peek (or closing the special cards window), so the peeking state is not overridden by the next queen_peek
 - Updates known_cards for AI decision making
 
 ### 7. Jack Swap Action

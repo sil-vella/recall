@@ -273,6 +273,9 @@ class AppColors {
   // Warm spotlight color for casino table lighting effects
   static const Color warmSpotlightColor = Color(0xFFFFD4A3); // Warm amber/peach color
 
+  /// Gold for winning pot / coins — theme-independent so it stays gold in every theme (e.g. Dutch green).
+  static const Color matchPotGold = Color(0xFFFBC02D); // Material amber 300 / gold
+
   // Text color variants
   static Color get textPrimary => darkGray;
   static Color get textSecondary => lightGray;

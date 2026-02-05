@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for animation system debugging and action data tracking
+const bool LOGGING_SWITCH = false; // Enabled for animation system debugging and action data tracking
 
 /// AnimationTypes enum for different animation types
 enum AnimationType {

@@ -1,5 +1,9 @@
 import 'dart:async';
 import '../utils/config.dart';
+import '../utils/server_logger.dart';
+
+/// Set to true to log Room TTL events to server.log for testing (plan: Room TTL implementation).
+const bool LOGGING_SWITCH = false;
 
 class Room {
   final String roomId;
@@ -71,14 +75,15 @@ class Room {
 class RoomManager {
   final Map<String, Room> _rooms = {};
   final Map<String, String> _sessionToRoom = {}; // sessionId -> roomId
-  
+  static final Logger _logger = Logger();
+
   // Callback for room closure events
   Function(String roomId, String reason)? onRoomClosed;
-  
+
   // TTL cleanup timer
   Timer? _ttlCleanupTimer;
   bool _ttlMonitorStarted = false;
-  
+
   // Import config for TTL values
   RoomManager() {
     _startTtlMonitor();
@@ -110,7 +115,13 @@ class RoomManager {
     
     _rooms[roomId] = room;
     _sessionToRoom[creatorSessionId] = roomId;
-    
+
+    // First "join" (creator) counts: set/extend TTL so it's consistent with joinRoom and logged
+    reinstateRoomTtl(roomId);
+
+    if (LOGGING_SWITCH) {
+      _logger.info('RoomManager: Room created $roomId by $userId (max: ${room.maxSize}, permission: ${room.permission}, TTL: ${Config.WS_ROOM_TTL}s, expires: ${room.ttlExpiresAt.toIso8601String()})');
+    }
     print('🏠 Room created: $roomId by $userId (max: ${room.maxSize}, permission: ${room.permission}, TTL: ${Config.WS_ROOM_TTL}s)');
     return roomId;
   }
@@ -245,28 +256,34 @@ class RoomManager {
   void reinstateRoomTtl(String roomId, {Duration? ttl}) {
     final room = _rooms[roomId];
     if (room == null) return;
-    
+
     final ttlDuration = ttl ?? Duration(seconds: Config.WS_ROOM_TTL);
     room.extendTtl(ttlDuration);
+    if (LOGGING_SWITCH) {
+      _logger.info('RoomManager: TTL extended for room $roomId (${Config.WS_ROOM_TTL}s), new expires: ${room.ttlExpiresAt.toIso8601String()}');
+    }
   }
   
   /// Start TTL monitor for automatic room expiration
   void _startTtlMonitor() {
     if (_ttlMonitorStarted) return;
     _ttlMonitorStarted = true;
-    
-    // Run cleanup every minute (check for expired rooms)
-    _ttlCleanupTimer = Timer.periodic(Duration(seconds: 60), (_) {
+
+    final intervalSeconds = Config.WS_ROOM_TTL_PERIODIC_TIMER;
+    _ttlCleanupTimer = Timer.periodic(Duration(seconds: intervalSeconds), (_) {
       _cleanupExpiredRooms();
     });
-    
-    print('⏰ Room TTL monitor started (check interval: 60s, room TTL: ${Config.WS_ROOM_TTL}s)');
+
+    if (LOGGING_SWITCH) {
+      _logger.info('RoomManager: TTL monitor started (check interval: ${intervalSeconds}s, room TTL: ${Config.WS_ROOM_TTL}s)');
+    }
+    print('⏰ Room TTL monitor started (check interval: ${intervalSeconds}s, room TTL: ${Config.WS_ROOM_TTL}s)');
   }
-  
+
   /// Cleanup expired rooms
   void _cleanupExpiredRooms() {
     final expiredRooms = <String>[];
-    
+
     // Find expired rooms
     for (final entry in _rooms.entries) {
       final room = entry.value;
@@ -274,13 +291,19 @@ class RoomManager {
         expiredRooms.add(entry.key);
       }
     }
-    
+
     // Close expired rooms
     for (final roomId in expiredRooms) {
+      if (LOGGING_SWITCH) {
+        _logger.info('RoomManager: Room $roomId expired (TTL: ${Config.WS_ROOM_TTL}s), closing with reason ttl_expired');
+      }
       print('⏰ Room $roomId expired (TTL: ${Config.WS_ROOM_TTL}s)');
       closeRoom(roomId, 'ttl_expired');
     }
-    
+
+    if (expiredRooms.isNotEmpty && LOGGING_SWITCH) {
+      _logger.info('RoomManager: Cleaned up ${expiredRooms.length} expired room(s)');
+    }
     if (expiredRooms.isNotEmpty) {
       print('🧹 Cleaned up ${expiredRooms.length} expired room(s)');
     }

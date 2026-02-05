@@ -219,27 +219,48 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   REMOTE_VERSION_DIR="$REMOTE_DOWNLOAD_ROOT/v$APP_VERSION"
   REMOTE_APK_PATH="$REMOTE_VERSION_DIR/app.apk"
   REMOTE_TMP_APK="/tmp/dutch-app-$APP_VERSION.apk"
+  REMOTE_SECRETS_DIR="/opt/apps/reignofplay/dutch/secrets"
+  REMOTE_MANIFEST_PATH="$REMOTE_SECRETS_DIR/mobile_release.json"
+  REMOTE_TMP_MANIFEST="/tmp/mobile_release.json"
+
+  log_remaining_vps_tasks() {
+    echo ""
+    echo "❌ VPS upload failed. REMAINING TASKS (run manually if needed):"
+    echo "  [1] Create version dir and upload APK:"
+    echo "      scp -i $VPS_SSH_KEY $OUTPUT_APK $VPS_SSH_TARGET:$REMOTE_TMP_APK"
+    echo "      ssh -i $VPS_SSH_KEY $VPS_SSH_TARGET \"sudo mkdir -p $REMOTE_VERSION_DIR && sudo mv $REMOTE_TMP_APK $REMOTE_APK_PATH && sudo chown www-data:www-data $REMOTE_APK_PATH && sudo chmod 644 $REMOTE_APK_PATH\""
+    echo "  [2] Update mobile_release.json on VPS:"
+    echo "      (create JSON with latest_version and min_supported_version: $APP_VERSION)"
+    echo "      scp to $VPS_SSH_TARGET:$REMOTE_TMP_MANIFEST"
+    echo "      ssh -i $VPS_SSH_KEY $VPS_SSH_TARGET \"sudo mkdir -p $REMOTE_SECRETS_DIR && sudo mv $REMOTE_TMP_MANIFEST $REMOTE_MANIFEST_PATH && sudo chown root:root $REMOTE_MANIFEST_PATH && sudo chmod 644 $REMOTE_MANIFEST_PATH\""
+    echo ""
+  }
 
   echo "🌐 Uploading APK to VPS ($VPS_SSH_TARGET)..."
   echo "📂 Remote path: $REMOTE_APK_PATH"
 
-  # Upload APK to a temporary location, then move into place with sudo
-  scp -i "$VPS_SSH_KEY" "$OUTPUT_APK" "$VPS_SSH_TARGET":"$REMOTE_TMP_APK"
-  ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_VERSION_DIR' && sudo mv '$REMOTE_TMP_APK' '$REMOTE_APK_PATH' && sudo chown www-data:www-data '$REMOTE_APK_PATH' && sudo chmod 644 '$REMOTE_APK_PATH'"
+  echo "  Step 1/3: Uploading APK to temporary location on VPS..."
+  if ! scp -i "$VPS_SSH_KEY" "$OUTPUT_APK" "$VPS_SSH_TARGET":"$REMOTE_TMP_APK"; then
+    echo "❌ Step 1/3 failed: scp APK to $REMOTE_TMP_APK"
+    log_remaining_vps_tasks
+    exit 1
+  fi
+
+  echo "  Step 2/3: Creating version dir and moving APK into place..."
+  if ! ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_VERSION_DIR' && sudo mv '$REMOTE_TMP_APK' '$REMOTE_APK_PATH' && sudo chown www-data:www-data '$REMOTE_APK_PATH' && sudo chmod 644 '$REMOTE_APK_PATH'"; then
+    echo "❌ Step 2/3 failed: mkdir/mv APK to $REMOTE_APK_PATH"
+    log_remaining_vps_tasks
+    exit 1
+  fi
 
   echo "✅ APK uploaded to VPS: $REMOTE_APK_PATH"
   echo "🔗 Expected download URL: https://dutch.reignofplay.com/downloads/v$APP_VERSION/app.apk"
 
   # Update mobile_release.json manifest on the VPS so Flask can serve
   # correct version info without needing a restart.
-  REMOTE_SECRETS_DIR="/opt/apps/reignofplay/dutch/secrets"
-  REMOTE_MANIFEST_PATH="$REMOTE_SECRETS_DIR/mobile_release.json"
-  REMOTE_TMP_MANIFEST="/tmp/mobile_release.json"
-
-  # Allow overriding minimum supported version via environment variable if needed
   MIN_SUPPORTED_VERSION="${MIN_SUPPORTED_VERSION:-$APP_VERSION}"
 
-  echo "📝 Updating mobile_release.json manifest on VPS..."
+  echo "  Step 3/3: Updating mobile_release.json manifest on VPS..."
   TMP_MANIFEST="$(mktemp)"
   cat > "$TMP_MANIFEST" <<EOF
 {
@@ -248,8 +269,18 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
 }
 EOF
 
-  scp -i "$VPS_SSH_KEY" "$TMP_MANIFEST" "$VPS_SSH_TARGET":"$REMOTE_TMP_MANIFEST"
-  ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_SECRETS_DIR' && sudo mv '$REMOTE_TMP_MANIFEST' '$REMOTE_MANIFEST_PATH' && sudo chown root:root '$REMOTE_MANIFEST_PATH' && sudo chmod 644 '$REMOTE_MANIFEST_PATH'"
+  if ! scp -i "$VPS_SSH_KEY" "$TMP_MANIFEST" "$VPS_SSH_TARGET":"$REMOTE_TMP_MANIFEST"; then
+    rm -f "$TMP_MANIFEST"
+    echo "❌ Step 3/3 failed: scp manifest to $REMOTE_TMP_MANIFEST"
+    log_remaining_vps_tasks
+    exit 1
+  fi
+  if ! ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_SECRETS_DIR' && sudo mv '$REMOTE_TMP_MANIFEST' '$REMOTE_MANIFEST_PATH' && sudo chown root:root '$REMOTE_MANIFEST_PATH' && sudo chmod 644 '$REMOTE_MANIFEST_PATH'"; then
+    rm -f "$TMP_MANIFEST"
+    echo "❌ Step 3/3 failed: mv manifest to $REMOTE_MANIFEST_PATH"
+    log_remaining_vps_tasks
+    exit 1
+  fi
   rm -f "$TMP_MANIFEST"
 
   echo "✅ mobile_release.json updated on VPS: $REMOTE_MANIFEST_PATH"

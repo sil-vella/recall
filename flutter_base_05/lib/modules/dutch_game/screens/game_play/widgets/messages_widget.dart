@@ -240,7 +240,7 @@ class MessagesWidget extends StatelessWidget {
     
     if (isCurrentUserWinner) {
       return _WinnerCelebrationOverlay(
-        durationSeconds: 3,
+        durationSeconds: 10,
         child: modalContent,
       );
     }
@@ -380,7 +380,8 @@ class MessagesWidget extends StatelessWidget {
   }
 }
 
-/// Wraps the winners modal with confetti for 3 seconds when the current user is the winner.
+/// Wraps the winners modal with confetti when the current user is the winner.
+/// [durationSeconds] controls how long confetti is emitted (continuous emission for that duration).
 class _WinnerCelebrationOverlay extends StatefulWidget {
   final Widget child;
   final int durationSeconds;

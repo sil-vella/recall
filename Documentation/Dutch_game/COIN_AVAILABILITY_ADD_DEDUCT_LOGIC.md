@@ -11,7 +11,7 @@ The coin availability system validates that users have enough coins (default: 25
 - Join a game from the available games list
 
 **Subscription Tier System:**
-- Users have a `subscription_tier` field in `modules.cleco_game.subscription_tier`
+- Users have a `subscription_tier` field in `modules.dutch_game.subscription_tier`
 - **Promotional Tier** (`'promotional'`): Free play - no coin check required, no coins deducted
 - **Free/Regular Tier** (`'free'` or `'regular'`): Requires coins - coin check and deduction applies
 - Default tier for new users: `'promotional'`
@@ -20,7 +20,7 @@ The coin availability system validates that users have enough coins (default: 25
 **Coin Deduction:** Coins are deducted from all active players (including creator) when the game actually starts (when `start_match` event is processed and game phase changes to `initial_peek`). This happens after coin availability validation but before the game begins. **Promotional tier players are exempt from coin deduction.**
 
 **Key Principles:**
-- **Subscription Tier System:** Users have a `subscription_tier` field in `modules.cleco_game.subscription_tier`
+- **Subscription Tier System:** Users have a `subscription_tier` field in `modules.dutch_game.subscription_tier`
   - **Promotional Tier:** Free play - no coin check required, no coins deducted
   - **Free/Regular Tier:** Requires coins - coin check and deduction applies
 - **Validation:** All validation happens on the frontend (Flutter) before any WebSocket events are sent to the backend
@@ -37,8 +37,8 @@ The coin availability system validates that users have enough coins (default: 25
 ### Components
 
 1. **API Endpoints:**
-   - `/userauth/cleco/get-user-stats` (GET) - Returns user's cleco_game module data including coins
-   - `/userauth/cleco/deduct-game-coins` (POST) - Deducts coins from multiple players when game starts
+   - `/userauth/dutch/get-user-stats` (GET) - Returns user's dutch_game module data including coins
+   - `/userauth/dutch/deduct-game-coins` (POST) - Deducts coins from multiple players when game starts
    - Both endpoints are protected by JWT authentication
 
 2. **Helper Methods:**
@@ -102,7 +102,7 @@ Extract user IDs from player objects
     ↓
 Call DutchGameHelpers.deductGameCoins()
     ↓
-POST /userauth/cleco/deduct-game-coins
+POST /userauth/dutch/deduct-game-coins
     ├─ For each player:
     │   ├─ Check subscription_tier
     │   ├─ If promotional → Skip deduction (free play)
@@ -120,7 +120,7 @@ Refresh user stats to show updated coin count
 
 ### 1. Helper Method: `checkCoinsRequirement()`
 
-**Location:** `flutter_base_05/lib/modules/cleco_game/utils/cleco_game_helpers.dart`
+**Location:** `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart`
 
 **Signature:**
 ```dart
@@ -177,7 +177,7 @@ final hasEnough = await DutchGameHelpers.checkCoinsRequirement(
 
 ### 2. API Integration
 
-**Endpoint:** `GET /userauth/cleco/get-user-stats`
+**Endpoint:** `GET /userauth/dutch/get-user-stats`
 
 **Authentication:** JWT token (automatically included via `ConnectionsApiModule`)
 
@@ -214,7 +214,7 @@ final hasEnough = await DutchGameHelpers.checkCoinsRequirement(
 }
 ```
 
-**Implementation:** `getUserDutchGameData()` in `cleco_game_helpers.dart`
+**Implementation:** `getUserDutchGameData()` in `dutch_game_helpers.dart`
 - Uses `ConnectionsApiModule` to make authenticated GET request
 - Handles errors gracefully
 - Returns structured response with success/error status
@@ -326,7 +326,7 @@ Future<void> _handleJoinRandomGame() async {
 
 ### 4. Coin Deduction on Game Start
 
-**Location:** `cleco_event_handler_callbacks.dart` → `_handleCoinDeductionOnGameStart()`
+**Location:** `dutch_event_handler_callbacks.dart` → `_handleCoinDeductionOnGameStart()`
 
 **Trigger:** When game phase changes to `initial_peek` (game started)
 
@@ -347,13 +347,13 @@ if (phase changes to 'initial_peek') {
 6. **Mark as Deducted:** Store game ID in `coinsDeductedGames` state to prevent duplicates
 7. **Refresh Stats:** Update local user stats to show new coin count
 
-**Python API Endpoint:** `/userauth/cleco/deduct-game-coins`
+**Python API Endpoint:** `/userauth/dutch/deduct-game-coins`
 - Method: POST
 - Authentication: JWT required
 - Request body: `{ "coins": 25, "game_id": "room_xxx", "player_ids": ["user_id1", "user_id2", ...] }`
 - For each player:
   1. **Check Subscription Tier:**
-     - Retrieves player's `modules.cleco_game.subscription_tier` from database
+     - Retrieves player's `modules.dutch_game.subscription_tier` from database
      - If `subscription_tier == 'promotional'`:
        - Skips coin deduction (free play)
        - Adds player to response with `coins_deducted: 0`, `skipped: true`, `reason: "promotional_tier"`
@@ -420,11 +420,11 @@ If user stats are not available (neither from API nor cache):
 Coins are stored in two places:
 
 1. **Backend Database** (Source of Truth)
-   - MongoDB: `users.modules.cleco_game.coins`
+   - MongoDB: `users.modules.dutch_game.coins`
    - Updated by game results, purchases, rewards, etc.
 
 2. **Frontend State** (Cache)
-   - `cleco_game` module state: `userStats.coins`
+   - `dutch_game` module state: `userStats.coins`
    - Updated via `fetchAndUpdateUserDutchGameData()`
    - May be stale, so API fetch is preferred for validation
 
@@ -435,7 +435,7 @@ Backend Database (MongoDB)
     ↓ (API call)
 getUserDutchGameData()
     ↓ (updates state)
-StateManager: cleco_game.userStats.coins
+StateManager: dutch_game.userStats.coins
     ↓ (used for display)
 Coins Display Widget
 ```
@@ -487,7 +487,7 @@ All coin validation operations are logged for debugging:
 ❌ DutchGameHelpers: Error checking coins requirement: [error details]
 ```
 
-**Logging Switch:** Controlled by `LOGGING_SWITCH` constant in `cleco_game_helpers.dart`
+**Logging Switch:** Controlled by `LOGGING_SWITCH` constant in `dutch_game_helpers.dart`
 
 ---
 
@@ -592,7 +592,7 @@ If API is slow or fails:
 ## Related Documentation
 
 - **State Management:** See `STATE_MANAGEMENT.md` for details on how coin data is stored in state
-- **API Endpoints:** See Python backend documentation for `/userauth/cleco/get-user-stats` endpoint
+- **API Endpoints:** See Python backend documentation for `/userauth/dutch/get-user-stats` endpoint
 - **Game Flow:** See `MULTIPLAYER_GAME_FLOW.md` for overall game creation/join flow
 
 ---
@@ -638,28 +638,27 @@ When a game ends, winners receive coin rewards based on the match pot. The pot i
 
 ### Database Update
 
-**Location:** `cleco_game_main.py` → `update_game_stats()`
+**Location:** `dutch_game_main.py` → `update_game_stats()` (route: `/service/dutch/update-game-stats`, X-Service-Key auth)
 
 **Process:**
 1. Receives game results with `pot` value for each player
-2. For winners (`is_winner: true`):
-   - Retrieves current coins from database
-   - Calculates new coins: `new_coins = current_coins + pot`
-   - Uses MongoDB `$inc` operator to atomically add coins: `{'modules.cleco_game.coins': pot}`
-3. Updates game statistics:
-   - Increments `wins` for winners
-   - Increments `losses` for non-winners
-   - Increments `total_matches` for all players
-4. Returns updated player statistics
+2. For each player, reads `subscription_tier` from `modules.dutch_game` (default `'promotional'`).
+3. For winners (`is_winner: true`):
+   - If `subscription_tier == 'promotional'`: no coin addition (skip `$inc`), log "Skipping coin reward - promotional tier".
+   - If `subscription_tier != 'promotional'`: retrieves current coins, adds pot, uses MongoDB `$inc`: `{'modules.dutch_game.coins': pot}`.
+4. Updates game statistics (wins, losses, total_matches, win_rate) for all players regardless of tier.
+5. Returns updated player statistics.
 
 **Atomic Operation:**
 - Uses MongoDB `$inc` operator for safe coin addition
 - Prevents race conditions and ensures data consistency
 - Updates `last_updated` timestamp
 
+**Winner subscription tier:** The backend **does** check the winner's `subscription_tier` when adding coin rewards, in line with deduction logic. **Promotional-tier winners do not receive coin rewards** (skipped, same as free play). Only free/regular-tier winners receive the pot (or their share). Stats (wins, losses, total_matches) are still updated for all players; only the `$inc` for coins is skipped for promotional winners.
+
 ### UI Refresh After Game End
 
-**Location:** `cleco_event_handler_callbacks.dart` → `handleGameStateUpdated()` and `handleGameStatePartialUpdate()`
+**Location:** `dutch_event_handler_callbacks.dart` → `handleGameStateUpdated()` and `handleGameStatePartialUpdate()`
 
 **Problem:**
 - Database is updated correctly with new coin balance
@@ -671,7 +670,7 @@ When game ends (`uiPhase == 'game_ended'` and winners exist):
 1. Show winner modal (existing behavior)
 2. **Automatically refresh user stats** by calling `DutchGameHelpers.fetchAndUpdateUserDutchGameData()`
 3. This fetches fresh stats from API (including updated coins)
-4. Updates `cleco_game.userStats.coins` in state
+4. Updates `dutch_game.userStats.coins` in state
 5. `StateAwareCoinsDisplayFeature` widget (uses `ListenableBuilder`) automatically rebuilds with new coin count
 
 **Implementation:**
@@ -699,7 +698,7 @@ Show Winner Modal
     ↓
 Refresh User Stats from API
     ↓
-Update State: cleco_game.userStats.coins
+Update State: dutch_game.userStats.coins
     ↓
 Coins Display Widget Rebuilds (ListenableBuilder)
     ↓
@@ -743,7 +742,7 @@ The coin availability, deduction, and addition logic provides a robust, user-fri
   - **Free/Regular Tier:** Coins deducted (default 25 coins)
 - **Amount:** Default 25 coins (configurable)
 - **Mode:** Multiplayer only (practice mode exempt)
-- **API:** `/userauth/cleco/deduct-game-coins` (JWT protected)
+- **API:** `/userauth/dutch/deduct-game-coins` (JWT protected)
 - **Atomic Operation:** Uses MongoDB `$inc` for safe coin deduction
 - **Per-Player Processing:** Each player is processed individually, allowing mixed-tier games
 
@@ -753,7 +752,7 @@ The coin availability, deduction, and addition logic provides a robust, user-fri
 - **Amount:** Match pot = `coin_cost × active_player_count` (default: 25 × players)
 - **Distribution:** Full pot to single winner, split evenly among multiple winners
 - **Mode:** Multiplayer only (practice mode exempt)
-- **API:** `/userauth/cleco/update-game-stats` (JWT protected)
+- **API:** `/service/dutch/update-game-stats` (X-Service-Key, called by Dart backend)
 - **Atomic Operation:** Uses MongoDB `$inc` for safe coin addition
 - **UI Refresh:** Automatically refreshes user stats after game end to update coins display
 
@@ -763,7 +762,8 @@ The coin availability, deduction, and addition logic provides a robust, user-fri
 - **Default**: New users start with `subscription_tier: 'promotional'`
 - **Per-Player Check**: Each player's tier is checked individually during deduction
 - **Mixed Games**: Promotional tier players can play with free/regular tier players (only free/regular players pay)
-- **Rewards**: All players (regardless of tier) can receive coin rewards if they win
+- **Rewards**: Only **non-promotional** winners receive coin rewards; promotional-tier winners do not get coins (same rule as deduction: promotional = free play).
+- **Tier check on rewards**: Winner coin addition checks `subscription_tier`; if `promotional`, coins are not added. Stats (wins/losses/matches) are still updated for all.
 
 **Future Improvements:**
 - Add backend validation for security (defense in depth)
@@ -774,3 +774,4 @@ The coin availability, deduction, and addition logic provides a robust, user-fri
 - Support additional subscription tiers (e.g., premium, VIP)
 - Add coin transaction history/logging
 - Support different pot distributions (e.g., winner-takes-all, tiered rewards)
+- (Done: promotional-tier winners no longer receive coin rewards; same check as deduction.)

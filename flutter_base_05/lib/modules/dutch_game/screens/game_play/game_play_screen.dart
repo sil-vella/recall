@@ -693,7 +693,7 @@ class _CoinStreamOverlay extends StatefulWidget {
 
 class _CoinStreamOverlayState extends State<_CoinStreamOverlay> with SingleTickerProviderStateMixin {
   static const int _particleCount = 12;
-  static const Duration _duration = Duration(milliseconds: 2000);
+  static const Duration _duration = Duration(milliseconds: 3000);
 
   late AnimationController _controller;
   Offset? _targetOffset;

@@ -52,6 +52,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   List<dynamic>? _protectedMyHandCardsToPeek;
   Timer? _myHandCardsToPeekProtectionTimer;
   String? _previousPlayerStatus; // Track previous status to detect transitions
+
+  /// Timer to clear selected-card overlays (opponent highlight + my hand selection) after 3 seconds.
+  Timer? _selectedCardOverlayTimer;
   
   // ========== Card Keys (for widget identification) ==========
   /// Map of cardId -> GlobalKey for all cards (reused across rebuilds)
@@ -431,6 +434,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
+    _selectedCardOverlayTimer?.cancel();
     _glowAnimationController?.dispose();
     _animationTimeoutTimer?.cancel();
     
@@ -2288,6 +2292,45 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     });
   }
 
+  /// Schedules removal of all selected-card overlays (opponent highlight + my hand selection) after 3 seconds.
+  /// Cancels any existing schedule when called again.
+  void _startSelectedOverlayClearTimer() {
+    _selectedCardOverlayTimer?.cancel();
+    _selectedCardOverlayTimer = Timer(const Duration(seconds: 3), () {
+      _selectedCardOverlayTimer = null;
+      if (!mounted) return;
+      setState(() {
+        _clickedCardId = null;
+      });
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      final games = currentState['games'] as Map<String, dynamic>? ?? {};
+      final myHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
+      if (currentGameId.isNotEmpty && games.containsKey(currentGameId)) {
+        final currentGame = Map<String, dynamic>.from(games[currentGameId]);
+        currentGame['selectedCardIndex'] = -1;
+        final updatedGames = Map<String, dynamic>.from(games);
+        updatedGames[currentGameId] = currentGame;
+        final updatedMyHand = Map<String, dynamic>.from(myHand);
+        updatedMyHand['selectedIndex'] = -1;
+        updatedMyHand['selectedCard'] = null;
+        StateManager().updateModuleState('dutch_game', {
+          ...currentState,
+          'games': updatedGames,
+          'myHand': updatedMyHand,
+        });
+      } else {
+        final updatedMyHand = Map<String, dynamic>.from(myHand);
+        updatedMyHand['selectedIndex'] = -1;
+        updatedMyHand['selectedCard'] = null;
+        StateManager().updateModuleState('dutch_game', {
+          ...currentState,
+          'myHand': updatedMyHand,
+        });
+      }
+    });
+  }
+
   void _handleOpponentCardClick(Map<String, dynamic> card, String cardOwnerId) async {
     final dutchGameState = _getPrevStateDutchGame();
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
@@ -2304,7 +2347,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         setState(() {
           _clickedCardId = cardId;
         });
-        
+        _startSelectedOverlayClearTimer();
+
         if (currentPlayerStatus == 'queen_peek') {
           try {
             final queenPeekAction = PlayerAction.queenPeek(
@@ -3035,7 +3079,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   // ========== Match Pot Methods ==========
 
   /// Full-width row on top of the game board: "Winning pot: {amount} [icon]".
-  /// Same conditions: hidden for practice games; amount vs '—' by isGameActive and gamePhase.
+  /// Shown only when: not a practice game and user is not promotional tier.
+  /// Amount vs '—' by isGameActive and gamePhase when shown.
   /// [rowWidth] is the full game board width (used to scale font/icon).
   Widget _buildMatchPotRow(double rowWidth) {
     final dutchGameState = _getPrevStateDutchGame();
@@ -3048,6 +3093,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Only show match pot if not a practice game
     final isPracticeGame = currentGameId.startsWith('practice_room_');
     if (isPracticeGame) {
+      return const SizedBox.shrink();
+    }
+
+    // Hide match pot row for promotional tier (free play - no coins involved)
+    final userStats = dutchGameState['userStats'] as Map<String, dynamic>?;
+    final subscriptionTier = userStats?['subscription_tier']?.toString() ?? 'promotional';
+    if (subscriptionTier == 'promotional') {
       return const SizedBox.shrink();
     }
 
@@ -3991,6 +4043,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         ...currentState,
         'myHand': updatedMyHand,
       });
+      _startSelectedOverlayClearTimer();
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
       if (LOGGING_SWITCH) {
         _logger.info('🎮 MyHandWidget - currentGameId: $currentGameId');

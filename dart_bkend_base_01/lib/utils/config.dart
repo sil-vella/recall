@@ -138,14 +138,14 @@ class Config {
   // ========= WebSocket Room Configuration =========
 
   /// Room TTL in seconds (time until room expires)
-  /// Default: 180 (3 minutes)
+  /// Default: 86400 (24 hours)
   /// Can be overridden via:
   /// - Environment variable: WS_ROOM_TTL
   /// - Secret file: ws_room_ttl
   static int WS_ROOM_TTL = _getConfigInt(
     'WS_ROOM_TTL',
     'ws_room_ttl',
-    180, // 3 minutes
+    86400, // 24 hours
   );
 
   /// TTL monitor check interval in seconds (how often to scan for expired rooms)

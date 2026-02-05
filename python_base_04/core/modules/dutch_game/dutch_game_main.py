@@ -319,25 +319,33 @@ class DutchGameMain(BaseModule):
                     current_losses = dutch_game.get('losses', 0)
                     current_total_matches = dutch_game.get('total_matches', 0)
                     current_coins = dutch_game.get('coins', 0)
+                    subscription_tier = dutch_game.get('subscription_tier', 'promotional')
                     
-                    custom_log(f"📊 Python: Current stats for {user_id_str} - wins: {current_wins}, losses: {current_losses}, matches: {current_total_matches}, coins: {current_coins}", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"📊 Python: Current stats for {user_id_str} - wins: {current_wins}, losses: {current_losses}, matches: {current_total_matches}, coins: {current_coins}, subscription_tier: {subscription_tier}", level="INFO", isOn=LOGGING_SWITCH)
                     
                     # Get new values from game result
                     is_winner = player_result.get('is_winner', False)
                     pot = player_result.get('pot', 0)  # Pot amount for this player (already split if multiple winners)
                     
-                    custom_log(f"📊 Python: Game result for {user_id_str} - is_winner: {is_winner}, pot: {pot}", level="INFO", isOn=LOGGING_SWITCH)
+                    # Promotional tier winners do not receive coin rewards (same as deduction: promotional = free play)
+                    coins_to_add = 0
+                    if is_winner and pot > 0 and subscription_tier != 'promotional':
+                        coins_to_add = pot
+                    elif is_winner and pot > 0 and subscription_tier == 'promotional':
+                        custom_log(f"💰 Python: Skipping coin reward for winner {user_id_str} - promotional tier (free play)", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    custom_log(f"📊 Python: Game result for {user_id_str} - is_winner: {is_winner}, pot: {pot}, coins_to_add: {coins_to_add}", level="INFO", isOn=LOGGING_SWITCH)
                     
                     # Calculate new statistics
                     new_total_matches = current_total_matches + 1
                     new_wins = current_wins + (1 if is_winner else 0)
                     new_losses = current_losses + (0 if is_winner else 1)
-                    new_coins = current_coins + pot  # Add pot to winner's coins
+                    new_coins = current_coins + coins_to_add
                     
                     # Calculate win rate (wins / total_matches)
                     new_win_rate = float(new_wins) / float(new_total_matches) if new_total_matches > 0 else 0.0
                     
-                    custom_log(f"📊 Python: New stats for {user_id_str} - wins: {new_wins}, losses: {new_losses}, matches: {new_total_matches}, coins: {new_coins} (added {pot}), win_rate: {new_win_rate:.2f}", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"📊 Python: New stats for {user_id_str} - wins: {new_wins}, losses: {new_losses}, matches: {new_total_matches}, coins: {new_coins} (added {coins_to_add}), win_rate: {new_win_rate:.2f}", level="INFO", isOn=LOGGING_SWITCH)
                     
                     # Prepare update data using MongoDB dot notation
                     # Use $inc for coins (atomic operation) and $set for other fields
@@ -354,10 +362,10 @@ class DutchGameMain(BaseModule):
                         }
                     }
                     
-                    # Add coin reward for winners using $inc (atomic operation)
-                    if is_winner and pot > 0:
-                        update_operation['$inc'] = {'modules.dutch_game.coins': pot}
-                        custom_log(f"💰 Python: Awarding {pot} coins to winner {user_id_str} (current: {current_coins}, new: {new_coins})", level="INFO", isOn=LOGGING_SWITCH)
+                    # Add coin reward for winners (non-promotional only) using $inc (atomic operation)
+                    if coins_to_add > 0:
+                        update_operation['$inc'] = {'modules.dutch_game.coins': coins_to_add}
+                        custom_log(f"💰 Python: Awarding {coins_to_add} coins to winner {user_id_str} (current: {current_coins}, new: {new_coins})", level="INFO", isOn=LOGGING_SWITCH)
                     
                     # Update user in database using raw MongoDB operation (for $inc support)
                     custom_log(f"📊 Python: Updating database for user_id: {user_id_str}", level="INFO", isOn=LOGGING_SWITCH)
@@ -388,8 +396,8 @@ class DutchGameMain(BaseModule):
                                 metrics_enabled=METRICS_SWITCH
                             )
 
-                        # Track coin transactions if coins were earned (automatically updates metrics)
-                        if is_winner and pot > 0:
+                        # Track coin transactions if coins were earned (non-promotional winners only)
+                        if coins_to_add > 0:
                             if analytics_service:
                                 analytics_service.track_event(
                                     user_id=user_id_str,
@@ -397,7 +405,7 @@ class DutchGameMain(BaseModule):
                                     event_data={
                                         'transaction_type': 'game_reward',
                                         'direction': 'credit',
-                                        'amount': pot
+                                        'amount': coins_to_add
                                     },
                                     metrics_enabled=METRICS_SWITCH
                                 )
@@ -408,7 +416,7 @@ class DutchGameMain(BaseModule):
                             "losses": new_losses,
                             "total_matches": new_total_matches,
                             "coins": new_coins,
-                            "coins_added": pot if is_winner else 0,
+                            "coins_added": coins_to_add,
                             "win_rate": new_win_rate
                         })
                     else:
@@ -593,11 +601,15 @@ class DutchGameMain(BaseModule):
             current_losses = dutch_game.get('losses', 0)
             current_total_matches = dutch_game.get('total_matches', 0)
             current_coins = dutch_game.get('coins', 0)
+            subscription_tier = dutch_game.get('subscription_tier', 'promotional')
+
+            # Promotional tier winners do not receive coin rewards (same as deduction)
+            coins_to_add = (pot if (is_winner and pot > 0 and subscription_tier != 'promotional') else 0)
 
             new_total_matches = current_total_matches + 1
             new_wins = current_wins + (1 if is_winner else 0)
             new_losses = current_losses + (0 if is_winner else 1)
-            new_coins = current_coins + pot
+            new_coins = current_coins + coins_to_add
             new_win_rate = float(new_wins) / float(new_total_matches) if new_total_matches > 0 else 0.0
             current_timestamp = datetime.utcnow().isoformat()
 
@@ -612,8 +624,8 @@ class DutchGameMain(BaseModule):
                     'updated_at': current_timestamp
                 }
             }
-            if is_winner and pot > 0:
-                update_operation['$inc'] = {'modules.dutch_game.coins': pot}
+            if coins_to_add > 0:
+                update_operation['$inc'] = {'modules.dutch_game.coins': coins_to_add}
 
             result = db_manager.db["users"].update_one(
                 {"_id": user_id_obj},
@@ -634,11 +646,11 @@ class DutchGameMain(BaseModule):
                     event_data={'game_mode': game_mode, 'result': 'win' if is_winner else 'loss', 'duration': duration},
                     metrics_enabled=METRICS_SWITCH
                 )
-                if is_winner and pot > 0:
+                if coins_to_add > 0:
                     analytics_service.track_event(
                         user_id=user_id,
                         event_type='coin_transaction',
-                        event_data={'transaction_type': 'game_reward', 'direction': 'credit', 'amount': pot},
+                        event_data={'transaction_type': 'game_reward', 'direction': 'credit', 'amount': coins_to_add},
                         metrics_enabled=METRICS_SWITCH
                     )
 

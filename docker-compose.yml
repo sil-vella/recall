@@ -1,5 +1,7 @@
 services:
   # MongoDB Service (for external app)
+  # Runs as Bitnami default (1001); needs mongodb_* secret files 0644 on VPS so 1001 can read them.
+  # (Redis runs as VPS UID 1000 with 0600 secrets; MongoDB image config is not readable as 1000.)
   dutch_mongodb-external:
     image: bitnami/mongodb:latest
     container_name: dutch_external_app_mongodb
@@ -19,9 +21,11 @@ services:
     restart: unless-stopped
 
   # Redis Service (for external app)
+  # Runs as VPS app user UID so it can read 0600 secrets from mounted /app/secrets
   dutch_redis-external:
     image: bitnami/redis:latest
     container_name: dutch_external_app_redis
+    user: "${VPS_APP_UID:-1000}:${VPS_APP_GID:-1000}"
     environment:
       - REDIS_PASSWORD_FILE=/app/secrets/redis_password
     ports:

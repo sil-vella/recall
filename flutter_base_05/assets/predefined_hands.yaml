@@ -1,6 +1,6 @@
 # Predefined Hands Configuration for Testing
 # Enable/disable predefined hands dealing
-enabled: true
+enabled: false
 
 # Predefined hands for each player (test deck: specials at top, then 4 aces, 4 threes)
 # All players get number ranks only (ace, 3); specials (joker, jack, queen) stay in deck order at top

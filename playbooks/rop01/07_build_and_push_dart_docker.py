@@ -5,6 +5,7 @@ This script builds the Dart WebSocket server Docker image and pushes it to Docke
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,67 @@ IMAGE_NAME = "dutch_dart_game_server"
 IMAGE_TAG = os.environ.get("IMAGE_TAG", "latest")
 DOCKERFILE_PATH = PROJECT_ROOT / "dart_bkend_base_01" / "Dockerfile"
 BUILD_CONTEXT = PROJECT_ROOT / "dart_bkend_base_01"
+
+# Config files to set to production values before build (backed up and restored after)
+DECK_CONFIG_PATH = BUILD_CONTEXT / "lib" / "modules" / "dutch_game" / "config" / "deck_config.yaml"
+PREDEFINED_HANDS_PATH = BUILD_CONTEXT / "lib" / "modules" / "dutch_game" / "config" / "predefined_hands.yaml"
+
+_config_backups = {}  # path -> original content
+
+
+def set_production_config() -> None:
+    """Set deck_config testing_mode to false and predefined_hands enabled to false for production build."""
+    print(f"\n{Colors.BLUE}Setting production config (testing_mode=false, predefined_hands enabled=false)...{Colors.NC}")
+
+    # deck_config.yaml: deck_settings.testing_mode: true -> false
+    if DECK_CONFIG_PATH.exists():
+        try:
+            text = DECK_CONFIG_PATH.read_text(encoding="utf-8")
+            _config_backups[str(DECK_CONFIG_PATH)] = text
+            new_text = re.sub(r"(\s*testing_mode:\s*)true\b", r"\1false", text)
+            if new_text != text:
+                DECK_CONFIG_PATH.write_text(new_text, encoding="utf-8")
+                print(f"  {Colors.GREEN}✓{Colors.NC} {DECK_CONFIG_PATH.relative_to(BUILD_CONTEXT)}: testing_mode → false")
+            else:
+                print(f"  {Colors.GREEN}✓{Colors.NC} {DECK_CONFIG_PATH.relative_to(BUILD_CONTEXT)}: testing_mode already false")
+        except Exception as e:
+            print(f"  {Colors.RED}✗{Colors.NC} Error updating {DECK_CONFIG_PATH.relative_to(BUILD_CONTEXT)}: {e}")
+    else:
+        print(f"  {Colors.YELLOW}⚠{Colors.NC} {DECK_CONFIG_PATH.relative_to(BUILD_CONTEXT)} not found, skipping")
+
+    # predefined_hands.yaml: enabled: true -> false
+    if PREDEFINED_HANDS_PATH.exists():
+        try:
+            text = PREDEFINED_HANDS_PATH.read_text(encoding="utf-8")
+            _config_backups[str(PREDEFINED_HANDS_PATH)] = text
+            new_text = re.sub(r"^(\s*enabled:\s*)true\b", r"\1false", text, flags=re.MULTILINE)
+            if new_text != text:
+                PREDEFINED_HANDS_PATH.write_text(new_text, encoding="utf-8")
+                print(f"  {Colors.GREEN}✓{Colors.NC} {PREDEFINED_HANDS_PATH.relative_to(BUILD_CONTEXT)}: enabled → false")
+            else:
+                print(f"  {Colors.GREEN}✓{Colors.NC} {PREDEFINED_HANDS_PATH.relative_to(BUILD_CONTEXT)}: enabled already false")
+        except Exception as e:
+            print(f"  {Colors.RED}✗{Colors.NC} Error updating {PREDEFINED_HANDS_PATH.relative_to(BUILD_CONTEXT)}: {e}")
+    else:
+        print(f"  {Colors.YELLOW}⚠{Colors.NC} {PREDEFINED_HANDS_PATH.relative_to(BUILD_CONTEXT)} not found, skipping")
+
+    print(f"{Colors.GREEN}✓ Production config set{Colors.NC}")
+
+
+def restore_config() -> None:
+    """Restore config files to original content after build."""
+    if not _config_backups:
+        return
+    print(f"\n{Colors.BLUE}Restoring config files...{Colors.NC}")
+    for path_str, content in _config_backups.items():
+        path = Path(path_str)
+        try:
+            path.write_text(content, encoding="utf-8")
+            print(f"  {Colors.GREEN}✓{Colors.NC} Restored {path.relative_to(BUILD_CONTEXT)}")
+        except Exception as e:
+            print(f"  {Colors.RED}✗{Colors.NC} Error restoring {path.relative_to(BUILD_CONTEXT)}: {e}")
+    _config_backups.clear()
+    print(f"{Colors.GREEN}✓ Config restored{Colors.NC}")
 
 
 def disable_logging_switch() -> None:
@@ -166,15 +228,26 @@ def main() -> None:
     # Ensure noisy logging is disabled in the built image
     disable_logging_switch()
 
+    # Set production config: testing_mode=false, predefined_hands enabled=false
+    set_production_config()
+
     if not check_docker():
         print(
             f"{Colors.RED}Error: Docker is not running. Please start Docker and try again.{Colors.NC}"
         )
+        restore_config()
         sys.exit(1)
 
-    success = build_and_push()
-    if not success:
-        sys.exit(1)
+    try:
+        success = build_and_push()
+        if not success:
+            restore_config()
+            sys.exit(1)
+    except (KeyboardInterrupt, Exception):
+        restore_config()
+        raise
+
+    restore_config()
 
     full_image_name = f"{DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}"
     print(f"\n{Colors.GREEN}=== Build and Push Complete ==={Colors.NC}")

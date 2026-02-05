@@ -4,7 +4,7 @@ import '../../../../tools/logging/logger.dart';
 import 'player_action.dart';
 import '../utils/dutch_game_helpers.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for match start, game finding/initialization and leave_room
+const bool LOGGING_SWITCH = false; // Enabled for match start, game finding/initialization and leave_room
 
 /// Game Coordinator for handling all player game actions
 /// 

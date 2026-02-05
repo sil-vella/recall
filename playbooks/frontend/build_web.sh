@@ -12,6 +12,47 @@ echo "🚀 Building Flutter Web for Dutch..."
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Flutter assets: set testing_mode=false and predefined_hands enabled=false for production build (restored on exit)
+# Backups go to /tmp so they are not bundled into build/web
+DECK_CONFIG_PATH="$REPO_ROOT/flutter_base_05/assets/deck_config.yaml"
+PREDEFINED_HANDS_PATH="$REPO_ROOT/flutter_base_05/assets/predefined_hands.yaml"
+DECK_BACKUP_DIR="${TMPDIR:-/tmp}/dutch_build_deck_$$"
+restore_deck_config() {
+  if [ -d "$DECK_BACKUP_DIR" ]; then
+    echo "" && echo "🃏 Restoring deck config files..."
+    if [ -f "$DECK_BACKUP_DIR/deck_config.yaml" ]; then cp "$DECK_BACKUP_DIR/deck_config.yaml" "$DECK_CONFIG_PATH" && echo "  ✓ Restored deck_config.yaml"; fi
+    if [ -f "$DECK_BACKUP_DIR/predefined_hands.yaml" ]; then cp "$DECK_BACKUP_DIR/predefined_hands.yaml" "$PREDEFINED_HANDS_PATH" && echo "  ✓ Restored predefined_hands.yaml"; fi
+    rm -rf "$DECK_BACKUP_DIR"
+    echo "✅ Deck config restored" && echo ""
+  fi
+}
+set_production_deck_config() {
+  echo ""
+  echo "🃏 Setting production deck config (testing_mode=false, predefined_hands enabled=false)..."
+  mkdir -p "$DECK_BACKUP_DIR"
+  if [ -f "$DECK_CONFIG_PATH" ]; then
+    cp "$DECK_CONFIG_PATH" "$DECK_BACKUP_DIR/deck_config.yaml"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sed -i '' 's/\(testing_mode:[[:space:]]*\)true/\1false/' "$DECK_CONFIG_PATH"
+    else
+      sed -i 's/\(testing_mode:[[:space:]]*\)true/\1false/' "$DECK_CONFIG_PATH"
+    fi
+    echo "  ✓ deck_config.yaml: testing_mode → false"
+  fi
+  if [ -f "$PREDEFINED_HANDS_PATH" ]; then
+    cp "$PREDEFINED_HANDS_PATH" "$DECK_BACKUP_DIR/predefined_hands.yaml"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sed -i '' 's/\(enabled:[[:space:]]*\)true/\1false/' "$PREDEFINED_HANDS_PATH"
+    else
+      sed -i 's/\(enabled:[[:space:]]*\)true/\1false/' "$PREDEFINED_HANDS_PATH"
+    fi
+    echo "  ✓ predefined_hands.yaml: enabled → false"
+  fi
+  echo "✅ Production deck config set"
+  echo ""
+}
+trap restore_deck_config EXIT
+
 # Determine backend target from first argument: 'local' or 'vps' (default: vps for production)
 BACKEND_TARGET="${1:-vps}"
 
@@ -102,6 +143,8 @@ else
 fi
 echo ""
 
+set_production_deck_config
+
 # Build the web release
 echo "🌐 Building Flutter web release..."
 flutter build web \
@@ -133,6 +176,12 @@ if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/index.html" ]; then
   echo "📊 Build size:"
   du -sh "$OUTPUT_DIR"
   echo ""
+  # Remove any .bak files from build output so they are not uploaded
+  BAK_COUNT=$(find "$OUTPUT_DIR" -name "*.bak" -type f 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$BAK_COUNT" -gt 0 ]; then
+    find "$OUTPUT_DIR" -name "*.bak" -type f -delete
+    echo "🧹 Removed $BAK_COUNT .bak file(s) from build output"
+  fi
   echo "📁 Key files:"
   ls -lh "$OUTPUT_DIR" | head -10
 else

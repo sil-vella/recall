@@ -38,11 +38,11 @@
         mode: '0644'
       register: grafana_dashboards_sync
 
-    - name: Ensure secrets directory exists on VPS (restrict to owner/group)
+    - name: Ensure secrets directory exists on VPS (0755 so Bitnami MongoDB UID 1001 can traverse to read mongodb_* secret files)
       file:
         path: "{{ app_dir }}/secrets"
         state: directory
-        mode: '0750'
+        mode: '0755'
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
 
@@ -75,6 +75,76 @@
           - Files copied: {{ secret_files_copy_result.results | selectattr('changed', 'equalto', true) | list | length }}
           - Files skipped (unchanged): {{ secret_files_copy_result.results | selectattr('changed', 'equalto', false) | list | length }}
       when: secret_files_copy_result is defined
+
+    - name: Ensure Dart backend service key exists locally (for copy)
+      stat:
+        path: "{{ playbook_dir }}/../../python_base_04/secrets/dart_backend_service_key"
+      register: dart_service_key_local
+
+    - name: Copy Dart backend service key to VPS (Dart server → Flask API auth)
+      copy:
+        src: "{{ playbook_dir }}/../../python_base_04/secrets/dart_backend_service_key"
+        dest: "{{ app_dir }}/secrets/dart_backend_service_key"
+        mode: '0644'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+        force: yes
+      when: dart_service_key_local.stat.exists | default(false)
+
+    - name: Get VPS app user UID and GID (for Redis/MongoDB container user)
+      shell: "getent passwd {{ vps_user }} | cut -d: -f3,4"
+      register: vps_app_id
+      changed_when: false
+
+    - name: Set VPS app UID/GID facts
+      set_fact:
+        vps_app_uid: "{{ vps_app_id.stdout.split(':')[0] }}"
+        vps_app_gid: "{{ vps_app_id.stdout.split(':')[1] }}"
+      when: vps_app_id.stdout is defined and vps_app_id.stdout != ""
+
+    - name: Create .env with VPS_APP_UID and VPS_APP_GID for compose
+      copy:
+        content: |
+          VPS_APP_UID={{ vps_app_uid | default('1000') }}
+          VPS_APP_GID={{ vps_app_gid | default('1000') }}
+        dest: "{{ app_dir }}/.env"
+        mode: '0640'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+      when: vps_app_uid is defined and vps_app_gid is defined
+
+    - name: Ensure Redis data dir is owned by VPS app user (Redis runs as this UID)
+      file:
+        path: "{{ data_dir }}/redis"
+        state: directory
+        mode: '0755'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+
+    - name: Ensure MongoDB data dir is owned by UID 1001 (Bitnami MongoDB default user)
+      file:
+        path: "{{ data_dir }}/mongodb"
+        state: directory
+        mode: '0755'
+        owner: "1001"
+        group: "1001"
+
+    - name: Recursively fix ownership of Redis data
+      command: "chown -R {{ vps_user }}:{{ vps_user }} {{ data_dir }}/redis"
+      changed_when: true
+
+    - name: Recursively fix ownership of MongoDB data
+      command: "chown -R 1001:1001 {{ data_dir }}/mongodb"
+      changed_when: true
+
+    - name: Make MongoDB secret files readable by Bitnami container user (1001)
+      file:
+        path: "{{ app_dir }}/secrets/{{ item }}"
+        mode: '0644'
+      loop:
+        - mongodb_root_password
+        - mongodb_user_password
+      ignore_errors: true
 
     - name: Copy docker-compose.yml to server
       copy:

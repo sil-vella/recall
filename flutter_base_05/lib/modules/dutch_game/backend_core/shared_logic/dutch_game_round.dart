@@ -2667,12 +2667,7 @@ class DutchGameRound {
           'playerId': actualPlayerId,
         },
       };
-      
-      _addActionToPlayerQueue(player, actionName, actionData);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
-      }
-      
+            
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(cardToPlayFullData);
       
@@ -2724,6 +2719,12 @@ class DutchGameRound {
       if (LOGGING_SWITCH) {
         _logger.info('🔍 STATE_UPDATE DEBUG - Turn events: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
       };
+
+      _addActionToPlayerQueue(player, actionName, actionData);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
+      }
+
       _stateCallback.onGameStateChanged({
         'games': currentGamesForPlay, // Games map with modifications (drawnCard sanitized)
         'discardPile': updatedDiscardPile, // Updated discard pile
@@ -3658,13 +3659,13 @@ class DutchGameRound {
         }
       }
 
-      // Add 1-second delay for visual indication before processing next special card
+      // Add 2-second delay for visual indication before processing next special card
       // This matches the behavior in _onSpecialCardTimerExpired and prevents the game
       // from appearing halted by immediately processing the next special card
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Waiting 1 second before processing next special card...');
+        _logger.info('Dutch: Waiting 2 seconds before processing next special card...');
       };
-      Timer(const Duration(seconds: 1), () {
+      Timer(const Duration(seconds: 2), () {
         // Process next special card or end window
         _processNextSpecialCard();
       });
@@ -5456,11 +5457,11 @@ class DutchGameRound {
         }
       }
       
-      // Add 1-second delay for visual indication before processing next special card
+      // Add 2-second delay for visual indication before processing next special card
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Waiting 1 second before processing next special card...');
+        _logger.info('Dutch: Waiting 2 seconds before processing next special card...');
       };
-      Timer(const Duration(seconds: 1), () {
+      Timer(const Duration(seconds: 2), () {
         // Process next special card or end window
         _processNextSpecialCard();
       });

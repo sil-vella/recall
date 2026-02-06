@@ -960,12 +960,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         _logger.info('🎬 _triggerAnimation: Animation completed for $actionName');
       }
       
-      // Animation complete - remove from active animations and mark as processed
       if (mounted) {
+        // For play_card/same_rank: update prev_state so discard shows the new card
+        // in the same frame the overlay is removed (avoids brief flash of old discard)
+        final baseName = Animations.extractBaseActionName(actionName);
+        if (baseName == 'play_card' || baseName == 'same_rank') {
+          _updatePrevStateCache();
+        }
         _activeAnimations.remove(actionName);
-        // Mark action as processed to prevent duplicate animations from cached state
-        // Note: We don't have direct access to Animations._processedActions, 
-        // but the check in _processStateUpdate using isActionProcessed should prevent duplicates
         controller.dispose();
         setState(() {}); // Remove animation from overlay
       }
@@ -2265,12 +2267,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 // Using default parameters to match table texture
               ),
             ),
-            // Border overlay
+            // Border overlay — use theme accent (green in Dutch/green preset) per THEME_SYSTEM.md
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(borderRadius),
                 border: Border.all(
-                  color: AppColors.borderDefault,
+                  color: AppColors.accentColor,
                   width: 1,
                   style: BorderStyle.solid,
                 ),
@@ -3420,12 +3422,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Note: My hand height tracking removed - now tracking individual cards
     
+    // My hand section: column with (1) header row = You + status chip (+ optional timer/buttons), (2) full-width row = cards only
     return Container(
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            // Row 1: You (avatar + label) and status chip (and optional Call Final Round, timer)
             Row(
               children: [
                 // Profile picture (circular, 1.5x status chip height)
@@ -3525,11 +3530,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               ],
             ),
             const SizedBox(height: 16),
+            // Row 2: cards only, taking all available horizontal space
             if (cards.isEmpty)
               _buildMyHandEmptyHand()
             else
-              Align(
-                alignment: Alignment.center,
+              SizedBox(
+                width: double.infinity,
                 child: _buildMyHandCardsGrid(cards, cardsToPeek, selectedIndex),
               ),
           ],
@@ -3855,17 +3861,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             ),
           );
           
-          // Leading spacer so visible cards are centered: offset by one invisible-slot width so the visible row is centered
-          final extraSlotWidth = cardDimensions.width + cardPadding;
-          final leadingOffset = extraSlotWidth;
-          
-          // Use Wrap widget to allow cards to wrap to next line (match opponents: same spacing, center aligned)
+          // Leading spacer: one card width + margin (same as each card slot) so it stays in sync with card sizing
+          final leadingSlotWidth = cardDimensions.width + cardPadding;
           final wrapWidget = Wrap(
             spacing: 0, // Spacing is handled by card padding
             runSpacing: cardPadding, // Vertical spacing between wrapped rows
             alignment: WrapAlignment.center,
             children: [
-              SizedBox(width: leadingOffset),
+              SizedBox(width: leadingSlotWidth),
               ...cardWidgets,
             ],
           );

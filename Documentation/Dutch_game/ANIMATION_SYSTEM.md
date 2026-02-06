@@ -188,6 +188,11 @@ So **empty slots in the overlay are tied to animation type** (only for `moveWith
 - Actions are processed **one after another**: for each entry, the widget calls `_triggerAnimation(action, actionData)` and **awaits** the returned Future before processing the next.
 - A **4-second timeout** is active while any action is pending; on timeout, active animations are disposed and state update completes so the UI does not hang if an animation never finishes.
 
+### 7.4 Play card / same_rank: overlay held until discard is updated
+
+- The discard pile and the rest of the board read from **prev_state** (`_getPrevStateDutchGame()`), which is updated only after all animations in a batch complete (in `_completeStateUpdate()`).
+- For **play_card** and **same_rank**, when the move animation completes, the overlay is removed in the same frame as the discard update: before removing the animation from `_activeAnimations` and calling `setState`, the widget calls `_updatePrevStateCache()` so that the next rebuild already has the new discard pile. That way the anim layer is effectively held until the discard shows the new card, avoiding a brief flash of the old discard after the card leaves the overlay.
+
 ---
 
 ## 8. Duplicate detection

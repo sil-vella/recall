@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing
+const bool LOGGING_SWITCH = false; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing (practice mode)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -517,7 +517,7 @@ class DutchGameRound {
       return;
     }
 
-    final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+    final discardPile = _ensureCardMapList(gameState['discardPile']);
     discardPile.add(card);
     gameState['discardPile'] = discardPile;
     
@@ -1892,7 +1892,7 @@ class DutchGameRound {
         _logger.info('Dutch: STEP 1 - Broadcasting ID-only drawnCard to all players except $actualPlayerId');
       };
       if (source == 'discard') {
-        final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+        final updatedDiscardPile = _ensureCardMapList(gameState['discardPile']);
         _stateCallback.broadcastGameStateExcept(actualPlayerId, {
           'games': currentGames, // Games map with ID-only drawnCard
           'discardPile': updatedDiscardPile, // Updated discard pile (card removed)
@@ -2242,7 +2242,7 @@ class DutchGameRound {
       };
       
       // Get top card from discard pile
-      final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      final discardPile = _ensureCardMapList(gameState['discardPile']);
       if (discardPile.isEmpty) {
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Discard pile is empty');
@@ -2393,7 +2393,7 @@ class DutchGameRound {
       // Use the games map we're working with (currentGames already has modifications)
       
       // Get updated discard pile from game state (card has been removed)
-      final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      final updatedDiscardPile = _ensureCardMapList(gameState['discardPile']);
       
       
       // Add turn event for collect action
@@ -2667,12 +2667,7 @@ class DutchGameRound {
           'playerId': actualPlayerId,
         },
       };
-      
-      _addActionToPlayerQueue(player, actionName, actionData);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
-      }
-      
+            
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(cardToPlayFullData);
       
@@ -2680,7 +2675,7 @@ class DutchGameRound {
       // This ensures widgets rebuild atomically and card position tracking works correctly
       // Use the games map we're working with (currentGames already has modifications)
       final currentGamesForPlay = currentGames;
-      final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      final updatedDiscardPile = _ensureCardMapList(gameState['discardPile']);
       
       
       // Add turn events for play action and potential reposition
@@ -2724,6 +2719,12 @@ class DutchGameRound {
       if (LOGGING_SWITCH) {
         _logger.info('🔍 STATE_UPDATE DEBUG - Turn events: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
       };
+
+      _addActionToPlayerQueue(player, actionName, actionData);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
+      }
+
       _stateCallback.onGameStateChanged({
         'games': currentGamesForPlay, // Games map with modifications (drawnCard sanitized)
         'discardPile': updatedDiscardPile, // Updated discard pile
@@ -3658,13 +3659,13 @@ class DutchGameRound {
         }
       }
 
-      // Add 1-second delay for visual indication before processing next special card
+      // Add 2-second delay for visual indication before processing next special card
       // This matches the behavior in _onSpecialCardTimerExpired and prevents the game
       // from appearing halted by immediately processing the next special card
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Waiting 1 second before processing next special card...');
+        _logger.info('Dutch: Waiting 2 seconds before processing next special card...');
       };
-      Timer(const Duration(seconds: 1), () {
+      Timer(const Duration(seconds: 2), () {
         // Process next special card or end window
         _processNextSpecialCard();
       });
@@ -4376,7 +4377,7 @@ class DutchGameRound {
         }
         
         // Get discard pile - check if not empty
-        final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+        final discardPile = _ensureCardMapList(gameState['discardPile']);
         if (discardPile.isEmpty) {
           if (LOGGING_SWITCH) {
             _logger.info('Dutch: Discard pile is empty, stopping collection checks');
@@ -5456,11 +5457,11 @@ class DutchGameRound {
         }
       }
       
-      // Add 1-second delay for visual indication before processing next special card
+      // Add 2-second delay for visual indication before processing next special card
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Waiting 1 second before processing next special card...');
+        _logger.info('Dutch: Waiting 2 seconds before processing next special card...');
       };
-      Timer(const Duration(seconds: 1), () {
+      Timer(const Duration(seconds: 2), () {
         // Process next special card or end window
         _processNextSpecialCard();
       });
@@ -5472,6 +5473,8 @@ class DutchGameRound {
     }
   }
 
+  /// End the special cards window and move to next player
+  /// Replicates backend's _end_special_cards_window method in game_round.py lines 768-789
   /// Called when the peeking-phase timer expires after a queen peek. Sets the peeking player to waiting,
   /// clears their cardsToPeek, then advances to the next special card (or ends the window).
   void _onPeekingPhaseTimerExpired() {
@@ -5525,8 +5528,6 @@ class DutchGameRound {
     }
   }
 
-  /// End the special cards window and move to next player
-  /// Replicates backend's _end_special_cards_window method in game_round.py lines 768-789
   void _endSpecialCardsWindow() {
     try {
       // Prevent multiple calls to this method (race condition protection)

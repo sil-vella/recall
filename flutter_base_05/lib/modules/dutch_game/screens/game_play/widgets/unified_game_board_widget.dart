@@ -3445,7 +3445,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   style: AppTextStyles.headingSmall(),
                 ),
                 const Spacer(),
-                if (isGameActive && isMyTurn && playerStatus == 'playing_card' && !finalRoundActive && !hasPlayerCalledFinalRound) ...[
+                if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !finalRoundActive && !hasPlayerCalledFinalRound) ...[
                   GestureDetector(
                     onTap: () => _handleCallFinalRound(context, currentGameId),
                     child: Container(

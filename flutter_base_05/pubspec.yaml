@@ -38,6 +38,7 @@ dependencies:
   yaml: ^3.1.2
   google_sign_in: ^6.2.1
   uuid: ^4.3.3
+  lottie: ^3.3.1
 
   # RevenueCat Dependencies
   purchases_flutter: ^9.2.1  # Latest version for Flutter 3.29+ compatibility
@@ -55,6 +56,7 @@ flutter:
 
   assets:
     - assets/
+    - assets/lottie/
     - assets/images/
     - assets/images/backgrounds/
     - assets/deck_config.yaml

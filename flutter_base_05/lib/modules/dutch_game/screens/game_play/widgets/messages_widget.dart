@@ -1,10 +1,34 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+
+/// Decoder for .lottie (dotlottie zip) assets: picks the first .json animation.
+Future<LottieComposition?> _decodeDotLottie(List<int> bytes) {
+  return LottieComposition.decodeZip(
+    bytes,
+    filePicker: (files) {
+      for (final f in files) {
+        if (f.name.endsWith('.json')) return f;
+      }
+      return files.isNotEmpty ? files.first : null;
+    },
+  );
+}
+
+/// Loads winner Lottie composition; returns null on any error (e.g. startFrame == endFrame assertion).
+Future<LottieComposition?> _loadWinnerLottieSafe() async {
+  try {
+    final data = await rootBundle.load('assets/lottie/winner01.lottie');
+    final bytes = data.buffer.asUint8List();
+    return await _decodeDotLottie(bytes).catchError((_, __) => null);
+  } catch (_) {
+    return null;
+  }
+}
 
 /// Messages Widget for Dutch Game
 /// 
@@ -181,7 +205,11 @@ class MessagesWidget extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
+              // Winner trophy/Lottie inside modal, just above the players list (only when current user won)
+              if (orderedWinners != null && orderedWinners.isNotEmpty && isCurrentUserWinner)
+                _WinnerTrophyInModal(),
+
               // Content area: ordered winners list (game ended) or plain message
               Flexible(
                 child: SingleChildScrollView(
@@ -199,7 +227,11 @@ class MessagesWidget extends StatelessWidget {
                         ),
                 ),
               ),
-              
+
+              // User stats row (wins, losses, draws, coins) when game ended – same source as account screen
+              if (orderedWinners != null && orderedWinners.isNotEmpty)
+                _buildEndGameUserStats(),
+
               // Footer with close button (if enabled)
               if (showCloseButton)
                 Container(
@@ -239,9 +271,6 @@ class MessagesWidget extends StatelessWidget {
       ),
     );
     
-    if (isCurrentUserWinner) {
-      return _WinnerCelebrationOverlay(child: modalContent);
-    }
     return modalContent;
   }
   
@@ -284,7 +313,7 @@ class MessagesWidget extends StatelessWidget {
                   Text(
                     '${i + 1}. ',
                     style: AppTextStyles.bodyMedium().copyWith(
-                      color: AppColors.textSecondary,
+                      color: isWinner ? AppColors.matchPotGold : AppColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -292,7 +321,7 @@ class MessagesWidget extends StatelessWidget {
                     child: Text(
                       name,
                       style: AppTextStyles.bodyMedium().copyWith(
-                        color: AppColors.white,
+                        color: isWinner ? AppColors.matchPotGold : AppColors.white,
                         fontWeight: isWinner ? FontWeight.w600 : FontWeight.w500,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -305,7 +334,7 @@ class MessagesWidget extends StatelessWidget {
                             ? ' — ${points} pts, $cardCount cards'
                             : ''),
                     style: AppTextStyles.bodyMedium().copyWith(
-                      color: isWinner ? AppColors.successColor : AppColors.textSecondary,
+                      color: isWinner ? AppColors.matchPotGold : AppColors.textSecondary,
                       fontSize: 13,
                     ),
                   ),
@@ -314,6 +343,68 @@ class MessagesWidget extends StatelessWidget {
             },
           ),
         ],
+      ],
+    );
+  }
+
+  /// User stats row at bottom of end-game modal (wins, losses, draws, coins) from dutch_game userStats, same as account screen.
+  Widget _buildEndGameUserStats() {
+    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final userStats = dutchGameState['userStats'] as Map<String, dynamic>?;
+    if (userStats == null) return const SizedBox.shrink();
+
+    final wins = userStats['wins'] as int? ?? 0;
+    final losses = userStats['losses'] as int? ?? 0;
+    final totalMatches = userStats['total_matches'] as int? ?? 0;
+    final draws = totalMatches - wins - losses;
+    final coins = userStats['coins'] as int? ?? 0;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppPadding.cardPadding.left,
+        vertical: AppPadding.smallPadding.top,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cardVariant.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      margin: EdgeInsets.only(
+        left: AppPadding.cardPadding.left,
+        right: AppPadding.cardPadding.right,
+        bottom: AppPadding.smallPadding.top,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _statChip(Icons.emoji_events, 'Wins', wins.toString(), AppColors.successColor),
+          _statChip(Icons.trending_down, 'Losses', losses.toString(), AppColors.errorColor),
+          _statChip(Icons.handshake, 'Draws', draws.toString(), AppColors.textSecondary),
+          _statChip(Icons.monetization_on, 'Coins', coins.toString(), AppColors.matchPotGold),
+        ],
+      ),
+    );
+  }
+
+  Widget _statChip(IconData icon, String label, String value, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: AppTextStyles.bodyMedium().copyWith(
+            color: AppColors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          label,
+          style: AppTextStyles.label().copyWith(
+            color: AppColors.textSecondary,
+            fontSize: 11,
+          ),
+        ),
       ],
     );
   }
@@ -378,54 +469,19 @@ class MessagesWidget extends StatelessWidget {
   }
 }
 
-/// One sparkle for the minimal screen sparkles effect (position + fade delay + color).
-class _SparkleData {
-  final Offset offset;
-  final double delay; // 0..1, when to start fading
-  final Color color;
-  final double size;
-
-  _SparkleData({required this.offset, required this.delay, required this.color, required this.size});
-}
-
-/// Wraps the winners modal with a match-appropriate celebration: trophy icon
-/// that scales in with a bounce and a subtle pulse, plus minimal screen sparkles for a few seconds.
-class _WinnerCelebrationOverlay extends StatefulWidget {
-  final Widget child;
-
-  const _WinnerCelebrationOverlay({required this.child});
-
+/// Trophy/Lottie shown inside the modal just above the players list when current user won.
+class _WinnerTrophyInModal extends StatefulWidget {
   @override
-  State<_WinnerCelebrationOverlay> createState() => _WinnerCelebrationOverlayState();
+  State<_WinnerTrophyInModal> createState() => _WinnerTrophyInModalState();
 }
 
-class _WinnerCelebrationOverlayState extends State<_WinnerCelebrationOverlay>
+class _WinnerTrophyInModalState extends State<_WinnerTrophyInModal>
     with TickerProviderStateMixin {
   late AnimationController _entryController;
   late AnimationController _pulseController;
-  late AnimationController _sparkleController;
   late Animation<double> _entryScale;
   late Animation<double> _pulseScale;
-
-  List<_SparkleData>? _sparkleData;
-  static const int _sparkleCount = 42;
-  static const Duration _sparkleDuration = Duration(milliseconds: 2800);
-
-  List<_SparkleData> _generateSparkles(Size size) {
-    final rnd = math.Random();
-    final colors = [Colors.white, AppColors.matchPotGold, AppColors.matchPotGold.withValues(alpha: 0.9)];
-    return List.generate(_sparkleCount, (_) {
-      return _SparkleData(
-        offset: Offset(
-          rnd.nextDouble() * size.width,
-          rnd.nextDouble() * size.height,
-        ),
-        delay: rnd.nextDouble() * 0.35,
-        color: colors[rnd.nextInt(colors.length)],
-        size: 4 + rnd.nextDouble() * 4,
-      );
-    });
-  }
+  late Future<LottieComposition?> _compositionFuture;
 
   @override
   void initState() {
@@ -436,10 +492,6 @@ class _WinnerCelebrationOverlayState extends State<_WinnerCelebrationOverlay>
     );
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 700),
-      vsync: this,
-    );
-    _sparkleController = AnimationController(
-      duration: _sparkleDuration,
       vsync: this,
     );
     _entryScale = Tween<double>(begin: 0, end: 1).animate(
@@ -458,94 +510,54 @@ class _WinnerCelebrationOverlayState extends State<_WinnerCelebrationOverlay>
         });
       }
     });
-    _sparkleController.forward();
+    _compositionFuture = _loadWinnerLottieSafe();
   }
 
   @override
   void dispose() {
     _entryController.dispose();
     _pulseController.dispose();
-    _sparkleController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    _sparkleData ??= _generateSparkles(size);
-
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.topCenter,
-      children: [
-        widget.child,
-        IgnorePointer(
-          child: Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _sparkleController,
-              builder: (context, _) {
-                return CustomPaint(
-                  size: size,
-                  painter: _SparklePainter(
-                    sparkles: _sparkleData!,
-                    progress: _sparkleController.value,
-                  ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
+      child: Center(
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_entryController, _pulseController]),
+          builder: (context, child) {
+            final scale = _entryScale.value * (_entryController.isCompleted ? _pulseScale.value : 1);
+            return Transform.scale(
+              scale: scale,
+              child: child,
+            );
+          },
+          child: SizedBox(
+            width: 100,
+            height: 100,
+            child: FutureBuilder<LottieComposition?>(
+              future: _compositionFuture,
+              builder: (context, snapshot) {
+                final composition = snapshot.data;
+                if (!snapshot.hasError && composition != null) {
+                  return Lottie(
+                    composition: composition,
+                    fit: BoxFit.contain,
+                    repeat: true,
+                  );
+                }
+                return Icon(
+                  Icons.emoji_events,
+                  size: 64,
+                  color: AppColors.matchPotGold,
                 );
               },
             ),
           ),
         ),
-        IgnorePointer(
-          child: Positioned(
-            top: -36,
-            child: AnimatedBuilder(
-              animation: Listenable.merge([_entryController, _pulseController]),
-              builder: (context, child) {
-                final scale = _entryScale.value * (_entryController.isCompleted ? _pulseScale.value : 1);
-                return Transform.scale(
-                  scale: scale,
-                  child: child,
-                );
-              },
-              child: Icon(
-                Icons.emoji_events,
-                size: 72,
-                color: AppColors.matchPotGold,
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
-}
-
-/// Paints minimal sparkles: small circles that fade out and drift down over a few seconds.
-class _SparklePainter extends CustomPainter {
-  final List<_SparkleData> sparkles;
-  final double progress;
-
-  _SparklePainter({required this.sparkles, required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final s in sparkles) {
-      if (progress < s.delay) continue;
-      final t = (progress - s.delay) / (1 - s.delay).clamp(0.01, 1);
-      final opacity = (1 - t).clamp(0.0, 1.0);
-      final drift = 25 * t;
-      final paint = Paint()
-        ..color = s.color.withValues(alpha: opacity)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(
-        Offset(s.offset.dx, s.offset.dy + drift),
-        s.size,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparklePainter oldDelegate) =>
-      oldDelegate.progress != progress;
 }

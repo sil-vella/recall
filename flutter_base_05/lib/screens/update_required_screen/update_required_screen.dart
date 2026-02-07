@@ -5,7 +5,7 @@ import '../../utils/consts/theme_consts.dart';
 import '../../tools/logging/logger.dart';
 
 /// Screen that shows when a mandatory app update is required
-/// Users can download the update or skip and continue to the account screen
+/// Users can download the update or skip and continue to the home screen
 class UpdateRequiredScreen extends StatefulWidget {
   const UpdateRequiredScreen({Key? key}) : super(key: key);
 
@@ -56,9 +56,9 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
 
   void _skipUpdate() {
     if (LOGGING_SWITCH) {
-      _logger.info('UpdateRequiredScreen: User skipped update, navigating to account screen');
+      _logger.info('UpdateRequiredScreen: User skipped update, navigating to home');
     }
-    context.go('/account');
+    context.go('/');
   }
 
   Future<void> _launchDownloadLink() async {

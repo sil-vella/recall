@@ -125,7 +125,7 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                 child: ElevatedButton.icon(
                   onPressed: _isStarting ? null : () => _startPractice(isClearAndCollect: false),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.infoColor,
+                    backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),

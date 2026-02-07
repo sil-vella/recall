@@ -25,6 +25,16 @@ class LobbyScreen extends BaseScreen {
   String computeTitle(BuildContext context) => 'Game Lobby';
 
   @override
+  Decoration? getBackground(BuildContext context) {
+    return const BoxDecoration(
+      image: DecorationImage(
+        image: AssetImage('assets/images/backgrounds/screen_background002.png'),
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+
+  @override
   _LobbyScreenState createState() => _LobbyScreenState();
 }
 

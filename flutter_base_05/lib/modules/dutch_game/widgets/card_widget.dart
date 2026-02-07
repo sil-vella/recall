@@ -245,7 +245,7 @@ class CardWidget extends StatelessWidget {
     final initialFontSize = blockHeight * 0.45;
     final isJoker = card.rank.toLowerCase() == 'joker';
     final textAlign = isTopLeft ? TextAlign.left : TextAlign.right;
-    final applyStroke = !isTopLeft; // Border only on bottom-right
+    final applyStroke = !isTopLeft; // Border only on bottom
 
     if (isJoker) {
       final iconSize = initialFontSize * 1.2;

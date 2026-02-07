@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
+import '../../../../core/managers/navigation_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../../tools/logging/logger.dart';
@@ -127,18 +128,25 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
     return Padding(
       padding: AppPadding.defaultPadding,
       child: ListView.builder(
-        itemCount: _demoActions.length + 1, // +1 for "Start Demo" button
+        itemCount: _demoActions.length + 2, // +1 Rules/Video row, +1 "Start Demo" button
         itemBuilder: (context, index) {
-          // First item is the "Start Demo" button
+          // First item is the Rules and Video buttons row
           if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildRulesAndVideoRow(),
+            );
+          }
+          // Second item is the "Start Demo" button
+          if (index == 1) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 32),
               child: _buildStartDemoButton(),
             );
           }
           
-          // Adjust index for demo actions (subtract 1 for the Start Demo button)
-          final actionIndex = index - 1;
+          // Demo actions (indices 2+)
+          final actionIndex = index - 2;
           final action = _demoActions[actionIndex];
           return Padding(
             padding: EdgeInsets.only(
@@ -151,6 +159,90 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Rules and Video buttons side by side, same style as demo action buttons
+  Widget _buildRulesAndVideoRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _buildSmallActionButton(
+              title: 'Rules',
+              icon: '📜',
+              onTap: () {
+                NavigationManager().navigateTo('/dutch/game-rules');
+              },
+            ),
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: _buildSmallActionButton(
+              title: 'Video',
+              icon: '🎬',
+              onTap: () {
+                // No logic for now
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSmallActionButton({
+    required String title,
+    required String icon,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primaryColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppPadding.defaultPadding.left,
+              vertical: AppPadding.smallPadding.top,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  icon,
+                  style: const TextStyle(fontSize: 24),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: AppTextStyles.headingSmall().copyWith(
+                    color: AppColors.textOnPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

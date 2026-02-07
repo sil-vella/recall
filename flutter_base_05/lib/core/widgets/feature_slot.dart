@@ -162,20 +162,18 @@ class _FeatureSlotState extends State<FeatureSlot> {
     } else {
       calculatedHeight = feature.height ?? 80;
     }
-    
+
+    const borderRadius = BorderRadius.all(Radius.circular(12));
     return Container(
       width: double.infinity,
       height: calculatedHeight,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: feature.backgroundColor ?? AppColors.primaryColor,
-        borderRadius: BorderRadius.circular(12),
-        image: feature.imagePath != null
-            ? DecorationImage(
-                image: AssetImage(feature.imagePath!),
-                fit: BoxFit.cover,
-              )
-            : null,
+        borderRadius: borderRadius,
+        border: Border.all(
+          color: AppColors.matchPotGold,
+          width: 5,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
@@ -184,39 +182,85 @@ class _FeatureSlotState extends State<FeatureSlot> {
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: feature.onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: double.infinity,
-            padding: feature.padding ?? const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
-            child: Center(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Container(
-                    width: constraints.maxWidth,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Base: accent color so it always shows behind
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.accentColor,
+              ),
+            ),
+            // Image at full opacity (when present)
+            if (feature.imagePath != null)
+              Container(
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage(feature.imagePath!),
+                    fit: BoxFit.cover,
+                    opacity: 1.0,
+                  ),
+                ),
+              ),
+            // Overlay: 45° gradient accent → primary at 0.8 opacity
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.accentColor.withOpacity(0.8),
+                      AppColors.primaryColor.withOpacity(0.8),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Tap target and label
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: feature.onTap,
+                borderRadius: borderRadius,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      feature.text,
-                      style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
-                        color: AppColors.textOnPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 56, // Double the default headingLarge size (28 * 2)
-                      ),
-                      textAlign: TextAlign.center,
-                      softWrap: true,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (feature.icon != null) ...[
+                          Icon(
+                            feature.icon,
+                            size: 48,
+                            color: AppColors.textOnPrimary,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        Text(
+                          feature.text,
+                          style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
+                            color: AppColors.textOnPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 56, // Double the default headingLarge size (28 * 2)
+                          ),
+                          textAlign: TextAlign.center,
+                          softWrap: true,
+                        ),
+                      ],
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -272,7 +316,7 @@ class _HomeScreenCarouselState extends State<_HomeScreenCarousel> {
 
     _pageController = PageController(
       initialPage: _currentPage,
-      viewportFraction: 0.7, // Each item takes 70% of viewport
+      viewportFraction: 0.85, // Each item takes 85% of viewport
     );
   }
 
@@ -350,10 +394,7 @@ class _HomeScreenCarouselState extends State<_HomeScreenCarousel> {
 
                   return Opacity(
                     opacity: opacity,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: _sortedWidgets[index],
-                    ),
+                    child: _sortedWidgets[index],
                   );
                 },
               );

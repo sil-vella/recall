@@ -51,7 +51,7 @@ Clear all cards from your hand or end the game with the least points possible.
 **Gameplay:**
 • Tap the draw pile to draw a card
 • Select a card from your hand to play (**Clear and collect mode** - excluding collection cards)
-• Play cards with same rank as last played card (out of turn) (**Clear and collect mode** - excluding collection cards)
+• Play cards with same rank as last played card (out of turn)
 • Queens let you peek at face down cards from any player's hand, including your own.
 • Jacks let you swap any 2 cards from any player's hand, including your own (**Clear and collect mode** - Including collection cards)
 

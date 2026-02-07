@@ -17,6 +17,16 @@ class HomeScreen extends BaseScreen {
 
   @override
   bool get useLogoInAppBar => true;
+
+  @override
+  Decoration? getBackground(BuildContext context) {
+    return const BoxDecoration(
+      image: DecorationImage(
+        image: AssetImage('assets/images/backgrounds/screen_background001.png'),
+        fit: BoxFit.cover,
+      ),
+    );
+  }
 }
 
 class _HomeScreenState extends BaseScreenState<HomeScreen> {

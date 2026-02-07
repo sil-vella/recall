@@ -205,7 +205,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                 child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : () => _handleJoinRandomGame(isClearAndCollect: true),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.infoColor,
+                    backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),

@@ -22,10 +22,10 @@ class CustomDrawer extends StatelessWidget {
       explicitChildNodes: true,
       child: Drawer(
       key: const Key(drawerKey),
+      elevation: 0,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.primaryColor, // ✅ Background color
-          // Removed empty image asset that was causing 500 errors
+          color: AppColors.primaryColor,
         ),
         child: Column(
           children: [
@@ -62,8 +62,8 @@ class CustomDrawer extends StatelessWidget {
                     identifier: 'drawer_item_home',
                     button: true,
                     child: ListTile(
-                    leading: Icon(Icons.home, color: AppColors.accentColor),
-                    title: Text('Home', style: AppTextStyles.bodyLarge()),
+                    leading: Icon(Icons.home, color: Colors.white),
+                    title: Text('Home', style: AppTextStyles.bodyLarge().copyWith(color: Colors.white)),
                     onTap: () => context.go('/'),
                   ),
                   ),
@@ -73,8 +73,8 @@ class CustomDrawer extends StatelessWidget {
                       identifier: 'drawer_item_${route.drawerTitle ?? 'item'}',
                       button: true,
                       child: ListTile(
-                      leading: Icon(route.drawerIcon, color: AppColors.accentColor),
-                      title: Text(route.drawerTitle ?? '', style: AppTextStyles.bodyLarge()),
+                      leading: Icon(route.drawerIcon, color: Colors.white),
+                      title: Text(route.drawerTitle ?? '', style: AppTextStyles.bodyLarge().copyWith(color: Colors.white)),
                       onTap: () => context.go(route.path),
                       ),
                     );

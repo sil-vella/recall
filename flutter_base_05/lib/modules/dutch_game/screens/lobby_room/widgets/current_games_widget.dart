@@ -196,7 +196,7 @@ class CurrentRoomWidget extends StatelessWidget {
             children: [
               Icon(
                 Icons.room,
-                color: gameStatus == 'active' ? AppColors.successColor : AppColors.infoColor,
+                color: gameStatus == 'active' ? AppColors.successColor : AppColors.accentColor,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -258,7 +258,7 @@ class CurrentRoomWidget extends StatelessWidget {
                   icon: const Icon(Icons.games),
                   label: const Text('Enter Game Room'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.infoColor,
+                    backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
                   ),
                 ),

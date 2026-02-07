@@ -72,7 +72,7 @@ class AvailableGamesWidget extends StatelessWidget {
                       child: ElevatedButton.icon(
                         onPressed: isLoading ? null : onFetchGames,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.infoColor,
+                          backgroundColor: AppColors.accentColor,
                           foregroundColor: AppColors.textOnAccent,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
@@ -278,11 +278,11 @@ class AvailableGamesWidget extends StatelessWidget {
       case 'waiting':
         return Colors.orange;
       case 'setup':
-        return Colors.blue;
+        return AppColors.accentColor;
       case 'playing':
         return Colors.green;
       case 'out_of_turn':
-        return Colors.blue;
+        return AppColors.accentColor;
       case 'same_rank_window':
         return Colors.purple;
       case 'special_play_window':
@@ -302,7 +302,7 @@ class AvailableGamesWidget extends StatelessWidget {
       case 'game_ended':
         return Colors.red;
       default:
-        return Colors.blue;
+        return AppColors.accentColor;
     }
   }
 

@@ -29,6 +29,7 @@ class HomeScreenFeatureRegistrar {
       featureId: 'dutch_game_play',
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: 'Play Dutch',
+      icon: Icons.casino, // Game cards / play
       onTap: () {
         if (LOGGING_SWITCH) {
           _logger.info('HomeScreen: Dutch game play button pressed');
@@ -78,6 +79,7 @@ class HomeScreenFeatureRegistrar {
       featureId: 'dutch_game_demo',
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: 'Demo',
+      icon: Icons.play_circle_outline, // Demo / tutorial
       onTap: () {
         if (LOGGING_SWITCH) {
           _logger.info('HomeScreen: Dutch game demo button pressed');

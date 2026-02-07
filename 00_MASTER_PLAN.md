@@ -188,6 +188,33 @@ _(No high-priority items currently.)_
     3. **Close button**: The close button should **navigate to the lobby screen** or open **another modal/screen showing the user's new stats** (e.g. updated rank, level, coins, match summary).
   - **Location**: Flutter – game end / winners popup modal (game play screen or unified game board); navigation to lobby or stats screen/modal.
   - **Impact**: Better UX for match end – clear feedback for winner and a clear next step (lobby or stats) after closing.
+- [ ] **Practice mode: replace CPU player names with "Player"**
+  - **Issue**: In practice mode, opponent names are shown as "CPU" (or similar); should be more human-readable.
+  - **Expected Behavior**: Display names for practice opponents as "Player" (e.g. "Player 1", "Player 2", "Player 3") instead of "CPU" or generic CPU labels.
+  - **Location**: Flutter – practice mode player naming (e.g. computer player factory, opponent display, game state display names); ensure display name is set when creating/broadcasting practice players.
+  - **Impact**: Clearer, friendlier practice UX.
+- [ ] **Winning modal: replace trophy icon with image, position above modal**
+  - **Issue**: Winner celebration currently uses an `Icons.emoji_events` trophy icon; should use an actual image asset and be placed just above the modal.
+  - **Expected Behavior**: Use a real image (e.g. trophy/medal asset) for the winner celebration instead of the Material icon; position the image **just above** the modal (aligned above the modal card, not overlapping).
+  - **Location**: Flutter – `messages_widget.dart` `_WinnerCelebrationOverlay` (trophy widget); add image asset and adjust positioning/layout.
+  - **Impact**: More polished, branded winner experience.
+- [ ] **Winning modal: replace generated sparkles with template or GIF**
+  - **Issue**: Screen sparkles are currently drawn with CustomPainter (dots); should use a template image or GIF for a consistent, reusable effect.
+  - **Expected Behavior**: Replace the programmatic sparkle particles with a **template image** or **GIF** (e.g. sparkle overlay asset) that plays for a few seconds. Asset should be minimal and match the celebration theme.
+  - **Location**: Flutter – `messages_widget.dart` `_WinnerCelebrationOverlay` / `_SparklePainter`; replace with `Image` or GIF-capable widget (e.g. asset or network image, or package for GIF playback).
+  - **Impact**: Consistent, design-controlled celebration effect; easier to theme or swap.
+- [ ] **Game end modal close: navigate to account screen instead of lobby**
+  - **Issue**: After closing the game end (winners) modal, the app currently navigates to the lobby; should navigate to the **account screen** instead.
+  - **Expected Behavior**: When the user closes the game end modal (e.g. "Close" or back), **navigate to the account screen** (e.g. `/account` or equivalent route) instead of `/dutch/lobby`.
+  - **Location**: Flutter – `messages_widget.dart` `_closeMessage` or equivalent (where navigation to lobby is triggered on game end); change target route to account screen.
+  - **Impact**: Post-game flow directs users to account/stats and encourages login/registration.
+- [ ] **Account screen: collapsible login/register tabs and guest warning**
+  - **Issue**: Account screen should present login/register in collapsible tabs and warn guest/non-logged-in users about losing winning data.
+  - **Expected Behavior**:
+    1. **Collapsible tabs**: Show **Login** and **Register** (or equivalent) in **collapsible sections/tabs** (e.g. expandable panels) so the screen is cleaner and users can expand only what they need.
+    2. **Guest / non-logged-in message**: For **guest accounts** or **non-logged-in users**, display a clear message that they should **switch from guest to a regular account** (or **register**) so they **do not lose winning data** (e.g. coins, progress, stats).
+  - **Location**: Flutter – account screen (e.g. account module or profile screen); add collapsible UI for login/reg and a banner or inline message for guest/unauthenticated state.
+  - **Impact**: Clearer account UX and reduced risk of users losing progress by staying on guest.
 
 ### Low Priority
 
@@ -450,5 +477,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-02-05 (Room TTL done: configurable TTL and periodic timer, first-join extends TTL, logging; plan todo updated)
+**Last Updated**: 2026-02-05 (Added: practice CPU→Player names, winning modal image/sparkles GIF/nav to account, account screen collapsible login/reg + guest warning)
 

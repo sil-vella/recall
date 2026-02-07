@@ -408,7 +408,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
             child: ElevatedButton.icon(
               onPressed: _showCreateRoomModal,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.infoColor,
+                backgroundColor: AppColors.accentColor,
                 foregroundColor: AppColors.textOnAccent,
                 padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
               ),
@@ -756,7 +756,7 @@ class _CreateRoomModal extends StatelessWidget {
                       child: ElevatedButton(
                         onPressed: isCreating ? null : onCreateRoom,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.infoColor,
+                          backgroundColor: AppColors.accentColor,
                           foregroundColor: AppColors.textOnAccent,
                         ),
                         child: isCreating

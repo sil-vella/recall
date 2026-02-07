@@ -1,5 +1,6 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:confetti/confetti.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
@@ -239,10 +240,7 @@ class MessagesWidget extends StatelessWidget {
     );
     
     if (isCurrentUserWinner) {
-      return _WinnerCelebrationOverlay(
-        durationSeconds: 10,
-        child: modalContent,
-      );
+      return _WinnerCelebrationOverlay(child: modalContent);
     }
     return modalContent;
   }
@@ -380,58 +378,174 @@ class MessagesWidget extends StatelessWidget {
   }
 }
 
-/// Wraps the winners modal with confetti when the current user is the winner.
-/// [durationSeconds] controls how long confetti is emitted (continuous emission for that duration).
+/// One sparkle for the minimal screen sparkles effect (position + fade delay + color).
+class _SparkleData {
+  final Offset offset;
+  final double delay; // 0..1, when to start fading
+  final Color color;
+  final double size;
+
+  _SparkleData({required this.offset, required this.delay, required this.color, required this.size});
+}
+
+/// Wraps the winners modal with a match-appropriate celebration: trophy icon
+/// that scales in with a bounce and a subtle pulse, plus minimal screen sparkles for a few seconds.
 class _WinnerCelebrationOverlay extends StatefulWidget {
   final Widget child;
-  final int durationSeconds;
 
-  const _WinnerCelebrationOverlay({
-    required this.child,
-    this.durationSeconds = 3,
-  });
+  const _WinnerCelebrationOverlay({required this.child});
 
   @override
   State<_WinnerCelebrationOverlay> createState() => _WinnerCelebrationOverlayState();
 }
 
-class _WinnerCelebrationOverlayState extends State<_WinnerCelebrationOverlay> {
-  late ConfettiController _confettiController;
+class _WinnerCelebrationOverlayState extends State<_WinnerCelebrationOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _entryController;
+  late AnimationController _pulseController;
+  late AnimationController _sparkleController;
+  late Animation<double> _entryScale;
+  late Animation<double> _pulseScale;
+
+  List<_SparkleData>? _sparkleData;
+  static const int _sparkleCount = 42;
+  static const Duration _sparkleDuration = Duration(milliseconds: 2800);
+
+  List<_SparkleData> _generateSparkles(Size size) {
+    final rnd = math.Random();
+    final colors = [Colors.white, AppColors.matchPotGold, AppColors.matchPotGold.withValues(alpha: 0.9)];
+    return List.generate(_sparkleCount, (_) {
+      return _SparkleData(
+        offset: Offset(
+          rnd.nextDouble() * size.width,
+          rnd.nextDouble() * size.height,
+        ),
+        delay: rnd.nextDouble() * 0.35,
+        color: colors[rnd.nextInt(colors.length)],
+        size: 4 + rnd.nextDouble() * 4,
+      );
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    _confettiController = ConfettiController(duration: Duration(seconds: widget.durationSeconds));
-    _confettiController.play();
+    _entryController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 700),
+      vsync: this,
+    );
+    _sparkleController = AnimationController(
+      duration: _sparkleDuration,
+      vsync: this,
+    );
+    _entryScale = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _entryController, curve: Curves.elasticOut),
+    );
+    _pulseScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1, end: 1.08), weight: 1),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.08, end: 1), weight: 1),
+    ]).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
+    _entryController.forward();
+    _entryController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _pulseController.repeat(reverse: true);
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) _pulseController.stop();
+        });
+      }
+    });
+    _sparkleController.forward();
   }
 
   @override
   void dispose() {
-    _confettiController.dispose();
+    _entryController.dispose();
+    _pulseController.dispose();
+    _sparkleController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    _sparkleData ??= _generateSparkles(size);
+
     return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
       children: [
         widget.child,
         IgnorePointer(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              confettiController: _confettiController,
-              blastDirectionality: BlastDirectionality.explosive,
-              shouldLoop: false,
-              numberOfParticles: 20,
-              emissionFrequency: 0.05,
-              maxBlastForce: 30,
-              minBlastForce: 10,
-              gravity: 0.2,
+          child: Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _sparkleController,
+              builder: (context, _) {
+                return CustomPaint(
+                  size: size,
+                  painter: _SparklePainter(
+                    sparkles: _sparkleData!,
+                    progress: _sparkleController.value,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        IgnorePointer(
+          child: Positioned(
+            top: -36,
+            child: AnimatedBuilder(
+              animation: Listenable.merge([_entryController, _pulseController]),
+              builder: (context, child) {
+                final scale = _entryScale.value * (_entryController.isCompleted ? _pulseScale.value : 1);
+                return Transform.scale(
+                  scale: scale,
+                  child: child,
+                );
+              },
+              child: Icon(
+                Icons.emoji_events,
+                size: 72,
+                color: AppColors.matchPotGold,
+              ),
             ),
           ),
         ),
       ],
     );
   }
+}
+
+/// Paints minimal sparkles: small circles that fade out and drift down over a few seconds.
+class _SparklePainter extends CustomPainter {
+  final List<_SparkleData> sparkles;
+  final double progress;
+
+  _SparklePainter({required this.sparkles, required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final s in sparkles) {
+      if (progress < s.delay) continue;
+      final t = (progress - s.delay) / (1 - s.delay).clamp(0.01, 1);
+      final opacity = (1 - t).clamp(0.0, 1.0);
+      final drift = 25 * t;
+      final paint = Paint()
+        ..color = s.color.withValues(alpha: opacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(
+        Offset(s.offset.dx, s.offset.dy + drift),
+        s.size,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklePainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

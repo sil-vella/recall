@@ -1177,11 +1177,17 @@ class DutchGameRound {
           
           final shouldUse = decision['use'] as bool? ?? false;
           if (shouldUse) {
+            // Same SSOT as human: pass playerIds and cardIds to handleJackSwap
+            final firstCardId = decision['first_card_id'] as String? ?? 'placeholder_first_card';
+            final firstPlayerId = decision['first_player_id'] as String? ?? playerId;
+            final secondCardId = decision['second_card_id'] as String? ?? 'placeholder_second_card';
+            final secondPlayerId = decision['second_player_id'] as String? ?? 'placeholder_target_player';
+
             final success = await handleJackSwap(
-              firstCardId: decision['first_card_id'] as String? ?? 'placeholder_first_card',
-              firstPlayerId: decision['first_player_id'] as String? ?? playerId,
-              secondCardId: decision['second_card_id'] as String? ?? 'placeholder_second_card',
-              secondPlayerId: decision['second_player_id'] as String? ?? 'placeholder_target_player',
+              firstCardId: firstCardId,
+              firstPlayerId: firstPlayerId,
+              secondCardId: secondCardId,
+              secondPlayerId: secondPlayerId,
             );
             if (!success) {
               if (LOGGING_SWITCH) {
@@ -1891,6 +1897,7 @@ class DutchGameRound {
           'suit': drawnCard['suit'],
           'points': drawnCard['points'],
           'specialPower': drawnCard['specialPower'],
+          'handIndex': drawnCardIndex,
         };
         player['known_cards'] = knownCards;
         if (LOGGING_SWITCH) {
@@ -2586,33 +2593,22 @@ class DutchGameRound {
         return false;
       }
       
-      // Find the card in the player's hand
-      // Convert to a list that allows null values for blank slots
+      // Find the card in the player's hand (by cardId, then by known_cards handIndex)
       final handRaw = player['hand'] as List<dynamic>? ?? [];
       final hand = List<dynamic>.from(handRaw); // Convert to mutable list to allow nulls
-      Map<String, dynamic>? cardToPlay;
-      int cardIndex = -1;
-      
-      for (int i = 0; i < hand.length; i++) {
-        final card = hand[i];
-        if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId) {
-          cardToPlay = card;
-          cardIndex = i;
-          break;
-        }
-      }
-      
-      if (cardToPlay == null) {
+      final resolved = _getCardInHandByCardIdOrIndex(player, hand, cardId);
+      if (resolved == null) {
         if (LOGGING_SWITCH) {
           _logger.error('Dutch: Card $cardId not found in player $playerId hand');
         };
         return false;
       }
-      
+      final cardToPlay = resolved.card;
+      int cardIndex = resolved.index;
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Found card $cardId at index $cardIndex in player $playerId hand');
       };
-      
+
       // Check if card is in player's collection_rank_cards (cannot be played) - only if collection mode is enabled
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
       if (isClearAndCollect) {
@@ -3063,7 +3059,8 @@ class DutchGameRound {
   /// Handle same rank play action - validates rank match and moves card to discard pile
   /// Replicates backend's _handle_same_rank_play method in game_round.py lines 1000-1089
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
-  Future<bool> handleSameRankPlay(String playerId, String cardId, {Map<String, dynamic>? gamesMap}) async {
+  /// [cardIndex] When set (computer path), play the card at hand[cardIndex]; cardId is then read from that card. If stale known_cards, wrong rank gets penalty.
+  Future<bool> handleSameRankPlay(String playerId, String? cardId, {int? cardIndex, Map<String, dynamic>? gamesMap}) async {
     try {
       if (_winnersList.isNotEmpty) {
         if (LOGGING_SWITCH) {
@@ -3072,11 +3069,9 @@ class DutchGameRound {
         return false;
       }
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Handling same rank play for player $playerId, card $cardId');
+        _logger.info('Dutch: Handling same rank play for player $playerId${cardIndex != null ? ', cardIndex: $cardIndex' : ', card: $cardId'}');
       };
       
-      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
-      // Otherwise read from state
       final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
       final gameData = currentGames[_gameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
@@ -3096,8 +3091,6 @@ class DutchGameRound {
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
-      
-      // Find the player
       final player = players.firstWhere(
         (p) => p['id'] == playerId,
         orElse: () => <String, dynamic>{},
@@ -3110,38 +3103,67 @@ class DutchGameRound {
         return false;
       }
       
-      // Find the card in player's hand
-      // Convert to a list that allows null values for blank slots
       final handRaw = player['hand'] as List<dynamic>? ?? [];
-      final hand = List<dynamic>.from(handRaw); // Convert to mutable list to allow nulls
-      Map<String, dynamic>? playedCard;
-      int cardIndex = -1;
-      
-      for (int i = 0; i < hand.length; i++) {
-        final card = hand[i];
-        if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId) {
-          playedCard = card;
-          cardIndex = i;
-          break;
+      final hand = List<dynamic>.from(handRaw);
+      int resolvedIndex;
+      String resolvedCardId;
+
+      if (cardIndex != null) {
+        // Computer path: play by index; card at hand[cardIndex] may be wrong rank (penalty if so)
+        if (cardIndex < 0 || cardIndex >= hand.length) {
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Same rank play by index out of range: $cardIndex for player $playerId');
+          };
+          return false;
         }
-      }
-      
-      if (playedCard == null) {
+        final cardAt = hand[cardIndex];
+        if (cardAt == null || cardAt is! Map<String, dynamic>) {
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Same rank play at index $cardIndex is null or not a card for player $playerId');
+          };
+          return false;
+        }
+        resolvedCardId = cardAt['cardId']?.toString() ?? '';
+        if (!_isValidCardId(resolvedCardId)) {
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Same rank play at index $cardIndex has invalid cardId for player $playerId');
+          };
+          return false;
+        }
+        resolvedIndex = cardIndex;
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Card $cardId not found in player $playerId hand for same rank play (likely already played by another player)');
+          _logger.info('Dutch: Same rank attempt by index (computer path): player $playerId, handIndex $resolvedIndex, cardId $resolvedCardId');
         };
-        return false;
+      } else {
+        // Human path: resolve by cardId (then known_cards handIndex fallback)
+        if (!_isValidCardId(cardId)) {
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Same rank play invalid cardId for player $playerId');
+          };
+          return false;
+        }
+        final resolved = _getCardInHandByCardIdOrIndex(player, hand, cardId!);
+        if (resolved == null) {
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Card $cardId not found in player $playerId hand for same rank play (likely already played by another player)');
+          };
+          return false;
+        }
+        resolvedIndex = resolved.index;
+        resolvedCardId = cardId;
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Found card $resolvedCardId for same rank play in player $playerId hand at index $resolvedIndex');
+        };
       }
-      
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Found card $cardId for same rank play in player $playerId hand at index $cardIndex');
-      };
-      
+
+      final cardIndexForRest = resolvedIndex;
+      final cardIdForRest = resolvedCardId;
+
       // Get full card data
-      final playedCardFullData = _stateCallback.getCardById(gameState, cardId);
+      final playedCardFullData = _stateCallback.getCardById(gameState, cardIdForRest);
       if (playedCardFullData == null) {
         if (LOGGING_SWITCH) {
-          _logger.error('Dutch: Failed to get full card data for $cardId');
+          _logger.error('Dutch: Failed to get full card data for $cardIdForRest');
         };
         return false;
       }
@@ -3151,11 +3173,12 @@ class DutchGameRound {
       
       // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
+        final discardForLog = _ensureCardMapList(gameState['discardPile']);
+        final lastDiscard = discardForLog.isNotEmpty ? discardForLog.last as Map<String, dynamic>? : null;
+        final expectedRank = lastDiscard?['rank']?.toString() ?? '?';
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Same rank validation failed for card $cardId with rank $cardRank (expected behavior - player forgot/wrong card)');
+          _logger.info('Dutch: Wrong card attempted: player $playerId played card at index $cardIndexForRest (rank $cardRank, cardId $cardIdForRest) but discard top rank was $expectedRank - applying penalty');
         };
-        
-        // Apply penalty: draw a card from the draw pile and add to player's hand
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Applying penalty for wrong same rank play - drawing card from draw pile');
         };
@@ -3261,42 +3284,37 @@ class DutchGameRound {
       }
       
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Same rank validation passed for card $cardId with rank $cardRank');
+        _logger.info('Dutch: Same rank validation passed for card $cardIdForRest with rank $cardRank');
       };
       
       // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
-      // Check if we should create a blank slot or remove the card entirely
-      final shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
+      final shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndexForRest);
       
       if (shouldCreateBlankSlot) {
-        // Replace the card with null (blank slot) to maintain index positions
-        hand[cardIndex] = null;
+        hand[cardIndexForRest] = null;
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Created blank slot at index $cardIndex for same rank play');
+          _logger.info('Dutch: Created blank slot at index $cardIndexForRest for same rank play');
         };
       } else {
-        // Remove the card entirely and shift remaining cards
-        hand.removeAt(cardIndex);
+        hand.removeAt(cardIndexForRest);
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Removed same rank card entirely from index $cardIndex');
+          _logger.info('Dutch: Removed same rank card entirely from index $cardIndexForRest');
         };
       }
       
-      // Update player's hand back to game state (hand list was modified with nulls)
       player['hand'] = hand;
       
-      // Add action data for animation system
       final actionName = 'same_rank_${_generateActionId()}';
       final actionData = {
         'card1Data': {
-          'cardIndex': cardIndex,
+          'cardIndex': cardIndexForRest,
           'playerId': playerId,
         },
       };
       
       _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Added same_rank action to queue for player $playerId - card1Data: {cardIndex: $cardIndex, playerId: $playerId}');
+        _logger.info('🎬 ACTION_DATA: Added same_rank action to queue for player $playerId - card1Data: {cardIndex: $cardIndexForRest, playerId: $playerId}');
       }
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
@@ -3316,10 +3334,10 @@ class DutchGameRound {
       };
       
       final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
-        ..add(_createTurnEvent(cardId, 'play'));
+        ..add(_createTurnEvent(cardIdForRest, 'play'));
       if (LOGGING_SWITCH) {
         _logger.info(
-        'Dutch: Added turn event - cardId: $cardId, actionType: play (same rank), total events: ${turnEvents.length}',
+        'Dutch: Added turn event - cardId: $cardIdForRest, actionType: play (same rank), total events: ${turnEvents.length}',
       );
       };
       if (LOGGING_SWITCH) {
@@ -3367,7 +3385,7 @@ class DutchGameRound {
       // CRITICAL: Use the resolved player's id (who owns the card) so special-card queue never gets wrong player due to index/player_1 vs id mix-up
       final sameRankActingPlayerId = player['id']?.toString() ?? playerId;
       _checkSpecialCard(sameRankActingPlayerId, {
-        'cardId': cardId,
+        'cardId': cardIdForRest,
         'rank': playedCardFullData['rank'],
         'suit': playedCardFullData['suit']
       });
@@ -3379,7 +3397,7 @@ class DutchGameRound {
       };
       
       // Update all players' known_cards after successful same rank play
-      updateKnownCards('same_rank_play', playerId, [cardId]);
+      updateKnownCards('same_rank_play', playerId, [cardIdForRest]);
       
       // Check if player's hand is completely empty (including collection cards)
       // If empty, add player to winners list
@@ -3495,43 +3513,23 @@ class DutchGameRound {
         _logger.info('Dutch: Both players validated successfully - firstPlayer: ${firstPlayer['name']} (${firstPlayer['id']}), secondPlayer: ${secondPlayer['name']} (${secondPlayer['id']})');
       };
 
-      // Get player hands
+      // Get player hands (same references so swap mutations persist in game state)
       final firstPlayerHand = firstPlayer['hand'] as List<dynamic>? ?? [];
       final secondPlayerHand = secondPlayer['hand'] as List<dynamic>? ?? [];
 
-      // Find the cards in each player's hand
-      Map<String, dynamic>? firstCard;
-      int? firstCardIndex;
-      Map<String, dynamic>? secondCard;
-      int? secondCardIndex;
+      // Find the cards in each player's hand (by cardId, then by known_cards handIndex)
+      final firstResolved = _getCardInHandByCardIdOrIndex(firstPlayer, firstPlayerHand, firstCardId);
+      final secondResolved = _getCardInHandByCardIdOrIndex(secondPlayer, secondPlayerHand, secondCardId);
 
-      // Find first card
-      for (int i = 0; i < firstPlayerHand.length; i++) {
-        final card = firstPlayerHand[i];
-        if (card != null && card is Map<String, dynamic> && card['cardId'] == firstCardId) {
-          firstCard = card;
-          firstCardIndex = i;
-          break;
-        }
-      }
-
-      // Find second card
-      for (int i = 0; i < secondPlayerHand.length; i++) {
-        final card = secondPlayerHand[i];
-        if (card != null && card is Map<String, dynamic> && card['cardId'] == secondCardId) {
-          secondCard = card;
-          secondCardIndex = i;
-          break;
-        }
-      }
-
-      // Validate cards found
-      if (firstCard == null || secondCard == null || firstCardIndex == null || secondCardIndex == null) {
+      if (firstResolved == null || secondResolved == null) {
         if (LOGGING_SWITCH) {
           _logger.error('Dutch: Invalid Jack swap - one or both cards not found in players\' hands');
         };
         return false;
       }
+
+      final firstCardIndex = firstResolved.index;
+      final secondCardIndex = secondResolved.index;
 
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand');
@@ -3673,10 +3671,12 @@ class DutchGameRound {
         _logger.info('Dutch: Jack swap completed - state updated');
       }
 
-      // Update all players' known_cards after successful Jack swap
+      // Update all players' known_cards after successful Jack swap (with new hand indices after swap)
       updateKnownCards('jack_swap', firstPlayerId, [firstCardId, secondCardId], swapData: {
         'sourcePlayerId': firstPlayerId,
         'targetPlayerId': secondPlayerId,
+        'firstCardNewIndex': secondCardIndex,
+        'secondCardNewIndex': firstCardIndex,
       });
 
       // Action completed successfully - cancel timer and move to next special card
@@ -3935,9 +3935,10 @@ class DutchGameRound {
       };
 
       // Update all players' known_cards after successful Queen peek
-      // This adds the peeked card to the peeking player's known_cards
+      // This adds the peeked card to the peeking player's known_cards (with handIndex in target's hand)
       updateKnownCards('queen_peek', peekingPlayerId, [targetCardId], swapData: {
         'targetPlayerId': targetPlayerId,
+        'targetCardIndex': targetCardIndex,
       });
 
       // Action completed successfully - cancel queen_peek timer; do NOT advance yet.
@@ -5035,21 +5036,21 @@ class DutchGameRound {
         return;
       }
 
-      // Get available same rank cards for this computer player
-      final availableCards = _getAvailableSameRankCards(playerId, gameState);
+      // Computer path: available same rank from known_cards only (by handIndex)
+      final wrongRankIndices = <int>[];
+      final availableByIndex = _getAvailableSameRankCardsForComputer(playerId, gameState, wrongRankIndices);
       
-      if (availableCards.isEmpty) {
+      if (availableByIndex.isEmpty) {
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Computer player $playerId has no same rank cards');
+          _logger.info('Dutch: Computer player $playerId has no same rank cards in known_cards');
         };
         return;
       }
       
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Computer player $playerId has ${availableCards.length} available same rank cards');
+        _logger.info('Dutch: Computer player $playerId has ${availableByIndex.length} available same rank (by index), ${wrongRankIndices.length} wrong-rank indices');
       };
       
-      // Get YAML decision
       if (_computerPlayerFactory == null) {
         if (LOGGING_SWITCH) {
           _logger.warning('Dutch: Computer factory not initialized; skipping same rank decision for $playerId');
@@ -5057,39 +5058,24 @@ class DutchGameRound {
         return;
       }
       final Map<String, dynamic> decision = _computerPlayerFactory!
-          .getSameRankPlayDecision(difficulty, gameState, availableCards);
+          .getSameRankPlayDecisionByIndex(difficulty, gameState, availableByIndex, wrongRankIndices);
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Computer same rank decision: $decision');
+        _logger.info('Dutch: Computer same rank decision (by index): $decision');
       };
       
-      // Execute decision with delay
       if (decision['play'] == true) {
         final delay = decision['delay_seconds'] as double? ?? 1.0;
-        // Use delay directly from decision (already randomized in config)
         await Future.delayed(Duration(milliseconds: (delay * 1000).toInt()));
         
-        String? cardId = decision['card_id'] as String?;
-        // Fallback: pick first available valid card if decision card_id is invalid
-        if (!_isValidCardId(cardId)) {
-          cardId = availableCards.firstWhere(
-            (id) => _isValidCardId(id),
-            orElse: () => '',
-          );
-          if (!_isValidCardId(cardId)) {
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: No valid cardId for same rank after fallback; skipping play for $playerId');
-            };
-            return;
-          }
-        }
-        if (_isValidCardId(cardId) && cardId != null) {
-          // cardId is guaranteed non-null after _isValidCardId check
-          await handleSameRankPlay(playerId, cardId);
-        } else {
+        final cardIndex = decision['card_index'];
+        final idx = cardIndex is int ? cardIndex : (cardIndex is num ? cardIndex.toInt() : null);
+        if (idx == null || idx < 0) {
           if (LOGGING_SWITCH) {
-            _logger.info('Dutch: Computer player $playerId same rank play skipped - invalid card ID');
+            _logger.info('Dutch: Computer same rank decision has no valid card_index; skipping for $playerId');
           };
+          return;
         }
+        await handleSameRankPlay(playerId, null, cardIndex: idx, gamesMap: gamesMap);
       }
       
     } catch (e) {
@@ -5250,6 +5236,68 @@ class DutchGameRound {
     }
     
     return availableCards;
+  }
+
+  /// Get available same rank cards for computer by looping known_cards only (not entire hand).
+  /// Returns list of {handIndex: int, cardId: String} where handIndex is the actual hand index.
+  /// Also populates [wrongRankIndices] with hand indices where known_cards has a card of different rank (for wrong-card decision).
+  List<Map<String, dynamic>> _getAvailableSameRankCardsForComputer(
+    String playerId,
+    Map<String, dynamic> gameState,
+    List<int> wrongRankIndices,
+  ) {
+    final result = <Map<String, dynamic>>[];
+    wrongRankIndices.clear();
+    try {
+      final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+      if (discardPile.isEmpty) return result;
+      final lastCard = discardPile.last as Map<String, dynamic>?;
+      final targetRank = lastCard?['rank']?.toString() ?? '';
+      if (targetRank.isEmpty) return result;
+
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      final player = players.firstWhere(
+        (p) => p is Map && p['id'] == playerId,
+        orElse: () => <String, dynamic>{},
+      ) as Map<String, dynamic>?;
+      if (player == null || player.isEmpty) return result;
+
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+      final playerOwnKnownCards = knownCards[playerId];
+      if (playerOwnKnownCards is! Map) return result;
+
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Computer same rank: looping known_cards for $playerId, target rank: $targetRank');
+      }
+
+      for (final entry in playerOwnKnownCards.entries) {
+        final cardId = entry.key.toString();
+        if (cardId.isEmpty || cardId == 'null') continue;
+        final data = entry.value;
+        if (data is! Map) continue;
+        final idx = data['handIndex'];
+        final handIndex = idx is int ? idx : (idx is num ? idx.toInt() : null);
+        if (handIndex == null || handIndex < 0 || handIndex >= hand.length) continue;
+        final cardRank = data['rank']?.toString() ?? '';
+        if (cardRank.isEmpty) continue;
+
+        if (cardRank == targetRank) {
+          result.add({'handIndex': handIndex, 'cardId': cardId});
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG - Computer same rank: known_cards card $cardId at handIndex $handIndex matches');
+          }
+        } else {
+          wrongRankIndices.add(handIndex);
+        }
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Computer same rank: ${result.length} same-rank, ${wrongRankIndices.length} wrong-rank indices');
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) _logger.error('Dutch: Error in _getAvailableSameRankCardsForComputer: $e');
+    }
+    return result;
   }
 
   /// Handle special cards window - process each player's special card with 10-second timer
@@ -5981,12 +6029,12 @@ class DutchGameRound {
   /// [eventType]: Type of event ('play_card', 'same_rank_play', 'jack_swap')
   /// [actingPlayerId]: ID of the player who performed the action
   /// [affectedCardIds]: List of card IDs involved in the action
-  /// [swapData]: Optional data for Jack swap (sourcePlayerId, targetPlayerId)
+  /// [swapData]: Optional data (e.g. Jack swap: sourcePlayerId, targetPlayerId, firstCardNewIndex, secondCardNewIndex; Queen peek: targetPlayerId, targetCardIndex)
   void updateKnownCards(
     String eventType, 
     String actingPlayerId, 
     List<String> affectedCardIds,
-    {Map<String, String>? swapData}
+    {Map<String, dynamic>? swapData}
   ) {
     try {
       final currentGames = _stateCallback.currentGamesMap;
@@ -6041,6 +6089,38 @@ class DutchGameRound {
         _logger.error('Dutch: Failed to update known_cards: $e');
       };
     }
+  }
+
+  /// Resolve a card in a player's hand by cardId; if not found, fall back to known_cards handIndex.
+  /// Returns the card map and its index in hand, or null if not found.
+  ({Map<String, dynamic> card, int index})? _getCardInHandByCardIdOrIndex(
+    Map<String, dynamic> player,
+    List<dynamic> hand,
+    String cardId,
+  ) {
+    final playerId = player['id']?.toString() ?? '';
+    // 1. Try by cardId
+    for (int i = 0; i < hand.length; i++) {
+      final card = hand[i];
+      if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId) {
+        return (card: card, index: i);
+      }
+    }
+    // 2. Fallback: known_cards handIndex
+    final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+    final ownCards = knownCards[playerId];
+    if (ownCards is! Map) return null;
+    final entry = ownCards[cardId];
+    if (entry is! Map) return null;
+    final idx = entry['handIndex'];
+    final handIndex = idx is int ? idx : (idx is num ? idx.toInt() : null);
+    if (handIndex == null || handIndex < 0 || handIndex >= hand.length) return null;
+    final card = hand[handIndex];
+    if (card == null || card is! Map<String, dynamic>) return null;
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Resolved card by handIndex fallback (cardId not in hand): $cardId at index $handIndex for player $playerId');
+    }
+    return (card: card, index: handIndex);
   }
 
   /// Get remember probability based on difficulty
@@ -6134,7 +6214,7 @@ class DutchGameRound {
   void _processJackSwapUpdate(
     Map<String, dynamic> knownCards,
     List<String> affectedCardIds,
-    Map<String, String> swapData,
+    Map<String, dynamic> swapData,
     double rememberProb
   ) {
     final random = Random();
@@ -6142,8 +6222,10 @@ class DutchGameRound {
     
     final cardId1 = affectedCardIds[0];
     final cardId2 = affectedCardIds[1];
-    final sourcePlayerId = swapData['sourcePlayerId'];
-    final targetPlayerId = swapData['targetPlayerId'];
+    final sourcePlayerId = swapData['sourcePlayerId']?.toString();
+    final targetPlayerId = swapData['targetPlayerId']?.toString();
+    final firstCardNewIndex = swapData['firstCardNewIndex'] is int ? swapData['firstCardNewIndex'] as int : (swapData['firstCardNewIndex'] is num ? (swapData['firstCardNewIndex'] as num).toInt() : null);
+    final secondCardNewIndex = swapData['secondCardNewIndex'] is int ? swapData['secondCardNewIndex'] as int : (swapData['secondCardNewIndex'] is num ? (swapData['secondCardNewIndex'] as num).toInt() : null);
     
     if (sourcePlayerId == null || targetPlayerId == null) return;
     
@@ -6160,13 +6242,15 @@ class DutchGameRound {
       // Check if cardId1 is in this player's known cards
       if (trackedCards.containsKey(cardId1) && trackedPlayerId == sourcePlayerId) {
         if (random.nextDouble() <= rememberProb) {
-          // Remember: this card moved to targetPlayerId
+          // Remember: this card moved to targetPlayerId (with new hand index)
           final cardData = trackedCards.remove(cardId1);
           if (cardData != null) {
             if (!cardsToMove.containsKey(targetPlayerId)) {
               cardsToMove[targetPlayerId] = {};
             }
-            cardsToMove[targetPlayerId]![cardId1] = cardData;
+            final dataWithIndex = Map<String, dynamic>.from(cardData is Map ? Map<String, dynamic>.from(cardData) : <String, dynamic>{});
+            if (firstCardNewIndex != null) dataWithIndex['handIndex'] = firstCardNewIndex;
+            cardsToMove[targetPlayerId]![cardId1] = dataWithIndex;
           }
         }
       }
@@ -6174,13 +6258,15 @@ class DutchGameRound {
       // Check if cardId2 is in this player's known cards
       if (trackedCards.containsKey(cardId2) && trackedPlayerId == targetPlayerId) {
         if (random.nextDouble() <= rememberProb) {
-          // Remember: this card moved to sourcePlayerId
+          // Remember: this card moved to sourcePlayerId (with new hand index)
           final cardData = trackedCards.remove(cardId2);
           if (cardData != null) {
             if (!cardsToMove.containsKey(sourcePlayerId)) {
               cardsToMove[sourcePlayerId] = {};
             }
-            cardsToMove[sourcePlayerId]![cardId2] = cardData;
+            final dataWithIndex = Map<String, dynamic>.from(cardData is Map ? Map<String, dynamic>.from(cardData) : <String, dynamic>{});
+            if (secondCardNewIndex != null) dataWithIndex['handIndex'] = secondCardNewIndex;
+            cardsToMove[sourcePlayerId]![cardId2] = dataWithIndex;
           }
         }
       }
@@ -6221,13 +6307,13 @@ class DutchGameRound {
   void _processQueenPeekUpdate(
     Map<String, dynamic> knownCards,
     List<String> affectedCardIds,
-    Map<String, String> swapData,
+    Map<String, dynamic> swapData,
     String actingPlayerId,
   ) {
     if (affectedCardIds.isEmpty) return;
     
     final peekedCardId = affectedCardIds[0];
-    final targetPlayerId = swapData['targetPlayerId'];
+    final targetPlayerId = swapData['targetPlayerId']?.toString();
     
     if (targetPlayerId == null) return;
     
@@ -6263,8 +6349,11 @@ class DutchGameRound {
       peekingPlayerCards = <String, dynamic>{};
     }
     
-    // Add the peeked card to known_cards (peeking player now knows this card)
-    peekingPlayerCards[peekedCardId] = fullCardData;
+    // Add the peeked card to known_cards with handIndex in target player's hand
+    final targetCardIndex = swapData['targetCardIndex'] is int ? swapData['targetCardIndex'] as int : (swapData['targetCardIndex'] is num ? (swapData['targetCardIndex'] as num).toInt() : -1);
+    final cardWithIndex = Map<String, dynamic>.from(fullCardData);
+    cardWithIndex['handIndex'] = targetCardIndex;
+    peekingPlayerCards[peekedCardId] = cardWithIndex;
     knownCards[actingPlayerId] = peekingPlayerCards;
     
     if (LOGGING_SWITCH) {

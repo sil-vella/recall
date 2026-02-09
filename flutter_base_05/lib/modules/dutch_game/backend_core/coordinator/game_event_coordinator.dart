@@ -1061,9 +1061,12 @@ class GameEventCoordinator {
       // Determine which card is NOT the collection card
       final nonCollectionCard = selectedCardForCollection['cardId'] == card1['cardId'] ? card2 : card1;
 
-      // Store only the non-collection card in known_cards with card-ID-based structure
+      // Store only the non-collection card in known_cards with card-ID-based structure and handIndex
       final cardId = nonCollectionCard['cardId'] as String;
-      (knownCards[playerId] as Map<String, dynamic>)[cardId] = nonCollectionCard;
+      final nonCollectionIndex = nonCollectionCard['cardId'] == card1['cardId'] ? indices[0] : indices[1];
+      final cardWithIndex = Map<String, dynamic>.from(nonCollectionCard);
+      cardWithIndex['handIndex'] = nonCollectionIndex;
+      (knownCards[playerId] as Map<String, dynamic>)[cardId] = cardWithIndex;
       computerPlayer['known_cards'] = knownCards;
 
       // Set collection_rank_cards to exactly the one selected card (replace, don't append - ensures no duplicate from store/merge)
@@ -1077,11 +1080,15 @@ class GameEventCoordinator {
         _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)');
       }
     } else {
-      // Clear mode: Store BOTH cards in known_cards (no collection)
+      // Clear mode: Store BOTH cards in known_cards (no collection) with handIndex
       final card1Id = card1['cardId'] as String;
       final card2Id = card2['cardId'] as String;
-      (knownCards[playerId] as Map<String, dynamic>)[card1Id] = card1;
-      (knownCards[playerId] as Map<String, dynamic>)[card2Id] = card2;
+      final c1 = Map<String, dynamic>.from(card1);
+      c1['handIndex'] = indices[0];
+      final c2 = Map<String, dynamic>.from(card2);
+      c2['handIndex'] = indices[1];
+      (knownCards[playerId] as Map<String, dynamic>)[card1Id] = c1;
+      (knownCards[playerId] as Map<String, dynamic>)[card2Id] = c2;
       computerPlayer['known_cards'] = knownCards;
 
       // Ensure collection_rank_cards is empty and collection_rank is not set
@@ -1417,10 +1424,20 @@ class GameEventCoordinator {
             ? cardsToPeek[1] 
             : cardsToPeek[0];
 
-        // Store only the non-collection card in known_cards with card-ID-based structure
-        // (same logic as computer players - collection cards should NOT be in known_cards)
+        // Store only the non-collection card in known_cards with card-ID-based structure and handIndex
         final nonCollectionCardId = nonCollectionCard['cardId'] as String;
-        (humanKnownCards[playerId] as Map<String, dynamic>)[nonCollectionCardId] = nonCollectionCard;
+        final humanHand = humanPlayer['hand'] as List<dynamic>? ?? [];
+        int nonCollectionIndex = -1;
+        for (int i = 0; i < humanHand.length; i++) {
+          final c = humanHand[i];
+          if (c is Map && (c['cardId'] ?? c['id'])?.toString() == nonCollectionCardId) {
+            nonCollectionIndex = i;
+            break;
+          }
+        }
+        final cardWithIndex = Map<String, dynamic>.from(nonCollectionCard);
+        cardWithIndex['handIndex'] = nonCollectionIndex;
+        (humanKnownCards[playerId] as Map<String, dynamic>)[nonCollectionCardId] = cardWithIndex;
         humanPlayer['known_cards'] = humanKnownCards;
         // Also update in games map for consistency
         playerInGamesMap['known_cards'] = humanKnownCards;
@@ -1444,11 +1461,25 @@ class GameEventCoordinator {
           }
         }
       } else {
-        // Clear mode: Store BOTH cards in known_cards (no collection)
+        // Clear mode: Store BOTH cards in known_cards (no collection) with handIndex
         final card1Id = cardsToPeek[0]['cardId'] as String;
         final card2Id = cardsToPeek[1]['cardId'] as String;
-        (humanKnownCards[playerId] as Map<String, dynamic>)[card1Id] = cardsToPeek[0];
-        (humanKnownCards[playerId] as Map<String, dynamic>)[card2Id] = cardsToPeek[1];
+        final humanHand = humanPlayer['hand'] as List<dynamic>? ?? [];
+        int idx1 = -1, idx2 = -1;
+        for (int i = 0; i < humanHand.length; i++) {
+          final c = humanHand[i];
+          if (c is Map) {
+            final id = (c['cardId'] ?? c['id'])?.toString() ?? '';
+            if (id == card1Id) idx1 = i;
+            if (id == card2Id) idx2 = i;
+          }
+        }
+        final c1 = Map<String, dynamic>.from(cardsToPeek[0]);
+        c1['handIndex'] = idx1;
+        final c2 = Map<String, dynamic>.from(cardsToPeek[1]);
+        c2['handIndex'] = idx2;
+        (humanKnownCards[playerId] as Map<String, dynamic>)[card1Id] = c1;
+        (humanKnownCards[playerId] as Map<String, dynamic>)[card2Id] = c2;
         humanPlayer['known_cards'] = humanKnownCards;
         // Also update in games map for consistency
         playerInGamesMap['known_cards'] = humanKnownCards;

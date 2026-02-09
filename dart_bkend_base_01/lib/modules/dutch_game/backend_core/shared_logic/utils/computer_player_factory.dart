@@ -260,6 +260,83 @@ class ComputerPlayerFactory {
     };
   }
 
+  /// Get computer player same rank decision by index (computer path: uses known_cards handIndex only).
+  /// [availableByIndex] list of {handIndex: int, cardId: String} from known_cards same-rank entries.
+  /// [wrongRankIndices] hand indices where known_cards has a card of different rank (for wrong-card play).
+  /// Returns play and card_index (hand index to play); round will play hand[card_index] (may get penalty if stale).
+  Map<String, dynamic> getSameRankPlayDecisionByIndex(
+    String difficulty,
+    Map<String, dynamic> gameState,
+    List<Map<String, dynamic>> availableByIndex,
+    List<int> wrongRankIndices,
+  ) {
+    final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final sameRankTimeLimit = timerConfig['same_rank_window'] ?? 5;
+    final decisionDelay = _calculateTimerBasedDelay(sameRankTimeLimit);
+
+    if (_checkMissChance(difficulty)) {
+      final missChance = config.getMissChanceToPlay(difficulty);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ⚠️ MISS CHANCE - Same rank play missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)');
+      }
+      return {
+        'action': 'same_rank_play',
+        'play': false,
+        'card_index': null,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'missed': true,
+        'reasoning': 'Missed same rank play (${(missChance * 100).toStringAsFixed(1)}% miss chance)',
+      };
+    }
+
+    final playProbability = config.getSameRankPlayProbability(difficulty);
+    final shouldAttempt = _random.nextDouble() < playProbability;
+
+    if (!shouldAttempt || availableByIndex.isEmpty) {
+      return {
+        'action': 'same_rank_play',
+        'play': false,
+        'card_index': null,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'reasoning': 'Decided not to play same rank (${((1 - playProbability) * 100).toStringAsFixed(1)}% miss probability)',
+      };
+    }
+
+    final availableCardIds = availableByIndex.map((e) => e['cardId'] as String? ?? '').where((id) => id.isNotEmpty).toList();
+    if (availableCardIds.isEmpty) {
+      return {
+        'action': 'same_rank_play',
+        'play': false,
+        'card_index': null,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'reasoning': 'No valid same rank cards by index',
+      };
+    }
+    final cardSelection = config.getCardSelectionStrategy(difficulty);
+    final evaluationWeights = config.getCardEvaluationWeights();
+    final selectedCardId = _selectSameRankCard(availableCardIds, cardSelection, evaluationWeights, gameState);
+    final selectedEntry = availableByIndex.firstWhere(
+      (e) => (e['cardId'] as String? ?? '') == selectedCardId,
+      orElse: () => availableByIndex.first,
+    );
+    final cardIndex = selectedEntry['handIndex'] is int
+        ? selectedEntry['handIndex'] as int
+        : (selectedEntry['handIndex'] as num?)?.toInt() ?? 0;
+
+    return {
+      'action': 'same_rank_play',
+      'play': true,
+      'card_index': cardIndex,
+      'delay_seconds': decisionDelay,
+      'difficulty': difficulty,
+      'reasoning': 'Playing same rank card using YAML strategy (${(playProbability * 100).toStringAsFixed(1)}% play probability)',
+    };
+  }
+
   /// Get computer player decision for Jack swap event
   Map<String, dynamic> getJackSwapDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
     // Get player info for logging
@@ -298,65 +375,76 @@ class ComputerPlayerFactory {
         'reasoning': 'Missed Jack swap (${(missChance * 100).toStringAsFixed(1)}% miss chance)',
       };
     }
-    
-    // Prepare game data for YAML rules engine
+
+    // Jack swap flow: build game data → strategy selection loop → strategy method (select cards and players) → index→id conversion → pass playerIds and cardIds to SSOT (same as human).
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
-    
-    // Get event config from YAML
-    final jackSwapConfig = config.getEventConfig('jack_swap');
-    final strategyRules = jackSwapConfig['strategy_rules'] as List<dynamic>? ?? [];
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: 📋 YAML Config Loaded (jack_swap) - Difficulty: $difficulty, RulesCount: ${strategyRules.length}');
-    };
-    if (strategyRules.isNotEmpty) {
+    const jackSwapStrategies = [
+      {'id': 'collection_three_swap', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
+      {'id': 'one_card_player_priority', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
+      {'id': 'lowest_opponent_higher_own', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
+      {'id': 'random_except_own', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
+      {'id': 'random_two_players', 'expert': 100, 'hard': 100, 'medium': 100, 'easy': 100},
+    ];
+
+    String? selectedStrategyId;
+    for (final s in jackSwapStrategies) {
+      final percent = _jackSwapStrategyPercent(s as Map<String, dynamic>, difficulty);
+      final roll = _random.nextDouble() * 100;
+      if (roll < percent) {
+        selectedStrategyId = s['id'] as String?;
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Jack swap strategy selected: $selectedStrategyId (difficulty: $difficulty, %: $percent, roll: ${roll.toStringAsFixed(1)})');
+        };
+        break;
+      }
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}');
+        _logger.info('Dutch: Jack swap strategy skipped: ${s['id']} (roll $roll >= $percent)');
       };
     }
-    
-    // Determine shouldPlayOptimal based on difficulty (same pattern as getPlayCardDecision)
-    final cardSelection = config.getCardSelectionStrategy(difficulty);
-    final shouldPlayOptimal = cardSelection['should_play_optimal'] as bool? ?? 
-      (difficulty == 'hard' || difficulty == 'expert');
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - shouldPlayOptimal: $shouldPlayOptimal');
-    };
-    
-    // If no strategy rules defined, fallback to simple decision
-    if (strategyRules.isEmpty) {
+    selectedStrategyId ??= 'random_two_players';
+
+    // Strategy method: logic of selecting cards and players (returns card IDs + player IDs from strategy).
+    final raw = _selectJackSwapTargets(gameData, selectedStrategyId);
+    final firstCardId = raw['first_card_id']?.toString();
+    final firstPlayerId = raw['first_player_id']?.toString();
+    final secondCardId = raw['second_card_id']?.toString();
+    final secondPlayerId = raw['second_player_id']?.toString();
+
+    if (firstCardId == null || firstCardId.isEmpty || firstPlayerId == null || firstPlayerId.isEmpty ||
+        secondCardId == null || secondCardId.isEmpty || secondPlayerId == null || secondPlayerId.isEmpty) {
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - No YAML rules defined, using fallback logic');
+        _logger.info('Dutch: Jack swap strategy $selectedStrategyId produced no valid swap (use: false)');
       };
       return {
         'action': 'jack_swap',
         'use': false,
         'delay_seconds': decisionDelay,
         'difficulty': difficulty,
-        'reasoning': 'No YAML rules defined',
+        'reasoning': 'Jack swap strategy $selectedStrategyId: no valid swap',
       };
     }
-    
-    // Evaluate rules using YAML rules engine
-    final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'jack_swap');
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: ✅ AFTER YAML PARSING (getJackSwapDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Use: ${decision['use']}, Reasoning: ${decision['reasoning']}');
-    };
-    
-    // Merge decision with timer-based delay and difficulty
+
+    // Index→id conversion: strategy works with card IDs; we pass playerIds and cardIds to SSOT (same pipeline as human).
     return {
       'action': 'jack_swap',
-      'use': decision['use'] as bool? ?? false,
-      'first_card_id': decision['first_card_id'] as String?,
-      'first_player_id': decision['first_player_id'] as String? ?? playerId,
-      'second_card_id': decision['second_card_id'] as String?,
-      'second_player_id': decision['second_player_id'] as String?,
+      'use': true,
       'delay_seconds': decisionDelay,
       'difficulty': difficulty,
-      'reasoning': decision['reasoning']?.toString() ?? 'Jack swap decision',
+      'first_card_id': firstCardId,
+      'first_player_id': firstPlayerId,
+      'second_card_id': secondCardId,
+      'second_player_id': secondPlayerId,
+      'reasoning': 'Jack swap strategy: $selectedStrategyId',
     };
+  }
+
+  /// Get strategy percentage for difficulty (0-100).
+  int _jackSwapStrategyPercent(Map<String, dynamic> strategy, String difficulty) {
+    final key = difficulty.toLowerCase();
+    final v = strategy[key];
+    if (v is int) return v.clamp(0, 100);
+    if (v is num) return v.toInt().clamp(0, 100);
+    return strategy['easy'] as int? ?? 60;
   }
 
   /// Get computer player decision for Queen peek event

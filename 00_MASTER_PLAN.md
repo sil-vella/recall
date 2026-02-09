@@ -36,7 +36,7 @@ This document tracks high-level development plans, todos, and architectural deci
 - ✅ **Clear game state when switching matches**: centralized cleanup in start_match, leave, mode switch (game_event_coordinator, dutch_event_handler_callbacks, dutch_game_state_updater; Flutter + Dart backend)
 - ✅ **Room management**: get_public_rooms endpoint (match Python backend), user_joined_rooms event, room access control (allowed_users, allowed_roles)
 - ✅ **Complete instructions logic**: UI for show/hide instructions from showInstructions in practice mode; timer behavior aligned with instructions visibility
-- ✅ **Jack swap AI**: YAML-driven rules (priority order): collection_three_swap (isClearAndCollect, 3+ in collection), one_card_player_priority, lowest_opponent_higher_own, random_except_own, random_two_players, skip; both random strategies enforce different players; doc `COMP_PLAYER_JACK_SWAP.md`
+- ✅ **Jack swap AI** (design and YAML in place; **currently shortcut**): YAML-driven rules designed (priority order: collection_three_swap, one_card_player_priority, lowest_opponent_higher_own, random_except_own, random_two_players, skip); doc `COMP_PLAYER_JACK_SWAP.md`. In code, `getJackSwapDecision()` now skips YAML parsing and returns `use: false` with log "jack decision not yet implemented" — see **Top Priority** for restoring full logic.
 - ✅ **Queen peek AI**: Rule 2 (peek_random_other_player) execution probability aligned with Rule 1 (Expert 100%, Hard 95%, Medium 70%, Easy 50%)
 - ✅ **Room TTL**: Configurable `WS_ROOM_TTL` (default 180s) and `WS_ROOM_TTL_PERIODIC_TIMER` (default 60s); TTL extended on create (first join) and on each join; periodic cleanup closes expired rooms with reason `ttl_expired`; logging in room_manager (LOGGING_SWITCH). Done and tested.
 
@@ -47,6 +47,19 @@ _(No items currently.)_
 ---
 
 ## 📋 TODO
+
+### Top Priority
+
+- [ ] **Jack swap computer logic – currently shortcut (implement full YAML-based decision)**
+  - **Current shortcut (in place):** In `getJackSwapDecision()` (both Flutter and Dart backend `computer_player_factory.dart`), **YAML parsing is skipped**. Right after the "BEFORE YAML PARSING" log and the miss-chance check, we:
+    - Add a note: `// NOTE: Jack decision YAML parsing is temporarily disabled - not yet implemented.`
+    - Log (under `LOGGING_SWITCH`): `Dutch: jack decision not yet implemented`
+    - Return immediately with `use: false`, `reasoning: 'jack decision not yet implemented'`, and the usual `action`, `delay_seconds`, `difficulty`. No card IDs or player IDs are chosen; the CPU never executes a swap.
+  - **Effect:** Computer players with a Jack never perform a swap; the timer runs and the turn advances without a swap. All existing methods (e.g. `_prepareSpecialPlayGameData`, `_evaluateSpecialPlayRules`, `getEventConfig('jack_swap')`) remain in the codebase but are not called for the jack decision path.
+  - **Intended full logic:** When implemented, the computer should use the YAML-driven rules (see `Documentation/Dutch_game/COMP_PLAYER_JACK_SWAP.md` and `computer_player_config.yaml` `jack_swap.strategy_rules`) to decide whether to swap (`use: true/false`) and, if so, which two card **indexes** and players. **The new jack swap system will handle swaps by index only (hand index per player), not by card IDs** — so the decision and execution should use e.g. `first_player_id` + `first_card_index`, `second_player_id` + `second_card_index`, and the backend/round logic should resolve cards in hand via index (or existing known_cards handIndex fallback) rather than by cardId. Restore the code that loads `jack_swap` config, prepares game data, evaluates `_evaluateSpecialPlayRules`, and returns the merged decision using indexes (and player IDs) only.
+
+- [ ] **Review same rank plays – move to index-based handling (no card IDs)**
+  - Same as jack swap direction: **same rank plays should work with hand index only, not card IDs**. Review the full same-rank flow (decision in computer player factory, event payload, round/coordinator handling, known_cards updates) and refactor so that the chosen card is identified by **player_id + card_index** (hand index), and the backend resolves the card in hand by index (or known_cards handIndex fallback). Align with the index-only approach used for the new jack swap system.
 
 ### High Priority
 
@@ -96,21 +109,6 @@ _(No high-priority items currently.)_
 - [x] Add room access control (`allowed_users`, `allowed_roles` lists) (Done)
 
 #### Game Features
-- [ ] **Queen peek: test and fix timers**
-  - **Scope**: Test Queen peek flow end-to-end; ensure timers do not cancel or cut short Queen peek (e.g. same-rank or other timers firing and clearing `cardsToPeek` or ending the peek phase early). Test when a player has **multiple peeks** (e.g. from same-rank plays) and that each peek gets its full timer and is not cancelled prematurely.
-  - **Peeking phase ordering**: Check that the **peeking phase is allowed to complete** before moving to the next `queen_peek` (or next phase). Do not advance to the next Queen peek / turn until the current peek phase has finished (timer or user complete).
-  - **Same-rank timer**: Current same-rank play window is too short; **increase duration** (e.g. in `timerConfig` / `same_rank_window`) so players have enough time to play a same-rank card. Keep UI timer aligned with backend value.
-  - **Expected**: Queen peek phase runs for full configured duration unless the player completes the peek; no other timer (same-rank, draw/play, etc.) should clear or shorten the peek. Multiple peeks in a turn/round each get their own full window. Next queen_peek only after current peeking phase completes.
-  - **Location**: Timer logic in `dutch_game_round.dart`, `game_event_coordinator.dart`; Queen peek / `cardsToPeek` handling; timer config (e.g. `game_registry.dart`, backend timerConfig); same-rank window config.
-  - **Impact**: Reliable Queen peek UX and fair same-rank play window.
-- [ ] **Game clearing on mode switch (Dart backend → practice)**
-  - **Issue**: When switching from Dart backend mode to practice mode, previous games are not cleared and the new practice match does not start cleanly after multiple attempts. Game clearing logic (leave/match switch) is not running or not effective on this path.
-  - **Expected**: Switching from Dart backend (multiplayer) to practice mode should clear all previous game state and game maps so the new practice match starts fresh. Same for practice → Dart backend if applicable.
-  - **Location**: Mode-switch / leave flow in Flutter (e.g. lobby, navigation, `dutch_event_handler_callbacks.dart`, `dutch_game_state_updater.dart`, `DutchGameHelpers.leaveAllGamesAndClearState` / `clearAllGameStateBeforeNewGame`); ensure clear is invoked when entering practice from backend (and vice versa) and that state + `games` map are fully cleared.
-  - **Impact**: Reliable mode switching and clean practice matches after playing on backend.
-- [ ] Add comprehensive error handling for game events
-- [ ] Implement game state persistence (optional, for recovery)
-- [ ] Add game replay/logging system
 - [x] **Properly clear game maps and game-related state when switching from one match to another** (Done)
   - **Issue**: When starting a new match, old game data may persist in game maps and state, causing conflicts or incorrect behavior
   - **Current Behavior**: Game maps (`games` in state manager) and game-related state may retain data from previous matches when starting a new game

@@ -94,6 +94,9 @@ pip-log.txt
 # App
 celebs_data/images/
 
+# Video assets (large files)
+flutter_base_05/assets/videos/
+
 # Image files
 *.png
 *.jpg

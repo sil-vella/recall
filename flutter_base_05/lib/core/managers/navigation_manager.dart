@@ -68,7 +68,7 @@ class NavigationManager extends ChangeNotifier {
       screen: (context) => AccountScreen(),
       drawerTitle: 'My Account',
       drawerIcon: Icons.account_circle,
-      drawerPosition: 2, // After Play
+      drawerPosition: 3, // After Play and Learn How
     );
     
     // Register WebSocket test screen (hidden from drawer)

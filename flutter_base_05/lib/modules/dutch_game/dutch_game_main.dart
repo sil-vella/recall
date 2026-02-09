@@ -4,6 +4,7 @@ import 'package:dutch/core/managers/state_manager.dart';
 import 'package:dutch/modules/dutch_game/screens/game_play/game_play_screen.dart';
 import 'package:dutch/modules/dutch_game/screens/lobby_room/lobby_screen.dart';
 import 'package:dutch/modules/dutch_game/screens/demo/demo_screen.dart';
+import 'package:dutch/modules/dutch_game/screens/demo/video_tutorial_screen.dart';
 import 'package:dutch/modules/dutch_game/screens/game_rules/game_rules_screen.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
@@ -293,13 +294,13 @@ class DutchGameMain extends ModuleBase {
       drawerPosition: 999,
     );
 
-    // Register Demo Screen
+    // Register Demo Screen (drawer: "Learn How", between Play and My Account)
     navigationManager.registerRoute(
       path: '/dutch/demo',
       screen: (BuildContext context) => const DemoScreen(),
-      drawerTitle: null, // Hidden from drawer
-      drawerIcon: null,
-      drawerPosition: 999,
+      drawerTitle: 'Learn How',
+      drawerIcon: Icons.school,
+      drawerPosition: 2,
     );
 
     // Register Game Rules Screen
@@ -309,6 +310,15 @@ class DutchGameMain extends ModuleBase {
       drawerTitle: 'Game Rules',
       drawerIcon: Icons.rule,
       drawerPosition: 1, // Above Account screen (which is 2)
+    );
+
+    // Register Video Tutorial Screen (from Demo screen)
+    navigationManager.registerRoute(
+      path: '/dutch/video-tutorial',
+      screen: (BuildContext context) => const VideoTutorialScreen(),
+      drawerTitle: null,
+      drawerIcon: null,
+      drawerPosition: 999,
     );
   }
 

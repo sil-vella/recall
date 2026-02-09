@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for Queen peek and game flow testing (practice mode)
+const bool LOGGING_SWITCH = true; // Enabled for Queen peek and game flow testing (practice mode)
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -371,7 +371,7 @@ class GameEventCoordinator {
       while (needed > 0 && players.length < maxPlayers) {
         String name;
         do {
-          name = 'CPU ${cpuIndexBase++}';
+          name = 'Player ${cpuIndexBase++}';
         } while (existingNames.contains(name));
         final cpuId = 'cpu_${DateTime.now().microsecondsSinceEpoch}_$cpuIndexBase';
         players.add({
@@ -577,7 +577,7 @@ class GameEventCoordinator {
         while (remainingNeeded > 0 && players.length < maxPlayers) {
           String name;
           do {
-            name = 'CPU ${cpuIndexBase++}';
+            name = 'Player ${cpuIndexBase++}';
           } while (existingNames.contains(name));
           final cpuId = 'cpu_${DateTime.now().microsecondsSinceEpoch}_$cpuIndexBase';
           players.add({
@@ -930,10 +930,7 @@ class GameEventCoordinator {
     stateRoot['game_state'] = gameState;
     _store.mergeRoot(roomId, stateRoot);
 
-    // Process AI initial peeks (select 2 cards, decide collection rank)
-    _processAIInitialPeeks(roomId, gameState);
-
-    // Broadcast initial_peek phase snapshot (with AI peek results)
+    // Broadcast initial_peek phase snapshot (AI peeks run at end of window when timer expires)
     server.broadcastToRoom(roomId, {
       'event': 'game_state_updated',
       'game_id': roomId,
@@ -1580,9 +1577,12 @@ class GameEventCoordinator {
       
       // Clear timer reference
       _initialPeekTimers[roomId] = null;
-      
+
       final gameState = _store.getGameState(roomId);
-      
+
+      // Process AI initial peeks at end of window (select 2 cards, decide collection rank)
+      _processAIInitialPeeks(roomId, gameState);
+
       // Check if all players have completed
       if (!_allPlayersCompletedInitialPeek(roomId)) {
         if (LOGGING_SWITCH) {

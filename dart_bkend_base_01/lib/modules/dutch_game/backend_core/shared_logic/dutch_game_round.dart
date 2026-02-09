@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing (practice mode)
+const bool LOGGING_SWITCH = true; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing (practice mode)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -23,6 +23,9 @@ class DutchGameRound {
   /// Cancellable delay when "move to next player" was triggered by draw/play timer expiry.
   /// Cancelled when the player completes draw or play before the delay fires.
   Timer? _pendingMoveToNextPlayerTimer;
+  /// Pending delayed computer decision (e.g. play_card after draw). Cancelled when moving to next player
+  /// so a stale decision does not run after special-card window or turn change.
+  Timer? _pendingComputerDecisionTimer;
   /// Timer for peeking phase after a queen peek completes. We wait for this before processing the next special card.
   Timer? _peekingPhaseTimer;
 
@@ -980,9 +983,11 @@ class DutchGameRound {
         _logger.info('Dutch: ✅ AFTER YAML PARSING - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Decision: ${decision['action']}, Card: ${decision['card_id']}, Reasoning: ${decision['reasoning']}');
       };
       
-      // Execute decision with delay from YAML config
+      // Execute decision with delay from YAML config (store timer so it can be cancelled on turn change)
       final delaySeconds = (decision['delay_seconds'] ?? 1.0).toDouble();
-      Timer(Duration(milliseconds: (delaySeconds * 1000).round()), () async {
+      _pendingComputerDecisionTimer?.cancel();
+      _pendingComputerDecisionTimer = Timer(Duration(milliseconds: (delaySeconds * 1000).round()), () async {
+        _pendingComputerDecisionTimer = null;
         await _executeComputerDecision(decision, playerId, eventName);
       });
       
@@ -1077,7 +1082,18 @@ class DutchGameRound {
             _moveToNextPlayer();
             break;
           }
-          
+          // Guard: do not apply play if turn has already moved (e.g. after special-card window)
+          final gameStateForGuard = _getCurrentGameState();
+          if (gameStateForGuard != null) {
+            final currentPlayer = _stateCallback.getMainStateCurrentPlayer() ?? gameStateForGuard['currentPlayer'] as Map<String, dynamic>?;
+            final currentPlayerId = currentPlayer?['id']?.toString();
+            if (currentPlayerId != null && currentPlayerId != playerId) {
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Skipping stale computer play_card - current player is $currentPlayerId, decision was for $playerId');
+              };
+              return;
+            }
+          }
           final cardId = decision['card_id'] as String?;
           if (cardId != null) {
             // CRITICAL: Pass playerId to handlePlayCard to prevent stale state issues
@@ -1147,9 +1163,15 @@ class DutchGameRound {
             if (LOGGING_SWITCH) {
               _logger.info('Dutch: Computer player $playerId missed Jack swap (miss chance)');
             };
-            // Reset status and move to next player
             _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
-            _moveToNextPlayer();
+            if (_specialCardPlayers.isNotEmpty && _specialCardPlayers[0]['player_id']?.toString() == playerId) {
+              _specialCardPlayers.removeAt(0);
+              if (_specialCardPlayers.isEmpty) _specialCardData.clear();
+              _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
+              _processNextSpecialCard();
+            } else {
+              _moveToNextPlayer();
+            }
             break;
           }
           
@@ -1165,13 +1187,24 @@ class DutchGameRound {
               if (LOGGING_SWITCH) {
                 _logger.error('Dutch: Computer player $playerId failed Jack swap');
               };
-              // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
+              if (_specialCardPlayers.isNotEmpty && _specialCardPlayers[0]['player_id']?.toString() == playerId) {
+                _specialCardPlayers.removeAt(0);
+                if (_specialCardPlayers.isEmpty) _specialCardData.clear();
+                _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
+                _processNextSpecialCard();
+              }
             }
           } else {
             if (LOGGING_SWITCH) {
               _logger.info('Dutch: Computer decided not to use Jack swap');
             };
-            // Note: Timer will continue running and expire naturally - don't cancel it
+            if (_specialCardPlayers.isNotEmpty && _specialCardPlayers[0]['player_id']?.toString() == playerId) {
+              _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
+              _specialCardPlayers.removeAt(0);
+              if (_specialCardPlayers.isEmpty) _specialCardData.clear();
+              _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
+              _processNextSpecialCard();
+            }
           }
           break;
           
@@ -1181,9 +1214,15 @@ class DutchGameRound {
             if (LOGGING_SWITCH) {
               _logger.info('Dutch: Computer player $playerId missed Queen peek (miss chance)');
             };
-            // Reset status and move to next player
             _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
-            _moveToNextPlayer();
+            if (_specialCardPlayers.isNotEmpty && _specialCardPlayers[0]['player_id']?.toString() == playerId) {
+              _specialCardPlayers.removeAt(0);
+              if (_specialCardPlayers.isEmpty) _specialCardData.clear();
+              _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
+              _processNextSpecialCard();
+            } else {
+              _moveToNextPlayer();
+            }
             break;
           }
           
@@ -1198,13 +1237,24 @@ class DutchGameRound {
               if (LOGGING_SWITCH) {
                 _logger.error('Dutch: Computer player $playerId failed Queen peek');
               };
-              // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
+              if (_specialCardPlayers.isNotEmpty && _specialCardPlayers[0]['player_id']?.toString() == playerId) {
+                _specialCardPlayers.removeAt(0);
+                if (_specialCardPlayers.isEmpty) _specialCardData.clear();
+                _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
+                _processNextSpecialCard();
+              }
             }
           } else {
             if (LOGGING_SWITCH) {
               _logger.info('Dutch: Computer decided not to use Queen peek');
             };
-            // Note: Timer will continue running and expire naturally - don't cancel it
+            if (_specialCardPlayers.isNotEmpty && _specialCardPlayers[0]['player_id']?.toString() == playerId) {
+              _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
+              _specialCardPlayers.removeAt(0);
+              if (_specialCardPlayers.isEmpty) _specialCardData.clear();
+              _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
+              _processNextSpecialCard();
+            }
           }
           break;
           
@@ -2494,15 +2544,19 @@ class DutchGameRound {
       }
       
       // Use provided playerId if available, otherwise read from currentPlayer
+      // CRITICAL: For special-card queue we need the ACTING player (who plays the card). Index note: player_0 = "Player 1", player_1 = "Player 2" in UI; IDs are e.g. cpu_xxx_0, cpu_xxx_1 - never use list index or "player_1" string as player_id.
       String? actualPlayerId = playerId;
       if (actualPlayerId == null || actualPlayerId.isEmpty) {
         // Fallback to reading from currentPlayer (for backward compatibility with human player calls)
-      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-      if (currentPlayer == null) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: handlePlayCard using currentPlayer fallback for player id (no playerId provided)');
+        };
+        final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+        if (currentPlayer == null) {
           if (LOGGING_SWITCH) {
             _logger.error('Dutch: No current player found for play card and no playerId provided');
           };
-        return false;
+          return false;
         }
         actualPlayerId = currentPlayer['id']?.toString() ?? '';
       }
@@ -2737,7 +2791,7 @@ class DutchGameRound {
       
       // Log player state after playing card
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: === AFTER PLAY CARD for $playerId ===');
+        _logger.info('Dutch: === AFTER PLAY CARD for $actualPlayerId ===');
       };
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
       if (LOGGING_SWITCH) {
@@ -2779,7 +2833,9 @@ class DutchGameRound {
       
       // Check if the played card has special powers (Jack/Queen)
       // Replicates backend flow: check special card FIRST (game_round.py line 989)
-      _checkSpecialCard(actualPlayerId, {
+      // CRITICAL: Use the resolved player's id (who owns the card) so special-card queue never gets wrong player due to index/currentPlayer mix-up
+      final actingPlayerId = player['id']?.toString() ?? actualPlayerId;
+      _checkSpecialCard(actingPlayerId, {
         'cardId': cardId,
         'rank': cardToPlayFullData['rank'],
         'suit': cardToPlayFullData['suit']
@@ -2801,12 +2857,12 @@ class DutchGameRound {
       if (isEmpty) {
         final playerName = player['name']?.toString() ?? 'Unknown';
         _winnersList.add({
-          'playerId': playerId,
+          'playerId': actualPlayerId,
           'playerName': playerName,
           'winType': 'empty_hand',
         });
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Player $playerName ($playerId) has no cards left - added to winners list');
+          _logger.info('Dutch: Player $playerName ($actualPlayerId) has no cards left - added to winners list');
         };
       }
       
@@ -3305,7 +3361,9 @@ class DutchGameRound {
       };
       
       // Check for special cards (Jack/Queen) and store data if applicable
-      _checkSpecialCard(playerId, {
+      // CRITICAL: Use the resolved player's id (who owns the card) so special-card queue never gets wrong player due to index/player_1 vs id mix-up
+      final sameRankActingPlayerId = player['id']?.toString() ?? playerId;
+      _checkSpecialCard(sameRankActingPlayerId, {
         'cardId': cardId,
         'rank': playedCardFullData['rank'],
         'suit': playedCardFullData['suit']
@@ -3815,6 +3873,20 @@ class DutchGameRound {
         _logger.info('Dutch: Set player $peekingPlayerId status to peeking');
       };
 
+      // Declare action right after status change (animation queue) - before STEP 1/2
+      // targetCardIndex can be -1 if card is in drawnCard, otherwise it's the index in hand
+      final actionName = 'queen_peek_${_generateActionId()}';
+      final actionData = {
+        'card1Data': {
+          'cardIndex': targetCardIndex,
+          'playerId': targetPlayerId,
+        },
+      };
+      _addActionToPlayerQueue(peekingPlayer, actionName, actionData);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 ACTION_DATA: Added queen_peek action to queue for player $peekingPlayerId - card1Data: {cardIndex: $targetCardIndex, playerId: $targetPlayerId}');
+      }
+
       final isHuman = peekingPlayer['isHuman'] as bool? ?? false;
 
       // STEP 1: Set cardsToPeek to ID-only format and broadcast to all except peeking player
@@ -3835,21 +3907,6 @@ class DutchGameRound {
 
       // STEP 2: Set cardsToPeek to full card data and send only to peeking player
       peekingPlayer['cardsToPeek'] = [fullCardData];
-      
-      // Add action data for animation system (to the peeking player) - using queue format
-      // targetCardIndex can be -1 if card is in drawnCard, otherwise it's the index in hand
-      final actionName = 'queen_peek_${_generateActionId()}';
-      final actionData = {
-        'card1Data': {
-          'cardIndex': targetCardIndex ?? -1,
-          'playerId': targetPlayerId,
-        },
-      };
-      
-      _addActionToPlayerQueue(peekingPlayer, actionName, actionData);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 ACTION_DATA: Added queen_peek action to queue for player $peekingPlayerId - card1Data: {cardIndex: ${targetCardIndex ?? -1}, playerId: $targetPlayerId}');
-      }
       
       if (isHuman) {
         // For human players, also update main state myCardsToPeek
@@ -5328,6 +5385,7 @@ class DutchGameRound {
       
       // Check if player is a computer player and trigger decision logic
       final gameState = _getCurrentGameState();
+      bool isComputerForThisSpecial = false;
       if (gameState != null) {
         final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
         final player = players.firstWhere(
@@ -5337,6 +5395,7 @@ class DutchGameRound {
         
         // Check if player is computer (isHuman == false)
         final isHuman = player['isHuman'] as bool? ?? true;
+        isComputerForThisSpecial = !isHuman && (specialPower == 'jack_swap' || specialPower == 'queen_peek');
         if (!isHuman && specialPower == 'jack_swap') {
           // Get player's difficulty
           final difficulty = player['difficulty']?.toString() ?? 'medium';
@@ -5360,29 +5419,31 @@ class DutchGameRound {
         }
       }
       
-      // Get timer duration based on special power type directly (not from state, as state update may not be applied yet)
-      // This prevents race condition where getTimerConfig() reads "waiting" status before "queen_peek"/"jack_swap" is applied
-      // Use SSOT: ServerGameStateCallbackImpl.getAllTimerValues()
-      final allTimerValues = ServerGameStateCallbackImpl.getAllTimerValues();
-      int specialCardTimerDuration;
-      if (specialPower == 'queen_peek') {
-        specialCardTimerDuration = allTimerValues['queen_peek'] ?? 10; // queen_peek timer from SSOT
-      } else if (specialPower == 'jack_swap') {
-        specialCardTimerDuration = allTimerValues['jack_swap'] ?? 10; // jack_swap timer from SSOT
-      } else {
-        // Fallback: try to get from config, but use SSOT default as fallback
-        final config = _stateCallback.getTimerConfig();
-        specialCardTimerDuration = config['turnTimeLimit'] as int? ?? allTimerValues['default'] ?? 30;
+      // Start phase-based timer only for HUMAN players. For computer, the delayed callback will
+      // either run the action (and handleQueenPeek/handleJackSwap start peeking-phase timer) or
+      // miss/decline (handled in _executeComputerDecision by removing card and _processNextSpecialCard).
+      // This prevents the timer from firing before the computer acts when same player has multiple cards (e.g. 2 Queens).
+      if (!isComputerForThisSpecial) {
+        final allTimerValues = ServerGameStateCallbackImpl.getAllTimerValues();
+        int specialCardTimerDuration;
+        if (specialPower == 'queen_peek') {
+          specialCardTimerDuration = allTimerValues['queen_peek'] ?? 10; // queen_peek timer from SSOT
+        } else if (specialPower == 'jack_swap') {
+          specialCardTimerDuration = allTimerValues['jack_swap'] ?? 10; // jack_swap timer from SSOT
+        } else {
+          final config = _stateCallback.getTimerConfig();
+          specialCardTimerDuration = config['turnTimeLimit'] as int? ?? allTimerValues['default'] ?? 30;
+        }
+        _specialCardTimer?.cancel();
+        _specialCardTimer = Timer(Duration(seconds: specialCardTimerDuration), () {
+          _onSpecialCardTimerExpired();
+        });
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: ${specialCardTimerDuration}-second timer started for player $playerId\'s $specialPower (phase-based, using direct specialPower value)');
+        };
+      } else if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Computer player $playerId for $specialPower - not starting special card timer (callback will advance)');
       }
-      
-      // Start phase-based timer for this player's special card play
-      _specialCardTimer?.cancel();
-      _specialCardTimer = Timer(Duration(seconds: specialCardTimerDuration), () {
-        _onSpecialCardTimerExpired();
-      });
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: ${specialCardTimerDuration}-second timer started for player $playerId\'s $specialPower (phase-based, using direct specialPower value)');
-      };
       
     } catch (e) {
       if (LOGGING_SWITCH) {
@@ -6379,7 +6440,7 @@ class DutchGameRound {
     }
   }
 
-  /// Cancel all action timers
+  /// Cancel all action timers (including pending delayed computer decision, so it does not run after turn change)
   void _cancelActionTimers() {
     _drawActionTimer?.cancel();
     _drawActionTimer = null;
@@ -6387,6 +6448,8 @@ class DutchGameRound {
     _playActionTimer = null;
     _pendingMoveToNextPlayerTimer?.cancel();
     _pendingMoveToNextPlayerTimer = null;
+    _pendingComputerDecisionTimer?.cancel();
+    _pendingComputerDecisionTimer = null;
   }
 
   /// Dispose of resources

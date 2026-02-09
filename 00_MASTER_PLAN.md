@@ -165,6 +165,29 @@ _(No high-priority items currently.)_
   - **Expected Behavior**: Jack swap should predominantly swap cards **between different players**
   - **Done**: YAML rules and selection logic updated: `random_except_own` and `random_two_players` always choose cards from different players; new rules (collection_three_swap, one_card_player_priority) target other players only; `COMP_PLAYER_JACK_SWAP.md` documents all options. Flutter + Dart backend.
   - **Location**: `computer_player_factory.dart`, `computer_player_config.yaml` (Flutter assets + Dart backend)
+- [ ] **Known cards: store hand index and use as fallback for jack swap / same-rank resolution**
+  - **Intent**: Probabilistic known_cards updates (remember/forget) are intended; when the AI "forgets," a card can still appear in known_cards even though it was already played or swapped. Resolution should still succeed by falling back to the card at the **saved hand index** for that known card.
+  - **1. Known_cards structure**
+    - In each player's `known_cards` (per tracked player / per card), store **hand index** in addition to card id and player id: the index in that player's hand when the card was recorded (e.g. when added to known_cards on play, same-rank, jack_swap, queen_peek, or initial peek).
+    - Ensure every place that **writes** to known_cards (adds or updates an entry) also records the current hand index for that card at that moment (e.g. `updateKnownCards` call sites, and any logic that builds known_cards on deal/peek).
+  - **2. Jack swap resolution**
+    - When resolving which card to swap (first card and second card): **first** try to find the card in the player's hand by **card id** (current logic). **If not found** (e.g. card was swapped/played but still in known_cards due to forget): resolve the card by **hand index** from the known_cards entry for that card id (use the saved index for that player) and select the card currently at that index in that player's hand.
+    - Apply this in both places that perform jack swap validation and hand lookup: Flutter and Dart backend `dutch_game_round.dart` (e.g. `handleJackSwap` / jack swap handling).
+  - **3. Same-rank play resolution**
+    - When resolving which card was played for a same-rank play: **first** try to find the card in the player's hand by **card id**. **If not found**: resolve by **hand index** from known_cards for that card id (saved index for that player) and use the card currently at that index in that player's hand.
+    - Apply in same-rank play handling in both Flutter and Dart backend `dutch_game_round.dart`.
+  - **4. Where to pass/store hand index**
+    - **updateKnownCards** (and any helpers like `_processPlayCardUpdate`, `_processJackSwapUpdate`, `_processQueenPeekUpdate`): when adding or moving cards in known_cards, accept and store hand index (e.g. for the acting player's card at play/same-rank, and for both cards in jack_swap). Callers must pass the hand index(es) at the time of the action.
+    - **Initial deal / initial peek**: when populating known_cards for the two cards each player peeked, store the hand indices of those cards.
+    - **Queen peek**: when recording the peeked card in known_cards, store its hand index in the target player's hand.
+  - **5. Scope**
+    - **Flutter**: `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` (known_cards structure, updateKnownCards and processors, handleJackSwap card resolution, same-rank card resolution).
+    - **Dart backend**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` (same changes).
+    - **Computer player factory**: no change to strategy output (still proposes card ids); resolution fallback is entirely in round logic when finding the physical card in hand by id vs by index.
+  - **6. Wrong same-rank play selection**
+    - **Current behavior**: When the CPU "plays wrong" (wrong_rank_probability), the wrong card is chosen by: filtering known_cards to cards with rank ≠ discard rank, then **picking one at random** from that list.
+    - **Change**: Remove the random selection. **Known_cards will effectively handle the wrong same-rank play**: the card to attempt is determined from known_cards in a deterministic or known_cards-driven way (no random among wrong cards). **Resolution** (same as jack swap): when executing the wrong same-rank play, **first** attempt to find the card in hand by **card id**; **if not in hand**, play the card at the **index attached to that card in known_cards** (saved hand index for that card).
+  - **Impact**: Jack swaps and same-rank plays that use a "forgotten" card (still in known_cards but no longer at that card id in hand) will succeed by using the card at the stored hand index, preserving intended forget behavior while keeping actions valid. Wrong same-rank play will be consistent with known_cards and not depend on random choice among wrong cards.
 #### Match end and winners popup
 - [x] **Replace all hand cards with full data before showing winners popup** (Done)
   - **Issue**: At match end, hands still contain ID-only card data, so the UI shows placeholders/backs instead of actual cards when the winners popup is shown
@@ -477,5 +500,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2026-02-05 (Added: practice CPU→Player names, winning modal image/sparkles GIF/nav to account, account screen collapsible login/reg + guest warning)
+**Last Updated**: 2026-02-05 (Added: known_cards hand index + jack swap/same-rank fallback TODO)
 

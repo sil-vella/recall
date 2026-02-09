@@ -186,7 +186,7 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
               title: 'Video',
               icon: '🎬',
               onTap: () {
-                // No logic for now
+                NavigationManager().navigateTo('/dutch/video-tutorial');
               },
             ),
           ),

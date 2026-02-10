@@ -102,17 +102,105 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _prevStateCache = Map<String, dynamic>.from(actualState);
   }
   
-  /// Get prev_state dutch_game state (for widgets to read from)
-  /// Returns the cached previous state, allowing animations time to complete
-  /// before widgets update to new state
+  /// Deep copy for state merge (maps and lists only; primitives as-is)
+  static dynamic _deepCopyState(dynamic v) {
+    if (v is Map) {
+      return v.map((k, val) => MapEntry(k.toString(), _deepCopyState(val)));
+    }
+    if (v is List) {
+      return v.map((e) => _deepCopyState(e)).toList();
+    }
+    return v;
+  }
+
+  /// Get state for widgets: current state for statuses/timer/phase; cache for hands, discard, and the slices that display them.
+  /// Widgets read from slices (myHand, opponentsPanel, centerBoard) and from games[].game_state; we overlay cache only for hands + discard and sync the slices.
   Map<String, dynamic> _getPrevStateDutchGame() {
-    // If cache is empty, initialize from actual state
+    final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     if (_prevStateCache.isEmpty) {
       _initializePrevStateCache();
     }
-    
-    // Return cached prev_state version
-    return Map<String, dynamic>.from(_prevStateCache);
+    // Deep copy current state so we don't mutate StateManager when we overwrite from cache
+    final result = _deepCopyState(currentState) as Map<String, dynamic>;
+    final currentGameId = currentState['currentGameId']?.toString() ?? '';
+    if (currentGameId.isEmpty) return result;
+
+    final cacheGames = _prevStateCache['games'] as Map<String, dynamic>?;
+    final cacheGame = cacheGames?[currentGameId] as Map<String, dynamic>?;
+    final cacheGameData = cacheGame?['gameData'] as Map<String, dynamic>?;
+    final cacheGameState = cacheGameData?['game_state'] as Map<String, dynamic>?;
+    if (cacheGameState == null) return result;
+
+    final resultGames = result['games'] as Map<String, dynamic>?;
+    final resultGame = resultGames?[currentGameId] as Map<String, dynamic>?;
+    final resultGameData = resultGame?['gameData'] as Map<String, dynamic>?;
+    final resultGameState = resultGameData?['game_state'] as Map<String, dynamic>?;
+    if (resultGameState == null) return result;
+
+    // 1) Overlay player hands in game_state (SSOT for hands)
+    final cachePlayers = cacheGameState['players'] as List<dynamic>? ?? [];
+    final resultPlayers = resultGameState['players'] as List<dynamic>? ?? [];
+    for (int i = 0; i < resultPlayers.length && i < cachePlayers.length; i++) {
+      final rp = resultPlayers[i];
+      final cp = cachePlayers[i];
+      if (rp is Map<String, dynamic> && cp is Map<String, dynamic> && cp.containsKey('hand')) {
+        rp['hand'] = _deepCopyState(cp['hand']);
+      }
+    }
+    // 2) My hand cards in games (current user)
+    if (cacheGame != null && cacheGame.containsKey('myHandCards') && resultGame != null) {
+      resultGame['myHandCards'] = _deepCopyState(cacheGame['myHandCards']);
+    }
+    // 3) Discard pile (and draw pile for consistency) in game_state
+    if (cacheGameState.containsKey('discardPile')) {
+      resultGameState['discardPile'] = _deepCopyState(cacheGameState['discardPile']);
+    }
+    if (cacheGameState.containsKey('drawPile')) {
+      resultGameState['drawPile'] = _deepCopyState(cacheGameState['drawPile']);
+    }
+
+    // 4) Recomputed slices: myHand and opponentsPanel read from these, so overwrite with cache so cards show cached
+    final cacheMyHand = _prevStateCache['myHand'] as Map<String, dynamic>?;
+    if (cacheMyHand != null && cacheMyHand.containsKey('cards') && result['myHand'] is Map<String, dynamic>) {
+      (result['myHand'] as Map<String, dynamic>)['cards'] = _deepCopyState(cacheMyHand['cards']);
+    }
+    final cacheOpp = _prevStateCache['opponentsPanel'] as Map<String, dynamic>?;
+    if (cacheOpp != null && cacheOpp.containsKey('opponents') && result['opponentsPanel'] is Map<String, dynamic>) {
+      (result['opponentsPanel'] as Map<String, dynamic>)['opponents'] = _deepCopyState(cacheOpp['opponents']);
+    }
+    // 5) centerBoard slice: topDiscard and drawPileCount so discard-pile display uses cached discard
+    final cacheCenter = _prevStateCache['centerBoard'] as Map<String, dynamic>?;
+    if (cacheCenter != null && result['centerBoard'] is Map<String, dynamic>) {
+      final rb = result['centerBoard'] as Map<String, dynamic>;
+      if (cacheCenter.containsKey('topDiscard')) rb['topDiscard'] = _deepCopyState(cacheCenter['topDiscard']);
+      if (cacheCenter.containsKey('drawPileCount')) rb['drawPileCount'] = cacheCenter['drawPileCount'];
+    }
+
+    // 6) Status always from current: game_state.players[].status is SSOT. Re-apply onto slices so no cached status leaks.
+    final resultOpponents = (result['opponentsPanel'] as Map<String, dynamic>?)?['opponents'] as List<dynamic>? ?? [];
+    for (final opp in resultOpponents) {
+      if (opp is! Map<String, dynamic>) continue;
+      final oppId = opp['id']?.toString();
+      if (oppId == null) continue;
+      for (final p in resultPlayers) {
+        if (p is Map<String, dynamic> && p['id']?.toString() == oppId && p.containsKey('status')) {
+          opp['status'] = p['status'];
+          break;
+        }
+      }
+    }
+    // myHand.playerStatus = current user's status from game_state.players
+    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+    if (currentUserId.isNotEmpty && result['myHand'] is Map<String, dynamic>) {
+      for (final p in resultPlayers) {
+        if (p is Map<String, dynamic> && p['id']?.toString() == currentUserId && p.containsKey('status')) {
+          (result['myHand'] as Map<String, dynamic>)['playerStatus'] = p['status']?.toString();
+          break;
+        }
+      }
+    }
+
+    return result;
   }
 
   @override

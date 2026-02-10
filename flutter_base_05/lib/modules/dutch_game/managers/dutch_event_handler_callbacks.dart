@@ -11,7 +11,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = true; // Enabled for Queen peek (cardsToPeek sync) and event flow testing
+  static const bool LOGGING_SWITCH = false; // Enabled for Queen peek (cardsToPeek sync) and event flow testing
   static final Logger _logger = Logger();
   
   // Analytics module cache

@@ -125,37 +125,54 @@ class CardWidget extends StatelessWidget {
               ),
             ),
           
-          // Card content (rank, suit, etc.) - properly constrained
+          // Card content: two columns, 1/3 and 2/3 width, full available height. Left: rank/suit 1/4 col height. Right: rank/suit/circle 3/4 col height.
           Padding(
             padding: EdgeInsets.all(padding),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // Calculate available space after padding
                 final availableWidth = constraints.maxWidth;
                 final availableHeight = constraints.maxHeight;
-                
-                // Unified layout for ALL cards: top-left 1/4 height, empty center, bottom-right 3/4 height
+                var rowHeight = availableHeight;
+                if (config.showSpecialPower && card.hasSpecialPower) rowHeight -= 4 + 24;
+                if (config.showPoints) rowHeight -= 2 + 24;
+                rowHeight = rowHeight.clamp(1.0, availableHeight);
+                final leftColWidth = availableWidth * (1 / 3);
+                final rightColWidth = availableWidth * (2 / 3);
+
                 return Column(
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                    // Top-left rank and suit - constrained to remaining 1/3 height (no overflow)
-                    Align(
-                      alignment: Alignment.topLeft,
-                      child: _buildTopLeftCornerText(Size(availableWidth, availableHeight)),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: Align(
+                              alignment: Alignment.topLeft,
+                              child: _buildTopLeftCornerText(
+                                Size(leftColWidth, rowHeight),
+                                heightFraction: 1 / 4,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Align(
+                              alignment: Alignment.bottomRight,
+                              child: _buildBottomRightCornerText(
+                                Size(rightColWidth, rowHeight),
+                                heightFraction: 3 / 4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    // Center: nothing
-                    const Expanded(child: SizedBox.shrink()),
-                    // Bottom-right rank and suit - block 3/4 of card height
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: _buildBottomRightCornerText(Size(availableWidth, availableHeight)),
-                    ),
-                    // Special power indicator
                     if (config.showSpecialPower && card.hasSpecialPower) ...[
                       const SizedBox(height: 4),
                       _buildSpecialPowerIndicator(Size(availableWidth, availableHeight)),
                     ],
-                    // Points indicator
                     if (config.showPoints) ...[
                       const SizedBox(height: 2),
                       _buildPointsIndicator(Size(availableWidth, availableHeight)),
@@ -164,7 +181,7 @@ class CardWidget extends StatelessWidget {
                 );
               },
             ),
-        ),
+          ),
         ],
       ),
     );
@@ -181,13 +198,13 @@ class CardWidget extends StatelessWidget {
     if (rank == 'joker') return 'assets/images/backgrounds/joker.png';
     return null;
   }
-  /// Build rank/suit text (single color, no stroke). Used for top-left corner.
-  Widget _buildRankSuitText(String text, double fontSize, Color fillColor, TextAlign textAlign) {
+  /// Build rank/suit text (single color, no stroke). Used for top-left and bottom-right corners. [fontWeight] defaults to bold; use w800 for extra-bold bottom rank.
+  Widget _buildRankSuitText(String text, double fontSize, Color fillColor, TextAlign textAlign, {FontWeight fontWeight = FontWeight.bold}) {
     return Text(
       text,
       style: TextStyle(
         fontSize: fontSize,
-        fontWeight: FontWeight.bold,
+        fontWeight: fontWeight,
         color: fillColor,
         height: 1.0,
       ),
@@ -229,10 +246,7 @@ class CardWidget extends StatelessWidget {
     );
   }
 
-  /// Path to small joker icon for corner (rank). Place PNG at this path; fallback to rank symbol if missing.
-  static const String _jokerIconPath = 'assets/images/joker_icon.png';
-
-  /// Build corner content: for joker use PNG icon + suit text; otherwise rank + suit text.
+  /// Build corner content: for joker show suit only (no rank); otherwise rank + suit text.
   /// Bottom-right: rank plain; suit has white circle behind it. Top-left is plain colored.
   Widget _buildCornerContent(Size dimensions, double blockHeight, double blockWidth, bool isTopLeft) {
     final initialFontSize = blockHeight * 0.45;
@@ -240,56 +254,32 @@ class CardWidget extends StatelessWidget {
     final textAlign = isTopLeft ? TextAlign.left : TextAlign.right;
 
     if (isJoker) {
-      final iconSize = initialFontSize * 1.2;
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: isTopLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-        children: [
-          Image.asset(
-            _jokerIconPath,
-            width: iconSize,
-            height: iconSize,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return SizedBox(
-                width: iconSize,
-                height: iconSize,
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: _buildRankSuitText(card.rankSymbol, initialFontSize, card.color, textAlign),
-                ),
-              );
-            },
-          ),
-          SizedBox(height: blockHeight * 0.05),
-          isTopLeft
-              ? _buildRankSuitText(card.suitSymbol, initialFontSize, card.color, textAlign)
-              : _buildBottomRightLayeredText(card.suitSymbol, initialFontSize, card.color, textAlign),
-        ],
-      );
+      return isTopLeft
+          ? _buildRankSuitText(card.suitSymbol, initialFontSize, card.color, textAlign)
+          : _buildBottomRightLayeredText(card.suitSymbol, initialFontSize, card.color, textAlign);
     }
 
     if (isTopLeft) {
       final text = '${card.rankSymbol}\n${card.suitSymbol}';
       return _buildRankSuitText(text, initialFontSize, card.color, textAlign);
     }
-    // Bottom-right: rank and suit same size; rank plain, suit with white circle behind
+    // Bottom-right: rank and suit same size; rank plain (bold), suit with white circle behind
     final bottomRightTextSize = initialFontSize * 2;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _buildRankSuitText(card.rankSymbol, bottomRightTextSize, card.color, textAlign),
+        _buildRankSuitText(card.rankSymbol, bottomRightTextSize, card.color, textAlign, fontWeight: FontWeight.w800),
         SizedBox(height: blockHeight * 0.05),
         _buildBottomRightLayeredText(card.suitSymbol, initialFontSize, card.color, textAlign),
       ],
     );
   }
 
-  /// Build top-left corner text (rank and suit) - block sized to 1/4 of card height after padding, text fits without overflow.
-  Widget _buildTopLeftCornerText(Size dimensions) {
-    final blockHeight = dimensions.height * (1 / 4);
-    final blockWidth = dimensions.width * 0.6;
+  /// Build top-left corner text (rank over suit). Block height = [heightFraction] of column height; full column width so nothing restrains height/size.
+  Widget _buildTopLeftCornerText(Size dimensions, {double heightFraction = 1 / 4}) {
+    final blockHeight = dimensions.height * heightFraction;
+    final blockWidth = dimensions.width;
     const padding = 2.0;
 
     return SizedBox(
@@ -306,10 +296,10 @@ class CardWidget extends StatelessWidget {
     );
   }
 
-  /// Build bottom-right corner text (rank and suit) - block sized to 3/4 of card height. White 2x icon behind, colored 1x in front, centered.
-  Widget _buildBottomRightCornerText(Size dimensions) {
-    final blockHeight = dimensions.height * (3 / 4);
-    final blockWidth = dimensions.width * 0.6;
+  /// Build bottom-right corner (rank, suit with white circle). Block height = [heightFraction] of column height; full column width so content is not constrained.
+  Widget _buildBottomRightCornerText(Size dimensions, {double heightFraction = 3 / 4}) {
+    final blockHeight = dimensions.height * heightFraction;
+    final blockWidth = dimensions.width;
     const padding = 2.0;
 
     return SizedBox(

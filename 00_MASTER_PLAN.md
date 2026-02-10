@@ -63,7 +63,8 @@ _(No items currently.)_
 
 ### High Priority
 
-_(No high-priority items currently.)_
+- [ ] **Jack swap: second timer never starts when player has 2 jacks**
+  - When a player has two Jacks and completes the first jack swap, the second jack_swap phase does not start its timer (phase timer for the second swap never starts). Fix special-card flow so each jack_swap in the queue gets its own phase timer when it becomes current. See **Notes → Jack swap timer when player has 2 jacks**.
 
 ### Medium Priority
 
@@ -328,6 +329,13 @@ Python Backend (Auth)
 - **Location**: Timer logic in game round/event handlers, likely in `dutch_game_round.dart` or related timer management code
 - **Impact**: User experience - prevents confusion and ensures timer accurately reflects available time
 - **Related**: When the user stays past the timer (or flow advances), **cardsToPeek state is cleared** so the UI stops showing peeked cards (done).
+
+### Jack swap timer when player has 2 jacks
+- **Issue**: When a player has **2 jack swaps** (e.g. played first Jack, completed swap, then same player has a second Jack in special-card queue), the **second jack_swap timer never starts**.
+- **Current Behavior**: After the first jack swap is processed (use/decline/miss), the second jack swap for the same player does not get its phase timer started, so the UI/flow may hang or advance incorrectly.
+- **Expected Behavior**: Each jack_swap in the special-card queue should start its own timer (e.g. `_specialCardTimer` with `jack_swap` duration from timerConfig) when that jack_swap becomes the current special card.
+- **Location**: Special-card flow in `dutch_game_round.dart` – likely where `_processNextSpecialCard` runs for the next entry in `_specialCardPlayers` / where the phase-based timer is started only for human players (computer path uses delayed callback; human path starts `_specialCardTimer`). Ensure that when the **second** jack_swap for the same player is processed, the timer is (re)started for that phase.
+- **Impact**: Human players with two Jacks cannot get a proper time limit for the second swap; computer path may be unaffected if it never relies on the phase timer for the second Jack.
 
 ### Game State Cleanup on Navigation
 - **Issue**: Game data persists in state and game maps when navigating away from game play screen

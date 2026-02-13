@@ -615,6 +615,17 @@ class DutchGameRound {
             if (LOGGING_SWITCH) {
               _logger.info('Dutch: Updated currentPlayer in games map to: ${nextPlayer['name']}');
             };
+            // Clear jack_swap_history for the next player only (so when their turn starts they start fresh)
+            final nextPlayerId = nextPlayer['id']?.toString();
+            if (nextPlayerId != null) {
+              final jackSwapHistory = gameStateData['jack_swap_history'] as Map<String, dynamic>?;
+              if (jackSwapHistory != null && jackSwapHistory.containsKey(nextPlayerId)) {
+                jackSwapHistory.remove(nextPlayerId);
+                if (LOGGING_SWITCH) {
+                  _logger.info('Dutch: Cleared jack_swap_history for next player $nextPlayerId');
+                }
+              }
+            }
           }
         }
       }
@@ -3669,6 +3680,19 @@ class DutchGameRound {
 
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Jack swap completed - state updated');
+      }
+
+      // Record this swap for the acting player so they don't repeat the same pair (e.g. when performing multiple Jack swaps)
+      if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
+        final jackSwapHistory = gameState['jack_swap_history'] as Map<String, dynamic>? ?? {};
+        gameState['jack_swap_history'] = jackSwapHistory;
+        final playerSwaps = (jackSwapHistory[actingPlayerId] as Map<String, dynamic>?) ?? {};
+        if (playerSwaps.isEmpty) jackSwapHistory[actingPlayerId] = playerSwaps;
+        final nextKey = 'swap${playerSwaps.length + 1}';
+        playerSwaps[nextKey] = [firstCardId, secondCardId];
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Recorded jack_swap_history for $actingPlayerId: $nextKey = [$firstCardId, $secondCardId]');
+        }
       }
 
       // Update all players' known_cards after successful Jack swap (with new hand indices after swap)

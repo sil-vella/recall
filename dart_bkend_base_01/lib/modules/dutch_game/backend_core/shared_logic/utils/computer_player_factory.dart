@@ -376,67 +376,84 @@ class ComputerPlayerFactory {
       };
     }
 
-    // Jack swap flow: build game data → strategy selection loop → strategy method (select cards and players) → index→id conversion → pass playerIds and cardIds to SSOT (same as human).
+    // Jack swap flow: build game data → strategy loop (probability then try strategy; if no valid swap, continue to next) → pass playerIds and cardIds to SSOT.
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
     const jackSwapStrategies = [
-      {'id': 'collection_three_swap', 'expert': 100, 'hard': 100, 'medium': 100, 'easy': 100},
+      {'id': 'collection_three_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
       {'id': 'one_card_player_priority', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
       {'id': 'lowest_opponent_higher_own', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
       {'id': 'random_except_own', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
     ];
 
     String? selectedStrategyId;
+    String? firstCardId;
+    String? firstPlayerId;
+    String? secondCardId;
+    String? secondPlayerId;
+
     for (final s in jackSwapStrategies) {
+      final strategyId = s['id'] as String?;
       final percent = _jackSwapStrategyPercent(s as Map<String, dynamic>, difficulty);
       final roll = _random.nextDouble() * 100;
-      if (roll < percent) {
-        selectedStrategyId = s['id'] as String?;
+      if (roll >= percent) {
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Jack swap strategy selected: $selectedStrategyId (difficulty: $difficulty, %: $percent, roll: ${roll.toStringAsFixed(1)})');
+          _logger.info('Dutch: Jack swap strategy skipped: $strategyId (roll $roll >= $percent)');
         };
+        continue;
+      }
+      selectedStrategyId = strategyId;
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Jack swap strategy selected: $selectedStrategyId (difficulty: $difficulty, %: $percent, roll: ${roll.toStringAsFixed(1)})');
+      };
+      final raw = _selectJackSwapTargets(gameData, selectedStrategyId!);
+      firstCardId = raw['first_card_id']?.toString();
+      firstPlayerId = raw['first_player_id']?.toString();
+      secondCardId = raw['second_card_id']?.toString();
+      secondPlayerId = raw['second_player_id']?.toString();
+      final valid = firstCardId != null && firstCardId.isNotEmpty &&
+          firstPlayerId != null && firstPlayerId.isNotEmpty &&
+          secondCardId != null && secondCardId.isNotEmpty &&
+          secondPlayerId != null && secondPlayerId.isNotEmpty;
+      final alreadySwapped = valid && _jackSwapPairAlreadyUsed(gameState, playerId, firstCardId ?? '', secondCardId ?? '');
+      if (valid && !alreadySwapped) {
         break;
       }
+      // History post-filter: with difficulty-based probability, allow repeating the same pair anyway
+      if (valid && alreadySwapped) {
+        final allowRepeatPercent = _jackSwapAllowRepeatHistoryPercent(difficulty);
+        final repeatRoll = _random.nextDouble() * 100;
+        if (repeatRoll < allowRepeatPercent) {
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Jack swap repeat allowed by difficulty ($difficulty: $allowRepeatPercent%) - using same pair [$firstCardId, $secondCardId]');
+          }
+          break;
+        }
+      }
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Jack swap strategy skipped: ${s['id']} (roll $roll >= $percent)');
+        if (alreadySwapped) {
+          _logger.info('Dutch: Jack swap pair [$firstCardId, $secondCardId] already used by $playerId - trying next strategy');
+        } else {
+          _logger.info('Dutch: Jack swap strategy $selectedStrategyId produced no valid swap - trying next strategy');
+        }
       };
     }
-
-    // No strategy selected after last rule -> auto-skip (use: false)
-    if (selectedStrategyId == null) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: No Jack swap strategy selected - skipping');
-      };
-      return {
-        'action': 'jack_swap',
-        'use': false,
-        'delay_seconds': decisionDelay,
-        'difficulty': difficulty,
-        'reasoning': 'No Jack swap strategy selected - skip',
-      };
-    }
-
-    // Strategy method: logic of selecting cards and players (returns card IDs + player IDs from strategy).
-    final raw = _selectJackSwapTargets(gameData, selectedStrategyId);
-    final firstCardId = raw['first_card_id']?.toString();
-    final firstPlayerId = raw['first_player_id']?.toString();
-    final secondCardId = raw['second_card_id']?.toString();
-    final secondPlayerId = raw['second_player_id']?.toString();
 
     if (firstCardId == null || firstCardId.isEmpty || firstPlayerId == null || firstPlayerId.isEmpty ||
         secondCardId == null || secondCardId.isEmpty || secondPlayerId == null || secondPlayerId.isEmpty) {
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Jack swap strategy $selectedStrategyId produced no valid swap (use: false)');
+        _logger.info('Dutch: No Jack swap strategy produced a valid swap - skipping');
       };
       return {
         'action': 'jack_swap',
         'use': false,
         'delay_seconds': decisionDelay,
         'difficulty': difficulty,
-        'reasoning': 'Jack swap strategy $selectedStrategyId: no valid swap',
+        'reasoning': selectedStrategyId != null
+            ? 'Jack swap strategy $selectedStrategyId: no valid swap (tried all)'
+            : 'No Jack swap strategy selected - skip',
       };
     }
 
-    // Index→id conversion: strategy works with card IDs; we pass playerIds and cardIds to SSOT (same pipeline as human).
     return {
       'action': 'jack_swap',
       'use': true,
@@ -448,6 +465,38 @@ class ComputerPlayerFactory {
       'second_player_id': secondPlayerId,
       'reasoning': 'Jack swap strategy: $selectedStrategyId',
     };
+  }
+
+  /// Probability (0-100) that the acting player is allowed to repeat a swap pair that's already in their history. Lower for expert, higher for easy.
+  int _jackSwapAllowRepeatHistoryPercent(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'expert':
+        return 0;
+      case 'hard':
+        return 2;
+      case 'medium':
+        return 8;
+      case 'easy':
+        return 15;
+      default:
+        return 8;
+    }
+  }
+
+  /// True if this player already swapped this pair of cards (e.g. in a previous Jack in the same special-cards window).
+  bool _jackSwapPairAlreadyUsed(Map<String, dynamic> gameState, String actingPlayerId, String card1Id, String card2Id) {
+    final history = gameState['jack_swap_history'] as Map<String, dynamic>?;
+    if (history == null) return false;
+    final playerSwaps = history[actingPlayerId];
+    if (playerSwaps is! Map) return false;
+    for (final entry in (playerSwaps as Map<String, dynamic>).entries) {
+      final value = entry.value;
+      if (value is! List || value.length < 2) continue;
+      final a = value[0]?.toString() ?? '';
+      final b = value[1]?.toString() ?? '';
+      if ((a == card1Id && b == card2Id) || (a == card2Id && b == card1Id)) return true;
+    }
+    return false;
   }
 
   /// Get strategy percentage for difficulty (0-100).
@@ -2068,8 +2117,29 @@ class ComputerPlayerFactory {
         'second_player_id': null,
       };
     }
-    
-    // Pick one of the 1-card players at random (priority: those with 1 card)
+
+    // When 2+ players have 1 card: swap those two (deterministic, no random)
+    if (oneCardPlayerIds.length >= 2) {
+      final firstPlayerId = oneCardPlayerIds[0];
+      final secondPlayerId = oneCardPlayerIds[1];
+      final firstPlayerData = allPlayers[firstPlayerId] as Map<String, dynamic>? ?? {};
+      final secondPlayerData = allPlayers[secondPlayerId] as Map<String, dynamic>? ?? {};
+      final firstPlayable = _getPlayableCardIds(firstPlayerData);
+      final secondPlayable = _getPlayableCardIds(secondPlayerData);
+      if (firstPlayable.isNotEmpty && secondPlayable.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: one_card_player_priority - 2 players with 1 card: ${firstPlayable[0]} ($firstPlayerId) <-> ${secondPlayable[0]} ($secondPlayerId)');
+        };
+        return {
+          'first_card_id': firstPlayable[0],
+          'first_player_id': firstPlayerId,
+          'second_card_id': secondPlayable[0],
+          'second_player_id': secondPlayerId,
+        };
+      }
+    }
+
+    // Exactly one player with 1 card: swap their card with a random playable from another player
     oneCardPlayerIds.shuffle(_random);
     final firstPlayerId = oneCardPlayerIds[0];
     final firstPlayerData = allPlayers[firstPlayerId] as Map<String, dynamic>? ?? {};
@@ -2133,6 +2203,20 @@ class ComputerPlayerFactory {
       'second_card_id': second.value,
       'second_player_id': second.key,
     };
+  }
+
+  /// Get playable card IDs (hand minus collection) for a player data map.
+  List<String> _getPlayableCardIds(Map<String, dynamic> playerData) {
+    final hand = playerData['hand'] as List<dynamic>? ?? [];
+    final col = playerData['collection_cards'] as List<dynamic>? ?? [];
+    final colIds = col
+        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    return hand
+        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : c.toString())
+        .where((id) => id.isNotEmpty && id != 'null' && !colIds.contains(id))
+        .toList();
   }
   
   /// Rule 2: Select lowest opponent card and higher own card

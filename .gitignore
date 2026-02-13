@@ -167,3 +167,7 @@ playbooks/*/logs/
 # VPS Backup files - don't commit actual backups
 *.tar.gz
 *.log
+
+# Backup directories (any path)
+backup/
+backups/

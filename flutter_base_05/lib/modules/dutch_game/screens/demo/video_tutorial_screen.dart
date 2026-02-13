@@ -10,7 +10,7 @@ import '../../../../utils/consts/theme_consts.dart';
 class VideoTutorialScreen extends BaseScreen {
   const VideoTutorialScreen({Key? key}) : super(key: key);
 
-  static const String _videoAssetPath = 'assets/videos/dutch_vid_tutorial.mp4';
+  static const String _videoAssetPath = 'assets/videos/dutch_vid_tutorial_003.mp4';
 
   @override
   String computeTitle(BuildContext context) => 'Tutorial Video';

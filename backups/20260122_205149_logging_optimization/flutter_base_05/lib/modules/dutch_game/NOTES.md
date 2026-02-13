@@ -1,2 +1,0 @@
-# Dutch Game Development Notes
-

@@ -151,6 +151,7 @@ k3s.yaml
 **/group_vars/**/vault.yml
 **/inventory.ini
 **/inventory/*.ini
+playbooks/rop01/templates/mailboxes_template.yml
 
 # Ansible logs and temporary files
 playbooks/*/logs/

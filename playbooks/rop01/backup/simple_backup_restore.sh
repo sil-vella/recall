@@ -5,20 +5,26 @@
 
 set -e
 
-# Configuration - Auto-detect project username
+# Configuration - Auto-detect project username; backup dir in user home so orchestrator can scp
 PROJECT_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1}' | head -1)
 BACKUP_NAME="${PROJECT_USER}-vps-backup"
-BACKUP_DIR="/backup/vps-config"
+BACKUP_DIR="/home/${PROJECT_USER}/backup"
 CRITICAL_PATHS=(
-    "/etc/rancher"
-    "/var/lib/rancher"
-    "/etc/wireguard"
-    "/home"
+    # rop01 / Dutch stack
+    "/opt/apps/reignofplay/dutch"
+    "/var/www"
+    "/etc/nginx"
+    "/var/log/nginx"
+    "/etc/letsencrypt"
+    "/var/lib/letsencrypt"
+    "/var/mail/vhosts"
+    "/etc/postfix"
+    "/etc/dovecot"
+    # common system (/home often large; add back if you have space)
+    # "/home"
     "/root"
     "/etc/ssh"
     "/etc/systemd/system"
-    "/var/lib/kubelet"
-    "/var/lib/cni"
     "/etc/fail2ban"
     "/etc/iptables"
     "/etc/ufw"
@@ -36,6 +42,12 @@ CRITICAL_PATHS=(
     "/etc/shadow"
     "/etc/sudoers"
     "/etc/sudoers.d"
+    # optional (other VPS; skipped if missing)
+    "/etc/rancher"
+    "/var/lib/rancher"
+    "/etc/wireguard"
+    "/var/lib/kubelet"
+    "/var/lib/cni"
 )
 
 # Colors
@@ -63,15 +75,31 @@ backup_vps() {
     log_info "Backup started at: $(date)"
     log_info "Backup initiated by user: $(whoami)"
     log_info "System: $(hostname) - $(uname -a)"
-    
-    # Create backup directory with timestamp
+
+    mkdir -p "$BACKUP_DIR"
+    if [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
+        chown "${SUDO_UID}:${SUDO_GID}" "$BACKUP_DIR" 2>/dev/null || true
+    fi
+
+    # Keep at most 1 backup on VPS: remove any existing before creating new one
+    log_info "Removing old backups on VPS (max 1 kept)..."
+    rm -f "$BACKUP_DIR"/*.tar.zst "$BACKUP_DIR"/*.tar.gz 2>/dev/null || true
+
+    # Require at least 1G free on backup dir's filesystem (avoid "No space left on device")
+    MIN_FREE_KB="${BACKUP_MIN_FREE_KB:-1048576}"
+    AVAIL_KB=$(df -k "$BACKUP_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
+    if [ -n "$AVAIL_KB" ] && [ "$AVAIL_KB" -lt "$MIN_FREE_KB" ]; then
+        log_error "Insufficient disk space on $BACKUP_DIR (need at least $((MIN_FREE_KB / 1024 / 1024))G free; have $((AVAIL_KB / 1024 / 1024))G). Free space or set BACKUP_MIN_FREE_KB (bytes) / use a different BACKUP_DIR."
+        exit 1
+    fi
+
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-    BACKUP_PATH="$BACKUP_DIR/$TIMESTAMP"
-    mkdir -p "$BACKUP_PATH"
-    log_info "Created backup directory: $BACKUP_PATH"
-    
-    # Create system info
-    cat > "$BACKUP_PATH/system-info.txt" << EOF
+    TOP="backup-$TIMESTAMP"
+    META_DIR="/tmp/$TOP"
+    mkdir -p "$META_DIR"
+    trap "rm -rf '$META_DIR'" EXIT
+
+    cat > "$META_DIR/system-info.txt" << EOF
 VPS Backup Information
 ======================
 Date: $(date)
@@ -94,76 +122,56 @@ SSH Status:
 $(systemctl is-active ssh 2>/dev/null || echo "SSH not available")
 EOF
 
-    # Backup critical paths
-    log_info "Starting backup of critical paths..."
-    BACKED_UP_COUNT=0
-    SKIPPED_COUNT=0
-    TOTAL_SIZE=0
-    
+    # Build list of existing paths (no leading slash) for streaming into archive
+    PATHS=()
     for path in "${CRITICAL_PATHS[@]}"; do
         if [ -e "$path" ]; then
-            # Get size before backup
-            if [ -d "$path" ]; then
-                SIZE=$(du -sh "$path" 2>/dev/null | cut -f1)
-                TYPE="directory"
-            else
-                SIZE=$(du -sh "$path" 2>/dev/null | cut -f1)
-                TYPE="file"
-            fi
-            
-            log_info "Backing up $TYPE: $path (size: $SIZE)"
-            
-            # Create destination directory
-            DEST_DIR="$BACKUP_PATH$(dirname "$path")"
-            mkdir -p "$DEST_DIR"
-            
-            # Copy with preserve attributes
-            if cp -a "$path" "$DEST_DIR/" 2>/dev/null; then
-                log_success "✓ Successfully backed up: $path"
-                BACKED_UP_COUNT=$((BACKED_UP_COUNT + 1))
-            else
-                log_error "✗ Failed to backup: $path"
-            fi
+            log_info "Will include: $path"
+            PATHS+=("${path#/}")
         else
             log_warning "✗ Path does not exist: $path"
-            SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
         fi
     done
-    
-    log_info "Backup summary: $BACKED_UP_COUNT items backed up, $SKIPPED_COUNT items skipped"
-    
-    # Create compressed archive
-    log_info "Creating compressed archive..."
-    cd "$BACKUP_DIR"
-    
-    # Get uncompressed size
-    UNCOMPRESSED_SIZE=$(du -sh "$TIMESTAMP" | cut -f1)
-    log_info "Uncompressed backup size: $UNCOMPRESSED_SIZE"
-    
-    if tar -czf "${TIMESTAMP}.tar.gz" "$TIMESTAMP" 2>/dev/null; then
-        log_success "✓ Archive created successfully"
-    else
-        log_error "✗ Failed to create archive"
-        exit 1
+    log_info "Streaming ${#PATHS[@]} paths directly into archive (no staging copy)..."
+
+    ARCHIVE_NAME=""
+    ARCHIVE_PATH="$BACKUP_DIR/${TIMESTAMP}.tar.zst"
+    if command -v zstd &>/dev/null; then
+        ARCHIVE_NAME="${TIMESTAMP}.tar.zst"
+        if tar -C / -I 'zstd -3 -T0' -cf "$ARCHIVE_PATH" --transform "s,^,$TOP/," -C /tmp "$TOP" -C / "${PATHS[@]}"; then
+            log_success "✓ Archive created (zstd): $ARCHIVE_NAME"
+        else
+            ARCHIVE_NAME=""
+            rm -f "$ARCHIVE_PATH"
+        fi
     fi
-    
-    # Get compressed size and show compression ratio
-    COMPRESSED_SIZE=$(du -h "${TIMESTAMP}.tar.gz" | cut -f1)
+    if [ -z "$ARCHIVE_NAME" ]; then
+        ARCHIVE_PATH="$BACKUP_DIR/${TIMESTAMP}.tar.gz"
+        ARCHIVE_NAME="${TIMESTAMP}.tar.gz"
+        if tar -C / -czf "$ARCHIVE_PATH" --transform "s,^,$TOP/," -C /tmp "$TOP" -C / "${PATHS[@]}"; then
+            log_success "✓ Archive created (gzip): $ARCHIVE_NAME"
+        else
+            log_error "✗ Failed to create archive"
+            rm -f "$ARCHIVE_PATH"
+            exit 1
+        fi
+    fi
+
+    if [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
+        chown "${SUDO_UID}:${SUDO_GID}" "$ARCHIVE_PATH" 2>/dev/null || true
+    fi
+
+    COMPRESSED_SIZE=$(du -h "$ARCHIVE_PATH" | cut -f1)
     log_info "Compressed backup size: $COMPRESSED_SIZE"
-    
-    # Clean up uncompressed backup
-    rm -rf "$TIMESTAMP"
-    log_info "Cleaned up temporary files"
-    
-    log_success "VPS backup completed: $BACKUP_DIR/${TIMESTAMP}.tar.gz"
+    log_success "VPS backup completed: $BACKUP_DIR/$ARCHIVE_NAME"
     log_info "Backup finished at: $(date)"
 }
 
 restore_vps() {
     log_info "Starting VPS restore..."
     
-    # Find latest backup
-    LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/*.tar.gz 2>/dev/null | head -1)
+    # Find latest backup (.tar.zst or .tar.gz)
+    LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/*.tar.zst "$BACKUP_DIR"/*.tar.gz 2>/dev/null | head -1)
     
     if [ -z "$LATEST_BACKUP" ]; then
         log_error "No backup files found in $BACKUP_DIR"
@@ -172,10 +180,12 @@ restore_vps() {
     
     log_info "Restoring from: $LATEST_BACKUP"
     
-    # Extract backup
     TEMP_DIR="/tmp/vps-restore-$$"
     mkdir -p "$TEMP_DIR"
-    tar -xzf "$LATEST_BACKUP" -C "$TEMP_DIR"
+    case "$LATEST_BACKUP" in
+        *.tar.zst) tar -I zstd -xf "$LATEST_BACKUP" -C "$TEMP_DIR" ;;
+        *)         tar -xzf "$LATEST_BACKUP" -C "$TEMP_DIR" ;;
+    esac
     
     # Find the extracted directory
     EXTRACTED_DIR=$(ls "$TEMP_DIR" | head -1)
@@ -209,7 +219,7 @@ restore_vps() {
 list_backups() {
     log_info "Available backups:"
     if [ -d "$BACKUP_DIR" ]; then
-        ls -lh "$BACKUP_DIR"/*.tar.gz 2>/dev/null || echo "No backup files found"
+        ls -lh "$BACKUP_DIR"/*.tar.zst "$BACKUP_DIR"/*.tar.gz 2>/dev/null || echo "No backup files found"
     else
         echo "Backup directory does not exist"
     fi
@@ -218,8 +228,7 @@ list_backups() {
 cleanup_old_backups() {
     log_info "Cleaning up old backups (keeping last 5)..."
     if [ -d "$BACKUP_DIR" ]; then
-        # Keep only the 5 most recent backups
-        ls -t "$BACKUP_DIR"/*.tar.gz 2>/dev/null | tail -n +6 | xargs rm -f
+        ls -t "$BACKUP_DIR"/*.tar.zst "$BACKUP_DIR"/*.tar.gz 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
         log_success "Cleanup completed"
     else
         log_warning "Backup directory does not exist"

@@ -4,7 +4,7 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for Jack swap testing (YAML rules, target selection)
+const bool LOGGING_SWITCH = true; // Enabled for Jack swap testing (YAML rules, target selection, collection_three_swap)
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -379,11 +379,10 @@ class ComputerPlayerFactory {
     // Jack swap flow: build game data → strategy selection loop → strategy method (select cards and players) → index→id conversion → pass playerIds and cardIds to SSOT (same as human).
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
     const jackSwapStrategies = [
-      {'id': 'collection_three_swap', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
+      {'id': 'collection_three_swap', 'expert': 100, 'hard': 100, 'medium': 100, 'easy': 100},
       {'id': 'one_card_player_priority', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
       {'id': 'lowest_opponent_higher_own', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
       {'id': 'random_except_own', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
-      {'id': 'random_two_players', 'expert': 100, 'hard': 100, 'medium': 100, 'easy': 100},
     ];
 
     String? selectedStrategyId;
@@ -401,7 +400,20 @@ class ComputerPlayerFactory {
         _logger.info('Dutch: Jack swap strategy skipped: ${s['id']} (roll $roll >= $percent)');
       };
     }
-    selectedStrategyId ??= 'random_two_players';
+
+    // No strategy selected after last rule -> auto-skip (use: false)
+    if (selectedStrategyId == null) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: No Jack swap strategy selected - skipping');
+      };
+      return {
+        'action': 'jack_swap',
+        'use': false,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'reasoning': 'No Jack swap strategy selected - skip',
+      };
+    }
 
     // Strategy method: logic of selecting cards and players (returns card IDs + player IDs from strategy).
     final raw = _selectJackSwapTargets(gameData, selectedStrategyId);
@@ -1875,32 +1887,38 @@ class ComputerPlayerFactory {
         return _selectLowestOpponentHigherOwn(actingPlayerId, actingPlayer, allPlayers, gameState);
       
       case 'random_except_own':
-        // Rule 4: Random swap of 2 cards from other players only (excl. collection, not our hand)
+        // Rule 4 (last): Random swap of 2 cards from other players only (excl. collection, not our hand)
         return _selectRandomExceptOwn(actingPlayerId, allPlayers, gameState);
       
-      case 'random_two_players':
-        // Rule 5: Random 2 cards (excluding collection) - our card <-> other player's card
-        return _selectRandomTwoPlayers(actingPlayerId, actingPlayer, allPlayers, gameState);
-      
       default:
-        // Fallback: random selection
-        return _selectRandomTwoPlayers(actingPlayerId, actingPlayer, allPlayers, gameState);
+        // No valid strategy -> return empty so caller skips
+        return {
+          'first_card_id': null,
+          'first_player_id': actingPlayerId,
+          'second_card_id': null,
+          'second_player_id': null,
+        };
     }
   }
   
   /// Rule 1: When isClearAndCollect, swap last collection card(s): 2+ players with 3 in collection -> swap last from each; else swap last from one with any non-collection from another
   Map<String, dynamic> _selectCollectionThreeSwap(String actingPlayerId, Map<String, dynamic> gameData) {
+    final isClearAndCollect = gameData['isClearAndCollect'] as bool? ?? false;
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: collection_three_swap - entry actingPlayerId=$actingPlayerId isClearAndCollect=$isClearAndCollect');
+    };
     final allPlayers = gameData['all_players'] as Map<String, dynamic>? ?? {};
     final threeInColIds = (gameData['other_players_with_three_in_collection'] as List<dynamic>? ?? [])
         .map((e) => e.toString())
         .where((id) => id.isNotEmpty && id != 'null')
         .toList();
-    
     if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Collection three swap: ${threeInColIds.length} players with 3+ in collection');
+      _logger.info('Dutch: collection_three_swap - ${threeInColIds.length} players with 3+ in collection: $threeInColIds');
     };
-    
     if (threeInColIds.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: collection_three_swap - no players with 3+ in collection, skipping');
+      };
       return {
         'first_card_id': null,
         'first_player_id': actingPlayerId,
@@ -1908,15 +1926,23 @@ class ComputerPlayerFactory {
         'second_player_id': null,
       };
     }
-    
     // Two or more players (excl. acting) have 3 in collection: swap last card from each player's collection list
     if (threeInColIds.length >= 2) {
       threeInColIds.shuffle(_random);
       final firstPlayerId = threeInColIds[0];
       final secondPlayerId = threeInColIds[1];
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: collection_three_swap - 2-player path: selected players $firstPlayerId, $secondPlayerId');
+      };
       final firstCol = (allPlayers[firstPlayerId] as Map<String, dynamic>? ?? {})['collection_cards'] as List<dynamic>? ?? [];
       final secondCol = (allPlayers[secondPlayerId] as Map<String, dynamic>? ?? {})['collection_cards'] as List<dynamic>? ?? [];
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: collection_three_swap - collection sizes: $firstPlayerId=${firstCol.length}, $secondPlayerId=${secondCol.length}');
+      };
       if (firstCol.isEmpty || secondCol.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: collection_three_swap - one or both collections empty, skipping');
+        };
         return {
           'first_card_id': null,
           'first_player_id': actingPlayerId,
@@ -1929,6 +1955,9 @@ class ComputerPlayerFactory {
       final firstCardId = firstCard is Map ? (firstCard['cardId'] ?? firstCard['id'] ?? '').toString() : firstCard.toString();
       final secondCardId = secondCard is Map ? (secondCard['cardId'] ?? secondCard['id'] ?? '').toString() : secondCard.toString();
       if (firstCardId.isEmpty || secondCardId.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: collection_three_swap - failed to resolve card ids, skipping');
+        };
         return {
           'first_card_id': null,
           'first_player_id': actingPlayerId,
@@ -1937,7 +1966,7 @@ class ComputerPlayerFactory {
         };
       }
       if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - Collection three swap (2 players): $firstCardId ($firstPlayerId) <-> $secondCardId ($secondPlayerId)');
+        _logger.info('Dutch: collection_three_swap (2 players): $firstCardId ($firstPlayerId) <-> $secondCardId ($secondPlayerId)');
       };
       return {
         'first_card_id': firstCardId,
@@ -1946,12 +1975,17 @@ class ComputerPlayerFactory {
         'second_player_id': secondPlayerId,
       };
     }
-    
     // Exactly one player has 3 in collection: swap their last collection card with any non-collection card from any other player (excl. acting)
     final firstPlayerId = threeInColIds[0];
     final firstPlayerData = allPlayers[firstPlayerId] as Map<String, dynamic>? ?? {};
     final firstCol = firstPlayerData['collection_cards'] as List<dynamic>? ?? [];
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: collection_three_swap - 1-player path: player $firstPlayerId collection size=${firstCol.length}');
+    };
     if (firstCol.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: collection_three_swap - single player collection empty, skipping');
+      };
       return {
         'first_card_id': null,
         'first_player_id': actingPlayerId,
@@ -1969,7 +2003,6 @@ class ComputerPlayerFactory {
         'second_player_id': null,
       };
     }
-    
     // Second: any non-collection card from any other player (excl. acting, excl. first player)
     final fromOtherPlayer = <MapEntry<String, String>>[];
     for (final entry in allPlayers.entries) {
@@ -1989,7 +2022,13 @@ class ComputerPlayerFactory {
         }
       }
     }
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: collection_three_swap - candidate cards from other players: ${fromOtherPlayer.length}');
+    };
     if (fromOtherPlayer.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: collection_three_swap - no playable card from other players, skipping');
+      };
       return {
         'first_card_id': null,
         'first_player_id': actingPlayerId,
@@ -1999,7 +2038,7 @@ class ComputerPlayerFactory {
     }
     final second = fromOtherPlayer[_random.nextInt(fromOtherPlayer.length)];
     if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Collection three swap (1 player): $firstCardId ($firstPlayerId) <-> ${second.value} (${second.key})');
+      _logger.info('Dutch: collection_three_swap (1 player): $firstCardId ($firstPlayerId) <-> ${second.value} (${second.key})');
     };
     return {
       'first_card_id': firstCardId,
@@ -2133,7 +2172,7 @@ class ComputerPlayerFactory {
       if (LOGGING_SWITCH) {
         _logger.warning('Dutch: DEBUG - No known cards for acting player, using fallback');
       };
-      return _selectRandomTwoPlayers(actingPlayerId, actingPlayer, allPlayers, gameState);
+      return _selectRandomExceptOwn(actingPlayerId, allPlayers, gameState);
     }
     
     if (LOGGING_SWITCH) {
@@ -2211,10 +2250,10 @@ class ComputerPlayerFactory {
     if (LOGGING_SWITCH) {
       _logger.info('Dutch: DEBUG - No beneficial swap found, using fallback');
     };
-    return _selectRandomTwoPlayers(actingPlayerId, actingPlayer, allPlayers, gameState);
+    return _selectRandomExceptOwn(actingPlayerId, allPlayers, gameState);
   }
   
-  /// Rule 2: Random swap of 2 cards from other players only (excl. collection, not our hand)
+  /// Rule 4 (last): Random swap of 2 cards from other players only (excl. collection, not our hand)
   Map<String, dynamic> _selectRandomExceptOwn(
     String actingPlayerId,
     Map<String, dynamic> allPlayers,
@@ -2281,155 +2320,6 @@ class ComputerPlayerFactory {
       'first_player_id': first.key,
       'second_card_id': second.value,
       'second_player_id': second.key,
-    };
-  }
-  
-  /// Rule 3: Random 2 cards (excluding collection cards) - our card <-> other player's card
-  Map<String, dynamic> _selectRandomTwoPlayers(
-    String actingPlayerId,
-    Map<String, dynamic> actingPlayer,
-    Map<String, dynamic> allPlayers,
-    Map<String, dynamic> gameState,
-  ) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selecting random 2 cards from 2 other players');
-    };
-    
-    // Get acting player's collection card IDs (to exclude)
-    final actingPlayerCollectionCards = actingPlayer['collection_cards'] as List<dynamic>? ?? [];
-    final collectionCardIds = actingPlayerCollectionCards
-        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
-        .where((id) => id.isNotEmpty)
-        .toSet();
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Acting player has ${collectionCardIds.length} collection cards to exclude');
-    };
-    
-    // Get acting player's hand (excluding collection cards)
-    final actingPlayerHand = actingPlayer['hand'] as List<dynamic>? ?? [];
-    final playableOwnCards = actingPlayerHand
-        .where((cardId) => !collectionCardIds.contains(cardId.toString()))
-        .toList();
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Acting player hand: ${actingPlayerHand.length} total, ${playableOwnCards.length} playable (excluding collection)');
-    };
-    
-    if (playableOwnCards.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - No playable cards for acting player, using fallback');
-      };
-      return {
-        'first_card_id': null,
-        'first_player_id': actingPlayerId,
-        'second_card_id': null,
-        'second_player_id': null,
-      };
-    }
-    
-    // Get other players (excluding acting player)
-    final otherPlayers = allPlayers.entries
-        .where((entry) => entry.key != actingPlayerId)
-        .toList();
-    
-    // Require at least 2 players so our card and other's card are always from different players
-    if (otherPlayers.length < 2) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - Need at least 2 other players for random_two_players (different players), have ${otherPlayers.length}');
-      };
-      if (otherPlayers.isEmpty) {
-        return {
-          'first_card_id': null,
-          'first_player_id': actingPlayerId,
-          'second_card_id': null,
-          'second_player_id': null,
-        };
-      }
-      // Only one other player: still valid (our card <-> their card = 2 different players)
-      final otherPlayer = otherPlayers[0];
-      final otherPlayerId = otherPlayer.key;
-      final otherPlayerData = otherPlayer.value as Map<String, dynamic>? ?? {};
-      final otherPlayerHand = otherPlayerData['hand'] as List<dynamic>? ?? [];
-      final otherPlayerCollectionCards = otherPlayerData['collection_cards'] as List<dynamic>? ?? [];
-      final otherCollectionCardIds = otherPlayerCollectionCards
-          .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
-          .where((id) => id.isNotEmpty)
-          .toSet();
-      
-      final playableOtherCards = otherPlayerHand
-          .where((cardId) => !otherCollectionCardIds.contains(cardId.toString()))
-          .toList();
-      
-      if (playableOtherCards.isEmpty || playableOwnCards.isEmpty) {
-        return {
-          'first_card_id': null,
-          'first_player_id': actingPlayerId,
-          'second_card_id': null,
-          'second_player_id': null,
-        };
-      }
-      
-      // Our card (acting player) <-> other's card (different player)
-      final firstCard = playableOwnCards[_random.nextInt(playableOwnCards.length)].toString();
-      final secondCard = playableOtherCards[_random.nextInt(playableOtherCards.length)].toString();
-      
-      return {
-        'first_card_id': firstCard,
-        'first_player_id': actingPlayerId,
-        'second_card_id': secondCard,
-        'second_player_id': otherPlayerId,
-      };
-    }
-    
-    // Select 1 other player randomly (our card <-> their card, always different players)
-    final shuffledPlayers = List.from(otherPlayers)..shuffle(_random);
-    final firstOtherPlayer = shuffledPlayers[0];
-    
-    final firstOtherPlayerId = firstOtherPlayer.key;
-    final firstOtherPlayerData = firstOtherPlayer.value as Map<String, dynamic>? ?? {};
-    final firstOtherPlayerHand = firstOtherPlayerData['hand'] as List<dynamic>? ?? [];
-    final firstOtherPlayerCollectionCards = firstOtherPlayerData['collection_cards'] as List<dynamic>? ?? [];
-    final firstOtherCollectionCardIds = firstOtherPlayerCollectionCards
-        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
-        .where((id) => id.isNotEmpty)
-        .toSet();
-    
-    final playableFirstOtherCards = firstOtherPlayerHand
-        .where((cardId) => !firstOtherCollectionCardIds.contains(cardId.toString()))
-        .toList();
-    
-    if (playableOwnCards.isEmpty || playableFirstOtherCards.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - Not enough playable cards, using fallback');
-      };
-      return {
-        'first_card_id': null,
-        'first_player_id': actingPlayerId,
-        'second_card_id': null,
-        'second_player_id': null,
-      };
-    }
-    
-    // Select random cards
-    final firstCard = playableOwnCards[_random.nextInt(playableOwnCards.length)].toString();
-    final secondCard = playableFirstOtherCards[_random.nextInt(playableFirstOtherCards.length)].toString();
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selected random swap:');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG -   First card: $firstCard from acting player $actingPlayerId');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG -   Second card: $secondCard from other player $firstOtherPlayerId');
-    };
-    
-    return {
-      'first_card_id': firstCard,
-      'first_player_id': actingPlayerId,
-      'second_card_id': secondCard,
-      'second_player_id': firstOtherPlayerId,
     };
   }
   

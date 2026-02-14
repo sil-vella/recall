@@ -92,6 +92,56 @@ class GradientBorderPainter extends CustomPainter {
   }
 }
 
+/// Paints an inner shadow (same style as outer table shadow) along the inner edge of the table.
+/// Clips to the table rect and draws a blurred stroke so the shadow falls onto the table surface.
+class InnerShadowPainter extends CustomPainter {
+  final Color color;
+  final double blurRadius;
+  final double spreadRadius;
+  final Offset offset;
+  final double borderRadius;
+
+  InnerShadowPainter({
+    required this.color,
+    this.blurRadius = 35.0,
+    this.spreadRadius = 2.0,
+    this.offset = const Offset(0, 4),
+    this.borderRadius = 8.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(borderRadius),
+    );
+    canvas.save();
+    canvas.clipRRect(rrect);
+
+    // Draw blurred stroke along the inner edge so shadow falls onto the table
+    final strokeWidth = blurRadius + spreadRadius;
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth * 2
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurRadius);
+
+    canvas.translate(offset.dx, offset.dy);
+    canvas.drawPath(path, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(InnerShadowPainter oldDelegate) {
+    return color != oldDelegate.color ||
+        blurRadius != oldDelegate.blurRadius ||
+        spreadRadius != oldDelegate.spreadRadius ||
+        offset != oldDelegate.offset ||
+        borderRadius != oldDelegate.borderRadius;
+  }
+}
+
 /// Background widget that only builds once - contains table color and texture
 /// Uses RepaintBoundary to prevent unnecessary repaints
 class TableBackgroundWidget extends StatefulWidget {
@@ -560,30 +610,59 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8.0),
                       clipBehavior: Clip.antiAlias, // Smooth edges without black artifacts
-                      child: Stack(
-                        children: [
-                          // Background layer - poker table green with felt texture
-                          // Uses cached widget instance that only builds once on screen load
-                          Positioned.fill(
-                            child: _tableBackground,
-                          ),
-                          // Main content - transparent so background shows through
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                      child: LayoutBuilder(
+                        builder: (context, innerConstraints) {
+                          final tableWidth = innerConstraints.maxWidth;
+                          final overlaySize = tableWidth * 0.5;
+                          return Stack(
                             children: [
-                              // Game Information Widget - takes natural height
-                              const GameInfoWidget(),
-                              
-                              SizedBox(height: AppPadding.smallPadding.top),
-                              
-                              // Unified Game Board Widget - takes all remaining available space
-                              // It will be scrollable internally with my hand aligned to bottom
-                              Expanded(
-                                child: const UnifiedGameBoardWidget(),
+                              // Background layer - poker table green with felt texture
+                              // Uses cached widget instance that only builds once on screen load
+                              Positioned.fill(
+                                child: _tableBackground,
+                              ),
+                              // Table overlay image - above felt, below all game widgets
+                              Center(
+                                child: SizedBox(
+                                  width: overlaySize,
+                                  height: overlaySize,
+                                  child: Image.asset(
+                                    'assets/images/table_overlay.png',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              // Main content - transparent so background shows through
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // Game Information Widget - takes natural height
+                                  const GameInfoWidget(),
+                                  SizedBox(height: AppPadding.smallPadding.top),
+                                  // Unified Game Board Widget - takes all remaining available space
+                                  Expanded(
+                                    child: const UnifiedGameBoardWidget(),
+                                  ),
+                                ],
+                              ),
+                              // Inner shadow - same as outer, cast from inside the light brown border onto the table
+                              Positioned.fill(
+                                child: IgnorePointer(
+                                  child: CustomPaint(
+                                    painter: InnerShadowPainter(
+                                      color: AppColors.black.withValues(alpha: 0.8),
+                                      blurRadius: 3.0,
+                                      spreadRadius: 2.0,
+                                      offset: const Offset(0, 2),
+                                      borderRadius: 3.0,
+                                    ),
+                                    size: Size(innerConstraints.maxWidth, innerConstraints.maxHeight),
+                                  ),
+                                ),
                               ),
                             ],
-                          ),
-                        ],
+                          );
+                        },
                       ),
                     ),
                   ),

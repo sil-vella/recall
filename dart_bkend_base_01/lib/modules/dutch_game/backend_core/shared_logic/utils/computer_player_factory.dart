@@ -380,9 +380,9 @@ class ComputerPlayerFactory {
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
     const jackSwapStrategies = [
       {'id': 'collection_three_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
-      {'id': 'one_card_player_priority', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
-      {'id': 'lowest_opponent_higher_own', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
-      {'id': 'random_except_own', 'expert': 0, 'hard': 0, 'medium': 0, 'easy': 0},
+      {'id': 'one_card_player_priority', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
+      {'id': 'lowest_opponent_higher_own', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
+      {'id': 'random_except_own', 'expert': 98, 'hard': 95, 'medium': 95, 'easy': 90},
     ];
 
     String? selectedStrategyId;

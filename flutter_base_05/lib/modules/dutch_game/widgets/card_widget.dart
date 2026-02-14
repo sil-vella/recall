@@ -106,7 +106,7 @@ class CardWidget extends StatelessWidget {
       child: Stack(
         children: [
           // Background image for special cards (queen, king, jack, joker)
-          // Full height, aspect ratio preserved, aligned left (overflow clipped on right)
+          // 3/4 card height, aspect ratio preserved, aligned left (overflow clipped on right)
           if (isSpecialCard && specialCardImagePath != null)
             Positioned.fill(
               child: ClipRRect(
@@ -116,7 +116,7 @@ class CardWidget extends StatelessWidget {
                   child: Image(
                     image: AssetImage(specialCardImagePath),
                     fit: BoxFit.fitHeight,
-                    height: dimensions.height,
+                    height: dimensions.height * 3 / 4,
                     errorBuilder: (context, error, stackTrace) {
                       return const SizedBox.shrink();
                     },
@@ -264,7 +264,7 @@ class CardWidget extends StatelessWidget {
       return _buildRankSuitText(text, initialFontSize, card.color, textAlign);
     }
     // Bottom-right: rank and suit same size; rank plain (bold), suit with white circle behind
-    final bottomRightTextSize = initialFontSize * 2;
+    final bottomRightTextSize = initialFontSize * 4;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,

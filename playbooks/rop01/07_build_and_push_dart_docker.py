@@ -32,8 +32,33 @@ BUILD_CONTEXT = PROJECT_ROOT / "dart_bkend_base_01"
 # Config files to set to production values before build (backed up and restored after)
 DECK_CONFIG_PATH = BUILD_CONTEXT / "lib" / "modules" / "dutch_game" / "config" / "deck_config.yaml"
 PREDEFINED_HANDS_PATH = BUILD_CONTEXT / "lib" / "modules" / "dutch_game" / "config" / "predefined_hands.yaml"
+SERVER_LOGGER_PATH = BUILD_CONTEXT / "lib" / "utils" / "server_logger.dart"
 
 _config_backups = {}  # path -> original content
+
+
+def disable_custom_logging() -> None:
+    """Set CUSTOM_LOGGING_ENABLED to false in server_logger.dart before build (backed up and restored after)."""
+    print(f"\n{Colors.BLUE}Disabling CUSTOM_LOGGING_ENABLED in server_logger.dart...{Colors.NC}")
+    if not SERVER_LOGGER_PATH.exists():
+        print(f"  {Colors.YELLOW}⚠{Colors.NC} {SERVER_LOGGER_PATH.relative_to(BUILD_CONTEXT)} not found, skipping")
+        return
+    try:
+        text = SERVER_LOGGER_PATH.read_text(encoding="utf-8")
+        _config_backups[str(SERVER_LOGGER_PATH)] = text
+        # Match CUSTOM_LOGGING_ENABLED = true (with optional bool and trailing comment)
+        new_text = re.sub(
+            r"(CUSTOM_LOGGING_ENABLED\s*=\s*)true\b",
+            r"\1false",
+            text,
+        )
+        if new_text != text:
+            SERVER_LOGGER_PATH.write_text(new_text, encoding="utf-8")
+            print(f"  {Colors.GREEN}✓{Colors.NC} {SERVER_LOGGER_PATH.relative_to(BUILD_CONTEXT)}: CUSTOM_LOGGING_ENABLED → false")
+        else:
+            print(f"  {Colors.GREEN}✓{Colors.NC} {SERVER_LOGGER_PATH.relative_to(BUILD_CONTEXT)}: CUSTOM_LOGGING_ENABLED already false")
+    except Exception as e:
+        print(f"  {Colors.RED}✗{Colors.NC} Error updating {SERVER_LOGGER_PATH.relative_to(BUILD_CONTEXT)}: {e}")
 
 
 def set_production_config() -> None:
@@ -227,6 +252,9 @@ def main() -> None:
 
     # Ensure noisy logging is disabled in the built image
     disable_logging_switch()
+
+    # Disable file logging in container (path may not exist on VPS)
+    disable_custom_logging()
 
     # Set production config: testing_mode=false, predefined_hands enabled=false
     set_production_config()

@@ -264,7 +264,7 @@ class AppColors {
   ) ?? scaffoldBackgroundColor;
   
   // Poker table green for game screens
-  static const Color pokerTableGreen = Color(0xFF0F5132); // Dark green similar to poker table felt
+  static const Color pokerTableGreen = Color.fromARGB(255, 18, 109, 79); // Dark green similar to poker table felt
 
   // Casino border colors - for layered casino table borders
   static Color get casinoBorderColor => ThemeConfig.casinoBorderColor;

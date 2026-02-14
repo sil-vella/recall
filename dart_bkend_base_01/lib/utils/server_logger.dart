@@ -14,7 +14,8 @@ class Logger {
   }
 
   // Logging switch for this module (like Python LOGGING_SWITCH)
-  static const bool CUSTOM_LOGGING_ENABLED = true; // Enabled for debugging
+  // Set to false in production/Docker to avoid file write attempts (path may not exist).
+  static const bool CUSTOM_LOGGING_ENABLED = false;
 
   // Log file path - same as Python server log
   static const String _logFileName = '/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log';
@@ -109,8 +110,8 @@ class Logger {
 
   /// Write to log file
   void _writeToFile(String message) {
-    if (!_initialized) return;
-    
+    if (!CUSTOM_LOGGING_ENABLED || !_initialized) return;
+
     try {
       // Format: [timestamp] [DART] [level] message (same format as Flutter logs)
       final timestamp = DateTime.now().toIso8601String();

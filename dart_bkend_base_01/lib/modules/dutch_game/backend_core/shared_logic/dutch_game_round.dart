@@ -3120,6 +3120,7 @@ class DutchGameRound {
       String resolvedCardId;
 
       if (cardIndex != null) {
+        // Computer path: play by index; card at hand[cardIndex] may be wrong rank (penalty if so)
         if (cardIndex < 0 || cardIndex >= hand.length) {
           if (LOGGING_SWITCH) {
             _logger.info('Dutch: Same rank play by index out of range: $cardIndex for player $playerId');
@@ -3145,6 +3146,7 @@ class DutchGameRound {
           _logger.info('Dutch: Same rank attempt by index (computer path): player $playerId, handIndex $resolvedIndex, cardId $resolvedCardId');
         };
       } else {
+        // Human path: resolve by cardId (then known_cards handIndex fallback)
         if (!_isValidCardId(cardId)) {
           if (LOGGING_SWITCH) {
             _logger.info('Dutch: Same rank play invalid cardId for player $playerId');
@@ -3168,6 +3170,7 @@ class DutchGameRound {
       final cardIndexForRest = resolvedIndex;
       final cardIdForRest = resolvedCardId;
 
+      // Get full card data
       final playedCardFullData = _stateCallback.getCardById(gameState, cardIdForRest);
       if (playedCardFullData == null) {
         if (LOGGING_SWITCH) {
@@ -3179,6 +3182,7 @@ class DutchGameRound {
       final cardRank = playedCardFullData['rank']?.toString() ?? '';
       final cardSuit = playedCardFullData['suit']?.toString() ?? '';
       
+      // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
         final discardForLog = _ensureCardMapList(gameState['discardPile']);
         final lastDiscard = discardForLog.isNotEmpty ? discardForLog.last as Map<String, dynamic>? : null;
@@ -3294,6 +3298,7 @@ class DutchGameRound {
         _logger.info('Dutch: Same rank validation passed for card $cardIdForRest with rank $cardRank');
       };
       
+      // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
       final shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndexForRest);
       
       if (shouldCreateBlankSlot) {

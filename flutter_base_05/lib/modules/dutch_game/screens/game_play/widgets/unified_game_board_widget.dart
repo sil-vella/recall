@@ -48,6 +48,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   int _initialPeekSelectionCount = 0;
   List<String> _initialPeekSelectedCardIds = [];
   bool _isProcessingAction = false;
+  /// True immediately when user taps "Call Final Round"; shows "Final Round Active" until state catches up.
+  bool _callFinalRoundTappedPending = false;
   bool _isMyHandCardsToPeekProtected = false;
   List<dynamic>? _protectedMyHandCardsToPeek;
   Timer? _myHandCardsToPeekProtectionTimer;
@@ -2348,11 +2350,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         borderRadius: BorderRadius.circular(borderRadius),
         child: Stack(
           children: [
-            // Background with felt texture (same as table)
+            // Background — same color as border
             Positioned.fill(
-              child: FeltTextureWidget(
-                backgroundColor: AppColors.pokerTableGreen,
-                // Using default parameters to match table texture
+              child: Container(
+                color: AppColors.accentColor,
               ),
             ),
             // Border overlay — use theme accent (green in Dutch/green preset) per THEME_SYSTEM.md
@@ -3533,7 +3534,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   style: AppTextStyles.headingSmall(),
                 ),
                 const Spacer(),
-                if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !finalRoundActive && !hasPlayerCalledFinalRound) ...[
+                if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !finalRoundActive && !hasPlayerCalledFinalRound && !_callFinalRoundTappedPending) ...[
                   GestureDetector(
                     onTap: () => _handleCallFinalRound(context, currentGameId),
                     child: Container(
@@ -3564,7 +3565,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     ),
                   ),
                   const SizedBox(width: 8),
-                ] else if (finalRoundActive) ...[
+                ] else if (finalRoundActive || _callFinalRoundTappedPending) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
@@ -3575,15 +3576,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          finalRoundCalledBy == _getCurrentUserId() 
-                              ? Icons.flag 
+                          (finalRoundActive && finalRoundCalledBy == _getCurrentUserId())
+                              ? Icons.flag
                               : Icons.flag_outlined,
                           size: 12,
                           color: AppColors.textOnAccent,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          finalRoundCalledBy == _getCurrentUserId()
+                          (finalRoundActive && finalRoundCalledBy == _getCurrentUserId())
                               ? 'You Called Final Round'
                               : 'Final Round Active',
                           style: AppTextStyles.bodySmall().copyWith(
@@ -3704,12 +3705,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             
             Map<String, Widget> collectionRankWidgets = {};
             
-            // Calculate card dimensions as 12% of container width, clamped to max
-            final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.12); // 12% of container width, clamped to max
+            // Size cards so all slots fit in one row (no wrapping). Total slots = cards + extra invisible + leading spacer.
+            const double kMinCardWidth = 28.0;
+            final int totalSlotCount = cards.length + 2;
+            final cardPadding = containerWidth * 0.02;
+            final slotWidth = containerWidth / totalSlotCount;
+            final rawCardWidth = slotWidth - cardPadding;
+            final cardWidth = rawCardWidth.clamp(kMinCardWidth, CardDimensions.MAX_CARD_WIDTH);
             final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
             final cardDimensions = Size(cardWidth, cardHeight);
             final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
-            final cardPadding = containerWidth * 0.02;
             
             for (int i = 0; i < cards.length; i++) {
               final card = cards[i];
@@ -3951,14 +3956,23 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           
           // Leading spacer: one card width + margin (same as each card slot) so it stays in sync with card sizing
           final leadingSlotWidth = cardDimensions.width + cardPadding;
-          final wrapWidget = Wrap(
-            spacing: 0, // Spacing is handled by card padding
-            runSpacing: cardPadding, // Vertical spacing between wrapped rows
-            alignment: WrapAlignment.center,
-            children: [
-              SizedBox(width: leadingSlotWidth),
-              ...cardWidgets,
-            ],
+          final totalRowWidth = totalSlotCount * (cardDimensions.width + cardPadding);
+          // Use at least container width so Center can center the row when it's narrower (e.g. after resize)
+          final rowContainerWidth = totalRowWidth < containerWidth ? containerWidth : totalRowWidth;
+          final rowWidget = SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: rowContainerWidth,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(width: leadingSlotWidth),
+                    ...cardWidgets,
+                  ],
+                ),
+              ),
+            ),
           );
           
           // Update card bounds after build
@@ -3990,7 +4004,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             );
           });
           
-          return wrapWidget;
+          return rowWidget;
         },
       );
       },
@@ -4047,6 +4061,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     try {
       setState(() {
         _isProcessingAction = true;
+        _callFinalRoundTappedPending = true; // Show "Final Round Active" immediately
       });
       if (LOGGING_SWITCH) {
         _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true (call final round)');
@@ -4083,6 +4098,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       if (mounted) {
         setState(() {
           _isProcessingAction = false;
+          _callFinalRoundTappedPending = false; // Restore button on failure
         });
         if (LOGGING_SWITCH) {
           _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round error)');

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Upload Card Back Image Script
-This script uploads a card back image to the VPS at /var/www/dutch.reignofplay.com/sponsors/images/card_back.png
-It creates the directory structure if it doesn't exist.
+Reads the card back image from sponsors/images/card_back.png (relative to project root)
+and uploads it to the VPS at /var/www/dutch.reignofplay.com/sponsors/images/card_back.png.
+Creates the remote directory structure if it doesn't exist.
 """
 
 import os
@@ -28,7 +29,7 @@ VPS_SSH_KEY = os.environ.get('VPS_SSH_KEY', os.path.expanduser('~/.ssh/rop01_key
 REMOTE_IMAGE_DIR = '/var/www/dutch.reignofplay.com/sponsors/images'
 REMOTE_IMAGE_PATH = f'{REMOTE_IMAGE_DIR}/card_back.png'
 REMOTE_TMP_IMAGE = '/tmp/card_back.png'
-DEFAULT_LOCAL_IMAGE_PATH = PROJECT_ROOT / 'sponsors' / 'images' / 'card_back.png'
+LOCAL_IMAGE_PATH = PROJECT_ROOT / 'sponsors' / 'images' / 'card_back.png'
 
 def check_ssh_key():
     """Check if SSH key exists."""
@@ -146,22 +147,9 @@ def main():
     if not check_ssh_key():
         sys.exit(1)
     
-    # Get local image path from command line argument, default location, or prompt
-    if len(sys.argv) > 1:
-        local_image_path = Path(sys.argv[1])
-    elif DEFAULT_LOCAL_IMAGE_PATH.exists():
-        local_image_path = DEFAULT_LOCAL_IMAGE_PATH
-        print(f"{Colors.BLUE}Using default image path: {local_image_path}{Colors.NC}\n")
-    else:
-        print(f"{Colors.YELLOW}Default image not found at: {DEFAULT_LOCAL_IMAGE_PATH}{Colors.NC}")
-        image_path_str = input("Enter path to local card back image file: ").strip()
-        if not image_path_str:
-            print(f"{Colors.RED}Error: No image path provided{Colors.NC}")
-            sys.exit(1)
-        local_image_path = Path(image_path_str)
-    
-    # Resolve to absolute path
-    local_image_path = local_image_path.resolve()
+    # Image is always taken from sponsors/images/card_back.png
+    local_image_path = LOCAL_IMAGE_PATH.resolve()
+    print(f"{Colors.BLUE}Source image: {local_image_path}{Colors.NC}\n")
     
     # Check if local image exists
     if not check_local_image(local_image_path):

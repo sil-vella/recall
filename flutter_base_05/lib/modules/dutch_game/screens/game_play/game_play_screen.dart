@@ -162,7 +162,7 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
           
           // Calculate spotlight positions - evenly spaced vertically
           // 2 spotlights from left, 2 from right
-          final spotlightSize = 400.0; // Size of circular spotlight
+          final spotlightSize = 800.0; // Size of circular spotlight
           final topSpotlightY = height * 0.25; // Top spotlight position
           final bottomSpotlightY = height * 0.75; // Bottom spotlight position
           
@@ -190,10 +190,10 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
                       radius: 1.0,
                       colors: [
                         AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.15), // Warm fade
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.25), // Warm fade
                         AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
                       ],
-                      stops: const [0.0, 0.05, 0.3], // Fades to zero at 40% - well before edge
+                      stops: const [0.0, 0.08, 0.4], // Fades to zero at 40% - well before edge
                     ),
                   ),
                 ),
@@ -211,10 +211,10 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
                       radius: 1.0,
                       colors: [
                         AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.15), // Warm fade
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.25), // Warm fade
                         AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
                       ],
-                      stops: const [0.0, 0.05, 0.3], // Fades to zero at 40% - well before edge
+                      stops: const [0.0, 0.08, 0.4], // Fades to zero at 40% - well before edge
                     ),
                   ),
                 ),
@@ -233,10 +233,10 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
                       radius: 1.0,
                       colors: [
                         AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.15), // Warm fade
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.25), // Warm fade
                         AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
                       ],
-                      stops: const [0.0, 0.05, 0.3], // Fades to zero at 40% - well before edge
+                      stops: const [0.0, 0.08, 0.4], // Fades to zero at 40% - well before edge
                     ),
                   ),
                 ),
@@ -254,10 +254,10 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
                       radius: 1.0,
                       colors: [
                         AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.15), // Warm fade
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.25), // Warm fade
                         AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
                       ],
-                      stops: const [0.0, 0.05, 0.3], // Fades to zero at 40% - well before edge
+                      stops: const [0.0, 0.08, 0.4], // Fades to zero at 40% - well before edge
                     ),
                   ),
                 ),

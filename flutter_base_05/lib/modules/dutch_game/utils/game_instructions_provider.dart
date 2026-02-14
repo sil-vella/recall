@@ -34,7 +34,7 @@ Clear all cards from your hand or end the game with the least points possible.
 
 
 **Final Round:**
-If you think you have the least points during your turn, you can call **final round** just before you play a card. This will trigger the final round - this was your final round so you won't play again.
+If you think you have the least points during your turn, you can call **final round** after you play your card. This will trigger the final round - this was your final round so you won't play again.
 
 **Winning:**
 • Player with **no cards** wins
@@ -42,7 +42,7 @@ If you think you have the least points during your turn, you can call **final ro
 • If same points, player with **least cards** wins
 • If same points and same cards, player who **called final round** wins
 
-• **Clear and collect mode** - Player that collects all 4 cards of their rank wins
+• **Clear and collect mode** - The player that collects all 4 cards of their rank wins the game.
 
 ''',
     };
@@ -132,7 +132,7 @@ Tap a card from any hand to reveal it.''',
 You can swap any **2 cards** from any hand, including your own.
 
 ** For Dutch: Clear and Collect mode **
-Jack swap also enables you to swap out **collection cards** from any hand. You can swap collection cards from any hand. Swapped out collection cards are now regular playable cards.
+Jack swap also enables you to swap out **collection cards** from any hand. Swapped out collection cards are now regular playable cards.
 
 **Important:** If you swap out the last collection card, that player no longer have a collection.''',
       };

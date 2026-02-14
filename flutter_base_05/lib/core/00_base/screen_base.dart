@@ -462,8 +462,9 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
               widget.computeTitle(context),
               style: AppTextStyles.headingMedium(color: AppColors.white),
             ),
-      backgroundColor: AppColors.primaryColor,
+      backgroundColor: AppColors.accentContrast,
       elevation: 0,
+      centerTitle: false,
       leading: Builder(
         builder: (context) => Semantics(
           label: 'drawer_open',

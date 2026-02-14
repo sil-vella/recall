@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing (practice mode)
+const bool LOGGING_SWITCH = false; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing (practice mode)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -460,6 +460,18 @@ class DutchGameRound {
     
     // No actual cards beyond this index, so remove the card entirely
     return false;
+  }
+
+  /// If indices 4 and up are all null, remove those slots from hand (indices 0-3 are never trimmed).
+  void _trimTrailingNullSlotsFromIndex4(List<dynamic> hand) {
+    if (hand.length <= 4) return;
+    for (int i = 4; i < hand.length; i++) {
+      if (hand[i] != null) return;
+    }
+    hand.removeRange(4, hand.length);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Trimmed trailing null slots from index 4 (hand length now ${hand.length})');
+    }
   }
 
   
@@ -1819,6 +1831,9 @@ class DutchGameRound {
       final player = players[playerIndex];
       final hand = player['hand'] as List<dynamic>? ?? [];
       
+      // Before adding the drawn card: trim trailing null slots from index 4+ if all are null
+      _trimTrailingNullSlotsFromIndex4(hand);
+      
       // Add card to player's hand as ID-only (player hands always store ID-only cards)
       // Backend replicates this in player.py add_card_to_hand method
       // Format matches dutch game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
@@ -2720,7 +2735,8 @@ class DutchGameRound {
         _logger.info('Dutch: Converted card $cardId to full data for discard pile');
       };
       
-      // Update player's hand back to game state (hand list was modified with nulls)
+      // Trim trailing nulls from index 4+ if all are null, then update hand
+      _trimTrailingNullSlotsFromIndex4(hand);
       player['hand'] = hand;
       
       // Add action data for animation system
@@ -2938,9 +2954,10 @@ class DutchGameRound {
           }
         }
         
-        // Place the drawn card in the blank slot left by the played card
-        // IMPORTANT: Convert drawn card to ID-only data when placing in hand (same as backend)
-        // Format matches dutch game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+        // Place the drawn card in the blank slot left by the played card (cardIndex).
+        // We always place at cardIndex: that slot exists (null from the played card) and must be filled.
+        // Do not use _shouldCreateBlankSlotAtIndex here — that answers "leave null or remove?" when
+        // removing a card; for reposition the destination slot is always the played card's slot.
         final drawnCardIdOnly = {
           'cardId': drawnCard['cardId'],
           'suit': '?',      // Face-down: hide suit
@@ -2948,27 +2965,20 @@ class DutchGameRound {
           'points': 0,      // Face-down: hide points
         };
         
-        // Apply smart blank slot logic to the target position
-        final shouldPlaceInSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
-        
-        if (shouldPlaceInSlot) {
-          // Place it in the blank slot left by the played card
-          if (cardIndex < hand.length) {
-            hand[cardIndex] = drawnCardIdOnly;
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: Placed drawn card in blank slot at index $cardIndex');
-            };
-          } else {
-            hand.insert(cardIndex, drawnCardIdOnly);
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: Inserted drawn card at index $cardIndex');
-            };
-          }
-        } else {
-          // The slot shouldn't exist, so append the drawn card to the end
+        if (cardIndex < hand.length) {
+          hand[cardIndex] = drawnCardIdOnly;
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Placed drawn card in blank slot at index $cardIndex');
+          };
+        } else if (cardIndex == hand.length) {
           hand.add(drawnCardIdOnly);
           if (LOGGING_SWITCH) {
-            _logger.info('Dutch: Appended drawn card to end of hand (slot $cardIndex should not exist)');
+            _logger.info('Dutch: Appended drawn card at index $cardIndex (end of hand)');
+          };
+        } else {
+          hand.insert(cardIndex, drawnCardIdOnly);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Inserted drawn card at index $cardIndex');
           };
         }
         
@@ -2980,7 +2990,8 @@ class DutchGameRound {
           _logger.info('Dutch: Removed drawn card property after repositioning');
         };
         
-        // Update player's hand back to game state (hand list was modified)
+        // Trim trailing nulls from index 4+ if all are null, then update hand
+        _trimTrailingNullSlotsFromIndex4(hand);
         player['hand'] = hand;
         
         if (LOGGING_SWITCH) {
@@ -3269,6 +3280,8 @@ class DutchGameRound {
           _logger.info('Dutch: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only');
         };
         
+        // Trim trailing nulls from index 4+ if all are null, then persist
+        _trimTrailingNullSlotsFromIndex4(hand);
         // CRITICAL: Persist changes to game state
         player['hand'] = hand;  // Update player's hand with the penalty card
         gameState['drawPile'] = currentDrawPile;  // Update draw pile after removing penalty card (may have been reshuffled)
@@ -3313,6 +3326,7 @@ class DutchGameRound {
         };
       }
       
+      _trimTrailingNullSlotsFromIndex4(hand);
       player['hand'] = hand;
       
       final actionName = 'same_rank_${_generateActionId()}';

@@ -227,7 +227,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
     echo ""
     echo "❌ VPS upload failed. REMAINING TASKS (run manually if needed):"
     echo "  [1] Create version dir and upload APK:"
-    echo "      scp -i $VPS_SSH_KEY $OUTPUT_APK $VPS_SSH_TARGET:$REMOTE_TMP_APK"
+    echo "      rsync -avz --progress -e \"ssh -i $VPS_SSH_KEY\" $OUTPUT_APK $VPS_SSH_TARGET:$REMOTE_TMP_APK"
     echo "      ssh -i $VPS_SSH_KEY $VPS_SSH_TARGET \"sudo mkdir -p $REMOTE_VERSION_DIR && sudo mv $REMOTE_TMP_APK $REMOTE_APK_PATH && sudo chown www-data:www-data $REMOTE_APK_PATH && sudo chmod 644 $REMOTE_APK_PATH\""
     echo "  [2] Update mobile_release.json on VPS:"
     echo "      (create JSON with latest_version and min_supported_version: $APP_VERSION)"
@@ -239,9 +239,9 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   echo "🌐 Uploading APK to VPS ($VPS_SSH_TARGET)..."
   echo "📂 Remote path: $REMOTE_APK_PATH"
 
-  echo "  Step 1/3: Uploading APK to temporary location on VPS..."
-  if ! scp -i "$VPS_SSH_KEY" "$OUTPUT_APK" "$VPS_SSH_TARGET":"$REMOTE_TMP_APK"; then
-    echo "❌ Step 1/3 failed: scp APK to $REMOTE_TMP_APK"
+  echo "  Step 1/3: Uploading APK to temporary location on VPS (rsync with compression)..."
+  if ! rsync -avz --progress -e "ssh -i $VPS_SSH_KEY" "$OUTPUT_APK" "$VPS_SSH_TARGET:$REMOTE_TMP_APK"; then
+    echo "❌ Step 1/3 failed: rsync APK to $REMOTE_TMP_APK"
     log_remaining_vps_tasks
     exit 1
   fi

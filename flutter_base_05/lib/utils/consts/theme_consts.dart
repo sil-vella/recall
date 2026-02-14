@@ -97,27 +97,51 @@ class ThemeConfig {
     }
   }
 
-  /// Get scaffold background color
+  /// Contrast accent (e.g. app bar) — preset-specific
+  static Color get accentContrast {
+    switch (currentTheme) {
+      case ThemePreset.blue:
+        return const Color(0xFF2A3A5F);
+      case ThemePreset.red:
+        return const Color(0xFF5F2A2A);
+      case ThemePreset.green:
+        return const Color(0xFF2A5F3A);
+      case ThemePreset.purple:
+        return const Color(0xFF4A2A5F);
+      case ThemePreset.orange:
+        return const Color(0xFF5F3A2A);
+      case ThemePreset.teal:
+        return const Color(0xFF2A5F5F);
+      case ThemePreset.magenta:
+        return const Color(0xFF5C3F54); // Muted plum
+      case ThemePreset.defaultTheme:
+        return const Color(0xFF5C3F54); // Muted plum
+      case ThemePreset.dutch:
+        return const Color(0xFF5C3F54); // Muted plum
+    }
+  }
+
+  /// Get scaffold background color — darker variant of accentContrast per preset
   static Color get scaffoldBackgroundColor {
     switch (currentTheme) {
       case ThemePreset.blue:
-        return const Color(0xFF1A2332);
+        return const Color(0xFF151E30); // Darker accentContrast #2A3A5F
       case ThemePreset.red:
-        return const Color(0xFF2A1F1F);
+        return const Color(0xFF301515); // Darker accentContrast #5F2A2A
       case ThemePreset.green:
-        return const Color(0xFF1F2A1F);
+        return const Color(0xFF151E30); // Darker accentContrast #2A5F3A
       case ThemePreset.purple:
-        return const Color(0xFF2A1F2A);
+        return const Color(0xFF261530); // Darker accentContrast #4A2A5F
       case ThemePreset.orange:
-        return const Color(0xFF2A251F);
+        return const Color(0xFF301E15); // Darker accentContrast #5F3A2A
       case ThemePreset.teal:
-        return const Color(0xFF1F2A2A);
+        return const Color(0xFF151E1E); // Darker accentContrast #2A5F5F
       case ThemePreset.magenta:
-        return const Color(0xFF2A1F25); // Dark background with magenta tint
+        return const Color(0xFF2E1F2A); // Darker accentContrast #5C3F54
       case ThemePreset.defaultTheme:
-        return const Color(0xFF1F1A1A); // Dark background
+        return const Color(0xFF2E1F2A); // Darker accentContrast #5C3F54
       case ThemePreset.dutch:
-        return const Color(0xFF2A3A1F); // Dark green-tinted background for Dutch theme
+        return const Color(0xFF2E1F2A); // Darker accentContrast #5C3F54
     }
   }
 
@@ -212,6 +236,7 @@ class AppColors {
   static Color get primaryColor => ThemeConfig.primaryColor;
   static Color get accentColor => ThemeConfig.accentColor;
   static Color get accentColor2 => ThemeConfig.accentColor2;
+  static Color get accentContrast => ThemeConfig.accentContrast;
   static Color get scaffoldBackgroundColor => ThemeConfig.scaffoldBackgroundColor;
 
   // Neutral colors (theme-independent)

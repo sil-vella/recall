@@ -1726,7 +1726,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   ? "Don't have an account? Sign up" 
                   : "Already have an account? Sign in",
                 style: TextStyle(
-                  color: Theme.of(context).primaryColor,
+                  color: AppColors.textOnAccent,
                   fontWeight: FontWeight.w500,
                 ),
               ),

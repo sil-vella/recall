@@ -3220,6 +3220,8 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.info('🎬 ACTION_DATA: Added same_rank_reject action for penalty - card1Data: {cardIndex: $cardIndexForRest, playerId: $playerId}');
         }
+        // Wrong same-rank attempt exposes that card to all players' known_cards (not the penalty draw)
+        updateKnownCards('wrong_same_rank', playerId, [cardIdForRest], swapData: {'handIndex': cardIndexForRest});
         
         final drawPile = _ensureCardMapList(gameState['drawPile']);
         final discardPile = _ensureCardMapList(gameState['discardPile']);
@@ -6095,10 +6097,10 @@ class DutchGameRound {
   /// This method is called after any card play action to maintain accurate
   /// knowledge tracking for all players (both human and computer).
   /// 
-  /// [eventType]: Type of event ('play_card', 'same_rank_play', 'jack_swap')
+  /// [eventType]: Type of event ('play_card', 'same_rank_play', 'jack_swap', 'queen_peek', 'wrong_same_rank'). For wrong_same_rank: acting player attempted wrong same rank; add that card to all players' known_cards.
   /// [actingPlayerId]: ID of the player who performed the action
   /// [affectedCardIds]: List of card IDs involved in the action
-  /// [swapData]: Optional data (e.g. Jack swap: sourcePlayerId, targetPlayerId, firstCardNewIndex, secondCardNewIndex; Queen peek: targetPlayerId, targetCardIndex)
+  /// [swapData]: Optional data (e.g. Jack swap: sourcePlayerId, targetPlayerId, firstCardNewIndex, secondCardNewIndex; Queen peek: targetPlayerId, targetCardIndex; wrong_same_rank: handIndex)
   void updateKnownCards(
     String eventType, 
     String actingPlayerId, 
@@ -6138,6 +6140,8 @@ class DutchGameRound {
           _processJackSwapUpdate(knownCards, affectedCardIds, swapData, rememberProb);
         } else if (eventType == 'queen_peek' && swapData != null) {
           _processQueenPeekUpdate(knownCards, affectedCardIds, swapData, actingPlayerId);
+        } else if (eventType == 'wrong_same_rank' && swapData != null) {
+          _processWrongSameRankUpdate(knownCards, affectedCardIds, swapData, actingPlayerId);
         }
         
         player['known_cards'] = knownCards;
@@ -6428,6 +6432,52 @@ class DutchGameRound {
     if (LOGGING_SWITCH) {
       _logger.info('Dutch: Added peeked card $peekedCardId to player $actingPlayerId known_cards (from player $targetPlayerId)');
     };
+  }
+
+  /// Process known_cards update for wrong_same_rank event (wrong same-rank attempt: add the attempted card to all players' known_cards).
+  void _processWrongSameRankUpdate(
+    Map<String, dynamic> knownCards,
+    List<String> affectedCardIds,
+    Map<String, dynamic> swapData,
+    String actingPlayerId,
+  ) {
+    if (affectedCardIds.isEmpty) return;
+    final cardId = affectedCardIds[0];
+    final handIndex = swapData['handIndex'] is int
+        ? swapData['handIndex'] as int
+        : (swapData['handIndex'] is num ? (swapData['handIndex'] as num).toInt() : null);
+    if (handIndex == null || handIndex < 0) return;
+
+    final currentGames = _stateCallback.currentGamesMap;
+    final gameId = _gameId;
+    if (!currentGames.containsKey(gameId)) return;
+    final gameData = currentGames[gameId];
+    final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+    if (gameState == null) return;
+
+    final fullCardData = _stateCallback.getCardById(gameState, cardId);
+    if (fullCardData == null) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('Dutch: Failed to get full card data for wrong same-rank card $cardId');
+      }
+      return;
+    }
+
+    if (!knownCards.containsKey(actingPlayerId)) {
+      knownCards[actingPlayerId] = <String, dynamic>{};
+    }
+    final actingPlayerCardsRaw = knownCards[actingPlayerId];
+    Map<String, dynamic> actingPlayerCards = actingPlayerCardsRaw is Map
+        ? Map<String, dynamic>.from(actingPlayerCardsRaw.map((k, v) => MapEntry(k.toString(), v)))
+        : <String, dynamic>{};
+    final cardWithIndex = Map<String, dynamic>.from(fullCardData);
+    cardWithIndex['handIndex'] = handIndex;
+    actingPlayerCards[cardId] = cardWithIndex;
+    knownCards[actingPlayerId] = actingPlayerCards;
+
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Added wrong same-rank attempt card $cardId to known_cards (player $actingPlayerId, handIndex $handIndex)');
+    }
   }
 
   /// Check if timer should be started (timer enabled when instructions are OFF)

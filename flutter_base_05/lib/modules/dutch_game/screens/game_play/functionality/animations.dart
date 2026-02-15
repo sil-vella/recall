@@ -17,6 +17,7 @@ enum AnimationType {
   swap,
   peek,
   flashCard,
+  compoundSameRankReject, // Hand to discard, then discard to hand (wrong same-rank attempt, continuous)
   none,
 }
 
@@ -57,6 +58,8 @@ class Animations {
         return AnimationType.flashCard; // Flash border on peeked cards
       case 'jack_swap_flash':
         return AnimationType.flashCard; // Flash overlay on both swapped card indexes
+      case 'same_rank_reject':
+        return AnimationType.compoundSameRankReject; // Hand to discard, then back to hand (continuous)
       default:
         return AnimationType.none;
     }
@@ -108,6 +111,8 @@ class Animations {
         return const Duration(milliseconds: 400); // TODO: Define actual duration
       case AnimationType.flashCard:
         return const Duration(milliseconds: 1500); // 3 flashes: 500ms each
+      case AnimationType.compoundSameRankReject:
+        return const Duration(milliseconds: 2000); // 1s out + 1s back (continuous, actual timing in widget)
       case AnimationType.none:
         return Duration.zero;
     }
@@ -137,6 +142,8 @@ class Animations {
         return Curves.easeOut; // TODO: Define actual curve
       case AnimationType.flashCard:
         return Curves.easeInOut; // Smooth flash transitions
+      case AnimationType.compoundSameRankReject:
+        return Curves.easeInOutCubic; // Same as moveCard/moveWithEmptySlot
       case AnimationType.none:
         return Curves.linear;
     }

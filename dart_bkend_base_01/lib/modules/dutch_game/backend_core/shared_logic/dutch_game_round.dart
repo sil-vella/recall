@@ -2460,6 +2460,7 @@ class DutchGameRound {
           'cardIndex': firstCollectionIndex,
           'playerId': playerId,
         },
+        'card1FullData': collectedCard, // Full card so overlay can show face during animation
       };
       _addActionToPlayerQueue(player, actionName, actionData);
       if (LOGGING_SWITCH) {
@@ -2739,13 +2740,14 @@ class DutchGameRound {
       _trimTrailingNullSlotsFromIndex4(hand);
       player['hand'] = hand;
       
-      // Add action data for animation system
+      // Add action data for animation system (optional card1FullData so overlay can show card face)
       final actionName = 'play_card_${_generateActionId()}';
       final actionData = {
         'card1Data': {
           'cardIndex': cardIndex,
           'playerId': actualPlayerId,
         },
+        if (cardToPlayFullData != null) 'card1FullData': cardToPlayFullData,
       };
             
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
@@ -3205,6 +3207,20 @@ class DutchGameRound {
           _logger.info('Dutch: Applying penalty for wrong same rank play - drawing card from draw pile');
         };
         
+        // Declare same_rank_reject action so UI can animate card to discard, pause 1s, then back to hand
+        final rejectActionName = 'same_rank_reject_${_generateActionId()}';
+        final rejectActionData = {
+          'card1Data': {
+            'cardIndex': cardIndexForRest,
+            'playerId': playerId,
+          },
+          'card1FullData': playedCardFullData, // Full card so overlay can show face during animation
+        };
+        _addActionToPlayerQueue(player, rejectActionName, rejectActionData);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 ACTION_DATA: Added same_rank_reject action for penalty - card1Data: {cardIndex: $cardIndexForRest, playerId: $playerId}');
+        }
+        
         final drawPile = _ensureCardMapList(gameState['drawPile']);
         final discardPile = _ensureCardMapList(gameState['discardPile']);
         
@@ -3286,6 +3302,20 @@ class DutchGameRound {
         player['hand'] = hand;  // Update player's hand with the penalty card
         gameState['drawPile'] = currentDrawPile;  // Update draw pile after removing penalty card (may have been reshuffled)
         
+        // Declare drawn_card action for animation (draw pile → hand; same as regular draw)
+        final penaltyCardIndex = hand.length - 1;
+        final penaltyActionName = 'drawn_card_${_generateActionId()}';
+        final penaltyActionData = {
+          'card1Data': {
+            'cardIndex': penaltyCardIndex,
+            'playerId': playerId,
+          },
+        };
+        _addActionToPlayerQueue(player, penaltyActionName, penaltyActionData);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 ACTION_DATA: Added drawn_card action for penalty - card1Data: {cardIndex: $penaltyCardIndex, playerId: $playerId}');
+        }
+        
         // Update player state to reflect the new hand and draw pile
         // CRITICAL: Pass currentGames to avoid reading stale state
         _updatePlayerStatusInGamesMap('waiting', playerId: playerId, gamesMap: currentGames);
@@ -3335,6 +3365,7 @@ class DutchGameRound {
           'cardIndex': cardIndexForRest,
           'playerId': playerId,
         },
+        'card1FullData': playedCardFullData, // Full card so overlay can show face during animation
       };
       
       _addActionToPlayerQueue(player, actionName, actionData);

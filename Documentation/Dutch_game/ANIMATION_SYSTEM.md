@@ -28,25 +28,27 @@ All animated actions use the **same queue format** so the UI can consume them un
   - Each item is `{ 'name': String, 'data': Map<String, dynamic> }`.
   - `name` = `'<base_action>_<6-digit-id>'` (e.g. `drawn_card_123456`, `jack_swap_1_123457`).
   - `data` always has at least `card1Data`; some actions also have `card2Data`.
+  - Actions may include optional **`card1FullData`** (full card map); used by **play_card**, **same_rank**, and **collect_from_discard** so the overlay can show the card face when the client has no original deck.
 
 `_addActionToPlayerQueue`:
 
 - Ensures `player['action']` exists and is a List (converts legacy single `action` + `actionData` if needed).
 - Appends one entry: `{ 'name': actionName, 'data': actionData }`.
-- Used for: **drawn_card**, **play_card**, **draw_reposition**, **same_rank**, **queen_peek**, **jack_swap**, **collect_from_discard** (human and computer paths).
+- Used for: **drawn_card** (including penalty card from wrong same-rank play), **play_card**, **draw_reposition**, **same_rank**, **queen_peek**, **jack_swap**, **collect_from_discard** (human and computer paths).
 
 ### 2.2 Action names and data shape
 
 | Action                 | Declared in / when                    | actionData shape |
 |------------------------|----------------------------------------|------------------|
-| `drawn_card_<id>`      | After adding drawn card to hand        | `card1Data: { cardIndex, playerId }` (destination hand index) |
+| `drawn_card_<id>`      | After adding drawn card to hand; **also** when adding penalty card (wrong same-rank play) — draw pile → hand | `card1Data: { cardIndex, playerId }` (destination hand index) |
 | `collect_from_discard_<id>` | After adding collected card to hand   | `card1Data: { cardIndex, playerId }` — **cardIndex = first collection card index** (stack position), not append index; see §2.3 |
 | `play_card_<id>`       | When playing a card to discard         | `card1Data: { cardIndex, playerId }` (source hand) |
-| `same_rank_<id>`       | When playing same-rank to discard      | `card1Data: { cardIndex, playerId }` |
+| `same_rank_<id>`       | When playing same-rank to discard      | `card1Data: { cardIndex, playerId }`, optional `card1FullData` (full card so overlay can show face) |
 | `draw_reposition_<id>`| When repositioning drawn card in hand | `card1Data`, `card2Data`: each `{ cardIndex, playerId }` (source slot, dest slot) |
 | `queen_peek_<id>`      | When queen peek targets one card       | `card1Data: { cardIndex, playerId }` (peeked card) |
 | `initial_peek_<id>`    | Coordinator, per player after deal    | `card1Data`, `card2Data` (two peeked cards) |
 | `jack_swap_<id>`       | When jack swap completes (two cards)   | `card1Data`, `card2Data`: each `{ cardIndex, playerId }` (first card, second card) |
+| `same_rank_reject_<id>` | When applying penalty for wrong same-rank play | `card1Data: { cardIndex, playerId }`, optional `card1FullData` (full card so overlay can show face). Compound animation: hand → discard, then discard → hand (continuous); no actual state change to discard. |
 
 - **IDs**: 6-digit numeric suffix from `_generateActionId()` (100000–999999) so each action name is unique.
 - **Base name**: Obtained by stripping that suffix (e.g. `drawn_card_123456` → `drawn_card`). Used for mapping to animation type and for overlay logic (e.g. empty slot at source vs destination).
@@ -81,19 +83,21 @@ When a card is collected from the discard pile it is **appended** to the hand an
 | `jack_swap_2`           | `moveWithEmptySlot`  | Second leg: card2 → slot1; empty at destination only |
 | `queen_peek`            | `flashCard`          | Flash border on one card |
 | `initial_peek`          | `flashCard`          | Flash border on multiple cards |
+| `same_rank_reject`      | `compoundSameRankReject` | Compound: hand→discard, then discard→hand (continuous) |
 | (default)               | `none`               | No animation |
 
 ---
 
 ## 4. Animation types
 
-- **Enum**: `AnimationType` in animations.dart (`fadeIn`, `fadeOut`, `slideIn`, `slideOut`, `scaleIn`, `scaleOut`, `move`, **moveCard**, **moveWithEmptySlot**, `swap`, `peek`, **flashCard**, **none**).
-- **Used in game**: `moveCard`, `moveWithEmptySlot`, `flashCard`, `none`.
+- **Enum**: `AnimationType` in animations.dart (`fadeIn`, `fadeOut`, `slideIn`, `slideOut`, `scaleIn`, `scaleOut`, `move`, **moveCard**, **moveWithEmptySlot**, `swap`, `peek`, **flashCard**, **compoundSameRankReject**, **none**).
+- **Used in game**: `moveCard`, `moveWithEmptySlot`, `flashCard`, `compoundSameRankReject`, `none`.
+- **Compound types**: `compoundSameRankReject` runs two phases back-to-back (hand→discard with moveWithEmptySlot, then discard→hand with moveCard); total duration and curve are defined in animations.dart; the widget implements `_triggerSameRankRejectAnimation` to run the two phases continuously.
 
 ### 4.1 Durations and curves
 
-- **Durations** (ms): `moveCard` 1000, `moveWithEmptySlot` 1000, `flashCard` 1500 (3 flashes).
-- **Curves**: `moveCard` and `moveWithEmptySlot` use `Curves.easeInOutCubic`; `flashCard` uses `Curves.easeInOut`.
+- **Durations** (ms): `moveCard` 1000, `moveWithEmptySlot` 1000, `flashCard` 1500 (3 flashes), `compoundSameRankReject` 2000 (1000 + 1000, continuous).
+- **Curves**: `moveCard` and `moveWithEmptySlot` use `Curves.easeInOutCubic`; `flashCard` uses `Curves.easeInOut`; `compoundSameRankReject` uses `Curves.easeInOutCubic` for each phase.
 
 ---
 

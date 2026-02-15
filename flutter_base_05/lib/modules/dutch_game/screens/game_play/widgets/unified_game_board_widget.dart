@@ -16,7 +16,7 @@ import '../../demo/demo_functionality.dart';
 import '../functionality/playscreenfunctions.dart';
 import '../functionality/animations.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -54,6 +54,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   List<dynamic>? _protectedMyHandCardsToPeek;
   Timer? _myHandCardsToPeekProtectionTimer;
   String? _previousPlayerStatus; // Track previous status to detect transitions
+  /// Effective width used for my hand card sizing; updates 2s after layout change to avoid jitter on resize.
+  double? _myHandEffectiveWidth;
+  Timer? _myHandResizeDelayTimer;
 
   /// Timer to clear selected-card overlays (opponent highlight + my hand selection) after 3 seconds.
   Timer? _selectedCardOverlayTimer;
@@ -446,6 +449,23 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   // Trigger animation and await its completion before processing next action
                   final future = _triggerAnimation(action, actionData);
                   if (future != null) {
+                    // Restart 4s timeout so each animation in the sequence gets a full 4s (e.g. penalty drawn_card after same_rank_reject)
+                    _animationTimeoutTimer?.cancel();
+                    _animationTimeoutTimer = Timer(const Duration(seconds: 4), () {
+                      if (mounted && !timeoutTriggered) {
+                        timeoutTriggered = true;
+                        if (LOGGING_SWITCH) {
+                          _logger.warning('🎬 _processStateUpdate: Animation timeout (4s) - clearing animations and continuing');
+                        }
+                        for (final animData in _activeAnimations.values) {
+                          final controller = animData['controller'] as AnimationController?;
+                          controller?.dispose();
+                        }
+                        _activeAnimations.clear();
+                        if (mounted) setState(() {});
+                        _completeStateUpdate();
+                      }
+                    });
                     if (LOGGING_SWITCH) {
                       _logger.info('🎬 _processStateUpdate: Waiting for animation $action to complete...');
                     }
@@ -524,6 +544,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
+    _myHandResizeDelayTimer?.cancel();
     _selectedCardOverlayTimer?.cancel();
     _glowAnimationController?.dispose();
     _animationTimeoutTimer?.cancel();
@@ -833,6 +854,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       return _triggerFlashCardAnimation(actionName, actionData);
     }
     
+    // Compound: same_rank_reject (hand to discard, then discard to hand, continuous)
+    if (animationType == AnimationType.compoundSameRankReject) {
+      return _triggerSameRankRejectAnimation(actionName, actionData);
+    }
+    
     // Get source and destination bounds
     Map<String, dynamic>? sourceBounds;
     Map<String, dynamic>? destBounds;
@@ -988,14 +1014,20 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       curve: curve,
     );
     
-    // Get card data for the animation
+    // Get card data for the animation (use optional card1FullData for play_card and collect_from_discard)
     Map<String, dynamic>? cardData;
-    if (card1Data != null) {
+    final baseActionNameForCard = Animations.extractBaseActionName(actionName);
+    if ((baseActionNameForCard == 'play_card' || baseActionNameForCard == 'same_rank' || baseActionNameForCard == 'collect_from_discard') &&
+        actionData.containsKey('card1FullData')) {
+      final full = actionData['card1FullData'];
+      if (full is Map<String, dynamic>) cardData = full;
+    }
+    if (cardData == null && card1Data != null) {
       final playerId = card1Data['playerId']?.toString();
       final cardIndex = card1Data['cardIndex'] as int?;
       
       if (playerId != null && cardIndex != null) {
-        // Get card data from game state
+        // Get card data from game state (fallback when card1FullData not provided)
         final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final games = currentState['games'] as Map<String, dynamic>? ?? {};
         final currentGameId = currentState['currentGameId']?.toString() ?? '';
@@ -1072,6 +1104,106 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       // Re-throw to propagate error
       throw error;
     });
+  }
+  
+  /// Compound animation for wrong same-rank attempt: card to discard, then back to hand (continuous).
+  Future<void>? _triggerSameRankRejectAnimation(String actionName, Map<String, dynamic> actionData) async {
+    Animations.markActionAsProcessed(actionName);
+    final card1Data = actionData['card1Data'] as Map<String, dynamic>?;
+    if (card1Data == null) return null;
+    final playerId = card1Data['playerId']?.toString();
+    final cardIndex = card1Data['cardIndex'] as int?;
+    if (playerId == null || cardIndex == null) return null;
+    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+    final isMyHand = playerId == currentUserId;
+
+    // Resolve cardData: use optional card1FullData from backend so overlay can show card face
+    Map<String, dynamic>? cardData;
+    if (actionData.containsKey('card1FullData')) {
+      final full = actionData['card1FullData'];
+      if (full is Map<String, dynamic>) cardData = full;
+    }
+    if (cardData == null) {
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final games = currentState['games'] as Map<String, dynamic>? ?? {};
+      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      if (currentGameId.isNotEmpty && games.containsKey(currentGameId)) {
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+        final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+        final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+        final players = gameState['players'] as List<dynamic>? ?? [];
+        for (var player in players) {
+          if (player is Map<String, dynamic> && player['id']?.toString() == playerId) {
+            final hand = player['hand'] as List<dynamic>? ?? [];
+            if (cardIndex < hand.length) {
+              final card = hand[cardIndex];
+              if (card is Map<String, dynamic>) {
+                cardData = card;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const phaseDuration = Duration(milliseconds: 1000);
+    final curve = Curves.easeInOutCubic;
+
+    // Phase 1: hand to discard (moveWithEmptySlot)
+    Map<String, dynamic>? sourceBounds = isMyHand
+        ? _playScreenFunctions.getCachedMyHandCardBounds(cardIndex)
+        : _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+    Map<String, dynamic>? destBounds = _playScreenFunctions.getCachedDiscardPileBounds();
+    if (sourceBounds == null || destBounds == null) return null;
+
+    final outKey = '${actionName}_out';
+    final controller1 = AnimationController(duration: phaseDuration, vsync: this);
+    final animation1 = CurvedAnimation(parent: controller1, curve: curve);
+    _activeAnimations[outKey] = {
+      'actionName': outKey,
+      'animationType': AnimationType.moveWithEmptySlot,
+      'sourceBounds': sourceBounds,
+      'destBounds': destBounds,
+      'controller': controller1,
+      'animation': animation1,
+      'cardData': cardData,
+    };
+    if (mounted) setState(() {});
+    await controller1.forward();
+    if (mounted) {
+      _activeAnimations.remove(outKey);
+      controller1.dispose();
+      setState(() {});
+    }
+
+    // Phase 2: discard to hand (moveCard) - no delay for continuous animation
+    sourceBounds = _playScreenFunctions.getCachedDiscardPileBounds();
+    destBounds = isMyHand
+        ? _playScreenFunctions.getCachedMyHandCardBounds(cardIndex)
+        : _playScreenFunctions.getCachedOpponentCardBounds(playerId, cardIndex);
+    if (sourceBounds == null || destBounds == null) return null;
+
+    final backKey = '${actionName}_back';
+    final controller2 = AnimationController(duration: phaseDuration, vsync: this);
+    final animation2 = CurvedAnimation(parent: controller2, curve: curve);
+    _activeAnimations[backKey] = {
+      'actionName': backKey,
+      'animationType': AnimationType.moveCard,
+      'sourceBounds': sourceBounds,
+      'destBounds': destBounds,
+      'controller': controller2,
+      'animation': animation2,
+      'cardData': cardData,
+    };
+    if (mounted) setState(() {});
+    await controller2.forward();
+    if (mounted) {
+      _activeAnimations.remove(backKey);
+      controller2.dispose();
+      setState(() {});
+    }
+    return null;
   }
   
   /// Trigger flashCard animation - dynamically handles any number of players and cards
@@ -3676,6 +3808,26 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             if (containerWidth <= 0 || !containerWidth.isFinite) {
               return const SizedBox.shrink();
             }
+            // Use effective width for card sizing; update 2s after layout change to avoid jitter on resize
+            final widthForSizing = _myHandEffectiveWidth ?? containerWidth;
+            if (_myHandEffectiveWidth == null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && _myHandEffectiveWidth == null) {
+                  setState(() => _myHandEffectiveWidth = containerWidth);
+                }
+              });
+            } else if ((_myHandEffectiveWidth! - containerWidth).abs() > 0.5) {
+              _myHandResizeDelayTimer?.cancel();
+              final newWidth = containerWidth;
+              _myHandResizeDelayTimer = Timer(const Duration(seconds: 2), () {
+                if (mounted) {
+                  setState(() {
+                    _myHandEffectiveWidth = newWidth;
+                    _myHandResizeDelayTimer = null;
+                  });
+                }
+              });
+            }
             
             final dutchGameState = _getPrevStateDutchGame();
             final currentPlayerStatus = _getCurrentUserStatus();
@@ -3708,8 +3860,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             // Size cards so all slots fit in one row (no wrapping). Total slots = cards + extra invisible + leading spacer.
             const double kMinCardWidth = 28.0;
             final int totalSlotCount = cards.length + 2;
-            final cardPadding = containerWidth * 0.02;
-            final slotWidth = containerWidth / totalSlotCount;
+            final cardPadding = widthForSizing * 0.02;
+            final slotWidth = widthForSizing / totalSlotCount;
             final rawCardWidth = slotWidth - cardPadding;
             final cardWidth = rawCardWidth.clamp(kMinCardWidth, CardDimensions.MAX_CARD_WIDTH);
             final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;

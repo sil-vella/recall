@@ -4,7 +4,7 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for Jack swap testing (YAML rules, target selection, collection_three_swap)
+const bool LOGGING_SWITCH = true; // Enabled for computer same-rank decision process (getSameRankPlayDecisionByIndex, _selectSameRankCard)
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {

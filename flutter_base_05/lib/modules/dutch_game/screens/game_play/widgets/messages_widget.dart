@@ -5,6 +5,7 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../managers/dutch_event_handler_callbacks.dart';
 
 /// Decoder for .lottie (dotlottie zip) assets: picks the first .json animation.
 Future<LottieComposition?> _decodeDotLottie(List<int> bytes) {
@@ -275,7 +276,10 @@ class MessagesWidget extends StatelessWidget {
   }
   
   /// Build content for game-ended popup: ordered list (winners at top, then by points).
+  /// Active user is shown as "You" and colored with accent (green) unless they are winner (gold).
   Widget _buildOrderedWinnersContent(List<dynamic> orderedWinners) {
+    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+
     String winTypeLabel(dynamic winType) {
       switch (winType?.toString()) {
         case 'four_of_a_kind':
@@ -301,11 +305,21 @@ class MessagesWidget extends StatelessWidget {
             builder: (context) {
               final e = orderedWinners[i];
               if (e is! Map<String, dynamic>) return const SizedBox.shrink();
+              final playerId = e['playerId']?.toString() ?? '';
               final name = e['playerName']?.toString() ?? 'Unknown';
               final winType = e['winType'];
               final points = e['points'] as int?;
               final cardCount = e['cardCount'] as int?;
               final isWinner = winType != null && winType.toString().isNotEmpty;
+              final isCurrentUser = currentUserId.isNotEmpty && playerId == currentUserId;
+              final displayName = isCurrentUser ? 'You' : name;
+              // Winner: gold; else current user: green accent; else default
+              final rowColor = isWinner
+                  ? AppColors.matchPotGold
+                  : (isCurrentUser ? AppColors.accentColor : AppColors.white);
+              final secondaryColor = isWinner
+                  ? AppColors.matchPotGold
+                  : (isCurrentUser ? AppColors.accentColor : AppColors.textSecondary);
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
@@ -313,15 +327,15 @@ class MessagesWidget extends StatelessWidget {
                   Text(
                     '${i + 1}. ',
                     style: AppTextStyles.bodyMedium().copyWith(
-                      color: isWinner ? AppColors.matchPotGold : AppColors.textSecondary,
+                      color: secondaryColor,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   Expanded(
                     child: Text(
-                      name,
+                      displayName,
                       style: AppTextStyles.bodyMedium().copyWith(
-                        color: isWinner ? AppColors.matchPotGold : AppColors.white,
+                        color: rowColor,
                         fontWeight: isWinner ? FontWeight.w600 : FontWeight.w500,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -334,7 +348,7 @@ class MessagesWidget extends StatelessWidget {
                             ? ' — ${points} pts, $cardCount cards'
                             : ''),
                     style: AppTextStyles.bodyMedium().copyWith(
-                      color: isWinner ? AppColors.matchPotGold : AppColors.textSecondary,
+                      color: secondaryColor,
                       fontSize: 13,
                     ),
                   ),

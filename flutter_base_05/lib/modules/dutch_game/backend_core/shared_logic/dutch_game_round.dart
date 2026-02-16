@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing (practice mode)
+const bool LOGGING_SWITCH = true; // Enabled for computer same-rank decision process and round flow testing (practice mode)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -5137,16 +5137,23 @@ class DutchGameRound {
       if (decision['play'] == true) {
         final delay = decision['delay_seconds'] as double? ?? 1.0;
         await Future.delayed(Duration(milliseconds: (delay * 1000).toInt()));
-        
-        final cardIndex = decision['card_index'];
-        final idx = cardIndex is int ? cardIndex : (cardIndex is num ? cardIndex.toInt() : null);
-        if (idx == null || idx < 0) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: Computer same rank decision has no valid card_index; skipping for $playerId');
-          };
-          return;
+
+        // Play by index: sort descending so after each play hand shrinks without invalidating remaining indices
+        final sorted = List<Map<String, dynamic>>.from(availableByIndex);
+        sorted.sort((a, b) {
+          final ia = a['handIndex'] is int ? a['handIndex'] as int : (a['handIndex'] as num?)?.toInt() ?? 0;
+          final ib = b['handIndex'] is int ? b['handIndex'] as int : (b['handIndex'] as num?)?.toInt() ?? 0;
+          return ib.compareTo(ia);
+        });
+        for (int i = 0; i < sorted.length; i++) {
+          final entry = sorted[i];
+          final handIndex = entry['handIndex'] is int ? entry['handIndex'] as int : (entry['handIndex'] as num?)?.toInt();
+          if (handIndex == null || handIndex < 0) continue;
+          await handleSameRankPlay(playerId, null, cardIndex: handIndex, gamesMap: gamesMap);
+          if (i < sorted.length - 1) {
+            await Future.delayed(const Duration(milliseconds: 400));
+          }
         }
-        await handleSameRankPlay(playerId, null, cardIndex: idx, gamesMap: gamesMap);
       }
       
     } catch (e) {

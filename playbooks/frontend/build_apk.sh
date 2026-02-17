@@ -284,5 +284,13 @@ EOF
   rm -f "$TMP_MANIFEST"
 
   echo "✅ mobile_release.json updated on VPS: $REMOTE_MANIFEST_PATH"
+
+  # Keep only current and previous APK version dirs; remove older ones to save disk space
+  echo "  Step 4/4: Removing old APK versions (keeping only current and previous)..."
+  if ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "cd $REMOTE_DOWNLOAD_ROOT && ls -d v* 2>/dev/null | sort -V | head -n -2 | xargs -r sudo rm -rf 2>/dev/null; echo done"; then
+    echo "✅ Old APK version dirs removed (kept current + previous)."
+  else
+    echo "⚠️  Cleanup of old APK versions skipped or failed (non-fatal)."
+  fi
 fi
 

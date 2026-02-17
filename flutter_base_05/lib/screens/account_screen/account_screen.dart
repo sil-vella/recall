@@ -1602,7 +1602,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             
             const SizedBox(height: 24),
             
-            // Google Sign-In Button
+            // Google Sign-In Button (white background, black text)
             OutlinedButton.icon(
               onPressed: _isLoading ? null : _handleGoogleSignIn,
               icon: Image.asset(
@@ -1610,12 +1610,16 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 height: 20,
                 width: 20,
                 errorBuilder: (context, error, stackTrace) {
-                  // Fallback to icon if image not found
-                  return const Icon(Icons.login, size: 20);
+                  return Icon(Icons.login, size: 20, color: AppColors.black);
                 },
               ),
-              label: Text(_isLoginMode ? 'Sign in with Google' : 'Sign up with Google'),
+              label: Text(
+                _isLoginMode ? 'Sign in with Google' : 'Sign up with Google',
+                style: AppTextStyles.bodyMedium(color: AppColors.black),
+              ),
               style: OutlinedButton.styleFrom(
+                backgroundColor: AppColors.white,
+                foregroundColor: AppColors.black,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1876,10 +1880,13 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           onPressed: _isLoading ? null : () async {
             await _handleClearAllUserDataFromStorage();
           },
-          icon: const Icon(Icons.delete_outline, size: 20),
-          label: const Text('Clear all user data from this device'),
+          icon: Icon(Icons.delete_outline, size: 20, color: AppColors.textOnPrimary),
+          label: Text(
+            'Clear all user data from this device',
+            style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+          ),
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.textPrimary,
+            foregroundColor: AppColors.textOnPrimary,
             side: BorderSide(color: AppColors.borderDefault),
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(

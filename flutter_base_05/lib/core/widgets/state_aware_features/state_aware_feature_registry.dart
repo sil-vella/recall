@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../modules/dutch_game/managers/feature_registry_manager.dart';
-import 'connection_status_feature.dart';
 import 'coins_display_feature.dart';
 import '../../../tools/logging/logger.dart';
 
@@ -17,27 +16,18 @@ class StateAwareFeatureRegistry {
       _logger.info('🔧 StateAwareFeatureRegistry: Registering global app bar features');
     }
     
-    // Register coins display feature (appears first, leftmost)
+    // Register coins display feature (app bar actions)
     final coinsFeature = FeatureDescriptor(
       featureId: 'global_coins_display',
       slotId: 'app_bar_actions',
       builder: (context) => const StateAwareCoinsDisplayFeature(),
-      priority: 50, // Medium priority - appears before connection status
+      priority: 50,
     );
     
     if (LOGGING_SWITCH) {
       _logger.info('🔧 StateAwareFeatureRegistry: Registering coins display feature');
     }
     
-    // Register connection status feature (appears last, rightmost)
-    final connectionFeature = FeatureDescriptor(
-      featureId: 'global_connection_status',
-      slotId: 'app_bar_actions',
-      builder: (context) => const StateAwareConnectionStatusFeature(),
-      priority: 100, // Highest priority - appears last (rightmost)
-    );
-    
-    // Register features with global scope
     FeatureRegistryManager.instance.register(
       scopeKey: 'global_app_bar',
       feature: coinsFeature,
@@ -47,12 +37,6 @@ class StateAwareFeatureRegistry {
     if (LOGGING_SWITCH) {
       _logger.info('✅ StateAwareFeatureRegistry: Coins feature registered with scope: global_app_bar');
     }
-    
-    FeatureRegistryManager.instance.register(
-      scopeKey: 'global_app_bar',
-      feature: connectionFeature,
-      context: context,
-    );
     
     if (LOGGING_SWITCH) {
       _logger.info('✅ StateAwareFeatureRegistry: All global app bar features registered');
@@ -64,11 +48,6 @@ class StateAwareFeatureRegistry {
     FeatureRegistryManager.instance.unregister(
       scopeKey: 'global_app_bar',
       featureId: 'global_coins_display',
-    );
-    
-    FeatureRegistryManager.instance.unregister(
-      scopeKey: 'global_app_bar',
-      featureId: 'global_connection_status',
     );
   }
 }

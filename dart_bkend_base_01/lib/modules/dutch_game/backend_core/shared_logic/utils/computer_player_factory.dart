@@ -4,7 +4,7 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for Jack swap testing (YAML rules, target selection, collection_three_swap)
+const bool LOGGING_SWITCH = false; // Enabled for computer same-rank decision process (getSameRankPlayDecisionByIndex, _selectSameRankCard)
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -379,6 +379,7 @@ class ComputerPlayerFactory {
     // Jack swap flow: build game data → strategy loop (probability then try strategy; if no valid swap, continue to next) → pass playerIds and cardIds to SSOT.
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
     const jackSwapStrategies = [
+      {'id': 'final_round_caller_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
       {'id': 'collection_three_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
       {'id': 'one_card_player_priority', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
       {'id': 'lowest_opponent_higher_own', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
@@ -1927,6 +1928,10 @@ class ComputerPlayerFactory {
         // Rule 1: When isClearAndCollect, swap involving players with 3+ in collection (last in list)
         return _selectCollectionThreeSwap(actingPlayerId, gameData);
       
+      case 'final_round_caller_swap':
+        // Rule: When final round is active, swap with caller: if we know caller's cards, swap our higher with their lower; else swap our highest with any of their cards
+        return _selectFinalRoundCallerSwap(actingPlayerId, actingPlayer, allPlayers, gameState);
+      
       case 'one_card_player_priority':
         // Rule 2: Swap involving a player who has only 1 card (priority); other card from any other player
         return _selectOneCardPlayerPriority(actingPlayerId, gameData);
@@ -2217,6 +2222,137 @@ class ComputerPlayerFactory {
         .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : c.toString())
         .where((id) => id.isNotEmpty && id != 'null' && !colIds.contains(id))
         .toList();
+  }
+  
+  /// Rule: Final round caller swap — when final round is active, swap with the caller.
+  /// If we know cards from the caller's hand (in our known_cards): swap our higher-value card with their lower.
+  /// If we don't know any caller cards: swap our highest-value card (from known_cards) with any card from their hand.
+  /// Uses same points logic as lowest_opponent_higher_own (card['points']).
+  Map<String, dynamic> _selectFinalRoundCallerSwap(
+    String actingPlayerId,
+    Map<String, dynamic> actingPlayer,
+    Map<String, dynamic> allPlayers,
+    Map<String, dynamic> gameState,
+  ) {
+    final finalRoundActive = gameState['finalRoundActive'] as bool? ?? false;
+    final callerId = gameState['finalRoundCalledBy']?.toString();
+    if (!finalRoundActive || callerId == null || callerId.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: final_round_caller_swap - final round not active or no caller, skipping');
+      }
+      return _emptyJackSwapResult(actingPlayerId);
+    }
+    if (callerId == actingPlayerId) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: final_round_caller_swap - we are the caller, skipping');
+      }
+      return _emptyJackSwapResult(actingPlayerId);
+    }
+
+    // Our known cards (own hand) — from gameData acting_player.known_cards
+    final ourKnownCards = actingPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    if (ourKnownCards.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: final_round_caller_swap - no known cards for ourselves, skipping');
+      }
+      return _emptyJackSwapResult(actingPlayerId);
+    }
+
+    // Find our highest-point card (same logic as lowest_opponent_higher_own)
+    int ourHighestPoints = -1;
+    String? ourHighestCardId;
+    for (final entry in ourKnownCards.entries) {
+      final card = entry.value is Map ? entry.value as Map<String, dynamic> : null;
+      if (card != null) {
+        final points = card['points'] as int? ?? 0;
+        if (points > ourHighestPoints) {
+          ourHighestPoints = points;
+          ourHighestCardId = entry.key.toString();
+        }
+      }
+    }
+    if (ourHighestCardId == null || ourHighestCardId.isEmpty) {
+      return _emptyJackSwapResult(actingPlayerId);
+    }
+
+    // Do we know any cards from the caller's hand? (our known_cards has caller's id as key)
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    final actingPlayerFromState = players.firstWhere(
+      (p) => p is Map && (p as Map<String, dynamic>)['id']?.toString() == actingPlayerId,
+      orElse: () => <String, dynamic>{},
+    ) as Map<String, dynamic>;
+    final ourFullKnownCards = actingPlayerFromState['known_cards'] as Map<String, dynamic>? ?? {};
+    final callerKnownCardsRaw = ourFullKnownCards[callerId];
+    final callerKnownCards = callerKnownCardsRaw is Map
+        ? Map<String, dynamic>.from((callerKnownCardsRaw as Map<String, dynamic>).map((k, v) => MapEntry(k.toString(), v)))
+        : <String, dynamic>{};
+
+    if (callerKnownCards.isNotEmpty) {
+      // We know caller's cards: find their lowest-point card; swap if our highest > their lowest
+      String? theirLowestCardId;
+      int theirLowestPoints = 999;
+      for (final entry in callerKnownCards.entries) {
+        final card = entry.value is Map ? entry.value as Map<String, dynamic> : null;
+        if (card != null) {
+          final points = card['points'] as int? ?? 0;
+          if (points < theirLowestPoints) {
+            theirLowestPoints = points;
+            theirLowestCardId = entry.key.toString();
+          }
+        }
+      }
+      if (theirLowestCardId != null &&
+          theirLowestCardId.isNotEmpty &&
+          ourHighestPoints > theirLowestPoints) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: final_round_caller_swap - swapping our $ourHighestCardId ($ourHighestPoints pts) with caller $callerId card $theirLowestCardId ($theirLowestPoints pts)');
+        }
+        return {
+          'first_card_id': ourHighestCardId,
+          'first_player_id': actingPlayerId,
+          'second_card_id': theirLowestCardId,
+          'second_player_id': callerId,
+        };
+      }
+    }
+
+    // We don't know caller's cards (or no beneficial swap): swap our highest with any card from caller's hand
+    final callerData = allPlayers[callerId] as Map<String, dynamic>? ?? {};
+    final callerHand = callerData['hand'] as List<dynamic>? ?? [];
+    final collectionCards = callerData['collection_cards'] as List<dynamic>? ?? [];
+    final collectionIds = collectionCards
+        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final playableCallerHand = callerHand
+        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : c.toString())
+        .where((id) => id.isNotEmpty && id != 'null' && !collectionIds.contains(id))
+        .toList();
+    if (playableCallerHand.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: final_round_caller_swap - caller $callerId has no playable card in hand, skipping');
+      }
+      return _emptyJackSwapResult(actingPlayerId);
+    }
+    final theirCardId = playableCallerHand[_random.nextInt(playableCallerHand.length)];
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: final_round_caller_swap - no caller cards in known_cards; swapping our $ourHighestCardId with caller $callerId any card $theirCardId');
+    }
+    return {
+      'first_card_id': ourHighestCardId,
+      'first_player_id': actingPlayerId,
+      'second_card_id': theirCardId,
+      'second_player_id': callerId,
+    };
+  }
+
+  Map<String, dynamic> _emptyJackSwapResult(String actingPlayerId) {
+    return {
+      'first_card_id': null,
+      'first_player_id': actingPlayerId,
+      'second_card_id': null,
+      'second_player_id': null,
+    };
   }
   
   /// Rule 2: Select lowest opponent card and higher own card

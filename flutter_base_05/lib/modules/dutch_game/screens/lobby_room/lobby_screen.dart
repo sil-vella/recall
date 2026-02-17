@@ -136,9 +136,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           if (LOGGING_SWITCH) {
             _logger.warning('LobbyScreen: WebSocket initialization failed, mounted: $mounted');
           }
-          if (mounted) {
-            _showSnackBar('Unable to initialize game connection', isError: true);
-          }
           return;
         }
       } else {
@@ -160,28 +157,16 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           if (LOGGING_SWITCH) {
             _logger.warning('LobbyScreen: WebSocket connection failed, mounted: $mounted');
           }
-          if (mounted) {
-            _showSnackBar('Unable to connect to game server', isError: true);
-          }
           return;
-        }
-        if (mounted) {
-        _showSnackBar('WebSocket connected successfully!');
         }
       } else {
         if (LOGGING_SWITCH) {
           _logger.info('LobbyScreen: WebSocket already connected');
         }
-        if (mounted) {
-        _showSnackBar('WebSocket already connected!');
-      }
       }
     } catch (e, stackTrace) {
       if (LOGGING_SWITCH) {
         _logger.error('LobbyScreen: WebSocket initialization error: $e', error: e, stackTrace: stackTrace);
-      }
-      if (mounted) {
-        _showSnackBar('WebSocket connection error: $e', isError: true);
       }
     }
   }
@@ -205,7 +190,15 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final requiredCoins = roomSettings['requiredCoins'] as int? ?? 25;
       final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(requiredCoins: requiredCoins, fetchFromAPI: true);
       if (!hasEnoughCoins) {
-        if (mounted) _showSnackBar('Insufficient coins to create a game. Required: $requiredCoins', isError: true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Insufficient coins to create a game. Required: $requiredCoins'),
+              backgroundColor: AppColors.errorColor,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
         return;
       }
       
@@ -222,7 +215,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final isReady = await DutchGameHelpers.ensureWebSocketReady();
       if (!isReady) {
         if (mounted) {
-          _showSnackBar('Unable to connect to game server. Please log in to continue.', isError: true);
           DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
         }
         return;
@@ -240,12 +232,36 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       );
       if (result['success'] == true) {
         // Room creation initiated successfully - WebSocket events will handle state updates
-        if (mounted) _showSnackBar('Room created successfully!');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Room created successfully!'),
+              backgroundColor: AppColors.successColor,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       } else {
-        if (mounted) _showSnackBar('Failed to create room', isError: true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Failed to create room'),
+              backgroundColor: AppColors.errorColor,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
-      if (mounted) _showSnackBar('Failed to create room: $e', isError: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create room: $e'),
+            backgroundColor: AppColors.errorColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -438,11 +454,23 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       
       // Show success message
       if (mounted) {
-        _showSnackBar('Practice match started!');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Practice match started!'),
+            backgroundColor: AppColors.successColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        _showSnackBar('Failed to start practice match: $e', isError: true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start practice match: $e'),
+            backgroundColor: AppColors.errorColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     }
   }
@@ -456,19 +484,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     // Event callbacks are now handled by WSEventManager
     // No need to set up specific callbacks here
     // The WSEventManager handles all WebSocket events automatically
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    // Check if the widget is still mounted before accessing context
-    if (!mounted) return;
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? AppColors.errorColor : AppColors.successColor,
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 
   String? _expandedSection; // Track which section is currently expanded

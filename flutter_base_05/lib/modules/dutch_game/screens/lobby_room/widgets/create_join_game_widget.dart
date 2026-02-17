@@ -193,14 +193,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       // Ensure WebSocket is ready before attempting to join
       final isReady = await DutchGameHelpers.ensureWebSocketReady();
       if (!isReady) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Unable to connect to game server'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-        }
         setState(() {
           _isLoading = false;
         });

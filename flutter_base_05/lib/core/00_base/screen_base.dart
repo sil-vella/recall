@@ -29,7 +29,7 @@ abstract class BaseScreen extends StatefulWidget {
   /// When true, the default app bar shows [kAppBarLogoAsset] at full app bar height instead of [computeTitle].
   bool get useLogoInAppBar => false;
 
-  /// When true, the app bar feature slot (coins, connection status) is built with a stable [GlobalKey]
+  /// When true, the app bar feature slot (e.g. coins) is built with a stable [GlobalKey]
   /// so callers can resolve its position for overlays (e.g. coin stream animation to coins display).
   bool get useGlobalKeyForAppBarFeatureSlot => false;
 

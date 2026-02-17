@@ -136,20 +136,11 @@ class LoginModule extends ModuleBase {
       // Clear session state
       _sharedPref?.setBool('is_logged_in', false);
       
-      if (isGuestAccount) {
-        // Guest account: Only clear session keys, preserve permanent guest credentials
-        _sharedPref?.remove('user_id');
-        _sharedPref?.remove('username');
-        _sharedPref?.remove('email');
-        if (LOGGING_SWITCH) {
-          Logger().debug("LoginModule: Guest account session keys cleared in synchronous logout");
-        }
-        // DO NOT clear: guest_username, guest_email, guest_user_id, is_guest_account
-      } else {
-        // Regular account: Clear all credentials (existing behavior)
-        _sharedPref?.remove('user_id');
-        _sharedPref?.remove('username');
-        _sharedPref?.remove('email');
+      // Clear session-only key; keep temp username/email in SharedPref for both guest and regular
+      // so that ensureWebSocketReady / account screen can recognize the user after logout
+      _sharedPref?.remove('user_id');
+      if (LOGGING_SWITCH) {
+        Logger().debug("LoginModule: Logout - cleared session (user_id); kept temp username/email in SharedPref");
       }
       
       // Update state manager
@@ -405,16 +396,25 @@ class LoginModule extends ModuleBase {
           // Log successful registration
           if (guestEmail != null && guestPassword != null) {
             if (LOGGING_SWITCH) {
-              Logger().info("LoginModule: Guest account conversion successful - Username: $username, Email: $email, clearing guest credentials");
+              Logger().info("LoginModule: Guest account conversion successful - Username: $username, Email: $email, clearing guest keys and updating temp keys");
             }
+            // Clear all guest keys
             await _sharedPref!.remove('guest_username');
             await _sharedPref!.remove('guest_email');
             await _sharedPref!.remove('guest_user_id');
             await _sharedPref!.setBool('is_guest_account', false);
+            // Update temp keys with new regular account data
+            await _sharedPref!.setString('username', username);
+            await _sharedPref!.setString('email', email);
+            await _sharedPref!.setString('password', password);
           } else {
             if (LOGGING_SWITCH) {
               Logger().info("LoginModule: Regular registration successful - Username: $username, Email: $email");
             }
+            // Update temp keys for new account
+            await _sharedPref!.setString('username', username);
+            await _sharedPref!.setString('email', email);
+            await _sharedPref!.setString('password', password);
           }
           return {"success": "Registration successful. Please log in."};
         } else if (response["error"] != null) {
@@ -493,6 +493,7 @@ class LoginModule extends ModuleBase {
             // Also store in regular keys for current session
             await _sharedPref!.setString('username', username);
             await _sharedPref!.setString('email', email);
+            await _sharedPref!.setString('password', password);
             await _sharedPref!.setString('user_id', userId);
             
             if (LOGGING_SWITCH) {
@@ -647,6 +648,7 @@ class LoginModule extends ModuleBase {
         await _sharedPref!.setString('user_id', userId);
         await _sharedPref!.setString('username', username);
         await _sharedPref!.setString('email', email);
+        await _sharedPref!.setString('password', password);
         await _sharedPref!.setString('last_login_timestamp', DateTime.now().toIso8601String());
         
         // Set guest account flag based on account_type from backend
@@ -1078,20 +1080,10 @@ class LoginModule extends ModuleBase {
       // Clear session state
       await _sharedPref!.setBool('is_logged_in', false);
       
-      if (isGuestAccount) {
-        // Guest account: Only clear session keys, preserve permanent guest credentials
-        await _sharedPref!.remove('user_id');
-        await _sharedPref!.remove('username');
-        await _sharedPref!.remove('email');
-        if (LOGGING_SWITCH) {
-          Logger().debug("LoginModule: Guest account session keys cleared, permanent credentials preserved");
-        }
-        // DO NOT clear: guest_username, guest_email, guest_user_id, is_guest_account
-      } else {
-        // Regular account: Clear all credentials (existing behavior)
-        await _sharedPref!.remove('user_id');
-        await _sharedPref!.remove('username');
-        await _sharedPref!.remove('email');
+      // Clear session-only key; keep temp username/email in SharedPref for both guest and regular
+      await _sharedPref!.remove('user_id');
+      if (LOGGING_SWITCH) {
+        Logger().debug("LoginModule: Logout - cleared session (user_id); kept temp username/email in SharedPref");
       }
       
       // Update state manager
@@ -1151,9 +1143,16 @@ class LoginModule extends ModuleBase {
       };
       if (profileEmail != null && profileEmail.isNotEmpty) {
         updates["email"] = profileEmail;
+        // Persist plain email to SharedPref so it stays decrypted for display/pre-fill after logout
+        if (!profileEmail.startsWith('det_') && _sharedPref != null) {
+          await _sharedPref!.setString('email', profileEmail);
+        }
       }
       if (profileUsername != null && profileUsername.isNotEmpty) {
         updates["username"] = profileUsername;
+        if (!profileUsername.startsWith('det_') && _sharedPref != null) {
+          await _sharedPref!.setString('username', profileUsername);
+        }
       }
       stateManager.updateModuleState("login", updates);
       

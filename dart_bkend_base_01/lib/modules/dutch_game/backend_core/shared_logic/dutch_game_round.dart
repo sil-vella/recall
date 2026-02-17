@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for Queen peek (timers, cardsToPeek) and round flow testing (practice mode)
+const bool LOGGING_SWITCH = false; // Enabled for computer same-rank decision process and round flow testing (practice mode)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -3084,7 +3084,8 @@ class DutchGameRound {
   /// Replicates backend's _handle_same_rank_play method in game_round.py lines 1000-1089
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   /// [cardIndex] When set (computer path), play the card at hand[cardIndex]; cardId is then read from that card. If stale known_cards, wrong rank gets penalty.
-  Future<bool> handleSameRankPlay(String playerId, String? cardId, {int? cardIndex, Map<String, dynamic>? gamesMap}) async {
+  /// [sameRankCandidateCardIds] When set (computer path), card IDs that were same-rank candidates from known_cards. If wrong same-rank occurs, these are removed from known_cards as stale (except the attempted card, which is added).
+  Future<bool> handleSameRankPlay(String playerId, String? cardId, {int? cardIndex, Map<String, dynamic>? gamesMap, List<String>? sameRankCandidateCardIds}) async {
     try {
       if (_winnersList.isNotEmpty) {
         if (LOGGING_SWITCH) {
@@ -3220,8 +3221,11 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.info('🎬 ACTION_DATA: Added same_rank_reject action for penalty - card1Data: {cardIndex: $cardIndexForRest, playerId: $playerId}');
         }
-        // Wrong same-rank attempt exposes that card to all players' known_cards (not the penalty draw)
-        updateKnownCards('wrong_same_rank', playerId, [cardIdForRest], swapData: {'handIndex': cardIndexForRest});
+        // Wrong same-rank: add attempted card to known_cards; remove stale same-rank candidates (they were forgotten/wrong)
+        updateKnownCards('wrong_same_rank', playerId, [cardIdForRest], swapData: {
+          'handIndex': cardIndexForRest,
+          'removeCandidateIds': sameRankCandidateCardIds ?? [],
+        });
         
         final drawPile = _ensureCardMapList(gameState['drawPile']);
         final discardPile = _ensureCardMapList(gameState['discardPile']);
@@ -5137,16 +5141,34 @@ class DutchGameRound {
       if (decision['play'] == true) {
         final delay = decision['delay_seconds'] as double? ?? 1.0;
         await Future.delayed(Duration(milliseconds: (delay * 1000).toInt()));
-        
-        final cardIndex = decision['card_index'];
-        final idx = cardIndex is int ? cardIndex : (cardIndex is num ? cardIndex.toInt() : null);
-        if (idx == null || idx < 0) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: Computer same rank decision has no valid card_index; skipping for $playerId');
-          };
-          return;
+
+        // Play by index: sort descending so after each play hand shrinks without invalidating remaining indices
+        final sorted = List<Map<String, dynamic>>.from(availableByIndex);
+        sorted.sort((a, b) {
+          final ia = a['handIndex'] is int ? a['handIndex'] as int : (a['handIndex'] as num?)?.toInt() ?? 0;
+          final ib = b['handIndex'] is int ? b['handIndex'] as int : (b['handIndex'] as num?)?.toInt() ?? 0;
+          return ib.compareTo(ia);
+        });
+        final candidateCardIds = availableByIndex
+            .map((e) => e['cardId']?.toString())
+            .where((id) => id != null && id.isNotEmpty)
+            .cast<String>()
+            .toList();
+        for (int i = 0; i < sorted.length; i++) {
+          final entry = sorted[i];
+          final handIndex = entry['handIndex'] is int ? entry['handIndex'] as int : (entry['handIndex'] as num?)?.toInt();
+          if (handIndex == null || handIndex < 0) continue;
+          await handleSameRankPlay(
+            playerId,
+            null,
+            cardIndex: handIndex,
+            gamesMap: gamesMap,
+            sameRankCandidateCardIds: candidateCardIds,
+          );
+          if (i < sorted.length - 1) {
+            await Future.delayed(const Duration(milliseconds: 400));
+          }
         }
-        await handleSameRankPlay(playerId, null, cardIndex: idx, gamesMap: gamesMap);
       }
       
     } catch (e) {
@@ -6435,6 +6457,7 @@ class DutchGameRound {
   }
 
   /// Process known_cards update for wrong_same_rank event (wrong same-rank attempt: add the attempted card to all players' known_cards).
+  /// Also removes stale same-rank candidates (removeCandidateIds) from known_cards — they were wrong/forgotten; the attempted card is not removed, it is added.
   void _processWrongSameRankUpdate(
     Map<String, dynamic> knownCards,
     List<String> affectedCardIds,
@@ -6447,6 +6470,29 @@ class DutchGameRound {
         ? swapData['handIndex'] as int
         : (swapData['handIndex'] is num ? (swapData['handIndex'] as num).toInt() : null);
     if (handIndex == null || handIndex < 0) return;
+
+    // Remove stale same-rank candidates from this player's view of the acting player (not the attempted card)
+    final removeCandidateIdsRaw = swapData['removeCandidateIds'];
+    final removeCandidateIds = removeCandidateIdsRaw is List
+        ? removeCandidateIdsRaw.map((e) => e?.toString()).where((id) => id != null && id.isNotEmpty).cast<String>().toList()
+        : <String>[];
+    if (knownCards.containsKey(actingPlayerId)) {
+      final actingPlayerCardsRaw = knownCards[actingPlayerId];
+      if (actingPlayerCardsRaw is Map) {
+        final actingPlayerCards = Map<String, dynamic>.from(actingPlayerCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+        for (final cid in removeCandidateIds) {
+          if (cid != cardId) actingPlayerCards.remove(cid);
+        }
+        if (actingPlayerCards.isEmpty) {
+          knownCards.remove(actingPlayerId);
+        } else {
+          knownCards[actingPlayerId] = actingPlayerCards;
+        }
+        if (removeCandidateIds.isNotEmpty && LOGGING_SWITCH) {
+          _logger.info('Dutch: Removed stale same-rank candidate(s) from known_cards (player $actingPlayerId): ${removeCandidateIds.where((id) => id != cardId).toList()}');
+        }
+      }
+    }
 
     final currentGames = _stateCallback.currentGamesMap;
     final gameId = _gameId;

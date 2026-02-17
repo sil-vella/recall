@@ -5,6 +5,7 @@ import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../core/managers/navigation_manager.dart';
+import '../../core/managers/auth_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../modules/analytics_module/analytics_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
@@ -239,30 +240,47 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     }
   }
   
-  /// Check for preserved guest credentials and auto-populate login form
+  /// Check for preserved credentials (temp keys) and auto-populate login form.
+  /// Uses temp keys (username, email, password). After logout these are kept for pre-fill.
+  /// Email must be plain (not encrypted det_...); we do not pre-fill encrypted values.
   Future<void> _checkForGuestCredentials() async {
     try {
       final sharedPref = SharedPrefManager();
       await sharedPref.initialize();
       
       final isGuestAccount = sharedPref.getBool('is_guest_account') ?? false;
-      final guestUsername = sharedPref.getString('guest_username');
-      
-      if (isGuestAccount && guestUsername != null) {
-        if (LOGGING_SWITCH) {
-          _logger.info('AccountScreen: Found preserved guest credentials - Username: $guestUsername');
-        }
-        
-        // Auto-populate login form with guest credentials
-        // Email: guest_{username}@guest.local, Password: {username}
-        final guestEmailFull = 'guest_$guestUsername@guest.local';
-        _emailController.text = guestEmailFull;
-        _passwordController.text = guestUsername; // Password is same as username
-        
-        if (LOGGING_SWITCH) {
-          _logger.info('AccountScreen: Auto-populated login form with guest credentials');
-        }
+      final username = sharedPref.getString('username');
+      String? email = sharedPref.getString('email');
+      final password = sharedPref.getString('password');
+      // Backend may store encrypted (det_...) in DB; only show plain email in form
+      if (email != null && email.startsWith('det_')) {
+        email = null;
       }
+      
+      final hasEmail = email != null && email.isNotEmpty;
+      final hasUsername = username != null && username.isNotEmpty;
+      final hasPassword = password != null && password.isNotEmpty;
+      if (!hasEmail && !hasUsername) return;
+
+      if (LOGGING_SWITCH) {
+        _logger.info('AccountScreen: Found preserved credentials (temp keys) - username: $username, email: $email');
+      }
+      // Email: use saved plain email, or for guest without email build from username
+      if (hasEmail) {
+        _emailController.text = email;
+      } else if (isGuestAccount && hasUsername) {
+        _emailController.text = 'guest_$username@guest.local';
+      }
+      // Password: use saved key if present, else for guest use username
+      if (hasPassword) {
+        _passwordController.text = password;
+      } else if (isGuestAccount && hasUsername) {
+        _passwordController.text = username;
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('AccountScreen: Auto-populated login form from temp keys (guest=$isGuestAccount)');
+      }
+      if (mounted) setState(() {});
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('AccountScreen: Error checking for guest credentials', error: e);
@@ -299,24 +317,24 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     });
   }
   
-  /// Check for guest account when in registration mode
+  /// Check for guest account when in registration mode (uses temp keys)
   Future<void> _checkForGuestAccountForConversion() async {
     try {
       final sharedPref = SharedPrefManager();
       await sharedPref.initialize();
       
       final isGuestAccount = sharedPref.getBool('is_guest_account') ?? false;
-      final guestUsername = sharedPref.getString('guest_username');
-      final guestEmail = sharedPref.getString('guest_email');
+      final username = sharedPref.getString('username');
+      final email = sharedPref.getString('email');
       
-      if (isGuestAccount && guestUsername != null && guestEmail != null) {
+      if (isGuestAccount && username != null && username.isNotEmpty && email != null && email.isNotEmpty) {
         setState(() {
           _isConvertingGuest = true;
-          _guestEmail = guestEmail;
-          _guestPassword = guestUsername; // Password is same as username for guest accounts
+          _guestEmail = email;
+          _guestPassword = username; // Guest password is same as username
         });
         if (LOGGING_SWITCH) {
-          _logger.info('AccountScreen: Guest account detected for conversion - Email: $guestEmail');
+          _logger.info('AccountScreen: Guest account detected for conversion (temp keys) - Email: $email');
         }
       } else {
         setState(() {
@@ -359,6 +377,76 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     setState(() {
       _obscureConfirmPassword = !_obscureConfirmPassword;
     });
+  }
+  
+  /// Clear all user data from app storage (SharedPreferences + secure tokens).
+  /// Does not delete the user account on the server.
+  static const List<String> _userStorageKeys = [
+    'user_id', 'username', 'email', 'password',
+    'guest_username', 'guest_email', 'guest_user_id',
+    'is_guest_account', 'is_logged_in', 'last_login_timestamp',
+  ];
+  
+  Future<void> _handleClearAllUserDataFromStorage() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          title: const Text('Clear app storage?'),
+          content: const Text(
+            'This will remove all saved login data from this device (email, password, session). '
+            'You will need to sign in again. Your account on the server is not affected.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Clear storage'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _isLoading = true;
+      _clearMessages();
+    });
+    try {
+      final sharedPref = SharedPrefManager();
+      await sharedPref.initialize();
+      for (final key in _userStorageKeys) {
+        await sharedPref.remove(key);
+      }
+      await AuthManager().clearTokens();
+      StateManager().updateModuleState('login', {
+        'isLoggedIn': false,
+        'userId': null,
+        'username': null,
+        'email': null,
+        'error': null,
+      });
+      _clearForms();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _successMessage = 'App storage cleared. Your account was not changed.';
+        });
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('AccountScreen: Error clearing user data from storage', error: e);
+      }
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to clear storage: $e';
+        });
+      }
+    }
   }
   
   Future<void> _handleLogin() async {
@@ -574,16 +662,16 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     }
   }
   
-  /// Check if guest credentials exist in SharedPreferences
+  /// Check if guest credentials exist (temp key username)
   Future<bool> _hasGuestCredentials() async {
     try {
       final sharedPref = SharedPrefManager();
       await sharedPref.initialize();
       
       final isGuestAccount = sharedPref.getBool('is_guest_account') ?? false;
-      final guestUsername = sharedPref.getString('guest_username');
+      final username = sharedPref.getString('username');
       
-      return isGuestAccount && guestUsername != null;
+      return isGuestAccount && username != null && username.isNotEmpty;
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('AccountScreen: Error checking for guest credentials', error: e);
@@ -592,7 +680,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     }
   }
   
-  /// Handle guest login using preserved credentials
+  /// Handle guest login using preserved credentials (temp keys)
   Future<void> _handleGuestLogin() async {
     if (LOGGING_SWITCH) {
       _logger.info("AccountScreen: Guest login button pressed");
@@ -606,9 +694,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       final sharedPref = SharedPrefManager();
       await sharedPref.initialize();
       
-      final guestUsername = sharedPref.getString('guest_username');
+      final username = sharedPref.getString('username');
+      final email = sharedPref.getString('email');
       
-      if (guestUsername == null) {
+      if (username == null || username.isEmpty) {
         setState(() {
           _errorMessage = 'No guest account found. Please register as guest first.';
           _isLoading = false;
@@ -616,18 +705,18 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         return;
       }
       
-      // Guest email format: guest_{username}@guest.local
-      // Guest password: {username} (same as username)
-      final guestEmail = 'guest_$guestUsername@guest.local';
+      final guestEmail = (email != null && email.isNotEmpty)
+          ? email
+          : 'guest_$username@guest.local';
       
       if (LOGGING_SWITCH) {
-        _logger.info("AccountScreen: Logging in with guest credentials - Username: $guestUsername");
+        _logger.info("AccountScreen: Logging in with guest credentials (temp keys) - Username: $username");
       }
       
       final result = await _loginModule!.loginUser(
         context: context,
         email: guestEmail,
-        password: guestUsername,
+        password: username,
       );
       
       if (result['success'] != null) {
@@ -635,7 +724,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _logger.info("AccountScreen: Guest login successful");
         }
         setState(() {
-          _successMessage = 'Welcome back, $guestUsername!';
+          _successMessage = 'Welcome back, $username!';
           _isLoading = false;
         });
         
@@ -1043,16 +1132,18 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           final stateManager = StateManager();
           final loginState = stateManager.getModuleState("login");
           final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-          // Prefer plain email/username: DB stores encrypted (det_...); profile API and SharedPreferences hold actual values
+          // Prefer plain email/username: DB may store encrypted (det_...); never show encrypted to user
           final rawUsername = loginState?["username"] ?? "";
           final rawEmail = loginState?["email"] ?? "";
           final sharedPref = SharedPrefManager();
-          final username = rawUsername.startsWith("det_")
+          String username = rawUsername.startsWith("det_")
               ? (sharedPref.getString("username") ?? rawUsername)
               : rawUsername;
-          final email = rawEmail.startsWith("det_")
+          String email = rawEmail.startsWith("det_")
               ? (sharedPref.getString("email") ?? rawEmail)
               : rawEmail;
+          if (username.startsWith("det_")) username = "";
+          if (email.startsWith("det_")) email = "";
           
           // Update guest account status only when login state actually changes (prevents rebuild loop)
           if (isLoggedIn != _lastLoggedInState) {
@@ -1293,6 +1384,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                         ],
                       ),
                     ),
+                  
+                  _buildClearStorageSection(),
                 ],
                     ),
                   ),
@@ -1731,6 +1824,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 ),
               ),
             ),
+            
+            _buildClearStorageSection(),
                   ],
                 ),
               ),
@@ -1771,6 +1866,44 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     );
   }
   
+  /// Section: button to clear all user data from app storage + explanatory note.
+  Widget _buildClearStorageSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: _isLoading ? null : () async {
+            await _handleClearAllUserDataFromStorage();
+          },
+          icon: const Icon(Icons.delete_outline, size: 20),
+          label: const Text('Clear all user data from this device'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.textPrimary,
+            side: BorderSide(color: AppColors.borderDefault),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            'This only clears data from app storage on this device. It does not delete your user account.',
+            style: AppTextStyles.bodySmall().copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Login form: email/password for email accounts; Google sign-in uses no password.
+  /// Email and password are stored in SharedPref for pre-fill after logout (Google has no password).
   Widget _buildLoginForm() {
     return Form(
       key: _loginFormKey,

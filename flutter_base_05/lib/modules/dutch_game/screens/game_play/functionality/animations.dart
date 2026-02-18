@@ -110,7 +110,7 @@ class Animations {
       case AnimationType.peek:
         return const Duration(milliseconds: 400); // TODO: Define actual duration
       case AnimationType.flashCard:
-        return const Duration(milliseconds: 1500); // 3 flashes: 500ms each
+        return const Duration(milliseconds: 1000); // 2 flashes (initial_peek, queen_peek, jack_swap_flash)
       case AnimationType.compoundSameRankReject:
         return const Duration(milliseconds: 2000); // 1s out + 1s back (continuous, actual timing in widget)
       case AnimationType.none:
@@ -288,6 +288,14 @@ class Animations {
   /// Check if an action has already been processed
   static bool isActionProcessed(String actionName) {
     return _processedActions.contains(actionName);
+  }
+
+  /// Check if any action with the given base name has already been processed.
+  /// Used for actions that should run only once per round (e.g. initial_peek:
+  /// one flash for all players, subsequent initial_peek_<id> from other players
+  /// must be skipped).
+  static bool hasBaseActionProcessed(String baseActionName) {
+    return _processedActions.any((name) => extractBaseActionName(name) == baseActionName);
   }
   
   /// Mark an action as processed (called when animation starts)

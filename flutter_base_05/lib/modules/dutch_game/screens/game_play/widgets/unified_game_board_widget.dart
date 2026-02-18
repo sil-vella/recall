@@ -729,8 +729,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
     final overlayColor = overlayBaseColor.withOpacity(0.5);
     
-    // Create 3 flashes: flash at 0.0-0.33, 0.33-0.66, 0.66-1.0
-    // Each flash: fade in (0-0.1), stay visible (0.1-0.4), fade out (0.4-0.5)
+    // Create 2 flashes: flash at 0.0-0.5, 0.5-1.0 (initial_peek, queen_peek, jack_swap_flash)
+    // Each flash: fade in (0-0.2 of segment), stay visible (0.2-0.8), fade out (0.8-1.0)
     return cardBoundsList.map((cardBounds) {
       if (cardBounds is! Map<String, dynamic>) return const SizedBox.shrink();
       
@@ -746,49 +746,29 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       return AnimatedBuilder(
         animation: animation,
         builder: (context, child) {
-          // Calculate opacity for 3 flashes
+          // Calculate opacity for 2 flashes
           double opacity = 0.0;
           final value = animation.value;
           
-          // Flash 1: 0.0 - 0.33
-          if (value >= 0.0 && value < 0.33) {
-            final flashValue = value / 0.33;
+          // Flash 1: 0.0 - 0.5
+          if (value >= 0.0 && value < 0.5) {
+            final flashValue = value / 0.5;
             if (flashValue < 0.2) {
-              // Fade in
               opacity = flashValue / 0.2;
             } else if (flashValue < 0.8) {
-              // Stay visible
               opacity = 1.0;
             } else {
-              // Fade out
               opacity = 1.0 - ((flashValue - 0.8) / 0.2);
             }
           }
-          // Flash 2: 0.33 - 0.66
-          else if (value >= 0.33 && value < 0.66) {
-            final flashValue = (value - 0.33) / 0.33;
+          // Flash 2: 0.5 - 1.0
+          else if (value >= 0.5 && value <= 1.0) {
+            final flashValue = (value - 0.5) / 0.5;
             if (flashValue < 0.2) {
-              // Fade in
               opacity = flashValue / 0.2;
             } else if (flashValue < 0.8) {
-              // Stay visible
               opacity = 1.0;
             } else {
-              // Fade out
-              opacity = 1.0 - ((flashValue - 0.8) / 0.2);
-            }
-          }
-          // Flash 3: 0.66 - 1.0
-          else if (value >= 0.66 && value <= 1.0) {
-            final flashValue = (value - 0.66) / 0.34;
-            if (flashValue < 0.2) {
-              // Fade in
-              opacity = flashValue / 0.2;
-            } else if (flashValue < 0.8) {
-              // Stay visible
-              opacity = 1.0;
-            } else {
-              // Fade out
               opacity = 1.0 - ((flashValue - 0.8) / 0.2);
             }
           }
@@ -1211,17 +1191,23 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   Future<void>? _triggerFlashCardAnimation(String actionName, Map<String, dynamic> actionData) {
     final baseActionName = Animations.extractBaseActionName(actionName);
     
-    // Check if we've already started a flashCard animation for this action type
-    // For initial_peek: only process the first action (all players flash together)
-    // For queen_peek: each action is independent
+    // For initial_peek: only ever run one flash (all players' cards together).
+    // Subsequent initial_peek_<id> actions (one per player) must not trigger
+    // a second animation, even after the first has completed.
     if (baseActionName == 'initial_peek') {
-      // Check if any flashCard animation is already active
+      if (Animations.hasBaseActionProcessed('initial_peek')) {
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 _triggerFlashCardAnimation: initial_peek already processed, skipping duplicate: $actionName');
+        }
+        Animations.markActionAsProcessed(actionName);
+        return null;
+      }
+      // Also skip if a flashCard animation is currently active (belt-and-braces)
       for (final animData in _activeAnimations.values) {
         if (animData['animationType'] == AnimationType.flashCard) {
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 _triggerFlashCardAnimation: FlashCard animation already active, skipping duplicate action: $actionName');
+            _logger.info('🎬 _triggerFlashCardAnimation: FlashCard already active, skipping: $actionName');
           }
-          // Mark this action as processed but don't create a new animation
           Animations.markActionAsProcessed(actionName);
           return null;
         }
@@ -1447,7 +1433,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Mark action as processed
     Animations.markActionAsProcessed(actionName);
     
-    // Create animation controller for 3 flashes (1500ms total: 500ms per flash)
+    // Create animation controller for 2 flashes (1000ms total)
     final duration = Animations.getAnimationDuration(AnimationType.flashCard);
     final curve = Animations.getAnimationCurve(AnimationType.flashCard);
     
@@ -1635,6 +1621,57 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       );
     }
     
+    // moveCard with empty slot at destination only (e.g. same_rank_reject phase 2 - penalty card to hand)
+    final isMoveCardWithEmptyAtDest = animationType == AnimationType.moveCard &&
+        actionName != null &&
+        actionName.endsWith('_back') &&
+        localDestPosition != null &&
+        destSize != null;
+    if (isMoveCardWithEmptyAtDest) {
+      final destEmptySlotWidget = _buildBlankCardSlot(destSize);
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: localDestPosition.dx,
+            top: localDestPosition.dy,
+            child: destEmptySlotWidget,
+          ),
+          AnimatedBuilder(
+            animation: animation,
+            builder: (context, child) {
+              final cardPosition = Offset.lerp(localSourcePosition, localDestPosition, animation.value) ?? localSourcePosition;
+              final cardSize = Size.lerp(sourceSize, destSize, animation.value) ?? sourceSize;
+              Widget cardWidget;
+              if (cardData != null) {
+                final cardModel = CardModel.fromMap(cardData);
+                cardWidget = CardWidget(
+                  card: cardModel,
+                  dimensions: cardSize,
+                  config: CardDisplayConfig.forDiscardPile(),
+                  showBack: false,
+                  isSelected: false,
+                );
+              } else {
+                cardWidget = CardWidget(
+                  card: CardModel(cardId: 'animated_card', rank: '?', suit: '?', points: 0),
+                  dimensions: cardSize,
+                  config: CardDisplayConfig.forDiscardPile(),
+                  showBack: true,
+                  isSelected: false,
+                );
+              }
+              return Positioned(
+                left: cardPosition.dx,
+                top: cardPosition.dy,
+                child: Opacity(opacity: 1.0, child: cardWidget),
+              );
+            },
+          ),
+        ],
+      );
+    }
+
     // Build card widget using actual CardWidget (for other animation types)
     return AnimatedBuilder(
       animation: animation,
@@ -2580,23 +2617,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               ownerId: cardOwnerId,
             );
             await queenPeekAction.execute();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Peeking at: ${card['rank']} of ${card['suit']}'
-                ),
-                  backgroundColor: AppColors.accentColor2,
-                duration: Duration(seconds: 2),
-              ),
-            );
           } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to peek at card: $e'),
-                backgroundColor: AppColors.errorColor,
-                duration: Duration(seconds: 3),
-              ),
-            );
+            // Game feedback: snackbars removed
           }
         } else if (currentPlayerStatus == 'jack_swap') {
           try {
@@ -2616,55 +2638,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               _logger.info('🃏 OpponentsPanelWidget: After selection, jack swap count: $selectionCount');
             }
             if (selectionCount == 1) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'First card selected: ${card['rank']} of ${card['suit']}. Select another card to swap.'
-                  ),
-                  backgroundColor: AppColors.warningColor,
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              // Game feedback: snackbars removed
             } else if (selectionCount == 2) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Second card selected: ${card['rank']} of ${card['suit']}. Swapping cards...'
-                  ),
-                  backgroundColor: AppColors.accentColor,
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              // Game feedback: snackbars removed
             }
           } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to select card for Jack swap: $e'),
-                backgroundColor: AppColors.errorColor,
-                duration: Duration(seconds: 3),
-              ),
-            );
+            // Game feedback: snackbars removed
           }
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Error: Card information incomplete'),
-            backgroundColor: AppColors.errorColor,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        // Game feedback: snackbars removed
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Invalid action: Cannot interact with cards while status is "$currentPlayerStatus"'
-          ),
-          backgroundColor: AppColors.warningColor,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      // Game feedback: snackbars removed
     }
   }
 
@@ -2699,29 +2685,28 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
-  /// Reusable glow effect decoration builder
-  /// Returns a BoxDecoration with animated glow effect based on status color
+  /// Reusable glow effect decoration builder.
+  /// Full opacity, tight spread (less blur/spread for a more visible edge glow).
   /// [statusColor] The color to use for the glow (from _getStatusChipColor)
   /// [glowOpacity] The current animation opacity value (from _glowAnimation)
-  /// Returns null if glow should not be applied
   BoxDecoration? _buildGlowDecoration(Color statusColor, double glowOpacity) {
     return BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       boxShadow: [
         BoxShadow(
+          color: statusColor.withValues(alpha: 1.0 * glowOpacity),
+          blurRadius: 4,
+          spreadRadius: 0,
+        ),
+        BoxShadow(
+          color: statusColor.withValues(alpha: 0.85 * glowOpacity),
+          blurRadius: 8,
+          spreadRadius: 0.5,
+        ),
+        BoxShadow(
           color: statusColor.withValues(alpha: 0.6 * glowOpacity),
-          blurRadius: 6,
+          blurRadius: 12,
           spreadRadius: 1,
-        ),
-        BoxShadow(
-          color: statusColor.withValues(alpha: 0.4 * glowOpacity),
-          blurRadius: 10,
-          spreadRadius: 2,
-        ),
-        BoxShadow(
-          color: statusColor.withValues(alpha: 0.2 * glowOpacity),
-          blurRadius: 14,
-          spreadRadius: 3,
         ),
       ],
     );
@@ -3040,13 +3025,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       try {
         final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
         if (currentGameId.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Error: No active game found'),
-              backgroundColor: AppColors.errorColor,
-              duration: const Duration(seconds: 3),
-            ),
-          );
           return;
         }
         final drawAction = PlayerAction.playerDraw(
@@ -3057,32 +3035,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         setState(() {
           _clickedPileType = 'draw_pile';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Card drawn from draw pile'),
-            backgroundColor: AppColors.successColor,
-            duration: const Duration(seconds: 2),
-          ),
-        );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to draw card: $e'),
-            backgroundColor: AppColors.errorColor,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        // Game feedback: snackbars removed
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Invalid action: Cannot interact with draw pile while status is "$currentPlayerStatus"'
-          ),
-          backgroundColor: AppColors.warningColor,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      // Game feedback: snackbars removed
     }
   }
 
@@ -3253,16 +3210,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Block during same_rank_window and initial_peek phases - but only if collection mode is enabled
     if ((gamePhase == 'same_rank_window' || gamePhase == 'initial_peek') && isClearAndCollect) {
-      String reason = gamePhase == 'same_rank_window' 
-        ? 'Cannot collect cards during same rank window'
-        : 'Cannot collect cards during initial peek phase';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(reason),
-          backgroundColor: AppColors.warningColor,
-          duration: const Duration(seconds: 2),
-        ),
-      );
       return;
     }
     
@@ -3274,13 +3221,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     try {
       final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
       if (currentGameId.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Error: No active game found'),
-            backgroundColor: AppColors.errorColor,
-            duration: const Duration(seconds: 3),
-          ),
-        );
         return;
       }
       final collectAction = PlayerAction.collectFromDiscard(gameId: currentGameId);
@@ -3289,13 +3229,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         _clickedPileType = 'discard_pile';
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to collect card: $e'),
-          backgroundColor: AppColors.errorColor,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      // Game feedback: snackbars removed
     }
   }
 
@@ -3587,15 +3521,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     final actionError = dutchGameState['actionError'] as Map<String, dynamic>?;
     if (actionError != null) {
-      final message = actionError['message']?.toString() ?? 'Action failed';
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: AppColors.warningColor,
-            duration: const Duration(seconds: 3),
-          ),
-        );
         final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         StateManager().updateModuleState('dutch_game', {
           ...currentState,
@@ -4201,13 +4127,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       if (LOGGING_SWITCH) {
         _logger.warning('⚠️ MyHandWidget - gameId is empty');
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Error: No active game found'),
-          backgroundColor: AppColors.errorColor,
-          duration: const Duration(seconds: 3),
-        ),
-      );
       return;
     }
     try {
@@ -4239,13 +4158,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           }
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Final Round Called! All players will get one last turn.'),
-          backgroundColor: AppColors.warningColor,
-          duration: const Duration(seconds: 3),
-        ),
-      );
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -4256,13 +4168,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round error)');
         }
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to call final round: $e'),
-          backgroundColor: AppColors.errorColor,
-          duration: const Duration(seconds: 3),
-        ),
-      );
     }
   }
 
@@ -4308,13 +4213,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         _logger.info('🎮 MyHandWidget - currentGameId: $currentGameId');
       }
       if (currentGameId.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Error: No active game found'),
-            backgroundColor: AppColors.errorColor,
-            duration: const Duration(seconds: 3),
-          ),
-        );
         return;
       }
       try {
@@ -4330,15 +4228,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             cardId: card['cardId']?.toString() ?? '',
           );
           await sameRankAction.execute();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Same Rank Play: ${card['rank']} of ${card['suit']}'
-              ),
-              backgroundColor: AppColors.infoColor,
-              duration: Duration(seconds: 2),
-            ),
-          );
         } else if (currentPlayerStatus == 'jack_swap') {
           final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
           if (LOGGING_SWITCH) {
@@ -4357,25 +4246,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             _logger.info('🃏 MyHandWidget: After selection, jack swap count: $selectionCount');
           }
           if (selectionCount == 1) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'First card selected: ${card['rank']} of ${card['suit']}. Select another card to swap.'
-                ),
-                backgroundColor: AppColors.warningColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
+            // Game feedback: snackbars removed
           } else if (selectionCount == 2) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Second card selected: ${card['rank']} of ${card['suit']}. Swapping cards...'
-                ),
-                backgroundColor: AppColors.accentColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
+            // Game feedback: snackbars removed
           }
         } else if (currentPlayerStatus == 'queen_peek') {
           final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
@@ -4385,25 +4258,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             ownerId: currentUserId,
           );
           await queenPeekAction.execute();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Peeking at: ${card['rank']} of ${card['suit']}'
-              ),
-              backgroundColor: AppColors.accentColor2,
-              duration: Duration(seconds: 2),
-            ),
-          );
         } else if (currentPlayerStatus == 'initial_peek') {
           final cardId = card['cardId']?.toString() ?? '';
           if (cardId.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Invalid card data'),
-                backgroundColor: AppColors.errorColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
             return;
           }
 
@@ -4424,28 +4281,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             // Check if already selected (using DemoFunctionality's tracking)
             final demoSelectedIds = DemoFunctionality.instance.getInitialPeekSelectedCardIds();
             if (demoSelectedIds.contains(cardId)) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Card already selected'),
-                  backgroundColor: AppColors.warningColor,
-                  duration: Duration(seconds: 2),
-                ),
-              );
               return;
             }
 
             // Add card to initial peek (this will update myCardsToPeek in state)
             final selectedCount = await DemoFunctionality.instance.addCardToInitialPeek(cardId);
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Card $selectedCount/2 selected'
-                ),
-                backgroundColor: AppColors.infoColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
 
             // If 2 cards selected, complete the initial peek
             if (selectedCount == 2) {
@@ -4455,42 +4295,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 cardIds: DemoFunctionality.instance.getInitialPeekSelectedCardIds(),
               );
               await completedInitialPeekAction.execute();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Initial peek completed! You have looked at 2 cards.'
-                  ),
-                  backgroundColor: AppColors.successColor,
-                  duration: Duration(seconds: 3),
-                ),
-              );
               // Note: DemoFunctionality._handleCompletedInitialPeek already clears the tracking set
               // Cards remain visible in myCardsToPeek so user can see both cards they peeked at
             }
           } else {
             // Normal mode: use existing logic
           if (_initialPeekSelectedCardIds.contains(cardId)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Card already selected'),
-                backgroundColor: AppColors.warningColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
             return;
           }
           if (_initialPeekSelectionCount < 2) {
             _initialPeekSelectedCardIds.add(cardId);
             _initialPeekSelectionCount++;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Card ${_initialPeekSelectionCount}/2 selected'
-                ),
-                backgroundColor: AppColors.infoColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
             if (_initialPeekSelectionCount == 2) {
               await Future.delayed(Duration(milliseconds: 500));
               final completedInitialPeekAction = PlayerAction.completedInitialPeek(
@@ -4498,28 +4313,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 cardIds: _initialPeekSelectedCardIds,
               );
               await completedInitialPeekAction.execute();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Initial peek completed! You have looked at 2 cards.'
-                  ),
-                  backgroundColor: AppColors.successColor,
-                  duration: Duration(seconds: 3),
-                ),
-              );
               _initialPeekSelectionCount = 0;
               _initialPeekSelectedCardIds.clear();
             }
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'You have already peeked at 2 cards. Initial peek is complete.'
-                ),
-                backgroundColor: AppColors.warningColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
+            // Game feedback: snackbars removed
             }
           }
         } else {
@@ -4576,24 +4374,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (error case)');
           }
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to execute action: $e'),
-            backgroundColor: AppColors.errorColor,
-            duration: Duration(seconds: 3),
-          ),
-        );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Invalid action: Cannot interact with hand cards while status is "$currentPlayerStatus"'
-          ),
-          backgroundColor: AppColors.warningColor,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      // Game feedback: snackbars removed
     }
   }
 

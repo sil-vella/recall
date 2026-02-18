@@ -160,7 +160,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
     );
   }
 
-  /// Build empty state when no game is active
+  /// Build empty state when no game data is available: show spinning loader.
   Widget _buildEmptyState() {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
@@ -178,17 +178,17 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
               style: AppTextStyles.headingSmall(),
             ),
             const SizedBox(height: 12),
-            Text(
-              'No active game found',
-              style: AppTextStyles.label().copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Return to the lobby to join a game',
-              style: AppTextStyles.bodySmall().copyWith(
-                color: AppColors.textSecondary,
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.accentColor),
+                  ),
+                ),
               ),
             ),
           ],

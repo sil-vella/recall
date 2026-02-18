@@ -486,27 +486,24 @@ class CardWidget extends StatelessWidget {
     );
   }
 
-  /// Build selection wrapper with overlay (same color 0.5 opacity, no border)
-  /// Ensures exact dimensions are maintained
+  /// Build selection wrapper: white border only (no fill), full opacity.
+  /// Ensures exact dimensions are maintained.
   Widget _buildSelectionWrapper(Widget child, Size dimensions) {
     final borderRadius = (config.borderRadius == 8.0)
         ? CardDimensions.calculateBorderRadius(dimensions)
         : config.borderRadius;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        child,
-        Positioned.fill(
-          child: IgnorePointer(
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.successColor.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(borderRadius),
-              ),
-            ),
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: AppColors.white,
+          width: 3,
         ),
-      ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: child,
+      ),
     );
   }
 

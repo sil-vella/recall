@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../../../utils/consts/config.dart';
 import '../../../../utils/widgets/felt_texture_widget.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
@@ -342,6 +343,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     if (!_cardBackPrecached && mounted) {
       _cardBackPrecached = true;
       precacheImage(const AssetImage('assets/images/card_back.png'), context);
+      precacheImage(const AssetImage('assets/images/table_logo.png'), context);
       precacheImage(const AssetImage('assets/images/backgrounds/queen.png'), context);
       precacheImage(const AssetImage('assets/images/backgrounds/king.png'), context);
       precacheImage(const AssetImage('assets/images/backgrounds/jack.png'), context);
@@ -621,14 +623,55 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                               Positioned.fill(
                                 child: _tableBackground,
                               ),
-                              // Table overlay image - above felt, below all game widgets
+                              // Table overlay (table_logo): assets in practice, network with asset fallback in multiplayer
                               Center(
                                 child: SizedBox(
                                   width: overlaySize,
                                   height: overlaySize,
-                                  child: Image.asset(
-                                    'assets/images/table_overlay.png',
-                                    fit: BoxFit.contain,
+                                  child: Builder(
+                                    builder: (context) {
+                                      final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+                                      final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+                                      final isPracticeMode = currentGameId.startsWith('practice_room_');
+                                      const int imageVersion = 1;
+                                      if (isPracticeMode) {
+                                        return Image(
+                                          image: const AssetImage('assets/images/table_logo.png'),
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (context, error, stackTrace) => Icon(
+                                            Icons.broken_image,
+                                            size: overlaySize * 0.4,
+                                            color: AppColors.white.withOpacity(0.5),
+                                          ),
+                                        );
+                                      }
+                                      final imageUrl = currentGameId.isNotEmpty
+                                          ? '${Config.apiUrl}/sponsors/images/table_logo.png?gameId=$currentGameId&v=$imageVersion'
+                                          : '${Config.apiUrl}/sponsors/images/table_logo.png?v=$imageVersion';
+                                      return Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.contain,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Icon(
+                                            Icons.image,
+                                            size: overlaySize * 0.4,
+                                            color: AppColors.white.withOpacity(0.5),
+                                          );
+                                        },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Image(
+                                            image: const AssetImage('assets/images/table_logo.png'),
+                                            fit: BoxFit.contain,
+                                            errorBuilder: (context, err, st) => Icon(
+                                              Icons.broken_image,
+                                              size: overlaySize * 0.4,
+                                              color: AppColors.white.withOpacity(0.5),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
                                   ),
                                 ),
                               ),

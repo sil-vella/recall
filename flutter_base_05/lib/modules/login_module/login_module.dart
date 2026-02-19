@@ -18,7 +18,7 @@ import '../../utils/consts/config.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = false; // Enabled for login/account creation debugging (unable to create account)
+  static const bool LOGGING_SWITCH = true; // Enabled for login/account creation debugging (unable to create account)
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -310,6 +310,34 @@ class LoginModule extends ModuleBase {
       "user_id": _sharedPref!.getString('user_id'),
       "username": _sharedPref!.getString('username'),
       "email": _sharedPref!.getString('email'),
+    };
+  }
+
+  /// Returns saved credentials (temp keys) for pre-filling the login form.
+  /// Call this when showing the account screen login form (e.g. initState and when
+  /// transitioning to logged-out view) so saved email/username/password appear immediately.
+  /// Keys: username, email, password (all String?); isGuestAccount (bool).
+  /// Email may be null if stored value is encrypted (det_...); do not pre-fill encrypted values.
+  Future<Map<String, dynamic>> getPreservedCredentialsForForm(BuildContext context) async {
+    _initDependencies(context);
+
+    if (_sharedPref == null) {
+      return {};
+    }
+
+    final isGuestAccount = _sharedPref!.getBool('is_guest_account') ?? false;
+    String? username = _sharedPref!.getString('username');
+    String? email = _sharedPref!.getString('email');
+    if (email != null && email.startsWith('det_')) {
+      email = null;
+    }
+    final password = _sharedPref!.getString('password');
+
+    return {
+      'username': username,
+      'email': email,
+      'password': password,
+      'isGuestAccount': isGuestAccount,
     };
   }
 

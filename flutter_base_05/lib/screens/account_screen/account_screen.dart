@@ -68,8 +68,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       _logger.info('🔍 AccountScreen initState called');
     }
     _initializeModules();
-    _checkForGuestCredentials();
     _checkGuestAccountStatus();
+    // Load preserved credentials in post-frame so form is populated before first paint when possible
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _checkForGuestCredentials();
+    });
     _trackScreenView();
     _fetchUserProfile();
     // Check for app updates on every account screen load
@@ -1149,7 +1152,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           if (isLoggedIn != _lastLoggedInState) {
             _lastLoggedInState = isLoggedIn;
             if (isLoggedIn) {
-              // Use WidgetsBinding to schedule the check after the current build completes
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 try {
                   _checkGuestAccountStatus();
@@ -1159,6 +1161,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                     _logger.error('AccountScreen: Error in postFrameCallback for guest account check', error: e, stackTrace: stackTrace);
                   }
                 }
+              });
+            } else {
+              // Just switched to logged-out: repopulate login form from SharedPref so saved creds show immediately
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                await _checkForGuestCredentials();
               });
             }
           }

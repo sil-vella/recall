@@ -10,7 +10,7 @@ import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for testing game finding/initialization and registration differences
+const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization and registration differences
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};

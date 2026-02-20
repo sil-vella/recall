@@ -173,6 +173,21 @@ OUTPUT_DIR="$REPO_ROOT/flutter_base_05/build/web"
 
 if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/index.html" ]; then
   echo "✅ Web build completed: $OUTPUT_DIR"
+  # Cache-bust: add version query string so browsers load fresh script/manifest instead of cache.
+  # For best results the web server should send Cache-Control: no-cache (or max-age=0) for index.html.
+  INDEX_HTML="$OUTPUT_DIR/index.html"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s|src=\"flutter_bootstrap.js\"|src=\"flutter_bootstrap.js?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i '' "s|href=\"manifest.json\"|href=\"manifest.json?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i '' "s|href=\"favicon.png\"|href=\"favicon.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i '' "s|href=\"icons/Icon-192.png\"|href=\"icons/Icon-192.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
+  else
+    sed -i "s|src=\"flutter_bootstrap.js\"|src=\"flutter_bootstrap.js?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i "s|href=\"manifest.json\"|href=\"manifest.json?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i "s|href=\"favicon.png\"|href=\"favicon.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i "s|href=\"icons/Icon-192.png\"|href=\"icons/Icon-192.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
+  fi
+  echo "🔖 Cache-bust: added ?v=$APP_VERSION to index.html script and manifest URLs"
   echo "📊 Build size:"
   du -sh "$OUTPUT_DIR"
   echo ""

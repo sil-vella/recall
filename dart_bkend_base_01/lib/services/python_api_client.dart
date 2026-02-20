@@ -4,7 +4,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for login/account creation debugging (token validation, game stats)
+const bool LOGGING_SWITCH = false; // Enabled for login/account creation debugging (token validation, game stats)
 
 class PythonApiClient {
   final String baseUrl;

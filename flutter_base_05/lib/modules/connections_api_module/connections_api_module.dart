@@ -13,7 +13,7 @@ import '../../utils/consts/config.dart';
 import 'interceptor.dart';
 
 class ConnectionsApiModule extends ModuleBase {
-  static const bool LOGGING_SWITCH = true; // Set true for connectivity/API debug logs
+  static const bool LOGGING_SWITCH = false; // Set true for connectivity/API debug logs
 
   /// Retry once after this delay when a request fails with a transient error (e.g. public WiFi).
   static const Duration _retryDelay = Duration(milliseconds: 1500);

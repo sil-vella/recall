@@ -197,6 +197,15 @@ So **empty slots in the overlay are tied to animation type** (only for `moveWith
 - The discard pile and the rest of the board read from **prev_state** (`_getPrevStateDutchGame()`), which is updated only after all animations in a batch complete (in `_completeStateUpdate()`).
 - For **play_card** and **same_rank**, when the move animation completes, the overlay is removed in the same frame as the discard update: before removing the animation from `_activeAnimations` and calling `setState`, the widget calls `_updatePrevStateCache()` so that the next rebuild already has the new discard pile. That way the anim layer is effectively held until the discard shows the new card, avoiding a brief flash of the old discard after the card leaves the overlay.
 
+### 7.5 State when triggering an animation (what is updated vs what holds old state)
+
+- **Updated immediately** (when the backend broadcasts): **StateManager**’s `dutch_game` state is the live source of truth. It already contains the new game state (e.g. new hands, new discard pile, new `player['action']` queues, updated draw pile count). So by the time `_processStateUpdate` runs and we trigger animations, the **current state** in StateManager already reflects the post-action data.
+- **Holds old state during animations**: The unified game board keeps a local **prev_state cache** (`_prevStateCache`). It is **not** updated when an animation is triggered; it is updated only when:
+  1. **After a full batch**: `_completeStateUpdate()` → `_updatePrevStateCache()` (after all actions in the list have been processed).
+  2. **Early for play_card / same_rank**: when that move’s animation completes, the widget calls `_updatePrevStateCache()` before removing the overlay so the discard pile display updates in the same frame.
+- **What the UI reads**: The board (hands, discard, center board slices) does **not** read current state directly for card data. It reads from `_getPrevStateDutchGame()`, which returns a copy of **current** state with **hands, discard, draw pile, and the myHand/opponentsPanel/centerBoard slices overwritten from `_prevStateCache`**. So during animations, the **visible** hands and discard are the **old** (cached) state. Status, timer, and phase are always taken from **current** state (re-applied in `_getPrevStateDutchGame()` so no stale status leaks).
+- **Summary**: When we trigger an animation, StateManager already has the new state; the prev_state cache still holds the previous snapshot. The board is deliberately shown from the cache so the moving card animates from/to the right places; only after the animation (or the whole batch) do we refresh the cache so the board “catches up” to the new state.
+
 ---
 
 ## 8. Duplicate detection

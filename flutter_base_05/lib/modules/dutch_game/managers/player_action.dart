@@ -126,10 +126,11 @@ class PlayerAction {
         _logger.info('Event successfully sent to backend');
       }
       
-      // Clear Jack swap selections after successful WebSocket emission
-      if (actionType == PlayerActionType.jackSwap) {
-        _clearJackSwapSelections();
-      }
+      // Do NOT clear Jack swap selections here. Match queen peek behavior:
+      // - On success: backend sends state with this player now 'waiting'; unified_game_board
+      //   sees jack_swap -> waiting and calls resetJackSwapSelections().
+      // - On fail/skip: backend keeps player in 'jack_swap'; we keep showing same player and
+      //   timer; only when state shows player 'waiting' (e.g. timer expired) do we clear and advance.
 
     } catch (e) {
       if (LOGGING_SWITCH) {

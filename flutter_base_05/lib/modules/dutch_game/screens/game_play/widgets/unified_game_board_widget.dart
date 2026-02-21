@@ -3530,7 +3530,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       });
     }
     
-    // Reset selectedIndex when status changes from jack_swap to waiting (timer expired)
+    // Reset selectedIndex and jack swap selections only when state shows this player moved from jack_swap to waiting
+    // (swap succeeded or timer expired — same as queen peek; do NOT advance on jack_swap_error / fail)
     if (_previousPlayerStatus == 'jack_swap' && playerStatus == 'waiting') {
       if (LOGGING_SWITCH) {
         _logger.info('🃏 UnifiedGameBoardWidget: Status changed from jack_swap to waiting - resetting selectedIndex');

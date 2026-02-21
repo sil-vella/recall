@@ -53,6 +53,10 @@ If the roll is below the miss chance, the function returns immediately with `use
 
 Strategies only see this `gameData`; they do **not** see `jack_swap_history`.
 
+### 4.1 Acting player’s known_cards only (information fairness)
+
+For any strategy that uses “opponent cards” (e.g. to pick a lowest opponent card), the implementation must use **only the acting player’s own** `known_cards`—i.e. the acting player’s view of other players’ hands. It must **not** use any opponent’s own `known_cards` (e.g. `gameState['players'][opponentId]['known_cards']`), as that would leak information (e.g. cards only that opponent knows from their initial peek). The acting player’s full `known_cards` are nested by owner player id → cardId → card data; for each opponent, consider only `actingPlayer['known_cards'][opponentId]`.
+
 ---
 
 ## 5. Strategy Loop and Probabilities
@@ -176,7 +180,7 @@ History is **not** cleared in `_endSpecialCardsWindow`; it is cleared per player
   At least one other player with exactly one (playable) card. If 2+ such players: swap those two players’ single playable cards (deterministic, first two). If exactly one: swap that card with a random playable card from another player.
 
 - **lowest_opponent_higher_own**  
-  Uses known_cards: find an opponent’s lowest-point card and a higher-point card in own hand; swap them. Falls back to `_selectRandomExceptOwn` if no such pair.
+  Uses the **acting player’s own** known_cards only (see §4.1). The “lowest opponent card” is chosen only from cards in the acting player’s `known_cards` for opponents—i.e. from `actingPlayer['known_cards'][opponentId]` for each opponent owner id. Cards in the acting player’s known_cards for opponents come only from: (a) **queen peek** (the peeker adds the peeked card to their known_cards for that target), and (b) **wrong same_rank** (the wrong card is added to every player’s known_cards for the acting player’s hand). The implementation must **not** use any opponent’s own known_cards (e.g. `gameState['players'][opponentId]['known_cards']`) to choose the lowest opponent card, as that would leak information. In code: the acting player’s full known_cards are read from gameState (nested by owner player id → cardId → card data). For each opponent owner id, consider only cards in `actingPlayer['known_cards'][opponentId]`; the lowest-point card among those is the “lowest opponent card” for the swap. Then find a higher-point card in own hand and swap them. Falls back to `_selectRandomExceptOwn` if no such pair.
 
 - **random_except_own**  
   Collect all playable cards (hand minus collection) from players other than the acting player; pick two from **different** players at random.
@@ -198,5 +202,17 @@ History is **not** cleared in `_endSpecialCardsWindow`; it is cleared per player
 | Decision + strategies| `dart_bkend_base_01/.../computer_player_factory.dart` | `flutter_base_05/.../computer_player_factory.dart` |
 | History record       | `dart_bkend_base_01/.../dutch_game_round.dart` (`handleJackSwap`) | `flutter_base_05/.../dutch_game_round.dart` (`handleJackSwap`) |
 | History clear        | Same round files in `_startNextTurn` | Same |
+| Move-to-next-player guards | `dart_bkend_base_01/.../dutch_game_round.dart` (`_executeMoveToNextPlayerCore`) | `flutter_base_05/.../dutch_game_round.dart` (`_executeMoveToNextPlayerCore`) |
 
 Both codebases keep the same strategy order, strategy percentages, allow-repeat percentages, and history semantics so that backend and client behave consistently.
+
+---
+
+## 11. Round hardening: move to next player
+
+In **`_executeMoveToNextPlayerCore()`** (in both `dart_bkend_base_01` and `flutter_base_05` .../dutch_game_round.dart), before performing the actual move to the next player, the round now checks:
+
+1. **Game phase**: `gamePhase` (from `gameState['gamePhase']` or `gameState['phase']`) must be `'player_turn'` (or empty for backward compatibility). If the phase is e.g. `same_rank_window` or `special_play_window`, the function logs a warning and returns without moving.
+2. **Special cards list**: `_specialCardPlayers` must be empty. If not, log a warning and return without moving.
+
+This ensures normal turn progression (move to next player) only runs when the same-rank and special-cards windows are cleared, avoiding races where the turn would advance while a human is still in a jack swap or same-rank window. The same-rank window is represented by phase (no separate list); the phase check covers it.

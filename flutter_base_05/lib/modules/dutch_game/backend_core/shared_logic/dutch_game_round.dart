@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for computer same-rank decision process and round flow testing (practice mode)
+const bool LOGGING_SWITCH = true; // Enabled for computer same-rank decision process and round flow testing (practice mode)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -23,6 +23,8 @@ class DutchGameRound {
   /// Cancellable delay when "move to next player" was triggered by draw/play timer expiry.
   /// Cancelled when the player completes draw or play before the delay fires.
   Timer? _pendingMoveToNextPlayerTimer;
+  /// Retry timer when move-to-next is blocked by phase/special-cards; re-checks every 2s.
+  Timer? _pendingMoveToNextPlayerRetryTimer;
   /// Pending delayed computer decision (e.g. play_card after draw). Cancelled when moving to next player
   /// so a stale decision does not run after special-card window or turn change.
   Timer? _pendingComputerDecisionTimer;
@@ -3339,8 +3341,8 @@ class DutchGameRound {
           _logger.info('Dutch: Penalty applied successfully - player $playerId now has ${hand.length} cards');
         };
         
-        // Return true since using penalty was handled successfully (expected gameplay, not an error)
-        return true;
+        // Return false so caller (e.g. computer same-rank loop) knows wrong attempt occurred and stops further attempts this window
+        return false;
       }
       
       if (LOGGING_SWITCH) {
@@ -5158,13 +5160,15 @@ class DutchGameRound {
           final entry = sorted[i];
           final handIndex = entry['handIndex'] is int ? entry['handIndex'] as int : (entry['handIndex'] as num?)?.toInt();
           if (handIndex == null || handIndex < 0) continue;
-          await handleSameRankPlay(
+          final success = await handleSameRankPlay(
             playerId,
             null,
             cardIndex: handIndex,
             gamesMap: gamesMap,
             sameRankCandidateCardIds: candidateCardIds,
           );
+          // Wrong attempt (penalty applied): stop further same-rank attempts for this player this window
+          if (!success) break;
           if (i < sorted.length - 1) {
             await Future.delayed(const Duration(milliseconds: 400));
           }
@@ -5904,10 +5908,21 @@ class DutchGameRound {
     }
   }
 
+  /// Schedules a single retry of move-to-next in 2s when blocked by phase or special-cards list.
+  void _scheduleMoveToNextPlayerRetry() {
+    _pendingMoveToNextPlayerRetryTimer?.cancel();
+    _pendingMoveToNextPlayerRetryTimer = Timer(const Duration(seconds: 2), () {
+      _pendingMoveToNextPlayerRetryTimer = null;
+      _executeMoveToNextPlayerCore();
+    });
+  }
+
   /// Core logic for moving to next player (after the 2s delay).
   /// Called from _moveToNextPlayer (normal path) or from the cancellable timer (timer-expiry path).
   void _executeMoveToNextPlayerCore() {
     try {
+      _pendingMoveToNextPlayerRetryTimer?.cancel();
+      _pendingMoveToNextPlayerRetryTimer = null;
       // Clear all player actions before moving to next player
       _clearPlayerAction();
       // Cancel all action timers at start of move to next player
@@ -5928,6 +5943,24 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.error('Dutch: Game state is null for move to next player');
         };
+        return;
+      }
+      
+      // Hardening: only move to next player when special-card and same-rank windows are cleared
+      final gamePhase = gameState['gamePhase']?.toString() ?? gameState['phase']?.toString() ?? '';
+      final allowedPhases = {'player_turn', 'playing', ''}; // 'playing' is normalized from player_turn in game registry
+      if (!allowedPhases.contains(gamePhase)) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: Cannot move to next player while gamePhase is "$gamePhase" (expected player_turn/playing). Retrying in 2s.');
+        };
+        _scheduleMoveToNextPlayerRetry();
+        return;
+      }
+      if (_specialCardPlayers.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: Cannot move to next player while special cards list has ${_specialCardPlayers.length} pending. Retrying in 2s.');
+        };
+        _scheduleMoveToNextPlayerRetry();
         return;
       }
       
@@ -6705,6 +6738,8 @@ class DutchGameRound {
     _playActionTimer = null;
     _pendingMoveToNextPlayerTimer?.cancel();
     _pendingMoveToNextPlayerTimer = null;
+    _pendingMoveToNextPlayerRetryTimer?.cancel();
+    _pendingMoveToNextPlayerRetryTimer = null;
     _pendingComputerDecisionTimer?.cancel();
     _pendingComputerDecisionTimer = null;
   }

@@ -15,7 +15,7 @@ class Logger {
 
   // Logging switch for this module (like Python LOGGING_SWITCH)
   // Set to false in production/Docker to avoid file write attempts (path may not exist).
-  static const bool CUSTOM_LOGGING_ENABLED = false;
+  static const bool CUSTOM_LOGGING_ENABLED = true;
 
   // Log file path - same as Python server log
   static const String _logFileName = '/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log';

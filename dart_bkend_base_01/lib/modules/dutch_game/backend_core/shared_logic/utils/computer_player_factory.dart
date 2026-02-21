@@ -4,7 +4,7 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for computer same-rank decision process (getSameRankPlayDecisionByIndex, _selectSameRankCard)
+const bool LOGGING_SWITCH = true; // Enabled for computer same-rank decision process (getSameRankPlayDecisionByIndex, _selectSameRankCard)
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -2399,41 +2399,43 @@ class ComputerPlayerFactory {
       _logger.info('Dutch: DEBUG - Found highest own card: ${highestOwnCard['cardId']} (${highestOwnPoints} points)');
     };
     
-    // Find lowest point card from other players' known cards
+    // Find lowest point card from OUR known_cards about opponents (not opponents' own known_cards).
+    // Prepared actingPlayer.known_cards is only our hand; get full known_cards from gameState.
     Map<String, dynamic>? lowestOpponentCard;
     String? lowestOpponentPlayerId;
     int lowestOpponentPoints = 999;
     
     if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Searching for lowest point card from other players\' known cards (${allPlayers.length - 1} other players)');
+      _logger.info('Dutch: DEBUG - Searching for lowest point card from our known_cards (opponents we know about)');
     };
     
-    for (final entry in allPlayers.entries) {
-      final playerId = entry.key;
-      if (playerId == actingPlayerId) continue; // Skip acting player
-      
-      // Get full card data from game state for this player's known cards
-      final players = gameState['players'] as List<dynamic>? ?? [];
-      final playerData = players.firstWhere(
-        (p) => p is Map && (p['id']?.toString() ?? '') == playerId,
-        orElse: () => <String, dynamic>{},
-      ) as Map<String, dynamic>?;
-      
-      if (playerData != null) {
-        final playerKnownCards = playerData['known_cards'] as Map<String, dynamic>? ?? {};
-        final playerOwnKnownCards = playerKnownCards[playerId] as Map<String, dynamic>?;
-        
-        if (playerOwnKnownCards != null) {
-          for (final cardEntry in playerOwnKnownCards.entries) {
-            final card = cardEntry.value as Map<String, dynamic>?;
-            if (card != null) {
-              final points = card['points'] as int? ?? 0;
-              if (points < lowestOpponentPoints) {
-                lowestOpponentPoints = points;
-                lowestOpponentCard = card;
-                lowestOpponentPlayerId = playerId;
-              }
-            }
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? actingPlayerFromState;
+    for (final p in players) {
+      if (p is Map && (p['id']?.toString() ?? '') == actingPlayerId) {
+        actingPlayerFromState = Map<String, dynamic>.from(p);
+        break;
+      }
+    }
+    final ourFullKnownCards = actingPlayerFromState != null
+        ? (actingPlayerFromState['known_cards'] as Map<String, dynamic>? ?? {})
+        : <String, dynamic>{};
+    // ourFullKnownCards is keyed by owner player id -> (cardId -> card data)
+    for (final entry in ourFullKnownCards.entries) {
+      final ownerPlayerId = entry.key.toString();
+      if (ownerPlayerId == actingPlayerId) continue; // Skip our own hand (already used for highest own card)
+      final cardsWeKnowInThatHand = entry.value is Map
+          ? (entry.value as Map).map((k, v) => MapEntry(k.toString(), v as Map<String, dynamic>?))
+          : <String, Map<String, dynamic>?>{};
+      if (cardsWeKnowInThatHand.isEmpty) continue;
+      for (final cardEntry in cardsWeKnowInThatHand.entries) {
+        final card = cardEntry.value;
+        if (card != null) {
+          final points = card['points'] as int? ?? 0;
+          if (points < lowestOpponentPoints) {
+            lowestOpponentPoints = points;
+            lowestOpponentCard = card;
+            lowestOpponentPlayerId = ownerPlayerId;
           }
         }
       }

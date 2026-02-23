@@ -24,7 +24,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for game clearing (leaveAllGamesAndClearState / clearAllGameStateBeforeNewGame) and leave_room verification
+  static const bool LOGGING_SWITCH = true; // Enabled for create room/tournament flow, game clearing, leave_room verification
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -90,6 +90,10 @@ class DutchGameHelpers {
     // Add password for private rooms
     if (permission == 'private' && password != null) {
       data['password'] = password;
+    }
+    
+    if (LOGGING_SWITCH) {
+      _logger.info('DutchGameHelpers.createRoom: emitting create_room payload: $data');
     }
     
       return await _eventEmitter.emit(

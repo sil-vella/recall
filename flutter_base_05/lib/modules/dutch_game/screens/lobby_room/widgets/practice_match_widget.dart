@@ -84,14 +84,14 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
           children: [
             Text(
               'Practice Match',
-              style: AppTextStyles.headingSmall(),
+              style: AppTextStyles.headingSmall().copyWith(color: AppColors.white),
             ),
             SizedBox(height: AppPadding.defaultPadding.top),
 
             // Difficulty Dropdown
             Text(
               'Difficulty',
-              style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+              style: AppTextStyles.label().copyWith(color: AppColors.white),
             ),
             SizedBox(height: AppPadding.smallPadding.top),
             Semantics(

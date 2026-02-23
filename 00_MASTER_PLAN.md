@@ -17,3 +17,9 @@
   - An API event is sent from the dashboard (e.g. `/start_tour_gameid*`) that the front end listens to and uses to navigate to the play screen, passing the usual game state.
   - Add a new key to game state: `isIrlTournament` (bool).
   - The match does not start immediately. A separate API event triggers the actual start (e.g. after a 3–2–1 countdown animation).
+
+- **Tournament formatting and lobby tab**
+  - Introduce a new class for tournament formatting.
+  - Depending on tournament format, show tournament data (matches, rules, etc.) in a new **Tournaments** tab in the lobby screen.
+
+- **Create game:** Fix create game — it currently auto-creates clear-and-collect mode.

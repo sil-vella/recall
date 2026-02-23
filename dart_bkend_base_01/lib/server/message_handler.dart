@@ -10,7 +10,7 @@ import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization, match creation, and registration differences
+const bool LOGGING_SWITCH = true; // Enabled for create room/tournament flow, game finding, match creation
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -133,6 +133,9 @@ class MessageHandler {
   // ========= ROOM MANAGEMENT HANDLERS =========
   
   void _handleCreateRoom(String sessionId, Map<String, dynamic> data) {
+    if (LOGGING_SWITCH) {
+      _logger.room('📥 create_room received: sessionId=$sessionId, data keys=${data.keys.toList()}, game_type=${data['game_type'] ?? data['gameType']}, permission=${data['permission']}, auto_start=${data['auto_start'] ?? data['autoStart']}, tournamentName=${data['tournament_name'] ?? data['tournamentName']}, tournamentFormat=${data['tournament_format'] ?? data['tournamentFormat']}');
+    }
     // Get userId from server's session mapping (should be set after authentication)
     final userId = _server.getUserIdForSession(sessionId);
     

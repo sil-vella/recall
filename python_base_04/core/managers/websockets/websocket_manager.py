@@ -18,7 +18,7 @@ from datetime import datetime
 from functools import wraps
 import json
 
-LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
+LOGGING_SWITCH = True  # Enabled for create room/tournament flow and rank-based matching
 
 class WebSocketManager:
     def __init__(self):
@@ -417,6 +417,8 @@ class WebSocketManager:
 
     def create_room(self, room_id: str, permission: str = "public", owner_id: Optional[str] = None, allowed_users: Optional[Set[str]] = None, allowed_roles: Optional[Set[str]] = None, password: Optional[str] = None) -> bool:
         """Create a new room."""
+        if LOGGING_SWITCH:
+            custom_log(f"create_room: room_id={room_id}, permission={permission}, owner_id={owner_id}", level="INFO", isOn=LOGGING_SWITCH)
         # Use lock to prevent race conditions in room creation
         with self._room_creation_lock:
             try:

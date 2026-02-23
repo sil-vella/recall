@@ -3,10 +3,11 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../game_play/widgets/game_phase_chip_widget.dart';
+import '../../../managers/dutch_game_state_updater.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and current games widget debugging (current games fixed)
+const bool LOGGING_SWITCH = true; // Enabled for Start button flow: _enterGameRoom, isRoomOwner preservation
 
 /// Widget to display all joined rooms with join functionality
 /// 
@@ -288,7 +289,6 @@ class CurrentRoomWidget extends StatelessWidget {
   /// Navigate to game play screen with game data
   void _enterGameRoom(BuildContext context, Map<String, dynamic> gameData) async {
     try {
-      // Clean up dutch game state before joining real game            
       // Store game data in state for the game play screen to access
       final gameId = gameData['game_id']?.toString() ?? '';
       
@@ -297,28 +297,66 @@ class CurrentRoomWidget extends StatelessWidget {
       final gamePhase = gameState['phase']?.toString() ?? 'waiting';
       final gameStatus = gameState['status']?.toString() ?? 'inactive';
       
-      // Determine if current user is room owner (re-get login state after potential cleanup)
-      final updatedLoginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-      final updatedUserId = updatedLoginState['userId']?.toString() ?? '';
-      final isRoomOwner = gameData['owner_id']?.toString() == updatedUserId;
-      
-      // Get current games map
+      // Get current games map and existing entry before overwriting
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      final existingEntry = games[gameId] as Map<String, dynamic>?;
+      
+      // Preserve isRoomOwner when already true (creator who just created the room).
+      // Only derive from gameData['owner_id'] when we have no existing entry or existing is not owner.
+      final updatedLoginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final updatedUserId = updatedLoginState['userId']?.toString() ?? '';
+      final existingIsOwner = existingEntry?['isRoomOwner'] == true;
+      final derivedIsOwner = gameData['owner_id']?.toString() == updatedUserId;
+      final isRoomOwner = existingIsOwner || derivedIsOwner;
+      
+      // Match-type state for accurate Start button and future logic
+      final isPractice = gameId.startsWith('practice_room_');
+      final Map<String, dynamic>? multiplayerType;
+      if (isPractice) {
+        multiplayerType = null;
+      } else {
+        final gameType = gameData['game_type']?.toString() ?? 'classic';
+        final isRandom = gameData['is_random_join'] == true;
+        multiplayerType = {
+          'type': gameType == 'tournament' ? 'tournament' : 'classic',
+          'isRandom': isRandom,
+        };
+      }
+      
+      // Ensure gameData has owner_id when we know it (so slices and handlers see it)
+      final gameDataWithOwner = Map<String, dynamic>.from(gameData);
+      if (gameDataWithOwner['owner_id'] == null && existingEntry != null) {
+        final existingGameData = existingEntry['gameData'] as Map<String, dynamic>?;
+        final existingOwnerId = existingGameData?['owner_id']?.toString();
+        if (existingOwnerId != null && existingOwnerId.isNotEmpty) {
+          gameDataWithOwner['owner_id'] = existingOwnerId;
+        }
+      }
       
       // Add/update the current game in the games map
-      // Note: playerCount and maxSize are read directly from gameData in the widget slice computation
       games[gameId] = {
-        'gameData': gameData,  // This is the single source of truth
+        'gameData': gameDataWithOwner,
         'gamePhase': gamePhase,
         'gameStatus': gameStatus,
         'isRoomOwner': isRoomOwner,
+        'isPractice': isPractice,
+        'multiplayerType': multiplayerType,
         'isInGame': true,
-        'joinedAt': DateTime.now().toIso8601String(),
+        'joinedAt': existingEntry?['joinedAt'] ?? DateTime.now().toIso8601String(),
       };
       
-      // Set current game state synchronously so game play screen sees it on first build (no stale/empty state)
+      if (LOGGING_SWITCH) {
+        _logger.info('🚪 _enterGameRoom: gameId=$gameId, existingIsOwner=$existingIsOwner, derivedIsOwner=$derivedIsOwner, isRoomOwner=$isRoomOwner, multiplayerType=$multiplayerType');
+      }
+      
+      // Set current game state synchronously so game play screen sees it on first build
       DutchGameHelpers.setCurrentGameSync(gameId, games);
+      // Sync main state gamePhase and isRoomOwner so actionBar and other slices are correct
+      DutchGameStateUpdater.instance.updateStateSync({
+        'gamePhase': gamePhase,
+        'isRoomOwner': isRoomOwner,
+      });
       
       // Navigate to game play screen
       NavigationManager().navigateTo('/dutch/game-play');

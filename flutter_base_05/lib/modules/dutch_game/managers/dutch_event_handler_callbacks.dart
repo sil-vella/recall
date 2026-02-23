@@ -11,7 +11,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for Queen peek (cardsToPeek sync) and event flow testing
+  static const bool LOGGING_SWITCH = true; // Enabled for Start button flow: room_joined, game_state_updated, _addGameToMap
   static final Logger _logger = Logger();
   
   // Analytics module cache
@@ -265,19 +265,35 @@ class DutchEventHandlerCallbacks {
     // Determine game status (phase is now managed in main state only)
     final status = gameStatus ?? gameData['game_state']?['status']?.toString() ?? 'inactive';
     
-    // Preserve existing joinedAt timestamp if game already exists
+    // Preserve existing joinedAt and isRoomOwner when already set (e.g. creator before first game_state_updated)
     final existingGame = currentGames[gameId] as Map<String, dynamic>?;
     final joinedAt = existingGame?['joinedAt'] ?? DateTime.now().toIso8601String();
+    final derivedIsOwner = _isCurrentUserRoomOwner(gameData);
+    final isRoomOwner = (existingGame?['isRoomOwner'] == true) || derivedIsOwner;
+    
+    // Match-type state for Start button and logic
+    final isPractice = gameId.startsWith('practice_room_');
+    final Map<String, dynamic>? multiplayerType;
+    if (isPractice) {
+      multiplayerType = null;
+    } else {
+      final gameType = gameData['game_type']?.toString() ?? 'classic';
+      final isRandom = gameData['is_random_join'] == true;
+      multiplayerType = {
+        'type': gameType == 'tournament' ? 'tournament' : 'classic',
+        'isRandom': isRandom,
+      };
+    }
     
     // Add/update the game in the games map
     currentGames[gameId] = {
       'gameData': gameData,  // Single source of truth
-      // Note: gamePhase is now managed in main state only - derived from main state in gameInfo slice
       'gameStatus': status,
-      'isRoomOwner': _isCurrentUserRoomOwner(gameData),
+      'isRoomOwner': isRoomOwner,
+      'isPractice': isPractice,
+      'multiplayerType': multiplayerType,
       'isInGame': true,
-      'joinedAt': joinedAt,  // Preserve original joinedAt timestamp
-      // Removed lastUpdated - causes unnecessary state updates
+      'joinedAt': joinedAt,
     };
     
     if (LOGGING_SWITCH) {
@@ -1351,13 +1367,20 @@ When anyone has played a card with the **same rank** as your **collection card**
         currentGames.clear(); // Remove all existing games
       }
       // Add the game to the games map with the complete game state.
-      // IMPORTANT: Do not overwrite ownership with null. Only include owner_id if present.
+      // Include owner_id, game_type, is_random_join so client can set isRoomOwner and multiplayerType.
       final base = {
         'game_id': gameId,
         'game_state': gameState,
       };
       if (ownerId != null) {
         base['owner_id'] = ownerId;
+      }
+      final gameType = data['game_type']?.toString();
+      if (gameType != null && gameType.isNotEmpty) {
+        base['game_type'] = gameType;
+      }
+      if (data['is_random_join'] == true || DutchGameHelpers.isRandomJoinInProgress) {
+        base['is_random_join'] = true;
       }
       _addGameToMap(gameId, base);
       if (LOGGING_SWITCH) {
@@ -1462,16 +1485,16 @@ When anyone has played a card with the **same rank** as your **collection card**
         'game_state': gameState,
       });
       
-      // Update owner_id and recalculate isRoomOwner at the top level
+      // Update owner_id in gameData and at top level, recalculate isRoomOwner
       if (ownerId != null) {
         final currentUserId = getCurrentUserId();
-        // Use _isCurrentUserRoomOwner to properly handle practice mode (userId vs sessionId)
         final gameDataForOwnerCheck = {'owner_id': ownerId};
         final isOwner = _isCurrentUserRoomOwner(gameDataForOwnerCheck);
         if (LOGGING_SWITCH) {
           _logger.info('🔍 Updating owner_id: $ownerId, currentUserId: $currentUserId');
           _logger.info('🔍 Setting isRoomOwner: $isOwner');
         }
+        _updateGameData(gameId, {'owner_id': ownerId});  // So gameData has owner_id for slices
         _updateGameInMap(gameId, {
           'owner_id': ownerId,
           'isRoomOwner': isOwner,
@@ -1484,6 +1507,20 @@ When anyone has played a card with the **same rank** as your **collection card**
         final currentMain = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final prevIsOwner = currentMain['isRoomOwner'] as bool? ?? false;
         _updateMainGameState({'isRoomOwner': prevIsOwner});
+      }
+      
+      // Set game_type and multiplayerType on existing entry when event provides them
+      // (e.g. room_joined created entry first, then game_state_updated arrives)
+      final gameType = data['game_type']?.toString();
+      if (gameType != null && gameType.isNotEmpty) {
+        _updateGameData(gameId, {'game_type': gameType});
+        final isRandom = data['is_random_join'] == true || DutchGameHelpers.isRandomJoinInProgress;
+        _updateGameInMap(gameId, {
+          'multiplayerType': {
+            'type': gameType == 'tournament' ? 'tournament' : 'classic',
+            'isRandom': isRandom,
+          },
+        });
       }
     }
     

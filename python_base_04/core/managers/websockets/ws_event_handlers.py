@@ -12,6 +12,8 @@ import uuid
 from core.managers.jwt_manager import TokenType
 from utils.config.config import Config
 
+LOGGING_SWITCH = True  # Enabled for create room/tournament flow
+
 class WSEventHandlers:
     """Centralized WebSocket event handlers"""
     
@@ -372,6 +374,15 @@ class WSEventHandlers:
             import uuid
             from datetime import datetime
             
+            if LOGGING_SWITCH:
+                custom_log(
+                    f"create_room received: session_id={session_id}, room_id={data.get('room_id')}, "
+                    f"permission={data.get('permission')}, game_type={data.get('game_type')}, "
+                    f"auto_start={data.get('auto_start')}, tournament_name={data.get('tournament_name')}, "
+                    f"tournament_format={data.get('tournament_format')}",
+                    level="INFO",
+                    isOn=LOGGING_SWITCH,
+                )
             room_id = data.get('room_id')
             permission = data.get('permission', 'public')
             

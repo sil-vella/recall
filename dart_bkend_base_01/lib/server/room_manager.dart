@@ -3,7 +3,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 /// Set to true to log Room TTL events to server.log for testing (plan: Room TTL implementation).
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Enabled for create room/tournament flow
 
 class Room {
   final String roomId;

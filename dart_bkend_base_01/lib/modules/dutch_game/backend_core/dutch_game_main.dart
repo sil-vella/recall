@@ -136,7 +136,7 @@ class DutchGameModule {
       String? profilePicture;
       String? usernameFromProfile;
       
-      if (ownerId != null && ownerId.isNotEmpty) {
+      if (ownerId.isNotEmpty) {
         try {
           final profileResult = await server.pythonClient.getUserProfile(ownerId);
           if (profileResult['success'] == true) {
@@ -210,16 +210,16 @@ class DutchGameModule {
         },
       });
 
-      // Send initial game_state_updated to creator
+      // Send initial game_state_updated to creator (include owner_id and game_type for client)
       final initialState = store.getState(roomId);
       server.sendToSession(
-        sessionId, // Use sessionId directly instead of lookup
+        sessionId,
         {
           'event': 'game_state_updated',
           'game_id': roomId,
           'game_state': initialState['game_state'],
-          // Seed ownership for Flutter to gate Start button
           'owner_id': ownerId,
+          'game_type': gameType,
           'timestamp': DateTime.now().toIso8601String(),
         },
       );
@@ -518,11 +518,13 @@ class DutchGameModule {
       final gs = Map<String, dynamic>.from(state['game_state'] as Map<String, dynamic>? ?? {});
       gs['playerCount'] = (gs['players'] as List<dynamic>? ?? []).length;
 
+      final gameType = gs['gameType']?.toString() ?? roomManager.getRoomInfo(roomId)?.gameType;
       server.sendToSession(sessionId, {
         'event': 'game_state_updated',
         'game_id': roomId,
         'game_state': gs,
         if (ownerId != null) 'owner_id': ownerId,
+        if (gameType != null && gameType.isNotEmpty) 'game_type': gameType,
         'timestamp': DateTime.now().toIso8601String(),
       });
 

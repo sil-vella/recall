@@ -39,7 +39,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and joinedGamesSlice recomputation (current games fixed)
+  static const bool LOGGING_SWITCH = true; // Enabled for create room/tournament flow, join/games, joinedGamesSlice
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -181,6 +181,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
  
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
+      if (LOGGING_SWITCH) {
+        final Logger _log = Logger();
+        _log.info('LobbyScreen._createRoom: roomSettings=$roomSettings');
+      }
       // 🎯 CRITICAL: Clear all existing game state before starting new game
       // This prevents overlapping or old game state from interfering
       await DutchGameHelpers.clearAllGameStateBeforeNewGame();
@@ -227,7 +231,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         minPlayers: roomSettings['minPlayers'],
         gameType: roomSettings['gameType'] ?? 'classic',
         turnTimeLimit: roomSettings['turnTimeLimit'] ?? 30,
-        autoStart: roomSettings['autoStart'] ?? true,
+        autoStart: roomSettings['autoStart'] ?? false,
         password: roomSettings['password'],
       );
       if (result['success'] == true) {

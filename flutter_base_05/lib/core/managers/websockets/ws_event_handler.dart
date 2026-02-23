@@ -8,7 +8,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues and game creation loops
+const bool LOGGING_SWITCH = true; // Enabled for Start button flow: room_joined, games map updates
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -185,23 +185,16 @@ class WSEventHandler {
       
       final roomId = convertedData['room_id'] ?? '';
       final roomData = convertedData;
-      final ownerId = convertedData['owner_id'] ?? '';
-      
-      if (LOGGING_SWITCH) {
-        _logger.debug('Room ID: $roomId, Owner ID: $ownerId');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.debug('Room data keys: ${roomData.keys.toList()}');
-      }
+      final ownerId = convertedData['owner_id']?.toString() ?? '';
       
       // Get current user ID from login module state
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-      final currentUserId = loginState['userId'] ?? '';
+      final currentUserId = loginState['userId']?.toString() ?? '';
       
       // Check if current user is the room owner
       final isRoomOwner = currentUserId == ownerId;
       if (LOGGING_SWITCH) {
-        _logger.debug('Current user ID: $currentUserId, Is room owner: $isRoomOwner');
+        _logger.info('📥 room_joined received: roomId=$roomId, owner_id=$ownerId, currentUserId=$currentUserId, isRoomOwner=$isRoomOwner');
       }
       
       // Use validated state updater
@@ -225,6 +218,9 @@ class WSEventHandler {
         current['isInGame'] = true;
         games[roomId] = current;
         DutchGameHelpers.updateUIState({'games': games});
+        if (LOGGING_SWITCH) {
+          _logger.info('📥 room_joined: games[$roomId] updated, isRoomOwner=$isRoomOwner, owner_id=$ownerId');
+        }
       } catch (_) {}
       
       // Trigger event callbacks for room management screen

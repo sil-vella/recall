@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../core/managers/navigation_manager.dart';
+import '../../../../../core/managers/hooks_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
@@ -31,6 +33,16 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
   bool _isFinding = false;
   bool _isPrivateRoom = false;
 
+  /// Callback for room_creation hook; switch to Join tab on successful create (not random join)
+  void _onRoomCreation(Map<String, dynamic> data) {
+    if (!mounted) return;
+    final status = data['status']?.toString();
+    final isRandomJoin = data['is_random_join'] == true;
+    if (status == 'success' && !isRandomJoin) {
+      setState(() => _mode = 'join');
+    }
+  }
+
   // Create modal state
   final TextEditingController _createPasswordController = TextEditingController();
   final TextEditingController _tournamentNameController = TextEditingController();
@@ -38,13 +50,13 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
   String _selectedGameType = 'classic';
   String _tournamentFormat = 'F1';
   int _turnTimeLimit = 30;
-  bool _autoStart = true;
   bool _isCreating = false;
 
   @override
   void initState() {
     super.initState();
     _setupWebSocketListeners();
+    HooksManager().registerHookWithData('room_creation', _onRoomCreation);
   }
 
   void _setupWebSocketListeners() {
@@ -67,6 +79,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
 
   @override
   void dispose() {
+    HooksManager().deregisterCallbackWithData('room_creation', _onRoomCreation);
     _roomIdController.dispose();
     _passwordController.dispose();
     _createPasswordController.dispose();
@@ -202,32 +215,31 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         return;
       }
 
-      final joinData = <String, dynamic>{
-        'room_id': roomId,
-      };
-
-      if (password.isNotEmpty) {
-        joinData['password'] = password;
+      // If already in this room (e.g. creator auto-joined), use same nav as current_games_widget / random join
+      if (DutchGameHelpers.isGameStillInState(roomId)) {
+        final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
+        if (games.containsKey(roomId)) {
+          DutchGameHelpers.setCurrentGameSync(roomId, games);
+          NavigationManager().navigateTo('/dutch/game-play');
+          _roomIdController.clear();
+          _passwordController.clear();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Opening game...'),
+                backgroundColor: AppColors.successColor,
+              ),
+            );
+          }
+          return;
+        }
       }
 
-      // Use joinRoom helper which will ensure WebSocket is ready
+      // Not in room: join then navigate when state is ready (same pattern as random join room_creation)
       final result = await DutchGameHelpers.joinRoom(roomId: roomId);
-      
-      if (result['success'] == true) {
-      _roomIdController.clear();
-      _passwordController.clear();
 
-      widget.onJoinRoom?.call();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Join game request sent successfully'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-        }
-      } else {
+      if (result['success'] != true) {
         final errorMessage = result['error'] ?? 'Failed to join game';
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -237,6 +249,39 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
             ),
           );
         }
+        return;
+      }
+
+      _roomIdController.clear();
+      _passwordController.clear();
+      widget.onJoinRoom?.call();
+
+      // Wait for game_state_updated to populate state (like room_creation delay for random join)
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
+      if (games.containsKey(roomId)) {
+        DutchGameHelpers.setCurrentGameSync(roomId, games);
+        NavigationManager().navigateTo('/dutch/game-play');
+      } else {
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        if (mounted) {
+          final retryState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+          final retryGames = Map<String, dynamic>.from(retryState['games'] as Map<String, dynamic>? ?? {});
+          if (retryGames.containsKey(roomId)) {
+            DutchGameHelpers.setCurrentGameSync(roomId, retryGames);
+            NavigationManager().navigateTo('/dutch/game-play');
+          }
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Joined. Opening game...'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -313,7 +358,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       'maxPlayers': 4,
       'minPlayers': 4,
       'turnTimeLimit': _turnTimeLimit,
-      'autoStart': _selectedGameType == 'tournament' ? false : _autoStart, // Tournaments never auto start
+      'autoStart': false, // Classic and tournament: no auto-start
       'password': _createPasswordController.text.trim(),
     };
     if (_selectedGameType == 'tournament') {
@@ -347,19 +392,12 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       builder: (context) => _CreateRoomModal(
         selectedPermission: _selectedPermission,
         selectedGameType: _selectedGameType,
-        autoStart: _autoStart,
         passwordController: _createPasswordController,
         tournamentNameController: _tournamentNameController,
         tournamentFormat: _tournamentFormat,
         onPermissionChanged: (value) => setState(() => _selectedPermission = value),
-        onGameTypeChanged: (value) {
-          setState(() {
-            _selectedGameType = value;
-            if (value == 'tournament') _autoStart = false; // Tournaments default to no auto start
-          });
-        },
+        onGameTypeChanged: (value) => setState(() => _selectedGameType = value),
         onTournamentFormatChanged: (value) => setState(() => _tournamentFormat = value),
-        onAutoStartChanged: (value) => setState(() => _autoStart = value),
         onCreateRoom: _createRoom,
         isCreating: _isCreating,
       ),
@@ -447,7 +485,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       children: [
         Text(
           'Create New Game',
-          style: AppTextStyles.headingSmall(),
+          style: AppTextStyles.headingSmall().copyWith(color: AppColors.white),
         ),
         SizedBox(height: AppPadding.defaultPadding.top),
         Semantics(
@@ -480,14 +518,107 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         children: [
           Text(
             'Join Game',
-            style: AppTextStyles.headingSmall(),
+            style: AppTextStyles.headingSmall().copyWith(color: AppColors.white),
           ),
           SizedBox(height: AppPadding.defaultPadding.top),
+
+          // User's own created games (from state when Join tab is active)
+          ListenableBuilder(
+            listenable: StateManager(),
+            builder: (context, _) {
+              final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+              final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+              final currentUserId = loginState['userId']?.toString() ?? '';
+              final joinedGamesSlice = dutchGameState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
+              final joinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
+              final ownCreatedGames = joinedGames
+                  .cast<Map<String, dynamic>>()
+                  .where((g) {
+                    final ownerId = g['owner_id']?.toString() ?? '';
+                    return currentUserId.isNotEmpty && ownerId.isNotEmpty && currentUserId == ownerId;
+                  })
+                  .toList();
+              if (ownCreatedGames.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Your created games',
+                    style: AppTextStyles.label().copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: AppPadding.smallPadding.top),
+                  ...ownCreatedGames.map((gameData) {
+                    final gameId = gameData['game_id']?.toString() ?? '';
+                    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+                    final phase = gameState['phase']?.toString() ?? 'waiting';
+                    final permission = gameState['permission']?.toString() ?? 'public';
+                    final currentSize = gameState['playerCount'] ?? 0;
+                    final maxSize = gameState['maxPlayers'] ?? 4;
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
+                      child: Material(
+                        color: AppColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _roomIdController.text = gameId;
+                              _isPrivateRoom = permission == 'private';
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                          child: Padding(
+                            padding: AppPadding.cardPadding,
+                            child: Row(
+                              children: [
+                                Icon(Icons.room, size: 20, color: AppColors.accentColor),
+                                SizedBox(width: AppPadding.smallPadding.left),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        gameId,
+                                        style: AppTextStyles.bodyMedium().copyWith(
+                                          color: AppColors.textOnSurface,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        '$phase · $currentSize/$maxSize players',
+                                        style: AppTextStyles.bodySmall().copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  SizedBox(height: AppPadding.defaultPadding.top),
+                ],
+              );
+            },
+          ),
 
           // Room ID Field
           Text(
             'Game ID',
-            style: AppTextStyles.label().copyWith(color: AppColors.textOnSurface),
+            style: AppTextStyles.label().copyWith(color: AppColors.white),
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
@@ -505,7 +636,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                borderSide: BorderSide(color: AppColors.borderDefault),
+                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
@@ -527,7 +658,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
           if (_isPrivateRoom) ...[
             Text(
               'Password',
-              style: AppTextStyles.label().copyWith(color: AppColors.textOnSurface),
+              style: AppTextStyles.label().copyWith(color: AppColors.white),
             ),
             SizedBox(height: AppPadding.smallPadding.top),
             TextFormField(
@@ -545,7 +676,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                  borderSide: BorderSide(color: AppColors.borderDefault),
+                  borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppBorderRadius.small),
@@ -633,28 +764,24 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
 class _CreateRoomModal extends StatefulWidget {
   final String selectedPermission;
   final String selectedGameType;
-  final bool autoStart;
   final TextEditingController passwordController;
   final TextEditingController tournamentNameController;
   final String tournamentFormat;
   final Function(String) onPermissionChanged;
   final Function(String) onGameTypeChanged;
   final Function(String) onTournamentFormatChanged;
-  final Function(bool) onAutoStartChanged;
   final VoidCallback onCreateRoom;
   final bool isCreating;
 
   const _CreateRoomModal({
     required this.selectedPermission,
     required this.selectedGameType,
-    required this.autoStart,
     required this.passwordController,
     required this.tournamentNameController,
     required this.tournamentFormat,
     required this.onPermissionChanged,
     required this.onGameTypeChanged,
     required this.onTournamentFormatChanged,
-    required this.onAutoStartChanged,
     required this.onCreateRoom,
     required this.isCreating,
   });
@@ -667,7 +794,6 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
   late String _selectedPermission;
   late String _selectedGameType;
   late String _tournamentFormat;
-  late bool _autoStart;
 
   @override
   void initState() {
@@ -675,8 +801,6 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     _selectedPermission = widget.selectedPermission;
     _selectedGameType = widget.selectedGameType;
     _tournamentFormat = widget.tournamentFormat;
-    // Tournaments default to no auto start; ignore widget.autoStart when game type is tournament
-    _autoStart = widget.selectedGameType == 'tournament' ? false : widget.autoStart;
   }
 
   @override
@@ -684,8 +808,8 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     final theme = Theme.of(context);
     final dropdownTheme = theme.copyWith(
       colorScheme: theme.colorScheme.copyWith(
-        surface: AppColors.surface,
-        onSurface: AppColors.textOnSurface,
+        surface: AppColors.widgetContainerBackground,
+        onSurface: AppColors.white,
         primary: AppColors.primaryColor,
         onPrimary: AppColors.textOnPrimary,
       ),
@@ -698,7 +822,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
         return Container(
           padding: AppPadding.screenPadding,
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: AppColors.widgetContainerBackground,
             borderRadius: BorderRadius.vertical(top: Radius.circular(AppBorderRadius.large)),
           ),
           child: Theme(
@@ -712,7 +836,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                     Text(
                       'Create New Game',
                       style: AppTextStyles.headingSmall().copyWith(
-                        color: AppColors.textOnSurface,
+                        color: AppColors.white,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -723,12 +847,12 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                       button: true,
                       child: IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: Icon(Icons.close, color: AppColors.textOnSurface),
+                        icon: Icon(Icons.close, color: AppColors.white),
                       ),
                     ),
                   ],
                 ),
-                Divider(color: AppColors.borderDefault),
+                Divider(color: AppColors.white.withValues(alpha: 0.3)),
 
                 // Scrollable content — labels above fields to avoid clipping
               Expanded(
@@ -742,7 +866,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                       // Game Type
                       Text(
                         'Game Type',
-                        style: AppTextStyles.label().copyWith(color: AppColors.textOnSurface),
+                        style: AppTextStyles.label().copyWith(color: AppColors.white),
                       ),
                       SizedBox(height: AppPadding.smallPadding.top),
                       Semantics(
@@ -756,11 +880,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                               vertical: AppPadding.mediumPadding.top,
                             ),
                             border: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.borderDefault),
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                               borderRadius: BorderRadius.circular(AppBorderRadius.small),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.borderDefault),
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                               borderRadius: BorderRadius.circular(AppBorderRadius.small),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -770,27 +894,21 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                             filled: true,
                             fillColor: AppColors.primaryColor,
                           ),
-                          dropdownColor: AppColors.surface,
+                          dropdownColor: AppColors.widgetContainerBackground,
                           style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
                           items: ['classic', 'tournament'].map((type) {
                             return DropdownMenuItem<String>(
                               value: type,
                               child: Text(
                                 type.toUpperCase(),
-                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnSurface),
+                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
                               ),
                             );
                           }).toList(),
                           onChanged: (value) {
                             final v = value ?? 'classic';
-                            setState(() {
-                              _selectedGameType = v;
-                              if (v == 'tournament') {
-                                _autoStart = false; // Tournaments default to no auto start
-                              }
-                            });
+                            setState(() => _selectedGameType = v);
                             widget.onGameTypeChanged(v);
-                            if (v == 'tournament') widget.onAutoStartChanged(false);
                           },
                         ),
                       ),
@@ -800,7 +918,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                       // Permission Level
                       Text(
                         'Permission Level',
-                        style: AppTextStyles.label().copyWith(color: AppColors.textOnSurface),
+                        style: AppTextStyles.label().copyWith(color: AppColors.white),
                       ),
                       SizedBox(height: AppPadding.smallPadding.top),
                       Semantics(
@@ -814,11 +932,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                               vertical: AppPadding.mediumPadding.top,
                             ),
                             border: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.borderDefault),
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                               borderRadius: BorderRadius.circular(AppBorderRadius.small),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.borderDefault),
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                               borderRadius: BorderRadius.circular(AppBorderRadius.small),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -826,18 +944,18 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                               borderRadius: BorderRadius.circular(AppBorderRadius.small),
                             ),
                             helperText: 'Public: Anyone can join | Private: Password required',
-                            helperStyle: AppTextStyles.caption().copyWith(color: AppColors.textOnSurface),
+                            helperStyle: AppTextStyles.caption().copyWith(color: AppColors.white),
                             filled: true,
                             fillColor: AppColors.primaryColor,
                           ),
-                          dropdownColor: AppColors.surface,
+                          dropdownColor: AppColors.widgetContainerBackground,
                           style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
                           items: ['public', 'private'].map((permission) {
                             return DropdownMenuItem<String>(
                               value: permission,
                               child: Text(
                                 permission.toUpperCase(),
-                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnSurface),
+                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
                               ),
                             );
                           }).toList(),
@@ -855,7 +973,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                       if (_selectedPermission == 'private') ...[
                         Text(
                           'Room Password',
-                          style: AppTextStyles.label().copyWith(color: AppColors.textOnSurface),
+                          style: AppTextStyles.label().copyWith(color: AppColors.white),
                         ),
                         SizedBox(height: AppPadding.smallPadding.top),
                         Semantics(
@@ -873,11 +991,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                                 vertical: AppPadding.mediumPadding.top,
                               ),
                               border: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderDefault),
+                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderDefault),
+                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -897,7 +1015,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                       if (_selectedGameType == 'tournament') ...[
                         Text(
                           'Tournament Name',
-                          style: AppTextStyles.label().copyWith(color: AppColors.textOnSurface),
+                          style: AppTextStyles.label().copyWith(color: AppColors.white),
                         ),
                         SizedBox(height: AppPadding.smallPadding.top),
                         Semantics(
@@ -915,11 +1033,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                                 vertical: AppPadding.mediumPadding.top,
                               ),
                               border: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderDefault),
+                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderDefault),
+                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -934,7 +1052,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         SizedBox(height: AppPadding.defaultPadding.top),
                         Text(
                           'Tournament Format',
-                          style: AppTextStyles.label().copyWith(color: AppColors.textOnSurface),
+                          style: AppTextStyles.label().copyWith(color: AppColors.white),
                         ),
                         SizedBox(height: AppPadding.smallPadding.top),
                         Semantics(
@@ -948,11 +1066,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                                 vertical: AppPadding.mediumPadding.top,
                               ),
                               border: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderDefault),
+                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderDefault),
+                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -962,14 +1080,14 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                               filled: true,
                               fillColor: AppColors.primaryColor,
                             ),
-                            dropdownColor: AppColors.surface,
+                            dropdownColor: AppColors.widgetContainerBackground,
                             style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
                             items: ['F1', 'F2', 'F3'].map((format) {
                               return DropdownMenuItem<String>(
                                 value: format,
                                 child: Text(
                                   format,
-                                  style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnSurface),
+                                  style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
                                 ),
                               );
                             }).toList(),
@@ -985,34 +1103,6 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
 
                       // Game Settings (auto start hidden for tournaments; tournaments default to false)
                       if (_selectedGameType != 'tournament') ...[
-                        Text(
-                          'Game Settings',
-                          style: AppTextStyles.bodyMedium().copyWith(
-                            color: AppColors.textOnSurface,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: AppPadding.smallPadding.top),
-                        Semantics(
-                          label: 'create_room_switch_auto_start',
-                          identifier: 'create_room_switch_auto_start',
-                          child: SwitchListTile(
-                            title: Text(
-                              'Auto-start when full',
-                              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnSurface),
-                            ),
-                            subtitle: Text(
-                              'Start game automatically when max players join',
-                              style: AppTextStyles.caption().copyWith(color: AppColors.textOnSurface),
-                            ),
-                            value: _autoStart,
-                            onChanged: (value) {
-                              setState(() => _autoStart = value);
-                              widget.onAutoStartChanged(value);
-                            },
-                          ),
-                        ),
-                        SizedBox(height: AppPadding.defaultPadding.top),
                       ],
 
                       SizedBox(height: AppPadding.largePadding.top),
@@ -1032,10 +1122,10 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: AppColors.borderDefault),
-                          foregroundColor: AppColors.textPrimary,
+                          side: BorderSide(color: AppColors.white.withValues(alpha: 0.5)),
+                          foregroundColor: AppColors.white,
                         ),
-                        child: Text('Cancel', style: AppTextStyles.buttonText().copyWith(color: AppColors.textPrimary)),
+                        child: Text('Cancel', style: AppTextStyles.buttonText().copyWith(color: AppColors.white)),
                       ),
                     ),
                   ),
@@ -1060,7 +1150,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                                   color: AppColors.textOnAccent,
                                 ),
                               )
-                            : Text('Create Game', style: AppTextStyles.buttonText()),
+                            : Text('Create', style: AppTextStyles.buttonText()),
                       ),
                     ),
                   ),

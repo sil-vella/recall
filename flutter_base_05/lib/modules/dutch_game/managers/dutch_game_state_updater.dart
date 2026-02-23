@@ -25,7 +25,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and state key tracking
+  static const bool LOGGING_SWITCH = true; // Enabled for Start button / gameInfo slice flow debugging
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -76,7 +76,7 @@ class DutchGameStateUpdater {
     'myHand': {'currentGameId', 'games', 'isMyTurn', 'turn_events'},
     'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
     'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'turn_events'},
-    'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
+    'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'isRoomOwner'},
     'joinedGamesSlice': {'games'}, // SIMPLIFIED: Compute from games map (SSOT) instead of joinedGames list
   };
   
@@ -531,18 +531,24 @@ class DutchGameStateUpdater {
   
   /// Compute action bar widget slice
   Map<String, dynamic> _computeActionBarSlice(Map<String, dynamic> state) {
-    final isRoomOwner = state['isRoomOwner'] ?? false;
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = currentGameId.isNotEmpty && games.containsKey(currentGameId)
+        ? (games[currentGameId] as Map<String, dynamic>? ?? {})
+        : <String, dynamic>{};
+    final isRoomOwner = state['isRoomOwner'] ?? currentGame['isRoomOwner'] ?? false;
     final isGameActive = state['isGameActive'] ?? false;
     final isMyTurn = state['isMyTurn'] ?? false;
     final canCallDutch = state['canCallDutch'] ?? false;
     final canPlayCard = state['canPlayCard'] ?? false;
     final gamePhase = state['gamePhase'] ?? 'waiting';
-    
-    // Show start button if room owner and game is still in waiting phase
-    final showStartButton = isRoomOwner && gamePhase == 'waiting';
-    
-    // Debug logging for action bar computation
-    
+    final isPractice = currentGame['isPractice'] as bool? ?? currentGameId.startsWith('practice_room_');
+    final multiplayerType = currentGame['multiplayerType'] as Map<String, dynamic>?;
+    final isRandom = multiplayerType?['isRandom'] == true;
+    // Show Start: waiting phase AND (practice OR (owner and not random-join))
+    // When multiplayerType is null (e.g. entry from room_joined before game_state_updated), treat as classic.
+    final showStartButton = gamePhase == 'waiting' &&
+        (isPractice || (isRoomOwner && (multiplayerType == null || !isRandom)));
     return {
       'showStartButton': showStartButton,
       'canPlayCard': canPlayCard && isMyTurn,
@@ -782,15 +788,26 @@ class DutchGameStateUpdater {
     final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     
-    // Use derived values for other fields (these are set during navigation)
+    // Use derived values for other fields (these are set during navigation).
+    // isRoomOwner: prefer game entry; fall back to main state so room_joined (which sets
+    // state['isRoomOwner']) is reflected even if the games map entry was later overwritten.
     final gamePhase = state['gamePhase']?.toString() ?? 'waiting';
     final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
-    final isRoomOwner = currentGame['isRoomOwner'] ?? false;
+    final isRoomOwner = (currentGame['isRoomOwner'] == true) || (state['isRoomOwner'] == true);
     final isInGame = currentGame['isInGame'] ?? false;
+    final isPractice = currentGame['isPractice'] as bool? ?? currentGameId.startsWith('practice_room_');
+    final multiplayerType = currentGame['multiplayerType'] as Map<String, dynamic>?;
     
     // Read player count and max players from the actual game data (single source of truth)
     final currentSize = gameState['playerCount'] ?? 0;
     final maxSize = gameState['maxPlayers'] ?? 4;
+    
+    if (LOGGING_SWITCH) {
+      final isRandom = multiplayerType?['isRandom'] == true;
+      final showStart = gamePhase == 'waiting' &&
+          (isPractice || (isRoomOwner && (multiplayerType == null || !isRandom)));
+      _logger.info('🎬 gameInfo slice: currentGameId=$currentGameId, gamePhase=$gamePhase, isRoomOwner=$isRoomOwner, isPractice=$isPractice, multiplayerType=$multiplayerType, showStart=$showStart');
+    }
     
     return {
       'currentGameId': currentGameId,
@@ -800,6 +817,8 @@ class DutchGameStateUpdater {
       'gameStatus': gameStatus,
       'isRoomOwner': isRoomOwner,
       'isInGame': isInGame,
+      'isPractice': isPractice,
+      'multiplayerType': multiplayerType,
     };
   }
 
@@ -886,7 +905,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and joinedGamesSlice debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for join/games investigation and joinedGamesSlice debugging
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

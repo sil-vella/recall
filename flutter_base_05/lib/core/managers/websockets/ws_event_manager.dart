@@ -7,7 +7,7 @@ import 'websocket_manager.dart';
 import '../state_manager.dart';
 import 'websocket_state_validator.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for debugging WebSocket event management
+const bool LOGGING_SWITCH = true; // Enabled for create room/tournament flow and WebSocket event management
 
 /// WebSocket Event Manager - Centralized event handling for WebSocket operations
 class WSEventManager {
@@ -272,8 +272,13 @@ class WSEventManager {
   /// Create a room
   Future<Map<String, dynamic>> createRoom(String userId, [Map<String, dynamic>? roomData]) async {
     try {
+      if (LOGGING_SWITCH) {
+        _logger.info('WSEventManager.createRoom: userId=$userId, roomData=$roomData');
+      }
       final result = await _websocketManager.createRoom(userId, roomData);
-      
+      if (LOGGING_SWITCH) {
+        _logger.info('WSEventManager.createRoom: result=$result');
+      }
       if (result['success'] != null) {
         // The server will automatically join the user to the room
         // and send a 'room_joined' event, which will update our state

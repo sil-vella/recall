@@ -134,7 +134,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
       decoration: BoxDecoration(
         color: AppColors.widgetContainerBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppBorderRadius.large),
       ),
       child: Padding(
         padding: AppPadding.cardPadding,
@@ -165,7 +165,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                   ),
                   icon: _isLoading
                     ? SizedBox(
@@ -199,7 +199,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                   ),
                   icon: _isLoading
                     ? SizedBox(

@@ -1922,85 +1922,100 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     return Form(
       key: _loginFormKey,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Email Field
+          Text(
+            'Email',
+            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+          ),
+          SizedBox(height: AppPadding.smallPadding.top),
           Semantics(
             label: 'account_email',
             identifier: 'account_email',
             container: true,
             explicitChildNodes: true,
             child: TextFormField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: 'Email',
-              hintText: 'Enter your email',
-              prefixIcon: const Icon(Icons.email_outlined),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'Enter your email',
+                prefixIcon: const Icon(Icons.email_outlined),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: AppPadding.defaultPadding.left,
+                  vertical: AppPadding.mediumPadding.top,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
+                  borderSide: BorderSide(color: AppColors.borderDefault),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
+                  borderSide: BorderSide(color: AppColors.borderFocused),
+                ),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: AppColors.borderDefault),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: AppColors.borderFocused),
-              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your email';
+                }
+                if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+                    .hasMatch(value)) {
+                  return 'Please enter a valid email address';
+                }
+                return null;
+              },
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your email';
-              }
-              if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-                  .hasMatch(value)) {
-                return 'Please enter a valid email address';
-              }
-              return null;
-            },
           ),
-          ),
-          
-          const SizedBox(height: 20),
-          
+          SizedBox(height: AppPadding.defaultPadding.top),
           // Password Field
+          Text(
+            'Password',
+            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+          ),
+          SizedBox(height: AppPadding.smallPadding.top),
           Semantics(
             label: 'account_password',
             identifier: 'account_password',
             container: true,
             explicitChildNodes: true,
             child: TextFormField(
-            controller: _passwordController,
-            obscureText: _obscurePassword,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              hintText: 'Enter your password',
-              prefixIcon: const Icon(Icons.lock_outlined),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                hintText: 'Enter your password',
+                prefixIcon: const Icon(Icons.lock_outlined),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: _togglePasswordVisibility,
                 ),
-                onPressed: _togglePasswordVisibility,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: AppPadding.defaultPadding.left,
+                  vertical: AppPadding.mediumPadding.top,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
+                  borderSide: BorderSide(color: AppColors.borderDefault),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
+                  borderSide: BorderSide(color: AppColors.borderFocused),
+                ),
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: AppColors.borderDefault),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: AppColors.borderFocused),
-              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your password';
+                }
+                return null;
+              },
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your password';
-              }
-              return null;
-            },
-          ),
           ),
         ],
       ),
@@ -2011,6 +2026,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     return Form(
       key: _registerFormKey,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Guest Account Conversion Info (if converting)
           if (_isConvertingGuest) ...[
@@ -2045,83 +2061,101 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 ],
               ),
             ),
-            
             // Guest Email (read-only)
+            Text(
+              'Guest Email',
+              style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            ),
+            SizedBox(height: AppPadding.smallPadding.top),
             TextFormField(
               initialValue: _guestEmail,
               readOnly: true,
               enabled: false,
               decoration: InputDecoration(
-                labelText: 'Guest Email',
                 hintText: 'Your guest account email',
                 prefixIcon: const Icon(Icons.email_outlined),
                 filled: true,
                 fillColor: AppColors.surfaceVariant,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: AppPadding.defaultPadding.left,
+                  vertical: AppPadding.mediumPadding.top,
+                ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
                   borderSide: BorderSide(color: AppColors.borderDefault),
                 ),
                 disabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
                   borderSide: BorderSide(color: AppColors.borderDefault),
                 ),
               ),
             ),
-            
-            const SizedBox(height: 20),
-            
+            SizedBox(height: AppPadding.defaultPadding.top),
             // Guest Password (read-only, obscured)
+            Text(
+              'Guest Password',
+              style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            ),
+            SizedBox(height: AppPadding.smallPadding.top),
             TextFormField(
               initialValue: _guestPassword,
               readOnly: true,
               enabled: false,
               obscureText: true,
               decoration: InputDecoration(
-                labelText: 'Guest Password',
                 hintText: 'Your guest account password',
                 prefixIcon: const Icon(Icons.lock_outlined),
                 filled: true,
                 fillColor: AppColors.surfaceVariant,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: AppPadding.defaultPadding.left,
+                  vertical: AppPadding.mediumPadding.top,
+                ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
                   borderSide: BorderSide(color: AppColors.borderDefault),
                 ),
                 disabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
                   borderSide: BorderSide(color: AppColors.borderDefault),
                 ),
               ),
             ),
-            
-            const SizedBox(height: 20),
-            
+            SizedBox(height: AppPadding.defaultPadding.top),
             // Divider
             const Divider(),
-            const SizedBox(height: 20),
+            SizedBox(height: AppPadding.defaultPadding.top),
           ],
-          
           // Username Field
+          Text(
+            'Username',
+            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+          ),
+          SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
             controller: _usernameController,
             decoration: InputDecoration(
-              labelText: 'Username',
               hintText: 'Choose a username',
               prefixIcon: const Icon(Icons.person_outlined),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: AppPadding.defaultPadding.left,
+                vertical: AppPadding.mediumPadding.top,
+              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 borderSide: BorderSide(color: AppColors.borderDefault),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 borderSide: BorderSide(color: AppColors.borderFocused),
               ),
             ),
@@ -2148,26 +2182,32 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               return null;
             },
           ),
-          
-          const SizedBox(height: 20),
-          
+          SizedBox(height: AppPadding.defaultPadding.top),
           // Email Field
+          Text(
+            'Email',
+            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+          ),
+          SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
-              labelText: 'Email',
               hintText: 'Enter your email',
               prefixIcon: const Icon(Icons.email_outlined),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: AppPadding.defaultPadding.left,
+                vertical: AppPadding.mediumPadding.top,
+              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 borderSide: BorderSide(color: AppColors.borderDefault),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 borderSide: BorderSide(color: AppColors.borderFocused),
               ),
             ),
@@ -2182,15 +2222,17 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               return null;
             },
           ),
-          
-          const SizedBox(height: 20),
-          
+          SizedBox(height: AppPadding.defaultPadding.top),
           // Password Field
+          Text(
+            'Password',
+            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+          ),
+          SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
             decoration: InputDecoration(
-              labelText: 'Password',
               hintText: 'Create a password',
               prefixIcon: const Icon(Icons.lock_outlined),
               suffixIcon: IconButton(
@@ -2199,15 +2241,19 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 ),
                 onPressed: _togglePasswordVisibility,
               ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: AppPadding.defaultPadding.left,
+                vertical: AppPadding.mediumPadding.top,
+              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 borderSide: BorderSide(color: AppColors.borderDefault),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 borderSide: BorderSide(color: AppColors.borderFocused),
               ),
             ),
@@ -2221,15 +2267,17 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               return null;
             },
           ),
-          
-          const SizedBox(height: 20),
-          
+          SizedBox(height: AppPadding.defaultPadding.top),
           // Confirm Password Field
+          Text(
+            'Confirm Password',
+            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+          ),
+          SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
             controller: _confirmPasswordController,
             obscureText: _obscureConfirmPassword,
             decoration: InputDecoration(
-              labelText: 'Confirm Password',
               hintText: 'Confirm your password',
               prefixIcon: const Icon(Icons.lock_outlined),
               suffixIcon: IconButton(
@@ -2238,15 +2286,19 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 ),
                 onPressed: _toggleConfirmPasswordVisibility,
               ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: AppPadding.defaultPadding.left,
+                vertical: AppPadding.mediumPadding.top,
+              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 borderSide: BorderSide(color: AppColors.borderDefault),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppBorderRadius.large),
                 borderSide: BorderSide(color: AppColors.borderFocused),
               ),
             ),

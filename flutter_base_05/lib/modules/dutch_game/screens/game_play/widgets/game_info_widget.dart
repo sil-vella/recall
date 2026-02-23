@@ -266,8 +266,8 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
             
             const SizedBox(height: 16),
             
-            // Start Match Button (for practice games in waiting phase)
-            if (isPracticeGame && gamePhase == 'waiting')
+            // Start Match: practice always; multiplayer only for room owner (when auto start is off)
+            if (gamePhase == 'waiting' && (isPracticeGame || isRoomOwner))
               _buildStartMatchButton(isLoading: _isStartingMatch),
           ],
         ),

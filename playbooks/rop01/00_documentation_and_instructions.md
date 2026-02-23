@@ -89,6 +89,7 @@ This ensures the VPS exposes only the necessary services.
 - `dutch.reignofplay.com` → app root `/var/www/dutch.reignofplay.com`, backed by:
   - Flask backend on **port 5001** (`backend_port: 5001`)
   - Dart WebSocket server on **port 8080** (`backend_ws_port: 8080`).
+- `dutch.mt` → same app root `/var/www/dutch.reignofplay.com` (same backend and Flutter web; intended to eventually replace dutch.reignofplay.com).
 
 **What the playbook does**:
 - Installs Nginx + Certbot.

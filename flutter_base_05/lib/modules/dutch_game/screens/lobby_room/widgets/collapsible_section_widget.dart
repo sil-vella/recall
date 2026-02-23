@@ -99,7 +99,7 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
             padding: AppPadding.cardPadding,
             decoration: BoxDecoration(
               color: AppColors.accentColor,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppBorderRadius.large),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -107,24 +107,24 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
                 if (widget.icon != null) ...[
                   Icon(
                     widget.icon,
-                    color: Colors.white,
-                    size: 24,
+                    color: AppColors.textOnAccent,
+                    size: AppSizes.iconMedium,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: AppPadding.mediumPadding.left),
                 ],
                 Text(
                   widget.title,
-                  style: AppTextStyles.headingMedium().copyWith(color: Colors.white),
+                  style: AppTextStyles.headingMedium().copyWith(color: AppColors.textOnAccent),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: AppPadding.mediumPadding.left),
                 AnimatedRotation(
                   turns: _isExpanded ? 0.5 : 0.0,
                   duration: const Duration(milliseconds: 300),
                   child: Icon(
                     Icons.expand_more,
-                    color: Colors.white,
-                    size: 24,
+                    color: AppColors.textOnAccent,
+                    size: AppSizes.iconMedium,
                   ),
                 ),
               ],

@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for computer same-rank decision process and round flow testing (practice mode)
+const bool LOGGING_SWITCH = false; // Enabled for computer same-rank decision process and round flow testing (practice mode)
 
 class DutchGameRound {
   final Logger _logger = Logger();

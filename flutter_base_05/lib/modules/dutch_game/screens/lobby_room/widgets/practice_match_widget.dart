@@ -75,7 +75,7 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
       decoration: BoxDecoration(
         color: AppColors.widgetContainerBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppBorderRadius.large),
       ),
       child: Padding(
         padding: AppPadding.cardPadding,
@@ -86,23 +86,50 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
               'Practice Match',
               style: AppTextStyles.headingSmall(),
             ),
-            const SizedBox(height: 16),
-            
+            SizedBox(height: AppPadding.defaultPadding.top),
+
             // Difficulty Dropdown
+            Text(
+              'Difficulty',
+              style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            ),
+            SizedBox(height: AppPadding.smallPadding.top),
             Semantics(
               label: 'practice_match_difficulty',
               identifier: 'practice_match_difficulty',
               child: DropdownButtonFormField<String>(
                 value: _selectedDifficulty,
-                decoration: const InputDecoration(
-                  labelText: 'Difficulty',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: AppPadding.defaultPadding.left,
+                    vertical: AppPadding.mediumPadding.top,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                    borderSide: BorderSide(color: AppColors.borderDefault),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                    borderSide: BorderSide(color: AppColors.borderDefault),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                    borderSide: BorderSide(color: AppColors.borderFocused),
+                  ),
                   helperText: 'Choose AI opponent difficulty level',
+                  helperStyle: AppTextStyles.caption().copyWith(color: AppColors.textSecondary),
+                  filled: true,
+                  fillColor: AppColors.primaryColor,
                 ),
+                dropdownColor: AppColors.surface,
+                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
                 items: _difficultyOptions.map((difficulty) {
-                  return DropdownMenuItem(
+                  return DropdownMenuItem<String>(
                     value: difficulty,
-                    child: Text(difficulty.toUpperCase()),
+                    child: Text(
+                      difficulty.toUpperCase(),
+                      style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnSurface),
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -112,8 +139,8 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                 },
               ),
             ),
-            
-            const SizedBox(height: 16),
+
+            SizedBox(height: AppPadding.defaultPadding.top),
             
             // Play Dutch button (Clear mode - no collection)
             Semantics(
@@ -127,7 +154,7 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                   ),
                   icon: const Icon(Icons.school),
                   label: _isStarting
@@ -143,7 +170,7 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: AppPadding.mediumPadding.top),
             // Play Dutch: Clear and Collect button (Collection mode)
             Semantics(
               label: 'practice_match_collection',
@@ -156,7 +183,7 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                   ),
                   icon: const Icon(Icons.casino),
                   label: _isStarting

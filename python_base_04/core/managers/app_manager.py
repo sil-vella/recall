@@ -101,7 +101,15 @@ class AppManager:
         """Get the metrics collector instance."""
         return self.metrics_collector
 
-
+    def get_notification_service(self):
+        """Get the notification service from the notification module (for creating notifications)."""
+        try:
+            mod = self.module_manager.get_module("notification_module")
+            if mod and hasattr(mod, "get_notification_service"):
+                return mod.get_notification_service()
+        except Exception:
+            pass
+        return None
 
     @log_function_call
     def initialize(self, app):

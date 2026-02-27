@@ -109,12 +109,13 @@ class ModuleRegistry:
         """
         dependencies = {
             "user_management_module": [],  # Core user management - no dependencies
+            "notification_module": [],  # Core notifications - no dependencies; other modules use it to create notifications
             "analytics_module": ["user_management_module"],  # Needs user management for JWT auth
             # Credit system module is currently disabled for dutch.pro stack
             "system_actions_module": [],  # Core system actions - no dependencies
             "wallet_module": ["user_management_module"],  # Needs user management
             "transactions_module": ["user_management_module", "wallet_module"],  # Needs users and wallet
-            "dutch_game": ["user_management_module"],  # Needs user management for JWT auth
+            "dutch_game": ["user_management_module", "notification_module"],  # Needs user management and notifications
             # "communications_module": [],  # Communications module - no dependencies (temporarily disabled due to missing debugpy)
             # "stripe_module": ["user_management_module"],  # Needs user management (temporarily disabled due to missing stripe)
         }
@@ -129,6 +130,11 @@ class ModuleRegistry:
         """
         return {
             "communications_module": {
+                "enabled": True,
+                "priority": 1,
+                "health_check_enabled": True,
+            },
+            "notification_module": {
                 "enabled": True,
                 "priority": 1,
                 "health_check_enabled": True,

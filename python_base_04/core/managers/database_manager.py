@@ -306,17 +306,24 @@ class DatabaseManager:
             return data
 
     def _convert_string_to_objectid(self, data):
-        """Convert string _id to ObjectId for MongoDB queries."""
+        """Convert string _id and user_id (24-char hex) to ObjectId for MongoDB queries."""
         from bson import ObjectId
-        
+
+        def _is_oid_string(s):
+            return isinstance(s, str) and len(s) == 24 and all(c in "0123456789abcdef" for c in s.lower())
+
         if isinstance(data, dict):
             result = {}
             for key, value in data.items():
-                if key == '_id' and isinstance(value, str):
+                if key == "_id" and isinstance(value, str):
                     try:
                         result[key] = ObjectId(value)
                     except Exception:
-                        # If conversion fails, keep as string
+                        result[key] = value
+                elif key == "user_id" and _is_oid_string(value):
+                    try:
+                        result[key] = ObjectId(value)
+                    except Exception:
                         result[key] = value
                 else:
                     result[key] = self._convert_string_to_objectid(value)
@@ -361,19 +368,22 @@ class DatabaseManager:
         """Execute update operation directly (for queue worker)."""
         if not self.available:
             return 0
-        # Convert string _id to ObjectId for MongoDB queries
+        # Convert string _id/user_id to ObjectId for MongoDB queries
         converted_query = self._convert_string_to_objectid(query)
+        # Encrypt query so it matches stored (encrypted) data (critical for mark-read etc.)
+        encrypted_query = self._encrypt_sensitive_fields(converted_query)
         encrypted_data = self._encrypt_sensitive_fields(data)
-        result = self.db[collection].update_many(converted_query, {'$set': encrypted_data})
+        result = self.db[collection].update_many(encrypted_query, {'$set': encrypted_data})
         return result.modified_count
 
     def _execute_delete(self, collection: str, query: Dict[str, Any]) -> int:
         """Execute delete operation directly (for queue worker)."""
         if not self.available:
             return 0
-        # Convert string _id to ObjectId for MongoDB queries
+        # Convert string _id/user_id to ObjectId, then encrypt query to match stored data
         converted_query = self._convert_string_to_objectid(query)
-        result = self.db[collection].delete_many(converted_query)
+        encrypted_query = self._encrypt_sensitive_fields(converted_query)
+        result = self.db[collection].delete_many(encrypted_query)
         return result.deleted_count
 
     def get_queue_status(self) -> Dict[str, Any]:

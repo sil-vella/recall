@@ -9,6 +9,11 @@ import '../widgets/feature_slot.dart';
 import '../../modules/dutch_game/managers/feature_contracts.dart';
 import '../../modules/dutch_game/managers/feature_registry_manager.dart';
 import '../widgets/state_aware_features/index.dart';
+import '../widgets/instant_message_modal.dart';
+import '../managers/state_manager.dart';
+import '../managers/hooks_manager.dart';
+import '../../modules/notifications_module/notifications_module.dart';
+import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../tools/logging/logger.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
 
@@ -429,7 +434,65 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
         appManager.triggerTopBannerBarHook(context);
         appManager.triggerBottomBannerBarHook(context);
       }
+
+      // App-wide: show instant-type notification modals when unread (any screen)
+      _checkAndShowInstantMessages();
     });
+  }
+
+  /// Fetches messages (throttled), then shows modals for unread notifications with type 'instant'.
+  void _checkAndShowInstantMessages() async {
+    if (!mounted) return;
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login');
+    if (loginState?['isLoggedIn'] != true) return;
+    final mod = _moduleManager.getModuleByType<NotificationsModule>();
+    if (mod == null) return;
+    final state = StateManager().getModuleState<Map<String, dynamic>>('notifications');
+    final lastFetched = state?['lastFetchedAt']?.toString();
+    final shouldFetch = lastFetched == null ||
+        (DateTime.now().difference(DateTime.tryParse(lastFetched) ?? DateTime.now()).inSeconds > 60);
+    List<Map<String, dynamic>> list;
+    if (shouldFetch) {
+      list = await mod.fetchMessages();
+    } else {
+      list = mod.lastMessages;
+    }
+    if (!mounted) return;
+    final api = _moduleManager.getModuleByType<ConnectionsApiModule>();
+    await InstantMessageModal.showUnreadInstantModals(
+      context,
+      messages: list,
+      onMarkAsRead: (id) => mod.markAsRead([id]),
+      onSendResponse: api == null
+          ? null
+          : (String endpoint, String method, Map<String, dynamic> body, Map<String, dynamic> message) async {
+              try {
+                final Map<String, dynamic> res;
+                if (method.toUpperCase() == 'GET') {
+                  res = await api.sendGetRequest(endpoint) as Map<String, dynamic>? ?? {};
+                } else {
+                  res = await api.sendPostRequest(endpoint, body) as Map<String, dynamic>? ?? {};
+                }
+                final ok = res['success'] == true;
+                if (ok && context.mounted) {
+                  final msgId = message['id']?.toString();
+                  if (msgId != null && msgId.isNotEmpty) {
+                    await mod.markAsRead([msgId]);
+                  }
+                  final subtype = message['subtype']?.toString() ?? '';
+                  HooksManager().triggerHookWithData('instant_message_response_success', {
+                    'context': context,
+                    'subtype': subtype,
+                    'response': res,
+                    'message': message,
+                  });
+                }
+                return ok;
+              } catch (_) {
+                return false;
+              }
+            },
+    );
   }
 
   /// Register global app bar features that appear on all screens

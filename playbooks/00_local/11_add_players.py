@@ -20,12 +20,12 @@ from typing import Dict, Any, List
 # Bcrypt hash for password "comp_player_pass"
 COMP_PLAYER_PASSWORD = "$2b$12$PHGvsjOG3/fjNuEZQP1Szu5/igAj8pppp8XoAFeVyzDbj2EBh3o82"
 
-# MongoDB connection details (local Docker container)
-MONGODB_CONTAINER = "dutch_external_app_mongodb"
-MONGODB_DATABASE = "external_system"
-MONGODB_USER = "external_app_user"
-MONGODB_PASSWORD = "6R3jjsvVhIRP20zMiHdkBzNKx"
-MONGODB_AUTH_DB = "external_system"
+# MongoDB connection details: from env (e.g. app_dev/.env) so local matches compose
+MONGODB_CONTAINER = os.environ.get("MONGODB_CONTAINER", "dutch_external_app_mongodb")
+MONGODB_DATABASE = os.environ.get("MONGODB_DATABASE", "external_system")
+MONGODB_USER = os.environ.get("MONGODB_USER", "external_app_user")
+MONGODB_PASSWORD = os.environ.get("MONGODB_PASSWORD", "6R3jjsvVhIRP20zMiHdkBzNKx")
+MONGODB_AUTH_DB = os.environ.get("MONGODB_AUTH_DB", "external_system")
 
 
 def extract_name_from_username(username: str) -> tuple[str, str]:

@@ -99,7 +99,7 @@ Add method `get_comp_players()`:
       "email": "...",
       "rank": "apprentice",
       "level": 25,
-      "profile_picture": "https://dutch.reignofplay.com/sim_players/images/img000.jpg"
+      "profile_picture": "https://dutch.mt/sim_players/images/img000.jpg"
     },
     {
       "user_id": "...",
@@ -107,7 +107,7 @@ Add method `get_comp_players()`:
       "email": "...",
       "rank": "skilled",
       "level": 35,
-      "profile_picture": "https://dutch.reignofplay.com/sim_players/images/img001.jpg"
+      "profile_picture": "https://dutch.mt/sim_players/images/img001.jpg"
     }
   ],
   "count": 2

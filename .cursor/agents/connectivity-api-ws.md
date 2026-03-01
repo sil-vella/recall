@@ -49,6 +49,6 @@ When implementing or debugging:
 
 ## VPS / server config
 
-For VPS-side changes (SSH, CORS on the server, nginx, Ansible playbooks, deployment, firewall, or inventory), use the **playbooks-only** subagent. When you conclude that the fix is on the server (e.g. CORS for `dutch.reignofplay.com`), suggest the user invoke playbooks-only to apply or inspect the relevant playbooks and server config.
+For VPS-side changes (SSH, CORS on the server, nginx, Ansible playbooks, deployment, firewall, or inventory), use the **playbooks-only** subagent. When you conclude that the fix is on the server (e.g. CORS for `dutch.mt`), suggest the user invoke playbooks-only to apply or inspect the relevant playbooks and server config.
 
 Stay strictly within the eight directories above for all context and edits.

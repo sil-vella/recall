@@ -56,8 +56,8 @@ echo "🎯 Launching Flutter app with OnePlus configuration..."
 BACKEND_TARGET="${1:-local}"
 
 if [ "$BACKEND_TARGET" = "vps" ]; then
-    API_URL="https://dutch.reignofplay.com"
-    WS_URL="wss://dutch.reignofplay.com/ws"
+    API_URL="https://dutch.mt"
+    WS_URL="wss://dutch.mt/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
     # Local LAN IP for Python & Dart services

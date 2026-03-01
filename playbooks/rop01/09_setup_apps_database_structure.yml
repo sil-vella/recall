@@ -6,7 +6,8 @@
     mongodb_container_name: "dutch_external_app_mongodb"
     database_name: "external_system"
     app_user: "external_app_user"
-    app_password: "6R3jjsvVhIRP20zMiHdkBzNKx"
+    # Use MONGODB_PASSWORD from env (e.g. source app_dev/.env) or Ansible var; default for backwards compat
+    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default(mongodb_password | default('6R3jjsvVhIRP20zMiHdkBzNKx')) }}"
 
     # MongoDB connection details for VPS Docker host
     mongodb_host: "localhost"
@@ -477,7 +478,18 @@
           ]);
           
           print("✅ User audit logs collection created with " + db.user_audit_logs.countDocuments() + " logs");
-          
+
+          // ========================================
+          // 4. NOTIFICATIONS COLLECTION (Core notification system)
+          // ========================================
+          // See Documentation/Dutch_game/NOTIFICATION_SYSTEM.md
+          // GET /userauth/notifications/messages and NotificationService.create() use this collection.
+          print("📬 Creating notifications collection...");
+          db.createCollection("notifications");
+          db.notifications.createIndex({ "user_id": 1 });
+          db.notifications.createIndex({ "user_id": 1, "read_at": 1 });
+          db.notifications.createIndex({ "created_at": -1 });
+          print("✅ Notifications collection created (empty; app and modules will insert via NotificationService)");
 
           // ========================================
           // FINAL SUMMARY
@@ -488,11 +500,13 @@
           print("- users: " + db.users.countDocuments() + " documents (modular structure)");
           print("- user_modules: " + db.user_modules.countDocuments() + " modules registered");
           print("- user_audit_logs: " + db.user_audit_logs.countDocuments() + " audit records");
-          print("\n📊 Total documents: " + (db.users.countDocuments() + db.user_modules.countDocuments() + db.user_audit_logs.countDocuments()));
+          print("- notifications: " + db.notifications.countDocuments() + " documents");
+          print("\n📊 Total documents: " + (db.users.countDocuments() + db.user_modules.countDocuments() + db.user_audit_logs.countDocuments() + db.notifications.countDocuments()));
           print("\n🔧 Modular Features:");
           print("- Users have embedded module data for easy access");
           print("- Module registry for managing available modules");
           print("- Audit trail for all user changes");
+          print("- Notifications collection for instant/admin/advert messages (NotificationService, GET /userauth/notifications/messages)");
           print("- Extensible structure for future modules");
           print("\n✅ Modular Credit System Database is ready for development!");
         mode: '0644'

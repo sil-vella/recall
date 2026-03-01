@@ -8,7 +8,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for Start button flow: room_joined, games map updates
+const bool LOGGING_SWITCH = false; // Enabled for Start button flow: room_joined, games map updates
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events

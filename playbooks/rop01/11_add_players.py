@@ -23,15 +23,15 @@ from pathlib import Path
 # Bcrypt hash for password "comp_player_pass"
 COMP_PLAYER_PASSWORD = "$2b$12$PHGvsjOG3/fjNuEZQP1Szu5/igAj8pppp8XoAFeVyzDbj2EBh3o82"
 
-# MongoDB connection details (from playbook)
-MONGODB_CONTAINER = "dutch_external_app_mongodb"
-MONGODB_DATABASE = "external_system"
-MONGODB_USER = "external_app_user"
-MONGODB_PASSWORD = "6R3jjsvVhIRP20zMiHdkBzNKx"
-MONGODB_AUTH_DB = "external_system"
+# MongoDB connection details: from env (e.g. app_dev/.env) so VPS uses same creds as compose
+MONGODB_CONTAINER = os.environ.get("MONGODB_CONTAINER", "dutch_external_app_mongodb")
+MONGODB_DATABASE = os.environ.get("MONGODB_DATABASE", "external_system")
+MONGODB_USER = os.environ.get("MONGODB_USER", "external_app_user")
+MONGODB_PASSWORD = os.environ.get("MONGODB_PASSWORD", "6R3jjsvVhIRP20zMiHdkBzNKx")
+MONGODB_AUTH_DB = os.environ.get("MONGODB_AUTH_DB", "external_system")
 
 # VPS image directory configuration
-VPS_IMAGE_DIR = "/var/www/dutch.reignofplay.com/sim_players/images"
+VPS_IMAGE_DIR = "/var/www/dutch.reignofplay.com/sim_players/images"  # nginx serves dutch.mt from this root
 LOCAL_IMAGE_DIR = None  # Will be set based on project root
 
 
@@ -189,7 +189,7 @@ def extract_image_filename(picture_url: str) -> str:
     """Extract image filename from picture URL."""
     if not picture_url:
         return None
-    # Extract filename from URL like https://dutch.reignofplay.com/sim_players/images/img000.jpg
+    # Extract filename from URL like https://dutch.mt/sim_players/images/img000.jpg
     if '/sim_players/images/' in picture_url:
         return picture_url.split('/sim_players/images/')[-1]
     # Or if it's just a filename like img000.jpg
@@ -312,7 +312,7 @@ def upload_images(ssh_base: str, players_data: List[Dict[str, Any]], local_image
     
     print(f"\n✅ Image upload complete: {uploaded} uploaded, {failed} failed")
     if uploaded > 0:
-        print(f"   Images available at: https://dutch.reignofplay.com/sim_players/images/")
+        print(f"   Images available at: https://dutch.mt/sim_players/images/")
 
 
 def upsert_players(ssh_base: str, players: List[Dict[str, Any]], batch_size: int = 50):

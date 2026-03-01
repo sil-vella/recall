@@ -8,10 +8,15 @@ The playbooks and scripts live in `playbooks/rop01/` and `playbooks/frontend/`, 
 - Application root directory: `/opt/apps/reignofplay/dutch`
 
 **Important Configuration Note**: 
-- **Local development** uses different secret values than **VPS deployment**:
-  - Local: Flask runs on host, uses host ports (`27018`, `6380`) and `localhost`
-  - VPS: Flask runs in Docker, uses internal Docker ports (`27017`, `6379`) and service names (`dutch_redis-external`)
-- Build scripts automatically handle this difference by updating secrets during Docker image builds
+- **Deployment uses a single `.env` file on the VPS**; no secret files are copied or mounted. Sensitive data (passwords, JWT, service keys, Google OAuth) and connection parameters are provided via docker-compose environment variables loaded from `{{ app_dir }}/.env`.
+- **Where values come from**: The playbook creates `{{ app_dir }}/.env` from `playbooks/rop01/templates/env.j2`. For each variable, the template uses (in order): **Ansible vars** (host_vars, -e, vault) → **your shell environment** (e.g. from `source .env` or exported vars) → default (or empty). See `app_dev/.env.example` for the list of variable names.
+- **Easiest: use your local .env.** From `app_dev` run:
+  ```bash
+  set -a && source .env && set +a
+  ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01
+  ```
+  The playbook will read `MONGODB_ROOT_PASSWORD`, `MONGODB_PASSWORD`, `JWT_SECRET_KEY`, etc. from your environment and write them into the VPS `.env` file.
+- **Alternatively**: Use **host_vars** (e.g. `playbooks/rop01/host_vars/rop01_user_host.yml`, do not commit) or **ansible-vault** to encrypt that file, or pass vars with **-e**.
 
 ---
 
@@ -86,10 +91,10 @@ This ensures the VPS exposes only the necessary services.
 
 **Domains configuration** (default when `vm_name=rop01`):
 - `reignofplay.com` and `www.reignofplay.com` → static root `/var/www/reignofplay.com`.
-- `dutch.reignofplay.com` → app root `/var/www/dutch.reignofplay.com`, backed by:
+- `dutch.mt` (production) and `dutch.reignofplay.com` → app root `/var/www/dutch.reignofplay.com`, backed by:
   - Flask backend on **port 5001** (`backend_port: 5001`)
   - Dart WebSocket server on **port 8080** (`backend_ws_port: 8080`).
-- `dutch.mt` → same app root `/var/www/dutch.reignofplay.com` (same backend and Flutter web; intended to eventually replace dutch.reignofplay.com).
+- Production is **dutch.mt**; both dutch.mt and dutch.reignofplay.com use the same app root and backend.
 
 **What the playbook does**:
 - Installs Nginx + Certbot.
@@ -99,7 +104,7 @@ This ensures the VPS exposes only the necessary services.
 - Adds security headers into `nginx.conf`.
 - Sets up a daily Certbot renewal cron job.
 
-**Key Nginx behavior for `dutch.reignofplay.com`** (from `nginx-site.conf.j2`):
+**Key Nginx behavior for `dutch.mt` / `dutch.reignofplay.com`** (from `nginx-site.conf.j2`):
 - Reverse proxy API requests:
 
   ```nginx
@@ -127,7 +132,7 @@ This ensures the VPS exposes only the necessary services.
   }
   ```
 
-This serves `https://dutch.reignofplay.com/downloads/...` directly from the filesystem.
+This serves `https://dutch.mt/downloads/...` (and dutch.reignofplay.com) directly from the filesystem.
 
 ---
 
@@ -145,31 +150,16 @@ This serves `https://dutch.reignofplay.com/downloads/...` directly from the file
 
 **Directory layout** created:
 - `app_dir`: `/opt/apps/reignofplay/dutch`
-  - `secrets/` (Flask secrets directory, mounted into the container)
+  - `.env` (created by playbook from template; used by `docker compose`; mode 0600, owner/group `vps_user`)
 - `data_dir`: `/opt/apps/reignofplay/dutch/data`
   - `mongodb/` (MongoDB data volume)
   - `redis/` (Redis data volume)
   - `prometheus/config` + `prometheus/storage`
   - `grafana/` (Grafana data + provisioning + dashboards)
 
-**Secrets created** under `/opt/apps/reignofplay/dutch/secrets`:
-- **All secret files** from `python_base_04/secrets/` are automatically copied to the VPS, including:
-  - `mongodb_root_password`: MongoDB root user password
-  - `mongodb_user_password`: password for the MongoDB app user
-  - `redis_password`: Redis password
-  - `app_download_base_url`: set to `https://dutch.reignofplay.com/downloads` (used by Flask `APP_DOWNLOAD_BASE_URL`)
-  - `google_client_id`: Web OAuth Client ID (required for Google Sign-In token verification)
-  - `mobile_release.json`: maintained by the APK build script (see section 7)
-  - **`dart_backend_service_key`**: shared secret for Dart backend → Python API (e.g. update-game-stats). Create this file in `python_base_04/secrets/` with the same value used by the Dart backend (see `python_base_04/secrets.example/README.md`).
-  - **VPS-specific configuration** (different from local):
-    - `mongodb_port`: `27017` (internal Docker network port, not host port)
-    - `redis_host`: `dutch_redis-external` (Docker service name, not localhost)
-    - `redis_port`: `6379` (internal Docker network port, not host port)
-  - All other secret files in the local `secrets/` directory
-
-**Permissions**: The playbook creates the secrets directory with mode **0750** (owner+group only) and copies each secret file with mode **0600** (owner read/write only) for better security.
-
-**Important**: The playbook only copies secret files if they don't exist or have different content (checksum comparison), making deployments faster.
+**VPS `.env` file** (at `{{ app_dir }}/.env`):
+- The playbook creates the VPS `.env` from the template `playbooks/rop01/templates/env.j2`. It includes at least: `VPS_APP_UID`, `VPS_APP_GID`, `MONGODB_ROOT_PASSWORD`, `MONGODB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `ENCRYPTION_KEY`, `DART_BACKEND_SERVICE_KEY`, `DUTCH_MT_DASHBOARD_SERVICE_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+- **Required variables** must be provided via Ansible (e.g. vault, `group_vars`, `host_vars`, or `-e`). If a variable is not set, the template writes an empty value; ensure all required values are supplied for production. See `app_dev/.env.example` for the full list of variable names.
 
 **Docker Compose file**:
 - Copied from repo root `docker-compose.yml` to the VPS at `/opt/apps/reignofplay/dutch/docker-compose.yml`.
@@ -181,42 +171,48 @@ This serves `https://dutch.reignofplay.com/downloads/...` directly from the file
   - `dutch_grafana` (Grafana, `3001:3000`)
   - `dutch_dart-game-server` (Dart WebSocket server, `8080:8080`)
 
-**Important mount for Flask secrets**:
-
-```yaml
-dutch_flask-external:
-  image: silvella/dutch_flask_app:latest
-  volumes:
-    - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
-```
-
-This makes all secret files from `python_base_04/secrets/` available inside the container at `/app/secrets/...`, including:
-- `app_download_base_url`
-- `google_client_id` (for Google Sign-In token verification)
-- `mobile_release.json`
-- `dart_backend_service_key` (for Dart→Python service auth; Dart container mounts the same dir)
-- All other secret files (automatically copied by the deployment playbook)
-
-**Dart container** also mounts `/opt/apps/reignofplay/dutch/secrets:/app/secrets:ro` so it can read `dart_backend_service_key` for Python API calls.
+**Configuration**: Flask and other services receive sensitive data and connection params via **environment variables** loaded from the VPS `.env` file (no secret file mounts). The compose file uses `env_file: .env` and `environment:` entries; sensitive values are read from `.env` at runtime.
 
 **Playbook flow**:
+- Creates application directories and the VPS `.env` from the template (values from Ansible vars).
 - Validates `docker compose` availability.
 - Validates `docker-compose.yml` syntax.
-- **Copies secret files** (only if missing or different - uses checksum comparison for efficiency):
-  - Finds all secret files in `python_base_04/secrets/`
-  - Compares checksums with existing files on VPS
-  - Only copies files that don't exist or have changed
-  - Provides summary of files copied vs skipped
 - Optionally pulls latest images and runs `docker compose up -d`.
 - Waits for Flask (5001), MongoDB (27018), and Redis (6380) to be reachable.
 - Optionally restarts Grafana if dashboards changed.
 
-To re-run deployment manually:
+To re-run deployment manually (ensure required `.env` variables are provided via vault, group_vars, host_vars, or `-e`):
 
 ```bash
-cd playbooks/rop01
-ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
+cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
+ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01
 ```
+
+If running from another directory, set the repo root for Grafana/provisioning paths:
+
+```bash
+ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01 -e local_repo_root=/path/to/app_dev
+```
+
+#### 5.3 When you changed DB/Redis credentials
+
+If you have **changed** `MONGODB_PASSWORD` or `REDIS_PASSWORD` (or root passwords) in your `.env`, the existing MongoDB/Redis data on the VPS was created with the old credentials. Bitnami only applies env passwords at **first** initialization. To switch to the new credentials you must reset the data and re-initialize:
+
+1. **Reset** MongoDB and Redis data on the VPS (stops stack, backs up then removes `data/mongodb` and `data/redis`, so they are recreated empty on next deploy):
+   ```bash
+   set -a && source .env && set +a
+   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08a_reset_db_redis_data.yml -e vm_name=rop01 -e reset_db_redis=yes
+   ```
+2. **Deploy** so the new `.env` is written and the stack starts with fresh DB/Redis:
+   ```bash
+   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01
+   ```
+3. **Recreate** DB structure and seed data (run with same env so `MONGODB_PASSWORD` matches):
+   ```bash
+   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/09_setup_apps_database_structure.yml -e vm_name=rop01
+   ```
+
+Backups (if the dirs existed) are written under `{{ data_dir }}/` as `mongodb.bak.<epoch>.tar.gz` and `redis.bak.<epoch>.tar.gz`.
 
 ---
 
@@ -226,14 +222,6 @@ ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
 
 **What it does**:
 - Builds the Flask Docker image from `python_base_04/Dockerfile` with build context `python_base_04/`.
-- **Secret Management**: 
-  - Backs up local secret values (for local development)
-  - Updates secrets with VPS values from `.env` file:
-    - `mongodb_port`: `27017` (internal Docker port)
-    - `redis_host`: `dutch_redis-external` (Docker service name)
-    - `redis_port`: `6379` (internal Docker port)
-  - Builds Docker image with VPS configuration
-  - Restores local secret values after build
 - Temporarily comments out `custom_log(...)` calls (to avoid noisy logs or syntax traps), builds, then restores them.
 - Tags and pushes the image to Docker Hub as:
 
@@ -241,17 +229,7 @@ ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
   silvella/dutch_flask_app:latest
   ```
 
-**Configuration**:
-- VPS values are stored in `.env` file in project root:
-  ```
-  VPS_MONGODB_PORT=27017
-  VPS_REDIS_HOST=dutch_redis-external
-  VPS_REDIS_PORT=6379
-  ```
-- Local development uses different values in `python_base_04/secrets/`:
-  - `mongodb_port`: `27018` (host port)
-  - `redis_host`: `localhost`
-  - `redis_port`: `6380` (host port)
+**Configuration**: The image does not bundle secret files; configuration (passwords, JWT, service keys, connection params) is supplied at **run time** via the VPS `.env` file and docker-compose environment variables.
 
 **Usage**:
 
@@ -259,8 +237,6 @@ ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
 cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 python3 playbooks/rop01/06_build_and_push_docker.py
 ```
-
-**Note**: The script automatically handles secret file updates and restoration, so local development remains unaffected.
 
 After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts the new image.
 
@@ -296,12 +272,12 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 
 **Inputs**:
 - Backend target: `local` or `vps` (default `vps`).
-- Mobile app version: read from `python_base_04/secrets/app_version` (e.g. `2.1.0`).
+- Mobile app version: read from **`APP_VERSION`** in repo root **`.env`** (or env); falls back to `2.0.0`. No secret files.
 
 **What the script does**:
 1. **Disable logging**: Sets `LOGGING_SWITCH = false` in all Flutter source files before build
-2. **Resolve repo root** and read `APP_VERSION` from:
-   - `python_base_04/secrets/app_version` (or falls back to `2.0.0`).
+2. **Resolve repo root** and read **`APP_VERSION`** from:
+   - Environment (e.g. after sourcing **`app_dev/.env`**), or falls back to `2.0.0`.
 3. **Derive build number** for Flutter:
 
    - Splits `APP_VERSION` into `major.minor.patch`.
@@ -310,8 +286,8 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
    - For `vps` (default):
 
      ```bash
-     API_URL="https://dutch.reignofplay.com"
-     WS_URL="wss://dutch.reignofplay.com/ws"
+     API_URL="https://dutch.mt"
+     WS_URL="wss://dutch.mt/ws"
      ```
 
    - For `local`: uses your LAN IP for the Python and Dart services.
@@ -339,24 +315,13 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
      ```
 
    - Fixes ownership and permissions (`www-data:www-data`, `0644`).
-   - Generates/updates the mobile release manifest on the VPS:
-
-     ```bash
-     /opt/apps/reignofplay/dutch/secrets/mobile_release.json
-
-     {
-       "latest_version": "<APP_VERSION>",
-       "min_supported_version": "<MIN_SUPPORTED_VERSION>
-     }
-     ```
-
-   - `MIN_SUPPORTED_VERSION` defaults to `APP_VERSION` unless overridden via `MIN_SUPPORTED_VERSION` env.
+   - Generates/updates the mobile release manifest on the VPS at **`/opt/apps/reignofplay/dutch/data/mobile_release.json`** (see `build_apk.sh`). Content format: `{ "latest_version": "<APP_VERSION>", "min_supported_version": "<MIN_SUPPORTED_VERSION>" }`. `MIN_SUPPORTED_VERSION` defaults to `APP_VERSION` unless overridden via env. Download base URL for the app comes from VPS `.env` (**`APP_DOWNLOAD_BASE_URL`**).
 
 **Result**:
 - A new APK is available at:
 
   ```
-  https://dutch.reignofplay.com/downloads/v<APP_VERSION>/app.apk
+  https://dutch.mt/downloads/v<APP_VERSION>/app.apk
   ```
 
 - The backend’s update endpoint `/public/check-updates` will advertise this version and download link without needing a Flask restart.
@@ -366,13 +331,10 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 ```bash
 cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 
-# 1) Set the mobile app version for this release
-echo "2.1.0" > python_base_04/secrets/app_version
-
+# 1) Set APP_VERSION in .env (e.g. APP_VERSION=2.1.0) or run build_apk.sh and bump when prompted
 # 2) Build + upload for VPS
-   ./playbooks/frontend/build_apk.sh          # default is vps
-
-# 3) (Optional) Build for local backend only
+./playbooks/frontend/build_apk.sh          # default is vps
+# (Optional) Build for local backend only:
 ./playbooks/frontend/build_apk.sh local
 ```
 
@@ -386,11 +348,7 @@ echo "2.1.0" > python_base_04/secrets/app_version
 **Behavior**:
 - At startup, `SystemActionsModule` registers `/public/check-updates` as a public Flask endpoint.
 - On each request, it:
-  1. Attempts to load `mobile_release.json` from:
-
-     ```
-     /app/secrets/mobile_release.json
-     ```
+  1. Attempts to load `mobile_release.json` from the path configured by the app (e.g. env or default path).
 
   2. Reads:
      - `latest_version` → `server_version`
@@ -405,8 +363,7 @@ echo "2.1.0" > python_base_04/secrets/app_version
      {APP_DOWNLOAD_BASE_URL}/v{server_version}/app.apk
      ```
 
-- `APP_DOWNLOAD_BASE_URL` comes from `Config.APP_DOWNLOAD_BASE_URL`, which is resolved as:
-  - `secrets/app_download_base_url` → env `APP_DOWNLOAD_BASE_URL` → default `https://download.example.com`.
+- `APP_DOWNLOAD_BASE_URL` comes from `Config.APP_DOWNLOAD_BASE_URL` (env var, e.g. from VPS `.env`).
 
 **Example responses**:
 
@@ -419,8 +376,8 @@ echo "2.1.0" > python_base_04/secrets/app_version
     "current_version": "2.0.0",
     "update_available": true,
     "update_required": true,
-    "download_link": "https://dutch.reignofplay.com/downloads/v2.1.0/app.apk",
-    "manifest_path": "/app/secrets/mobile_release.json",
+    "download_link": "https://dutch.mt/downloads/v2.1.0/app.apk",
+    "manifest_path": "...",
     ...
   }
   ```
@@ -435,7 +392,7 @@ echo "2.1.0" > python_base_04/secrets/app_version
     "update_available": false,
     "update_required": false,
     "download_link": "",
-    "manifest_path": "/app/secrets/mobile_release.json",
+    "manifest_path": "...",
     ...
   }
   ```
@@ -478,7 +435,7 @@ There are two relevant playbooks for **remote** MongoDB structure:
 - `mongodb_container_name`: `dutch_external_app_mongodb`
 - `database_name`: `external_system`
 - `app_user`: `external_app_user`
-- `app_password`: `6R3jjsvVhIRP20zMiHdkBzNKx`
+- `app_password`: from **env** `MONGODB_PASSWORD` (e.g. `set -a && source .env && set +a` before running) or Ansible var `mongodb_password`; fallback for backwards compat. Use the same password as in the VPS `.env` so DB setup matches compose.
 - Connects via `docker exec ... mongosh` (host `localhost`, port `27018`).
 
 **What it does**:
@@ -527,10 +484,11 @@ To perform a full **mobile app + backend** release with versioned updates:
    ssh -i ~/.ssh/rop01_key rop01_user@65.181.125.135
    ```
 
-2. **Bump backend mobile version**:
+2. **Bump backend mobile version** (set in `.env` so Flask and build scripts use it):
 
    ```bash
-   echo "2.2.0" > python_base_04/secrets/app_version
+   # In app_dev/.env set: APP_VERSION=2.2.0
+   # Or run build_apk.sh and answer 'y' to bump; it updates .env automatically.
    ```
 
 3. **Build and push Docker images (if backend code changed)**:
@@ -543,14 +501,12 @@ To perform a full **mobile app + backend** release with versioned updates:
    python3 playbooks/rop01/07_build_and_push_dart_docker.py
    ```
 
-4. **Deploy updated stack**:
+4. **Deploy updated stack** (ensure required `.env` variables are provided via vault, group_vars, host_vars, or `-e`; see `app_dev/.env.example`):
 
    ```bash
-   cd playbooks/rop01
-   ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
+   cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
+   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01
    ```
-
-   **Note**: The deployment playbook now uses checksum comparison for secret files, only copying files that don't exist or have changed, making deployments faster.
 
 5. **Build and upload new APK + update manifest**:
 
@@ -573,7 +529,7 @@ To perform a full **mobile app + backend** release with versioned updates:
 7. **Sanity-check version endpoint**:
 
    ```bash
-   curl "https://dutch.reignofplay.com/public/check-updates?current_version=2.1.0"
+   curl "https://dutch.mt/public/check-updates?current_version=2.1.0"
    ```
 
    - Expect `server_version: "2.2.0"`.

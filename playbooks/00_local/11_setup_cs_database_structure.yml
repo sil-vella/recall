@@ -6,8 +6,8 @@
     mongodb_container_name: "credit_system_mongodb"
     database_name: "credit_system"
     app_user: "credit_app_user"
-    app_password: "6R3jjsvVhIRP20zMiHdkBzNKx"
-    
+    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
+
     # MongoDB connection details for Docker
     mongodb_host: "localhost"
     mongodb_port: "27017"

@@ -1,19 +1,22 @@
+# Local dev: sensitive data from .env (copy .env.example to .env and fill values).
+# No secret files; config.py uses env then defaults.
+
 services:
   # MongoDB Service (for external app)
   dutch_mongodb-external:
     image: bitnami/mongodb:latest
     container_name: dutch_external_app_mongodb
+    env_file: .env
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
       - MONGODB_DATABASE=external_system
       - MONGODB_USERNAME=external_app_user
-      - MONGODB_ROOT_PASSWORD_FILE=/app/secrets/mongodb_root_password
-      - MONGODB_PASSWORD_FILE=/app/secrets/mongodb_user_password
+      - MONGODB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
     ports:
       - "27018:27017"
     volumes:
       - mongodb_external_data:/bitnami/mongodb
-      - ./python_base_04/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -22,13 +25,13 @@ services:
   dutch_redis-external:
     image: bitnami/redis:latest
     container_name: dutch_external_app_redis
+    env_file: .env
     environment:
-      - REDIS_PASSWORD_FILE=/app/secrets/redis_password
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     ports:
       - "6380:6379"
     volumes:
       - redis_external_data:/bitnami/redis
-      - ./python_base_04/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped

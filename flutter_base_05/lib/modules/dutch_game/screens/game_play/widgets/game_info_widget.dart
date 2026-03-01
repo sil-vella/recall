@@ -21,7 +21,7 @@ class GameInfoWidget extends StatefulWidget {
 }
 
 class _GameInfoWidgetState extends State<GameInfoWidget> {
-  static const bool LOGGING_SWITCH = true; // Enabled for Start button / play screen flow debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for Start button / play screen flow debugging
   static final Logger _logger = Logger();
   bool _isStartingMatch = false;
   

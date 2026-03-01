@@ -35,8 +35,8 @@ Scripts:
   - `API_URL="http://localhost:5001"`
   - `WS_URL="ws://localhost:8080"`
 - `vps`:
-  - `API_URL="https://dutch.reignofplay.com"`
-  - `WS_URL="wss://dutch.reignofplay.com/ws"`
+  - `API_URL="https://dutch.mt"`
+  - `WS_URL="wss://dutch.mt/ws"`
 
 **What it runs**:
 - `cd flutter_base_05`
@@ -78,8 +78,8 @@ This is the recommended way to run the **web** version against either the local 
 
 **Local vs VPS behavior**:
 - `vps`:
-  - `API_URL="https://dutch.reignofplay.com"`
-  - `WS_URL="wss://dutch.reignofplay.com/ws"`
+  - `API_URL="https://dutch.mt"`
+  - `WS_URL="wss://dutch.mt/ws"`
 - `local`:
   - Uses your LAN IP for the Python/Dart backend (currently `192.168.178.81:5001` for Flask and `:8080` for WebSockets).
 
@@ -147,8 +147,8 @@ Use this script for **manual testing on the physical device** against either loc
    - For `vps` (default):
 
      ```bash
-     API_URL="https://dutch.reignofplay.com"
-     WS_URL="wss://dutch.reignofplay.com/ws"
+     API_URL="https://dutch.mt"
+     WS_URL="wss://dutch.mt/ws"
      ```
 
    - For `local`: uses the LAN IP for the backend services.
@@ -197,15 +197,15 @@ Use this script for **manual testing on the physical device** against either loc
      }
      ```
 
-   - Ensures the manifest and `app_download_base_url` secret are readable by the Flask container.
+   - Ensures the manifest is in place; the download base URL is provided via the VPS `.env` (see `app_dev/.env.example`). Deployment uses `.env` only; no secret files are used.
 
 **Backend update behavior**:
-- The Flask endpoint `/public/check-updates` reads `mobile_release.json` and `app_download_base_url` from `/app/secrets/`, then:
+- The Flask endpoint `/public/check-updates` reads `mobile_release.json` and the download base URL from app config (env from `.env`), then:
   - Compares the client-reported `current_version` with `latest_version`/`min_supported_version`.
   - Returns `update_available` / `update_required` and a `download_link` pointing at:
 
     ```
-    https://dutch.reignofplay.com/downloads/v<latest_version>/app.apk
+    https://dutch.mt/downloads/v<latest_version>/app.apk
     ```
 
 **Usage examples**:
@@ -316,4 +316,4 @@ cp -r backups/20260119_155914_logging_optimization/dart_bkend_base_01/* dart_bke
   python_base_04/tools/logger/server.log
   ```
 
-- The APK build script is tightly integrated with the backend versioning and Nginx `/downloads/` setup; changing the directory layout on the VPS or the secrets mount path will require corresponding changes in `build_apk.sh` and the Flask config.
+- The APK build script is tightly integrated with the backend versioning and Nginx `/downloads/` setup; changing the directory layout on the VPS will require corresponding changes in `build_apk.sh` and the Flask config. Sensitive config is supplied via the VPS `.env` (see `app_dev/.env.example`).

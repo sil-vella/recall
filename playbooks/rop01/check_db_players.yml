@@ -1,0 +1,22 @@
+---
+- name: Check DB players (counts + sample)
+  hosts: rop01_user_host
+  become: true
+  vars:
+    mongodb_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('') }}"
+  tasks:
+    - name: Get user and comp player counts
+      shell: |
+        sg docker -c 'docker exec dutch_external_app_mongodb mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+          var d = db.getSiblingDB(\"external_system\");
+          print(\"Total users: \" + d.users.countDocuments());
+          print(\"Computer players (is_comp_player=true): \" + d.users.countDocuments({is_comp_player: true}));
+          print(\"Sample (first 10 comp players):\");
+          d.users.find({is_comp_player: true}, {username: 1, profile: 1, rank: 1, _id: 0}).limit(10).forEach(function(u){ print(JSON.stringify(u)); });
+        "'
+      register: db_out
+      changed_when: false
+
+    - name: Show result
+      debug:
+        msg: "{{ db_out.stdout_lines }}"

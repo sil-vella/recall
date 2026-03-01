@@ -39,7 +39,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = true; // Enabled for create room/tournament flow, join/games, joinedGamesSlice
+  static const bool LOGGING_SWITCH = false; // Enabled for create room/tournament flow, join/games, joinedGamesSlice
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 

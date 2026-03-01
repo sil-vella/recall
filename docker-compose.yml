@@ -1,60 +1,77 @@
+# Sensitive values come from .env (create from .env.example; playbook creates on VPS).
+# Config.py uses env vars then defaults for non-sensitive; no secret files.
+
 services:
   # MongoDB Service (for external app)
-  # Runs as Bitnami default (1001); needs mongodb_* secret files 0644 on VPS so 1001 can read them.
-  # (Redis runs as VPS UID 1000 with 0600 secrets; MongoDB image config is not readable as 1000.)
   dutch_mongodb-external:
     image: bitnami/mongodb:latest
     container_name: dutch_external_app_mongodb
+    env_file: .env
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
       - MONGODB_DATABASE=external_system
       - MONGODB_USERNAME=external_app_user
-      - MONGODB_ROOT_PASSWORD_FILE=/app/secrets/mongodb_root_password
-      - MONGODB_PASSWORD_FILE=/app/secrets/mongodb_user_password
+      - MONGODB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
     ports:
       - "27018:27017"
     volumes:
       - /opt/apps/reignofplay/dutch/data/mongodb:/bitnami/mongodb
-      - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped
 
   # Redis Service (for external app)
-  # Runs as VPS app user UID so it can read 0600 secrets from mounted /app/secrets
   dutch_redis-external:
     image: bitnami/redis:latest
     container_name: dutch_external_app_redis
     user: "${VPS_APP_UID:-1000}:${VPS_APP_GID:-1000}"
+    env_file: .env
     environment:
-      - REDIS_PASSWORD_FILE=/app/secrets/redis_password
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     ports:
       - "6380:6379"
     volumes:
       - /opt/apps/reignofplay/dutch/data/redis:/bitnami/redis
-      - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped
 
-  # External Flask Application (Production)
+  # External Flask Application (Production) – all config via env; defaults in config.py
   dutch_flask-external:
-    image: silvella/dutch_flask_app:latest  # Pull from Docker Hub
+    image: silvella/dutch_flask_app:latest
     container_name: dutch_external_app_flask
+    env_file: .env
     ports:
       - "5001:5001"
     environment:
       - DEBUG_MODE=false
-      - APP_URL=https://reignofplay.com
+      - APP_URL=https://dutch.mt
       - MONGODB_SERVICE_NAME=dutch_mongodb-external
+      - MONGODB_PORT=27017
+      - MONGODB_ROOT_USER=mongodb_admin
+      - MONGODB_USER=external_app_user
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - MONGODB_DB_NAME=external_system
       - REDIS_HOST=dutch_redis-external
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - DART_BACKEND_SERVICE_KEY=${DART_BACKEND_SERVICE_KEY}
+      - DUTCH_MT_DASHBOARD_SERVICE_KEY=${DUTCH_MT_DASHBOARD_SERVICE_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - APP_VERSION=${APP_VERSION:-2.0.0}
+      - APP_DOWNLOAD_BASE_URL=${APP_DOWNLOAD_BASE_URL:-https://dutch.mt/downloads}
+      - CREDIT_SYSTEM_API_KEY=${CREDIT_SYSTEM_API_KEY:-}
+      - MOBILE_RELEASE_MANIFEST=/app/data/mobile_release.json
       - RATE_LIMIT_ENABLED=false
       - RATE_LIMIT_IP_REQUESTS=1000
       - RATE_LIMIT_IP_WINDOW=60
       - CREDIT_SYSTEM_URL=http://dutch_flask-external:5001
     volumes:
-      - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
+      - /opt/apps/reignofplay/dutch/data/mobile_release.json:/app/data/mobile_release.json:ro
     depends_on:
       - dutch_mongodb-external
       - dutch_redis-external
@@ -101,16 +118,16 @@ services:
       - app-network
     restart: unless-stopped
 
-  # Dart Game WebSocket Server (mounts same secrets dir as Flask for service key)
+  # Dart Game WebSocket Server – service key via env
   dutch_dart-game-server:
     image: silvella/dutch_dart_game_server:latest
     container_name: dutch_dart_game_server
+    env_file: .env
     environment:
       - PORT=8080
+      - DART_BACKEND_SERVICE_KEY=${DART_BACKEND_SERVICE_KEY}
     ports:
       - "8080:8080"
-    volumes:
-      - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped

@@ -7,6 +7,9 @@
     data_dir: "/opt/apps/reignofplay/dutch/data"
     compose_file: "docker-compose.yml"
     vps_user: "{{ vm_name }}_user"
+    # Local repo root: directory containing python_base_04, playbooks, etc. Default assumes playbook run from app_dev (playbook_dir = playbooks/rop01).
+    # Override with -e local_repo_root=/path/to/app_dev if running from elsewhere.
+    local_repo_root: "{{ playbook_dir }}/../.."
   tasks:
     - name: Create application directory structure
       file:
@@ -15,7 +18,6 @@
         mode: '0755'
       loop:
         - "{{ app_dir }}"
-        - "{{ app_dir }}/secrets"
         - "{{ data_dir }}/mongodb"
         - "{{ data_dir }}/redis"
         - "{{ data_dir }}/prometheus/config"
@@ -38,59 +40,6 @@
         mode: '0644'
       register: grafana_dashboards_sync
 
-    - name: Ensure secrets directory exists on VPS (0755 so Bitnami MongoDB UID 1001 can traverse to read mongodb_* secret files)
-      file:
-        path: "{{ app_dir }}/secrets"
-        state: directory
-        mode: '0755'
-        owner: "{{ vps_user }}"
-        group: "{{ vps_user }}"
-
-    - name: Get list of secret files
-      find:
-        paths: "{{ playbook_dir }}/../../python_base_04/secrets"
-        patterns: "*"
-        file_type: file
-      register: secret_files_local
-
-    - name: Copy secret files to VPS (only if missing or different, mode 0600)
-      copy:
-        src: "{{ item.path }}"
-        dest: "{{ app_dir }}/secrets/{{ item.path | basename }}"
-        mode: '0600'
-        owner: "{{ vps_user }}"
-        group: "{{ vps_user }}"
-        force: no
-      loop: "{{ secret_files_local.files }}"
-      loop_control:
-        label: "{{ item.path | basename }}"
-      when: item.path is defined
-      register: secret_files_copy_result
-
-    - name: Display secret files copy summary
-      debug:
-        msg: |
-          Secret files sync summary:
-          - Total files checked: {{ secret_files_local.files | length }}
-          - Files copied: {{ secret_files_copy_result.results | selectattr('changed', 'equalto', true) | list | length }}
-          - Files skipped (unchanged): {{ secret_files_copy_result.results | selectattr('changed', 'equalto', false) | list | length }}
-      when: secret_files_copy_result is defined
-
-    - name: Ensure Dart backend service key exists locally (for copy)
-      stat:
-        path: "{{ playbook_dir }}/../../python_base_04/secrets/dart_backend_service_key"
-      register: dart_service_key_local
-
-    - name: Copy Dart backend service key to VPS (Dart server → Flask API auth)
-      copy:
-        src: "{{ playbook_dir }}/../../python_base_04/secrets/dart_backend_service_key"
-        dest: "{{ app_dir }}/secrets/dart_backend_service_key"
-        mode: '0644'
-        owner: "{{ vps_user }}"
-        group: "{{ vps_user }}"
-        force: yes
-      when: dart_service_key_local.stat.exists | default(false)
-
     - name: Get VPS app user UID and GID (for Redis/MongoDB container user)
       shell: "getent passwd {{ vps_user }} | cut -d: -f3,4"
       register: vps_app_id
@@ -102,13 +51,11 @@
         vps_app_gid: "{{ vps_app_id.stdout.split(':')[1] }}"
       when: vps_app_id.stdout is defined and vps_app_id.stdout != ""
 
-    - name: Create .env with VPS_APP_UID and VPS_APP_GID for compose
-      copy:
-        content: |
-          VPS_APP_UID={{ vps_app_uid | default('1000') }}
-          VPS_APP_GID={{ vps_app_gid | default('1000') }}
+    - name: "Create .env for docker-compose (sensitive values from Ansible vars: vault, group_vars, host_vars, or -e)"
+      template:
+        src: "{{ playbook_dir }}/templates/env.j2"
         dest: "{{ app_dir }}/.env"
-        mode: '0640'
+        mode: '0600'
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
       when: vps_app_uid is defined and vps_app_gid is defined
@@ -137,21 +84,21 @@
       command: "chown -R 1001:1001 {{ data_dir }}/mongodb"
       changed_when: true
 
-    - name: Make MongoDB secret files readable by Bitnami container user (1001)
-      file:
-        path: "{{ app_dir }}/secrets/{{ item }}"
-        mode: '0644'
-      loop:
-        - mongodb_root_password
-        - mongodb_user_password
-      ignore_errors: true
-
     - name: Copy docker-compose.yml to server
       copy:
         src: "{{ playbook_dir }}/../../{{ compose_file }}"
         dest: "{{ app_dir }}/{{ compose_file }}"
         mode: '0644'
         remote_src: false
+
+    - name: Ensure mobile_release.json exists (Flask check-updates reads from data dir; build_apk.sh updates it)
+      copy:
+        content: '{"latest_version": "0.0.0", "min_supported_version": "0.0.0"}'
+        dest: "{{ data_dir }}/mobile_release.json"
+        mode: '0644'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+      when: vps_user is defined
 
     - name: Create minimal Prometheus configuration file
       copy:

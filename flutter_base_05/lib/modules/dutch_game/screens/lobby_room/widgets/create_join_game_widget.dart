@@ -383,6 +383,12 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
   }
 
   void _showCreateRoomModal() {
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final username = loginState['username']?.toString() ?? '';
+    final showTournamentOption = username == 'silvestervella';
+    if (!showTournamentOption && _selectedGameType == 'tournament') {
+      setState(() => _selectedGameType = 'classic');
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -392,6 +398,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       builder: (context) => _CreateRoomModal(
         selectedPermission: _selectedPermission,
         selectedGameType: _selectedGameType,
+        showTournamentOption: showTournamentOption,
         passwordController: _createPasswordController,
         tournamentNameController: _tournamentNameController,
         tournamentFormat: _tournamentFormat,
@@ -764,6 +771,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
 class _CreateRoomModal extends StatefulWidget {
   final String selectedPermission;
   final String selectedGameType;
+  final bool showTournamentOption;
   final TextEditingController passwordController;
   final TextEditingController tournamentNameController;
   final String tournamentFormat;
@@ -776,6 +784,7 @@ class _CreateRoomModal extends StatefulWidget {
   const _CreateRoomModal({
     required this.selectedPermission,
     required this.selectedGameType,
+    required this.showTournamentOption,
     required this.passwordController,
     required this.tournamentNameController,
     required this.tournamentFormat,
@@ -863,7 +872,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                     children: [
                       SizedBox(height: AppPadding.defaultPadding.top),
 
-                      // Game Type
+                      // Game Type (tournament option only for user 'silvestervella')
                       Text(
                         'Game Type',
                         style: AppTextStyles.label().copyWith(color: AppColors.white),
@@ -873,7 +882,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         label: 'create_room_dropdown_game_type',
                         identifier: 'create_room_dropdown_game_type',
                         child: DropdownButtonFormField<String>(
-                          value: _selectedGameType,
+                          value: widget.showTournamentOption ? _selectedGameType : 'classic',
                           decoration: InputDecoration(
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: AppPadding.defaultPadding.left,
@@ -896,7 +905,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                           ),
                           dropdownColor: AppColors.widgetContainerBackground,
                           style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                          items: ['classic', 'tournament'].map((type) {
+                          items: (widget.showTournamentOption ? ['classic', 'tournament'] : ['classic']).map((type) {
                             return DropdownMenuItem<String>(
                               value: type,
                               child: Text(
@@ -1011,8 +1020,8 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         SizedBox(height: AppPadding.defaultPadding.top),
                       ],
 
-                      // Tournament fields (when game type is tournament)
-                      if (_selectedGameType == 'tournament') ...[
+                      // Tournament fields (when game type is tournament; only shown for user 'silvestervella')
+                      if (widget.showTournamentOption && _selectedGameType == 'tournament') ...[
                         Text(
                           'Tournament Name',
                           style: AppTextStyles.label().copyWith(color: AppColors.white),

@@ -2,7 +2,7 @@
 
 # Flutter Web build script
 # Builds a web release for Dutch and uploads to VPS
-# The web app will be served from dutch.reignofplay.com
+# The web app will be served from dutch.mt
 
 set -e
 
@@ -62,26 +62,20 @@ if [ "$BACKEND_TARGET" = "local" ]; then
     WS_URL="ws://192.168.178.81:8080"
     echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
-    API_URL="https://dutch.reignofplay.com"
-    WS_URL="wss://dutch.reignofplay.com/ws"
+    API_URL="https://dutch.mt"
+    WS_URL="wss://dutch.mt/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
-# Determine app version from Python backend secrets (keeps web and /public/check-updates in sync)
-# Web apps don't need version bumps - they're automatically updated on the server
-APP_VERSION_FILE="$REPO_ROOT/python_base_04/secrets/app_version"
-
-if [ -f "$APP_VERSION_FILE" ]; then
-  APP_VERSION="$(tr -d '\r\n' < "$APP_VERSION_FILE")"
-else
-  APP_VERSION="2.0.0"
+# App version: from env (e.g. .env) then default (keeps web and /public/check-updates in sync)
+if [ -f "$REPO_ROOT/.env" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$REPO_ROOT/.env"
+  set +a
 fi
-
-if [ -z "$APP_VERSION" ]; then
-  APP_VERSION="2.0.0"
-fi
-
-echo "📦 Using version: $APP_VERSION (from $APP_VERSION_FILE)"
+APP_VERSION="${APP_VERSION:-2.0.0}"
+echo "📦 Using version: $APP_VERSION (from APP_VERSION env / .env)"
 echo "ℹ️  Web apps update automatically on the server - no version bump needed"
 
 # Derive a numeric build number from APP_VERSION (e.g. 2.1.0 -> 20100)
@@ -268,7 +262,7 @@ EOF
 
   echo ""
   echo "✅ Web build uploaded and installed to VPS: $REMOTE_WEB_ROOT"
-  echo "🔗 Web app URL: https://dutch.reignofplay.com"
+  echo "🔗 Web app URL: https://dutch.mt"
   echo "📊 Version: $APP_VERSION"
   echo ""
   echo "🎉 Deployment complete! The Flutter web app is now live."

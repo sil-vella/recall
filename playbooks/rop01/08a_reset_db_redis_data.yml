@@ -1,0 +1,75 @@
+---
+# One-off: reset MongoDB and Redis data on the VPS so they re-initialize with new credentials.
+# Run this when you have *changed* MONGODB_PASSWORD or REDIS_PASSWORD in .env.
+# Then run 08_deploy_docker_compose.yml and 09_setup_apps_database_structure.yml.
+#
+# Usage:
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08a_reset_db_redis_data.yml -e vm_name=rop01 -e reset_db_redis=yes
+#
+- name: Reset MongoDB and Redis data for new credentials (VPS)
+  hosts: "{{ vm_name }}_user"
+  become: true
+  vars:
+    app_dir: "/opt/apps/reignofplay/dutch"
+    data_dir: "/opt/apps/reignofplay/dutch/data"
+    compose_file: "docker-compose.yml"
+
+  tasks:
+    - name: Require explicit confirmation to reset data
+      fail:
+        msg: "Run with -e reset_db_redis=yes to confirm. This deletes MongoDB and Redis data on the VPS."
+      when: reset_db_redis | default('') != 'yes'
+
+    - name: Stop Docker Compose stack (release data dirs)
+      shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} down"
+      register: compose_down
+      changed_when: true
+      failed_when: false
+
+    - name: Check if MongoDB data dir exists
+      stat:
+        path: "{{ data_dir }}/mongodb"
+      register: mongodb_dir_stat
+      when: reset_db_redis | default('') == 'yes'
+
+    - name: Optional backup of MongoDB data before reset
+      archive:
+        path: "{{ data_dir }}/mongodb"
+        dest: "{{ data_dir }}/mongodb.bak.{{ ansible_date_time.epoch }}.tar.gz"
+        remove: false
+      when: reset_db_redis | default('') == 'yes' and mongodb_dir_stat.stat.exists | default(false) and (ansible_check_mode | default(false) | bool == false)
+
+    - name: Check if Redis data dir exists
+      stat:
+        path: "{{ data_dir }}/redis"
+      register: redis_dir_stat
+      when: reset_db_redis | default('') == 'yes'
+
+    - name: Optional backup of Redis data before reset
+      archive:
+        path: "{{ data_dir }}/redis"
+        dest: "{{ data_dir }}/redis.bak.{{ ansible_date_time.epoch }}.tar.gz"
+        remove: false
+      when: reset_db_redis | default('') == 'yes' and redis_dir_stat.stat.exists | default(false) and (ansible_check_mode | default(false) | bool == false)
+
+    - name: Remove MongoDB data directory (will be recreated empty by 08)
+      file:
+        path: "{{ data_dir }}/mongodb"
+        state: absent
+      when: reset_db_redis | default('') == 'yes'
+
+    - name: Remove Redis data directory (will be recreated empty by 08)
+      file:
+        path: "{{ data_dir }}/redis"
+        state: absent
+      when: reset_db_redis | default('') == 'yes'
+
+    - name: Summary
+      debug:
+        msg: |
+          MongoDB and Redis data have been removed on the VPS.
+          Next steps:
+            1. Run 08_deploy_docker_compose.yml (with new .env / source .env) to write .env and start stack.
+            2. Run 09_setup_apps_database_structure.yml (with same env) to recreate DB structure and seed data.
+          Backups (if any): {{ data_dir }}/mongodb.bak.*.tar.gz and redis.bak.*.tar.gz
+      when: reset_db_redis | default('') == 'yes'

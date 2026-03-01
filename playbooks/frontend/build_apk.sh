@@ -62,27 +62,22 @@ if [ "$BACKEND_TARGET" = "local" ]; then
     WS_URL="ws://192.168.178.81:8080"
     echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
-    API_URL="https://dutch.reignofplay.com"
-    WS_URL="wss://dutch.reignofplay.com/ws"
+    API_URL="https://dutch.mt"
+    WS_URL="wss://dutch.mt/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
-# Determine app version from Python backend secrets (keeps APK and /public/check-updates in sync)
-APP_VERSION_FILE="$REPO_ROOT/python_base_04/secrets/app_version"
-
-# Prompt user if they want to bump the version
-if [ -f "$APP_VERSION_FILE" ]; then
-  CURRENT_VERSION="$(tr -d '\r\n' < "$APP_VERSION_FILE")"
-else
-  CURRENT_VERSION="2.0.0"
+# App version: from env (e.g. .env) then default (keeps APK and /public/check-updates in sync)
+if [ -f "$REPO_ROOT/.env" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$REPO_ROOT/.env"
+  set +a
 fi
-
-if [ -z "$CURRENT_VERSION" ]; then
-  CURRENT_VERSION="2.0.0"
-fi
+CURRENT_VERSION="${APP_VERSION:-2.0.0}"
 
 echo ""
-echo "📦 Current version in secrets: $CURRENT_VERSION"
+echo "📦 Current version (APP_VERSION from .env): $CURRENT_VERSION"
 echo ""
 read -p "🤔 Bump version number? (y/n) [n]: " -n 1 -r
 echo ""
@@ -103,10 +98,19 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   PATCH=$((PATCH + 1))
   NEW_VERSION="$MAJOR.$MINOR.$PATCH"
   
-  # Write new version to file
-  echo "$NEW_VERSION" > "$APP_VERSION_FILE"
+  # Write new version to .env (APP_VERSION=)
+  ENV_FILE="$REPO_ROOT/.env"
+  if [ -f "$ENV_FILE" ] && grep -q '^APP_VERSION=' "$ENV_FILE" 2>/dev/null; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sed -i '' "s/^APP_VERSION=.*/APP_VERSION=$NEW_VERSION/" "$ENV_FILE"
+    else
+      sed -i "s/^APP_VERSION=.*/APP_VERSION=$NEW_VERSION/" "$ENV_FILE"
+    fi
+  else
+    echo "APP_VERSION=$NEW_VERSION" >> "$ENV_FILE"
+  fi
   echo "✅ Version bumped: $CURRENT_VERSION → $NEW_VERSION"
-  echo "📝 Updated $APP_VERSION_FILE"
+  echo "📝 Updated APP_VERSION in $ENV_FILE"
   APP_VERSION="$NEW_VERSION"
 else
   APP_VERSION="$CURRENT_VERSION"
@@ -219,8 +223,8 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   REMOTE_VERSION_DIR="$REMOTE_DOWNLOAD_ROOT/v$APP_VERSION"
   REMOTE_APK_PATH="$REMOTE_VERSION_DIR/app.apk"
   REMOTE_TMP_APK="/tmp/dutch-app-$APP_VERSION.apk"
-  REMOTE_SECRETS_DIR="/opt/apps/reignofplay/dutch/secrets"
-  REMOTE_MANIFEST_PATH="$REMOTE_SECRETS_DIR/mobile_release.json"
+  REMOTE_DATA_DIR="/opt/apps/reignofplay/dutch/data"
+  REMOTE_MANIFEST_PATH="$REMOTE_DATA_DIR/mobile_release.json"
   REMOTE_TMP_MANIFEST="/tmp/mobile_release.json"
 
   log_remaining_vps_tasks() {
@@ -232,7 +236,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
     echo "  [2] Update mobile_release.json on VPS:"
     echo "      (create JSON with latest_version and min_supported_version: $APP_VERSION)"
     echo "      scp to $VPS_SSH_TARGET:$REMOTE_TMP_MANIFEST"
-    echo "      ssh -i $VPS_SSH_KEY $VPS_SSH_TARGET \"sudo mkdir -p $REMOTE_SECRETS_DIR && sudo mv $REMOTE_TMP_MANIFEST $REMOTE_MANIFEST_PATH && sudo chown root:root $REMOTE_MANIFEST_PATH && sudo chmod 644 $REMOTE_MANIFEST_PATH\""
+    echo "      ssh -i $VPS_SSH_KEY $VPS_SSH_TARGET \"sudo mv $REMOTE_TMP_MANIFEST $REMOTE_MANIFEST_PATH && sudo chown rop01_user:rop01_user $REMOTE_MANIFEST_PATH && sudo chmod 644 $REMOTE_MANIFEST_PATH\""
     echo ""
   }
 
@@ -254,7 +258,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   fi
 
   echo "✅ APK uploaded to VPS: $REMOTE_APK_PATH"
-  echo "🔗 Expected download URL: https://dutch.reignofplay.com/downloads/v$APP_VERSION/app.apk"
+  echo "🔗 Expected download URL: https://dutch.mt/downloads/v$APP_VERSION/app.apk"
 
   # Update mobile_release.json manifest on the VPS so Flask can serve
   # correct version info without needing a restart.
@@ -275,7 +279,7 @@ EOF
     log_remaining_vps_tasks
     exit 1
   fi
-  if ! ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_SECRETS_DIR' && sudo mv '$REMOTE_TMP_MANIFEST' '$REMOTE_MANIFEST_PATH' && sudo chown root:root '$REMOTE_MANIFEST_PATH' && sudo chmod 644 '$REMOTE_MANIFEST_PATH'"; then
+  if ! ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mv '$REMOTE_TMP_MANIFEST' '$REMOTE_MANIFEST_PATH' && sudo chown rop01_user:rop01_user '$REMOTE_MANIFEST_PATH' && sudo chmod 644 '$REMOTE_MANIFEST_PATH'"; then
     rm -f "$TMP_MANIFEST"
     echo "❌ Step 3/3 failed: mv manifest to $REMOTE_MANIFEST_PATH"
     log_remaining_vps_tasks

@@ -6,8 +6,8 @@
     mongodb_container_name: "dutch_external_app_mongodb"
     database_name: "external_system"
     app_user: "external_app_user"
-    app_password: "6R3jjsvVhIRP20zMiHdkBzNKx"
-    
+    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
+
     # MongoDB connection details for Docker
     mongodb_host: "localhost"
     mongodb_port: "27017"
@@ -411,6 +411,19 @@
           // Verify comp players
           var finalCompPlayersCount = db.users.countDocuments({ "is_comp_player": true });
           print("  📊 Total computer players in database: " + finalCompPlayersCount);
+
+          // ========================================
+          // ENSURE NOTIFICATIONS COLLECTION EXISTS
+          // ========================================
+          // See Documentation/Dutch_game/NOTIFICATION_SYSTEM.md
+          var colls = db.getCollectionNames();
+          if (colls.indexOf("notifications") === -1) {
+            db.createCollection("notifications");
+            db.notifications.createIndex({ "user_id": 1 });
+            db.notifications.createIndex({ "user_id": 1, "read_at": 1 });
+            db.notifications.createIndex({ "created_at": -1 });
+            print("\n📬 Created notifications collection with indexes");
+          }
           
           // ========================================
           // FINAL SUMMARY
@@ -446,50 +459,49 @@
       debug:
         msg: "{{ update_result.stdout }}"
 
-    - name: Verify module updates
-      shell: |
-        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "
+    - name: Create verification script (avoid shell quoting in inline eval)
+      copy:
+        dest: "/tmp/verify_modules.js"
+        content: |
           db = db.getSiblingDB('external_system');
-          print('\\n📊 VERIFICATION SUMMARY:');
+          print('\n📊 VERIFICATION SUMMARY:');
           print('=====================');
           print('Registered modules: ' + db.user_modules.countDocuments());
           print('Total users: ' + db.users.countDocuments());
-          
-          // Count users with each module
-          var usersWithInApp = db.users.countDocuments({ 'modules.in_app_purchases': { \$exists: true } });
-          var usersWithDutch = db.users.countDocuments({ 'modules.dutch_game': { \$exists: true } });
-          
+          var usersWithInApp = db.users.countDocuments({ 'modules.in_app_purchases': { $exists: true } });
+          var usersWithDutch = db.users.countDocuments({ 'modules.dutch_game': { $exists: true } });
           print('Users with in_app_purchases: ' + usersWithInApp);
           print('Users with dutch_game: ' + usersWithDutch);
-          
-          // Verify is_comp_player field
-          var usersWithCompPlayerField = db.users.countDocuments({ 'is_comp_player': { \$exists: true } });
+          var usersWithCompPlayerField = db.users.countDocuments({ 'is_comp_player': { $exists: true } });
           var compPlayersCount = db.users.countDocuments({ 'is_comp_player': true });
           var humanPlayersCount = db.users.countDocuments({ 'is_comp_player': false });
-          
-          print('\\n🤖 Comp Player Field Status:');
+          print('\n🤖 Comp Player Field Status:');
           print('Users with is_comp_player field: ' + usersWithCompPlayerField);
           print('Computer players (is_comp_player: true): ' + compPlayersCount);
           print('Human players (is_comp_player: false): ' + humanPlayersCount);
-          
-          // List comp players
           if (compPlayersCount > 0) {
-            print('\\n🤖 Computer Players:');
+            print('\n🤖 Computer Players:');
             db.users.find({ "is_comp_player": true }, { username: 1, email: 1, "modules.dutch_game.coins": 1 }).forEach(function(player) {
               var coins = player.modules && player.modules.dutch_game ? player.modules.dutch_game.coins : 0;
               var playerInfo = "  - " + player.username + " (" + player.email + ") - " + coins + " coins";
               print(playerInfo);
             });
           }
-          
-          // List registered modules
-          print('\\n📋 Registered Modules:');
+          print('\n📋 Registered Modules:');
           db.user_modules.find({}, { module_name: 1, display_name: 1, status: 1 }).forEach(function(module) {
             print('  - ' + module.module_name + ' (' + module.display_name + ') - ' + module.status);
           });
-        "
+        mode: '0644'
+
+    - name: Verify module updates
+      shell: docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "$(cat /tmp/verify_modules.js)"
       register: verification_summary
       changed_when: false
+
+    - name: Remove verification script
+      file:
+        path: "/tmp/verify_modules.js"
+        state: absent
 
     - name: Display verification summary
       debug:

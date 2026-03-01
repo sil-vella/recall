@@ -72,16 +72,17 @@ class ServicesManager:
         return Config.CREDIT_SYSTEM_URL
 
     def get_credit_system_api_key(self):
-        """Get the credit system API key from configuration."""
+        """Get the credit system API key from configuration (env / .env preferred, then file)."""
         try:
-            # Try to load from secrets file
             import os
+            # Prefer Config (env / .env)
+            key = getattr(Config, 'CREDIT_SYSTEM_API_KEY', None)
+            if key:
+                return key
             secret_file = "/app/secrets/CRED_SYS_api_key"
             if os.path.exists(secret_file):
                 with open(secret_file, 'r') as f:
                     return f.read().strip()
-            else:
-                # Fallback to config
-                return getattr(Config, 'CREDIT_SYSTEM_API_KEY', None)
-        except Exception as e:
+            return None
+        except Exception:
             return None

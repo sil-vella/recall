@@ -117,6 +117,8 @@ class DatabaseManager:
         try:
             if operation == 'insert':
                 result_id = self._execute_insert(collection, data)
+                if result_id is None:
+                    return {'success': False, 'error': 'Insert returned no ID (database may be unavailable)', 'completed': True}
                 return {'success': True, 'result': result_id, 'completed': True}
             elif operation == 'find':
                 result = self._execute_find(collection, query)
@@ -283,6 +285,7 @@ class DatabaseManager:
     def _execute_insert(self, collection: str, data: Dict[str, Any]) -> Optional[str]:
         """Execute insert operation directly (for queue worker)."""
         if not self.available:
+            self.logger.warning("_execute_insert: database not available (check MongoDB connection and MONGODB_SERVICE_NAME for local dev)")
             return None
         encrypted_data = self._encrypt_sensitive_fields(data)
         result = self.db[collection].insert_one(encrypted_data)

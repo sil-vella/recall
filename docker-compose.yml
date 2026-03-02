@@ -80,6 +80,7 @@ services:
     restart: unless-stopped
 
   # Prometheus Service (for metrics collection)
+  # Access via http://<host>:9090
   dutch_prometheus:
     image: prom/prometheus:latest
     container_name: dutch_prometheus
@@ -98,6 +99,7 @@ services:
     restart: unless-stopped
 
   # Grafana Service (for metrics visualization)
+  # Access via http://<host>:3001
   dutch_grafana:
     image: grafana/grafana:latest
     container_name: dutch_grafana
@@ -107,7 +109,6 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_INSTALL_PLUGINS=
-      - GF_SERVER_ROOT_URL=http://localhost:3001
     volumes:
       - /opt/apps/reignofplay/dutch/data/grafana:/var/lib/grafana
       - /opt/apps/reignofplay/dutch/data/grafana/provisioning:/etc/grafana/provisioning

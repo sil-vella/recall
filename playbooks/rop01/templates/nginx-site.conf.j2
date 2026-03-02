@@ -81,7 +81,7 @@ server {
 
     {% if item.serve_flutter_web is defined and item.serve_flutter_web %}
     # Flutter web app mode: Proxy API routes to Flask, serve Flutter files for everything else
-    
+
     # Explicit API routes - proxy known Flask routes to backend (security: only known routes)
     # Must come before catch-all location / to ensure proper matching
     location ~ ^/(public|userauth|api-keys|api|api-auth|metrics|actions|modules|wallet|transactions|get-db-data|test-jwt|health) {

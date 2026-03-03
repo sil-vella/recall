@@ -6,6 +6,7 @@
   1. ~~**Known_cards / visibility:**~~ **Done.** AI now uses only the acting player’s `known_cards` for “lowest opponent card” (Flutter `computer_player_factory.dart`); no use of opponents’ `known_cards`. Doc: `COMP_PLAYER_JACK_SWAP.md` §4.1, §8.
   2. ~~**Timer on jack swap failure:**~~ **Done.** On fail/skip we do not advance or cancel timer; we only proceed when timer expires (player set to `waiting`), matching queen peek. Flutter: no clear/advance on `jack_swap_error`; advance only on state `waiting`. See `SPECIAL_CARD_FAIL_SKIP_FLOW.md`.
   3. ~~**Timer on jack swap success:**~~ **Confirmed.** Timer is cancelled in `handleJackSwap` on success; no change needed.
+  4. **Same two cards swap (reuse):** When a computer has multiple jacks and uses jack_swap, a later jack can still execute a swap with the same card pair already used (log shows “already used - trying next strategy” but the executed decision still uses that pair). Ensure `jack_swap_history` (or equivalent) is applied so the fallback/random selection excludes already-used pairs and picks a different pair.
 
 - **MT platform:** Create the MT platform, including app with new name and domain.
 

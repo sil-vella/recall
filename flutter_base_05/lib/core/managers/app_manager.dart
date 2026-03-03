@@ -27,7 +27,7 @@ class AppManager extends ChangeNotifier {
   final AuthManager _authManager = AuthManager();
   final AdaptersManager _adaptersManager = AdaptersManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues
+  static const bool LOGGING_SWITCH = false; // Enabled for init debugging (see .cursor/rules/enable-logging-switch.mdc)
 
   Future<void> _initializeModules(BuildContext context) async {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
@@ -39,24 +39,30 @@ class AppManager extends ChangeNotifier {
   Future<void> initializeApp(BuildContext context) async {
     if (!_isInitialized) {
       try {
+        if (LOGGING_SWITCH) _logger.info('AppManager: initializeApp start');
         // Register core providers
         _registerCoreProviders();
-        
+
         // Initialize ServicesManager and register core services
         final servicesManager = Provider.of<ServicesManager>(context, listen: false);
         await servicesManager.autoRegisterAllServices();
-        
+        if (LOGGING_SWITCH) _logger.info('AppManager: autoRegisterAllServices done');
+
         // Initialize AuthManager first
         _authManager.initialize(context);
-        
+        if (LOGGING_SWITCH) _logger.info('AppManager: AuthManager initialized');
+
         // Initialize AdaptersManager (automatically registers all adapters)
         _adaptersManager.initialize(this);
-        
+        if (LOGGING_SWITCH) _logger.info('AppManager: AdaptersManager initialized');
+
         // Initialize adapters
         await _initializeAdapters();
-        
+        if (LOGGING_SWITCH) _logger.info('AppManager: _initializeAdapters done');
+
         // Initialize modules (StateManager, NavigationManager, etc.)
         await _initializeModules(context);
+        if (LOGGING_SWITCH) _logger.info('AppManager: _initializeModules done');
         
         // Register global hooks
         _registerGlobalHooks();

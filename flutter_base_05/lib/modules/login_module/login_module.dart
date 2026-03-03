@@ -18,7 +18,7 @@ import '../../utils/consts/config.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = true; // Enabled for login/create flow (see .cursor/rules/enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Enabled for login/create flow (see .cursor/rules/enable-logging-switch.mdc)
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;

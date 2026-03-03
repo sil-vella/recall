@@ -13,6 +13,7 @@ services:
       - MONGODB_USERNAME=external_app_user
       - MONGODB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
       - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - ALLOW_EMPTY_PASSWORD=yes
     ports:
       - "27018:27017"
     volumes:
@@ -29,6 +30,7 @@ services:
     env_file: .env
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ALLOW_EMPTY_PASSWORD=yes
     ports:
       - "6380:6379"
     volumes:
@@ -79,45 +81,45 @@ services:
       - app-network
     restart: unless-stopped
 
-  # Prometheus Service (for metrics collection)
+  # Prometheus Service (for metrics collection) – commented out, not used
   # Access via http://<host>:9090
-  dutch_prometheus:
-    image: prom/prometheus:latest
-    container_name: dutch_prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - /opt/apps/reignofplay/dutch/data/prometheus/config:/etc/prometheus
-      - /opt/apps/reignofplay/dutch/data/prometheus/storage:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    networks:
-      - app-network
-    restart: unless-stopped
+  # dutch_prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: dutch_prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - /opt/apps/reignofplay/dutch/data/prometheus/config:/etc/prometheus
+  #     - /opt/apps/reignofplay/dutch/data/prometheus/storage:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+  #     - '--web.console.templates=/usr/share/prometheus/consoles'
+  #   networks:
+  #     - app-network
+  #   restart: unless-stopped
 
-  # Grafana Service (for metrics visualization)
+  # Grafana Service (for metrics visualization) – commented out, not used
   # Access via http://<host>:3001
-  dutch_grafana:
-    image: grafana/grafana:latest
-    container_name: dutch_grafana
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=
-    volumes:
-      - /opt/apps/reignofplay/dutch/data/grafana:/var/lib/grafana
-      - /opt/apps/reignofplay/dutch/data/grafana/provisioning:/etc/grafana/provisioning
-      - /opt/apps/reignofplay/dutch/data/grafana/dashboards:/var/lib/grafana/dashboards
-    depends_on:
-      - dutch_prometheus
-    networks:
-      - app-network
-    restart: unless-stopped
+  # dutch_grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: dutch_grafana
+  #   ports:
+  #     - "3001:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #     - GF_INSTALL_PLUGINS=
+  #   volumes:
+  #     - /opt/apps/reignofplay/dutch/data/grafana:/var/lib/grafana
+  #     - /opt/apps/reignofplay/dutch/data/grafana/provisioning:/etc/grafana/provisioning
+  #     - /opt/apps/reignofplay/dutch/data/grafana/dashboards:/var/lib/grafana/dashboards
+  #   depends_on:
+  #     - dutch_prometheus
+  #   networks:
+  #     - app-network
+  #   restart: unless-stopped
 
   # Dart Game WebSocket Server – service key via env
   dutch_dart-game-server:

@@ -1,4 +1,69 @@
 ---
+# Load env vars from app_dev/.env on the controller so the deploy play can use them (no manual paste into vault).
+# Values from .env are set as facts on localhost; the deploy play then uses hostvars['localhost'] with fallback to lookup('env').
+- name: Load app_dev/.env for VPS deploy (optional)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env"
+  tasks:
+    - name: Check if app_dev/.env exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'): continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        mapping = {
+            'MONGODB_ROOT_PASSWORD': 'mongodb_root_password', 'MONGODB_PASSWORD': 'mongodb_password',
+            'REDIS_PASSWORD': 'redis_password', 'JWT_SECRET_KEY': 'jwt_secret_key',
+            'ENCRYPTION_KEY': 'encryption_key', 'DART_BACKEND_SERVICE_KEY': 'dart_backend_service_key',
+            'DUTCH_MT_DASHBOARD_SERVICE_KEY': 'dutch_mt_dashboard_service_key',
+            'GOOGLE_CLIENT_ID': 'google_client_id', 'GOOGLE_CLIENT_SECRET': 'google_client_secret',
+            'APP_VERSION': 'app_version', 'APP_DOWNLOAD_BASE_URL': 'app_download_base_url',
+            'CREDIT_SYSTEM_API_KEY': 'credit_system_api_key'
+        }
+        result = { v: out.get(k, '') for k, v in mapping.items() }
+        result.setdefault('app_version', '2.0.0')
+        result.setdefault('app_download_base_url', 'https://dutch.mt/downloads')
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env
+      set_fact:
+        mongodb_root_password: "{{ (env_json.stdout | from_json).mongodb_root_password }}"
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+        redis_password: "{{ (env_json.stdout | from_json).redis_password }}"
+        jwt_secret_key: "{{ (env_json.stdout | from_json).jwt_secret_key }}"
+        encryption_key: "{{ (env_json.stdout | from_json).encryption_key }}"
+        dart_backend_service_key: "{{ (env_json.stdout | from_json).dart_backend_service_key }}"
+        dutch_mt_dashboard_service_key: "{{ (env_json.stdout | from_json).dutch_mt_dashboard_service_key }}"
+        google_client_id: "{{ (env_json.stdout | from_json).google_client_id }}"
+        google_client_secret: "{{ (env_json.stdout | from_json).google_client_secret }}"
+        app_version: "{{ (env_json.stdout | from_json).app_version | default('2.0.0') }}"
+        app_download_base_url: "{{ (env_json.stdout | from_json).app_download_base_url | default('https://dutch.mt/downloads') }}"
+        credit_system_api_key: "{{ (env_json.stdout | from_json).credit_system_api_key | default('') }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
 - name: Deploy Docker Compose Application
   hosts: "{{ vm_name }}_user"
   become: true
@@ -11,6 +76,22 @@
     # Override with -e local_repo_root=/path/to/app_dev if running from elsewhere.
     local_repo_root: "{{ playbook_dir }}/../.."
   tasks:
+    # Use env vars from app_dev/.env (play 1) or vault/lookup('env'); template env.j2 uses these.
+    - name: Set deploy env vars from localhost (app_dev/.env) or shell/vault
+      set_fact:
+        mongodb_root_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_root_password') or lookup('env', 'MONGODB_ROOT_PASSWORD') | default('') }}"
+        mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
+        redis_password: "{{ (hostvars['localhost'] | default({})).get('redis_password') or lookup('env', 'REDIS_PASSWORD') | default('') }}"
+        jwt_secret_key: "{{ (hostvars['localhost'] | default({})).get('jwt_secret_key') or lookup('env', 'JWT_SECRET_KEY') | default('') }}"
+        encryption_key: "{{ (hostvars['localhost'] | default({})).get('encryption_key') or lookup('env', 'ENCRYPTION_KEY') | default('') }}"
+        dart_backend_service_key: "{{ (hostvars['localhost'] | default({})).get('dart_backend_service_key') or lookup('env', 'DART_BACKEND_SERVICE_KEY') | default('') }}"
+        dutch_mt_dashboard_service_key: "{{ (hostvars['localhost'] | default({})).get('dutch_mt_dashboard_service_key') or lookup('env', 'DUTCH_MT_DASHBOARD_SERVICE_KEY') | default('') }}"
+        google_client_id: "{{ (hostvars['localhost'] | default({})).get('google_client_id') or lookup('env', 'GOOGLE_CLIENT_ID') | default('') }}"
+        google_client_secret: "{{ (hostvars['localhost'] | default({})).get('google_client_secret') or lookup('env', 'GOOGLE_CLIENT_SECRET') | default('') }}"
+        app_version: "{{ (hostvars['localhost'] | default({})).get('app_version') or lookup('env', 'APP_VERSION') | default('2.0.0') }}"
+        app_download_base_url: "{{ (hostvars['localhost'] | default({})).get('app_download_base_url') or lookup('env', 'APP_DOWNLOAD_BASE_URL') | default('https://dutch.mt/downloads') }}"
+        credit_system_api_key: "{{ (hostvars['localhost'] | default({})).get('credit_system_api_key') or lookup('env', 'CREDIT_SYSTEM_API_KEY') | default('') }}"
+
     - name: Create application directory structure
       file:
         path: "{{ item }}"
@@ -20,25 +101,25 @@
         - "{{ app_dir }}"
         - "{{ data_dir }}/mongodb"
         - "{{ data_dir }}/redis"
-        - "{{ data_dir }}/prometheus/config"
-        - "{{ data_dir }}/prometheus/storage"
-        - "{{ data_dir }}/grafana"
-        - "{{ data_dir }}/grafana/provisioning"
-        - "{{ data_dir }}/grafana/dashboards"
+        # - "{{ data_dir }}/prometheus/config"
+        # - "{{ data_dir }}/prometheus/storage"
+        # - "{{ data_dir }}/grafana"
+        # - "{{ data_dir }}/grafana/provisioning"
+        # - "{{ data_dir }}/grafana/dashboards"
 
-    - name: Sync Grafana provisioning configuration (datasources, dashboards providers)
-      copy:
-        src: "{{ playbook_dir }}/../../python_base_04/grafana/provisioning/"
-        dest: "{{ data_dir }}/grafana/provisioning/"
-        mode: '0644'
-      register: grafana_provisioning_sync
+    # - name: Sync Grafana provisioning configuration (datasources, dashboards providers)
+    #   copy:
+    #     src: "{{ playbook_dir }}/../../python_base_04/grafana/provisioning/"
+    #     dest: "{{ data_dir }}/grafana/provisioning/"
+    #     mode: '0644'
+    #   register: grafana_provisioning_sync
 
-    - name: Sync Grafana dashboard JSON definitions
-      copy:
-        src: "{{ playbook_dir }}/../../python_base_04/grafana/dashboards/"
-        dest: "{{ data_dir }}/grafana/dashboards/"
-        mode: '0644'
-      register: grafana_dashboards_sync
+    # - name: Sync Grafana dashboard JSON definitions
+    #   copy:
+    #     src: "{{ playbook_dir }}/../../python_base_04/grafana/dashboards/"
+    #     dest: "{{ data_dir }}/grafana/dashboards/"
+    #     mode: '0644'
+    #   register: grafana_dashboards_sync
 
     - name: Get VPS app user UID and GID (for Redis/MongoDB container user)
       shell: "getent passwd {{ vps_user }} | cut -d: -f3,4"
@@ -100,20 +181,20 @@
         group: "{{ vps_user }}"
       when: vps_user is defined
 
-    - name: Create minimal Prometheus configuration file
-      copy:
-        content: |
-          global:
-            scrape_interval: 15s
-            evaluation_interval: 15s
-
-          scrape_configs:
-            - job_name: 'flask-app'
-              static_configs:
-                - targets: ['dutch_flask-external:5001']
-              metrics_path: '/metrics'
-        dest: "{{ data_dir }}/prometheus/config/prometheus.yml"
-        mode: '0644'
+    # - name: Create minimal Prometheus configuration file
+    #   copy:
+    #     content: |
+    #       global:
+    #         scrape_interval: 15s
+    #         evaluation_interval: 15s
+    #
+    #       scrape_configs:
+    #         - job_name: 'flask-app'
+    #           static_configs:
+    #             - targets: ['dutch_flask-external:5001']
+    #           metrics_path: '/metrics'
+    #     dest: "{{ data_dir }}/prometheus/config/prometheus.yml"
+    #     mode: '0644'
 
     - name: Verify docker-compose.yml was copied
       stat:
@@ -217,12 +298,12 @@
       failed_when: false
       when: compose_up_result is defined and compose_up_result.changed | default(false)
 
-    - name: Restart Grafana container if provisioning changed
-      shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} restart dutch_grafana"
-      when:
-        - compose_up_result is defined and compose_up_result.changed | default(false)
-        - grafana_provisioning_sync is defined and grafana_provisioning_sync.changed | default(false) or
-          grafana_dashboards_sync is defined and grafana_dashboards_sync.changed | default(false)
+    # - name: Restart Grafana container if provisioning changed
+    #   shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} restart dutch_grafana"
+    #   when:
+    #     - compose_up_result is defined and compose_up_result.changed | default(false)
+    #     - grafana_provisioning_sync is defined and grafana_provisioning_sync.changed | default(false) or
+    #       grafana_dashboards_sync is defined and grafana_dashboards_sync.changed | default(false)
 
     - name: Check running containers
       shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} ps"

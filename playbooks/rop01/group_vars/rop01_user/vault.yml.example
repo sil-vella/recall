@@ -1,0 +1,18 @@
+# Example variable names for VPS .env (used by 08_deploy_docker_compose.yml).
+# Copy to vault.yml, fill in real values, then encrypt:
+#   ansible-vault create playbooks/rop01/group_vars/rop01_user/vault.yml
+# Run playbooks with: --ask-vault-pass
+# Do not commit vault.yml before encrypting; after encrypting, the file is safe to commit.
+
+mongodb_root_password: ""
+mongodb_password: ""
+redis_password: ""
+jwt_secret_key: ""
+encryption_key: ""
+dart_backend_service_key: ""
+dutch_mt_dashboard_service_key: ""
+google_client_id: ""
+google_client_secret: ""
+app_version: "2.0.0"
+app_download_base_url: "https://dutch.mt/downloads"
+# credit_system_api_key: ""

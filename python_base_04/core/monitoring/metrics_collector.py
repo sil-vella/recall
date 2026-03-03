@@ -2,8 +2,8 @@ from prometheus_client import Counter, Gauge, Histogram, start_http_server, REGI
 from typing import Dict, Any
 from tools.logger.custom_logging import custom_log
 
-# Global switch for metrics collection
-METRICS_COLLECTION_ENABLED = True
+# Global switch for metrics collection (set False when Prometheus/Grafana are not used)
+METRICS_COLLECTION_ENABLED = False
 
 class MetricsCollector:
     LOGGING_SWITCH = False  # Enabled for debugging
@@ -57,30 +57,31 @@ class MetricsCollector:
         except Exception as e:
             custom_log(f"MetricsCollector: Error inspecting registry: {e}", level="WARNING", isOn=MetricsCollector.LOGGING_SWITCH)
         
-        # Start HTTP server
+        # Start HTTP server (only when Prometheus/Grafana are used)
         # IMPORTANT: Explicitly pass REGISTRY to ensure we use the current process's REGISTRY
         # Flask's debug reloader creates new processes, so we need to ensure the HTTP server
         # uses the REGISTRY from the current process, not a stale one from a previous process
-        try:
-            start_http_server(port, addr='0.0.0.0', registry=REGISTRY)
-            custom_log(f"MetricsCollector: Metrics server started on 0.0.0.0:{port} with current REGISTRY (id={id(REGISTRY)})", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
-            custom_log(f"MetricsCollector: Metrics endpoint available at http://0.0.0.0:{port}/metrics", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
-        except OSError as e:
-            if "Address already in use" in str(e) or "already in use" in str(e).lower():
-                # Port is in use - this happens when Flask reloader creates a new process
-                # The old HTTP server is still running from the previous process
-                # SAFETY: Don't kill processes automatically - it's too dangerous (might kill Flask itself)
-                # Instead, log a warning and let the user manually restart if needed
-                custom_log(f"MetricsCollector: Port {port} already in use - metrics HTTP server from previous process may still be running", level="WARNING", isOn=MetricsCollector.LOGGING_SWITCH)
-                custom_log(f"MetricsCollector: The old HTTP server may be serving stale metrics. To fix: manually kill the process on port {port} and restart Flask", level="WARNING", isOn=MetricsCollector.LOGGING_SWITCH)
-                custom_log(f"MetricsCollector: Command to check: lsof -i :{port}", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
-                custom_log(f"MetricsCollector: Metrics will still be collected in REGISTRY, but HTTP endpoint may not reflect current values", level="WARNING", isOn=MetricsCollector.LOGGING_SWITCH)
-            else:
+        if METRICS_COLLECTION_ENABLED:
+            try:
+                start_http_server(port, addr='0.0.0.0', registry=REGISTRY)
+                custom_log(f"MetricsCollector: Metrics server started on 0.0.0.0:{port} with current REGISTRY (id={id(REGISTRY)})", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
+                custom_log(f"MetricsCollector: Metrics endpoint available at http://0.0.0.0:{port}/metrics", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
+            except OSError as e:
+                if "Address already in use" in str(e) or "already in use" in str(e).lower():
+                    # Port is in use - this happens when Flask reloader creates a new process
+                    # The old HTTP server is still running from the previous process
+                    # SAFETY: Don't kill processes automatically - it's too dangerous (might kill Flask itself)
+                    # Instead, log a warning and let the user manually restart if needed
+                    custom_log(f"MetricsCollector: Port {port} already in use - metrics HTTP server from previous process may still be running", level="WARNING", isOn=MetricsCollector.LOGGING_SWITCH)
+                    custom_log(f"MetricsCollector: The old HTTP server may be serving stale metrics. To fix: manually kill the process on port {port} and restart Flask", level="WARNING", isOn=MetricsCollector.LOGGING_SWITCH)
+                    custom_log(f"MetricsCollector: Command to check: lsof -i :{port}", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
+                    custom_log(f"MetricsCollector: Metrics will still be collected in REGISTRY, but HTTP endpoint may not reflect current values", level="WARNING", isOn=MetricsCollector.LOGGING_SWITCH)
+                else:
+                    custom_log(f"MetricsCollector: Failed to start metrics server: {e}", level="ERROR", isOn=MetricsCollector.LOGGING_SWITCH)
+            except Exception as e:
                 custom_log(f"MetricsCollector: Failed to start metrics server: {e}", level="ERROR", isOn=MetricsCollector.LOGGING_SWITCH)
-        except Exception as e:
-            custom_log(f"MetricsCollector: Failed to start metrics server: {e}", level="ERROR", isOn=MetricsCollector.LOGGING_SWITCH)
-        
-        # Log registry state after server start
+
+        # Log registry state after server start (or skip when metrics disabled)
         try:
             registered_metrics = []
             metric_objects = {}

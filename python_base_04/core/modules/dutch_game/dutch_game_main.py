@@ -20,7 +20,8 @@ import random
 
 # Logging switch for this module
 LOGGING_SWITCH = False  # Enabled for rank-based matching testing
-METRICS_SWITCH = True
+# Prometheus/Grafana not used – game events do not update metrics
+METRICS_SWITCH = False
 
 
 class DutchGameMain(BaseModule):

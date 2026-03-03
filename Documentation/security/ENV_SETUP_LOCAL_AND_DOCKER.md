@@ -1,10 +1,10 @@
-# Environment Setup: Local Runs and Docker
+# Environment Setup: Local, Docker, and VPS
 
-This document describes how environment variables are loaded for **local development** (VS Code launch) and for **Docker** runs, so both use the same single source: `app_dev/.env`.
+This document describes how environment variables are loaded for **local development** (VS Code launch), **Docker** runs, and **VPS deployment**, and where credentials come from.
 
-## Single source: `app_dev/.env`
+## Single source for local and Docker: `app_dev/.env`
 
-All sensitive and environment-specific values live in:
+For local runs and for Docker Compose (when you run from `app_dev/`), all sensitive and environment-specific values live in:
 
 ```
 app_dev/.env
@@ -12,7 +12,90 @@ app_dev/.env
 
 - Used by **Docker Compose** and by **local launch configurations**.
 - **Do not commit** `.env` if it contains real secrets (see `.gitignore`).
-- Create from `.env.example` or copy from a secure location; playbooks create it on VPS.
+- Create it with the variable names listed in **VPS section** below (or from a secure copy). The playbook **creates** the VPS `.env` from a template; it does not copy `app_dev/.env` to the server.
+
+## Where VPS credentials come from
+
+On the VPS, the file `/opt/apps/reignofplay/dutch/.env` is **generated** by playbook `08_deploy_docker_compose.yml` from the template `playbooks/rop01/templates/env.j2`. Values are resolved in this order:
+
+1. **Ansible variables** — e.g. `mongodb_root_password`, `redis_password`, `jwt_secret_key` (from `host_vars/`, `group_vars/`, vault, or `-e key=value`).
+2. **Otherwise**: **Environment of the machine running Ansible** — `lookup('env', 'MONGODB_ROOT_PASSWORD')` etc. read from the shell where you run `ansible-playbook`.
+
+So you can supply VPS creds in any of these ways:
+
+| Method | How |
+|--------|-----|
+| **Automatic from `app_dev/.env`** | Run the playbook from `app_dev/`. The playbook **reads `app_dev/.env`** in a first play (localhost), parses it, and uses those values when generating the VPS `.env`. No manual paste or `source` needed. |
+| **Use your shell environment** | From `app_dev/`: run `set -a && source .env && set +a`, then run the playbook. Exported vars are used if the file wasn’t read or a value was missing. |
+| **Ansible-only** | Set vars in `playbooks/rop01/group_vars/rop01_user/vault.yml` (encrypted with Ansible Vault), or in host_vars (do not commit), or pass `-e mongodb_root_password=...` etc. |
+
+Required variables for the template (see `playbooks/rop01/templates/env.j2`): `VPS_APP_UID`, `VPS_APP_GID`, `MONGODB_ROOT_PASSWORD`, `MONGODB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `ENCRYPTION_KEY`, `DART_BACKEND_SERVICE_KEY`, `DUTCH_MT_DASHBOARD_SERVICE_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_VERSION`, `APP_DOWNLOAD_BASE_URL`, and optionally `CREDIT_SYSTEM_API_KEY`. If not set, the template writes an empty value. **Bitnami Redis and MongoDB** require a password (or `ALLOW_EMPTY_PASSWORD=yes` in the compose file for development). For production, set real passwords via one of the methods above.
+
+## Using Ansible Vault (most secure for VPS)
+
+Store VPS secrets in an **encrypted** vars file so they are safe at rest and the repo can hold the encrypted file. Only someone with the vault password can deploy.
+
+### 1. Create the vault file (one-time)
+
+From the repo root (`app_dev/`):
+
+```bash
+mkdir -p playbooks/rop01/group_vars/rop01_user
+ansible-vault create playbooks/rop01/group_vars/rop01_user/vault.yml
+```
+
+You will be prompted for a **vault password** (choose a strong one; store it in a password manager). Ansible will open an editor. Paste the variables below, replace placeholder values with your real secrets, then save and exit.
+
+Variable names must match what `env.j2` expects (Ansible var names use lowercase and underscores):
+
+```yaml
+# VPS .env secrets (used by 08_deploy_docker_compose.yml via env.j2)
+mongodb_root_password: "your-mongodb-root-password"
+mongodb_password: "your-mongodb-app-user-password"
+redis_password: "your-redis-password"
+jwt_secret_key: "your-jwt-secret-key"
+encryption_key: "your-encryption-key"
+dart_backend_service_key: "your-dart-backend-service-key"
+dutch_mt_dashboard_service_key: "your-dashboard-service-key"   # optional
+google_client_id: "your-google-client-id"
+google_client_secret: "your-google-client-secret"
+app_version: "2.0.0"
+app_download_base_url: "https://dutch.mt/downloads"
+# credit_system_api_key: ""   # optional
+```
+
+`VPS_APP_UID` and `VPS_APP_GID` are set by the playbook from the server user; do not put them in the vault.
+
+### 2. Run the playbook with the vault password
+
+Whenever you run a playbook that uses these vars (e.g. 08):
+
+```bash
+cd app_dev
+ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01 --ask-vault-pass
+```
+
+Enter the vault password when prompted. Ansible decrypts the vars in memory and the template writes them into the VPS `.env` file.
+
+### 3. Optional: vault password from a file
+
+To avoid typing the password each time (e.g. in CI), use a password file with strict permissions:
+
+```bash
+echo -n 'your-vault-password' > playbooks/rop01/.vault_pass
+chmod 600 playbooks/rop01/.vault_pass
+# Add .vault_pass to .gitignore — never commit it
+ansible-playbook ... --vault-password-file playbooks/rop01/.vault_pass
+```
+
+### 4. Edit or view the vault later
+
+```bash
+ansible-vault edit playbooks/rop01/group_vars/rop01_user/vault.yml   # prompts for password
+ansible-vault view playbooks/rop01/group_vars/rop01_user/vault.yml    # view only
+```
+
+The encrypted file `group_vars/rop01_user/vault.yml` can be committed to the repo; only the vault password must stay secret. See also `playbooks/rop01/group_vars/rop01_user/vault.yml.example` for the list of variable names (no real values).
 
 ## Docker runs
 

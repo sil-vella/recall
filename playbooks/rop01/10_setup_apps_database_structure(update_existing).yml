@@ -6,7 +6,8 @@
     mongodb_container_name: "dutch_external_app_mongodb"
     database_name: "external_system"
     app_user: "external_app_user"
-    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default(mongodb_password | default('6R3jjsvVhIRP20zMiHdkBzNKx')) }}"
+    # From app_dev/.env (source before run) or Ansible var (vault/group_vars). No default in repo.
+    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') or mongodb_password }}"
 
     # MongoDB connection details for VPS Docker host
     mongodb_host: "localhost"

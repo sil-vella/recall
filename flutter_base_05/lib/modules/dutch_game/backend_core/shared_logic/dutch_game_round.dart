@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for computer player decision-making testing (turn init, YAML decisions, execution)
+const bool LOGGING_SWITCH = false; // Enabled for computer player decision-making testing (turn init, YAML decisions, execution)
 
 class DutchGameRound {
   final Logger _logger = Logger();

@@ -3,6 +3,8 @@
 # Flutter Web build script
 # Builds a web release for Dutch and uploads to VPS
 # The web app will be served from dutch.mt
+# To deploy to a subdir (e.g. dutch.mt/example): DEPLOY_SUBDIR=example ./build_web.sh vps
+#   (Build the Flutter app with base-href /example/ when targeting the subdir.)
 
 set -e
 
@@ -257,27 +259,37 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   # Move files to web root with proper permissions
   echo "📦 Installing files to web root..."
   ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" <<EOF
-    # Backup existing web files (if any) to a timestamped backup
-    if [ -d "$REMOTE_WEB_ROOT" ] && [ "\$(ls -A $REMOTE_WEB_ROOT 2>/dev/null)" ]; then
-      BACKUP_DIR="/tmp/dutch-web-backup-\$(date +%Y%m%d-%H%M%S)"
-      echo "💾 Backing up existing files to: \$BACKUP_DIR"
-      sudo mkdir -p "\$BACKUP_DIR"
-      sudo cp -r "$REMOTE_WEB_ROOT"/* "\$BACKUP_DIR/" 2>/dev/null || true
-      echo "✅ Backup created: \$BACKUP_DIR"
+    # Copy to subdir (e.g. dutch.mt/example) or to main web root
+    DEPLOY_SUBDIR="${DEPLOY_SUBDIR:-}"
+    if [ -n "$DEPLOY_SUBDIR" ]; then
+      DEPLOY_DEST="$REMOTE_WEB_ROOT/$DEPLOY_SUBDIR"
+      echo "📋 Deploying to subdir: $DEPLOY_DEST"
+      sudo mkdir -p "$DEPLOY_DEST"
+      sudo rm -rf "$DEPLOY_DEST"/* 2>/dev/null || true
+      sudo cp -r "$REMOTE_TMP_DIR"/* "$DEPLOY_DEST/"
+    else
+      # Backup existing web files (if any) to a timestamped backup
+      if [ -d "$REMOTE_WEB_ROOT" ] && [ "\$(ls -A $REMOTE_WEB_ROOT 2>/dev/null)" ]; then
+        BACKUP_DIR="/tmp/dutch-web-backup-\$(date +%Y%m%d-%H%M%S)"
+        echo "💾 Backing up existing files to: \$BACKUP_DIR"
+        sudo mkdir -p "\$BACKUP_DIR"
+        sudo cp -r "$REMOTE_WEB_ROOT"/* "\$BACKUP_DIR/" 2>/dev/null || true
+        echo "✅ Backup created: \$BACKUP_DIR"
+      fi
+
+      # Remove old web files (except static directories that should be preserved)
+      echo "🧹 Cleaning web root (preserving static directories)..."
+      sudo find "$REMOTE_WEB_ROOT" -mindepth 1 -maxdepth 1 \
+        ! -name "sponsors" \
+        ! -name "sim_players" \
+        ! -name "downloads" \
+        ! -name "example" \
+        ! -name ".well-known" \
+        -exec rm -rf {} + 2>/dev/null || true
+
+      echo "📋 Installing new web build..."
+      sudo cp -r "$REMOTE_TMP_DIR"/* "$REMOTE_WEB_ROOT/"
     fi
-
-    # Remove old web files (except static directories that should be preserved)
-    echo "🧹 Cleaning web root (preserving static directories)..."
-    sudo find "$REMOTE_WEB_ROOT" -mindepth 1 -maxdepth 1 \
-      ! -name "sponsors" \
-      ! -name "sim_players" \
-      ! -name "downloads" \
-      ! -name ".well-known" \
-      -exec rm -rf {} + 2>/dev/null || true
-
-    # Copy new files to web root
-    echo "📋 Installing new web build..."
-    sudo cp -r "$REMOTE_TMP_DIR"/* "$REMOTE_WEB_ROOT/"
     
     # Set proper ownership and permissions
     echo "🔐 Setting permissions..."
@@ -292,8 +304,13 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
 EOF
 
   echo ""
-  echo "✅ Web build uploaded and installed to VPS: $REMOTE_WEB_ROOT"
-  echo "🔗 Web app URL: https://dutch.mt"
+  if [ -n "${DEPLOY_SUBDIR:-}" ]; then
+    echo "✅ Web build uploaded to VPS: $REMOTE_WEB_ROOT/$DEPLOY_SUBDIR"
+    echo "🔗 Web app URL: https://dutch.mt/$DEPLOY_SUBDIR"
+  else
+    echo "✅ Web build uploaded and installed to VPS: $REMOTE_WEB_ROOT"
+    echo "🔗 Web app URL: https://dutch.mt"
+  fi
   echo "📊 Version: $APP_VERSION"
   echo ""
   echo "🎉 Deployment complete! The Flutter web app is now live."

@@ -446,12 +446,7 @@ class AppManager:
                 ).replace('Bearer ', '').strip()
                 expected = getattr(Config, 'DART_BACKEND_SERVICE_KEY', None) or ''
                 # Safe verification log: never log key values
-                custom_log(
-                    f"Service auth: DART_BACKEND_SERVICE_KEY configured={bool(expected)}, "
-                    f"X-Service-Key present={bool(service_key)}, "
-                    f"match={bool(expected and service_key and service_key == expected)}",
-                    level="INFO",
-                )
+                custom_log("Service auth: DART_BACKEND_SERVICE_KEY configured=%s, X-Service-Key present=%s, match=%s" % (bool(expected), bool(service_key), bool(expected and service_key and service_key == expected)), level="INFO")
                 if not expected:
                     return jsonify({
                         'error': 'Service auth not configured',

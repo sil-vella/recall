@@ -6,6 +6,16 @@
 # Note: We'll use process groups for cleanup but won't enable full job control
 # as it can interfere with VS Code's terminal handling
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Firebase/sensitive vars from playbooks/frontend/.env
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$SCRIPT_DIR/.env"
+  set +a
+fi
+
 echo "🚀 Launching Flutter app on OnePlus device (84fbcf31) with filtered Logger output..."
 
 # Check if adb is available
@@ -27,7 +37,7 @@ fi
 echo "✅ OnePlus device (84fbcf31) is connected"
 
 # Navigate to Flutter project directory
-cd flutter_base_05
+cd "$SCRIPT_DIR/../../flutter_base_05" 2>/dev/null || cd flutter_base_05
 
 # Set up log file to write to Python server log
 SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log"
@@ -261,8 +271,7 @@ if ! kill -0 $LOG_PID 2>/dev/null; then
     echo "⚠️  Warning: Logcat process may have exited early"
 fi
 
-# Launch Flutter app (logs will be captured via logcat)
-# Run flutter in foreground - when it exits, cleanup will be triggered
+# Launch Flutter app (logs will be captured via logcat); Firebase/sensitive from .env via dart-define
 flutter run \
     -d 84fbcf31 \
     --dart-define=API_URL="$API_URL" \
@@ -271,11 +280,38 @@ flutter run \
     --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
     --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
     --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-    --dart-define=ADMOBS_TOP_BANNER01=ca-app-pub-3940256099942544/9214589741 \
-    --dart-define=ADMOBS_BOTTOM_BANNER01=ca-app-pub-3940256099942544/9214589741 \
-    --dart-define=ADMOBS_INTERSTITIAL01=ca-app-pub-3940256099942544/1033173712 \
-    --dart-define=ADMOBS_REWARDED01=ca-app-pub-3940256099942544/5224354917 \
-    --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_51MXUtTADcEzB4rlRqLVPRhD0Ti3SRZGyTEQ1crO6YoeGyEfWYBgDxouHygPawog6kKTLVWHxP6DbK1MtBylX2Z6G00JTtIRdgZ \
+    --dart-define=ADMOBS_TOP_BANNER01="${ADMOBS_TOP_BANNER01:-ca-app-pub-3940256099942544/9214589741}" \
+    --dart-define=ADMOBS_BOTTOM_BANNER01="${ADMOBS_BOTTOM_BANNER01:-ca-app-pub-3940256099942544/9214589741}" \
+    --dart-define=ADMOBS_INTERSTITIAL01="${ADMOBS_INTERSTITIAL01:-ca-app-pub-3940256099942544/1033173712}" \
+    --dart-define=ADMOBS_REWARDED01="${ADMOBS_REWARDED01:-ca-app-pub-3940256099942544/5224354917}" \
+    --dart-define=STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-}" \
+    --dart-define=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}" \
+    --dart-define=GOOGLE_CLIENT_ID_ANDROID="${GOOGLE_CLIENT_ID_ANDROID:-}" \
+    --dart-define=FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY:-}" \
+    --dart-define=FIREBASE_WEB_APP_ID="${FIREBASE_WEB_APP_ID:-}" \
+    --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID="${FIREBASE_WEB_MESSAGING_SENDER_ID:-}" \
+    --dart-define=FIREBASE_WEB_PROJECT_ID="${FIREBASE_WEB_PROJECT_ID:-}" \
+    --dart-define=FIREBASE_WEB_AUTH_DOMAIN="${FIREBASE_WEB_AUTH_DOMAIN:-}" \
+    --dart-define=FIREBASE_WEB_STORAGE_BUCKET="${FIREBASE_WEB_STORAGE_BUCKET:-}" \
+    --dart-define=FIREBASE_WEB_MEASUREMENT_ID="${FIREBASE_WEB_MEASUREMENT_ID:-}" \
+    --dart-define=FIREBASE_ANDROID_API_KEY="${FIREBASE_ANDROID_API_KEY:-}" \
+    --dart-define=FIREBASE_ANDROID_APP_ID="${FIREBASE_ANDROID_APP_ID:-}" \
+    --dart-define=FIREBASE_ANDROID_MESSAGING_SENDER_ID="${FIREBASE_ANDROID_MESSAGING_SENDER_ID:-}" \
+    --dart-define=FIREBASE_ANDROID_PROJECT_ID="${FIREBASE_ANDROID_PROJECT_ID:-}" \
+    --dart-define=FIREBASE_ANDROID_STORAGE_BUCKET="${FIREBASE_ANDROID_STORAGE_BUCKET:-}" \
+    --dart-define=FIREBASE_IOS_API_KEY="${FIREBASE_IOS_API_KEY:-}" \
+    --dart-define=FIREBASE_IOS_APP_ID="${FIREBASE_IOS_APP_ID:-}" \
+    --dart-define=FIREBASE_IOS_MESSAGING_SENDER_ID="${FIREBASE_IOS_MESSAGING_SENDER_ID:-}" \
+    --dart-define=FIREBASE_IOS_PROJECT_ID="${FIREBASE_IOS_PROJECT_ID:-}" \
+    --dart-define=FIREBASE_IOS_STORAGE_BUCKET="${FIREBASE_IOS_STORAGE_BUCKET:-}" \
+    --dart-define=FIREBASE_IOS_BUNDLE_ID="${FIREBASE_IOS_BUNDLE_ID:-}" \
+    --dart-define=FIREBASE_WINDOWS_API_KEY="${FIREBASE_WINDOWS_API_KEY:-}" \
+    --dart-define=FIREBASE_WINDOWS_APP_ID="${FIREBASE_WINDOWS_APP_ID:-}" \
+    --dart-define=FIREBASE_WINDOWS_MESSAGING_SENDER_ID="${FIREBASE_WINDOWS_MESSAGING_SENDER_ID:-}" \
+    --dart-define=FIREBASE_WINDOWS_PROJECT_ID="${FIREBASE_WINDOWS_PROJECT_ID:-}" \
+    --dart-define=FIREBASE_WINDOWS_AUTH_DOMAIN="${FIREBASE_WINDOWS_AUTH_DOMAIN:-}" \
+    --dart-define=FIREBASE_WINDOWS_STORAGE_BUCKET="${FIREBASE_WINDOWS_STORAGE_BUCKET:-}" \
+    --dart-define=FIREBASE_WINDOWS_MEASUREMENT_ID="${FIREBASE_WINDOWS_MEASUREMENT_ID:-}" \
     --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
     --dart-define=DEBUG_MODE=true \
     --dart-define=ENABLE_REMOTE_LOGGING=true

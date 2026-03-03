@@ -67,7 +67,13 @@ else
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
-# App version: from env (e.g. .env) then default (keeps APK and /public/check-updates in sync)
+# App version and Firebase/sensitive vars: from playbooks/frontend/.env then repo .env
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$SCRIPT_DIR/.env"
+  set +a
+fi
 if [ -f "$REPO_ROOT/.env" ]; then
   set -a
   # shellcheck source=/dev/null
@@ -180,7 +186,7 @@ echo ""
 
 set_production_deck_config
 
-# Build the release APK
+# Build the release APK (Firebase/sensitive from .env via dart-define)
 flutter build apk \
   --release \
   --build-name="$APP_VERSION" \
@@ -192,13 +198,38 @@ flutter build apk \
   --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
   --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
   --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-  --dart-define=ADMOBS_TOP_BANNER01=ca-app-pub-3940256099942544/9214589741 \
-  --dart-define=ADMOBS_BOTTOM_BANNER01=ca-app-pub-3940256099942544/9214589741 \
-  --dart-define=ADMOBS_INTERSTITIAL01=ca-app-pub-3940256099942544/1033173712 \
-  --dart-define=ADMOBS_REWARDED01=ca-app-pub-3940256099942544/5224354917 \
-  --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_51MXUtTADcEzB4rlRqLVPRhD0Ti3SRZGyTEQ1crO6YoeGyEfWYBgDxouHygPawog6kKTLVWhxP6DbK1MtBylX2Z6G00JTtIRdgZ \
-  --dart-define=GOOGLE_CLIENT_ID=907176907209-q53b29haj3t690ol7kbtqrqo0hkt9ku7.apps.googleusercontent.com \
-  --dart-define=GOOGLE_CLIENT_ID_ANDROID=907176907209-u7cjeiousj1dd460730rgspf05u0fhic.apps.googleusercontent.com \
+  --dart-define=ADMOBS_TOP_BANNER01="${ADMOBS_TOP_BANNER01:-ca-app-pub-3940256099942544/9214589741}" \
+  --dart-define=ADMOBS_BOTTOM_BANNER01="${ADMOBS_BOTTOM_BANNER01:-ca-app-pub-3940256099942544/9214589741}" \
+  --dart-define=ADMOBS_INTERSTITIAL01="${ADMOBS_INTERSTITIAL01:-ca-app-pub-3940256099942544/1033173712}" \
+  --dart-define=ADMOBS_REWARDED01="${ADMOBS_REWARDED01:-ca-app-pub-3940256099942544/5224354917}" \
+  --dart-define=STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-}" \
+  --dart-define=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}" \
+  --dart-define=GOOGLE_CLIENT_ID_ANDROID="${GOOGLE_CLIENT_ID_ANDROID:-}" \
+  --dart-define=FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY:-}" \
+  --dart-define=FIREBASE_WEB_APP_ID="${FIREBASE_WEB_APP_ID:-}" \
+  --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID="${FIREBASE_WEB_MESSAGING_SENDER_ID:-}" \
+  --dart-define=FIREBASE_WEB_PROJECT_ID="${FIREBASE_WEB_PROJECT_ID:-}" \
+  --dart-define=FIREBASE_WEB_AUTH_DOMAIN="${FIREBASE_WEB_AUTH_DOMAIN:-}" \
+  --dart-define=FIREBASE_WEB_STORAGE_BUCKET="${FIREBASE_WEB_STORAGE_BUCKET:-}" \
+  --dart-define=FIREBASE_WEB_MEASUREMENT_ID="${FIREBASE_WEB_MEASUREMENT_ID:-}" \
+  --dart-define=FIREBASE_ANDROID_API_KEY="${FIREBASE_ANDROID_API_KEY:-}" \
+  --dart-define=FIREBASE_ANDROID_APP_ID="${FIREBASE_ANDROID_APP_ID:-}" \
+  --dart-define=FIREBASE_ANDROID_MESSAGING_SENDER_ID="${FIREBASE_ANDROID_MESSAGING_SENDER_ID:-}" \
+  --dart-define=FIREBASE_ANDROID_PROJECT_ID="${FIREBASE_ANDROID_PROJECT_ID:-}" \
+  --dart-define=FIREBASE_ANDROID_STORAGE_BUCKET="${FIREBASE_ANDROID_STORAGE_BUCKET:-}" \
+  --dart-define=FIREBASE_IOS_API_KEY="${FIREBASE_IOS_API_KEY:-}" \
+  --dart-define=FIREBASE_IOS_APP_ID="${FIREBASE_IOS_APP_ID:-}" \
+  --dart-define=FIREBASE_IOS_MESSAGING_SENDER_ID="${FIREBASE_IOS_MESSAGING_SENDER_ID:-}" \
+  --dart-define=FIREBASE_IOS_PROJECT_ID="${FIREBASE_IOS_PROJECT_ID:-}" \
+  --dart-define=FIREBASE_IOS_STORAGE_BUCKET="${FIREBASE_IOS_STORAGE_BUCKET:-}" \
+  --dart-define=FIREBASE_IOS_BUNDLE_ID="${FIREBASE_IOS_BUNDLE_ID:-}" \
+  --dart-define=FIREBASE_WINDOWS_API_KEY="${FIREBASE_WINDOWS_API_KEY:-}" \
+  --dart-define=FIREBASE_WINDOWS_APP_ID="${FIREBASE_WINDOWS_APP_ID:-}" \
+  --dart-define=FIREBASE_WINDOWS_MESSAGING_SENDER_ID="${FIREBASE_WINDOWS_MESSAGING_SENDER_ID:-}" \
+  --dart-define=FIREBASE_WINDOWS_PROJECT_ID="${FIREBASE_WINDOWS_PROJECT_ID:-}" \
+  --dart-define=FIREBASE_WINDOWS_AUTH_DOMAIN="${FIREBASE_WINDOWS_AUTH_DOMAIN:-}" \
+  --dart-define=FIREBASE_WINDOWS_STORAGE_BUCKET="${FIREBASE_WINDOWS_STORAGE_BUCKET:-}" \
+  --dart-define=FIREBASE_WINDOWS_MEASUREMENT_ID="${FIREBASE_WINDOWS_MEASUREMENT_ID:-}" \
   --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
   --dart-define=DEBUG_MODE=true \
   --dart-define=ENABLE_REMOTE_LOGGING=true

@@ -68,6 +68,7 @@ pip-log.txt
 # Environments
 .env
 .env.*
+!.env.example
 /tmp/redis.conf
 
 

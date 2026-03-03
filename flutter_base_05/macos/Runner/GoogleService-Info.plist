@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyAKLsQTaxG9ZL37qk-sC2ATYwkn2zP67XE</string>
+	<string>REPLACED_BY_GENERATE_SCRIPT</string>
 	<key>GCM_SENDER_ID</key>
-	<string>851791240618</string>
+	<string>REPLACED_BY_GENERATE_SCRIPT</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.reignofplay.dutch</string>
+	<string>REPLACED_BY_GENERATE_SCRIPT</string>
 	<key>PROJECT_ID</key>
-	<string>dutch-mt</string>
+	<string>REPLACED_BY_GENERATE_SCRIPT</string>
 	<key>STORAGE_BUCKET</key>
-	<string>dutch-mt.firebasestorage.app</string>
+	<string>REPLACED_BY_GENERATE_SCRIPT</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:851791240618:ios:aaba0fb606406b351e9fd3</string>
+	<string>REPLACED_BY_GENERATE_SCRIPT</string>
 </dict>
 </plist>

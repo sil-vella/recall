@@ -12,15 +12,18 @@ class PythonApiClient {
   
   PythonApiClient({required this.baseUrl});
   
-  /// Validate JWT token with Python backend (service endpoint: requires X-Service-Key)
-  Future<Map<String, dynamic>> validateToken(String token) async {
+    /// Validate JWT token with Python backend (service endpoint: requires X-Service-Key)
+    Future<Map<String, dynamic>> validateToken(String token) async {
+    final useKey = Config.usePythonServiceKey;
+    final serviceKey = useKey ? Config.pythonServiceKey : '';
+    // Always log service key config (no key value) so server.log can verify env is set
+    _logger.auth(
+      'Dart service key: usePythonServiceKey=$useKey, key_configured=${serviceKey.isNotEmpty}',
+    );
     if (LOGGING_SWITCH) {
       _logger.auth('🔍 Dart: Starting token validation with Python API');
       _logger.auth('🌐 Dart: Calling $baseUrl/service/auth/validate');
     }
-
-    final useKey = Config.usePythonServiceKey;
-    final serviceKey = useKey ? Config.pythonServiceKey : '';
     if (useKey && serviceKey.isEmpty) {
       if (LOGGING_SWITCH) {
         _logger.auth('⚠️ Dart: USE_PYTHON_SERVICE_KEY is on but DART_BACKEND_SERVICE_KEY not set; Python may reject the request');

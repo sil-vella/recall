@@ -93,9 +93,10 @@ class JWTManager:
         
         return encoded_jwt
 
-    def verify_token(self, token: str, expected_type: Optional[TokenType] = None) -> Optional[Dict[str, Any]]:
-        """Verify a JWT token and return its payload if valid."""
-        custom_log(f"🔐 JWT: Starting token verification", level="INFO", isOn=LOGGING_SWITCH)
+    def verify_token(self, token: str, expected_type: Optional[TokenType] = None, skip_revoke: bool = False) -> Optional[Dict[str, Any]]:
+        """Verify a JWT token and return its payload if valid.
+        When skip_revoke=True (e.g. Dart backend calling with X-Service-Key), Redis revoke check is skipped."""
+        custom_log(f"🔐 JWT: Starting token verification (skip_revoke={skip_revoke})", level="INFO", isOn=LOGGING_SWITCH)
         custom_log(f"🔐 JWT: Token preview: {token[:20]}...", level="DEBUG", isOn=LOGGING_SWITCH)
         custom_log(f"🔐 JWT: Expected type: {expected_type}", level="DEBUG", isOn=LOGGING_SWITCH)
         
@@ -109,10 +110,12 @@ class JWTManager:
                 custom_log(f"❌ JWT: Invalid token error: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
                 return None
                 
-            # Check if token is revoked
-            if self._is_token_revoked(token):
+            # Check if token is revoked (skip when service-authenticated: Dart backend already trusted via X-Service-Key)
+            if not skip_revoke and self._is_token_revoked(token):
                 custom_log(f"❌ JWT: Token is revoked", level="WARNING", isOn=LOGGING_SWITCH)
                 return None
+            elif skip_revoke:
+                custom_log(f"🔐 JWT: Skipping revoke check (service-authenticated request)", level="DEBUG", isOn=LOGGING_SWITCH)
             else:
                 custom_log(f"✅ JWT: Token not revoked", level="DEBUG", isOn=LOGGING_SWITCH)
                 

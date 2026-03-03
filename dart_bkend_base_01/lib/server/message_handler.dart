@@ -10,7 +10,7 @@ import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for create room/tournament flow, game finding, match creation
+const bool LOGGING_SWITCH = true; // Enabled for random game join debugging (front + backend)
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -577,10 +577,16 @@ class MessageHandler {
     try {
       // Get available rooms for random join
       var availableRooms = _getAvailableRoomsForRandomJoin();
+      if (LOGGING_SWITCH) {
+        _logger.room('🔍 _handleJoinRandomGame: availableRooms (before rank filter): ${availableRooms.length}');
+      }
       
       // Filter by rank compatibility
       final userRank = _server.getUserRankForSession(sessionId);
       availableRooms = _filterRoomsByRank(availableRooms, userRank);
+      if (LOGGING_SWITCH) {
+        _logger.room('🔍 _handleJoinRandomGame: availableRooms (after rank filter), userRank=$userRank: ${availableRooms.length}');
+      }
       
       if (availableRooms.isNotEmpty) {
         // Pick a random room

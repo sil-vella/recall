@@ -114,7 +114,7 @@ class ModuleRegistry {
     // registerModule('in_app_purchases', () => InAppPurchasesModule());
     
     // Ad modules temporarily disabled - will be converted to hooks
-    // registerModule('admobs_banner_ad_module', () => BannerAdModule());
+    registerModule('admobs_banner_ad_module', () => BannerAdModule());
     // registerModule('admobs_interstitial_ad_module', () => InterstitialAdModule(Config.admobsInterstitial01));
     // registerModule('admobs_rewarded_ad_module', () => RewardedAdModule(Config.admobsRewarded01));
 

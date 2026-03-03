@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
+import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+
+// Enable for random game join debugging (logs to console / server.log)
+const bool LOGGING_SWITCH = true;
 
 /// Widget to join a random available game
 /// 
@@ -23,6 +27,7 @@ class JoinRandomGameWidget extends StatefulWidget {
 
 class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   bool _isLoading = false;
+  static final Logger _logger = Logger();
 
   @override
   void initState() {
@@ -60,6 +65,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
 
   Future<void> _handleJoinRandomGame({required bool isClearAndCollect}) async {
     if (_isLoading) return;
+    if (LOGGING_SWITCH) {
+      _logger.info('🎯 JoinRandomGame: button pressed (isClearAndCollect=$isClearAndCollect)', isOn: true);
+    }
 
     setState(() {
       _isLoading = true;
@@ -69,6 +77,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       // Check if user has enough coins (default 25)
       // Fetch fresh stats from API before checking
       final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎯 JoinRandomGame: coins check hasEnoughCoins=$hasEnoughCoins', isOn: true);
+      }
       if (!hasEnoughCoins) {
         setState(() {
           _isLoading = false;
@@ -86,12 +97,18 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       
       // Ensure WebSocket is ready before attempting to join
       final isReady = await DutchGameHelpers.ensureWebSocketReady();
+      if (LOGGING_SWITCH) {
+        _logger.info('🎯 JoinRandomGame: WebSocket ready=$isReady', isOn: true);
+      }
       if (!isReady) {
         return;
       }
       
       // Use the helper method to join random game with isClearAndCollect flag
       final result = await DutchGameHelpers.joinRandomGame(isClearAndCollect: isClearAndCollect);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎯 JoinRandomGame: result success=${result['success']}, error=${result['error']}', isOn: true);
+      }
       
       if (result['success'] == true) {
         final message = result['message'] ?? 'Joining random game...';

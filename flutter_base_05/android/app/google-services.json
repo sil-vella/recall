@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "851791240618",
+    "project_id": "dutch-mt",
+    "storage_bucket": "dutch-mt.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:851791240618:android:5a93156055ac2e071e9fd3",
+        "android_client_info": {
+          "package_name": "com.reignofplay.dutch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKr6_Xvqcp3QPoufRCjxNjUvkCzr0QPZM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

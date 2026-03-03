@@ -47,9 +47,12 @@ def _validate_token_impl():
         custom_log(f"🔍 API: Validating token: {token[:20]}...", level="INFO", isOn=LOGGING_SWITCH)
         
         jwt_manager = JWTManager()
-        
+        # When Dart backend calls with valid X-Service-Key, skip Redis revoke check (token may not be in Redis)
+        skip_revoke = getattr(request, 'service_authenticated', False)
+        if skip_revoke:
+            custom_log("🔐 API: Service-authenticated request, skipping Redis revoke check", level="INFO", isOn=LOGGING_SWITCH)
         try:
-            payload = jwt_manager.validate_token(token)
+            payload = jwt_manager.verify_token(token, skip_revoke=skip_revoke)
             
             if payload is None:
                 custom_log("❌ API: Token validation returned None (invalid/expired/revoked)", level="WARNING", isOn=LOGGING_SWITCH)

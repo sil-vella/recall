@@ -24,7 +24,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for create room/tournament flow, game clearing, leave_room verification
+  static const bool LOGGING_SWITCH = true; // Enabled for random game join debugging
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -540,12 +540,18 @@ class DutchGameHelpers {
       }
       
       // Emit join_random_game event via validated event emitter with isClearAndCollect flag
+      if (LOGGING_SWITCH) {
+        _logger.info('📤 joinRandomGame: emitting join_random_game (isClearAndCollect=$isClearAndCollect)');
+      }
       await _eventEmitter.emit(
         eventType: 'join_random_game',
         data: {
           'isClearAndCollect': isClearAndCollect,
         },
       );
+      if (LOGGING_SWITCH) {
+        _logger.info('📤 joinRandomGame: emit completed, waiting for WebSocket response');
+      }
       
       // The emit returns immediately, but the actual response comes via WebSocket events
       // Return success - the actual join/creation will be handled via event handlers

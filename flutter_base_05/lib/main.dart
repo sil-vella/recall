@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'core/managers/app_manager.dart';
 import 'core/managers/module_manager.dart';
 import 'core/managers/module_registry.dart';
@@ -17,7 +19,12 @@ const bool LOGGING_SWITCH = false;
 void main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Initialize Firebase (Analytics, AdMob-ready)
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   // Set up global error handlers for analytics tracking
   _setupErrorHandlers();
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../utils/platform/shared_imports.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
@@ -5,6 +7,8 @@ import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
+/// When true, log game_state_updated payload size (bytes) and emit frequency for performance measurement.
+const bool LOGGING_STATE_SIZE_SWITCH = true;
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -50,6 +54,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   final _store = GameStateStore.instance;
   final Logger _logger = Logger();
   final StateQueueValidator _validator = StateQueueValidator.instance;
+
+  /// Counter for game_state_updated emits (for LOGGING_STATE_SIZE_SWITCH frequency measurement).
+  static int _gameStateEmitCount = 0;
 
   /// Get all timer values as a map (for UI consumption)
   /// This is the single source of truth for all timer durations
@@ -165,16 +172,21 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Extract myCardsToPeek from validated updates if present (for initial peek clearing)
       final myCardsToPeek = validatedUpdates['myCardsToPeek'] as List<dynamic>?;
       
-      // Send to single player (playerId = sessionId in this system)
-      server.sendToSession(playerId, {
+      final payload = <String, dynamic>{
         'event': 'game_state_updated',
         'game_id': roomId,
         'game_state': filteredGameState,
         'turn_events': turnEvents,
         if (ownerId != null) 'owner_id': ownerId,
-        if (myCardsToPeek != null) 'myCardsToPeek': myCardsToPeek, // Include myCardsToPeek if present in updates
+        if (myCardsToPeek != null) 'myCardsToPeek': myCardsToPeek,
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
+      if (LOGGING_STATE_SIZE_SWITCH) {
+        _gameStateEmitCount++;
+        final sizeBytes = utf8.encode(jsonEncode(payload)).length;
+        _logger.info('📊 game_state_updated EMIT #$_gameStateEmitCount (sendToPlayer $playerId) size=$sizeBytes bytes roomId=$roomId');
+      }
+      server.sendToSession(playerId, payload);
       
       if (LOGGING_SWITCH) {
         _logger.info('✅ sendGameStateToPlayer: Sent state update to player $playerId');
@@ -243,16 +255,21 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
       
-      // Broadcast to all players except the excluded one (excludePlayerId = sessionId in this system)
-      server.broadcastToRoomExcept(roomId, {
+      final payload = <String, dynamic>{
         'event': 'game_state_updated',
         'game_id': roomId,
         'game_state': filteredGameState,
         'turn_events': turnEvents,
-        if (winners != null) 'winners': winners, // Include winners list for game end notification
+        if (winners != null) 'winners': winners,
         if (ownerId != null) 'owner_id': ownerId,
         'timestamp': DateTime.now().toIso8601String(),
-      }, excludePlayerId);
+      };
+      if (LOGGING_STATE_SIZE_SWITCH) {
+        _gameStateEmitCount++;
+        final sizeBytes = utf8.encode(jsonEncode(payload)).length;
+        _logger.info('📊 game_state_updated EMIT #$_gameStateEmitCount (broadcastExcept $excludePlayerId) size=$sizeBytes bytes roomId=$roomId');
+      }
+      server.broadcastToRoomExcept(roomId, payload, excludePlayerId);
       
       if (LOGGING_SWITCH) {
         _logger.info('✅ broadcastGameStateExcept: Broadcasted state update to all except player $excludePlayerId');
@@ -356,15 +373,21 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
     }
     
-    server.broadcastToRoom(roomId, {
+    final payload = <String, dynamic>{
       'event': 'game_state_updated',
       'game_id': roomId,
       'game_state': filteredGameState,
-      'turn_events': turnEvents, // Include turn_events for animations
-      if (winners != null) 'winners': winners, // Include winners list for game end notification
+      'turn_events': turnEvents,
+      if (winners != null) 'winners': winners,
       if (ownerId != null) 'owner_id': ownerId,
       'timestamp': DateTime.now().toIso8601String(),
-    });
+    };
+    if (LOGGING_STATE_SIZE_SWITCH) {
+      _gameStateEmitCount++;
+      final sizeBytes = utf8.encode(jsonEncode(payload)).length;
+      _logger.info('📊 game_state_updated EMIT #$_gameStateEmitCount (broadcast) size=$sizeBytes bytes roomId=$roomId');
+    }
+    server.broadcastToRoom(roomId, payload);
   }
 
   @override

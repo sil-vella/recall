@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dutch/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
@@ -12,7 +14,12 @@ import '../screens/demo/demo_action_handler.dart';
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
   static const bool LOGGING_SWITCH = false; // Enabled for Start button flow: room_joined, game_state_updated, _addGameToMap
+  /// When true, log game_state_updated payload size, receive frequency, and UI rebuild triggers for performance measurement.
+  static const bool LOGGING_STATE_SIZE_SWITCH = true;
   static final Logger _logger = Logger();
+
+  /// Counter for game_state_updated receives (for LOGGING_STATE_SIZE_SWITCH frequency measurement).
+  static int _gameStateReceiveCount = 0;
   
   // Analytics module cache
   static AnalyticsModule? _analyticsModule;
@@ -102,6 +109,9 @@ class DutchEventHandlerCallbacks {
       
       currentGames[gameId] = mergedGame;
       
+      if (LOGGING_STATE_SIZE_SWITCH) {
+        _logger.info('📊 game_state REBUILD triggered for gameId=$gameId (updateUIState with games)');
+      }
       // Update global state
       DutchGameHelpers.updateUIState({
         'games': currentGames,
@@ -1264,6 +1274,11 @@ When anyone has played a card with the **same rank** as your **collection card**
   /// Handle game_state_updated event
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';
+    if (LOGGING_STATE_SIZE_SWITCH) {
+      _gameStateReceiveCount++;
+      final sizeBytes = utf8.encode(jsonEncode(data)).length;
+      _logger.info('📊 game_state_updated RECV #$_gameStateReceiveCount size=$sizeBytes bytes gameId=$gameId');
+    }
     // 🎯 CRITICAL (WS → Practice): When in practice mode, ignore WebSocket game_state_updated
     // so late WS events cannot overwrite practice state or block Start Match.
     final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};

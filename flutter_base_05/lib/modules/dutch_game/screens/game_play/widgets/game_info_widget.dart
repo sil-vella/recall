@@ -95,12 +95,8 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final isInGame = gameInfo['isInGame'] ?? false;
         final isPracticeGame = gameInfo['isPractice'] as bool? ?? currentGameId.startsWith('practice_room_');
         final multiplayerType = gameInfo['multiplayerType'] as Map<String, dynamic>?;
-        final isRandomJoin = multiplayerType?['isRandom'] == true;
-        // Show Start: waiting phase AND (practice OR (owner and not random-join))
-        // When multiplayerType is null (e.g. entry created by room_joined before game_state_updated),
-        // treat as classic non-random so room creator still sees Start.
-        final showStartButton = gamePhase == 'waiting' &&
-            (isPracticeGame || (isRoomOwner && (multiplayerType == null || !isRandomJoin)));
+        // Show Start only in waiting phase and for practice games (not for multiplayer create/join).
+        final showStartButton = gamePhase == 'waiting' && isPracticeGame;
         
         if (LOGGING_SWITCH) {
           _logger.info('🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, multiplayerType: $multiplayerType, showStartButton: $showStartButton');

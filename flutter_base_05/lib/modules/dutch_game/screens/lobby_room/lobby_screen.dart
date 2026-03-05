@@ -11,7 +11,7 @@ import '../../../dutch_game/managers/dutch_event_manager.dart';
 import '../../practice/practice_mode_bridge.dart';
 import '../../backend_core/services/game_state_store.dart';
 import '../../../dutch_game/utils/dutch_game_helpers.dart';
-import 'widgets/create_join_game_widget.dart';
+// import 'widgets/create_join_game_widget.dart'; // Unused while Create & Join section is commented out
 import 'widgets/join_random_game_widget.dart';
 import 'widgets/practice_match_widget.dart';
 import 'widgets/collapsible_section_widget.dart';
@@ -179,6 +179,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     super.dispose();
   }
  
+  // ignore: unused_element - used when Create & Join section is enabled
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
       if (LOGGING_SWITCH) {
@@ -544,19 +545,19 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 ),
               ),
               
-              // Create & Join Room Section (Collapsible) - Third
-              CollapsibleSectionWidget(
-                title: 'Create & Join Room',
-                icon: Icons.group_add,
-                isExpanded: _expandedSection == 'Create & Join Room',
-                onExpandedChanged: () => _handleSectionToggled('Create & Join Room'),
-                child: CreateJoinGameWidget(
-                  onCreateRoom: _createRoom,
-                  onJoinRoom: () {
-                    // Callback after successful join request
-                  },
-                ),
-              ),
+              // Create & Join Room Section (Collapsible) - Third (commented out for now)
+              // CollapsibleSectionWidget(
+              //   title: 'Create & Join Room',
+              //   icon: Icons.group_add,
+              //   isExpanded: _expandedSection == 'Create & Join Room',
+              //   onExpandedChanged: () => _handleSectionToggled('Create & Join Room'),
+              //   child: CreateJoinGameWidget(
+              //     onCreateRoom: _createRoom,
+              //     onJoinRoom: () {
+              //       // Callback after successful join request
+              //     },
+              //   ),
+              // ),
             ],
           ),
         ),

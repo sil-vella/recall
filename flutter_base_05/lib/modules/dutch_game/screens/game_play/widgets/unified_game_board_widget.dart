@@ -17,6 +17,8 @@ import '../functionality/playscreenfunctions.dart';
 import '../functionality/animations.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+/// When true, log build count and rebuild duration for performance measurement.
+const bool LOGGING_REBUILD_SWITCH = true;
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -29,6 +31,9 @@ class UnifiedGameBoardWidget extends StatefulWidget {
 
 class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with TickerProviderStateMixin {
   final Logger _logger = Logger();
+
+  /// Rebuild count for LOGGING_REBUILD_SWITCH.
+  static int _unifiedWidgetRebuildCount = 0;
   
   // ========== Opponents Panel State ==========
   String? _clickedCardId;
@@ -562,6 +567,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   @override
   Widget build(BuildContext context) {
+    final stopwatch = LOGGING_REBUILD_SWITCH ? (Stopwatch()..start()) : null;
     // Schedule position update (rate-limited and uses postFrameCallback)
     _playScreenFunctions.updatePilePositions(
       onUpdate: (message) {
@@ -577,7 +583,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       },
     );
     
-    return ListenableBuilder(
+    final result = ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
         return Stack(
@@ -610,6 +616,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         );
       },
     );
+    if (LOGGING_REBUILD_SWITCH && stopwatch != null) {
+      stopwatch.stop();
+      _unifiedWidgetRebuildCount++;
+      _logger.info('📊 UnifiedGameBoardWidget REBUILD #$_unifiedWidgetRebuildCount duration=${stopwatch.elapsedMilliseconds} ms');
+    }
+    return result;
   }
   
   // ========== Card Key Management ==========

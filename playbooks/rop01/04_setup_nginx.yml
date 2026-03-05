@@ -17,6 +17,7 @@
       },
       {
         'domain': 'dutch.mt',
+        'www_domain': 'www.dutch.mt',
         'root_dir': '/var/www/dutch.reignofplay.com',
         'backend_port': 5001,
         'backend_ws_port': 8080,

@@ -587,9 +587,9 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
               final bottomPadding = MediaQuery.of(context).padding.bottom;
               final totalBottomSpace = snackBarHeight + bottomPadding;
               
-              // Calculate banner heights
-              final topBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
-              final bottomBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
+              // Calculate banner heights (unused while top/bottom banner widgets are commented out)
+              // final topBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
+              // final bottomBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
               
               if (LOGGING_SWITCH) {
                 _logger.info(
@@ -611,14 +611,14 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     title: 'Notices',
                   ),
 
-                  // Top banner (fixed)
-                  if (bannerAdModule != null)
-                    SizedBox(
-                      height: topBannerHeight,
-                      child: Center(
-                        child: bannerAdModule!.getTopBannerWidget(context),
-                      ),
-                    ),
+                  // Top banner (fixed) – commented out to remove banner space
+                  // if (bannerAdModule != null)
+                  //   SizedBox(
+                  //     height: topBannerHeight,
+                  //     child: Center(
+                  //       child: bannerAdModule!.getTopBannerWidget(context),
+                  //     ),
+                  //   ),
 
                   // Main content area - takes ALL remaining space
                   // This is the middle part for content, all that is available
@@ -638,14 +638,14 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     ),
                   ),
 
-                  // Bottom banner (fixed)
-                  if (bannerAdModule != null)
-                    SizedBox(
-                      height: bottomBannerHeight,
-                      child: Center(
-                        child: bannerAdModule!.getBottomBannerWidget(context),
-                      ),
-                    ),
+                  // Bottom banner (fixed) – commented out to remove banner space
+                  // if (bannerAdModule != null)
+                  //   SizedBox(
+                  //     height: bottomBannerHeight,
+                  //     child: Center(
+                  //       child: bannerAdModule!.getBottomBannerWidget(context),
+                  //     ),
+                  //   ),
                   
                   // Reserved space at the bottom for snack bars (fixed)
                   // Nothing behind it - this takes its space

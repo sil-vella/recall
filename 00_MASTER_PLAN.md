@@ -12,6 +12,7 @@
 
 - **Lobby – random join:** Add a step before the play buttons: a level-based theme (like 8 Ball Pool) where users unlock themes as they advance.
 
+
 - **Tournaments dashboard**
   - Build tournaments dashboard.
   - Front-end app will NOT have an IRL tournament option. Competitors are automatically directed to the play screen when triggered from the dashboard.
@@ -23,4 +24,5 @@
   - Introduce a new class for tournament formatting.
   - Depending on tournament format, show tournament data (matches, rules, etc.) in a new **Tournaments** tab in the lobby screen.
 
-- **Create game:** Fix create game — it currently auto-creates clear-and-collect mode.
+- **Dutch game:** Comp players to be able to call final round.
+

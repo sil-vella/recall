@@ -19,6 +19,8 @@ import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for play screen and Start button flow debugging
+/// When true, log build count and rebuild duration for performance measurement.
+const bool LOGGING_REBUILD_SWITCH = true;
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -300,6 +302,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   String? _previousGameId;
   bool _cardBackPrecached = false;
   final Set<String> _coinStreamShownGameIds = {};
+
+  /// Rebuild count for LOGGING_REBUILD_SWITCH.
+  static int _playScreenRebuildCount = 0;
   
   // GlobalKey for the main Stack
   final GlobalKey _mainStackKey = GlobalKey(); // Track game ID to detect navigation away
@@ -539,11 +544,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
+    final stopwatch = LOGGING_REBUILD_SWITCH ? (Stopwatch()..start()) : null;
     if (LOGGING_SWITCH) {
       _logger.info('GamePlayScreen: buildContent called');
     }
     
-    return Center(
+    final content = Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1000),
         child: LayoutBuilder(
@@ -755,6 +761,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       ),
     ),
     );
+    if (LOGGING_REBUILD_SWITCH && stopwatch != null) {
+      stopwatch.stop();
+      _playScreenRebuildCount++;
+      _logger.info('📊 GamePlayScreen REBUILD #$_playScreenRebuildCount duration=${stopwatch.elapsedMilliseconds} ms');
+    }
+    return content;
   }
 }
 

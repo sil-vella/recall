@@ -99,10 +99,10 @@ server {
     # This matches paths that:
     # - Have at least one character after / (excludes root path /)
     # - Don't have common static file extensions (js, css, png, etc.)
-    # - Don't start with known static directories (assets, downloads, sponsors, sim_players, ws)
+    # - Don't start with known static directories (assets, downloads, sponsors, sim_players, ws, register)
     # - Don't match Flutter-specific files (main.dart.js, flutter.js, canvaskit, index.html)
     # Note: This uses negative lookahead patterns to exclude static files while allowing multi-segment API routes
-    location ~ ^/(?!(assets|downloads|sponsors|sim_players|ws|main\.dart\.js|flutter\.js|canvaskit|index\.html))[^/].+(?!\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|html|json|wasm|bin|map)$) {
+    location ~ ^/(?!(assets|downloads|sponsors|sim_players|ws|register|main\.dart\.js|flutter\.js|canvaskit|index\.html))[^/].+(?!\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|html|json|wasm|bin|map)$) {
         proxy_pass http://127.0.0.1:{{ item.backend_port }};
         proxy_http_version 1.1;
         proxy_set_header Host $host;

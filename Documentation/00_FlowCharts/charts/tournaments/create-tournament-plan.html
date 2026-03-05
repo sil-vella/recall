@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+  <title>Create tournament plan – Tournaments – Flowcharts</title>
+  <link rel="stylesheet" href="../../css/flowcharts.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js"></script>
+  <script src="../../js/mermaid-init.js"></script>
+</head>
+<body>
+  <div class="container">
+    <p class="breadcrumb"><a href="../../index.html">Flowcharts</a> / <a href="../../index.html#tournaments">Tournaments</a> / Create tournament plan</p>
+    <h1>Create tournament plan</h1>
+    <p class="notes">From lobby Tournaments tab: existing = only public. Create new: auto private, select format (F1, F2, F3), invite players. User search filters out creator (creator auto-added/accepted). Number of invites required depends on format. Python backend creates tournament in DB (see prev commits). Invitees accept notification; when required number accepted, auto notification to all HUMAN players to join tournament. Then wire into existing match logic (add to room etc); game state gets tournament-specific keys in game map: tournament name, format, players, etc.</p>
+    <div id="chart" class="mermaid">
+flowchart TD
+  subgraph Lobby["Lobby screen"]
+    START["Tournaments tab"]
+  end
+
+  START --> CHOICE{"Select existing or create new?"}
+  CHOICE -->|Existing| EXIST["Select existing tournament"]
+  CHOICE -->|Create new| NEW["Create new tournament"]
+
+  EXIST --> PUBLIC["Only public tournaments shown"]
+  PUBLIC --> EXIST_END["Open tournament or join flow"]
+
+  NEW --> PRIVATE["Automatically private"]
+  PRIVATE --> FORMAT["Select tournament format"]
+  FORMAT --> FORMAT_OPTS["e.g. F1, F2, F3"]
+  FORMAT_OPTS --> INVITE["Invite players"]
+  INVITE --> SEARCH["User search – filter out creator username"]
+  SEARCH --> CREATOR["Creator auto-added as accepted"]
+  CREATOR --> COUNT["Number of invites depends on format type"]
+  COUNT --> SEND["Send invites or add to tournament"]
+
+  SEND --> BACKEND["Python backend creates tournament in DB"]
+  BACKEND --> NOTE_DB["See prev commits for tournament DB"]
+  NOTE_DB --> NOTIF["Invited players receive notification"]
+  NOTIF --> ACCEPT["Invitees must accept notification"]
+  ACCEPT --> CHECK{"Required number accepted?"}
+  CHECK -->|No| ACCEPT
+  CHECK -->|Yes| NOTIF_JOIN["Auto notification to all HUMAN players to join tournament"]
+  NOTIF_JOIN --> WIRE["Wire into existing match logic"]
+  WIRE --> ROOM["Add to room etc"]
+  ROOM --> GAMESTATE["Game state: tournament keys in game map"]
+  GAMESTATE --> KEYS["tournament name, format, players, etc"]
+  KEYS --> MERGE["Same flow as match initiation / game play"]
+
+  style START fill:#2d5a2d
+  style CHOICE fill:#2d4a6d
+  style BACKEND fill:#2d4a6d
+  style GAMESTATE fill:#2d4a6d
+    </div>
+  </div>
+</body>
+</html>

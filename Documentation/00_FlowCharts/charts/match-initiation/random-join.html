@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+  <title>Random join – Match initiation – Flowcharts</title>
+  <link rel="stylesheet" href="../../css/flowcharts.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js"></script>
+  <script src="../../js/mermaid-init.js"></script>
+</head>
+<body>
+  <div class="container">
+    <p class="breadcrumb"><a href="../../index.html">Flowcharts</a> / <a href="../../index.html#match-initiation">Match initiation</a> / Random join</p>
+    <h1>Random join</h1>
+    <div id="chart" class="mermaid">
+flowchart TD
+    A[User taps Join Random Game] --> B[JoinRandomGameWidget]
+    B --> C[checkCoinsRequirement]
+    C --> D[ensureWebSocketReady]
+    D --> E[Set isRandomJoinInProgress]
+    E --> F[Emit join_random_game]
+    F --> G[Backend find or create room]
+    G --> H{New room created}
+    H -->|Yes| I[room_creation success is_random_join]
+    I --> J[Update state clear flag]
+    J --> K[Delay 300ms]
+    K --> L[Navigate to game-play]
+    H -->|No| M[Join existing room]
+    M --> N[websocket_join_room hook]
+    N --> O[Set currentGameId currentRoomId]
+    O --> P[Wait for game_state_updated]
+    P --> Q[handleGameStateUpdated adds game to map]
+    Q --> R[Game in Current games list]
+    R --> S[User taps game]
+    S --> T[setCurrentGameSync]
+    T --> L
+    </div>
+  </div>
+</body>
+</html>

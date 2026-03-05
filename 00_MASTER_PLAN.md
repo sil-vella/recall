@@ -26,3 +26,4 @@
 
 - **Dutch game:** Comp players to be able to call final round.
 
+  - enable 2 and 3 player only match (for tournament winner deciders)

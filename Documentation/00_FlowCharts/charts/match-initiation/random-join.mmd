@@ -1,0 +1,21 @@
+flowchart TD
+    A[User taps Join Random Game] --> B[JoinRandomGameWidget]
+    B --> C[checkCoinsRequirement]
+    C --> D[ensureWebSocketReady]
+    D --> E[Set isRandomJoinInProgress]
+    E --> F[Emit join_random_game]
+    F --> G[Backend find or create room]
+    G --> H{New room created}
+    H -->|Yes| I[room_creation success is_random_join]
+    I --> J[Update state clear flag]
+    J --> K[Delay 300ms]
+    K --> L[Navigate to game-play]
+    H -->|No| M[Join existing room]
+    M --> N[websocket_join_room hook]
+    N --> O[Set currentGameId currentRoomId]
+    O --> P[Wait for game_state_updated]
+    P --> Q[handleGameStateUpdated adds game to map]
+    Q --> R[Game in Current games list]
+    R --> S[User taps game]
+    S --> T[setCurrentGameSync]
+    T --> L

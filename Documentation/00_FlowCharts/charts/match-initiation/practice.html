@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+  <title>Practice – Match initiation – Flowcharts</title>
+  <link rel="stylesheet" href="../../css/flowcharts.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js"></script>
+  <script src="../../js/mermaid-init.js"></script>
+</head>
+<body>
+  <div class="container">
+    <p class="breadcrumb"><a href="../../index.html">Flowcharts</a> / <a href="../../index.html#match-initiation">Match initiation</a> / Practice</p>
+    <h1>Practice</h1>
+    <div id="chart" class="mermaid">
+flowchart TD
+    subgraph Client["Flutter client"]
+      A[User taps Practice Play Dutch or Clear and Collect] --> B[PracticeMatchWidget]
+      B --> C[LobbyScreen._startPracticeMatch]
+      C --> D[clearAllGameStateBeforeNewGame]
+      D --> E[Generate practice user ID]
+      E --> F[Set practiceUser and practiceSettings in state]
+      F --> G[setTransportMode practice]
+      G --> H[PracticeModeBridge.initialize]
+      H --> I[startPracticeSession]
+      I --> J[RoomManagerStub.createRoom]
+      J --> K[room_created hook]
+      K --> L[room_joined hook]
+      L --> M[Build gameData update state]
+      M --> N[handleGameStateUpdated]
+      N --> O[Navigate to game-play]
+    end
+    subgraph GamePlay["On game-play screen"]
+      O --> P[User taps Start Match]
+      P --> Q[GameCoordinator.startMatch]
+      Q --> R[Practice bridge start_match]
+      R --> S[Deal phase initial_peek]
+    end
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+  <title>Create match – Match initiation – Flowcharts</title>
+  <link rel="stylesheet" href="../../css/flowcharts.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js"></script>
+  <script src="../../js/mermaid-init.js"></script>
+</head>
+<body>
+  <div class="container">
+    <p class="breadcrumb"><a href="../../index.html">Flowcharts</a> / <a href="../../index.html#match-initiation">Match initiation</a> / Create match</p>
+    <h1>Create match</h1>
+    <div id="chart" class="mermaid">
+flowchart TD
+    subgraph Create["Create room"]
+      A[User opens Create and Join] --> B[Tap Create Game set permission type password]
+      B --> C[_createRoom with roomSettings]
+      C --> D[LobbyScreen._createRoom]
+      D --> E[clearAllGameStateBeforeNewGame]
+      E --> F[checkCoinsRequirement]
+      F --> G[Clear practiceUser setTransportMode websocket]
+      G --> H[ensureWebSocketReady]
+      H --> I[DutchGameHelpers.createRoom]
+      I --> J[Emit create_room]
+      J --> K[Backend creates room]
+      K --> L[room_creation success is_owner]
+      L --> M[State currentRoomId isRoomOwner gamePhase waiting]
+      M --> N[SnackBar Room created]
+      N --> O[Host stays on lobby game in Current games]
+    end
+    subgraph Enter["Enter and start"]
+      O --> P[Host taps game in list]
+      P --> Q[_enterGameRoom setCurrentGameSync]
+      Q --> R[Navigate to game-play]
+      R --> S[Host taps Start Match]
+      S --> T[GameCoordinator.startMatch]
+      T --> U[Backend start_match]
+      U --> V[deal phase initial_peek]
+      V --> W[game_state_updated]
+    end
+    </div>
+  </div>
+</body>
+</html>

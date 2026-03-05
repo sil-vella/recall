@@ -89,6 +89,20 @@ class Config {
     defaultValue: '',
   );
 
+  // AdSense (web only) – used when building for web
+  static const String adsenseClientId = String.fromEnvironment(
+    'ADSENSE_CLIENT_ID',
+    defaultValue: '',
+  );
+  static const String adsenseTopSlot = String.fromEnvironment(
+    'ADSENSE_TOP_SLOT',
+    defaultValue: '',
+  );
+  static const String adsenseBottomSlot = String.fromEnvironment(
+    'ADSENSE_BOTTOM_SLOT',
+    defaultValue: '',
+  );
+
   // Remote logging toggle
   static const bool enableRemoteLogging = bool.fromEnvironment(
     'ENABLE_REMOTE_LOGGING',

@@ -1,0 +1,94 @@
+%% Match initiation – unified flowchart (matches actual code paths).
+%% Lobby screen: PracticeMatchWidget, JoinRandomGameWidget; Create & Join (CreateJoinGameWidget) is commented out but logic documented.
+%% All paths merge at: clearAllGameStateBeforeNewGame (where applicable), then Navigate to /dutch/game-play, then Game play screen / Start Match.
+
+flowchart TD
+  subgraph Lobby["Lobby screen – entry points"]
+    P_ENTRY["Practice: PracticeMatchWidget<br/>Play Dutch or Clear and Collect"]
+    R_ENTRY["Join Random: JoinRandomGameWidget"]
+    C_ENTRY["Create: CreateJoinGameWidget Create tab<br/>_createRoom called with roomSettings"]
+    J_ENTRY["Join: CreateJoinGameWidget Join tab<br/>_joinRoom with room ID"]
+  end
+
+  P_ENTRY --> P_START["LobbyScreen._startPracticeMatch"]
+  P_START --> M1
+
+  R_ENTRY --> R_COINS["checkCoinsRequirement 25"]
+  R_COINS --> R_WS["ensureWebSocketReady"]
+  R_WS --> R_CALL["DutchGameHelpers.joinRandomGame"]
+  R_CALL --> M1
+  M1 --> R_WS2["ensureWebSocketReady in helper"]
+  R_WS2 --> R_FLAG["updateStateSync isRandomJoinInProgress true"]
+  R_FLAG --> R_EMIT["emit join_random_game WS"]
+
+  C_ENTRY --> C_ROOM["LobbyScreen._createRoom"]
+  C_ROOM --> M1
+  M1 --> C_COINS["checkCoinsRequirement"]
+  C_COINS --> C_NULL["updateUIState practiceUser null"]
+  C_NULL --> C_TRANSPORT["setTransportMode websocket"]
+  C_TRANSPORT --> C_WS["ensureWebSocketReady"]
+  C_WS --> C_CREATE["DutchGameHelpers.createRoom"]
+  C_CREATE --> C_EMIT["emit create_room WS"]
+
+  J_ENTRY --> J_JOIN["CreateJoinGameWidget._joinRoom"]
+  J_JOIN --> J_COINS["checkCoinsRequirement"]
+  J_COINS --> J_WS["ensureWebSocketReady"]
+  J_WS --> J_CHECK{"isGameStillInState roomId?"}
+  J_CHECK -->|Yes| J_SYNC["setCurrentGameSync"]
+  J_SYNC --> NAV
+  J_CHECK -->|No| J_CALL["DutchGameHelpers.joinRoom"]
+  J_CALL --> M1
+  M1 --> J_WS2["ensureWebSocketReady in helper"]
+  J_WS2 --> J_EMIT["emit join_room WS"]
+
+  M1["clearAllGameStateBeforeNewGame"]
+
+  M1 --> P_USER["practice user ID, setPracticeStateSync, updateUIState"]
+  P_USER --> P_TRANSPORT["setTransportMode practice"]
+  P_TRANSPORT --> P_BRIDGE["PracticeModeBridge.initialize then startPracticeSession"]
+  P_BRIDGE --> P_STUB["In-app room, GameStateStore.getGameState"]
+  P_STUB --> P_STATE["gameData, games map, StateManager update, updateUIState"]
+  P_STATE --> P_HANDLER["DutchEventManager.handleGameStateUpdated"]
+  P_HANDLER --> P_NAV["NavigationManager.navigateTo game-play"]
+  P_NAV --> NAV
+
+  R_EMIT --> R_BACKEND["Backend: new room or existing room"]
+  R_BACKEND --> R_NEW["New room"]
+  R_BACKEND --> R_EXIST["Existing room"]
+  R_NEW --> R_HOOK["room_creation hook status success isRandomJoin"]
+  R_HOOK --> R_STATE["updateUIState, isRandomJoinInProgress false"]
+  R_STATE --> R_DELAY["Future.delayed 300ms"]
+  R_DELAY --> R_NAV["navigateTo game-play"]
+  R_NAV --> NAV
+  R_EXIST --> R_JOIN["websocket_join_room hook"]
+  R_JOIN --> R_SET["updateUIState currentGameId, isRandomJoinInProgress false"]
+  R_SET --> R_WAIT["No navigate, wait for game_state_updated"]
+  R_WAIT --> R_LIST["Game in Current games list"]
+  R_LIST --> R_TAP["User taps game CurrentGamesWidget._enterGameRoom"]
+  R_TAP --> R_SYNC["setCurrentGameSync"]
+  R_SYNC --> NAV
+
+  C_EMIT --> C_HOOK["room_creation hook status success not random"]
+  C_HOOK --> C_UI["updateUIState, SnackBar, _onRoomCreation switch to Join tab"]
+  C_UI --> C_LIST["Game in Current games host taps"]
+  C_LIST --> C_TAP["CurrentGamesWidget._enterGameRoom"]
+  C_TAP --> C_SYNC["setCurrentGameSync"]
+  C_SYNC --> C_NAV["navigateTo game-play"]
+  C_NAV --> NAV
+
+  J_EMIT --> J_HOOK["websocket_join_room, game_state_updated"]
+  J_HOOK --> J_WAIT["delay 300ms then 400ms retry if needed"]
+  J_WAIT --> J_SYNC2["setCurrentGameSync when games contains roomId"]
+  J_SYNC2 --> J_NAV["navigateTo game-play"]
+  J_NAV --> NAV
+
+  NAV["Navigate to /dutch/game-play"]
+  NAV --> GAME["Game play screen"]
+  GAME --> START["Start Match button"]
+  START --> COORD["GameCoordinator.startMatch"]
+  COORD --> PHASE["dealing_cards, initial_peek, player_turn"]
+  PHASE --> SAME["Same round logic all modes"]
+
+  style M1 fill:#2d5a2d
+  style NAV fill:#2d5a2d
+  style GAME fill:#2d5a2d

@@ -117,3 +117,19 @@ def _validate_token_impl():
             'valid': False,
             'error': str(e)
         }), 500
+
+
+@dutch_api.route('/service/dutch/create-tournaments', methods=['POST'])
+def create_tournaments():
+    """Create tournaments (service endpoint: PHP dashboard, X-Service-Key auth). POST JSON body as sent by dashboard."""
+    try:
+        data = request.get_json() or {}
+        custom_log("📋 Dutch: create-tournaments request received", level="INFO", isOn=LOGGING_SWITCH)
+        # Stub: accept request and return success; implement tournament creation when needed
+        return jsonify({
+            "success": True,
+            "message": "Tournament creation endpoint (stub)",
+        }), 200
+    except Exception as e:
+        custom_log(f"❌ Dutch: create_tournaments error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": str(e)}), 500

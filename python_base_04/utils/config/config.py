@@ -398,6 +398,10 @@ class Config:
     # Set via file dart_backend_service_key or env DART_BACKEND_SERVICE_KEY; must match Dart backend config.
     DART_BACKEND_SERVICE_KEY = get_file_first_config_value("dart_backend_service_key", "DART_BACKEND_SERVICE_KEY", "")
 
+    # PHP dashboard service-to-service auth (shared secret for PHP dashboard -> Python /service/* calls)
+    # Set via file dutch_mt_dashboard_service_key or env DUTCH_MT_DASHBOARD_SERVICE_KEY; must match PHP dashboard config.
+    DUTCH_MT_DASHBOARD_SERVICE_KEY = get_file_first_config_value("dutch_mt_dashboard_service_key", "DUTCH_MT_DASHBOARD_SERVICE_KEY", "")
+
     # Switch to require service key for /service/ routes (Dart -> Python). Set false for local testing without the key.
     # File: enable_dart_service_key_auth; Env: ENABLE_DART_SERVICE_KEY_AUTH. Default true (auth required).
     ENABLE_DART_SERVICE_KEY_AUTH = get_file_first_config_value("enable_dart_service_key_auth", "ENABLE_DART_SERVICE_KEY_AUTH", "true").lower() in ("true", "1", "yes")

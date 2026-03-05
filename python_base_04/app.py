@@ -170,22 +170,21 @@ def verify_metrics():
             'error': str(e)
         }), 500
 
-@app.route('/health')
-def health_check():
-    """Health check endpoint for Kubernetes liveness and readiness probes"""
+def _health_check_impl():
+    """Shared health check logic. Returns (dict, status_code). Used by /health and /service/health."""
     try:
         # Check if the application is properly initialized
         if not app_manager.is_initialized():
             return {'status': 'unhealthy', 'reason': 'App manager not initialized'}, 503
-            
+
         # Check database connection
         if not app_manager.check_database_connection():
             return {'status': 'unhealthy', 'reason': 'Database connection failed'}, 503
-            
+
         # Check Redis connection
         if not app_manager.check_redis_connection():
             return {'status': 'unhealthy', 'reason': 'Redis connection failed'}, 503
-        
+
         # Check state manager status
         try:
             state_manager_health = app_manager.state_manager.health_check()
@@ -233,6 +232,20 @@ def health_check():
         }, 200
     except Exception as e:
         return {'status': 'unhealthy', 'reason': str(e)}, 503
+
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Kubernetes liveness and readiness probes (public)."""
+    data, status = _health_check_impl()
+    return jsonify(data), status
+
+
+@app.route('/service/health', methods=['GET'])
+def service_health_check():
+    """Health check for service callers (e.g. PHP dashboard). Requires X-Service-Key (Dart or dashboard)."""
+    data, status = _health_check_impl()
+    return jsonify(data), status
 
 @app.route('/actions/<action_name>/<path:args>', methods=['GET', 'POST'])
 def execute_internal_action(action_name, args):

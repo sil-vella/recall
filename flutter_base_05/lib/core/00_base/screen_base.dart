@@ -1,6 +1,8 @@
 import 'package:dutch/modules/admobs/banner/banner_ad.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
+import 'package:dutch/core/widgets/adsense_placeholder_stub.dart' if (dart.library.html) 'package:dutch/core/widgets/adsense_placeholder_web.dart' as adsense_placeholder;
 import '../managers/app_manager.dart';
 import '../managers/module_manager.dart';
 import '../../utils/consts/theme_consts.dart';
@@ -429,8 +431,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       // Register global app bar features for this screen (ALWAYS)
       _registerGlobalAppBarFeatures();
       
-      // Trigger banner hooks if banner module is available
-      if (bannerAdModule != null) {
+      // Trigger AdMob banner hooks only on non-web (APK); web uses AdSense
+      if (!kIsWeb && bannerAdModule != null) {
         appManager.triggerTopBannerBarHook(context);
         appManager.triggerBottomBannerBarHook(context);
       }
@@ -587,9 +589,12 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
               final bottomPadding = MediaQuery.of(context).padding.bottom;
               final totalBottomSpace = snackBarHeight + bottomPadding;
               
-              // Calculate banner heights (unused while top/bottom banner widgets are commented out)
-              // final topBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
-              // final bottomBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
+              final topBannerHeight = kIsWeb
+                  ? (adsense_placeholder.hasTopAdSlot ? 50.0 : 0.0)
+                  : (bannerAdModule != null ? 50.0 : 0.0);
+              final bottomBannerHeight = kIsWeb
+                  ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
+                  : (bannerAdModule != null ? 50.0 : 0.0);
               
               if (LOGGING_SWITCH) {
                 _logger.info(
@@ -611,14 +616,16 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     title: 'Notices',
                   ),
 
-                  // Top banner (fixed) – commented out to remove banner space
-                  // if (bannerAdModule != null)
-                  //   SizedBox(
-                  //     height: topBannerHeight,
-                  //     child: Center(
-                  //       child: bannerAdModule!.getTopBannerWidget(context),
-                  //     ),
-                  //   ),
+                  // Top banner: AdSense on web, AdMob on APK
+                  if (topBannerHeight > 0)
+                    SizedBox(
+                      height: topBannerHeight,
+                      child: Center(
+                        child: kIsWeb
+                            ? adsense_placeholder.buildAdSensePlaceholder('top')
+                            : bannerAdModule!.getTopBannerWidget(context),
+                      ),
+                    ),
 
                   // Main content area - takes ALL remaining space
                   // This is the middle part for content, all that is available
@@ -638,14 +645,16 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     ),
                   ),
 
-                  // Bottom banner (fixed) – commented out to remove banner space
-                  // if (bannerAdModule != null)
-                  //   SizedBox(
-                  //     height: bottomBannerHeight,
-                  //     child: Center(
-                  //       child: bannerAdModule!.getBottomBannerWidget(context),
-                  //     ),
-                  //   ),
+                  // Bottom banner: AdSense on web, AdMob on APK
+                  if (bottomBannerHeight > 0)
+                    SizedBox(
+                      height: bottomBannerHeight,
+                      child: Center(
+                        child: kIsWeb
+                            ? adsense_placeholder.buildAdSensePlaceholder('bottom')
+                            : bannerAdModule!.getBottomBannerWidget(context),
+                      ),
+                    ),
                   
                   // Reserved space at the bottom for snack bars (fixed)
                   // Nothing behind it - this takes its space

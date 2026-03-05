@@ -88,6 +88,8 @@ class DutchGameMain(BaseModule):
             # Backend-only: Dart -> Python bulk update (service key auth)
             self._register_route_helper("/service/dutch/update-game-stats", self.update_game_stats, methods=["POST"])
 
+            # Create tournaments: registered in api_endpoints.py (blueprint) as /service/dutch/create-tournaments
+
             # Register the get-user-stats endpoint with JWT authentication (frontend direct access)
             self._register_route_helper("/userauth/dutch/get-user-stats", self.get_user_stats, methods=["GET"], auth="jwt")
 
@@ -231,7 +233,7 @@ class DutchGameMain(BaseModule):
                 "message": "Failed to find game",
                 "error": str(e)
             }), 500
-    
+
     def update_game_stats(self):
         """Update user game statistics after a game ends (service endpoint: Dart backend only, X-Service-Key auth)"""
         try:

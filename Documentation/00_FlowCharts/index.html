@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flowcharts</title>
+  <link rel="stylesheet" href="css/flowcharts.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <h1 id="title">Flowcharts</h1>
+    </header>
+
+    <!-- Level 1: Flowchart types (categories) -->
+    <div id="view-types" class="view active">
+      <ul class="nav-list" id="list-types"></ul>
+    </div>
+
+    <!-- Level 2: Items in a category; each item links to its own chart .html file -->
+    <div id="view-list" class="view">
+      <ul class="nav-list" id="list-items"></ul>
+    </div>
+  </div>
+
+  <script>
+    const FLOWCHART_TYPES = {
+      Screens: {
+        title: 'Screens',
+        items: [
+          { id: 'lobby', name: 'Lobby' },
+          { id: 'game-play', name: 'Game play' },
+          { id: 'settings', name: 'Settings' }
+        ]
+      },
+      'Match initiation': {
+        title: 'Match initiation',
+        items: [
+          { id: 'unified', name: 'All flows (unified)' }
+        ]
+      },
+      'Game State': {
+        title: 'Game State',
+        items: [
+          { id: 'practice-mode', name: 'Practice mode' },
+          { id: 'multi-backend', name: 'Multi backend mode' }
+        ]
+      },
+      Tournaments: {
+        title: 'Tournaments',
+        items: [
+          { id: 'create-tournament-plan', name: 'Create tournament plan' }
+        ]
+      }
+    };
+
+    const state = {
+      view: 'types',
+      typeId: null,
+      itemId: null
+    };
+
+    function getTypeIdFromSlug(slug) {
+      const key = Object.keys(FLOWCHART_TYPES).find(
+        k => k.toLowerCase().replace(/\s+/g, '-') === slug
+      );
+      return key || null;
+    }
+
+    function getHashRaw() {
+      var h = window.location.hash;
+      if (h) return h.slice(1).trim();
+      var idx = window.location.href.indexOf('#');
+      if (idx !== -1) return (window.location.href.slice(idx + 1) || '').trim();
+      return '';
+    }
+    function parseHash() {
+      const raw = getHashRaw();
+      if (!raw) {
+        state.view = 'types';
+        state.typeId = null;
+        state.itemId = null;
+        return;
+      }
+      state.typeId = getTypeIdFromSlug(raw);
+      state.view = state.typeId ? 'list' : 'types';
+      state.itemId = null;
+    }
+
+    function slugForType(typeId) {
+      return typeId.toLowerCase().replace(/\s+/g, '-');
+    }
+
+    function renderBreadcrumb() {
+      const el = document.getElementById('breadcrumb');
+      const parts = [];
+      parts.push('<a href="#">Flowcharts</a>');
+      if (state.typeId) {
+        parts.push('<span>/</span>');
+        parts.push(`<a href="#${slugForType(state.typeId)}">${state.typeId}</a>`);
+      }
+      el.innerHTML = parts.join('');
+    }
+
+    function renderTitle() {
+      const titleEl = document.getElementById('title');
+      if (state.view === 'types') titleEl.textContent = 'Flowchart types';
+      else if (state.view === 'list' && state.typeId) titleEl.textContent = FLOWCHART_TYPES[state.typeId].title;
+      else titleEl.textContent = 'Flowcharts';
+    }
+
+    function showView(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const el = document.getElementById('view-' + viewId);
+      if (el) el.classList.add('active');
+    }
+
+    function renderTypes() {
+      const list = document.getElementById('list-types');
+      list.innerHTML = Object.keys(FLOWCHART_TYPES).map(typeId => {
+        const slug = slugForType(typeId);
+        return `<li><a href="#${slug}">${typeId}</a></li>`;
+      }).join('');
+    }
+
+    function renderList() {
+      const list = document.getElementById('list-items');
+      const type = state.typeId && FLOWCHART_TYPES[state.typeId];
+      if (!type) {
+        list.innerHTML = '';
+        return;
+      }
+      const slug = slugForType(state.typeId);
+      list.innerHTML = type.items.map(item => {
+        const href = 'charts/' + slug + '/' + item.id + '.html';
+        return '<li><a href="' + href + '">' + item.name + '</a></li>';
+      }).join('');
+    }
+
+    function render() {
+      parseHash();
+      renderBreadcrumb();
+      renderTitle();
+      if (state.view === 'types') {
+        renderTypes();
+        showView('types');
+      } else {
+        renderList();
+        showView('list');
+      }
+    }
+
+    window.addEventListener('hashchange', render);
+    window.addEventListener('load', function () {
+      render();
+      setTimeout(render, 50);
+    });
+    render();
+  </script>
+</body>
+</html>

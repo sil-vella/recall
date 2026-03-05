@@ -94,52 +94,29 @@ filter_logs() {
     done
 }
 
-# Launch Flutter and filter output (Firebase/sensitive from .env via dart-define)
+# Build --dart-define from .env (all vars) then overrides and run-only extras
+source "$SCRIPT_DIR/dart_defines_from_env.sh"
+DART_DEFINE_ARGS=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
+done < <(build_dart_defines_from_env "$SCRIPT_DIR/.env")
+DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" )
+DART_DEFINE_ARGS+=( \
+  --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
+  --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
+  --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
+  --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
+  --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
+  --dart-define=DEBUG_MODE=true \
+  --dart-define=ENABLE_REMOTE_LOGGING=true \
+)
+
+# Launch Flutter and filter output
 flutter run \
     -d chrome \
     --web-port=3002 \
     --web-hostname=localhost \
-    --dart-define=API_URL="$API_URL" \
-    --dart-define=WS_URL="$WS_URL" \
-    --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
-    --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
-    --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
-    --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-    --dart-define=ADMOBS_TOP_BANNER01="${ADMOBS_TOP_BANNER01:-ca-app-pub-3940256099942544/9214589741}" \
-    --dart-define=ADMOBS_BOTTOM_BANNER01="${ADMOBS_BOTTOM_BANNER01:-ca-app-pub-3940256099942544/9214589741}" \
-    --dart-define=ADMOBS_INTERSTITIAL01="${ADMOBS_INTERSTITIAL01:-ca-app-pub-3940256099942544/1033173712}" \
-    --dart-define=ADMOBS_REWARDED01="${ADMOBS_REWARDED01:-ca-app-pub-3940256099942544/5224354917}" \
-    --dart-define=STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-}" \
-    --dart-define=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}" \
-    --dart-define=GOOGLE_CLIENT_ID_ANDROID="${GOOGLE_CLIENT_ID_ANDROID:-}" \
-    --dart-define=FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY:-}" \
-    --dart-define=FIREBASE_WEB_APP_ID="${FIREBASE_WEB_APP_ID:-}" \
-    --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID="${FIREBASE_WEB_MESSAGING_SENDER_ID:-}" \
-    --dart-define=FIREBASE_WEB_PROJECT_ID="${FIREBASE_WEB_PROJECT_ID:-}" \
-    --dart-define=FIREBASE_WEB_AUTH_DOMAIN="${FIREBASE_WEB_AUTH_DOMAIN:-}" \
-    --dart-define=FIREBASE_WEB_STORAGE_BUCKET="${FIREBASE_WEB_STORAGE_BUCKET:-}" \
-    --dart-define=FIREBASE_WEB_MEASUREMENT_ID="${FIREBASE_WEB_MEASUREMENT_ID:-}" \
-    --dart-define=FIREBASE_ANDROID_API_KEY="${FIREBASE_ANDROID_API_KEY:-}" \
-    --dart-define=FIREBASE_ANDROID_APP_ID="${FIREBASE_ANDROID_APP_ID:-}" \
-    --dart-define=FIREBASE_ANDROID_MESSAGING_SENDER_ID="${FIREBASE_ANDROID_MESSAGING_SENDER_ID:-}" \
-    --dart-define=FIREBASE_ANDROID_PROJECT_ID="${FIREBASE_ANDROID_PROJECT_ID:-}" \
-    --dart-define=FIREBASE_ANDROID_STORAGE_BUCKET="${FIREBASE_ANDROID_STORAGE_BUCKET:-}" \
-    --dart-define=FIREBASE_IOS_API_KEY="${FIREBASE_IOS_API_KEY:-}" \
-    --dart-define=FIREBASE_IOS_APP_ID="${FIREBASE_IOS_APP_ID:-}" \
-    --dart-define=FIREBASE_IOS_MESSAGING_SENDER_ID="${FIREBASE_IOS_MESSAGING_SENDER_ID:-}" \
-    --dart-define=FIREBASE_IOS_PROJECT_ID="${FIREBASE_IOS_PROJECT_ID:-}" \
-    --dart-define=FIREBASE_IOS_STORAGE_BUCKET="${FIREBASE_IOS_STORAGE_BUCKET:-}" \
-    --dart-define=FIREBASE_IOS_BUNDLE_ID="${FIREBASE_IOS_BUNDLE_ID:-}" \
-    --dart-define=FIREBASE_WINDOWS_API_KEY="${FIREBASE_WINDOWS_API_KEY:-}" \
-    --dart-define=FIREBASE_WINDOWS_APP_ID="${FIREBASE_WINDOWS_APP_ID:-}" \
-    --dart-define=FIREBASE_WINDOWS_MESSAGING_SENDER_ID="${FIREBASE_WINDOWS_MESSAGING_SENDER_ID:-}" \
-    --dart-define=FIREBASE_WINDOWS_PROJECT_ID="${FIREBASE_WINDOWS_PROJECT_ID:-}" \
-    --dart-define=FIREBASE_WINDOWS_AUTH_DOMAIN="${FIREBASE_WINDOWS_AUTH_DOMAIN:-}" \
-    --dart-define=FIREBASE_WINDOWS_STORAGE_BUCKET="${FIREBASE_WINDOWS_STORAGE_BUCKET:-}" \
-    --dart-define=FIREBASE_WINDOWS_MEASUREMENT_ID="${FIREBASE_WINDOWS_MEASUREMENT_ID:-}" \
-    --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
-    --dart-define=DEBUG_MODE=true \
-    --dart-define=ENABLE_REMOTE_LOGGING=true 2>&1 | filter_logs
+    "${DART_DEFINE_ARGS[@]}" 2>&1 | filter_logs
 
 echo "✅ Flutter app launch completed"
 echo "📝 Logger output written to: $SERVER_LOG_FILE"

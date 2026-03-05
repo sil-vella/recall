@@ -1,0 +1,23 @@
+flowchart TD
+    subgraph Client["Flutter client"]
+      A[WebSocket] --> B[game_state_updated]
+      B --> C[StateManager update]
+      C --> D[gamePhase DutchGameState]
+    end
+    subgraph Backend["Server Python Dart"]
+      S0[waiting_for_players] --> S1[start_match]
+      S1 --> S2[dealing_cards]
+      S2 --> S3[initial_peek]
+      S3 --> S4[player_turn]
+      S4 --> S5{same rank or special}
+      S5 -->|Yes| S6[same_rank_window etc]
+      S6 --> S7[turn_pending_events]
+      S7 --> S4
+      S5 -->|No| S4
+      S4 --> S8{Dutch called}
+      S8 -->|Yes| S9[dutch_called]
+      S8 -->|No| S4
+      S9 --> S10[game_ended]
+    end
+    S10 -->|broadcast| A
+    S0 --> A

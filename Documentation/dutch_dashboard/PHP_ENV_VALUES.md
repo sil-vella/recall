@@ -1,6 +1,50 @@
 # PHP dashboard env values — where to get them
 
-Values the **PHP dashboard** needs for `PYTHON_API_BASE_URL`, `DUTCH_MT_DASHBOARD_SERVICE_KEY`, and `JWT_SECRET`. The repo does not store real secrets; this doc explains where the Python app gets them so you can use the same on the PHP side.
+Values the **PHP dashboard** needs for `PYTHON_API_BASE_URL`, `DUTCH_MT_DASHBOARD_SERVICE_KEY`, and `JWT_SECRET`. The repo does not store real secrets; this doc explains where the Python (Flask) app gets them so you can use the same on the PHP side.
+
+---
+
+## How PHP talks to the Python Flask server (aligned contract)
+
+1. **Outbound HTTP only**  
+   PHP calls the Python API; Python does not call PHP.  
+   Base URL comes from **PYTHON_API_BASE_URL** (e.g. in PHP `config.php` via `.env`).  
+   All calls should go through a single client (e.g. PHP `lib/python_client.php`) using the same headers and base URL. Base URL has no trailing slash.
+
+2. **Two kinds of calls**  
+   | Type   | When                         | Auth                                      | PHP functions (example)     |
+   |--------|------------------------------|-------------------------------------------|-----------------------------|
+   | Service (authenticated) | Dashboard actions (create tournament, health) | `X-Service-Key: <DUTCH_MT_DASHBOARD_SERVICE_KEY>` | `python_post()`, `python_get()` |
+   | Public | Optional future use (e.g. public registration to Python) | None | `python_post_public()` |
+
+   Auth with the Flask server is done **only** via the `X-Service-Key` header for service endpoints. PHP does **not** send user JWT or any other token to Python.
+
+3. **Service-key auth (PHP → Flask)**  
+   - **Secret:** `DUTCH_MT_DASHBOARD_SERVICE_KEY` in PHP env; the **same** value must be configured on the Flask side.  
+   - **Usage:** For every request to a **service** Python endpoint, PHP sends:  
+     **Header:** `X-Service-Key: <DUTCH_MT_DASHBOARD_SERVICE_KEY>`  
+     **Body:** JSON where applicable (e.g. create-tournament).  
+   - **Contract:** Flask requires `X-Service-Key` on `/service/*` routes and validates it (e.g. compares to the same secret). This repo contains the Flask app that checks the header; the PHP app only sends it.
+
+4. **No auth proxy to Python**  
+   User auth is only in PHP: login/register and JWT creation/verification use PHP + MariaDB and `JWT_SECRET`. PHP **never** calls Python to validate user tokens.  
+   **Flow for protected actions:** Frontend sends `Authorization: Bearer <JWT>` to PHP → PHP verifies the JWT locally → If valid, PHP then calls the Python **service** endpoint with **only** `X-Service-Key` (and optional JSON body). The Flask server trusts the caller because of the service key, not because it sees the user’s JWT.
+
+5. **Concrete flows (Flask side)**  
+   - **Create tournament**  
+     PHP: `POST {baseUrl}/service/dutch/create-tournaments` with `Content-Type: application/json` and `X-Service-Key: <service_key>`, body = dashboard input JSON.  
+     Flask: Route exists; validates `X-Service-Key` (middleware); returns JSON (e.g. `success`, `message`).  
+   - **Health (Python)**  
+     PHP: `GET {baseUrl}/service/health` with `X-Service-Key: <service_key>`.  
+     Flask: Route exists; same health logic as `/health`; validates `X-Service-Key` (middleware).  
+   - **Public endpoints**  
+     Paths under `/public/` do **not** require `X-Service-Key`. Use for future calls that need no service auth.
+
+6. **Config (PHP side)**  
+   From PHP `config.php` / `.env`:  
+   - **PYTHON_API_BASE_URL** — Flask base URL (no trailing slash).  
+   - **DUTCH_MT_DASHBOARD_SERVICE_KEY** — Secret for `X-Service-Key` (must match Flask’s expectation).  
+   If either is missing, the code that needs Python (e.g. create-tournament, health-python) should not call Flask (e.g. return 500).
 
 ---
 
@@ -22,7 +66,7 @@ Use the URL where your **Python/Flask API** is actually reachable. Flask default
 
 ## 2. DUTCH_MT_DASHBOARD_SERVICE_KEY
 
-**What PHP uses it for:** Sent as `X-Service-Key` when calling Python `/service/*` (health, create-tournaments). Must match Python’s config.
+**What PHP uses it for:** Same logic as Dart backend: sent as `X-Service-Key` (or `Authorization: Bearer <key>`) on **every** request to Python paths under `/service/*` (e.g. health, create-tournaments). Must match Python’s `DUTCH_MT_DASHBOARD_SERVICE_KEY` config.
 
 **Where Python gets it** ([python_base_04/utils/config/config.py](python_base_04/utils/config/config.py)):
 

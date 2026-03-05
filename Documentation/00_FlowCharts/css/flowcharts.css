@@ -1,0 +1,102 @@
+/* Unified styles for Flowcharts hub and chart pages. Browser/theme sets colors unless overridden. */
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.container--wide {
+  max-width: 1200px;
+}
+
+.breadcrumb {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.breadcrumb a {
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb span {
+  margin: 0 0.35rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.notes {
+  font-size: 0.85rem;
+  margin: 1rem 0;
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+#chart {
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+/* Diagram text: ensure dark on light. Targets SVG text and Mermaid foreignObject labels. */
+#chart svg text,
+#chart svg tspan,
+#chart svg .nodeLabel,
+#chart svg .edgeLabel,
+#chart svg .label {
+  fill: #111 !important;
+  font-weight: 500;
+}
+#chart svg foreignObject body,
+#chart svg foreignObject div,
+#chart svg foreignObject span {
+  color: #111 !important;
+  background: transparent !important;
+}
+
+/* Index (hub) page */
+header {
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.nav-list a {
+  display: block;
+  padding: 0.85rem 1rem;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}

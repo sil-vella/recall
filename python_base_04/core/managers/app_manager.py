@@ -435,7 +435,7 @@ class AppManager:
                 request.api_key_data = api_key_data
                 return None
 
-            # Handle service authentication (Dart backend -> Python)
+            # Handle service authentication (Dart backend or PHP dashboard -> Python)
             if auth_required == 'service':
                 if not getattr(Config, 'ENABLE_DART_SERVICE_KEY_AUTH', True):
                     # Switch off: accept /service/ requests without key (testing only)
@@ -444,16 +444,20 @@ class AppManager:
                 service_key = request.headers.get('X-Service-Key') or (
                     request.headers.get('Authorization') or ''
                 ).replace('Bearer ', '').strip()
-                expected = getattr(Config, 'DART_BACKEND_SERVICE_KEY', None) or ''
+                dart_key = getattr(Config, 'DART_BACKEND_SERVICE_KEY', None) or ''
+                dashboard_key = getattr(Config, 'DUTCH_MT_DASHBOARD_SERVICE_KEY', None) or ''
+                valid_keys = [k for k in (dart_key, dashboard_key) if k]
+                match_dart = bool(dart_key and service_key and service_key == dart_key)
+                match_dashboard = bool(dashboard_key and service_key and service_key == dashboard_key)
                 # Safe verification log: never log key values
-                custom_log("Service auth: DART_BACKEND_SERVICE_KEY configured=%s, X-Service-Key present=%s, match=%s" % (bool(expected), bool(service_key), bool(expected and service_key and service_key == expected)), level="INFO")
-                if not expected:
+                custom_log("Service auth: dart_configured=%s, dashboard_configured=%s, X-Service-Key present=%s, match_dart=%s, match_dashboard=%s" % (bool(dart_key), bool(dashboard_key), bool(service_key), match_dart, match_dashboard), level="INFO")
+                if not valid_keys:
                     return jsonify({
                         'error': 'Service auth not configured',
-                        'message': 'DART_BACKEND_SERVICE_KEY is not set.',
+                        'message': 'DART_BACKEND_SERVICE_KEY or DUTCH_MT_DASHBOARD_SERVICE_KEY must be set.',
                         'code': 'SERVICE_AUTH_NOT_CONFIGURED'
                     }), 503
-                if not service_key or service_key != expected:
+                if not service_key or (not match_dart and not match_dashboard):
                     return jsonify({
                         'error': 'Invalid service key',
                         'message': 'Valid X-Service-Key or Bearer token required.',

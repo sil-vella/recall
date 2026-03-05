@@ -147,62 +147,50 @@ echo ""
 
 set_production_deck_config
 
-# Build the web release (Firebase/sensitive from .env via dart-define)
+# Build --dart-define from .env (all vars) then overrides and build-only extras
+source "$SCRIPT_DIR/dart_defines_from_env.sh"
+DART_DEFINE_ARGS=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
+done < <(build_dart_defines_from_env "$SCRIPT_DIR/.env" "$REPO_ROOT/.env")
+# Overrides (script-set API_URL, WS_URL, APP_VERSION)
+DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
+# Build-only (not in .env)
+DART_DEFINE_ARGS+=( \
+  --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
+  --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
+  --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
+  --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
+  --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
+  --dart-define=DEBUG_MODE=true \
+  --dart-define=ENABLE_REMOTE_LOGGING=true \
+)
+
+# Build the web release
 echo "🌐 Building Flutter web release..."
 flutter build web \
   --release \
   --build-name="$APP_VERSION" \
   --build-number="$BUILD_NUMBER" \
-  --dart-define=API_URL="$API_URL" \
-  --dart-define=WS_URL="$WS_URL" \
-  --dart-define=APP_VERSION="$APP_VERSION" \
-  --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
-  --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
-  --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
-  --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-  --dart-define=ADMOBS_TOP_BANNER01="${ADMOBS_TOP_BANNER01:-ca-app-pub-3940256099942544/9214589741}" \
-  --dart-define=ADMOBS_BOTTOM_BANNER01="${ADMOBS_BOTTOM_BANNER01:-ca-app-pub-3940256099942544/9214589741}" \
-  --dart-define=ADMOBS_INTERSTITIAL01="${ADMOBS_INTERSTITIAL01:-ca-app-pub-3940256099942544/1033173712}" \
-  --dart-define=ADMOBS_REWARDED01="${ADMOBS_REWARDED01:-ca-app-pub-3940256099942544/5224354917}" \
-  --dart-define=STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-}" \
-  --dart-define=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}" \
-  --dart-define=GOOGLE_CLIENT_ID_ANDROID="${GOOGLE_CLIENT_ID_ANDROID:-}" \
-  --dart-define=FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY:-}" \
-  --dart-define=FIREBASE_WEB_APP_ID="${FIREBASE_WEB_APP_ID:-}" \
-  --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID="${FIREBASE_WEB_MESSAGING_SENDER_ID:-}" \
-  --dart-define=FIREBASE_WEB_PROJECT_ID="${FIREBASE_WEB_PROJECT_ID:-}" \
-  --dart-define=FIREBASE_WEB_AUTH_DOMAIN="${FIREBASE_WEB_AUTH_DOMAIN:-}" \
-  --dart-define=FIREBASE_WEB_STORAGE_BUCKET="${FIREBASE_WEB_STORAGE_BUCKET:-}" \
-  --dart-define=FIREBASE_WEB_MEASUREMENT_ID="${FIREBASE_WEB_MEASUREMENT_ID:-}" \
-  --dart-define=FIREBASE_ANDROID_API_KEY="${FIREBASE_ANDROID_API_KEY:-}" \
-  --dart-define=FIREBASE_ANDROID_APP_ID="${FIREBASE_ANDROID_APP_ID:-}" \
-  --dart-define=FIREBASE_ANDROID_MESSAGING_SENDER_ID="${FIREBASE_ANDROID_MESSAGING_SENDER_ID:-}" \
-  --dart-define=FIREBASE_ANDROID_PROJECT_ID="${FIREBASE_ANDROID_PROJECT_ID:-}" \
-  --dart-define=FIREBASE_ANDROID_STORAGE_BUCKET="${FIREBASE_ANDROID_STORAGE_BUCKET:-}" \
-  --dart-define=FIREBASE_IOS_API_KEY="${FIREBASE_IOS_API_KEY:-}" \
-  --dart-define=FIREBASE_IOS_APP_ID="${FIREBASE_IOS_APP_ID:-}" \
-  --dart-define=FIREBASE_IOS_MESSAGING_SENDER_ID="${FIREBASE_IOS_MESSAGING_SENDER_ID:-}" \
-  --dart-define=FIREBASE_IOS_PROJECT_ID="${FIREBASE_IOS_PROJECT_ID:-}" \
-  --dart-define=FIREBASE_IOS_STORAGE_BUCKET="${FIREBASE_IOS_STORAGE_BUCKET:-}" \
-  --dart-define=FIREBASE_IOS_BUNDLE_ID="${FIREBASE_IOS_BUNDLE_ID:-}" \
-  --dart-define=FIREBASE_WINDOWS_API_KEY="${FIREBASE_WINDOWS_API_KEY:-}" \
-  --dart-define=FIREBASE_WINDOWS_APP_ID="${FIREBASE_WINDOWS_APP_ID:-}" \
-  --dart-define=FIREBASE_WINDOWS_MESSAGING_SENDER_ID="${FIREBASE_WINDOWS_MESSAGING_SENDER_ID:-}" \
-  --dart-define=FIREBASE_WINDOWS_PROJECT_ID="${FIREBASE_WINDOWS_PROJECT_ID:-}" \
-  --dart-define=FIREBASE_WINDOWS_AUTH_DOMAIN="${FIREBASE_WINDOWS_AUTH_DOMAIN:-}" \
-  --dart-define=FIREBASE_WINDOWS_STORAGE_BUCKET="${FIREBASE_WINDOWS_STORAGE_BUCKET:-}" \
-  --dart-define=FIREBASE_WINDOWS_MEASUREMENT_ID="${FIREBASE_WINDOWS_MEASUREMENT_ID:-}" \
-  --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
-  --dart-define=DEBUG_MODE=true \
-  --dart-define=ENABLE_REMOTE_LOGGING=true
+  "${DART_DEFINE_ARGS[@]}"
 
 OUTPUT_DIR="$REPO_ROOT/flutter_base_05/build/web"
 
 if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/index.html" ]; then
   echo "✅ Web build completed: $OUTPUT_DIR"
+  INDEX_HTML="$OUTPUT_DIR/index.html"
+
+  # Verify AdSense snippet is in built index.html (for Google verification)
+  if grep -q "adsbygoogle.js" "$INDEX_HTML" && grep -q "ca-pub-" "$INDEX_HTML"; then
+    echo "✅ AdSense code snippet present in index.html (ready for Google verification)"
+  else
+    echo "❌ AdSense code snippet missing from built index.html."
+    echo "   Add the script tag to flutter_base_05/web/index.html and rebuild."
+    exit 1
+  fi
+
   # Cache-bust: add version query string so browsers load fresh script/manifest instead of cache.
   # For best results the web server should send Cache-Control: no-cache (or max-age=0) for index.html.
-  INDEX_HTML="$OUTPUT_DIR/index.html"
   if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s|src=\"flutter_bootstrap.js\"|src=\"flutter_bootstrap.js?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i '' "s|href=\"manifest.json\"|href=\"manifest.json?v=$APP_VERSION\"|g" "$INDEX_HTML"

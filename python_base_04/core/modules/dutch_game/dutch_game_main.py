@@ -17,9 +17,16 @@ from datetime import datetime
 from bson import ObjectId
 import time
 import random
+import uuid
 
-# Logging switch for this module
-LOGGING_SWITCH = False  # Enabled for rank-based matching testing
+# Logging switch for this module (invite flow, comp/human, create-match session - see .cursor/rules/enable-logging-switch.mdc)
+LOGGING_SWITCH = True
+
+# In-memory create-match sessions: key = create_match_id (datetime-style id), value = session dict
+# Session: { "created_at": datetime, "inviter_user_id": str, "invited": [ {"user_id", "username", "notification_id", "status": "pending"|"accepted"|"declined"} ] }
+_create_match_sessions = {}
+# notification_id -> create_match_id for invite-response lookup
+_notification_to_session = {}  # Enabled for rank-based matching testing
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
 
@@ -98,6 +105,13 @@ class DutchGameMain(BaseModule):
 
             # Register the deduct-game-coins endpoint with JWT authentication
             self._register_route_helper("/userauth/dutch/deduct-game-coins", self.deduct_game_coins, methods=["POST"], auth="jwt")
+
+            # Invite a player by username (uses user search, then creates instant notification; optional create_match_id)
+            self._register_route_helper("/userauth/dutch/invite-player", self.invite_player, methods=["POST"], auth="jwt")
+            # Create-match session: create (POST), get for polling (GET), respond to invite (POST)
+            self._register_route_helper("/userauth/dutch/create-match-session", self.create_match_session, methods=["POST"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/create-match-session", self.get_create_match_session, methods=["GET"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/invite-response", self.invite_response, methods=["POST"], auth="jwt")
 
             # Register the get-comp-players endpoint as public (no authentication)
             self._register_route_helper("/public/dutch/get-comp-players", self.get_comp_players, methods=["POST"])
@@ -877,7 +891,216 @@ class DutchGameMain(BaseModule):
                 "message": "Failed to deduct game coins",
                 "error": str(e)
             }), 500
-    
+
+    def invite_player(self):
+        """Invite a player by username. Uses user search to resolve username, then creates an instant notification for the target (JWT required)."""
+        try:
+            inviter_user_id = request.user_id
+            if not inviter_user_id:
+                return jsonify({
+                    "success": False,
+                    "error": "Not authenticated",
+                    "message": "No user ID in request"
+                }), 401
+            data = request.get_json(silent=True) or {}
+            username = (data.get('username') or '').strip()
+            if len(username) < 2:
+                return jsonify({
+                    "success": False,
+                    "error": "username is required and must be at least 2 characters",
+                    "message": "Provide a username to invite"
+                }), 400
+            user_management = self.app_manager.module_manager.get_module("user_management_module")
+            if not user_management or not hasattr(user_management, 'search_users_by_username'):
+                custom_log("DutchGame: invite_player - user_management_module not available", level="ERROR", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": False,
+                    "error": "User search unavailable",
+                    "message": "Cannot resolve username"
+                }), 503
+            users, err = user_management.search_users_by_username(username, limit=10)
+            if err:
+                return jsonify({"success": False, "error": err, "message": err}), 400
+            if not users:
+                return jsonify({
+                    "success": False,
+                    "error": "User not found",
+                    "message": f"No user found for username '{username}'"
+                }), 404
+            target = users[0]
+            target_user_id = target.get('user_id') or str(target.get('_id', ''))
+            if not target_user_id or target_user_id == inviter_user_id:
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid target",
+                    "message": "Cannot invite yourself"
+                }), 400
+            create_match_id = (data.get("create_match_id") or "").strip()
+            is_comp_player = target.get("is_comp_player") is True
+
+            if is_comp_player:
+                # Computer players: no notification; add to session as accepted in-memory only.
+                if create_match_id and create_match_id in _create_match_sessions:
+                    _create_match_sessions[create_match_id]["invited"].append({
+                        "user_id": target_user_id,
+                        "username": target.get("username") or "",
+                        "notification_id": None,
+                        "status": "accepted",
+                        "is_comp_player": True,
+                    })
+                custom_log(f"DutchGame: invite_player - added comp player {target_user_id} (username {target.get('username')}) as accepted by {inviter_user_id}", level="INFO", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": True,
+                    "message": "Computer player added",
+                    "target_user_id": target_user_id,
+                    "target_username": target.get("username"),
+                    "notification_id": None,
+                    "create_match_id": create_match_id or None,
+                    "is_comp_player": True,
+                }), 200
+
+            # Human players: send dutch_invite notification and add to session as pending.
+            notification_module = self.app_manager.module_manager.get_module("notification_module")
+            if not notification_module or not hasattr(notification_module, 'get_notification_service'):
+                custom_log("DutchGame: invite_player - notification_module not available", level="ERROR", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": False,
+                    "error": "Notifications unavailable",
+                    "message": "Cannot send invite"
+                }), 503
+            notif_service = notification_module.get_notification_service()
+            if not notif_service:
+                return jsonify({
+                    "success": False,
+                    "error": "Notification service not available",
+                    "message": "Cannot send invite"
+                }), 503
+            inviter_username = "Someone"
+            try:
+                db = self.app_manager.get_db_manager(role="read_only")
+                if db:
+                    inviter = db.find_one("users", {"_id": ObjectId(inviter_user_id)})
+                    if inviter:
+                        inviter_username = inviter.get("username") or inviter_username
+            except Exception:
+                pass
+            title = "Game invite"
+            body = f"{inviter_username} invited you to play Dutch."
+            responses = [
+                {"label": "Accept", "endpoint": "/userauth/dutch/invite-response", "method": "POST", "action": "accept"},
+                {"label": "Decline", "endpoint": "/userauth/dutch/invite-response", "method": "POST", "action": "decline"},
+            ]
+            msg_id = notif_service.create(
+                user_id=target_user_id,
+                source="dutch_game",
+                type="instant",
+                title=title,
+                body=body,
+                data={"inviter_user_id": inviter_user_id, "inviter_username": inviter_username, "create_match_id": create_match_id or None},
+                responses=responses,
+                subtype="dutch_invite",
+            )
+            if not msg_id:
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to create invite notification",
+                    "message": "Invite could not be sent"
+                }), 500
+            if create_match_id and create_match_id in _create_match_sessions:
+                _create_match_sessions[create_match_id]["invited"].append({
+                    "user_id": target_user_id,
+                    "username": target.get("username") or "",
+                    "notification_id": msg_id,
+                    "status": "pending",
+                    "is_comp_player": False,
+                })
+                _notification_to_session[msg_id] = create_match_id
+            custom_log(f"DutchGame: invite_player - invited human {target_user_id} (username {target.get('username')}) by {inviter_user_id}", level="INFO", isOn=LOGGING_SWITCH)
+            return jsonify({
+                "success": True,
+                "message": "Invite sent",
+                "target_user_id": target_user_id,
+                "target_username": target.get("username"),
+                "notification_id": msg_id,
+                "create_match_id": create_match_id or None,
+            }), 200
+        except Exception as e:
+            custom_log(f"DutchGame: invite_player error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({
+                "success": False,
+                "error": "Failed to send invite",
+                "message": str(e)
+            }), 500
+
+    def create_match_session(self):
+        """Create an in-memory create-match session. Returns create_match_id (datetime-style key) for use in invite-player and polling."""
+        try:
+            inviter_user_id = request.user_id
+            if not inviter_user_id:
+                return jsonify({"success": False, "error": "Not authenticated"}), 401
+            create_match_id = datetime.utcnow().strftime("%Y%m%d%H%M%S") + "_" + uuid.uuid4().hex[:8]
+            _create_match_sessions[create_match_id] = {
+                "created_at": datetime.utcnow().isoformat(),
+                "inviter_user_id": inviter_user_id,
+                "invited": [],
+            }
+            custom_log(f"DutchGame: create_match_session - id={create_match_id}", level="INFO", isOn=LOGGING_SWITCH)
+            return jsonify({"success": True, "create_match_id": create_match_id}), 200
+        except Exception as e:
+            custom_log(f"DutchGame: create_match_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    def get_create_match_session(self):
+        """Get create-match session for polling (invited list with statuses). Query: create_match_id=."""
+        try:
+            inviter_user_id = request.user_id
+            if not inviter_user_id:
+                return jsonify({"success": False, "error": "Not authenticated"}), 401
+            create_match_id = (request.args.get("create_match_id") or "").strip()
+            if not create_match_id:
+                return jsonify({"success": False, "error": "create_match_id required"}), 400
+            session = _create_match_sessions.get(create_match_id)
+            if not session:
+                return jsonify({"success": False, "error": "Session not found", "invited": []}), 404
+            if session["inviter_user_id"] != inviter_user_id:
+                return jsonify({"success": False, "error": "Forbidden"}), 403
+            return jsonify({
+                "success": True,
+                "create_match_id": create_match_id,
+                "created_at": session["created_at"],
+                "invited": list(session["invited"]),
+            }), 200
+        except Exception as e:
+            custom_log(f"DutchGame: get_create_match_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    def invite_response(self):
+        """Handle Accept/Decline from invited user. Body: message_id, action (accept|decline). Updates in-memory session."""
+        try:
+            user_id = request.user_id
+            if not user_id:
+                return jsonify({"success": False, "error": "Not authenticated"}), 401
+            data = request.get_json(silent=True) or {}
+            message_id = (data.get("message_id") or "").strip()
+            action = (data.get("action") or "").strip().lower()
+            if not message_id or action not in ("accept", "decline"):
+                return jsonify({"success": False, "error": "message_id and action (accept|decline) required"}), 400
+            session_id = _notification_to_session.get(message_id)
+            if not session_id or session_id not in _create_match_sessions:
+                return jsonify({"success": True, "message": "Updated"}), 200
+            session = _create_match_sessions[session_id]
+            for inv in session["invited"]:
+                if inv.get("notification_id") == message_id:
+                    if str(inv.get("user_id")) != str(user_id):
+                        return jsonify({"success": False, "error": "Forbidden"}), 403
+                    inv["status"] = action
+                    custom_log(f"DutchGame: invite_response - notification {message_id} -> {action}", level="INFO", isOn=LOGGING_SWITCH)
+                    break
+            return jsonify({"success": True, "message": "Updated", "action": action}), 200
+        except Exception as e:
+            custom_log(f"DutchGame: invite_response error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     def get_comp_players(self):
         """Get computer players from database (public endpoint)"""
         try:

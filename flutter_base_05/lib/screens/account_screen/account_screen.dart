@@ -502,62 +502,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     }
   }
   
-  Future<void> _handleGoogleSignIn() async {
-    setState(() {
-      _isLoading = true;
-      _clearMessages();
-    });
-    
-    // Check for guest account conversion before Google Sign-In
-    await _checkForGuestAccountForConversion();
-    
-    try {
-      final result = await _loginModule!.signInWithGoogle(
-        context: context,
-        guestEmail: _isConvertingGuest ? _guestEmail : null,
-        guestPassword: _isConvertingGuest ? _guestPassword : null,
-      );
-      
-      if (result['success'] != null) {
-        setState(() {
-          _successMessage = result['success'];
-          _isLoading = false;
-        });
-        
-        // Track successful Google Sign-In
-        await _analyticsModule?.trackEvent(
-          eventType: 'google_sign_in',
-          eventData: {
-            'auth_method': 'google',
-            'screen_name': 'account_screen',
-            'converted_from_guest': _isConvertingGuest,
-          },
-        );
-        
-        // Navigate to main screen after successful login
-        Future.delayed(const Duration(seconds: 2), () {
-          context.go('/');
-        });
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.warning('AccountScreen: Google Sign-In failed - result: $result');
-        }
-        setState(() {
-          _errorMessage = result['error'];
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Google Sign-In exception', error: e);
-      }
-      setState(() {
-        _errorMessage = 'An unexpected error occurred: $e';
-        _isLoading = false;
-      });
-    }
-  }
-  
   Future<void> _handleRegister() async {
     // Track button click
     await _analyticsModule?.trackButtonClick('register_button', screenName: 'account_screen');
@@ -1608,55 +1552,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               ),
             
             const SizedBox(height: 24),
-            
-            // Google Sign-In Button (white background, black text)
-            OutlinedButton.icon(
-              onPressed: _isLoading ? null : _handleGoogleSignIn,
-              icon: Image.asset(
-                'assets/images/google_logo.png',
-                height: 20,
-                width: 20,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(Icons.login, size: 20, color: AppColors.black);
-                },
-              ),
-              label: Text(
-                _isLoginMode ? 'Sign in with Google' : 'Sign up with Google',
-                style: AppTextStyles.bodyMedium(color: AppColors.black),
-              ),
-              style: OutlinedButton.styleFrom(
-                backgroundColor: AppColors.white,
-                foregroundColor: AppColors.black,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                side: BorderSide(color: AppColors.borderDefault),
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Divider with "OR"
-            Row(
-              children: [
-                Expanded(child: Divider(color: AppColors.borderDefault)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'OR',
-                    style: AppTextStyles.bodyMedium().copyWith(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Expanded(child: Divider(color: AppColors.borderDefault)),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
+
             // Action Button
             Semantics(
               label: 'account_submit',
@@ -1916,8 +1812,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     );
   }
 
-  /// Login form: email/password for email accounts; Google sign-in uses no password.
-  /// Email and password are stored in SharedPref for pre-fill after logout (Google has no password).
+  /// Login form: email/password for email accounts.
+  /// Email and password are stored in SharedPref for pre-fill after logout.
   Widget _buildLoginForm() {
     return Form(
       key: _loginFormKey,

@@ -1,0 +1,46 @@
+---
+# Delete a user from local MongoDB (external_system.users) by username.
+# Usage:
+#   ansible-playbook -i localhost, playbooks/00_local/12_delete_user.yml -e username=silvestervella
+#   (from repo root; source .env for MONGODB_PASSWORD or use default)
+- name: Delete user from MongoDB by username (Local Docker)
+  hosts: localhost
+  connection: local
+  vars:
+    mongodb_container_name: "dutch_external_app_mongodb"
+    database_name: "external_system"
+    app_user: "external_app_user"
+    # Use default when MONGODB_PASSWORD is unset or empty (default(..., true) = use for any falsy value)
+    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx', true) }}"
+    mongodb_auth_db: "external_system"
+    # Pass username via -e username=... (required)
+    username: ""
+
+  tasks:
+    - name: Require username
+      assert:
+        that: username | length > 0
+        fail_msg: "Pass username with -e username=YOUR_USERNAME"
+
+    - name: Wait for MongoDB container to be ready
+      shell: docker exec {{ mongodb_container_name }} mongosh --eval "db.adminCommand('ping')" --quiet
+      register: mongodb_ready
+      retries: 10
+      delay: 2
+      until: mongodb_ready.rc == 0
+      changed_when: false
+
+    - name: Delete user by username
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" \
+          --authenticationDatabase {{ mongodb_auth_db }} --quiet --eval "
+        db = db.getSiblingDB('{{ database_name }}');
+        var r = db.users.deleteOne({username: '{{ username }}'});
+        print('DELETED_COUNT:' + r.deletedCount);
+        "
+      register: delete_result
+      changed_when: "'DELETED_COUNT:1' in delete_result.stdout"
+
+    - name: Report delete result
+      debug:
+        msg: "{{ 'Deleted 1 user with username \"' + username + '\".' if 'DELETED_COUNT:1' in delete_result.stdout else 'No user found with username \"' + username + '\" (deletedCount 0).' }}"

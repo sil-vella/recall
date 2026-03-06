@@ -48,6 +48,32 @@ h1 {
   border-radius: 8px;
 }
 
+.chart-comment {
+  font-size: 0.8rem;
+  margin: 0.75rem 0 0 0;
+  color: #444;
+}
+
+.chart-comment code {
+  font-size: 0.9em;
+}
+
+.state-example {
+  font-size: 0.75rem;
+  max-height: 28rem;
+  overflow: auto;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  border-radius: 6px;
+  background: #f8f8f8;
+  border: 1px solid #e0e0e0;
+}
+
+.state-example code {
+  font-family: ui-monospace, monospace;
+  white-space: pre;
+}
+
 #chart {
   border-radius: 8px;
   padding: 1rem;

@@ -13,6 +13,8 @@ echo "🚀 Building Flutter Web for Dutch..."
 # Resolve repository root (two levels up from this script)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+FRONTEND_ENV="$SCRIPT_DIR/.env"
+REPO_ENV="$REPO_ROOT/.env"
 
 # Flutter assets: set testing_mode=false and predefined_hands enabled=false for production build (restored on exit)
 # Backups go to /tmp so they are not bundled into build/web
@@ -69,17 +71,19 @@ else
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
-# App version and Firebase/sensitive vars: from playbooks/frontend/.env then repo .env
-if [ -f "$SCRIPT_DIR/.env" ]; then
+# Load env from playbooks/frontend/.env then repo .env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
-  source "$SCRIPT_DIR/.env"
+  source "$FRONTEND_ENV"
   set +a
+else
+  echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
 fi
-if [ -f "$REPO_ROOT/.env" ]; then
+if [ -f "$REPO_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
-  source "$REPO_ROOT/.env"
+  source "$REPO_ENV"
   set +a
 fi
 APP_VERSION="${APP_VERSION:-2.0.0}"
@@ -152,7 +156,7 @@ source "$SCRIPT_DIR/dart_defines_from_env.sh"
 DART_DEFINE_ARGS=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$SCRIPT_DIR/.env" "$REPO_ROOT/.env")
+done < <(build_dart_defines_from_env "$FRONTEND_ENV" "$REPO_ENV")
 # Overrides (script-set API_URL, WS_URL, APP_VERSION)
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
 # Build-only (not in .env)

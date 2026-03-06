@@ -4,13 +4,24 @@
 # Shows only your custom Logger calls, filters out all system logs
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FRONTEND_ENV="$SCRIPT_DIR/.env"
 
-# Firebase/sensitive vars from playbooks/frontend/.env
-if [ -f "$SCRIPT_DIR/.env" ]; then
+# Load env from playbooks/frontend/.env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
-  source "$SCRIPT_DIR/.env"
+  source "$FRONTEND_ENV"
   set +a
+  echo "✅ Loaded .env from: $FRONTEND_ENV"
+  if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
+    GOOGLE_CLIENT_ID_PREVIEW="${GOOGLE_CLIENT_ID:0:40}..."
+    echo "   GOOGLE_CLIENT_ID (for web): ${GOOGLE_CLIENT_ID_PREVIEW} (length=${#GOOGLE_CLIENT_ID})"
+  else
+    echo "   ❌ GOOGLE_CLIENT_ID is empty or unset — Google Sign-In will fail (401 invalid_client). Set it in $FRONTEND_ENV"
+  fi
+else
+  echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
+  echo "   Create from playbooks/frontend/.env.example or copy your .env into playbooks/frontend/.env"
 fi
 
 echo "🚀 Launching Flutter app on Chrome web with filtered Logger output..."
@@ -99,7 +110,7 @@ source "$SCRIPT_DIR/dart_defines_from_env.sh"
 DART_DEFINE_ARGS=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$SCRIPT_DIR/.env")
+done < <(build_dart_defines_from_env "$FRONTEND_ENV")
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" )
 DART_DEFINE_ARGS+=( \
   --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
@@ -110,6 +121,23 @@ DART_DEFINE_ARGS+=( \
   --dart-define=DEBUG_MODE=true \
   --dart-define=ENABLE_REMOTE_LOGGING=true \
 )
+
+# Diagnostic: verify GOOGLE_CLIENT_ID is in dart-defines (helps debug 401 invalid_client)
+GOOGLE_IN_DEFINES=false
+for arg in "${DART_DEFINE_ARGS[@]}"; do
+  if [[ "$arg" == --dart-define=GOOGLE_CLIENT_ID=* ]]; then
+    GOOGLE_IN_DEFINES=true
+    VAL="${arg#--dart-define=GOOGLE_CLIENT_ID=}"
+    VAL="${VAL%\"}"
+    VAL="${VAL#\"}"
+    echo "   Dart-define GOOGLE_CLIENT_ID: ${VAL:0:40}... (length=${#VAL})"
+    break
+  fi
+done
+if [ "$GOOGLE_IN_DEFINES" = false ]; then
+  echo "   ❌ GOOGLE_CLIENT_ID not found in dart-defines — add GOOGLE_CLIENT_ID=... to $FRONTEND_ENV"
+fi
+echo "   Total dart-defines: ${#DART_DEFINE_ARGS[@]}"
 
 # Launch Flutter and filter output
 flutter run \

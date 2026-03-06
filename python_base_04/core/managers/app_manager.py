@@ -24,7 +24,7 @@ from core.managers.websockets.websocket_manager import WebSocketManager
 
 class AppManager:
     METRICS_SWITCH = True
-    LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
+    LOGGING_SWITCH = True  # Rank-based matching, auth middleware (see .cursor/rules/enable-logging-switch.mdc)
     
     def __init__(self):
         # Plugin system removed - ModuleManager is now primary orchestrator
@@ -379,6 +379,8 @@ class AppManager:
             if auth_required == 'jwt':
                 auth_header = request.headers.get('Authorization')
                 if not auth_header or not auth_header.startswith('Bearer '):
+                    if AppManager.LOGGING_SWITCH:
+                        custom_log(f"Auth: 401 path={request.path!r} code=JWT_REQUIRED (missing or invalid Authorization header)", level="INFO", isOn=AppManager.LOGGING_SWITCH)
                     return jsonify({
                         'error': 'Missing or invalid authorization header',
                         'message': 'JWT token required for this endpoint.',
@@ -391,6 +393,8 @@ class AppManager:
                     from core.managers.jwt_manager import TokenType
                     payload = self.jwt_manager.verify_token(token, TokenType.ACCESS)
                     if not payload:
+                        if AppManager.LOGGING_SWITCH:
+                            custom_log(f"Auth: 401 path={request.path!r} code=TOKEN_INVALID (verify_token returned None)", level="INFO", isOn=AppManager.LOGGING_SWITCH)
                         return jsonify({
                             'error': 'Invalid or expired token',
                             'message': 'Please login again to get a fresh token.',
@@ -400,9 +404,13 @@ class AppManager:
                     # Set user context for the request
                     request.user_id = payload.get('user_id')
                     request.user_payload = payload
+                    if AppManager.LOGGING_SWITCH:
+                        custom_log(f"Auth: 200 path={request.path!r} user_id={request.user_id}", level="INFO", isOn=AppManager.LOGGING_SWITCH)
                     return None
                     
                 except Exception as e:
+                    if AppManager.LOGGING_SWITCH:
+                        custom_log(f"Auth: 401 path={request.path!r} code=TOKEN_VALIDATION_ERROR exception={e!r}", level="INFO", isOn=AppManager.LOGGING_SWITCH)
                     return jsonify({
                         'error': 'Token validation failed',
                         'message': 'Please login again.',

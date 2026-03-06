@@ -61,13 +61,16 @@ class DutchGameEventEmitter {
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
     },
     'create_room': {
-      'permission', 'max_players', 'min_players', 
+      'permission', 'max_players', 'min_players',
       'turn_time_limit', 'auto_start', 'game_type', 'password',
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
+      'is_tournament', 'tournament_data', // Optional: tournament match (id, name, format, leaderboard, matches_left)
+      'accepted_players', // Optional: list of { user_id, username, is_comp_player } for create-match invite flow
     },
     'join_room': {
       'room_id', 'password',
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
+      'is_tournament', 'tournament_data', // Optional: tournament match (id, name, format, leaderboard, matches_left)
     },
     'join_game': {'game_id', 'player_name', 'max_players'},
     'start_match': {'game_id', 'showInstructions', 'isClearAndCollect'},
@@ -131,8 +134,8 @@ class DutchGameEventEmitter {
     ),
     'game_type': DutchEventFieldSpec(
       type: String,
-      allowedValues: ['classic', 'speed', 'tournament'],
-      description: 'Game type variant',
+      allowedValues: ['classic', 'speed', 'tournament', 'clear_and_collect'],
+      description: 'Game type variant: classic/clear = no collection, clear_and_collect = collection mode',
     ),
     'password': DutchEventFieldSpec(
       type: String,
@@ -261,6 +264,22 @@ class DutchGameEventEmitter {
       type: bool,
       required: false,
       description: 'Game mode flag: false = clear mode (no collection), true = collection mode',
+    ),
+    // Tournament fields (create_room / join_room)
+    'is_tournament': DutchEventFieldSpec(
+      type: bool,
+      required: false,
+      description: 'True when this create/join is for a tournament match',
+    ),
+    'tournament_data': DutchEventFieldSpec(
+      type: Map,
+      required: false,
+      description: 'Tournament payload: id, name, format, leaderboard, matches_left',
+    ),
+    'accepted_players': DutchEventFieldSpec(
+      type: List,
+      required: false,
+      description: 'Create-match invite: list of { user_id, username, is_comp_player }',
     ),
   };
   

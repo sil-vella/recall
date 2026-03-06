@@ -18,8 +18,11 @@ flowchart TD
   FORMAT --> FORMAT_OPTS["e.g. F1, F2, F3"]
   FORMAT_OPTS --> INVITE["Invite players"]
   INVITE --> SEARCH["User search – filter out creator username"]
-  SEARCH --> CREATOR["Creator auto-added as accepted"]
-  CREATOR --> COUNT["Number of invites depends on format type"]
+  SEARCH --> CREATOR_BY_FORMAT{"By format: creator is…"}
+  CREATOR_BY_FORMAT -->|Player| CREATOR_ADDED["Creator auto-added as accepted"]
+  CREATOR_BY_FORMAT -->|Admin| CREATOR_ADMIN["Creator not included – admin only"]
+  CREATOR_ADDED --> COUNT["Number of invites depends on format type"]
+  CREATOR_ADMIN --> COUNT
   COUNT --> SEND["Send invites or add to tournament"]
 
   SEND --> BACKEND["Python backend creates tournament in DB"]
@@ -28,8 +31,13 @@ flowchart TD
   NOTIF --> ACCEPT["Invitees must accept notification"]
   ACCEPT --> CHECK{"Required number accepted?"}
   CHECK -->|No| ACCEPT
-  CHECK -->|Yes| NOTIF_JOIN["Auto notification to all HUMAN players to join tournament"]
-  NOTIF_JOIN --> WIRE["Wire into existing match logic"]
+  CHECK -->|Yes| CREATE_INVITE["Create and invite"]
+  CREATE_INVITE --> CREATOR_ROOM["Creator: existing create_room, passing tournament data"]
+  CREATOR_ROOM --> CREATOR_WAIT["Creator → play screen to wait for all to join"]
+  CREATOR_ROOM --> SINGLE["Creates single match for tournament"]
+  SINGLE --> NOTIF_JOIN["Auto notification to all HUMAN players to join tournament"]
+  NOTIF_JOIN --> OTHERS_JOIN["Others: existing join_room – no WS changes"]
+  OTHERS_JOIN --> WIRE["Wire into existing match logic"]
   WIRE --> ROOM["Add to room etc"]
   ROOM --> GAMESTATE["Game state: tournament keys in game map"]
   GAMESTATE --> KEYS["tournament name, format, players, etc"]

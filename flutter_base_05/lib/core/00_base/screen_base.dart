@@ -471,7 +471,14 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
               try {
                 final Map<String, dynamic> res;
                 if (method.toUpperCase() == 'GET') {
-                  res = await api.sendGetRequest(endpoint) as Map<String, dynamic>? ?? {};
+                  final uri = Uri.parse(endpoint);
+                  final query = Map<String, String>.from(uri.queryParameters)
+                    ..addAll({
+                      if (body['message_id'] != null) 'message_id': body['message_id'].toString(),
+                      if (body['action'] != null) 'action': body['action'].toString(),
+                    });
+                  final getUrl = uri.replace(queryParameters: query).toString();
+                  res = await api.sendGetRequest(getUrl) as Map<String, dynamic>? ?? {};
                 } else {
                   res = await api.sendPostRequest(endpoint, body) as Map<String, dynamic>? ?? {};
                 }

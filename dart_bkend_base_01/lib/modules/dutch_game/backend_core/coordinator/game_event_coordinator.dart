@@ -391,31 +391,84 @@ class GameEventCoordinator {
         needed--;
       }
     } else {
-      // Multiplayer mode: Try to fetch comp players from Flask backend
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Multiplayer mode - fetching comp players from Flask backend');
-      }
-      
+      // Multiplayer mode: use accepted_players comp list (create-room) or fetch from Flask (random join)
       int compPlayersAdded = 0;
       int remainingNeeded = needed;
-      
-      // Get room difficulty from roomInfo or state, and calculate compatible ranks
-      final roomDifficulty = roomInfo?.difficulty ?? stateRoot['roomDifficulty'] as String?;
-      List<String>? rankFilter;
-      if (roomDifficulty != null) {
-        rankFilter = RankMatcher.getCompatibleRanks(roomDifficulty);
+
+      final acceptedPlayersRaw = data['accepted_players'];
+      final List<Map<String, dynamic>> acceptedCompList = (acceptedPlayersRaw is List)
+          ? acceptedPlayersRaw
+              .whereType<Map<String, dynamic>>()
+              .where((e) => e['is_comp_player'] == true)
+              .toList()
+          : <Map<String, dynamic>>[];
+
+      if (acceptedCompList.isNotEmpty) {
+        // Create-room invite flow: add pre-selected comp players from accepted_players (no API fetch)
         if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter');
+          _logger.info('GameEventCoordinator: Using ${acceptedCompList.length} accepted comp player(s) from create-room');
         }
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Room has no difficulty set, will fetch comp players without rank filter');
+        const defaultRank = 'beginner';
+        const defaultDifficulty = 'medium';
+        for (final comp in acceptedCompList) {
+          if (players.length >= maxPlayers) break;
+          final userId = (comp['user_id'] ?? '').toString();
+          final username = (comp['username'] ?? 'CompPlayer').toString();
+          final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
+          String uniqueName = username;
+          int nameSuffix = 1;
+          while (existingNames.contains(uniqueName)) {
+            uniqueName = '$username$nameSuffix';
+            nameSuffix++;
+          }
+          existingNames.add(uniqueName);
+          players.add({
+            'id': playerId,
+            'name': uniqueName,
+            'isHuman': false,
+            'status': 'waiting',
+            'hand': <Map<String, dynamic>>[],
+            'visible_cards': <Map<String, dynamic>>[],
+            'points': 0,
+            'known_cards': <String, dynamic>{},
+            'collection_rank_cards': <String>[],
+            'isActive': true,
+            'difficulty': defaultDifficulty,
+            'rank': defaultRank,
+            'level': 1,
+            'userId': userId,
+            'email': '',
+            'username': username,
+          });
+          compPlayersAdded++;
+          if (LOGGING_SWITCH) {
+            _logger.info('GameEventCoordinator: Added accepted comp player - id: $playerId, name: $uniqueName, userId: $userId');
+          }
         }
+        remainingNeeded = needed - compPlayersAdded;
       }
-      
+
+      if (remainingNeeded > 0) {
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: Fetching $remainingNeeded comp player(s) from Flask backend');
+        }
+        // Get room difficulty from roomInfo or state, and calculate compatible ranks
+        final roomDifficulty = roomInfo?.difficulty ?? stateRoot['roomDifficulty'] as String?;
+        List<String>? rankFilter;
+        if (roomDifficulty != null) {
+          rankFilter = RankMatcher.getCompatibleRanks(roomDifficulty);
+          if (LOGGING_SWITCH) {
+            _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter');
+          }
+        } else {
+          if (LOGGING_SWITCH) {
+            _logger.info('GameEventCoordinator: Room has no difficulty set, will fetch comp players without rank filter');
+          }
+        }
+
       try {
         // Fetch comp players from Flask backend with rank filter
-        final compPlayersResponse = await server.pythonClient.getCompPlayers(needed, rankFilter: rankFilter);
+        final compPlayersResponse = await server.pythonClient.getCompPlayers(remainingNeeded, rankFilter: rankFilter);
         final success = compPlayersResponse['success'] as bool? ?? false;
         final compPlayersList = compPlayersResponse['comp_players'] as List<dynamic>? ?? [];
         final returnedCount = compPlayersResponse['count'] as int? ?? 0;
@@ -567,7 +620,8 @@ class GameEventCoordinator {
         }
         // Continue to fallback logic below
       }
-      
+      }
+
       // Fallback: Create simulated CPU players for any remaining slots
       if (remainingNeeded > 0) {
         if (LOGGING_SWITCH) {

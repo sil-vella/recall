@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../core/managers/hooks_manager.dart';
+import '../../../../../core/managers/module_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
+import '../../../../user_management_module/user_management_module.dart';
+import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 /// Unified widget for creating and joining games
@@ -45,11 +49,9 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
 
   // Create modal state
   final TextEditingController _createPasswordController = TextEditingController();
-  final TextEditingController _tournamentNameController = TextEditingController();
   String _selectedPermission = 'public';
+  /// Game type: 'classic' | 'clear_and_collect' (matches random join: classic = no collection, clear_and_collect = collection)
   String _selectedGameType = 'classic';
-  String _tournamentFormat = 'F1';
-  int _turnTimeLimit = 30;
   bool _isCreating = false;
 
   @override
@@ -83,7 +85,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     _roomIdController.dispose();
     _passwordController.dispose();
     _createPasswordController.dispose();
-    _tournamentNameController.dispose();
     final wsManager = WebSocketManager.instance;
     wsManager.socket?.off('join_room_error');
     super.dispose();
@@ -301,14 +302,15 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     }
   }
 
-  void _createRoom() {
+  void _createRoom(Map<String, dynamic> roomSettings) {
     setState(() {
       _isCreating = true;
     });
 
     // Private: password required, min 4 characters
-    if (_selectedPermission == 'private') {
-      final password = _createPasswordController.text.trim();
+    final permission = roomSettings['permission']?.toString() ?? _selectedPermission;
+    if (permission == 'private') {
+      final password = (roomSettings['password'] ?? _createPasswordController.text.trim()).toString().trim();
       if (password.isEmpty) {
         setState(() => _isCreating = false);
         if (mounted) {
@@ -335,37 +337,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       }
     }
 
-    // Tournament: name required
-    if (_selectedGameType == 'tournament') {
-      final name = _tournamentNameController.text.trim();
-      if (name.isEmpty) {
-        setState(() => _isCreating = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Tournament name is required'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-        }
-        return;
-      }
-    }
-
-    final roomSettings = {
-      'permission': _selectedPermission,
-      'gameType': _selectedGameType,
-      'maxPlayers': 4,
-      'minPlayers': 4,
-      'turnTimeLimit': _turnTimeLimit,
-      'autoStart': false, // Classic and tournament: no auto-start
-      'password': _createPasswordController.text.trim(),
-    };
-    if (_selectedGameType == 'tournament') {
-      roomSettings['tournamentName'] = _tournamentNameController.text.trim();
-      roomSettings['tournamentFormat'] = _tournamentFormat;
-    }
-
     widget.onCreateRoom(roomSettings);
 
     setState(() {
@@ -383,12 +354,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
   }
 
   void _showCreateRoomModal() {
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final username = loginState['username']?.toString() ?? '';
-    final showTournamentOption = username == 'silvestervella';
-    if (!showTournamentOption && _selectedGameType == 'tournament') {
-      setState(() => _selectedGameType = 'classic');
-    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -398,13 +363,9 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       builder: (context) => _CreateRoomModal(
         selectedPermission: _selectedPermission,
         selectedGameType: _selectedGameType,
-        showTournamentOption: showTournamentOption,
         passwordController: _createPasswordController,
-        tournamentNameController: _tournamentNameController,
-        tournamentFormat: _tournamentFormat,
         onPermissionChanged: (value) => setState(() => _selectedPermission = value),
         onGameTypeChanged: (value) => setState(() => _selectedGameType = value),
-        onTournamentFormatChanged: (value) => setState(() => _tournamentFormat = value),
         onCreateRoom: _createRoom,
         isCreating: _isCreating,
       ),
@@ -768,29 +729,29 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
   }
 }
 
+/// Game type options: classic (no collection), clear_and_collect (collection mode).
+const List<String> _kGameTypeValues = ['classic', 'clear_and_collect'];
+const Map<String, String> _kGameTypeLabels = {
+  'classic': 'Classic',
+  'clear_and_collect': 'Clear and Collect',
+};
+
 class _CreateRoomModal extends StatefulWidget {
   final String selectedPermission;
   final String selectedGameType;
-  final bool showTournamentOption;
   final TextEditingController passwordController;
-  final TextEditingController tournamentNameController;
-  final String tournamentFormat;
   final Function(String) onPermissionChanged;
   final Function(String) onGameTypeChanged;
-  final Function(String) onTournamentFormatChanged;
-  final VoidCallback onCreateRoom;
+  /// Called with full roomSettings including accepted_players when Create is pressed (only when 3 accepted).
+  final void Function(Map<String, dynamic> roomSettings) onCreateRoom;
   final bool isCreating;
 
   const _CreateRoomModal({
     required this.selectedPermission,
     required this.selectedGameType,
-    required this.showTournamentOption,
     required this.passwordController,
-    required this.tournamentNameController,
-    required this.tournamentFormat,
     required this.onPermissionChanged,
     required this.onGameTypeChanged,
-    required this.onTournamentFormatChanged,
     required this.onCreateRoom,
     required this.isCreating,
   });
@@ -802,14 +763,125 @@ class _CreateRoomModal extends StatefulWidget {
 class _CreateRoomModalState extends State<_CreateRoomModal> {
   late String _selectedPermission;
   late String _selectedGameType;
-  late String _tournamentFormat;
+
+  // Invite section: session id, invited list (from backend), search + results, polling
+  String? _createMatchId;
+  List<Map<String, dynamic>> _invited = [];
+  final TextEditingController _inviteSearchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
+  String? _invitingUsername;
+  Timer? _pollTimer;
+  static const bool LOGGING_SWITCH = true; // Enable for invite search debugging (see .cursor/rules/enable-logging-switch.mdc)
+  final Logger _logger = Logger();
 
   @override
   void initState() {
     super.initState();
     _selectedPermission = widget.selectedPermission;
     _selectedGameType = widget.selectedGameType;
-    _tournamentFormat = widget.tournamentFormat;
+    DutchGameHelpers.createMatchSession().then((r) {
+      if (mounted && r['success'] == true && r['create_match_id'] != null) {
+        setState(() => _createMatchId = r['create_match_id'] as String?);
+        _pollTimer = Timer.periodic(const Duration(seconds: 1), (_) => _pollInviteSession());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _inviteSearchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pollInviteSession() async {
+    if (!mounted || _createMatchId == null) return;
+    final r = await DutchGameHelpers.getCreateMatchSession(_createMatchId!);
+    if (mounted && r['success'] == true && r['invited'] != null) {
+      setState(() => _invited = r['invited'] as List<Map<String, dynamic>>);
+    }
+  }
+
+  /// Create button enabled only when exactly 3 invited and all have status 'accepted'.
+  bool get _canCreateRoom =>
+      _invited.length >= 3 &&
+      _invited.every((e) => (e['status'] ?? '').toString() == 'accepted');
+
+  void _onCreateRoomPressed() {
+    if (!_canCreateRoom || widget.isCreating) return;
+    final accepted = _invited
+        .where((e) => (e['status'] ?? '').toString() == 'accepted')
+        .map((e) => {
+              'user_id': e['user_id']?.toString(),
+              'username': e['username']?.toString() ?? '',
+              'is_comp_player': e['is_comp_player'] == true,
+            })
+        .toList();
+    final roomSettings = {
+      'permission': widget.selectedPermission,
+      'gameType': widget.selectedGameType,
+      'maxPlayers': 4,
+      'minPlayers': 4,
+      'autoStart': true, // Start when effective max reached (human count = maxSize - comp count)
+      'password': widget.passwordController.text.trim(),
+      'accepted_players': accepted,
+    };
+    widget.onCreateRoom(roomSettings);
+  }
+
+  Future<void> _runInviteSearch(String query) async {
+    if (LOGGING_SWITCH) {
+      _logger.info('CreateRoomModal._runInviteSearch: query="$query" length=${query.trim().length}');
+    }
+    if (query.trim().length < 3) {
+      if (LOGGING_SWITCH) {
+        _logger.info('CreateRoomModal._runInviteSearch: query < 3 chars, clearing results');
+      }
+      setState(() => _searchResults = []);
+      return;
+    }
+    setState(() => _isSearching = true);
+    final moduleManager = ModuleManager();
+    final userModule = moduleManager.getModuleByType<UserManagementModule>();
+    if (LOGGING_SWITCH) {
+      _logger.info('CreateRoomModal._runInviteSearch: userModule=${userModule != null}');
+    }
+    final users = userModule != null
+        ? await userModule.searchByUsername(query.trim(), limit: 10)
+        : <Map<String, dynamic>>[];
+    if (LOGGING_SWITCH) {
+      _logger.info('CreateRoomModal._runInviteSearch: got ${users.length} users');
+    }
+    if (mounted) {
+      setState(() {
+        _searchResults = users;
+        _isSearching = false;
+      });
+    }
+  }
+
+  Future<void> _inviteUser(String username, String userId) async {
+    if (_createMatchId == null) return;
+    final alreadyInvited = _invited.any((e) => (e['user_id'] ?? e['username']) == userId || e['username'] == username);
+    if (alreadyInvited) return;
+    setState(() => _invitingUsername = username);
+    final r = await DutchGameHelpers.invitePlayer(username, createMatchId: _createMatchId);
+    if (mounted) {
+      setState(() => _invitingUsername = null);
+      if (r['success'] == true) {
+        await _pollInviteSession();
+        _inviteSearchController.clear();
+        setState(() => _searchResults = []);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(r['message']?.toString() ?? r['error']?.toString() ?? 'Invite failed'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -872,7 +944,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                     children: [
                       SizedBox(height: AppPadding.defaultPadding.top),
 
-                      // Game Type (tournament option only for user 'silvestervella')
+                      // Game Type (classic = no collection, clear = no collection, clear_and_collect = collection — matches random join)
                       Text(
                         'Game Type',
                         style: AppTextStyles.label().copyWith(color: AppColors.white),
@@ -882,7 +954,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         label: 'create_room_dropdown_game_type',
                         identifier: 'create_room_dropdown_game_type',
                         child: DropdownButtonFormField<String>(
-                          value: widget.showTournamentOption ? _selectedGameType : 'classic',
+                          value: _kGameTypeValues.contains(_selectedGameType) ? _selectedGameType : 'classic',
                           decoration: InputDecoration(
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: AppPadding.defaultPadding.left,
@@ -905,11 +977,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                           ),
                           dropdownColor: AppColors.widgetContainerBackground,
                           style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                          items: (widget.showTournamentOption ? ['classic', 'tournament'] : ['classic']).map((type) {
+                          items: _kGameTypeValues.map((type) {
                             return DropdownMenuItem<String>(
                               value: type,
                               child: Text(
-                                type.toUpperCase(),
+                                _kGameTypeLabels[type] ?? type,
                                 style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
                               ),
                             );
@@ -921,7 +993,6 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                           },
                         ),
                       ),
-
                       SizedBox(height: AppPadding.defaultPadding.top),
 
                       // Permission Level
@@ -1020,22 +1091,39 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         SizedBox(height: AppPadding.defaultPadding.top),
                       ],
 
-                      // Tournament fields (when game type is tournament; only shown for user 'silvestervella')
-                      if (widget.showTournamentOption && _selectedGameType == 'tournament') ...[
-                        Text(
-                          'Tournament Name',
-                          style: AppTextStyles.label().copyWith(color: AppColors.white),
+                      // Invite players: search (3+ chars) -> results with Invite -> list of invited with status (max 3)
+                      Divider(color: AppColors.white.withValues(alpha: 0.3)),
+                      Text(
+                        'Invite players',
+                        style: AppTextStyles.label().copyWith(color: AppColors.white),
+                      ),
+                      if (_invited.length >= 3)
+                        Padding(
+                          padding: EdgeInsets.only(top: AppPadding.smallPadding.top),
+                          child: Text(
+                            'Maximum 3 players invited',
+                            style: AppTextStyles.caption().copyWith(color: AppColors.white.withValues(alpha: 0.8)),
+                          ),
                         ),
-                        SizedBox(height: AppPadding.smallPadding.top),
-                        Semantics(
-                          label: 'create_room_field_tournament_name',
-                          identifier: 'create_room_field_tournament_name',
-                          textField: true,
+                      SizedBox(height: AppPadding.smallPadding.top),
+                      IgnorePointer(
+                        ignoring: _invited.length >= 3,
+                        child: Opacity(
+                          opacity: _invited.length >= 3 ? 0.5 : 1,
                           child: TextField(
-                            controller: widget.tournamentNameController,
+                            controller: _inviteSearchController,
+                            onChanged: (v) {
+                              if (v.trim().length >= 3) {
+                                _runInviteSearch(v);
+                              } else {
+                                setState(() => _searchResults = []);
+                              }
+                            },
                             style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
                             decoration: InputDecoration(
-                              hintText: 'Enter tournament name',
+                              hintText: _invited.length >= 3
+                                  ? '3 players invited'
+                                  : 'Type 3+ characters to search by username',
                               hintStyle: AppTextStyles.caption().copyWith(color: AppColors.textOnPrimary),
                               contentPadding: EdgeInsets.symmetric(
                                 horizontal: AppPadding.defaultPadding.left,
@@ -1045,73 +1133,96 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                                 borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
                                 borderRadius: BorderRadius.circular(AppBorderRadius.small),
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderFocused),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
                               filled: true,
                               fillColor: AppColors.primaryColor,
                             ),
                           ),
                         ),
+                      ),
+                      if (_isSearching)
+                        Padding(
+                          padding: EdgeInsets.only(top: AppPadding.smallPadding.top),
+                          child: SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white),
+                          ),
+                        ),
+                      if (_searchResults.isNotEmpty) ...[
+                        SizedBox(height: AppPadding.smallPadding.top),
+                        ..._searchResults.map((u) {
+                          final username = u['username']?.toString() ?? '';
+                          final userId = u['user_id']?.toString() ?? u['_id']?.toString() ?? '';
+                          final alreadyInvited = _invited.any((e) =>
+                              (e['user_id']?.toString() == userId) || (e['username']?.toString() == username));
+                          final isInviting = _invitingUsername == username;
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    username,
+                                    style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: (_invited.length >= 3 || alreadyInvited || isInviting)
+                                      ? null
+                                      : () => _inviteUser(username, userId),
+                                  child: isInviting
+                                      ? SizedBox(
+                                          height: 18,
+                                          width: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.accentColor,
+                                          ),
+                                        )
+                                      : Text(
+                                          alreadyInvited ? 'Invited' : 'Invite',
+                                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.accentColor),
+                                        ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                      if (_invited.isNotEmpty) ...[
                         SizedBox(height: AppPadding.defaultPadding.top),
                         Text(
-                          'Tournament Format',
+                          'Invited',
                           style: AppTextStyles.label().copyWith(color: AppColors.white),
                         ),
                         SizedBox(height: AppPadding.smallPadding.top),
-                        Semantics(
-                          label: 'create_room_dropdown_tournament_format',
-                          identifier: 'create_room_dropdown_tournament_format',
-                          child: DropdownButtonFormField<String>(
-                            value: _tournamentFormat,
-                            decoration: InputDecoration(
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: AppPadding.defaultPadding.left,
-                                vertical: AppPadding.mediumPadding.top,
-                              ),
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderFocused),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
-                              filled: true,
-                              fillColor: AppColors.primaryColor,
+                        ..._invited.map((e) {
+                          final status = e['status']?.toString() ?? 'pending';
+                          final username = e['username']?.toString() ?? '?';
+                          return ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              username,
+                              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
                             ),
-                            dropdownColor: AppColors.widgetContainerBackground,
-                            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                            items: ['F1', 'F2', 'F3'].map((format) {
-                              return DropdownMenuItem<String>(
-                                value: format,
-                                child: Text(
-                                  format,
-                                  style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              final v = value ?? 'F1';
-                              setState(() => _tournamentFormat = v);
-                              widget.onTournamentFormatChanged(v);
-                            },
-                          ),
-                        ),
-                        SizedBox(height: AppPadding.defaultPadding.top),
-                      ],
-
-                      // Game Settings (auto start hidden for tournaments; tournaments default to false)
-                      if (_selectedGameType != 'tournament') ...[
+                            subtitle: Text(
+                              status == 'accepted'
+                                  ? 'Accepted'
+                                  : status == 'declined'
+                                      ? 'Declined'
+                                      : 'Pending',
+                              style: AppTextStyles.caption().copyWith(
+                                color: status == 'accepted'
+                                    ? AppColors.successColor
+                                    : status == 'declined'
+                                        ? AppColors.errorColor
+                                        : AppColors.white,
+                              ),
+                            ),
+                          );
+                        }),
                       ],
 
                       SizedBox(height: AppPadding.largePadding.top),
@@ -1145,7 +1256,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                       identifier: 'create_room_submit',
                       button: true,
                       child: ElevatedButton(
-                        onPressed: widget.isCreating ? null : widget.onCreateRoom,
+                        onPressed: _canCreateRoom ? _onCreateRoomPressed : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.accentColor,
                           foregroundColor: AppColors.textOnAccent,

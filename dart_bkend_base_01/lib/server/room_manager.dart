@@ -19,8 +19,12 @@ class Room {
   final String permission; // 'public' or 'private'
   final String? password; // for private rooms
   final bool autoStart;
+  /// True when room was created by join_random_game (uses its own delay + _startMatchForRandomJoin).
+  final bool isRandomJoin;
   String? difficulty; // Room difficulty (set by first human player's rank)
-  
+  /// Accepted players for create-match invite flow: [{ user_id, username, is_comp_player }]. Available in _handleJoinRoom.
+  final List<Map<String, dynamic>>? acceptedPlayers;
+
   Room({
     required this.roomId,
     required this.ownerId,
@@ -30,7 +34,9 @@ class Room {
     this.permission = 'public',
     this.password,
     this.autoStart = true,
+    this.isRandomJoin = false,
     this.difficulty,
+    this.acceptedPlayers,
     DateTime? ttlExpiresAt,
   }) : _ttlExpiresAt = ttlExpiresAt ?? DateTime.now().add(Duration(seconds: 86400)); // Default 24 hours
   
@@ -96,6 +102,8 @@ class RoomManager {
     String? permission,
     String? password,
     bool? autoStart,
+    bool? isRandomJoin,
+    List<Map<String, dynamic>>? acceptedPlayers,
   }) {
     final roomId = 'room_${DateTime.now().millisecondsSinceEpoch}';
     // Initialize TTL from config
@@ -109,6 +117,8 @@ class RoomManager {
       permission: permission ?? 'public',
       password: password,
       autoStart: autoStart ?? true,
+      isRandomJoin: isRandomJoin ?? false,
+      acceptedPlayers: acceptedPlayers,
       ttlExpiresAt: DateTime.now().add(ttl),
     );
     room.sessionIds.add(creatorSessionId);

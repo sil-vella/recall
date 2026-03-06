@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+  <title>State construction – Game State – Flowcharts</title>
+  <link rel="stylesheet" href="../../css/flowcharts.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js"></script>
+  <script src="../../js/mermaid-init.js"></script>
+</head>
+<body>
+  <div class="container">
+    <p class="breadcrumb"><a href="../../index.html">Flowcharts</a> / <a href="../../index.html#game-state">Game State</a> / State construction</p>
+    <h1>State construction</h1>
+    <p class="notes">How match state is constructed and updated: backend stores root + game_state per room. Updates are validated at the root level only (StateQueueValidator): each key must be in the schema, values checked by type and allowed/range; no deep validation of nested game_state or games. Then merge and broadcast; frontend receives game_state_updated, adds or updates the game in the games map and syncs widget slices.</p>
+    <div id="chart" class="mermaid">
+flowchart TD
+  subgraph Backend["Backend (per room)"]
+    STORE["GameStateStore"]
+    STORE --> ENSURE["ensure(roomId) → root map"]
+    ENSURE --> ROOT["root: game_id, game_state, turn_events"]
+    ROOT --> BUILD["Build / update game_state map"]
+    BUILD -.->|"initial match state"| INIT["_handleStartMatch / game_event_coordinator.dart"]
+    BUILD --> UPDATES["Updates: root-level keys"]
+    UPDATES --> VALID["StateQueueValidator.validateUpdate"]
+    VALID --> VAL_DEPTH["Depth 1 only: each key in schema, value type/allowed/range"]
+    VAL_DEPTH --> VAL_NO_DEEP["No deep validation of game_state or games contents"]
+    VAL_NO_DEEP --> MERGE["mergeRoot with validated updates"]
+    MERGE --> BROADCAST["Broadcast game_state_updated"]
+  end
+
+  subgraph Payload["Payload to client"]
+    BROADCAST --> MSG["event, game_id, game_state, turn_events, owner_id"]
+    MSG --> FILTER["game_state: originalDeck removed"]
+  end
+
+  subgraph Frontend["Frontend (Flutter)"]
+    FILTER --> HANDLE["handleGameStateUpdated(data)"]
+    HANDLE --> NEW{"Game in map?"}
+    NEW -->|No| ADD["_addGameToMap → games[gameId]"]
+    NEW -->|Yes| UPD["_updateGameData + _updateGameInMap"]
+    ADD --> UI["updateUIState(games)"]
+    UPD --> UI
+    UI --> WIDGET["_syncWidgetStatesFromGameState"]
+    WIDGET --> SLICES["Widget slices: hand, discard, phase, etc."]
+  end
+
+  style STORE fill:#2d4a6d
+  style INIT fill:#4a5a2d
+  style VALID fill:#6d4a2d
+  style VAL_DEPTH fill:#6d4a2d
+  style HANDLE fill:#2d5a2d
+  style UI fill:#2d5a2d
+    </div>
+    <p class="chart-comment"><strong>Initial match state</strong> is created at the “Build / update game_state map” step in <code>_handleStartMatch</code> (<code>game_event_coordinator.dart</code>).</p>
+    <p class="notes" style="margin-top: 0.5rem;">Full example of state from root (single <code>roomId</code>) after <code>_handleStartMatch</code>. Comments indicate method/file that initially creates each key (backend: <code>dart_bkend_base_01</code>).</p>
+    <pre class="state-example"><code>// GameStateStore._roomIdToState[roomId]  →  root map (one per room)
+{
+  "game_id": "room_abc123",                    // GameStateStore.ensure() → game_state_store.dart
+  "roomDifficulty": "medium",                 // dutch_game_main._onRoomCreated mergeRoot → dutch_game_main.dart (optional)
+  "game_state": {                             // ensure() minimal; full map from _handleStartMatch → game_event_coordinator.dart
+    "gameId": "room_abc123",                   // _handleStartMatch
+    "gameName": "Dutch Game room_abc123",      // _handleStartMatch
+    "players": [                               // _onRoomCreated (creator); _onRoomJoined (joiners); _handleStartMatch (CPU, status/known_cards/collection_rank_cards)
+      {
+        "id": "session_human_1",               // dutch_game_main: creator/joiner player id = sessionId
+        "name": "Alice",                       // dutch_game_main._onRoomCreated / _onRoomJoined (profile)
+        "isHuman": true,                       // dutch_game_main
+        "status": "initial_peek",              // game_event_coordinator._handleStartMatch (was 'waiting')
+        "hand": [],                            // game_event_coordinator._handleStartMatch (dealt), else dutch_game_main []
+        "visible_cards": [],                   // dutch_game_main
+        "points": 0,                           // dutch_game_main; game_event_coordinator for CPU
+        "known_cards": {},                     // game_event_coordinator._handleStartMatch (ensure map)
+        "collection_rank_cards": [],           // game_event_coordinator._handleStartMatch (ensure list of maps)
+        "isActive": true,                      // dutch_game_main; _handleStartMatch ensures true
+        "userId": "user_oid_1",               // dutch_game_main (creator/joiner)
+        "username": "alice",                   // dutch_game_main (profile)
+        "profile_picture": null                // dutch_game_main (profile, optional)
+      },
+      {
+        "id": "cpu_12345_1",                   // game_event_coordinator._handleStartMatch (CPU creation)
+        "name": "Player 1",                     // game_event_coordinator._handleStartMatch
+        "isHuman": false,
+        "status": "initial_peek",
+        "hand": [],
+        "visible_cards": [],
+        "points": 0,
+        "known_cards": {},
+        "collection_rank_cards": [],
+        "isActive": true,
+        "difficulty": "medium"                 // game_event_coordinator (practice/rank)
+      }
+    ],
+    "discardPile": [],                         // game_event_coordinator._handleStartMatch (first card from deck or [])
+    "drawPile": [                              // game_event_coordinator._handleStartMatch (_cardToIdOnly: cardId, rank:'?', suit:'?', points:0)
+      { "cardId": "card_1", "rank": "?", "suit": "?", "points": 0 },
+      { "cardId": "card_2", "rank": "?", "suit": "?", "points": 0 }
+    ],
+    "originalDeck": [                         // game_event_coordinator._handleStartMatch (_cardToMap: full deck for lookup)
+      { "cardId": "card_1", "rank": "7", "suit": "hearts", "points": 7 }
+    ],
+    "gameType": "multiplayer",                 // _handleStartMatch (dutch_game_main uses gameType from room)
+    "isGameActive": true,                      // _handleStartMatch (dutch_game_main sets false pre-start)
+    "phase": "initial_peek",                   // _handleStartMatch (dutch_game_main uses 'waiting_for_players' pre-start)
+    "playerCount": 2,                          // _handleStartMatch (players.length)
+    "maxPlayers": 4,                           // _handleStartMatch (roomInfo)
+    "minPlayers": 2,                           // _handleStartMatch (roomInfo)
+    "showInstructions": false,                // _handleStartMatch (data)
+    "match_class": "standard",                 // _handleStartMatch
+    "coin_cost_per_player": 25,                // _handleStartMatch
+    "match_pot": 50,                           // _handleStartMatch (coin_cost × players.length)
+    "isClearAndCollect": true,                 // _handleStartMatch (data; or root from message_handler for random join)
+    "timerConfig": {                           // _handleStartMatch; ServerGameStateCallbackImpl.getAllTimerValues() → game_registry.dart
+      "initial_peek": 10,
+      "drawing_card": 5,
+      "playing_card": 15,
+      "same_rank_window": 7,
+      "queen_peek": 10,
+      "jack_swap": 10,
+      "peeking": 7,
+      "waiting": 0,
+      "default": 30
+    },
+    "is_tournament": false,                    // optional; from create_room/join_room (message_handler), set on game_state when match is tournament
+    "tournament_data": null                    // optional; from create_room/join_room; when set: { id, name, format, leaderboard, matches_left }
+  },
+  "turn_events": []                            // game_registry._applyValidatedUpdates mergeRoot (when round sends updates)
+}
+
+// When tournament match, game_state.tournament_data example:
+// "tournament_data": {
+//   "id": "tour_xyz",
+//   "name": "Spring Cup",
+//   "format": "F1",
+//   "leaderboard": [],
+//   "matches_left": 3
+// }</code></pre>
+    <p class="chart-comment" style="margin-top: 0.25rem;">Root: <code>game_id</code>, <code>game_state</code> from store; <code>roomDifficulty</code> from <code>dutch_game_main._onRoomCreated</code>; <code>turn_events</code> from <code>game_registry</code>; <code>isClearAndCollect</code> at root from <code>message_handler</code> (random join). Tournament: <code>is_tournament</code> and <code>tournament_data</code> (id, name, format, leaderboard, matches_left) from create_room/join_room event data, set on <code>game_state</code> when building match for tournament flow.</p>
+  </div>
+</body>
+</html>

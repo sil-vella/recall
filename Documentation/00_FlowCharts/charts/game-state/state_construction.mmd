@@ -1,0 +1,40 @@
+%% State construction – how match state is built and updated (backend + frontend).
+%% Validation: root-level update keys only; schema + type/allowed/range; no deep validation.
+
+flowchart TD
+  subgraph Backend["Backend (per room)"]
+    STORE["GameStateStore"]
+    STORE --> ENSURE["ensure(roomId) → root map"]
+    ENSURE --> ROOT["root: game_id, game_state, turn_events"]
+    ROOT --> BUILD["Build / update game_state map"]
+    BUILD -.->|"initial match state"| INIT["_handleStartMatch / game_event_coordinator.dart"]
+    BUILD --> UPDATES["Updates: root-level keys"]
+    UPDATES --> VALID["StateQueueValidator.validateUpdate"]
+    VALID --> VAL_DEPTH["Depth 1 only: each key in schema, value type/allowed/range"]
+    VAL_DEPTH --> VAL_NO_DEEP["No deep validation of game_state or games contents"]
+    VAL_NO_DEEP --> MERGE["mergeRoot with validated updates"]
+    MERGE --> BROADCAST["Broadcast game_state_updated"]
+  end
+
+  subgraph Payload["Payload to client"]
+    BROADCAST --> MSG["event, game_id, game_state, turn_events, owner_id"]
+    MSG --> FILTER["game_state: originalDeck removed"]
+  end
+
+  subgraph Frontend["Frontend (Flutter)"]
+    FILTER --> HANDLE["handleGameStateUpdated(data)"]
+    HANDLE --> NEW{"Game in map?"}
+    NEW -->|No| ADD["_addGameToMap → games[gameId]"]
+    NEW -->|Yes| UPD["_updateGameData + _updateGameInMap"]
+    ADD --> UI["updateUIState(games)"]
+    UPD --> UI
+    UI --> WIDGET["_syncWidgetStatesFromGameState"]
+    WIDGET --> SLICES["Widget slices: hand, discard, phase, etc."]
+  end
+
+  style STORE fill:#2d4a6d
+  style INIT fill:#4a5a2d
+  style VALID fill:#6d4a2d
+  style VAL_DEPTH fill:#6d4a2d
+  style HANDLE fill:#2d5a2d
+  style UI fill:#2d5a2d

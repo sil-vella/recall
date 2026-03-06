@@ -13,29 +13,74 @@
   <div class="container">
     <p class="breadcrumb"><a href="../../index.html">Flowcharts</a> / <a href="../../index.html#match-initiation">Match initiation</a> / Random join</p>
     <h1>Random join</h1>
+    <p class="notes">Flow from lobby (Join Random Game) to backend and through the coordinator until initial match state is built. No invites; room has <code>is_random_join: true</code>, no <code>accepted_players</code>. Start is triggered by delay timer or when room reaches max players; coordinator fetches comp players from the Flask API. Contrast: <a href="create-match.html">Create match</a> uses invites and <code>accepted_players</code>; effective max = maxSize − comp count; coordinator uses the accepted comp list.</p>
     <div id="chart" class="mermaid">
 flowchart TD
-    A[User taps Join Random Game] --> B[JoinRandomGameWidget]
-    B --> C[checkCoinsRequirement]
-    C --> D[ensureWebSocketReady]
-    D --> E[Set isRandomJoinInProgress]
-    E --> F[Emit join_random_game]
-    F --> G[Backend find or create room]
-    G --> H{New room created}
-    H -->|Yes| I[room_creation success is_random_join]
-    I --> J[Update state clear flag]
-    J --> K[Delay 300ms]
-    K --> L[Navigate to game-play]
-    H -->|No| M[Join existing room]
-    M --> N[websocket_join_room hook]
-    N --> O[Set currentGameId currentRoomId]
-    O --> P[Wait for game_state_updated]
-    P --> Q[handleGameStateUpdated adds game to map]
-    Q --> R[Game in Current games list]
-    R --> S[User taps game]
-    S --> T[setCurrentGameSync]
-    T --> L
+  subgraph Frontend["Frontend (Flutter)"]
+    LOB["Lobby screen"]
+    WIDG["JoinRandomGameWidget"]
+    COIN["checkCoinsRequirement"]
+    WS["ensureWebSocketReady"]
+    CLEAR["clearAllGameStateBeforeNewGame"]
+    FLAG["updateStateSync: isRandomJoinInProgress, randomJoinIsClearAndCollect"]
+    EMIT["emit join_random_game / dutch_game_helpers.dart"]
+    LOB --> WIDG
+    WIDG --> COIN
+    COIN --> WS
+    WS --> CLEAR
+    CLEAR --> FLAG
+    FLAG --> EMIT
+  end
+
+  subgraph Backend["Backend (Dart)"]
+    MSG["message_handler: join_random_game"]
+    FIND["_handleJoinRandomGame / message_handler.dart"]
+    AVAIL["_getAvailableRoomsForRandomJoin"]
+    BRANCH{"Rooms available?"}
+    JOIN["_handleJoinRoom → room_joined, hooks"]
+    CREATE["createRoom, create_room_success is_random_join: true"]
+    HOOKS["room_created + room_joined hooks"]
+    DELAY["Schedule delayed start_match"]
+    EMIT --> MSG
+    MSG --> FIND
+    FIND --> AVAIL
+    AVAIL --> BRANCH
+    BRANCH -->|Yes| JOIN
+    BRANCH -->|No| CREATE
+    CREATE --> HOOKS
+    HOOKS --> DELAY
+  end
+
+  subgraph Frontend2["Frontend (hooks + navigate)"]
+    RC["room_creation hook: update state, navigate to game-play"]
+    WSJ["websocket_join_room hook: set currentGameId, wait for game_state_updated"]
+    GSU["handleGameStateUpdated → add game to map"]
+    NAV["Navigate to /dutch/game-play"]
+    JOIN --> WSJ
+    HOOKS --> RC
+    RC --> NAV
+    WSJ --> GSU
+    GSU --> NAV
+  end
+
+  subgraph Coordinator["Coordinator (match start)"]
+    START["start_match event"]
+    HANDLE["coordinator.handle start_match / game_event_coordinator.dart"]
+    BUILD["_handleStartMatch: build initial game_state"]
+    LINK["→ State construction"]
+    DELAY --> START
+    START --> HANDLE
+    HANDLE --> BUILD
+    BUILD --> LINK
+  end
+
+  style EMIT fill:#2d5a2d
+  style FIND fill:#2d4a6d
+  style BUILD fill:#6d4a2d
+  style LINK fill:#4a5a2d
+  click LINK href "../game-state/state_construction.html" "Open State construction"
     </div>
+    <p class="chart-comment"><strong>Match state construction</strong> happens in <code>_handleStartMatch</code> (<code>game_event_coordinator.dart</code>). See <a href="../game-state/state_construction.html">State construction</a> for how state is built, validated, and sent to the client.</p>
   </div>
 </body>
 </html>

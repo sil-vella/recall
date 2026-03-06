@@ -10,7 +10,7 @@ import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for random game join debugging (front + backend)
+const bool LOGGING_SWITCH = true; // Enabled for create/join room data logging (see .cursor/rules/enable-logging-switch.mdc)
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -154,7 +154,13 @@ class MessageHandler {
     final permission = data['permission'] as String?;
     final password = data['password'] as String?;
     final autoStart = data['auto_start'] as bool? ?? data['autoStart'] as bool?;
-    
+    final isTournament = data['is_tournament'] as bool? ?? data['isTournament'] as bool? ?? false;
+    final tournamentData = data['tournament_data'] as Map<String, dynamic>? ?? data['tournamentData'] as Map<String, dynamic>?;
+    final acceptedPlayersRaw = data['accepted_players'] ?? data['acceptedPlayers'];
+    final List<Map<String, dynamic>>? acceptedPlayers = acceptedPlayersRaw is List
+        ? acceptedPlayersRaw.map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{}).toList()
+        : null;
+
     try {
       // Create room with settings (timer values are now phase-based, managed by RoomManager)
       final roomId = _roomManager.createRoom(
@@ -166,6 +172,7 @@ class MessageHandler {
         permission: permission,
         password: password,
         autoStart: autoStart,
+        acceptedPlayers: acceptedPlayers?.isNotEmpty == true ? acceptedPlayers : null,
       );
       
       // Get room info for response
@@ -174,9 +181,16 @@ class MessageHandler {
         _sendError(sessionId, 'Failed to create room');
         return;
       }
-      
+      if (LOGGING_SWITCH) {
+        final roomData = Map<String, dynamic>.from(room.toJson())
+          ..['session_ids'] = room.sessionIds
+          ..['is_random_join'] = room.isRandomJoin;
+        if (room.acceptedPlayers != null) roomData['accepted_players'] = room.acceptedPlayers;
+        _logger.room('📋 _handleCreateRoom room data: $roomData');
+      }
+
       // Send create_room_success (primary event matching Python)
-      _server.sendToSession(sessionId, {
+      final createSuccessPayload = {
         'event': 'create_room_success',
         'room_id': roomId,
         'owner_id': room.ownerId,
@@ -189,10 +203,13 @@ class MessageHandler {
         'auto_start': room.autoStart,
         'difficulty': room.difficulty, // Room difficulty (rank-based)
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
+      if (isTournament) createSuccessPayload['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) createSuccessPayload['tournament_data'] = tournamentData;
+      _server.sendToSession(sessionId, createSuccessPayload);
       
       // 🎣 Trigger room_created hook
-      _server.triggerHook('room_created', data: {
+      final roomCreatedData = {
         'room_id': roomId,
         'owner_id': room.ownerId,
         'session_id': sessionId, // Add session_id for player ID assignment
@@ -202,10 +219,13 @@ class MessageHandler {
         'game_type': room.gameType,
         'permission': room.permission,
         'created_at': DateTime.now().toIso8601String(),
-      });
+      };
+      if (isTournament) roomCreatedData['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) roomCreatedData['tournament_data'] = tournamentData;
+      _server.triggerHook('room_created', data: roomCreatedData);
       
       // Also send room_joined (auto-join creator like Python does)
-      _server.sendToSession(sessionId, {
+      final creatorRoomJoinedPayload = {
         'event': 'room_joined',
         'room_id': roomId,
         'session_id': sessionId,
@@ -214,10 +234,13 @@ class MessageHandler {
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
+      if (isTournament) creatorRoomJoinedPayload['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) creatorRoomJoinedPayload['tournament_data'] = tournamentData;
+      _server.sendToSession(sessionId, creatorRoomJoinedPayload);
       
       // 🎣 Trigger room_joined hook (for auto-join creator)
-      _server.triggerHook('room_joined', data: {
+      final creatorRoomJoinedHookData = {
         'room_id': roomId,
         'session_id': sessionId,
         'user_id': userId,
@@ -225,22 +248,25 @@ class MessageHandler {
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'joined_at': DateTime.now().toIso8601String(),
-      });
-      
-      // Schedule auto-start timer if autoStart is enabled
-      if (room.autoStart == true) {
-        final delaySeconds = 5;
-        if (LOGGING_SWITCH) {
-          _logger.room('⏱️  Scheduling auto-start timer for room: $roomId (delay: ${delaySeconds}s, maxSize: ${room.maxSize})');
+      };
+      if (isTournament) creatorRoomJoinedHookData['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) creatorRoomJoinedHookData['tournament_data'] = tournamentData;
+      _server.triggerHook('room_joined', data: creatorRoomJoinedHookData);
+
+      // Create-room with only comp players invited: effective max = 1, so start match immediately (creator is the only human)
+      if (room.autoStart == true && room.isRandomJoin != true) {
+        final compCount = room.acceptedPlayers
+            ?.where((e) => e['is_comp_player'] == true)
+            .length ?? 0;
+        final effectiveMax = room.maxSize - compCount;
+        if (room.currentSize >= effectiveMax) {
+          if (LOGGING_SWITCH) {
+            _logger.room('🚀 Effective max reached at create ($room.currentSize >= $effectiveMax, compCount=$compCount), starting match for create-room: $roomId');
+          }
+          _startMatchForRoom(roomId);
         }
-        
-        RandomJoinTimerManager.instance.scheduleStartMatch(
-          roomId,
-          delaySeconds,
-          (roomId) => _startMatchForRoom(roomId),
-        );
       }
-      
+
       if (LOGGING_SWITCH) {
         _logger.room('✅ Room created and creator auto-joined: $roomId');
       }
@@ -260,6 +286,8 @@ class MessageHandler {
   void _handleJoinRoom(String sessionId, Map<String, dynamic> data) {
     final roomId = data['room_id'] as String?;
     final password = data['password'] as String?;
+    final isTournament = data['is_tournament'] as bool? ?? data['isTournament'] as bool? ?? false;
+    final tournamentData = data['tournament_data'] as Map<String, dynamic>? ?? data['tournamentData'] as Map<String, dynamic>?;
     
     // Get userId from server's session mapping (should be set after authentication)
     final userId = _server.getUserIdForSession(sessionId);
@@ -291,7 +319,14 @@ class MessageHandler {
       });
       return;
     }
-    
+    if (LOGGING_SWITCH) {
+      final roomData = Map<String, dynamic>.from(room.toJson())
+        ..['session_ids'] = room.sessionIds
+        ..['is_random_join'] = room.isRandomJoin;
+      if (room.acceptedPlayers != null) roomData['accepted_players'] = room.acceptedPlayers;
+      _logger.room('📋 _handleJoinRoom room data: $roomData');
+    }
+
     // Check if user is already in room
     if (_roomManager.isUserInRoom(sessionId, roomId)) {
       // Send already_joined event (matching Python behavior)
@@ -365,7 +400,7 @@ class MessageHandler {
         _logger.room('📤 Sending join_room_success to session: $sessionId (userId=$userId)');
         _logger.room('🔍 VERIFY: Using sessionId=$sessionId for sendToSession, NOT userId=$userId');
       }
-      _server.sendToSession(sessionId, {
+      final joinSuccessPayload = {
         'event': 'join_room_success',
         'room_id': roomId,
         'session_id': sessionId,
@@ -375,13 +410,16 @@ class MessageHandler {
         'max_size': room.maxSize,
         'difficulty': room.difficulty, // Room difficulty (rank-based)
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
+      if (isTournament) joinSuccessPayload['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) joinSuccessPayload['tournament_data'] = tournamentData;
+      _server.sendToSession(sessionId, joinSuccessPayload);
       
       // Also send room_joined for backward compatibility
       if (LOGGING_SWITCH) {
         _logger.room('📤 Sending room_joined to session: $sessionId');
       }
-      _server.sendToSession(sessionId, {
+      final roomJoinedPayload = {
         'event': 'room_joined',
         'room_id': roomId,
         'session_id': sessionId,
@@ -390,11 +428,14 @@ class MessageHandler {
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
+      if (isTournament) roomJoinedPayload['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) roomJoinedPayload['tournament_data'] = tournamentData;
+      _server.sendToSession(sessionId, roomJoinedPayload);
       
       // 🎣 Trigger room_joined hook
       // Note: sessionId is used as player ID, userId kept for backward compatibility
-      _server.triggerHook('room_joined', data: {
+      final roomJoinedHookData = {
         'room_id': roomId,
         'session_id': sessionId, // This is now the player ID
         'user_id': userId, // Kept for backward compatibility
@@ -402,12 +443,14 @@ class MessageHandler {
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'joined_at': DateTime.now().toIso8601String(),
-      });
+      };
+      if (isTournament) roomJoinedHookData['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) roomJoinedHookData['tournament_data'] = tournamentData;
+      _server.triggerHook('room_joined', data: roomJoinedHookData);
       
-      // Check if room has active timer and max players reached - start immediately
-      // This handles both random join rooms and regular rooms with autoStart
+      // Max players reached: start match (random join has timer; create-room with autoStart has no timer)
       if (RandomJoinTimerManager.instance.isTimerActive(roomId)) {
-        // For random join rooms, check against Config.RANDOM_JOIN_MAX_PLAYERS
+        // Random join rooms: cancel timer and start
         if (room.currentSize >= Config.RANDOM_JOIN_MAX_PLAYERS) {
           if (LOGGING_SWITCH) {
             _logger.room('🚀 Max players reached, starting match immediately for random join room: $roomId');
@@ -415,12 +458,25 @@ class MessageHandler {
           RandomJoinTimerManager.instance.cancelTimer(roomId);
           _startMatchForRandomJoin(roomId);
         }
-        // For regular rooms, check against room.maxSize
+        // Create-room with timer (legacy): cancel and start
         else if (room.currentSize >= room.maxSize) {
           if (LOGGING_SWITCH) {
             _logger.room('🚀 Max players reached, starting match immediately for room: $roomId');
           }
           RandomJoinTimerManager.instance.cancelTimer(roomId);
+          _startMatchForRoom(roomId);
+        }
+      }
+      // Create-room (invite) with autoStart: computer players don't join WS room, so effective max = maxSize - comp count
+      else if (room.autoStart == true && room.isRandomJoin != true) {
+        final compCount = room.acceptedPlayers
+            ?.where((e) => e['is_comp_player'] == true)
+            .length ?? 0;
+        final effectiveMax = room.maxSize - compCount;
+        if (room.currentSize >= effectiveMax) {
+          if (LOGGING_SWITCH) {
+            _logger.room('🚀 Effective max reached ($room.currentSize >= $effectiveMax, compCount=$compCount), starting match for create-room: $roomId');
+          }
           _startMatchForRoom(roomId);
         }
       }
@@ -624,6 +680,7 @@ class MessageHandler {
         gameType: 'classic',
         permission: 'public',
         autoStart: true,
+        isRandomJoin: true,
       );
       
       // Store isClearAndCollect in game state store for later use when starting match
@@ -876,16 +933,22 @@ class MessageHandler {
 
       final sessionId = sessions.first;
       
-      // Start the match
+      // Derive isClearAndCollect from room game type (create-room flow; matches random join semantics)
+      final isClearAndCollect = room.gameType == 'clear_and_collect';
       if (LOGGING_SWITCH) {
-        _logger.game('🎮 Starting match for room: $roomId');
+        _logger.game('🎮 Starting match for room: $roomId (gameType=${room.gameType}, isClearAndCollect=$isClearAndCollect)');
       }
-      _gameCoordinator.handle(sessionId, 'start_match', {
+      final Map<String, dynamic> startMatchData = {
         'game_id': roomId,
         'min_players': room.minPlayers,
         'max_players': room.maxSize,
         'auto_start': room.autoStart, // Pass autoStart flag so coordinator can fill to maxPlayers
-      });
+        'isClearAndCollect': isClearAndCollect,
+      };
+      if (room.acceptedPlayers != null && room.acceptedPlayers!.isNotEmpty) {
+        startMatchData['accepted_players'] = room.acceptedPlayers!;
+      }
+      _gameCoordinator.handle(sessionId, 'start_match', startMatchData);
 
       // Cleanup timer state (this also clears isStarting flag)
       RandomJoinTimerManager.instance.cleanup(roomId);

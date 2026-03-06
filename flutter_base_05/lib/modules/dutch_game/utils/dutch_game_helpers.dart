@@ -55,6 +55,7 @@ class DutchGameHelpers {
   // ========================================
   
   /// Create a new room with validation
+  /// [acceptedPlayers] Optional list of { user_id, username, is_comp_player } for create-match invite flow.
   static Future<Map<String, dynamic>> createRoom({
     required String permission,
     required int maxPlayers,
@@ -63,6 +64,7 @@ class DutchGameHelpers {
     int turnTimeLimit = 30,
     bool autoStart = false,
     String? password,
+    List<Map<String, dynamic>>? acceptedPlayers,
   }) async {
     try {
       // 🎯 CRITICAL: Clear all existing game state before starting new game
@@ -91,7 +93,10 @@ class DutchGameHelpers {
     if (permission == 'private' && password != null) {
       data['password'] = password;
     }
-    
+    if (acceptedPlayers != null && acceptedPlayers.isNotEmpty) {
+      data['accepted_players'] = acceptedPlayers;
+    }
+
     if (LOGGING_SWITCH) {
       _logger.info('DutchGameHelpers.createRoom: emitting create_room payload: $data');
     }
@@ -614,6 +619,94 @@ class DutchGameHelpers {
         'message': 'Failed to find game',
         'game': null,
         'timestamp': DateTime.now().toIso8601String(),
+      };
+    }
+  }
+
+  /// Create a create-match session. Returns create_match_id for use in [invitePlayer] and [getCreateMatchSession].
+  static Future<Map<String, dynamic>> createMatchSession() async {
+    try {
+      final moduleManager = ModuleManager();
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (connectionsModule == null) {
+        return {'success': false, 'error': 'ConnectionsApiModule not available'};
+      }
+      final response = await connectionsModule.sendPostRequest(
+        '/userauth/dutch/create-match-session',
+        <String, dynamic>{},
+      );
+      if (response is! Map) return {'success': false, 'error': 'Invalid response'};
+      return {
+        'success': response['success'] == true,
+        if (response['create_match_id'] != null) 'create_match_id': response['create_match_id'],
+        if (response['error'] != null) 'error': response['error'],
+      };
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Get create-match session (for polling invited list and statuses).
+  static Future<Map<String, dynamic>> getCreateMatchSession(String createMatchId) async {
+    try {
+      final moduleManager = ModuleManager();
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (connectionsModule == null) {
+        return {'success': false, 'error': 'ConnectionsApiModule not available', 'invited': <dynamic>[]};
+      }
+      final response = await connectionsModule.sendGetRequest(
+        '/userauth/dutch/create-match-session?create_match_id=${Uri.encodeComponent(createMatchId)}',
+      );
+      if (response is! Map) return {'success': false, 'invited': <dynamic>[]};
+      final invited = response['invited'];
+      return {
+        'success': response['success'] == true,
+        'invited': invited is List ? List<Map<String, dynamic>>.from(List.from(invited).map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})) : <Map<String, dynamic>>[],
+        if (response['error'] != null) 'error': response['error'],
+      };
+    } catch (e) {
+      return {'success': false, 'error': e.toString(), 'invited': <Map<String, dynamic>>[]};
+    }
+  }
+
+  /// Invite a player by username. Calls POST /userauth/dutch/invite-player; the backend
+  /// uses user search to resolve the username and sends an instant notification to the target.
+  /// [createMatchId] optional; when set, invite is tracked in that session for accept/decline polling.
+  static Future<Map<String, dynamic>> invitePlayer(String username, {String? createMatchId}) async {
+    try {
+      final moduleManager = ModuleManager();
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (connectionsModule == null) {
+        return {
+          'success': false,
+          'error': 'ConnectionsApiModule not available',
+          'message': 'Cannot send invite',
+        };
+      }
+      final body = <String, dynamic>{'username': username.trim()};
+      if (createMatchId != null && createMatchId.isNotEmpty) body['create_match_id'] = createMatchId;
+      final response = await connectionsModule.sendPostRequest(
+        '/userauth/dutch/invite-player',
+        body,
+      );
+      if (response is! Map) {
+        return {'success': false, 'error': 'Invalid response', 'message': 'Invite failed'};
+      }
+      final success = response['success'] == true;
+      return {
+        'success': success,
+        'message': response['message']?.toString() ?? (success ? 'Invite sent' : 'Invite failed'),
+        if (response['error'] != null) 'error': response['error'],
+        if (response['target_user_id'] != null) 'target_user_id': response['target_user_id'],
+        if (response['target_username'] != null) 'target_username': response['target_username'],
+        if (response['notification_id'] != null) 'notification_id': response['notification_id'],
+        if (response['create_match_id'] != null) 'create_match_id': response['create_match_id'],
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'error': e.toString(),
+        'message': 'Failed to send invite',
       };
     }
   }

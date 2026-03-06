@@ -13,7 +13,7 @@
   <div class="container">
     <p class="breadcrumb"><a href="../../index.html">Flowcharts</a> / <a href="../../index.html#tournaments">Tournaments</a> / Create tournament plan</p>
     <h1>Create tournament plan</h1>
-    <p class="notes">From lobby Tournaments tab: existing = only public. Create new: auto private, select format (F1, F2, F3), invite players. User search filters out creator (creator auto-added/accepted). Number of invites required depends on format. Python backend creates tournament in DB (see prev commits). Invitees accept notification; when required number accepted, auto notification to all HUMAN players to join tournament. Then wire into existing match logic (add to room etc); game state gets tournament-specific keys in game map: tournament name, format, players, etc.</p>
+    <p class="notes">From lobby Tournaments tab: existing = only public. Create new: auto private, format (e.g. F1, F2, F3), invite players. User search filters out creator. Depending on format, creator is either auto-added as accepted (player) or not included (admin only). Number of invites depends on format. Python backend creates tournament in DB. When required number have accepted, <strong>Create and invite</strong>: creator wires into existing <code>create_room</code> (passing tournament data), goes to play screen to wait; this creates a single match for the tournament. Then auto notification to all HUMAN players to join; others use existing <code>join_room</code>. Create/join event schema includes <code>is_tournament</code> (bool) and <code>tournament_data</code> (id, name, format, leaderboard, matches_left). Then wire into existing match logic; game state gets tournament keys (name, format, players, etc).</p>
     <div id="chart" class="mermaid">
 flowchart TD
   subgraph Lobby["Lobby screen"]
@@ -32,8 +32,11 @@ flowchart TD
   FORMAT --> FORMAT_OPTS["e.g. F1, F2, F3"]
   FORMAT_OPTS --> INVITE["Invite players"]
   INVITE --> SEARCH["User search – filter out creator username"]
-  SEARCH --> CREATOR["Creator auto-added as accepted"]
-  CREATOR --> COUNT["Number of invites depends on format type"]
+  SEARCH --> CREATOR_BY_FORMAT{"By format: creator is…"}
+  CREATOR_BY_FORMAT -->|Player| CREATOR_ADDED["Creator auto-added as accepted"]
+  CREATOR_BY_FORMAT -->|Admin| CREATOR_ADMIN["Creator not included – admin only"]
+  CREATOR_ADDED --> COUNT["Number of invites depends on format type"]
+  CREATOR_ADMIN --> COUNT
   COUNT --> SEND["Send invites or add to tournament"]
 
   SEND --> BACKEND["Python backend creates tournament in DB"]
@@ -42,8 +45,13 @@ flowchart TD
   NOTIF --> ACCEPT["Invitees must accept notification"]
   ACCEPT --> CHECK{"Required number accepted?"}
   CHECK -->|No| ACCEPT
-  CHECK -->|Yes| NOTIF_JOIN["Auto notification to all HUMAN players to join tournament"]
-  NOTIF_JOIN --> WIRE["Wire into existing match logic"]
+  CHECK -->|Yes| CREATE_INVITE["Create and invite"]
+  CREATE_INVITE --> CREATOR_ROOM["Creator: existing create_room, passing tournament data"]
+  CREATOR_ROOM --> CREATOR_WAIT["Creator → play screen to wait for all to join"]
+  CREATOR_ROOM --> SINGLE["Creates single match for tournament"]
+  SINGLE --> NOTIF_JOIN["Auto notification to all HUMAN players to join tournament"]
+  NOTIF_JOIN --> OTHERS_JOIN["Others: existing join_room – no WS changes"]
+  OTHERS_JOIN --> WIRE["Wire into existing match logic"]
   WIRE --> ROOM["Add to room etc"]
   ROOM --> GAMESTATE["Game state: tournament keys in game map"]
   GAMESTATE --> KEYS["tournament name, format, players, etc"]
@@ -52,6 +60,7 @@ flowchart TD
   style START fill:#2d5a2d
   style CHOICE fill:#2d4a6d
   style BACKEND fill:#2d4a6d
+  style CREATE_INVITE fill:#4a5a2d
   style GAMESTATE fill:#2d4a6d
     </div>
   </div>

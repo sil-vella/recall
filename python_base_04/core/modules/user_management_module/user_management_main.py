@@ -34,8 +34,8 @@ from core.services.analytics_service import AnalyticsService
 
 
 class UserManagementModule(BaseModule):
-    # Logging switch for guest registration and conversion testing
-    LOGGING_SWITCH = True  # Enabled for login/create flow debugging (see .cursor/rules/enable-logging-switch.mdc)
+    # Logging switch for guest registration, conversion, and user search (invite flow)
+    LOGGING_SWITCH = True  # Enabled for login/create and invite search debugging (see .cursor/rules/enable-logging-switch.mdc)
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):
@@ -76,6 +76,7 @@ class UserManagementModule(BaseModule):
         # JWT authenticated routes (user authentication)
         self._register_auth_route_helper("/userauth/users/profile", self.get_user_profile, methods=["GET"])
         self._register_auth_route_helper("/userauth/users/profile", self.update_user_profile, methods=["PUT"])
+        self._register_auth_route_helper("/userauth/users/search", self.search_users, methods=["POST"])
         # Public route for fetching user profile by userId (for Dart backend)
         self._register_auth_route_helper("/public/users/profile", self.get_user_profile_by_id, methods=["POST"])
         self._register_auth_route_helper("/userauth/users/settings", self.get_user_settings, methods=["GET"])
@@ -666,30 +667,68 @@ class UserManagementModule(BaseModule):
         except Exception as e:
             return jsonify({'error': 'Failed to delete user'}), 500
 
-    def search_users(self):
-        """Search users with filters using queued operation."""
+    def search_users_by_username(self, username, limit=50):
+        """Internal: search users by username (partial, case-insensitive). Returns (list of user dicts with user_id, no password), or ([], error_msg)."""
         try:
-            data = request.get_json()
-            query = {}
-            
-            if 'username' in data:
-                query['username'] = {'$regex': data['username'], '$options': 'i'}
-            if 'email' in data:
-                query['email'] = {'$regex': data['email'], '$options': 'i'}
-            if 'status' in data:
-                query['status'] = data['status']
-            
-            # Search users using queue system
-            users = self.analytics_db.find("users", query)
-            
-            # Remove passwords from response
-            for user in users:
-                user.pop('password', None)
-            
-            return jsonify({'users': users}), 200
-            
+            q = (username or '').strip()
+            custom_log(f"UserManagement: search_users_by_username username={q!r} limit={limit}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            if len(q) < 2:
+                return [], 'username must be at least 2 characters'
+            username_escaped = re.escape(q)
+            query = {'username': {'$regex': username_escaped, '$options': 'i'}}
+            limit = min(int(limit), 50) if limit is not None else 50
+            users_raw = self.analytics_db.find("users", query)
+            users_raw = list(users_raw)[:limit] if users_raw else []
+            custom_log(f"UserManagement: search_users_by_username found {len(users_raw)} users", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            out = []
+            for user in users_raw:
+                u = dict(user)
+                u.pop('password', None)
+                uid = u.get('_id')
+                if uid is not None:
+                    u['user_id'] = str(uid)
+                out.append(u)
+            return out, None
         except Exception as e:
-            return jsonify({'error': 'Failed to search users'}), 500
+            custom_log(f"UserManagement: search_users_by_username error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+            return [], str(e)
+
+    def search_users(self):
+        """Search users by username (and optionally email/status). JWT required. Requires username with min length 2."""
+        try:
+            data = request.get_json(silent=True) or {}
+            username = (data.get('username') or '').strip()
+            custom_log(f"UserManagement: search_users request body={data!r} username={username!r}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            if len(username) < 2:
+                custom_log("UserManagement: search_users username too short", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                return jsonify({
+                    'success': False,
+                    'error': 'username is required and must be at least 2 characters',
+                    'users': []
+                }), 400
+            limit = min(int(data.get('limit', 50)), 50)
+            query = {'username': {'$regex': re.escape(username), '$options': 'i'}}
+            if data.get('email'):
+                email_escaped = re.escape(str(data.get('email', '')).strip())
+                if email_escaped:
+                    query['email'] = {'$regex': email_escaped, '$options': 'i'}
+            if data.get('status'):
+                query['status'] = data['status']
+            custom_log(f"UserManagement: search_users query={query} limit={limit} analytics_db={getattr(self, 'analytics_db', None)}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            users_raw = self.analytics_db.find("users", query)
+            users_raw = list(users_raw)[:limit] if users_raw else []
+            custom_log(f"UserManagement: search_users found {len(users_raw)} users", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            out = []
+            for user in users_raw:
+                user.pop('password', None)
+                uid = user.get('_id')
+                if uid is not None:
+                    user['user_id'] = str(uid)
+                out.append(user)
+            return jsonify({'success': True, 'users': out}), 200
+        except Exception as e:
+            custom_log(f"UserManagement: search_users error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+            return jsonify({'success': False, 'error': 'Failed to search users', 'users': []}), 500
 
 
 

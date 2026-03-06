@@ -7,13 +7,16 @@
 # as it can interfere with VS Code's terminal handling
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FRONTEND_ENV="$SCRIPT_DIR/.env"
 
-# Firebase/sensitive vars from playbooks/frontend/.env
-if [ -f "$SCRIPT_DIR/.env" ]; then
+# Load env from playbooks/frontend/.env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
-  source "$SCRIPT_DIR/.env"
+  source "$FRONTEND_ENV"
   set +a
+else
+  echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
 fi
 
 echo "🚀 Launching Flutter app on OnePlus device (84fbcf31) with filtered Logger output..."
@@ -276,7 +279,7 @@ source "$SCRIPT_DIR/dart_defines_from_env.sh"
 DART_DEFINE_ARGS=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$SCRIPT_DIR/.env")
+done < <(build_dart_defines_from_env "$FRONTEND_ENV")
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" )
 DART_DEFINE_ARGS+=( \
   --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \

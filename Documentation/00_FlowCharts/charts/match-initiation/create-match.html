@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+  <title>Create match – Match initiation – Flowcharts</title>
+  <link rel="stylesheet" href="../../css/flowcharts.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@8.14.0/dist/mermaid.min.js"></script>
+  <script src="../../js/mermaid-init.js"></script>
+</head>
+<body>
+  <div class="container">
+    <p class="breadcrumb"><a href="../../index.html">Flowcharts</a> / <a href="../../index.html#match-initiation">Match initiation</a> / Create match</p>
+    <h1>Create match</h1>
+    <p class="notes">Invite-based flow: create-match-session → user search → invite-player (human: notification + pending; computer: no notification, auto-accepted in session). Create button is enabled only when 3 invited and all have status <strong>accepted</strong>. Then <code>create_room</code> is emitted with <code>accepted_players</code> (user_id, username, is_comp_player) and <code>auto_start: true</code>. Backend stores accepted_players on the room; match starts when <strong>effective max</strong> is reached (at create or on join). Coordinator uses the accepted_players comp list instead of fetching from the API. See <a href="random-join.html">Random join</a> for the other path (no invites, timer or max players, coordinator fetches comp from Flask).</p>
+    <ul class="notes" style="margin-top: 0.25rem; padding-left: 1.25rem;">
+      <li><strong>Effective max:</strong> Computer players do not join the WebSocket room. <code>effectiveMax = maxSize - compCount</code> (from accepted_players with <code>is_comp_player: true</code>). Auto-start when <code>currentSize >= effectiveMax</code> (e.g. max 4, 3 comp → start when 1 human in room).</li>
+      <li><strong>Start at create:</strong> After creator auto-join, if <code>autoStart</code> and <code>currentSize >= effectiveMax</code>, <code>_startMatchForRoom</code> is called immediately (e.g. 1 human + 3 comp).</li>
+      <li><strong>Start on join:</strong> When a second human joins, <code>_handleJoinRoom</code> checks the same condition and calls <code>_startMatchForRoom</code> when effective max is reached.</li>
+      <li><strong>Coordinator:</strong> If <code>accepted_players</code> is in start_match data, comp players are taken from that list (no API fetch). Otherwise comp players are fetched from the Flask backend (random-join path).</li>
+      <li><strong>Invite filtering:</strong> Backend checks <code>is_comp_player</code>; human → dutch_invite notification; computer → add to session as accepted, no notification.</li>
+    </ul>
+    <div id="chart" class="mermaid">
+flowchart TD
+  subgraph Frontend["Frontend (Flutter)"]
+    LOB["Lobby screen"]
+    WIDG["CreateJoinGameWidget / _CreateRoomModal"]
+    SESS["createMatchSession → POST create-match-session"]
+    SEARCH["User search: POST /userauth/users/search"]
+    INV["invitePlayer with create_match_id"]
+    POLL["Poll get-create-match-session"]
+    THREE{"3 invited & all accepted?"}
+    CREATE_BTN["Create button enabled"]
+    PAY["Build roomSettings: accepted_players, autoStart: true"]
+    CLEAR["clearAllGameStateBeforeNewGame"]
+    WS["ensureWebSocketReady"]
+    EMIT["emit create_room (accepted_players, auto_start: true)"]
+    LOB --> WIDG
+    WIDG --> SESS
+    SESS --> SEARCH
+    SEARCH --> INV
+    INV --> POLL
+    POLL --> THREE
+    THREE -->|Yes| CREATE_BTN
+    CREATE_BTN --> PAY
+    PAY --> CLEAR
+    CLEAR --> WS
+    WS --> EMIT
+  end
+
+  subgraph PythonInvite["Backend (Python – invite)"]
+    EP_INV["POST /userauth/dutch/invite-player"]
+    RESOLVE["Resolve username → target user"]
+    COMP{"is_comp_player?"}
+    COMP_ADD["Add to session: status accepted, is_comp_player: true"]
+    COMP_RET["Return: Computer player added"]
+    HUMAN_NOTIF["Create instant notification dutch_invite"]
+    HUMAN_ADD["Add to session: notification_id, status pending, is_comp_player: false"]
+    HUMAN_RET["Return: Invite sent"]
+    RESP["invite-response: Accept/Decline → update session status"]
+    INV --> EP_INV
+    EP_INV --> RESOLVE
+    RESOLVE --> COMP
+    COMP -->|Yes| COMP_ADD
+    COMP -->|No| HUMAN_NOTIF
+    COMP_ADD --> COMP_RET
+    HUMAN_NOTIF --> HUMAN_ADD
+    HUMAN_ADD --> HUMAN_RET
+    HUMAN_ADD -.->|Invited human taps Accept/Decline| RESP
+  end
+
+  subgraph BackendCreate["Backend Dart – create_room"]
+    MSG["message_handler: create_room"]
+    HAND["_handleCreateRoom"]
+    CR["roomManager.createRoom(acceptedPlayers)"]
+    SUCC["send create_room_success"]
+    HOOK_C["trigger room_created"]
+    JOIN_E["send room_joined"]
+    HOOK_J["trigger room_joined (creator)"]
+    EFF_CREATE{"autoStart & currentSize >= effectiveMax?"}
+    EFF_VAL["effectiveMax = maxSize - compCount"]
+    START_AT_CREATE["_startMatchForRoom(roomId)"]
+    EMIT --> MSG
+    MSG --> HAND
+    HAND --> CR
+    CR --> SUCC
+    SUCC --> HOOK_C
+    HOOK_C --> JOIN_E
+    JOIN_E --> HOOK_J
+    HOOK_J --> EFF_VAL
+    EFF_VAL --> EFF_CREATE
+    EFF_CREATE -->|Yes| START_AT_CREATE
+  end
+
+  subgraph BackendJoin["Backend Dart – join_room"]
+    JOIN_MSG["message_handler: join_room"]
+    HAND_J["_handleJoinRoom"]
+    JOIN_ROOM["roomManager.joinRoom"]
+    SUCC_J["send join_room_success"]
+    HOOK_J2["trigger room_joined"]
+    EFF_JOIN{"autoStart & currentSize >= effectiveMax?"}
+    START_AT_JOIN["_startMatchForRoom(roomId)"]
+    JOIN_MSG --> HAND_J
+    HAND_J --> JOIN_ROOM
+    JOIN_ROOM --> SUCC_J
+    SUCC_J --> HOOK_J2
+    HOOK_J2 --> EFF_JOIN
+    EFF_JOIN -->|Yes| START_AT_JOIN
+  end
+
+  subgraph StartMatch["Backend Dart – start match"]
+    START_FN["_startMatchForRoom"]
+    DATA["startMatchData: game_id, min/max_players, accepted_players"]
+    COORD["_gameCoordinator.handle start_match"]
+    START_AT_CREATE --> START_FN
+    START_AT_JOIN --> START_FN
+    START_FN --> DATA
+    DATA --> COORD
+  end
+
+  subgraph Coordinator["Coordinator – _handleStartMatch"]
+    HANDLE["game_event_coordinator.handle start_match"]
+    BUILD["Build initial game_state from room_joined players"]
+    HAS_ACCEPTED{"accepted_players present?"}
+    USE_ACCEPTED["Add comp players from accepted_players (is_comp_player: true)"]
+    FETCH_API["Fetch comp players from Flask API"]
+    FILL["Fill to maxPlayers"]
+    LINK["→ State construction"]
+    COORD --> HANDLE
+    HANDLE --> BUILD
+    BUILD --> HAS_ACCEPTED
+    HAS_ACCEPTED -->|Yes| USE_ACCEPTED
+    HAS_ACCEPTED -->|No| FETCH_API
+    USE_ACCEPTED --> FILL
+    FETCH_API --> FILL
+    FILL --> LINK
+  end
+
+  subgraph FrontendHooks["Frontend (hooks)"]
+    RC["room_creation hook: currentRoomId, isInRoom"]
+    ADD["game_state_updated → _addGameToMap"]
+    NAV["Lobby or navigate to game"]
+    HOOK_C --> RC
+    RC --> ADD
+    ADD --> NAV
+  end
+
+  style EMIT fill:#2d5a2d
+  style HAND fill:#2d4a6d
+  style START_FN fill:#2d4a6d
+  style USE_ACCEPTED fill:#6d4a2d
+  style LINK fill:#4a5a2d
+  click LINK href "../game-state/state_construction.html" "Open State construction"
+    </div>
+    <p class="chart-comment"><strong>Random join</strong> uses <code>join_random_game</code>, <code>_handleJoinRandomGame</code>, and either a delay timer or immediate <code>_startMatchForRandomJoin</code> when the room fills; the coordinator then fetches comp players from the API (no <code>accepted_players</code>). <strong>State construction</strong> is in <code>_handleStartMatch</code>; see <a href="../game-state/state_construction.html">State construction</a>.</p>
+  </div>
+</body>
+</html>

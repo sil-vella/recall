@@ -25,6 +25,7 @@ except ImportError:
 class RedisManager:
     _instance = None
     _initialized = False
+    LOGGING_SWITCH = True  # Token store/validity (see .cursor/rules/enable-logging-switch.mdc)
 
     def __new__(cls):
         if cls._instance is None:
@@ -683,6 +684,8 @@ class RedisManager:
         """Store a token with proper key generation and expiration."""
         try:
             if not self._ensure_connection():
+                if RedisManager.LOGGING_SWITCH:
+                    custom_log(f"Redis token: store_token type={token_type!r} expire={expire} -> connection failed", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
                 return False
 
             # Store token with expiration using direct Redis operations
@@ -695,20 +698,30 @@ class RedisManager:
             
             # Set expiration on the set as well
             self.redis.expire(set_key, expire)
-            
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis token: store_token type={token_type!r} expire={expire} -> ok", level="DEBUG", isOn=RedisManager.LOGGING_SWITCH)
             return True
         except Exception as e:
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis token: store_token type={token_type!r} -> exception {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return False
 
     def is_token_valid(self, token_type: str, token: str) -> bool:
         """Check if a token exists and is valid."""
         try:
             if not self._ensure_connection():
+                if RedisManager.LOGGING_SWITCH:
+                    custom_log(f"Redis token: is_token_valid type={token_type!r} -> connection failed", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
                 return False
 
             token_key = self._generate_token_key(token_type, token)
-            return self.redis.exists(token_key)
+            result = bool(self.redis.exists(token_key))
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis token: is_token_valid type={token_type!r} -> {result}", level="DEBUG", isOn=RedisManager.LOGGING_SWITCH)
+            return result
         except Exception as e:
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis token: is_token_valid type={token_type!r} -> exception {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return False
 
     def revoke_token(self, token_type: str, token: str) -> bool:

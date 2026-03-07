@@ -112,6 +112,8 @@ class DutchGameMain(BaseModule):
             self._register_route_helper("/userauth/dutch/create-match-session", self.create_match_session, methods=["POST"], auth="jwt")
             self._register_route_helper("/userauth/dutch/create-match-session", self.get_create_match_session, methods=["GET"], auth="jwt")
             self._register_route_helper("/userauth/dutch/invite-response", self.invite_response, methods=["POST"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/notify-room-ready", self.notify_room_ready, methods=["POST"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/room-join-ack", self.room_join_ack, methods=["POST"], auth="jwt")
 
             # Register the get-comp-players endpoint as public (no authentication)
             self._register_route_helper("/public/dutch/get-comp-players", self.get_comp_players, methods=["POST"])
@@ -1101,6 +1103,105 @@ class DutchGameMain(BaseModule):
             return jsonify({"success": True, "message": "Updated", "action": action}), 200
         except Exception as e:
             custom_log(f"DutchGame: invite_response error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    def notify_room_ready(self):
+        """Create instant 'room ready' notifications for accepted human players. Body: room_id, accepted_player_user_ids."""
+        try:
+            user_id = request.user_id
+            if not user_id:
+                return jsonify({"success": False, "error": "Not authenticated"}), 401
+            data = request.get_json(silent=True) or {}
+            room_id = (data.get("room_id") or "").strip()
+            accepted_player_user_ids = data.get("accepted_player_user_ids")
+            if not room_id:
+                return jsonify({"success": False, "error": "room_id required"}), 400
+            if not isinstance(accepted_player_user_ids, list):
+                return jsonify({"success": False, "error": "accepted_player_user_ids must be a list"}), 400
+            notification_module = self.app_manager.module_manager.get_module("notification_module")
+            if not notification_module or not hasattr(notification_module, "get_notification_service"):
+                return jsonify({"success": False, "error": "Notifications unavailable"}), 503
+            notif_service = notification_module.get_notification_service()
+            if not notif_service:
+                return jsonify({"success": False, "error": "Notification service not available"}), 503
+            title = "Game ready"
+            body = "The game room is ready. Tap Join to enter."
+            responses = [
+                {"label": "Join", "endpoint": "/userauth/dutch/room-join-ack", "method": "POST", "action": "join"},
+            ]
+            notified = 0
+            for uid in accepted_player_user_ids:
+                if not isinstance(uid, str) or not uid.strip():
+                    continue
+                uid = uid.strip()
+                msg_id = notif_service.create(
+                    user_id=uid,
+                    source="dutch_game",
+                    type="instant",
+                    title=title,
+                    body=body,
+                    data={"room_id": room_id},
+                    responses=responses,
+                    subtype="dutch_room_join",
+                )
+                if msg_id:
+                    notified += 1
+            custom_log(
+                f"DutchGame: notify_room_ready room_id={room_id} notified={notified} user_ids={len(accepted_player_user_ids)}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+            return jsonify({"success": True, "notified": notified}), 200
+        except Exception as e:
+            custom_log(f"DutchGame: notify_room_ready error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    def room_join_ack(self):
+        """Handle Join tap on room-ready notification. Body: message_id, action=join. Returns room_id."""
+        try:
+            user_id = request.user_id
+            if not user_id:
+                return jsonify({"success": False, "error": "Not authenticated"}), 401
+            data = request.get_json(silent=True) or {}
+            message_id = (data.get("message_id") or "").strip()
+            action = (data.get("action") or "").strip().lower()
+            if not message_id or action != "join":
+                return jsonify({"success": False, "error": "message_id and action=join required"}), 400
+            try:
+                msg_oid = ObjectId(message_id)
+            except Exception:
+                return jsonify({"success": False, "error": "Invalid message_id"}), 400
+            db = self.app_manager.get_db_manager(role="read_write")
+            if not db:
+                return jsonify({"success": False, "error": "Database unavailable"}), 503
+            doc = db.find_one("notifications", {"_id": msg_oid})
+            if not doc:
+                return jsonify({"success": False, "error": "Notification not found"}), 404
+            doc_user_id = doc.get("user_id")
+            if str(doc_user_id) != str(user_id):
+                return jsonify({"success": False, "error": "Forbidden"}), 403
+            if doc.get("subtype") != "dutch_room_join":
+                return jsonify({"success": False, "error": "Invalid notification type"}), 400
+            room_id = (doc.get("data") or {}).get("room_id")
+            if not room_id:
+                return jsonify({"success": False, "error": "room_id missing in notification"}), 400
+            try:
+                now = datetime.utcnow()
+                db.update_one(
+                    "notifications",
+                    {"_id": msg_oid},
+                    {"read": True, "read_at": now, "updated_at": now},
+                )
+            except Exception:
+                pass
+            custom_log(
+                f"DutchGame: room_join_ack user_id={user_id} message_id={message_id} room_id={room_id}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+            return jsonify({"success": True, "room_id": room_id}), 200
+        except Exception as e:
+            custom_log(f"DutchGame: room_join_ack error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": str(e)}), 500
 
     def get_comp_players(self):

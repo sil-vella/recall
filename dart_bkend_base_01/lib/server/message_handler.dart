@@ -206,6 +206,9 @@ class MessageHandler {
       };
       if (isTournament) createSuccessPayload['is_tournament'] = true;
       if (tournamentData != null && tournamentData.isNotEmpty) createSuccessPayload['tournament_data'] = tournamentData;
+      if (room.acceptedPlayers != null && room.acceptedPlayers!.isNotEmpty) {
+        createSuccessPayload['accepted_players'] = room.acceptedPlayers;
+      }
       _server.sendToSession(sessionId, createSuccessPayload);
       
       // 🎣 Trigger room_created hook

@@ -116,6 +116,31 @@ class DutchGameHelpers {
     }
   }
 
+  /// Notify accepted human players that the room is ready (POST notify-room-ready).
+  /// Called by creator client after create_room_success when accepted_players is present.
+  static Future<void> notifyRoomReady({
+    required String roomId,
+    required List<String> humanAcceptedUserIds,
+  }) async {
+    if (humanAcceptedUserIds.isEmpty) return;
+    try {
+      final moduleManager = ModuleManager();
+      final api = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (api == null) return;
+      await api.sendPostRequest(
+        '/userauth/dutch/notify-room-ready',
+        {
+          'room_id': roomId,
+          'accepted_player_user_ids': humanAcceptedUserIds,
+        },
+      );
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('DutchGameHelpers.notifyRoomReady: $e');
+      }
+    }
+  }
+
   /// Join an existing room with validation
   static Future<Map<String, dynamic>> joinRoom({
     required String roomId,

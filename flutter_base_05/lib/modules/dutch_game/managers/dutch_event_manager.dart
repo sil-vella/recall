@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:dutch/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
+import '../../../utils/consts/theme_consts.dart';
 import '../../../core/managers/hooks_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
@@ -192,6 +194,26 @@ class DutchEventManager {
             data: data,
           );
           
+          // Room ready: notify accepted human players so they can join (create-match flow only)
+          final acceptedPlayers = roomData['accepted_players'];
+          if (!isRandomJoin &&
+              acceptedPlayers is List &&
+              acceptedPlayers.isNotEmpty) {
+            final humanIds = <String>[];
+            for (final e in acceptedPlayers) {
+              if (e is Map<String, dynamic> && e['is_comp_player'] != true) {
+                final uid = e['user_id']?.toString();
+                if (uid != null && uid.isNotEmpty) humanIds.add(uid);
+              }
+            }
+            if (humanIds.isNotEmpty) {
+              DutchGameHelpers.notifyRoomReady(
+                roomId: roomId,
+                humanAcceptedUserIds: humanIds,
+              );
+            }
+          }
+          
           // Navigate to game play screen if this is a random join
           if (isRandomJoin) {
             if (LOGGING_SWITCH) {
@@ -261,6 +283,48 @@ class DutchEventManager {
             data: data,
           );
           break;
+      }
+    });
+    
+    // When user taps Join on room-ready notification (dutch_room_join), join room and navigate to game play screen.
+    HooksManager().registerHookWithData('instant_message_response_success', (data) async {
+      final subtype = data['subtype']?.toString() ?? '';
+      if (subtype != 'dutch_room_join') return;
+      final message = data['message'];
+      final response = data['response'];
+      final msgData = message is Map ? message['data'] : null;
+      final responseData = response is Map ? response : null;
+      final roomId = (msgData is Map ? msgData['room_id'] : null)?.toString() ??
+          (responseData != null ? responseData['room_id']?.toString() : null);
+      if (roomId == null || roomId.isEmpty) return;
+      final result = await DutchGameHelpers.joinRoom(roomId: roomId);
+      if (result['success'] != true) {
+        if (LOGGING_SWITCH) _logger.error('dutch_room_join joinRoom failed: ${result['error']}');
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
+      if (games.containsKey(roomId)) {
+        DutchGameHelpers.setCurrentGameSync(roomId, games);
+      } else {
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        final retryState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final retryGames = Map<String, dynamic>.from(retryState['games'] as Map<String, dynamic>? ?? {});
+        if (retryGames.containsKey(roomId)) {
+          DutchGameHelpers.setCurrentGameSync(roomId, retryGames);
+        }
+      }
+      // Always navigate to game play screen after successful join (state may populate when game_state_updated arrives).
+      NavigationManager().navigateTo('/dutch/game-play');
+      final ctx = data['context'];
+      if (ctx is BuildContext && ctx.mounted) {
+        ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(
+          SnackBar(
+            content: const Text('Joined. Opening game...'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
       }
     });
     

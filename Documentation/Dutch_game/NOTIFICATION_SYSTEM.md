@@ -43,3 +43,12 @@ Database manager must encrypt the update query (and convert `user_id` string to 
 | Flutter | `lib/core/widgets/instant_message_modal.dart` |
 | Flutter | `lib/core/00_base/screen_base.dart` (_checkAndShowInstantMessages) |
 | Flutter | `lib/core/managers/module_registry.dart` (notifications_module registration) |
+
+---
+
+## Dutch game instant subtypes
+
+| Subtype            | Response endpoint                     | Purpose |
+|--------------------|--------------------------------------|---------|
+| `dutch_invite`     | POST `/userauth/dutch/invite-response` | Accept/Decline game invite |
+| `dutch_room_join`   | POST `/userauth/dutch/room-join-ack` | Join room when game is ready (returns `room_id`) |

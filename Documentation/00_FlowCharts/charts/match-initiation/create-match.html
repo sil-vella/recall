@@ -20,6 +20,7 @@
       <li><strong>Start on join:</strong> When a second human joins, <code>_handleJoinRoom</code> checks the same condition and calls <code>_startMatchForRoom</code> when effective max is reached.</li>
       <li><strong>Coordinator:</strong> If <code>accepted_players</code> is in start_match data, comp players are taken from that list (no API fetch). Otherwise comp players are fetched from the Flask backend (random-join path).</li>
       <li><strong>Invite filtering:</strong> Backend checks <code>is_comp_player</code>; human → dutch_invite notification; computer → add to session as accepted, no notification.</li>
+      <li><strong>Room ready (second part):</strong> When the room is created, <code>create_room_success</code> includes <code>accepted_players</code>. The creator’s client (in the <code>room_creation</code> hook) calls <code>POST /userauth/dutch/notify-room-ready</code> with <code>room_id</code> and the list of <strong>human</strong> accepted player <code>user_id</code>s. Python creates one instant notification per user with subtype <code>dutch_room_join</code>, title/body “Game ready”, <code>data.room_id</code>, and a single response <strong>Join</strong> (endpoint <code>room-join-ack</code>). When an invitee taps Join, the client sends <code>POST room-join-ack</code>, then the <code>instant_message_response_success</code> hook runs; a listener for subtype <code>dutch_room_join</code> calls <code>joinRoom(room_id)</code> and navigates to game. That emits <code>join_room</code> to the Dart backend, which runs the existing <code>_handleJoinRoom</code> path (join_room_success, effective max check, optional <code>_startMatchForRoom</code>).</li>
     </ul>
     <div id="chart" class="mermaid">
 flowchart TD
@@ -74,7 +75,7 @@ flowchart TD
     MSG["message_handler: create_room"]
     HAND["_handleCreateRoom"]
     CR["roomManager.createRoom(acceptedPlayers)"]
-    SUCC["send create_room_success"]
+    SUCC["send create_room_success (incl. accepted_players)"]
     HOOK_C["trigger room_created"]
     JOIN_E["send room_joined"]
     HOOK_J["trigger room_joined (creator)"]
@@ -137,14 +138,42 @@ flowchart TD
     FILL --> LINK
   end
 
-  subgraph FrontendHooks["Frontend (hooks)"]
+  subgraph FrontendHooks["Frontend creator (hooks)"]
     RC["room_creation hook: currentRoomId, isInRoom"]
+    NOTIFY_CALL["If accepted_players: POST notify-room-ready (room_id, human user_ids)"]
     ADD["game_state_updated → _addGameToMap"]
     NAV["Lobby or navigate to game"]
     HOOK_C --> RC
+    RC --> NOTIFY_CALL
     RC --> ADD
     ADD --> NAV
   end
+
+  subgraph PythonRoomReady["Backend Python – room ready"]
+    NOTIFY_EP["POST /userauth/dutch/notify-room-ready"]
+    NOTIF_PER["Create instant notification per user: subtype dutch_room_join"]
+    NOTIF_JOIN["responses: Join → room-join-ack"]
+    NOTIFY_EP --> NOTIF_PER
+    NOTIF_PER --> NOTIF_JOIN
+  end
+
+  subgraph FrontendInvitee["Frontend invitee – join room"]
+    FETCH_NOTIF["Fetch notifications / instant modal"]
+    TAP_JOIN["Tap Join"]
+    ACK_EP["POST /userauth/dutch/room-join-ack"]
+    HOOK_IM["instant_message_response_success (subtype dutch_room_join)"]
+    EMIT_JOIN["joinRoom(room_id) → emit join_room"]
+    NAV_GAME["Navigate to game"]
+    NOTIF_JOIN -.->|Invitee receives| FETCH_NOTIF
+    FETCH_NOTIF --> TAP_JOIN
+    TAP_JOIN --> ACK_EP
+    ACK_EP --> HOOK_IM
+    HOOK_IM --> EMIT_JOIN
+    EMIT_JOIN --> JOIN_MSG
+    EMIT_JOIN --> NAV_GAME
+  end
+
+  NOTIFY_CALL --> NOTIFY_EP
 
   style EMIT fill:#2d5a2d
   style HAND fill:#2d4a6d
@@ -153,7 +182,7 @@ flowchart TD
   style LINK fill:#4a5a2d
   click LINK href "../game-state/state_construction.html" "Open State construction"
     </div>
-    <p class="chart-comment"><strong>Random join</strong> uses <code>join_random_game</code>, <code>_handleJoinRandomGame</code>, and either a delay timer or immediate <code>_startMatchForRandomJoin</code> when the room fills; the coordinator then fetches comp players from the API (no <code>accepted_players</code>). <strong>State construction</strong> is in <code>_handleStartMatch</code>; see <a href="../game-state/state_construction.html">State construction</a>.</p>
+    <p class="chart-comment"><strong>Room ready:</strong> Creator’s <code>room_creation</code> hook calls <code>notify-room-ready</code>; Python creates <code>dutch_room_join</code> instant notifications; invitee taps Join → <code>room-join-ack</code> → <code>instant_message_response_success</code> → <code>join_room</code> (existing Dart path) and navigate to game. <strong>Random join</strong> uses <code>join_random_game</code>, <code>_handleJoinRandomGame</code>, and either a delay timer or immediate <code>_startMatchForRandomJoin</code> when the room fills; the coordinator then fetches comp players from the API (no <code>accepted_players</code>). <strong>State construction</strong> is in <code>_handleStartMatch</code>; see <a href="../game-state/state_construction.html">State construction</a>.</p>
   </div>
 </body>
 </html>

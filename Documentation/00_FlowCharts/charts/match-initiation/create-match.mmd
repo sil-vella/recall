@@ -1,4 +1,5 @@
 %% Create match (invite flow): frontend → backend → coordinator → match state.
+%% Second part: after room created, creator calls notify-room-ready; invitees get dutch_room_join instant note with Join → room-join-ack → join_room → existing join path.
 %% Contrast: random-join uses join_random_game, timer or max players, coordinator fetches comp from API.
 %% Create-match: 3 accepted → create_room with accepted_players + autoStart; effective max = maxSize - compCount; coordinator uses accepted_players comp list.
 
@@ -54,7 +55,7 @@ flowchart TD
     MSG["message_handler: create_room"]
     HAND["_handleCreateRoom"]
     CR["roomManager.createRoom(acceptedPlayers)"]
-    SUCC["send create_room_success"]
+    SUCC["send create_room_success (incl. accepted_players)"]
     HOOK_C["trigger room_created"]
     JOIN_E["send room_joined"]
     HOOK_J["trigger room_joined (creator)"]
@@ -117,14 +118,42 @@ flowchart TD
     FILL --> LINK
   end
 
-  subgraph FrontendHooks["Frontend (hooks)"]
+  subgraph FrontendHooks["Frontend creator (hooks)"]
     RC["room_creation hook: currentRoomId, isInRoom"]
+    NOTIFY_CALL["If accepted_players: POST notify-room-ready (room_id, human user_ids)"]
     ADD["game_state_updated → _addGameToMap"]
     NAV["Lobby or navigate to game"]
     HOOK_C --> RC
+    RC --> NOTIFY_CALL
     RC --> ADD
     ADD --> NAV
   end
+
+  subgraph PythonRoomReady["Backend Python – room ready"]
+    NOTIFY_EP["POST /userauth/dutch/notify-room-ready"]
+    NOTIF_PER["Create instant notification per user: subtype dutch_room_join"]
+    NOTIF_JOIN["responses: Join → room-join-ack"]
+    NOTIFY_EP --> NOTIF_PER
+    NOTIF_PER --> NOTIF_JOIN
+  end
+
+  subgraph FrontendInvitee["Frontend invitee – join room"]
+    FETCH_NOTIF["Fetch notifications / instant modal"]
+    TAP_JOIN["Tap Join"]
+    ACK_EP["POST /userauth/dutch/room-join-ack"]
+    HOOK_IM["instant_message_response_success (subtype dutch_room_join)"]
+    EMIT_JOIN["joinRoom(room_id) → emit join_room"]
+    NAV_GAME["Navigate to game"]
+    NOTIF_JOIN -.->|Invitee receives| FETCH_NOTIF
+    FETCH_NOTIF --> TAP_JOIN
+    TAP_JOIN --> ACK_EP
+    ACK_EP --> HOOK_IM
+    HOOK_IM --> EMIT_JOIN
+    EMIT_JOIN --> JOIN_MSG
+    EMIT_JOIN --> NAV_GAME
+  end
+
+  NOTIFY_CALL --> NOTIFY_EP
 
   style EMIT fill:#2d5a2d
   style HAND fill:#2d4a6d

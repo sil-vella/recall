@@ -214,22 +214,19 @@ class DutchEventManager {
             }
           }
           
-          // Navigate to game play screen if this is a random join
+          // Navigate to game play screen: random join or creator (create-match)
           if (isRandomJoin) {
             if (LOGGING_SWITCH) {
               _logger.info('🎮 Random join room created, navigating to game play screen');
             }
-            
-            // Clear the random join flag
             DutchGameHelpers.updateUIState({
               'isRandomJoinInProgress': false,
             });
-            
-            // Use a small delay to ensure state is fully updated
-            Future.delayed(const Duration(milliseconds: 300), () {
-              NavigationManager().navigateTo('/dutch/game-play');
-            });
           }
+          // Creator always goes to play screen after successful creation (random join or create-match)
+          Future.delayed(const Duration(milliseconds: 300), () {
+            NavigationManager().navigateTo('/dutch/game-play');
+          });
           break;
           
         case 'created':

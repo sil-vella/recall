@@ -37,14 +37,15 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
   bool _isFinding = false;
   bool _isPrivateRoom = false;
 
-  /// Callback for room_creation hook; switch to Join tab on successful create (not random join)
+  /// Callback for room_creation hook (Join tab commented out – creator navigates to play screen)
   void _onRoomCreation(Map<String, dynamic> data) {
     if (!mounted) return;
-    final status = data['status']?.toString();
-    final isRandomJoin = data['is_random_join'] == true;
-    if (status == 'success' && !isRandomJoin) {
-      setState(() => _mode = 'join');
-    }
+    // Join tab commented out: no longer switch to Join; creator goes to game-play via dutch_event_manager
+    // final status = data['status']?.toString();
+    // final isRandomJoin = data['is_random_join'] == true;
+    // if (status == 'success' && !isRandomJoin) {
+    //   setState(() => _mode = 'join');
+    // }
   }
 
   // Create modal state
@@ -396,19 +397,20 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
                 Expanded(
                   child: _buildModeButton('create', Icons.add, 'Create'),
                 ),
-                Expanded(
-                  child: _buildModeButton('join', Icons.login, 'Join'),
-                ),
+                // Join tab commented out – creator and invitees use room-ready notification to join
+                // Expanded(
+                //   child: _buildModeButton('join', Icons.login, 'Join'),
+                // ),
               ],
             ),
           ),
           SizedBox(height: AppPadding.defaultPadding.top),
 
-          // Content based on mode
+          // Content based on mode (Join tab commented out)
           if (_mode == 'create')
-            _buildCreateContent()
-          else
-            _buildJoinContent(),
+            _buildCreateContent(),
+          // else
+          //   _buildJoinContent(),
           ],
         ),
       ),
@@ -478,6 +480,8 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     );
   }
 
+  // Kept for when Join tab is re-enabled (currently commented out)
+  // ignore: unused_element
   Widget _buildJoinContent() {
     return Form(
       key: _joinFormKey,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dutch/modules/admobs/banner/banner_ad.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -73,6 +75,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   final ModuleManager _moduleManager = ModuleManager();
   BannerAdModule? bannerAdModule;
   final Logger _logger = Logger();
+
+  Timer? _instantNotificationTimer;
 
   /// Stable key for the app bar feature slot when [BaseScreen.useGlobalKeyForAppBarFeatureSlot] is true.
   /// Used to resolve slot position for overlays (e.g. coin stream to coins display).
@@ -415,6 +419,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   @override
   void dispose() {
+    _instantNotificationTimer?.cancel();
+    _instantNotificationTimer = null;
     // Note: State-aware features are automatically managed by StateManager
     // No need to manually clean up subscriptions or unregister features
     super.dispose();
@@ -439,10 +445,22 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
       // App-wide: show instant-type notification modals when unread (any screen)
       _checkAndShowInstantMessages();
+      // Re-check periodically so new invites appear without navigating away
+      _instantNotificationTimer?.cancel();
+      _instantNotificationTimer = Timer.periodic(
+        Duration(seconds: kInstantNotificationPollSeconds),
+        (_) {
+          if (mounted) _checkAndShowInstantMessages();
+        },
+      );
     });
   }
 
-  /// Fetches messages (throttled), then shows modals for unread notifications with type 'instant'.
+  /// Interval for re-checking instant notifications while screen is visible (seconds).
+  static const int kInstantNotificationPollSeconds = 20;
+
+  /// Fetches messages (throttled per call), then shows modals for unread notifications with type 'instant'.
+  /// Called on screen enter and periodically via timer so instant notifications appear without requiring navigation.
   void _checkAndShowInstantMessages() async {
     if (!mounted) return;
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login');
@@ -452,7 +470,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     final state = StateManager().getModuleState<Map<String, dynamic>>('notifications');
     final lastFetched = state?['lastFetchedAt']?.toString();
     final shouldFetch = lastFetched == null ||
-        (DateTime.now().difference(DateTime.tryParse(lastFetched) ?? DateTime.now()).inSeconds > 60);
+        (DateTime.now().difference(DateTime.tryParse(lastFetched) ?? DateTime.now()).inSeconds > 15);
     List<Map<String, dynamic>> list;
     if (shouldFetch) {
       list = await mod.fetchMessages();

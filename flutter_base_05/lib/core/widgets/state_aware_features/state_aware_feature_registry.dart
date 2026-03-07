@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../modules/dutch_game/managers/feature_registry_manager.dart';
 import 'coins_display_feature.dart';
+import 'notifications_feature.dart';
 import '../../../tools/logging/logger.dart';
 
 // Logging switch for this file
@@ -33,6 +34,19 @@ class StateAwareFeatureRegistry {
       feature: coinsFeature,
       context: context,
     );
+
+    // Notifications (envelope) icon – navigates to /notifications
+    final notificationsFeature = FeatureDescriptor(
+      featureId: 'global_notifications',
+      slotId: 'app_bar_actions',
+      builder: (context) => const StateAwareNotificationsFeature(),
+      priority: 75,
+    );
+    FeatureRegistryManager.instance.register(
+      scopeKey: 'global_app_bar',
+      feature: notificationsFeature,
+      context: context,
+    );
     
     if (LOGGING_SWITCH) {
       _logger.info('✅ StateAwareFeatureRegistry: Coins feature registered with scope: global_app_bar');
@@ -48,6 +62,10 @@ class StateAwareFeatureRegistry {
     FeatureRegistryManager.instance.unregister(
       scopeKey: 'global_app_bar',
       featureId: 'global_coins_display',
+    );
+    FeatureRegistryManager.instance.unregister(
+      scopeKey: 'global_app_bar',
+      featureId: 'global_notifications',
     );
   }
 }

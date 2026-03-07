@@ -5,6 +5,7 @@ import '../../modules/home_module/home_screen.dart';
 import '../../screens/websocket_screen.dart';
 import '../../screens/account_screen/account_screen.dart';
 import '../../screens/auth_test_screen/auth_test_screen.dart';
+import '../../screens/notifications_screen/notifications_screen.dart';
 import '../../screens/update_required_screen/update_required_screen.dart';
 // In-app purchases screens removed - switching to RevenueCat
 import '../00_base/module_base.dart';
@@ -69,6 +70,14 @@ class NavigationManager extends ChangeNotifier {
       drawerTitle: 'My Account',
       drawerIcon: Icons.account_circle,
       drawerPosition: 3, // After Play and Learn How
+    );
+
+    registerRoute(
+      path: '/notifications',
+      screen: (context) => const NotificationsScreen(),
+      drawerTitle: null,
+      drawerIcon: null,
+      drawerPosition: 999,
     );
     
     // Register WebSocket test screen (hidden from drawer)

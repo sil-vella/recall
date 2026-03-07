@@ -44,7 +44,7 @@ cd "$SCRIPT_DIR/../../flutter_base_05" 2>/dev/null || cd flutter_base_05
 
 # Set up log file to write to Python server log
 SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log"
-echo "📝 Writing Logger output to: $SERVER_LOG_FILE"
+echo "📝 Writing Logger output to: $SERVER_LOG_FILE (do not redirect script stdout to this file)"
 
 # Ensure log file directory exists and is writable
 LOG_DIR=$(dirname "$SERVER_LOG_FILE")
@@ -56,11 +56,6 @@ if [ ! -w "$LOG_DIR" ]; then
     echo "❌ Error: Log directory is not writable: $LOG_DIR"
     exit 1
 fi
-
-# Clear log file at start of each run to avoid continuation from previous runs
-echo "🧹 Clearing previous log entries..."
-> "$SERVER_LOG_FILE"
-echo "✅ Log file cleared, starting fresh session"
 
 # Launch Flutter app with OnePlus device configuration
 echo "🎯 Launching Flutter app with OnePlus configuration..."
@@ -80,79 +75,41 @@ else
 fi
 
 # Function to strip ANSI escape codes from a string
+# Handles both \x1b[NNm and standalone [NNm (logcat/pipe often drops ESC)
 strip_ansi() {
-    echo "$1" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g'
+    echo "$1" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | sed 's/\[[0-9;]*m//g'
 }
 
 # Function to filter and display only Logger calls
+# Only accepts lines that match the exact AppLogger format from start (rejects merged/junk lines)
+# Writes only plain text to file and stdout so redirecting/tee to server.log never adds ANSI or junk
 filter_logs() {
     # Track last logged message to avoid duplicates
     last_logged=""
-    
+    # Strict pattern: [ISO timestamp] [LEVEL] [AppLogger] message (no leading garbage)
+    STRICT_PATTERN='^\[([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+)\] \[(INFO|DEBUG|WARNING|ERROR)\] \[AppLogger\] (.*)$'
+    # Reject lines that still look like ANSI SGR remnants (e.g. [37m, [0m) so we never pass them through
+    ANSI_REMNANT='\[[0-9;]+m'
+
     while IFS= read -r line; do
-        # Strip any ANSI escape codes from the input line first
-        line=$(strip_ansi "$line")
-        
-        # Check if this is a Logger call (contains timestamp, level, and AppLogger)
-        # Android logcat format: MM-DD HH:MM:SS.mmm  PID  TID  TAG  MESSAGE
-        # Flutter logs may come in different formats, so we check for AppLogger pattern
-        if echo "$line" | grep -q "\[.*\] \[.*\] \[AppLogger\]"; then
-            # Extract original timestamp, level, and message from Flutter log
-            # Format: [timestamp] [LEVEL] [AppLogger] message
-            # Extract timestamp (first bracket group)
-            timestamp=$(echo "$line" | sed -n 's/^\[\([^]]*\)\].*/\1/p')
-            
-            # Extract level (second bracket group)
-            level=$(echo "$line" | sed -n 's/^\[[^]]*\] \[\([^]]*\)\].*/\1/p')
-            
-            # Extract message (everything after [AppLogger] )
-            message=$(echo "$line" | sed -n 's/^\[[^]]*\] \[[^]]*\] \[AppLogger\] //p')
-            
-            # Skip if timestamp or level extraction failed (empty values)
-            if [ -z "$timestamp" ] || [ -z "$level" ]; then
-                continue
-            fi
-            
-            # Skip if message is empty (nothing to log)
-            if [ -z "$message" ]; then
-                continue
-            fi
-            
-            # Create a unique log entry identifier to avoid duplicates
+        # Strip any remaining ANSI (pipeline sed should have done it; fallback if not)
+        line=$(strip_ansi "$line" 2>/dev/null || echo "$line" | sed 's/\[[0-9;]*m//g')
+        # Reject lines that still contain ANSI remnants (unstriped codes)
+        [[ "$line" =~ $ANSI_REMNANT ]] && continue
+        # Require exact match from start of line so we never write malformed or merged lines
+        if [[ "$line" =~ $STRICT_PATTERN ]]; then
+            timestamp="${BASH_REMATCH[1]}"
+            level="${BASH_REMATCH[2]}"
+            message="${BASH_REMATCH[3]}"
+            [ -z "$message" ] && continue
             log_entry="[$timestamp] [$level] $message"
-            
-            # Skip if this is the same as the last logged entry (avoid duplicates)
             if [ "$log_entry" = "$last_logged" ]; then
                 continue
             fi
             last_logged="$log_entry"
-            
-            # Determine color based on level (for console display only)
-            case "$level" in
-                ERROR)
-                    color="\033[31m"  # Red
-                    ;;
-                WARNING)
-                    color="\033[33m"  # Yellow
-                    ;;
-                INFO)
-                    color="\033[32m"  # Green
-                    ;;
-                DEBUG)
-                    color="\033[36m"  # Cyan
-                    ;;
-                *)
-                    color="\033[37m"  # White
-                    ;;
-            esac
-            
-            # Write clean formatted log to Python server log file (NO ANSI codes)
-            # Note: DutchGameStateUpdater logs are now written directly by the Logger class
-            # This script-based logging is a fallback for logs that don't use direct file writing
             echo "$log_entry" >> "$SERVER_LOG_FILE"
-            
-            # Display to console with color coding (ANSI codes only for terminal)
-            echo -e "${color}$log_entry\033[0m"
+            # Plain stdout only: no ANSI, so redirect/tee to server.log never adds colored garbage
+            echo "$log_entry"
         fi
     done
 }
@@ -245,16 +202,23 @@ cleanup() {
 # Set up trap to cleanup on exit
 trap cleanup EXIT INT TERM HUP
 
+# Export so the background subshell pipeline (adb logcat | ... | filter_logs) can write to server.log
+export SERVER_LOG_FILE
+export -f strip_ansi filter_logs 2>/dev/null || true
+
+# Strip ANSI in pipeline (no reliance on exported functions). SGR: ESC[NNm or [NNm (logcat may drop ESC)
+# Use printf for ESC so macOS sed gets a literal escape character. Strip leading [NNm so broken lines recover.
+ANSI_STRIP_SED="s/$(printf '\033')\[[0-9;]*[a-zA-Z]//g; s/\[[0-9;]*m//g; s/^\[[0-9;]*m//g"
+
 # Start logcat in a new process group
 (
     # Create new process group
     set -m
     # Capture Flutter and Dart logs, suppress other tags
-    # Extract message part which contains: [timestamp] [LEVEL] [AppLogger] message
-    # logcat format: I/flutter ( PID): [timestamp] [LEVEL] [AppLogger] message
-    # We need to extract everything starting from the first [
-    # Note: ANSI codes will be stripped in filter_logs function
+    # Strip ANSI in pipeline first so filter_logs never sees SGR codes (logcat/pipe can drop ESC)
+    # Then grep for AppLogger lines, trim logcat prefix, filter and write clean lines only
     adb -s 84fbcf31 logcat flutter:I dart:I *:S 2>&1 | \
+    sed -E "$ANSI_STRIP_SED" | \
     grep "\[.*\] \[.*\] \[AppLogger\]" | \
     sed -E 's/^[^[]*//' | \
     filter_logs

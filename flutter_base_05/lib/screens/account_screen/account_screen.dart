@@ -204,24 +204,31 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _logger.info('AccountScreen: Version check completed - Current: $currentVersion, Server: $serverVersion, Update Available: $updateAvailable, Update Required: $updateRequired');
         }
         
-        // If update is required, navigate to update screen
+        // If update is required, navigate to update screen (only once per run)
         if (updateRequired && downloadLink.isNotEmpty) {
-          if (LOGGING_SWITCH) {
-            _logger.info('AccountScreen: Update required - navigating to update screen');
-          }
-          
-          // Wait a moment to ensure context is ready
-          await Future.delayed(const Duration(milliseconds: 300));
-          
-          if (!mounted) return;
-          
-          // Navigate to update screen with download link as parameter
-          final navigationManager = NavigationManager();
-          final router = navigationManager.router;
-          final updateRoute = '/update-required?download_link=${Uri.encodeComponent(downloadLink)}';
-          router.go(updateRoute);
-          if (LOGGING_SWITCH) {
-            _logger.info('AccountScreen: Navigated to update screen');
+          if (versionCheckService.updateRequiredScreenShownThisRun) {
+            if (LOGGING_SWITCH) {
+              _logger.info('AccountScreen: Update required but already shown this run, skipping navigation');
+            }
+          } else {
+            if (LOGGING_SWITCH) {
+              _logger.info('AccountScreen: Update required - navigating to update screen');
+            }
+            versionCheckService.markUpdateRequiredScreenShownThisRun();
+
+            // Wait a moment to ensure context is ready
+            await Future.delayed(const Duration(milliseconds: 300));
+
+            if (!mounted) return;
+
+            // Navigate to update screen with download link as parameter
+            final navigationManager = NavigationManager();
+            final router = navigationManager.router;
+            final updateRoute = '/update-required?download_link=${Uri.encodeComponent(downloadLink)}';
+            router.go(updateRoute);
+            if (LOGGING_SWITCH) {
+              _logger.info('AccountScreen: Navigated to update screen');
+            }
           }
         } else if (updateAvailable && !updateRequired) {
           if (LOGGING_SWITCH) {

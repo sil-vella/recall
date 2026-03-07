@@ -23,6 +23,16 @@ class VersionCheckService extends ServicesBase {
   SharedPrefManager? _sharedPrefs;
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
+
+  /// True if we already navigated to the update-required screen this app run.
+  /// Prevents showing the update screen again when user returns to Account.
+  bool _updateRequiredScreenShownThisRun = false;
+  bool get updateRequiredScreenShownThisRun => _updateRequiredScreenShownThisRun;
+
+  /// Call after navigating to the update-required screen so we don't show it again this run.
+  void markUpdateRequiredScreenShownThisRun() {
+    _updateRequiredScreenShownThisRun = true;
+  }
   
   @override
   Future<void> initialize() async {

@@ -458,8 +458,8 @@ class DatabaseManager:
         encrypted_data = data.copy()
         for field in Config.SENSITIVE_FIELDS:
             if field in encrypted_data and encrypted_data[field] is not None:
-                # Use deterministic encryption for searchable fields like email
-                deterministic = field in ['email', 'username']  # Fields that need to be searchable
+                # Use deterministic encryption for fields that are queried (so insert and find match)
+                deterministic = field in ['email', 'username']
                 encrypted_data[field] = self.encryption_manager.encrypt_data(
                     encrypted_data[field], deterministic=deterministic
                 )

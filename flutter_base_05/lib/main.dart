@@ -25,12 +25,22 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (LOGGING_SWITCH) logger.info('main: WidgetsBinding done', isOn: true);
 
-  // Initialize Firebase (Analytics, AdMob-ready)
+  // Initialize Firebase (Analytics, AdMob-ready). On Android the native SDK may already have [DEFAULT].
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
     if (LOGGING_SWITCH) logger.info('main: Firebase.initializeApp done', isOn: true);
+  } on FirebaseException catch (e) {
+    if (e.code == 'duplicate-app') {
+      // Native side already has default app (e.g. Android auto-init from google-services.json).
+      if (LOGGING_SWITCH) logger.info('main: Firebase already initialized (duplicate-app ignored)', isOn: true);
+    } else {
+      if (LOGGING_SWITCH) logger.error('main: Firebase.initializeApp failed', error: e, stackTrace: e.stackTrace, isOn: true);
+      rethrow;
+    }
   } catch (e, st) {
     if (LOGGING_SWITCH) logger.error('main: Firebase.initializeApp failed', error: e, stackTrace: st, isOn: true);
     rethrow;

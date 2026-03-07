@@ -1088,13 +1088,15 @@ class DutchGameMain(BaseModule):
             session_id = _notification_to_session.get(message_id)
             if not session_id or session_id not in _create_match_sessions:
                 return jsonify({"success": True, "message": "Updated"}), 200
+            # Store status as "accepted" / "declined" so inviter polling (get_create_match_session) matches Flutter UI
+            status_value = "accepted" if action == "accept" else "declined"
             session = _create_match_sessions[session_id]
             for inv in session["invited"]:
                 if inv.get("notification_id") == message_id:
                     if str(inv.get("user_id")) != str(user_id):
                         return jsonify({"success": False, "error": "Forbidden"}), 403
-                    inv["status"] = action
-                    custom_log(f"DutchGame: invite_response - notification {message_id} -> {action}", level="INFO", isOn=LOGGING_SWITCH)
+                    inv["status"] = status_value
+                    custom_log(f"DutchGame: invite_response - notification {message_id} -> {status_value}", level="INFO", isOn=LOGGING_SWITCH)
                     break
             return jsonify({"success": True, "message": "Updated", "action": action}), 200
         except Exception as e:

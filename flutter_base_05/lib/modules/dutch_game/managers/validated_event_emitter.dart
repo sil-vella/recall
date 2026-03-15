@@ -62,15 +62,16 @@ class DutchGameEventEmitter {
     },
     'create_room': {
       'permission', 'max_players', 'min_players',
-      'turn_time_limit', 'auto_start', 'game_type', 'password',
+      'auto_start', 'game_type', 'password',
+      'game_level', // Optional: game level (e.g. 1, 2, 3) for room/game configuration
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
       'is_tournament', 'tournament_data', // Optional: tournament match (id, name, format, leaderboard, matches_left)
       'accepted_players', // Optional: list of { user_id, username, is_comp_player } for create-match invite flow
+      'add_creator_to_room', // Optional: when false, room is created but creator is not added (default true)
     },
     'join_room': {
-      'room_id', 'password',
+      'room_id', 'password', 'user_id', 'game_level', // user_id fallback; game_level default 1
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
-      'is_tournament', 'tournament_data', // Optional: tournament match (id, name, format, leaderboard, matches_left)
     },
     'join_game': {'game_id', 'player_name', 'max_players'},
     'start_match': {'game_id', 'showInstructions', 'isClearAndCollect'},
@@ -122,20 +123,26 @@ class DutchGameEventEmitter {
       max: 8,
       description: 'Minimum players: 2-8',
     ),
-    'turn_time_limit': DutchEventFieldSpec(
-      type: int,
-      min: 10,
-      max: 300,
-      description: 'Turn time limit in seconds: 10-300',
-    ),
     'auto_start': DutchEventFieldSpec(
       type: bool,
       description: 'Whether to auto-start when room is full',
+    ),
+    'add_creator_to_room': DutchEventFieldSpec(
+      type: bool,
+      required: false,
+      description: 'When true (default), creator is added to the room. When false, room is created but creator is not in it.',
     ),
     'game_type': DutchEventFieldSpec(
       type: String,
       allowedValues: ['classic', 'speed', 'tournament', 'clear_and_collect'],
       description: 'Game type variant: classic/clear = no collection, clear_and_collect = collection mode',
+    ),
+    'game_level': DutchEventFieldSpec(
+      type: int,
+      required: false,
+      min: 1,
+      max: 100,
+      description: 'Game level (e.g. 1, 2, 3) for room/game configuration',
     ),
     'password': DutchEventFieldSpec(
       type: String,

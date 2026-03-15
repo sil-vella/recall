@@ -3,6 +3,7 @@ from tools.logger.custom_logging import custom_log
 from datetime import datetime
 from core.managers.redis_manager import RedisManager
 from core.managers.jwt_manager import JWTManager, TokenType
+from core.modules.user_management_module import tier_rank_level_matcher as matcher
 from utils.config.config import Config
 from bson import ObjectId
 
@@ -78,8 +79,8 @@ class WSSessionManager:
             
             if user_data and user_data.get("modules", {}).get("dutch_game"):
                 dutch_game_data = user_data['modules']['dutch_game']
-                session_data['rank'] = dutch_game_data.get('rank', 'beginner')
-                session_data['level'] = dutch_game_data.get('level', 1)
+                session_data['rank'] = dutch_game_data.get('rank') or matcher.DEFAULT_RANK
+                session_data['level'] = dutch_game_data.get('level', matcher.DEFAULT_LEVEL)
                 custom_log(f"✅ WSSessionManager: Fetched rank={session_data['rank']}, level={session_data['level']} for user {user_id}", level="INFO")
             else:
                 session_data['rank'] = None

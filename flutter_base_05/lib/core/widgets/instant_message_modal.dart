@@ -83,32 +83,52 @@ class InstantMessageModal extends StatelessWidget {
       },
       child: AlertDialog(
         backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
+        titlePadding: EdgeInsets.fromLTRB(
+          AppPadding.cardPadding.horizontal,
+          AppPadding.cardPadding.vertical,
+          AppPadding.cardPadding.horizontal,
+          AppPadding.smallPadding.top,
+        ),
+        contentPadding: EdgeInsets.fromLTRB(
+          AppPadding.cardPadding.horizontal,
+          AppPadding.smallPadding.top,
+          AppPadding.cardPadding.horizontal,
+          AppPadding.cardPadding.vertical,
+        ),
+        actionsPadding: EdgeInsets.only(
+          right: AppPadding.cardPadding.horizontal,
+          bottom: AppPadding.smallPadding.bottom,
+          left: AppPadding.smallPadding.left,
+        ),
         title: Text(
           _title,
-          style: AppTextStyles.headingSmall(color: AppColors.textPrimary),
+          style: AppTextStyles.headingSmall(color: AppColors.textOnSurface),
         ),
         content: SingleChildScrollView(
           child: Text(
             _body,
-            style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+            style: AppTextStyles.bodyMedium(color: AppColors.textOnSurface),
           ),
         ),
         actions: hasResponseButtons
             ? responses.map((r) {
                 return TextButton(
                   onPressed: () => _onResponseTap(context, r),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
                   child: Text(
                     r.label,
-                    style: AppTextStyles.bodyMedium(color: AppColors.accentColor),
+                    style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
                   ),
                 );
               }).toList()
             : [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
                   child: Text(
                     dismissLabel,
-                    style: AppTextStyles.bodyMedium(color: AppColors.accentColor),
+                    style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
                   ),
                 ),
               ],

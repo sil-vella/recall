@@ -115,7 +115,7 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.notifications_none, size: 64, color: AppColors.lightGray),
-            const SizedBox(height: 16),
+            SizedBox(height: AppPadding.defaultPadding.top),
             Text(
               'No notifications yet',
               style: AppTextStyles.bodyLarge().copyWith(color: AppColors.textSecondary),
@@ -129,10 +129,10 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
       color: AppColors.accentColor,
       child: ListView.builder(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 8,
-          bottom: MediaQuery.of(context).padding.bottom + 16,
+          left: AppPadding.defaultPadding.left,
+          right: AppPadding.defaultPadding.right,
+          top: AppPadding.smallPadding.top,
+          bottom: MediaQuery.of(context).padding.bottom + AppPadding.defaultPadding.bottom,
         ),
         itemCount: _messages.length,
         itemBuilder: (context, index) {
@@ -145,13 +145,16 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
           final subtype = m['subtype']?.toString() ?? '';
 
           return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            color: read ? AppColors.surface : AppColors.surface.withOpacity(0.95),
+            margin: EdgeInsets.symmetric(
+              horizontal: AppPadding.smallPadding.left,
+              vertical: AppPadding.smallPadding.top / 2,
+            ),
+            color: read ? AppColors.surface : AppColors.surface.withValues(alpha: 0.95),
             elevation: 1,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: AppBorderRadius.smallRadius,
               side: BorderSide(
-                color: read ? AppColors.borderDefault : AppColors.accentColor.withOpacity(0.3),
+                color: read ? AppColors.borderDefault : AppColors.accentColor.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -159,7 +162,7 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
               onTap: () {
                 if (!read && id.isNotEmpty) _markAsRead(id);
               },
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: AppBorderRadius.smallRadius,
               child: Padding(
                 padding: AppPadding.cardPadding,
                 child: Row(
@@ -167,10 +170,10 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
                   children: [
                     Icon(
                       read ? Icons.notifications_none : Icons.notifications,
-                      size: 24,
+                      size: AppSizes.iconMedium,
                       color: read ? AppColors.lightGray : AppColors.accentColor,
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: AppPadding.mediumPadding.left),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,7 +191,7 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
                               style: AppTextStyles.bodySmall().copyWith(color: AppColors.textSecondary),
                             ),
                           if (body.isNotEmpty) ...[
-                            const SizedBox(height: 4),
+                            SizedBox(height: AppPadding.smallPadding.top / 2),
                             Text(
                               body.length > 120 ? '${body.substring(0, 120)}...' : body,
                               style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textSecondary),
@@ -196,10 +199,10 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
-                          const SizedBox(height: 4),
+                          SizedBox(height: AppPadding.smallPadding.top / 2),
                           Text(
                             _formatDate(createdAt),
-                            style: AppTextStyles.bodySmall().copyWith(color: AppColors.lightGray),
+                            style: AppTextStyles.bodySmall().copyWith(color: AppColors.textTertiary),
                           ),
                         ],
                       ),

@@ -406,6 +406,15 @@ class Config:
     # File: enable_dart_service_key_auth; Env: ENABLE_DART_SERVICE_KEY_AUTH. Default true (auth required).
     ENABLE_DART_SERVICE_KEY_AUTH = get_file_first_config_value("enable_dart_service_key_auth", "ENABLE_DART_SERVICE_KEY_AUTH", "true").lower() in ("true", "1", "yes")
 
+    # SMTP / Mail configuration (e.g. confirmation emails)
+    MAIL_SMTP_HOST = get_file_first_config_value("mail_smtp_host", "MAIL_SMTP_HOST", "")
+    MAIL_SMTP_PORT = int(get_file_first_config_value("mail_smtp_port", "MAIL_SMTP_PORT", "465"))
+    MAIL_SMTP_ENCRYPT = get_file_first_config_value("mail_smtp_encrypt", "MAIL_SMTP_ENCRYPT", "ssl").lower()
+    MAIL_SMTP_USER = get_file_first_config_value("mail_smtp_user", "MAIL_SMTP_USER", "")
+    MAIL_SMTP_PASSWORD = get_sensitive_config_value("flask-app/mail", "smtp_password", "mail_smtp_password", "MAIL_SMTP_PASSWORD", "")
+    MAIL_FROM = get_file_first_config_value("mail_from", "MAIL_FROM", "")
+    MAIL_FROM_NAME = get_file_first_config_value("mail_from_name", "MAIL_FROM_NAME", "ReignOfPlay")
+
     # Toggle SSL for PostgreSQL
     USE_SSL = get_file_first_config_value("use_ssl", "USE_SSL", "False").lower() in ("true", "1")
 

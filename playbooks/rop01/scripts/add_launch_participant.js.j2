@@ -1,0 +1,85 @@
+// One-off: find 3 computer players and add them to a tournament's participants.
+// Tournament ID is passed via template: tournament_id = "{{ tournament_id }}"
+var d = db.getSiblingDB("external_system");
+
+var tournamentId = "{{ tournament_id }}";
+var tournament = d.tournaments.findOne({ _id: ObjectId(tournamentId) });
+if (!tournament) {
+  print("ERROR: Tournament with _id " + tournamentId + " not found");
+  quit(1);
+}
+
+var compPlayers = d.users.find({ is_comp_player: true }).limit(3).toArray();
+if (compPlayers.length === 0) {
+  print("ERROR: No computer players found");
+  quit(1);
+}
+print("Found " + compPlayers.length + " computer player(s)");
+print("Tournament: _id=" + tournament._id + (tournament.name ? " name=" + tournament.name : ""));
+
+var participants = tournament.participants ? tournament.participants.slice() : [];
+var userIds = tournament.user_ids ? tournament.user_ids.map(function(x) { return x; }) : [];
+
+for (var i = 0; i < compPlayers.length; i++) {
+  var p = compPlayers[i];
+  var uidStr = p._id.toString();
+  var existingIdx = -1;
+  for (var k = 0; k < participants.length; k++) {
+    if ((participants[k].user_id || (participants[k]._id && participants[k]._id.toString())) === uidStr) {
+      existingIdx = k;
+      break;
+    }
+  }
+  if (existingIdx === -1) {
+    var entry = { user_id: uidStr, username: p.username || "", is_comp_player: true };
+    if (p.email) entry.email = p.email;
+    participants.push(entry);
+    print("  Adding participant: " + uidStr + " (" + (p.username || "") + ")");
+  } else {
+    // Update existing participant so comp players have is_comp_player: true
+    participants[existingIdx].is_comp_player = true;
+    if (p.username) participants[existingIdx].username = p.username;
+    print("  Updated participant: " + uidStr + " -> is_comp_player=true");
+  }
+  var alreadyInUserIds = userIds.some(function(id) { return id.toString() === uidStr; });
+  if (!alreadyInUserIds) {
+    userIds.push(p._id);
+  }
+}
+
+// Add extra users by username (e.g. human players)
+var extraUsernames = [{% for u in extra_usernames %}"{{ u }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+for (var i = 0; i < extraUsernames.length; i++) {
+  var uname = extraUsernames[i];
+  var human = d.users.findOne({ username: uname });
+  if (!human) {
+    print("  WARN: User not found: " + uname);
+    continue;
+  }
+  var uidStr = human._id.toString();
+  var existingIdx = -1;
+  for (var k = 0; k < participants.length; k++) {
+    if ((participants[k].user_id || (participants[k]._id && participants[k]._id.toString())) === uidStr) {
+      existingIdx = k;
+      break;
+    }
+  }
+  if (existingIdx === -1) {
+    var entry = { user_id: uidStr, username: human.username || uname, is_comp_player: false };
+    if (human.email) entry.email = human.email;
+    participants.push(entry);
+    userIds.push(human._id);
+    print("  Adding participant: " + uidStr + " (" + (human.username || uname) + ") [human]");
+  }
+}
+
+var result = d.tournaments.updateOne(
+  { _id: tournament._id },
+  { $set: { participants: participants, user_ids: userIds, updated_at: new Date().toISOString() } }
+);
+
+if (result.modifiedCount === 1) {
+  print("OK: Updated tournament " + tournament._id + " with " + participants.length + " participant(s)");
+} else {
+  print("WARN: updateOne modified " + result.modifiedCount + " document(s)");
+}

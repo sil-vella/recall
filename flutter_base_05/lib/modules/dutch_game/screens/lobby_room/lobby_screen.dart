@@ -10,11 +10,13 @@ import '../../managers/validated_event_emitter.dart';
 import '../../../dutch_game/managers/dutch_event_manager.dart';
 import '../../practice/practice_mode_bridge.dart';
 import '../../backend_core/services/game_state_store.dart';
+// import '../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 import '../../../dutch_game/utils/dutch_game_helpers.dart';
 import 'widgets/create_join_game_widget.dart';
 import 'widgets/join_random_game_widget.dart';
 import 'widgets/practice_match_widget.dart';
 import 'widgets/collapsible_section_widget.dart';
+import 'widgets/irl_tournaments_widget.dart';
 import 'features/lobby_features.dart';
 
 
@@ -189,23 +191,23 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       // This prevents overlapping or old game state from interfering
       await DutchGameHelpers.clearAllGameStateBeforeNewGame();
       
-      // Check if user has enough coins (default 25, can be overridden in roomSettings)
-      // Fetch fresh stats from API before checking
-      final requiredCoins = roomSettings['requiredCoins'] as int? ?? 25;
-      final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(requiredCoins: requiredCoins, fetchFromAPI: true);
-      if (!hasEnoughCoins) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Insufficient coins to create a game. Required: $requiredCoins'),
-              backgroundColor: AppColors.errorColor,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-        return;
-      }
-      
+      // Frontend coin check bypassed to test backend coin check
+      // final gameLevel = roomSettings['gameLevel'] as int?;
+      // final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(gameLevel: gameLevel, fetchFromAPI: true);
+      // if (!hasEnoughCoins) {
+      //   final requiredCoins = LevelMatcher.levelToCoinFee(gameLevel, defaultFee: 25);
+      //   if (mounted) {
+      //     ScaffoldMessenger.of(context).showSnackBar(
+      //       SnackBar(
+      //         content: Text('Insufficient coins to create a game. Required: $requiredCoins'),
+      //         backgroundColor: AppColors.errorColor,
+      //         duration: const Duration(seconds: 3),
+      //       ),
+      //     );
+      //   }
+      //   return;
+      // }
+
       // Clear practice user data when switching to multiplayer
       DutchGameHelpers.updateUIState({
         'practiceUser': null,
@@ -231,10 +233,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         maxPlayers: roomSettings['maxPlayers'],
         minPlayers: roomSettings['minPlayers'],
         gameType: roomSettings['gameType'] ?? 'classic',
-        turnTimeLimit: roomSettings['turnTimeLimit'] ?? 30,
         autoStart: roomSettings['autoStart'] ?? false,
         password: roomSettings['password'],
         acceptedPlayers: acceptedPlayers,
+        gameLevel: roomSettings['gameLevel'] as int?,
       );
       if (result['success'] == true) {
         // Room creation initiated successfully - WebSocket events will handle state updates
@@ -249,9 +251,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         }
       } else {
         if (mounted) {
+          final errorMsg = result['message'] ?? result['error'] ?? 'Failed to create room';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Failed to create room'),
+              content: Text(errorMsg is String ? errorMsg : 'Failed to create room'),
               backgroundColor: AppColors.errorColor,
               duration: const Duration(seconds: 3),
             ),
@@ -524,10 +527,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
             children: [
               // Join Random Game Section (Collapsible) - First
               CollapsibleSectionWidget(
-                title: 'Join Random Game',
+                title: 'Join Random',
                 icon: Icons.flash_on,
-                isExpanded: _expandedSection == 'Join Random Game',
-                onExpandedChanged: () => _handleSectionToggled('Join Random Game'),
+                isExpanded: _expandedSection == 'Join Random',
+                onExpandedChanged: () => _handleSectionToggled('Join Random'),
                 child: JoinRandomGameWidget(
                   onJoinRandomGame: () {
                     // Callback after successful random game join
@@ -537,10 +540,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
               
               // Practice Match Section (Collapsible) - Second
               CollapsibleSectionWidget(
-                title: 'Practice Match',
+                title: 'Practice',
                 icon: Icons.school,
-                isExpanded: _expandedSection == 'Practice Match',
-                onExpandedChanged: () => _handleSectionToggled('Practice Match'),
+                isExpanded: _expandedSection == 'Practice',
+                onExpandedChanged: () => _handleSectionToggled('Practice'),
                 child: PracticeMatchWidget(
                   onStartPractice: _startPracticeMatch,
                 ),
@@ -548,15 +551,26 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
               
               // Create & Join Room Section (Collapsible) - Third
               CollapsibleSectionWidget(
-                title: 'Create & Join Room',
+                title: 'Create New',
                 icon: Icons.group_add,
-                isExpanded: _expandedSection == 'Create & Join Room',
-                onExpandedChanged: () => _handleSectionToggled('Create & Join Room'),
+                isExpanded: _expandedSection == 'Create New',
+                onExpandedChanged: () => _handleSectionToggled('Create New'),
                 child: CreateJoinGameWidget(
                   onCreateRoom: _createRoom,
                   onJoinRoom: () {
                     // Callback after successful join request
                   },
+                ),
+              ),
+
+              // IRL Tournaments Section (Collapsible) - Fourth
+              CollapsibleSectionWidget(
+                title: 'IRL Tournaments',
+                icon: Icons.emoji_events,
+                isExpanded: _expandedSection == 'IRL Tournaments',
+                onExpandedChanged: () => _handleSectionToggled('IRL Tournaments'),
+                child: IRLTournamentsWidget(
+                  isExpanded: _expandedSection == 'IRL Tournaments',
                 ),
               ),
             ],

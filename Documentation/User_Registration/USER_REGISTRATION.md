@@ -18,8 +18,10 @@ This document describes the complete user registration process in the Dutch appl
 8. [Security Features](#security-features)
 9. [Error Handling](#error-handling)
 10. [Hook System](#hook-system)
-11. [Related Files](#related-files)
-12. [Future Improvements](#future-improvements)
+11. [User Roles](#user-roles)
+12. [IRL Tournament Sign-Up (Organizer Workflow)](#irl-tournament-sign-up-organizer-workflow)
+13. [Related Files](#related-files)
+14. [Future Improvements](#future-improvements)
 
 ---
 
@@ -392,6 +394,7 @@ user_data = {
     'email': email,
     'password': hashed_password.decode('utf-8'),
     'status': 'active',
+    'role': 'player',
     'created_at': current_time.isoformat(),
     'updated_at': current_time.isoformat(),
     'last_login': None,
@@ -2122,7 +2125,9 @@ GoogleSignIn(
   "full_name": "First Last",
   "first_name": "First",
   "last_name": "Last",
-  "profile_picture": "https://lh3.googleusercontent.com/..."
+  "profile_picture": "https://lh3.googleusercontent.com/...",
+  "account_type": "regular",
+  "role": "player"
 }
 ```
 
@@ -2187,6 +2192,8 @@ Authorization: Bearer {jwt_token}
   "user_id": "userId",
   "email": "user@example.com",
   "username": "username",
+  "account_type": "normal",
+  "role": "player",
   "profile": {
     "first_name": "First",
     "last_name": "Last",
@@ -2466,6 +2473,8 @@ Authorization: Bearer {jwt_token}
   "email": "string (encrypted: det_... or gAAAAAB...)",
   "password": "string (bcrypt hashed, NOT encrypted)",
   "status": "string ('active' | 'inactive' | 'suspended')",
+  "account_type": "string ('normal' | 'regular' | 'guest' | 'converted_from_guest')",
+  "role": "string (default: 'player'; e.g. 'player' | 'admin')",
   "created_at": "ISO 8601 timestamp",
   "updated_at": "ISO 8601 timestamp",
   "last_login": "ISO 8601 timestamp | null",
@@ -3069,6 +3078,58 @@ Initial Wallet/Credits Setup
 
 ---
 
+## User Roles
+
+### Overview
+
+Users have a **role** field for authorization (e.g. player vs admin). This is separate from **account_type** (guest vs normal), which describes how the account was created.
+
+### Role Values
+
+- **`player`** (default): Standard user. Set for all new registrations (email, guest, Google) and for existing users when the DB migration playbook is run.
+- **`admin`**: Elevated role. Set manually (e.g. via playbook or future admin UI).
+
+### Where Role Is Set
+
+- **New users**: All registration paths set `role: 'player'` (regular registration, guest creation, guest→normal conversion, Google sign-in new user).
+- **Existing users**: Playbook `10_setup_apps_database_structure(update_existing).yml` adds `role: 'player'` to any user missing the field.
+- **Setting admin**: One-off playbook `playbooks/rop01/set_user_role_admin.yml` sets a specific user (by `_id`) to `role: 'admin'`. Run from app_dev with `-e vm_name=rop01`; loads `app_dev/.env` for MongoDB password.
+
+### Where Role Is Returned
+
+- **Login** (email and Google): Response user object includes `role` (default `'player'` if missing).
+- **Get profile by ID** (`POST /public/users/profile`, `GET /userauth/users/profile`): Response includes `role`.
+- **Token validation** (e.g. `/service/auth/validate`, `/api/auth/validate`): Response includes `role` (from user document; default `'player'`). Used by Dart backend and dashboard.
+
+### Database
+
+- **Collection**: `users`
+- **Field**: `role` (string). Index on `role` exists for queries.
+- **Default**: `'player'`. Ensure new documents and migrations set it.
+
+---
+
+## IRL Tournament Sign-Up (Organizer Workflow)
+
+### Overview
+
+For IRL tournaments, organizers can create accounts manually and add users to tournaments. Participants receive a default password and use it to log in to the app.
+
+### Workflow
+
+1. **Collect emails**: Organizer asks participants for their email addresses.
+2. **Create accounts**: Create user accounts manually (e.g. via admin tool or script) with a **default password** shared by the organizer.
+3. **Add to tournament**: Add those users to the tournament (e.g. via future add-participants endpoint or DB script such as `add_launch_participant.yml`).
+4. **Share credentials**: Participants receive the **default password** (e.g. by email or in person) and use it with their email to log in to the app for the tournament.
+
+### Notes
+
+- **Add-participants endpoint**: Planned; will add participants to a tournament (storing user_id and optional username/email). User lookup (e.g. by username) can populate username/email when adding.
+- **Tournament participants**: Tournament documents support optional `participants` (array of `{ user_id, username?, email? }`). Get-tournaments returns this when present.
+- **Manual account creation**: Not covered in this doc; use existing admin/script or playbook patterns. Ensure each new user has `role: 'player'` (or appropriate role) and a known default password.
+
+---
+
 ## Related Files
 
 ### Frontend Files
@@ -3318,8 +3379,16 @@ The user registration process is a comprehensive system that handles user accoun
 - **Location**: Stored in `modules.dutch_game.subscription_tier`
 - **Impact**: Affects coin validation before game creation/join and coin deduction when games start
 
+### User Roles
+- **Role field**: Users have a `role` (default: `player`). Used for authorization (e.g. admin vs player).
+- **Setting**: Set on all new registrations; backfilled by DB playbook; admin set via playbook `set_user_role_admin.yml`.
+- **Exposed in**: Login response, get-profile, and token validation (for Dart/dashboard).
+
+### IRL Tournament Sign-Up
+- **Organizer workflow**: Ask for emails → create accounts manually with default password → add users to tournament → participants receive default password and log in to the app.
+
 The system is designed to be secure, scalable, and extensible, with clear separation of concerns between frontend and backend components. Guest registration provides a low-friction entry point while maintaining the same security and functionality standards as regular registration. All sensitive user data (email, username, phone) is automatically encrypted at rest using deterministic encryption for searchable fields and Fernet encryption for other sensitive data.
 
 ---
 
-**Last Updated**: 2025-12-12 (Added Google Sign-In authentication feature with guest account conversion support)
+**Last Updated**: 2026-03-08 (Added user roles with default player and admin playbook; IRL tournament sign-up workflow; role in profile and token validation)

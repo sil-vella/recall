@@ -268,6 +268,28 @@
           var usersWithField = db.users.countDocuments({ "is_comp_player": { $exists: true } });
           var totalUsers = db.users.countDocuments({});
           print("  📊 Users with is_comp_player field: " + usersWithField + " / " + totalUsers);
+
+          // ========================================
+          // 3b. ADD role FIELD TO USERS (default: player)
+          // ========================================
+          print("\n👤 Step 3b: Adding role field to users (default: player)...");
+          try {
+            db.users.createIndex({ "role": 1 });
+            print("  ✅ Created index on role field");
+          } catch (e) {
+            print("  ✓ Index on role field already exists or created");
+          }
+          var roleUpdateResult = db.users.updateMany(
+            { "role": { $exists: false } },
+            { $set: { "role": "player", "updated_at": currentTime } }
+          );
+          if (roleUpdateResult.modifiedCount > 0) {
+            print("  ✅ Added role: 'player' to " + roleUpdateResult.modifiedCount + " users");
+          } else {
+            print("  ✓ All users already have role field");
+          }
+          var usersWithRole = db.users.countDocuments({ "role": { $exists: true } });
+          print("  📊 Users with role field: " + usersWithRole + " / " + totalUsers);
           
           // ========================================
           // 4. CREATE COMPUTER PLAYERS
@@ -340,6 +362,7 @@
                 "email": email,
                 "password": compPlayerPassword,
                 "status": "active",
+                "role": "player",
                 "is_comp_player": true,
                 "created_at": currentTime,
                 "updated_at": currentTime,
@@ -413,16 +436,66 @@
           print("  📊 Total computer players in database: " + finalCompPlayersCount);
 
           // ========================================
-          // ENSURE NOTIFICATIONS COLLECTION EXISTS
+          // 5. ENSURE NOTIFICATIONS COLLECTION EXISTS
           // ========================================
           // See Documentation/Dutch_game/NOTIFICATION_SYSTEM.md
+          print("\n📬 Step 5: Ensuring notifications collection exists...");
           var colls = db.getCollectionNames();
           if (colls.indexOf("notifications") === -1) {
             db.createCollection("notifications");
             db.notifications.createIndex({ "user_id": 1 });
             db.notifications.createIndex({ "user_id": 1, "read_at": 1 });
             db.notifications.createIndex({ "created_at": -1 });
-            print("\n📬 Created notifications collection with indexes");
+            print("  ✅ Created notifications collection with indexes");
+          } else {
+            print("  ✓ Notifications collection already exists");
+          }
+
+          // ========================================
+          // 6. ENSURE TOURNAMENTS COLLECTION EXISTS
+          // ========================================
+          // Schema:
+          //   tournament_id (string, from date/time of creation)
+          //   name (string)
+          //   status (string, default "pending")
+          //   type (optional, e.g. IRL, Online)
+          //   format (optional, e.g. League, Cup)
+          //   start_date (optional)
+          //   matches (array of match docs)
+          //   Each match: match_id, status ("pending"), start_date (optional), room_id, winner, players (array)
+          //   Each player: user_id, username, email, points, number_of_cards_left (array of { card_rank, card_suite })
+          print("\n🏆 Step 6: Ensuring tournaments collection exists...");
+          var collsNow = db.getCollectionNames();
+          if (collsNow.indexOf("tournaments") === -1) {
+            db.createCollection("tournaments");
+            db.tournaments.createIndex({ "_id": 1 });
+            db.tournaments.createIndex({ "tournament_id": 1 }, { unique: true });
+            db.tournaments.createIndex({ "name": 1 });
+            db.tournaments.createIndex({ "status": 1 });
+            db.tournaments.createIndex({ "type": 1 });
+            db.tournaments.createIndex({ "format": 1 });
+            db.tournaments.createIndex({ "start_date": 1 });
+            db.tournaments.createIndex({ "matches.match_id": 1 });
+            db.tournaments.createIndex({ "matches.status": 1 });
+            db.tournaments.createIndex({ "matches.room_id": 1 });
+            print("  ✅ Created tournaments collection with indexes");
+            print("  📋 Schema: tournament_id, name, status (default pending), type (optional, e.g. IRL, Online), format (optional, e.g. League, Cup), start_date (optional), matches ([{ match_id, status (pending), start_date (optional), room_id, winner, players ([{ user_id, username, email, points, number_of_cards_left ([{ card_rank, card_suite }]) }]) }])");
+          } else {
+            print("  ✓ Tournaments collection already exists");
+            try {
+              db.tournaments.createIndex({ "tournament_id": 1 }, { unique: true });
+              db.tournaments.createIndex({ "name": 1 });
+              db.tournaments.createIndex({ "status": 1 });
+              db.tournaments.createIndex({ "type": 1 });
+              db.tournaments.createIndex({ "format": 1 });
+              db.tournaments.createIndex({ "start_date": 1 });
+              db.tournaments.createIndex({ "matches.match_id": 1 });
+              db.tournaments.createIndex({ "matches.status": 1 });
+              db.tournaments.createIndex({ "matches.room_id": 1 });
+              print("  ✓ Ensured tournament indexes exist");
+            } catch (e) {
+              if (e.code !== 85 && e.code !== 86) { throw e; }
+            }
           }
           
           // ========================================
@@ -439,6 +512,7 @@
           // Comp players summary
           var compPlayersCount = db.users.countDocuments({ "is_comp_player": true });
           print("- Computer players: " + compPlayersCount);
+          print("- Tournaments collection: " + (db.tournaments ? db.tournaments.countDocuments() : 0) + " docs");
           
           print("\n✅ All missing modules have been added to existing users!");
           print("✅ Computer players have been created!");
@@ -522,6 +596,9 @@
           - Updated existing users with missing modules (in_app_purchases, dutch_game)
           - Added is_comp_player field to all users (default: false)
           - Created index on is_comp_player field
+          - Added role field to all users (default: player); created index on role
+          - Ensured notifications collection exists (if missing)
+          - Ensured tournaments collection exists (if missing)
           - Created 5 computer players with 1000 coins each
           - Preserved all existing user data
           - No collections were dropped or erased
@@ -530,8 +607,9 @@
           - in_app_purchases: In-app purchase and subscription management
           - dutch_game: Dutch card game statistics and progression
           
-          🤖 New Field Added:
+          🤖 New Fields Added:
           - is_comp_player: Boolean field to identify computer players (default: false)
+          - role: string (default: "player"); index on role for user authorization
           
           🤖 Computer Players Created:
           - alex.morris87@cp.com, lena_kay@cp.com, jordanrivers@cp.com, samuel.b@cp.com, nina_holt@cp.com

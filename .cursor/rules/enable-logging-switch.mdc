@@ -16,7 +16,7 @@ This rule is **for the AI**: when you work on logic that has a `LOGGING_SWITCH` 
 ## What to do
 
 1. **Use only LOGGING_SWITCH**: Do **not** create new switch names (e.g. no `AUTH_LOGGING_SWITCH`, `TOKEN_LOGGING_SWITCH`, etc.). In **all** files there is exactly one constant: **`LOGGING_SWITCH`**. Use it for any logging you add or enable.
-2. **Enable the switch where needed**: Set `LOGGING_SWITCH = true` in the file(s) that contain the logic you are changing or that are relevant to the task (e.g. game clearing, mode switching, Dutch game helpers, auth, Redis token ops, etc.). Do not enable everywhere—only where it helps trace the current task.
+2. **Enable the switch where needed**: Set `LOGGING _ SWITCH = true` in the file(s) that contain the logic you are changing or that are relevant to the task (e.g. game clearing, mode switching, Dutch game helpers, auth, Redis token ops, etc.). Do not enable everywhere—only where it helps trace the current task.
 3. **Guard log calls**: Add or keep `if (LOGGING_SWITCH) { ... }` (Dart) or `custom_log(..., isOn=LOGGING_SWITCH)` (Python) for the paths you care about.
 4. **Log destination**: Logs go to `python_base_04/tools/logger/server.log` (or the configured logger output).
 

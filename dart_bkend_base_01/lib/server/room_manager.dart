@@ -21,9 +21,15 @@ class Room {
   final bool autoStart;
   /// True when room was created by join_random_game (uses its own delay + _startMatchForRandomJoin).
   final bool isRandomJoin;
+  /// Game level (e.g. 1, 2, 3) from create_room payload; optional.
+  final int? gameLevel;
   String? difficulty; // Room difficulty (set by first human player's rank)
   /// Accepted players for create-match invite flow: [{ user_id, username, is_comp_player }]. Available in _handleJoinRoom.
   final List<Map<String, dynamic>>? acceptedPlayers;
+  /// True when this room is for a tournament match (from create_room payload).
+  final bool isTournament;
+  /// Tournament payload from DB (tournament_id, match_index, name, etc.). Passed into game state when match starts.
+  final Map<String, dynamic>? tournamentData;
 
   Room({
     required this.roomId,
@@ -35,8 +41,11 @@ class Room {
     this.password,
     this.autoStart = true,
     this.isRandomJoin = false,
+    this.gameLevel,
     this.difficulty,
     this.acceptedPlayers,
+    this.isTournament = false,
+    this.tournamentData,
     DateTime? ttlExpiresAt,
   }) : _ttlExpiresAt = ttlExpiresAt ?? DateTime.now().add(Duration(seconds: 86400)); // Default 24 hours
   
@@ -61,7 +70,7 @@ class Room {
   }
   
   Map<String, dynamic> toJson() {
-    return {
+    final m = <String, dynamic>{
       'room_id': roomId,
       'owner_id': ownerId, // Changed from creator_id to match Python
       'creator_id': ownerId, // Keep both for compatibility
@@ -75,6 +84,10 @@ class Room {
       'created_at': createdAt.toIso8601String(),
       'player_count': sessionIds.length, // Keep for backward compatibility
     };
+    if (gameLevel != null) m['game_level'] = gameLevel;
+    if (isTournament) m['is_tournament'] = true;
+    if (tournamentData != null && tournamentData!.isNotEmpty) m['tournament_data'] = tournamentData;
+    return m;
   }
 }
 
@@ -103,7 +116,14 @@ class RoomManager {
     String? password,
     bool? autoStart,
     bool? isRandomJoin,
+    int? gameLevel,
     List<Map<String, dynamic>>? acceptedPlayers,
+    /// When true (default), creator is added to the room. When false, room is created but creator is not in it.
+    bool addCreatorToRoom = true,
+    /// True when this room is for a tournament match (payload from start-tournament-match).
+    bool isTournament = false,
+    /// Tournament data from DB; passed into game state when match starts.
+    Map<String, dynamic>? tournamentData,
   }) {
     final roomId = 'room_${DateTime.now().millisecondsSinceEpoch}';
     // Initialize TTL from config
@@ -118,15 +138,20 @@ class RoomManager {
       password: password,
       autoStart: autoStart ?? true,
       isRandomJoin: isRandomJoin ?? false,
+      gameLevel: gameLevel,
       acceptedPlayers: acceptedPlayers,
+      isTournament: isTournament,
+      tournamentData: tournamentData,
       ttlExpiresAt: DateTime.now().add(ttl),
     );
-    room.sessionIds.add(creatorSessionId);
-    
-    _rooms[roomId] = room;
-    _sessionToRoom[creatorSessionId] = roomId;
+    if (addCreatorToRoom) {
+      room.sessionIds.add(creatorSessionId);
+      _sessionToRoom[creatorSessionId] = roomId;
+    }
 
-    // First "join" (creator) counts: set/extend TTL so it's consistent with joinRoom and logged
+    _rooms[roomId] = room;
+
+    // Set/extend TTL when room is created (or first join)
     reinstateRoomTtl(roomId);
 
     if (LOGGING_SWITCH) {

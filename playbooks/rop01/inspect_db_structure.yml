@@ -1,0 +1,107 @@
+---
+# One-off: load .env then exec into MongoDB on VPS to list DB structure (dbs, collections, sample docs).
+- name: Load app_dev/.env for MongoDB introspection
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env"
+  tasks:
+    - name: Check if app_dev/.env exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'): continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        mapping = {
+            'MONGODB_ROOT_PASSWORD': 'mongodb_root_password', 'MONGODB_PASSWORD': 'mongodb_password',
+        }
+        result = { v: out.get(k, '') for k, v in mapping.items() }
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env
+      set_fact:
+        mongodb_root_password: "{{ (env_json.stdout | from_json).mongodb_root_password }}"
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
+- name: Introspect MongoDB structure on VPS
+  hosts: "{{ vm_name | default('rop01') }}_user"
+  become: true
+  vars:
+    mongodb_container_name: "dutch_external_app_mongodb"
+    app_user: "external_app_user"
+    app_password: "{{ hostvars['localhost']['mongodb_password'] | default(lookup('env', 'MONGODB_PASSWORD')) }}"
+    root_password: "{{ hostvars['localhost']['mongodb_root_password'] | default(lookup('env', 'MONGODB_ROOT_PASSWORD')) }}"
+  tasks:
+    - name: List databases and collections (root)
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u mongodb_admin -p "{{ root_password }}" --authenticationDatabase admin --quiet --eval "
+          var dbs = db.adminCommand('listDatabases').databases;
+          print('=== DATABASES ===');
+          dbs.forEach(function(d){ print(d.name + ' (' + (d.sizeOnDisk/1024).toFixed(1) + ' KB)'); });
+          print('');
+          var edb = db.getSiblingDB('external_system');
+          var cols = edb.getCollectionNames();
+          print('=== COLLECTIONS in external_system ===');
+          cols.forEach(function(c){ print(c + ': ' + edb[c].countDocuments() + ' docs'); });
+        "
+      register: list_result
+      changed_when: false
+      failed_when: false
+
+    - name: Show databases and collections
+      debug:
+        msg: "{{ list_result.stdout_lines }}"
+
+    - name: Get sample document from each collection (external_system)
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase external_system --quiet --eval "
+          var edb = db.getSiblingDB('external_system');
+          var cols = edb.getCollectionNames().filter(function(c){ return c.indexOf('system') !== 0; });
+          cols.forEach(function(cname) {
+            print('--- Collection: ' + cname + ' (sample 1 doc, keys only for large docs) ---');
+            var doc = edb[cname].findOne();
+            if (!doc) { print('(empty)'); return; }
+            function keysOnly(obj, depth) {
+              if (depth > 3) return '...';
+              var out = {};
+              for (var k in obj) {
+                if (k === '_id' && typeof obj[k] === 'object') { out[k] = '[ObjectId]'; continue; }
+                if (typeof obj[k] === 'object' && obj[k] !== null && !(obj[k] instanceof Date))
+                  out[k] = keysOnly(obj[k], (depth||0)+1);
+                else
+                  out[k] = obj[k];
+              }
+              return out;
+            }
+            print(JSON.stringify(keysOnly(doc, 0), null, 2));
+          });
+        "
+      register: sample_result
+      changed_when: false
+      failed_when: false
+
+    - name: Show sample documents (structure)
+      debug:
+        msg: "{{ sample_result.stdout_lines }}"

@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for computer player decision-making testing (Queen peek, special cards, game flow)
+const bool LOGGING_SWITCH = false; // Enabled for Queen peek and game flow testing
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -115,7 +115,7 @@ class GameEventCoordinator {
       }
       switch (event) {
         case 'start_match':
-          await _handleStartMatch(roomId, round, data);
+          await _handleStartMatch(roomId, round, sessionId, data);
           break;
         case 'completed_initial_peek':
           await _handleCompletedInitialPeek(roomId, round, sessionId, data);
@@ -276,7 +276,7 @@ class GameEventCoordinator {
   }
 
   /// Initialize match: create base state, players (human/computers), deck, then initialize round
-  Future<void> _handleStartMatch(String roomId, DutchGameRound round, Map<String, dynamic> data) async {
+  Future<void> _handleStartMatch(String roomId, DutchGameRound round, String sessionId, Map<String, dynamic> data) async {
     if (LOGGING_SWITCH) {
       _logger.info('🎮 _handleStartMatch: Starting match for room $roomId, data keys: ${data.keys.toList()}');
     }
@@ -286,6 +286,21 @@ class GameEventCoordinator {
     // Prepare initial state compatible with DutchGameRound
     final stateRoot = _store.getState(roomId);
     final current = Map<String, dynamic>.from(stateRoot['game_state'] as Map<String, dynamic>? ?? {});
+
+    // Guard: only start when phase is waiting_for_players (matches _startMatchForRoom behavior; prevents double start when start_match is sent directly to coordinator)
+    final phase = current['phase'] as String?;
+    if (phase != null && phase != 'waiting_for_players') {
+      if (LOGGING_SWITCH) {
+        _logger.info('⚠️ _handleStartMatch: Match already started or invalid phase for room $roomId (phase: $phase), ignoring start_match');
+      }
+      server.sendToSession(sessionId, {
+        'event': 'action_error',
+        'message': 'Match already started or invalid phase',
+        'game_id': roomId,
+        'phase': phase,
+      });
+      return;
+    }
 
     // Start from existing players (creator and any joiners already added via hooks)
     final players = List<Map<String, dynamic>>.from(
@@ -391,31 +406,84 @@ class GameEventCoordinator {
         needed--;
       }
     } else {
-      // Multiplayer mode: Try to fetch comp players from Flask backend
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Multiplayer mode - fetching comp players from Flask backend');
-      }
-      
+      // Multiplayer mode: use accepted_players comp list (create-room) or fetch from Flask (random join)
       int compPlayersAdded = 0;
       int remainingNeeded = needed;
-      
-      // Get room difficulty from roomInfo or state, and calculate compatible ranks
-      final roomDifficulty = roomInfo?.difficulty ?? stateRoot['roomDifficulty'] as String?;
-      List<String>? rankFilter;
-      if (roomDifficulty != null) {
-        rankFilter = RankMatcher.getCompatibleRanks(roomDifficulty);
+
+      final acceptedPlayersRaw = data['accepted_players'];
+      final List<Map<String, dynamic>> acceptedCompList = (acceptedPlayersRaw is List)
+          ? acceptedPlayersRaw
+              .whereType<Map<String, dynamic>>()
+              .where((e) => e['is_comp_player'] == true)
+              .toList()
+          : <Map<String, dynamic>>[];
+
+      if (acceptedCompList.isNotEmpty) {
+        // Create-room invite flow: add pre-selected comp players from accepted_players (no API fetch)
         if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter');
+          _logger.info('GameEventCoordinator: Using ${acceptedCompList.length} accepted comp player(s) from create-room');
         }
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Room has no difficulty set, will fetch comp players without rank filter');
+        const defaultRank = 'beginner';
+        const defaultDifficulty = 'medium';
+        for (final comp in acceptedCompList) {
+          if (players.length >= maxPlayers) break;
+          final userId = (comp['user_id'] ?? '').toString();
+          final username = (comp['username'] ?? 'CompPlayer').toString();
+          final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
+          String uniqueName = username;
+          int nameSuffix = 1;
+          while (existingNames.contains(uniqueName)) {
+            uniqueName = '$username$nameSuffix';
+            nameSuffix++;
+          }
+          existingNames.add(uniqueName);
+          players.add({
+            'id': playerId,
+            'name': uniqueName,
+            'isHuman': false,
+            'status': 'waiting',
+            'hand': <Map<String, dynamic>>[],
+            'visible_cards': <Map<String, dynamic>>[],
+            'points': 0,
+            'known_cards': <String, dynamic>{},
+            'collection_rank_cards': <String>[],
+            'isActive': true,
+            'difficulty': defaultDifficulty,
+            'rank': defaultRank,
+            'level': 1,
+            'userId': userId,
+            'email': '',
+            'username': username,
+          });
+          compPlayersAdded++;
+          if (LOGGING_SWITCH) {
+            _logger.info('GameEventCoordinator: Added accepted comp player - id: $playerId, name: $uniqueName, userId: $userId');
+          }
         }
+        remainingNeeded = needed - compPlayersAdded;
       }
-      
+
+      if (remainingNeeded > 0) {
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: Fetching $remainingNeeded comp player(s) from Flask backend');
+        }
+        // Get room difficulty from roomInfo or state, and calculate compatible ranks
+        final roomDifficulty = roomInfo?.difficulty ?? stateRoot['roomDifficulty'] as String?;
+        List<String>? rankFilter;
+        if (roomDifficulty != null) {
+          rankFilter = RankMatcher.getCompatibleRanks(roomDifficulty);
+          if (LOGGING_SWITCH) {
+            _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter');
+          }
+        } else {
+          if (LOGGING_SWITCH) {
+            _logger.info('GameEventCoordinator: Room has no difficulty set, will fetch comp players without rank filter');
+          }
+        }
+
       try {
         // Fetch comp players from Flask backend with rank filter
-        final compPlayersResponse = await server.pythonClient.getCompPlayers(needed, rankFilter: rankFilter);
+        final compPlayersResponse = await server.pythonClient.getCompPlayers(remainingNeeded, rankFilter: rankFilter);
         final success = compPlayersResponse['success'] as bool? ?? false;
         final compPlayersList = compPlayersResponse['comp_players'] as List<dynamic>? ?? [];
         final returnedCount = compPlayersResponse['count'] as int? ?? 0;
@@ -567,7 +635,8 @@ class GameEventCoordinator {
         }
         // Continue to fallback logic below
       }
-      
+      }
+
       // Fallback: Create simulated CPU players for any remaining slots
       if (remainingNeeded > 0) {
         if (LOGGING_SWITCH) {
@@ -893,6 +962,11 @@ class GameEventCoordinator {
         }(), // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
         'timerConfig': ServerGameStateCallbackImpl.getAllTimerValues(), // Get timer values from registry (single source of truth)
       };
+      // Tournament data from DB (create_room payload) — passed into game state for tournament matches
+      final isTournament = data['is_tournament'] == true;
+      final tournamentData = data['tournament_data'] as Map<String, dynamic>?;
+      if (isTournament) gameState['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) gameState['tournament_data'] = tournamentData;
       if (LOGGING_SWITCH) {
         _logger.info('✅ _handleStartMatch: Created gameState map successfully');
       }
@@ -1608,12 +1682,12 @@ class GameEventCoordinator {
       
       // Clear timer reference
       _initialPeekTimers[roomId] = null;
-
+      
       final gameState = _store.getGameState(roomId);
-
+      
       // Process AI initial peeks at end of window (select 2 cards, decide collection rank)
       _processAIInitialPeeks(roomId, gameState);
-
+      
       // Check if all players have completed
       if (!_allPlayersCompletedInitialPeek(roomId)) {
         if (LOGGING_SWITCH) {

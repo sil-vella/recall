@@ -50,6 +50,7 @@ class DutchGameModule {
       final maxSize = data['max_size'] as int? ?? 4;
       final minPlayers = data['min_players'] as int? ?? 2;
       final gameType = data['game_type'] as String? ?? 'multiplayer';
+      final gameLevel = data['game_level'] as int?;
 
       if (roomId == null || ownerId == null || sessionId == null) {
         if (LOGGING_SWITCH) {
@@ -178,6 +179,7 @@ class DutchGameModule {
           'gameId': roomId,
           'gameName': 'Game_$roomId',
           'gameType': gameType,
+          if (gameLevel != null) 'gameLevel': gameLevel,
           'maxPlayers': maxSize,
           'minPlayers': minPlayers,
           'isGameActive': false,
@@ -212,17 +214,16 @@ class DutchGameModule {
 
       // Send initial game_state_updated to creator (include owner_id and game_type for client)
       final initialState = store.getState(roomId);
-      server.sendToSession(
-        sessionId,
-        {
-          'event': 'game_state_updated',
-          'game_id': roomId,
-          'game_state': initialState['game_state'],
-          'owner_id': ownerId,
-          'game_type': gameType,
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
+      final payload = <String, dynamic>{
+        'event': 'game_state_updated',
+        'game_id': roomId,
+        'game_state': initialState['game_state'],
+        'owner_id': ownerId,
+        'game_type': gameType,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      if (gameLevel != null) payload['game_level'] = gameLevel;
+      server.sendToSession(sessionId, payload);
 
       if (LOGGING_SWITCH) {
         _logger.info('✅ Game created for room $roomId with creator session $sessionId');
@@ -257,15 +258,24 @@ class DutchGameModule {
       final gameState = store.getGameState(roomId);
       final players = gameState['players'] as List<dynamic>? ?? [];
 
-      // Check if player already exists (by sessionId, not userId)
+      // Check if player already exists (by sessionId or by userId to avoid same human twice)
       final existingPlayer = players.any((p) => p['id'] == sessionId);
       if (existingPlayer) {
         if (LOGGING_SWITCH) {
           _logger.info('Player with session $sessionId already in game $roomId');
         }
-        // Still send snapshot
         _sendGameSnapshot(sessionId, roomId);
         return;
+      }
+      if (userId != null && userId.isNotEmpty) {
+        final existingByUserId = players.any((p) => p['userId'] == userId);
+        if (existingByUserId) {
+          if (LOGGING_SWITCH) {
+            _logger.info('User $userId already in game $roomId (different session), skipping duplicate');
+          }
+          _sendGameSnapshot(sessionId, roomId);
+          return;
+        }
       }
 
       // Set room difficulty if not already set
@@ -519,12 +529,14 @@ class DutchGameModule {
       gs['playerCount'] = (gs['players'] as List<dynamic>? ?? []).length;
 
       final gameType = gs['gameType']?.toString() ?? roomManager.getRoomInfo(roomId)?.gameType;
+      final gameLevel = gs['gameLevel'] as int? ?? roomManager.getRoomInfo(roomId)?.gameLevel;
       server.sendToSession(sessionId, {
         'event': 'game_state_updated',
         'game_id': roomId,
         'game_state': gs,
         if (ownerId != null) 'owner_id': ownerId,
         if (gameType != null && gameType.isNotEmpty) 'game_type': gameType,
+        if (gameLevel != null) 'game_level': gameLevel,
         'timestamp': DateTime.now().toIso8601String(),
       });
 

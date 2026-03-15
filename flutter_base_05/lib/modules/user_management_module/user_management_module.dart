@@ -12,7 +12,7 @@ class UserManagementModule extends ModuleBase {
   UserManagementModule()
       : super('user_management_module', dependencies: ['connections_api']);
 
-  static const bool LOGGING_SWITCH = true; // Enable for invite search debugging (see .cursor/rules/enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Enable for invite search debugging (see .cursor/rules/enable-logging-switch.mdc)
 
   ConnectionsApiModule? _connectionsModule;
   final Logger _logger = Logger();

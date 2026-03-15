@@ -1,5 +1,6 @@
 import '../../utils/platform/shared_imports.dart';
 import '../utils/rank_matcher.dart';
+import '../utils/level_matcher.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
@@ -115,7 +116,7 @@ class GameEventCoordinator {
       }
       switch (event) {
         case 'start_match':
-          await _handleStartMatch(roomId, round, data);
+          await _handleStartMatch(roomId, round, sessionId, data);
           break;
         case 'completed_initial_peek':
           await _handleCompletedInitialPeek(roomId, round, sessionId, data);
@@ -276,7 +277,7 @@ class GameEventCoordinator {
   }
 
   /// Initialize match: create base state, players (human/computers), deck, then initialize round
-  Future<void> _handleStartMatch(String roomId, DutchGameRound round, Map<String, dynamic> data) async {
+  Future<void> _handleStartMatch(String roomId, DutchGameRound round, String sessionId, Map<String, dynamic> data) async {
     if (LOGGING_SWITCH) {
       _logger.info('🎮 _handleStartMatch: Starting match for room $roomId, data keys: ${data.keys.toList()}');
     }
@@ -286,6 +287,21 @@ class GameEventCoordinator {
     // Prepare initial state compatible with DutchGameRound
     final stateRoot = _store.getState(roomId);
     final current = Map<String, dynamic>.from(stateRoot['game_state'] as Map<String, dynamic>? ?? {});
+
+    // Guard: only start when phase is waiting_for_players (matches _startMatchForRoom behavior; prevents double start when start_match is sent directly to coordinator)
+    final phase = current['phase'] as String?;
+    if (phase != null && phase != 'waiting_for_players') {
+      if (LOGGING_SWITCH) {
+        _logger.info('⚠️ _handleStartMatch: Match already started or invalid phase for room $roomId (phase: $phase), ignoring start_match');
+      }
+      server.sendToSession(sessionId, {
+        'event': 'action_error',
+        'message': 'Match already started or invalid phase',
+        'game_id': roomId,
+        'phase': phase,
+      });
+      return;
+    }
 
     // Start from existing players (creator and any joiners already added via hooks)
     final players = List<Map<String, dynamic>>.from(
@@ -299,6 +315,8 @@ class GameEventCoordinator {
     final roomInfo = roomManager.getRoomInfo(roomId);
     final minPlayers = roomInfo?.minPlayers ?? (data['min_players'] as int? ?? 2);
     final maxPlayers = roomInfo?.maxSize ?? (data['max_players'] as int? ?? 4);
+    // Game level from state (set in room_created) or room; used for coin fee and stored in game_state
+    final gameLevel = current['gameLevel'] as int? ?? roomInfo?.gameLevel;
 
     // Auto-create computer players
     // For practice mode: fill to maxPlayers (practice rooms start with "practice_room_")
@@ -887,9 +905,8 @@ class GameEventCoordinator {
 
     // showInstructions was already extracted earlier for deck selection
     
-    // Calculate pot: coin_cost × number_of_active_players (regardless of subscription tier)
-    // Default coin cost is 25 (will be tied to match_class in future)
-    final coinCost = 25;
+    // Calculate pot: coin_cost × number_of_active_players (from LevelMatcher by game level)
+    final coinCost = LevelMatcher.levelToCoinFee(gameLevel, defaultFee: 25);
     final activePlayerCount = players.length;
     final pot = coinCost * activePlayerCount;
     
@@ -915,6 +932,7 @@ class GameEventCoordinator {
         'drawPile': drawPileIds,    // ID-only (face-down)
         'originalDeck': originalDeckMaps,
         'gameType': 'multiplayer',
+        if (gameLevel != null) 'gameLevel': gameLevel,
         'isGameActive': true,
         'phase': 'initial_peek', // Set to initial_peek phase
         'playerCount': players.length,
@@ -947,6 +965,11 @@ class GameEventCoordinator {
         }(), // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
         'timerConfig': ServerGameStateCallbackImpl.getAllTimerValues(), // Get timer values from registry (single source of truth)
       };
+      // Tournament data from DB (create_room payload) — passed into game state for tournament matches
+      final isTournament = data['is_tournament'] == true;
+      final tournamentData = data['tournament_data'] as Map<String, dynamic>?;
+      if (isTournament) gameState['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) gameState['tournament_data'] = tournamentData;
       if (LOGGING_SWITCH) {
         _logger.info('✅ _handleStartMatch: Created gameState map successfully');
       }

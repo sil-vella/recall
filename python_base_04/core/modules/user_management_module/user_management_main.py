@@ -1,4 +1,5 @@
 from core.modules.base_module import BaseModule
+from core.modules.user_management_module import tier_rank_level_matcher as matcher
 from core.managers.database_manager import DatabaseManager
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.managers.redis_manager import RedisManager
@@ -11,8 +12,12 @@ from bson import ObjectId
 import bcrypt
 import re
 import secrets
+import smtplib
+import ssl
 import string
 import requests as http_requests
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Lazy import for GoogleAuthService to avoid import errors if google-auth is not installed
 try:
@@ -214,6 +219,7 @@ class UserManagementModule(BaseModule):
                     'email': email,
                     'password': hashed_password.decode('utf-8'),
                     'account_type': 'normal',  # Changed from 'guest'
+                    'role': 'player',
                     'status': guest_data.get('status', 'active'),
                     'created_at': guest_data.get('created_at', current_time.isoformat()),  # Preserve original creation date
                     'updated_at': current_time.isoformat(),
@@ -239,11 +245,11 @@ class UserManagementModule(BaseModule):
                     user_data['modules'] = {}
                 if 'dutch_game' not in user_data['modules']:
                     user_data['modules']['dutch_game'] = {}
-                # Preserve existing rank and level from guest account, or default to beginner/1
+                # Preserve existing rank and level from guest account, or default from matcher
                 if 'rank' not in user_data['modules']['dutch_game']:
-                    user_data['modules']['dutch_game']['rank'] = 'beginner'
+                    user_data['modules']['dutch_game']['rank'] = matcher.DEFAULT_RANK
                 if 'level' not in user_data['modules']['dutch_game']:
-                    user_data['modules']['dutch_game']['level'] = 1
+                    user_data['modules']['dutch_game']['level'] = matcher.DEFAULT_LEVEL
                 
                 custom_log(f"UserManagement: Copied guest account data for conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}, rank: {user_data['modules'].get('dutch_game', {}).get('rank')}, level: {user_data['modules'].get('dutch_game', {}).get('level')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             else:
@@ -254,6 +260,7 @@ class UserManagementModule(BaseModule):
                 'email': email,
                 'password': hashed_password.decode('utf-8'),
                 'status': 'active',
+                'role': 'player',
                 'created_at': current_time.isoformat(),
                 'updated_at': current_time.isoformat(),
                 'last_login': None,
@@ -305,10 +312,10 @@ class UserManagementModule(BaseModule):
                         'losses': 0,
                         'total_matches': 0,
                         'points': 0,
-                        'level': 1,
-                        'rank': 'beginner',
+                        'level': matcher.DEFAULT_LEVEL,
+                        'rank': matcher.DEFAULT_RANK,
                         'win_rate': 0.0,
-                        'subscription_tier': 'promotional',
+                        'subscription_tier': matcher.TIER_PROMOTIONAL,
                         'last_match_date': None,
                         'last_updated': current_time.isoformat()
                     }
@@ -407,6 +414,9 @@ class UserManagementModule(BaseModule):
                         metrics_enabled=UserManagementModule.METRICS_SWITCH
                     )
             
+            # Send confirmation email (non-blocking: failure does not fail registration)
+            self._send_confirmation_email(email, username)
+            
             return jsonify({
                 "success": True,
                 "message": "User created successfully",
@@ -469,6 +479,7 @@ class UserManagementModule(BaseModule):
                 'password': hashed_password.decode('utf-8'),
                 'status': 'active',
                 'account_type': 'guest',  # Mark as guest account
+                'role': 'player',
                 'created_at': current_time.isoformat(),
                 'updated_at': current_time.isoformat(),
                 'last_login': None,
@@ -520,10 +531,10 @@ class UserManagementModule(BaseModule):
                         'losses': 0,
                         'total_matches': 0,
                         'points': 0,
-                        'level': 1,
-                        'rank': 'beginner',
+                        'level': matcher.DEFAULT_LEVEL,
+                        'rank': matcher.DEFAULT_RANK,
                         'win_rate': 0.0,
-                        'subscription_tier': 'promotional',
+                        'subscription_tier': matcher.TIER_PROMOTIONAL,
                         'last_match_date': None,
                         'last_updated': current_time.isoformat()
                     }
@@ -668,26 +679,35 @@ class UserManagementModule(BaseModule):
             return jsonify({'error': 'Failed to delete user'}), 500
 
     def search_users_by_username(self, username, limit=50):
-        """Internal: search users by username (partial, case-insensitive). Returns (list of user dicts with user_id, no password), or ([], error_msg)."""
+        """Internal: search users by username or email (partial, case-insensitive). Same doc appears once if it matches both. Returns (list of user dicts with user_id, no password), or ([], error_msg)."""
         try:
             q = (username or '').strip()
             custom_log(f"UserManagement: search_users_by_username username={q!r} limit={limit}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             if len(q) < 2:
                 return [], 'username must be at least 2 characters'
-            username_escaped = re.escape(q)
-            query = {'username': {'$regex': username_escaped, '$options': 'i'}}
+            escaped = re.escape(q)
+            regex = {'$regex': escaped, '$options': 'i'}
+            query = {'$or': [{'username': regex}, {'email': regex}]}
             limit = min(int(limit), 50) if limit is not None else 50
             users_raw = self.analytics_db.find("users", query)
-            users_raw = list(users_raw)[:limit] if users_raw else []
-            custom_log(f"UserManagement: search_users_by_username found {len(users_raw)} users", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            users_raw = list(users_raw) if users_raw else []
+            seen_ids = set()
             out = []
             for user in users_raw:
+                uid = user.get('_id')
+                if uid is None:
+                    continue
+                uid_str = str(uid)
+                if uid_str in seen_ids:
+                    continue
+                seen_ids.add(uid_str)
                 u = dict(user)
                 u.pop('password', None)
-                uid = u.get('_id')
-                if uid is not None:
-                    u['user_id'] = str(uid)
+                u['user_id'] = uid_str
                 out.append(u)
+                if len(out) >= limit:
+                    break
+            custom_log(f"UserManagement: search_users_by_username found {len(out)} users (deduped)", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             return out, None
         except Exception as e:
             custom_log(f"UserManagement: search_users_by_username error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
@@ -821,6 +841,9 @@ class UserManagementModule(BaseModule):
             # Ensure account_type is included in response (for Flutter to determine guest status)
             if 'account_type' not in user:
                 user['account_type'] = account_type
+            # Ensure role is included (default: player)
+            if 'role' not in user:
+                user['role'] = 'player'
             
             # Log successful login with account type
             if is_guest:
@@ -1134,6 +1157,7 @@ class UserManagementModule(BaseModule):
                         'email': email,
                         'password': '',  # No password for Google-only accounts
                         'account_type': 'normal',  # Changed from 'guest'
+                        'role': 'player',
                         'auth_providers': ['google'],
                         'google_id': google_id,
                         'status': guest_data.get('status', 'active'),
@@ -1164,11 +1188,11 @@ class UserManagementModule(BaseModule):
                         user_data['modules'] = {}
                     if 'dutch_game' not in user_data['modules']:
                         user_data['modules']['dutch_game'] = {}
-                    # Preserve existing rank and level from guest account, or default to beginner/1
+                    # Preserve existing rank and level from guest account, or default from matcher
                     if 'rank' not in user_data['modules']['dutch_game']:
-                        user_data['modules']['dutch_game']['rank'] = 'beginner'
+                        user_data['modules']['dutch_game']['rank'] = matcher.DEFAULT_RANK
                     if 'level' not in user_data['modules']['dutch_game']:
-                        user_data['modules']['dutch_game']['level'] = 1
+                        user_data['modules']['dutch_game']['level'] = matcher.DEFAULT_LEVEL
                     
                     custom_log(f"UserManagement: Copied guest account data for Google Sign-In conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}, rank: {user_data['modules'].get('dutch_game', {}).get('rank')}, level: {user_data['modules'].get('dutch_game', {}).get('level')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 else:
@@ -1179,6 +1203,7 @@ class UserManagementModule(BaseModule):
                         'password': '',  # No password for Google-only accounts
                         'status': 'active',
                         'account_type': 'normal',
+                        'role': 'player',
                         'auth_providers': ['google'],
                         'google_id': google_id,
                         'created_at': current_time.isoformat(),
@@ -1233,10 +1258,10 @@ class UserManagementModule(BaseModule):
                                 'losses': 0,
                                 'total_matches': 0,
                                 'points': 0,
-                                'level': 1,
-                                'rank': 'beginner',
+                                'level': matcher.DEFAULT_LEVEL,
+                                'rank': matcher.DEFAULT_RANK,
                                 'win_rate': 0.0,
-                                'subscription_tier': 'promotional',
+                                'subscription_tier': matcher.TIER_PROMOTIONAL,
                                 'last_match_date': None,
                                 'last_updated': current_time.isoformat()
                             }
@@ -1373,6 +1398,9 @@ class UserManagementModule(BaseModule):
             # Ensure account_type is included in response
             if 'account_type' not in user:
                 user['account_type'] = 'normal'
+            # Ensure role is included (default: player)
+            if 'role' not in user:
+                user['role'] = 'player'
             
             custom_log(f"UserManagement: Google Sign-In successful - User ID: {user['_id']}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
@@ -1639,6 +1667,57 @@ class UserManagementModule(BaseModule):
         """Validate password strength."""
         return len(password) >= 8
 
+    def _send_confirmation_email(self, to_email: str, username: str) -> bool:
+        """
+        Send a confirmation email to the user after account creation.
+        Uses SMTP config from Config (MAIL_SMTP_*, MAIL_FROM, MAIL_FROM_NAME).
+        Returns True if sent successfully, False otherwise. Does not raise.
+        """
+        if not Config.MAIL_SMTP_HOST or not Config.MAIL_SMTP_USER or not Config.MAIL_SMTP_PASSWORD:
+            custom_log("UserManagement: SMTP not configured, skipping confirmation email", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+            return False
+        try:
+            from_name = Config.MAIL_FROM_NAME or "ReignOfPlay"
+            from_addr = Config.MAIL_FROM or Config.MAIL_SMTP_USER
+            subject = "Welcome – your account is confirmed"
+            text_body = (
+                f"Hi {username},\n\n"
+                "Your account has been created successfully.\n\n"
+                "You can now sign in with your email and password.\n\n"
+                "— ReignOfPlay"
+            )
+            html_body = (
+                f"<p>Hi {username},</p>"
+                "<p>Your account has been created successfully.</p>"
+                "<p>You can now sign in with your email and password.</p>"
+                "<p>— ReignOfPlay</p>"
+            )
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = f"{from_name} <{from_addr}>"
+            msg["To"] = to_email
+            msg.attach(MIMEText(text_body, "plain"))
+            msg.attach(MIMEText(html_body, "html"))
+            port = Config.MAIL_SMTP_PORT
+            encrypt = (Config.MAIL_SMTP_ENCRYPT or "ssl").lower()
+            if encrypt == "ssl":
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(Config.MAIL_SMTP_HOST, port, context=context) as server:
+                    server.login(Config.MAIL_SMTP_USER, Config.MAIL_SMTP_PASSWORD)
+                    server.sendmail(from_addr, to_email, msg.as_string())
+            else:
+                with smtplib.SMTP(Config.MAIL_SMTP_HOST, port) as server:
+                    if encrypt == "tls":
+                        context = ssl.create_default_context()
+                        server.starttls(context=context)
+                    server.login(Config.MAIL_SMTP_USER, Config.MAIL_SMTP_PASSWORD)
+                    server.sendmail(from_addr, to_email, msg.as_string())
+            custom_log(f"UserManagement: Confirmation email sent to {to_email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            return True
+        except Exception as e:
+            custom_log(f"UserManagement: Failed to send confirmation email to {to_email}: {e}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
+            return False
+
     def test_debug(self):
         """Test endpoint for debugging."""
         return jsonify({
@@ -1684,7 +1763,8 @@ class UserManagementModule(BaseModule):
                 'email': plain_email or user.get('email'),
                 'username': plain_username or user.get('username'),
                 'profile': user.get('profile', {}),
-                'modules': user.get('modules', {})
+                'modules': user.get('modules', {}),
+                'role': user.get('role', 'player'),
             }
             
             return jsonify(profile_data), 200
@@ -1724,6 +1804,7 @@ class UserManagementModule(BaseModule):
             last_name = profile.get('last_name', '')
             picture = profile.get('picture', '')
             account_type = user.get('account_type', 'regular')  # Get account type for registration differences testing
+            role = user.get('role', 'player')
             
             # Build full name (first_name + last_name, fallback to empty string)
             full_name = ''
@@ -1741,6 +1822,7 @@ class UserManagementModule(BaseModule):
                 'last_name': last_name,
                 'profile_picture': picture,
                 'account_type': account_type,  # Include account type for registration differences testing
+                'role': role,
             }), 200
             
         except Exception as e:

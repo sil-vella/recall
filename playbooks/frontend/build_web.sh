@@ -276,6 +276,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
         ! -name "sim_players" \
         ! -name "downloads" \
         ! -name "example" \
+        ! -name "register" \
         ! -name ".well-known" \
         -exec rm -rf {} + 2>/dev/null || true
 

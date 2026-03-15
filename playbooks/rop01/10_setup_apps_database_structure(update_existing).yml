@@ -1,4 +1,46 @@
 ---
+# Load app_dev/.env so MONGODB_PASSWORD is available (no manual export needed).
+- name: Load app_dev/.env for MongoDB password (optional)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env"
+  tasks:
+    - name: Check if app_dev/.env exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'): continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        result = { 'mongodb_password': out.get('MONGODB_PASSWORD', '') }
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env
+      set_fact:
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
 - name: Add Missing Modules to Existing Database (Non-Destructive, Remote Docker)
   hosts: "{{ vm_name }}_user"
   become: true
@@ -6,8 +48,9 @@
     mongodb_container_name: "dutch_external_app_mongodb"
     database_name: "external_system"
     app_user: "external_app_user"
-    # From app_dev/.env (source before run) or Ansible var (vault/group_vars). No default in repo.
-    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') or mongodb_password }}"
+    # From play 1 (app_dev/.env) or -e mongodb_password=... or export MONGODB_PASSWORD.
+    mongodb_password: ""
+    app_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default(mongodb_password) }}"
 
     # MongoDB connection details for VPS Docker host
     mongodb_host: "localhost"
@@ -271,6 +314,28 @@
           print("  📊 Users with is_comp_player field: " + usersWithField + " / " + totalUsers);
 
           // ========================================
+          // 3b. ADD role FIELD TO USERS (default: player)
+          // ========================================
+          print("\n👤 Step 3b: Adding role field to users (default: player)...");
+          try {
+            db.users.createIndex({ "role": 1 });
+            print("  ✅ Created index on role field");
+          } catch (e) {
+            print("  ✓ Index on role field already exists or created");
+          }
+          var roleUpdateResult = db.users.updateMany(
+            { "role": { $exists: false } },
+            { $set: { "role": "player", "updated_at": currentTime } }
+          );
+          if (roleUpdateResult.modifiedCount > 0) {
+            print("  ✅ Added role: 'player' to " + roleUpdateResult.modifiedCount + " users");
+          } else {
+            print("  ✓ All users already have role field");
+          }
+          var usersWithRole = db.users.countDocuments({ "role": { $exists: true } });
+          print("  📊 Users with role field: " + usersWithRole + " / " + totalUsers);
+
+          // ========================================
           // 4. ENSURE NOTIFICATIONS COLLECTION EXISTS
           // ========================================
           // See Documentation/Dutch_game/NOTIFICATION_SYSTEM.md
@@ -285,6 +350,53 @@
           } else {
             print("  ✓ Notifications collection already exists");
           }
+
+          // ========================================
+          // 5. ENSURE TOURNAMENTS COLLECTION EXISTS
+          // ========================================
+          // Schema:
+          //   tournament_id (string, from date/time of creation)
+          //   name (string)
+          //   status (string, default "pending")
+          //   type (optional, e.g. IRL, Online)
+          //   format (optional, e.g. League, Cup)
+          //   start_date (optional)
+          //   matches (array of match docs)
+          //   Each match: match_id, status ("pending"), start_date (optional), room_id, winner, players (array)
+          //   Each player: user_id, username, email, points, number_of_cards_left (array of { card_rank, card_suite })
+          print("\n🏆 Step 5: Ensuring tournaments collection exists...");
+          var collsNow = db.getCollectionNames();
+          if (collsNow.indexOf("tournaments") === -1) {
+            db.createCollection("tournaments");
+            db.tournaments.createIndex({ "_id": 1 });
+            db.tournaments.createIndex({ "tournament_id": 1 }, { unique: true });
+            db.tournaments.createIndex({ "name": 1 });
+            db.tournaments.createIndex({ "status": 1 });
+            db.tournaments.createIndex({ "type": 1 });
+            db.tournaments.createIndex({ "format": 1 });
+            db.tournaments.createIndex({ "start_date": 1 });
+            db.tournaments.createIndex({ "matches.match_id": 1 });
+            db.tournaments.createIndex({ "matches.status": 1 });
+            db.tournaments.createIndex({ "matches.room_id": 1 });
+            print("  ✅ Created tournaments collection with indexes");
+            print("  📋 Schema: tournament_id, name, status (default pending), type (optional, e.g. IRL, Online), format (optional, e.g. League, Cup), start_date (optional), matches ([{ match_id, status (pending), start_date (optional), room_id, winner, players ([{ user_id, username, email, points, number_of_cards_left ([{ card_rank, card_suite }]) }]) }])");
+          } else {
+            print("  ✓ Tournaments collection already exists");
+            try {
+              db.tournaments.createIndex({ "tournament_id": 1 }, { unique: true });
+              db.tournaments.createIndex({ "name": 1 });
+              db.tournaments.createIndex({ "status": 1 });
+              db.tournaments.createIndex({ "type": 1 });
+              db.tournaments.createIndex({ "format": 1 });
+              db.tournaments.createIndex({ "start_date": 1 });
+              db.tournaments.createIndex({ "matches.match_id": 1 });
+              db.tournaments.createIndex({ "matches.status": 1 });
+              db.tournaments.createIndex({ "matches.room_id": 1 });
+              print("  ✓ Ensured tournament indexes exist");
+            } catch (e) {
+              if (e.code !== 85 && e.code !== 86) { throw e; }
+            }
+          }
           
           // ========================================
           // FINAL SUMMARY
@@ -296,7 +408,7 @@
           print("- Users in database: " + db.users.countDocuments());
           print("- Users updated: " + usersUpdated);
           print("- Users skipped (already up-to-date): " + usersSkipped);
-          
+          print("- Tournaments collection: " + (db.tournaments ? db.tournaments.countDocuments() : 0) + " docs");
           print("\n✅ All missing modules have been added to existing users!");
         mode: '0644'
 
@@ -356,6 +468,10 @@
           db.user_modules.find({}, { module_name: 1, display_name: 1, status: 1 }).forEach(function(module) {
             print('  - ' + module.module_name + ' (' + module.display_name + ') - ' + module.status);
           });
+          
+          // Tournaments collection
+          var tournamentsExist = db.getCollectionNames().indexOf('tournaments') !== -1;
+          print('\\n🏆 Tournaments collection: ' + (tournamentsExist ? 'exists, ' + db.tournaments.countDocuments() + ' docs' : 'not present'));
         "
       register: verification_summary
       changed_when: false
@@ -379,6 +495,9 @@
           - Updated existing users with missing modules (in_app_purchases, dutch_game)
           - Added is_comp_player field to all users (default: false)
           - Created index on is_comp_player field
+          - Added role field to all users (default: player); created index on role
+          - Ensured notifications collection exists (if missing)
+          - Ensured tournaments collection exists (if missing)
           - Preserved all existing user data
           - No collections were dropped or erased
           
@@ -386,8 +505,19 @@
           - in_app_purchases: In-app purchase and subscription management
           - dutch_game: Dutch card game statistics and progression
           
-          🤖 New Field Added:
+          🤖 New Fields Added:
           - is_comp_player: Boolean field to identify computer players (default: false)
+          - role: string (default: "player"); index on role for user authorization
+          
+          🏆 Tournaments collection (when created):
+          - _id: unique (ObjectId)
+          - creator_id: user ObjectId (tournament creator)
+          - name: optional string
+          - start_date: optional (ISO date string; tournament start)
+          - user_ids: array of user ObjectIds (linked participants)
+          - participants: optional array of { user_id (string), username?, email? }; not set by create-tournament; add-participants endpoint will populate
+          - matches: array of { match_index (1-based), room_id, user_ids, match_date (optional), players (optional [{ user_id, username?, email? }]), scores: [{ user_id, optional username, optional email, end_card_count, total_end_points }] }
+          - created_at, updated_at. Indexes: creator_id, user_ids, status, created_at, updated_at, start_date
           
           📝 Note:
           - Computer players can be added using the 11_add_players.py script

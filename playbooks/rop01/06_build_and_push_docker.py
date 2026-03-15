@@ -142,9 +142,12 @@ def comment_custom_logs():
     total_lines_count = 0
     
     # Paths to skip (keep full logging to avoid syntax issues)
+    # dutch_game, notification_module: have multi-line custom_log(...) calls; commenting only the first line breaks syntax
     skip_paths = [
         BUILD_CONTEXT / 'core' / 'modules' / 'user_management_module',
         BUILD_CONTEXT / 'core' / 'modules' / 'analytics_module',
+        BUILD_CONTEXT / 'core' / 'modules' / 'dutch_game',
+        BUILD_CONTEXT / 'core' / 'modules' / 'notification_module',
         BUILD_CONTEXT / 'app.py',
     ]
     

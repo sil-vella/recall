@@ -15,6 +15,7 @@ import '../practice/practice_mode_bridge.dart';
 import '../managers/game_coordinator.dart';
 import 'state_queue_validator.dart';
 import '../backend_core/utils/state_queue_validator.dart' as backend_validator;
+import '../backend_core/utils/level_matcher.dart';
 
 /// Convenient helper methods for dutch game operations
 /// Provides type-safe, validated methods for common game actions
@@ -24,7 +25,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for random game join debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for coins verification flow — see .cursor/rules/enable-logging-switch.mdc
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -56,15 +57,18 @@ class DutchGameHelpers {
   
   /// Create a new room with validation
   /// [acceptedPlayers] Optional list of { user_id, username, is_comp_player } for create-match invite flow.
+  /// [gameLevel] Optional game level (e.g. 1, 2, 3); passed to backend for room/game configuration.
+  /// [addCreatorToRoom] If true, the creator is added to the room as a participant (default true).
   static Future<Map<String, dynamic>> createRoom({
     required String permission,
     required int maxPlayers,
     required int minPlayers,
     String gameType = 'classic',
-    int turnTimeLimit = 30,
     bool autoStart = false,
+    bool addCreatorToRoom = true,
     String? password,
     List<Map<String, dynamic>>? acceptedPlayers,
+    int? gameLevel,
   }) async {
     try {
       // 🎯 CRITICAL: Clear all existing game state before starting new game
@@ -85,10 +89,10 @@ class DutchGameHelpers {
       'max_players': maxPlayers,
       'min_players': minPlayers,
       'game_type': gameType,
-      'turn_time_limit': turnTimeLimit,
       'auto_start': autoStart,
+      'add_creator_to_room': addCreatorToRoom,
     };
-    
+    data['game_level'] = gameLevel ?? 1;
     // Add password for private rooms
     if (permission == 'private' && password != null) {
       data['password'] = password;
@@ -141,9 +145,13 @@ class DutchGameHelpers {
     }
   }
 
-  /// Join an existing room with validation
+  /// Join an existing room with validation.
+  /// [password] Optional; required for private rooms.
+  /// [gameLevel] Optional; sent in payload (default 1).
   static Future<Map<String, dynamic>> joinRoom({
     required String roomId,
+    String? password,
+    int? gameLevel,
   }) async {
     try {
       // 🎯 CRITICAL: Clear all existing game state before starting new game
@@ -159,11 +167,17 @@ class DutchGameHelpers {
         };
       }
       
-    final data = {
+    final data = <String, dynamic>{
       'room_id': roomId,
+      'game_level': gameLevel ?? 1,
     };
-    
-      return await _eventEmitter.emit(
+    if (password != null && password.isNotEmpty) data['password'] = password;
+    // user_id fallback (align with create_room) so backend can use when session has no userId yet
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login');
+    final uid = loginState?['userId']?.toString() ?? loginState?['user_id']?.toString() ?? '';
+    if (uid.isNotEmpty) data['user_id'] = uid;
+
+    return await _eventEmitter.emit(
       eventType: 'join_room',
       data: data,
     );
@@ -992,26 +1006,25 @@ class DutchGameHelpers {
   }
 
   /// Check subscription tier from user stats
-  /// 
+  ///
   /// [fetchFromAPI] - If true, fetches fresh stats from API before checking (defaults to true)
-  /// Returns the subscription tier string (defaults to 'promotional' if not found)
+  /// Returns the subscription tier string, or empty string if not found (no default; caller must fail if no tier and no stats).
   static Future<String> getSubscriptionTier({bool fetchFromAPI = true}) async {
     try {
-      String subscriptionTier = 'promotional';
-      
+      String subscriptionTier = '';
+
       if (fetchFromAPI) {
-        // Fetch fresh stats from API to ensure we have latest tier
         if (LOGGING_SWITCH) {
           _logger.info('📊 DutchGameHelpers: Fetching fresh user stats from API for tier check');
         }
         final statsResult = await getUserDutchGameData();
-        
-        if (statsResult != null && 
-            statsResult['success'] == true && 
+
+        if (statsResult != null &&
+            statsResult['success'] == true &&
             statsResult['data'] != null) {
           final data = statsResult['data'] as Map<String, dynamic>?;
           if (data != null) {
-            subscriptionTier = data['subscription_tier'] as String? ?? 'promotional';
+            subscriptionTier = (data['subscription_tier'] as String?)?.trim() ?? '';
           }
           if (LOGGING_SWITCH) {
             _logger.info('📊 DutchGameHelpers: Fetched subscription_tier from API: $subscriptionTier');
@@ -1020,64 +1033,70 @@ class DutchGameHelpers {
           if (LOGGING_SWITCH) {
             _logger.warning('⚠️ DutchGameHelpers: Failed to fetch stats from API, falling back to state');
           }
-          // Fallback to state if API call fails
           final userStats = getUserDutchGameStats();
-          subscriptionTier = userStats?['subscription_tier'] as String? ?? 'promotional';
+          subscriptionTier = (userStats?['subscription_tier'] as String?)?.trim() ?? '';
         }
       } else {
-        // Use cached state
         final userStats = getUserDutchGameStats();
-        subscriptionTier = userStats?['subscription_tier'] as String? ?? 'promotional';
+        subscriptionTier = (userStats?['subscription_tier'] as String?)?.trim() ?? '';
       }
-      
+
       return subscriptionTier;
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('❌ DutchGameHelpers: Error checking subscription tier: $e');
       }
-      return 'promotional'; // Default to promotional on error
+      return '';
     }
   }
 
   /// Check if user has enough coins to join/create a game
-  /// 
-  /// [requiredCoins] - The number of coins required (defaults to 25)
+  ///
+  /// [gameLevel] - Optional game level (1–4); when set, required coins are taken from [LevelMatcher.levelToCoinFee].
+  /// [requiredCoins] - Used when [gameLevel] is null (defaults to 25).
   /// [fetchFromAPI] - If true, fetches fresh stats from API before checking (defaults to true)
-  /// Returns true if user has enough coins or has promotional subscription tier, false otherwise
-  /// Logs a warning if not enough coins
-  /// 
+  /// Returns true only if user has explicit 'promotional' tier (skip coins) or has coins >= required.
+  /// If no tier and no stats, returns false (fail).
+  ///
   /// Logic:
-  /// - If subscription_tier is 'promotional', skip coin check (promotional tier users play for free)
-  /// - If subscription_tier is NOT 'promotional', check coins requirement (premium users need coins)
-  static Future<bool> checkCoinsRequirement({int requiredCoins = 25, bool fetchFromAPI = true}) async {
+  /// - If subscription_tier is 'promotional', skip coin check (play for free).
+  /// - Otherwise require coins >= required; if we have no stats (API failed and no state), fail.
+  static Future<bool> checkCoinsRequirement({
+    int? gameLevel,
+    int requiredCoins = 25,
+    bool fetchFromAPI = true,
+  }) async {
+    final required = gameLevel != null
+        ? LevelMatcher.levelToCoinFee(gameLevel, defaultFee: 25)
+        : requiredCoins;
+    if (LOGGING_SWITCH) {
+      _logger.info('📊 DutchGameHelpers: checkCoinsRequirement entry gameLevel=$gameLevel required=$required fetchFromAPI=$fetchFromAPI');
+    }
     try {
-      // First check subscription tier
       final subscriptionTier = await getSubscriptionTier(fetchFromAPI: fetchFromAPI);
-      
-      // If user has promotional tier, skip coin check (promotional tier is promotion period - play for free)
+
       if (subscriptionTier == 'promotional') {
         if (LOGGING_SWITCH) {
           _logger.info('✅ DutchGameHelpers: User has promotional tier - skipping coin check (free play)');
         }
         return true;
       }
-      
-      // For non-promotional tier users, check coins requirement
+
       if (LOGGING_SWITCH) {
-        _logger.info('📊 DutchGameHelpers: User has subscription tier "$subscriptionTier" - checking coins requirement');
+        _logger.info('📊 DutchGameHelpers: Subscription tier "$subscriptionTier" - checking coins requirement');
       }
-      
-      int currentCoins = 0;
-      
+
+      int? currentCoins;
+      Map<String, dynamic>? userStats;
+
       if (fetchFromAPI) {
-        // Fetch fresh stats from API to ensure we have latest coin count
         if (LOGGING_SWITCH) {
           _logger.info('📊 DutchGameHelpers: Fetching fresh user stats from API for coin check');
         }
         final statsResult = await getUserDutchGameData();
-        
-        if (statsResult != null && 
-            statsResult['success'] == true && 
+
+        if (statsResult != null &&
+            statsResult['success'] == true &&
             statsResult['data'] != null) {
           final data = statsResult['data'] as Map<String, dynamic>?;
           if (data != null) {
@@ -1090,13 +1109,13 @@ class DutchGameHelpers {
           if (LOGGING_SWITCH) {
             _logger.warning('⚠️ DutchGameHelpers: Failed to fetch stats from API, falling back to state');
           }
-          // Fallback to state if API call fails
-          final userStats = getUserDutchGameStats();
-          currentCoins = userStats?['coins'] as int? ?? 0;
+          userStats = getUserDutchGameStats();
+          if (userStats != null) {
+            currentCoins = userStats['coins'] as int? ?? 0;
+          }
         }
       } else {
-        // Use cached state
-        final userStats = getUserDutchGameStats();
+        userStats = getUserDutchGameStats();
         if (userStats == null) {
           if (LOGGING_SWITCH) {
             _logger.warning('⚠️ DutchGameHelpers: Cannot check coins - userStats not found');
@@ -1105,16 +1124,24 @@ class DutchGameHelpers {
         }
         currentCoins = userStats['coins'] as int? ?? 0;
       }
-      
-      if (currentCoins < requiredCoins) {
+
+      // No tier and no stats -> fail
+      if (currentCoins == null) {
         if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Insufficient coins - Required: $requiredCoins, Current: $currentCoins');
+          _logger.warning('⚠️ DutchGameHelpers: Cannot check coins - no stats and no tier');
+        }
+        return false;
+      }
+
+      if (currentCoins < required) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ DutchGameHelpers: Insufficient coins - Required: $required, Current: $currentCoins');
         }
         return false;
       }
       
       if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: Coins check passed - Required: $requiredCoins, Current: $currentCoins');
+        _logger.info('✅ DutchGameHelpers: Coins check passed - Required: $required, Current: $currentCoins');
       }
       return true;
     } catch (e) {

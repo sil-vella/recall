@@ -4,7 +4,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for login/account creation debugging (token validation, game stats)
+const bool LOGGING_SWITCH = true; // Enabled for coins verification flow (get-user-stats) — see .cursor/rules/enable-logging-switch.mdc
 
 class PythonApiClient {
   final String baseUrl;
@@ -201,6 +201,70 @@ class PythonApiClient {
     }
   }
   
+  /// Get user dutch-game stats (coins, subscription_tier) by userId for join/create room coins check.
+  /// Service endpoint: X-Service-Key auth.
+  Future<Map<String, dynamic>> getUserStatsForJoin(String userId) async {
+    if (LOGGING_SWITCH) {
+      _logger.info('📊 Dart: Requesting user stats for join check, userId: $userId');
+      _logger.info('🌐 Dart: Calling $baseUrl/service/dutch/get-user-stats');
+    }
+
+    final useKey = Config.usePythonServiceKey;
+    final serviceKey = useKey ? Config.pythonServiceKey : '';
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (serviceKey.isNotEmpty) 'X-Service-Key': serviceKey,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/service/dutch/get-user-stats'),
+        headers: headers,
+        body: jsonEncode({'user_id': userId}),
+      );
+
+      if (LOGGING_SWITCH) {
+        _logger.info('📡 Dart: get-user-stats response status: ${response.statusCode}');
+      }
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        final success = result['success'] as bool? ?? false;
+        if (success) {
+          final data = result['data'] as Map<String, dynamic>? ?? <String, dynamic>{};
+          final coins = data['coins'] as int?;
+          final tier = (data['subscription_tier'] as String?)?.trim() ?? '';
+          if (LOGGING_SWITCH) {
+            _logger.info('📊 Dart: get-user-stats success userId=$userId coins=$coins subscription_tier="$tier"');
+          }
+          return {
+            'success': true,
+            'coins': coins,
+            'subscription_tier': tier,
+          };
+        }
+        return {
+          'success': false,
+          'error': result['error'] ?? 'Failed to get user stats',
+        };
+      }
+      return {
+        'success': false,
+        'error': 'HTTP ${response.statusCode}',
+        'status_code': response.statusCode,
+      };
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Dart: Network error get-user-stats: $e');
+      }
+      return {
+        'success': false,
+        'error': 'Connection failed',
+        'message': e.toString(),
+      };
+    }
+  }
+
   /// Get user profile data (full name, profile picture) by userId
   Future<Map<String, dynamic>> getUserProfile(String userId) async {
     if (LOGGING_SWITCH) {

@@ -808,6 +808,40 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     }
   }
   
+  /// Format role for display (e.g. "player" -> "Player", "admin" -> "Admin").
+  String _formatRole(String role) {
+    if (role.isEmpty) return 'Player';
+    return role.substring(0, 1).toUpperCase() + role.substring(1).toLowerCase();
+  }
+
+  /// True when [role] is "admin" (case-insensitive).
+  bool _isAdminRole(dynamic role) {
+    if (role == null) return false;
+    return (role.toString().trim().toLowerCase()) == 'admin';
+  }
+
+  /// Navigate to Admin Dashboard only if current user role is still admin.
+  void _onAdminDashboardPressed() {
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login');
+    final isLoggedIn = loginState?['isLoggedIn'] == true;
+    if (!isLoggedIn || !_isAdminRole(loginState?['role'])) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Admin access required.',
+              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+            ),
+            backgroundColor: AppColors.errorColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    NavigationManager().navigateTo('/admin/dashboard');
+  }
+
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1192,6 +1226,33 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                         _buildInfoRow('Email', email),
                         const SizedBox(height: 8),
                         _buildInfoRow('User ID', loginState?["userId"] ?? ""),
+                        const SizedBox(height: 8),
+                        _buildInfoRow('Role', _formatRole(loginState?["role"] ?? "player")),
+                        if (_isAdminRole(loginState?["role"])) ...[
+                          const SizedBox(height: 16),
+                          OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _onAdminDashboardPressed,
+                            icon: Icon(Icons.admin_panel_settings, size: 20, color: AppColors.accentColor),
+                            label: Text(
+                              'Admin Dashboard',
+                              style: AppTextStyles.bodyMedium().copyWith(
+                                color: AppColors.accentColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.accentColor,
+                              side: BorderSide(color: AppColors.accentColor),
+                              padding: EdgeInsets.symmetric(
+                                vertical: AppPadding.mediumPadding.top,
+                                horizontal: AppPadding.defaultPadding.left,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppBorderRadius.large),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

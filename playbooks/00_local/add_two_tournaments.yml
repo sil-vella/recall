@@ -1,0 +1,54 @@
+---
+# Add 2 tournaments to local MongoDB:
+#   1. type=IRL, format=Cup  (name: Local Cup)
+#   2. type=Online, format=League  (name: Online League)
+# Run: ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/add_two_tournaments.yml
+- name: Add two tournaments (IRL/Cup and Online/League)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mongodb_container_name: "dutch_external_app_mongodb"
+    database_name: "external_system"
+    app_user: "external_app_user"
+    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
+    mongodb_auth_db: "external_system"
+
+  tasks:
+    - name: Wait for MongoDB container to be ready
+      shell: docker exec {{ mongodb_container_name }} mongosh --eval "db.adminCommand('ping')" --quiet
+      register: mongodb_ready
+      retries: 10
+      delay: 2
+      until: mongodb_ready.rc == 0
+      changed_when: false
+
+    - name: Create add_two_tournaments script
+      copy:
+        dest: "/tmp/add_two_tournaments.js"
+        content: |
+          db = db.getSiblingDB('external_system');
+          var now = new Date();
+          var id1 = 't_irl_cup_' + now.getTime();
+          var id2 = 't_online_league_' + (now.getTime() + 1);
+          var doc1 = { tournament_id: id1, name: 'Local Cup', status: 'pending', type: 'IRL', format: 'Cup', start_date: null, matches: [], created_at: now, updated_at: now };
+          var doc2 = { tournament_id: id2, name: 'Online League', status: 'pending', type: 'Online', format: 'League', start_date: null, matches: [], created_at: now, updated_at: now };
+          db.tournaments.insertOne(doc1);
+          db.tournaments.insertOne(doc2);
+          print('Inserted IRL/Cup: ' + id1 + ', Online/League: ' + id2 + '. Count: ' + db.tournaments.countDocuments());
+        mode: '0644'
+
+    - name: Copy script to MongoDB container
+      shell: docker cp /tmp/add_two_tournaments.js {{ mongodb_container_name }}:/tmp/add_two_tournaments.js
+      register: copy_result
+      changed_when: copy_result.rc == 0
+
+    - name: Run add_two_tournaments script
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --quiet /tmp/add_two_tournaments.js
+      register: script_result
+      changed_when: true
+
+    - name: Display result
+      debug:
+        msg: "{{ script_result.stdout_lines }}"

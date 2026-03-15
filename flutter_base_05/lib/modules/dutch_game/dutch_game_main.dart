@@ -17,6 +17,8 @@ import '../dutch_game/managers/dutch_event_manager.dart';
 import '../dutch_game/managers/dutch_game_state_updater.dart';
 import '../dutch_game/utils/dutch_game_helpers.dart';
 import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
+import '../../screens/admin_dashboard_screen/admin_dashboard_screen.dart';
+import '../dutch_game/screens/admin_tournaments_screen/admin_tournaments_screen.dart';
 
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
@@ -316,6 +318,24 @@ class DutchGameMain extends ModuleBase {
     navigationManager.registerRoute(
       path: '/dutch/video-tutorial',
       screen: (BuildContext context) => const VideoTutorialScreen(),
+      drawerTitle: null,
+      drawerIcon: null,
+      drawerPosition: 999,
+    );
+
+    // Register Admin Dashboard (admin-only, no drawer entry; reached from Account screen)
+    navigationManager.registerRoute(
+      path: '/admin/dashboard',
+      screen: (BuildContext context) => const AdminDashboardScreen(),
+      drawerTitle: null,
+      drawerIcon: null,
+      drawerPosition: 999,
+    );
+
+    // Register Admin Tournaments (admin-only, no drawer entry; reached from Admin Dashboard)
+    navigationManager.registerRoute(
+      path: '/admin/tournaments',
+      screen: (BuildContext context) => const AdminTournamentsScreen(),
       drawerTitle: null,
       drawerIcon: null,
       drawerPosition: 999,

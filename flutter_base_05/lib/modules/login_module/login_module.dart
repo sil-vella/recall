@@ -444,7 +444,7 @@ class LoginModule extends ModuleBase {
             await _sharedPref!.setString('email', email);
             await _sharedPref!.setString('password', password);
           }
-          return {"success": "Registration successful. Please log in."};
+          return {"success": "Registration successful. Please log in. Check your inbox and spam folder for a confirmation email."};
         } else if (response["error"] != null) {
           // Log registration failure
           if (LOGGING_SWITCH) {
@@ -1169,6 +1169,10 @@ class LoginModule extends ModuleBase {
         "profile": profile ?? {},
         "profilePicture": pictureUrl,
       };
+      final responseRole = response['role'] as String?;
+      if (responseRole != null && responseRole.isNotEmpty) {
+        updates["role"] = responseRole;
+      }
       if (profileEmail != null && profileEmail.isNotEmpty) {
         updates["email"] = profileEmail;
         // Persist plain email to SharedPref so it stays decrypted for display/pre-fill after logout

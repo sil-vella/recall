@@ -1394,6 +1394,10 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (gameType != null && gameType.isNotEmpty) {
         base['game_type'] = gameType;
       }
+      final gameLevel = data['game_level'] as int?;
+      if (gameLevel != null) {
+        base['game_level'] = gameLevel;
+      }
       if (data['is_random_join'] == true || DutchGameHelpers.isRandomJoinInProgress) {
         base['is_random_join'] = true;
       }
@@ -1524,11 +1528,14 @@ When anyone has played a card with the **same rank** as your **collection card**
         _updateMainGameState({'isRoomOwner': prevIsOwner});
       }
       
-      // Set game_type and multiplayerType on existing entry when event provides them
+      // Set game_type, game_level and multiplayerType on existing entry when event provides them
       // (e.g. room_joined created entry first, then game_state_updated arrives)
       final gameType = data['game_type']?.toString();
+      final gameLevel = data['game_level'] as int?;
       if (gameType != null && gameType.isNotEmpty) {
-        _updateGameData(gameId, {'game_type': gameType});
+        final updateData = <String, dynamic>{'game_type': gameType};
+        if (gameLevel != null) updateData['game_level'] = gameLevel;
+        _updateGameData(gameId, updateData);
         final isRandom = data['is_random_join'] == true || DutchGameHelpers.isRandomJoinInProgress;
         _updateGameInMap(gameId, {
           'multiplayerType': {
@@ -1536,6 +1543,8 @@ When anyone has played a card with the **same rank** as your **collection card**
             'isRandom': isRandom,
           },
         });
+      } else if (gameLevel != null) {
+        _updateGameData(gameId, {'game_level': gameLevel});
       }
     }
     

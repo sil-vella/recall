@@ -30,13 +30,15 @@ if Config.DEBUG:
     # Development mode - allow all origins for flexibility
     CORS(app)
 else:
-    # Production mode - dutch.mt primary; reignofplay.com + local dev origins
+    # Production mode - dutch.mt primary; reignofplay.com + dashboard + local dev origins
     CORS(app,
         origins=[
             "https://dutch.mt",
             "https://www.dutch.mt",
             "https://reignofplay.com",
             "https://www.reignofplay.com",
+            "https://dashboard.reignofplay.com",
+            "http://dashboard.reignofplay.com",
             "http://localhost:3002",
             "http://127.0.0.1:3002",
         ],

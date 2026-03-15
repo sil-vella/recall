@@ -141,8 +141,13 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
             ),
 
             SizedBox(height: AppPadding.defaultPadding.top),
-            
-            // Play Dutch button (Clear mode - no collection)
+
+            Text(
+              'Select Game Type',
+              style: AppTextStyles.label().copyWith(color: AppColors.white),
+            ),
+            SizedBox(height: AppPadding.smallPadding.top),
+            // Classic (no collection)
             Semantics(
               label: 'practice_match_clear',
               identifier: 'practice_match_clear',
@@ -156,22 +161,28 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                     foregroundColor: AppColors.textOnAccent,
                     padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                   ),
-                  icon: const Icon(Icons.school),
+                  icon: Icon(Icons.school, size: AppSizes.iconSmall),
                   label: _isStarting
                       ? SizedBox(
-                          height: 20,
-                          width: 20,
+                          height: AppSizes.iconSmall,
+                          width: AppSizes.iconSmall,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: AppColors.textOnAccent,
                           ),
                         )
-                      : const Text('Play Dutch'),
+                      : Text(
+                          'Classic',
+                          style: AppTextStyles.bodyMedium().copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textOnAccent,
+                          ),
+                        ),
                 ),
               ),
             ),
             SizedBox(height: AppPadding.mediumPadding.top),
-            // Play Dutch: Clear and Collect button (Collection mode)
+            // Clear and Collect (collection mode)
             Semantics(
               label: 'practice_match_collection',
               identifier: 'practice_match_collection',
@@ -185,17 +196,23 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                     foregroundColor: AppColors.textOnAccent,
                     padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                   ),
-                  icon: const Icon(Icons.casino),
+                  icon: Icon(Icons.casino, size: AppSizes.iconSmall),
                   label: _isStarting
                       ? SizedBox(
-                          height: 20,
-                          width: 20,
+                          height: AppSizes.iconSmall,
+                          width: AppSizes.iconSmall,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: AppColors.textOnAccent,
                           ),
                         )
-                      : const Text('Play Dutch: Clear and Collect'),
+                      : Text(
+                          'Clear and Collect',
+                          style: AppTextStyles.bodyMedium().copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textOnAccent,
+                          ),
+                        ),
                 ),
               ),
             ),

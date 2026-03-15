@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+// import '../../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
@@ -40,7 +41,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     final wsManager = WebSocketManager.instance;
     wsManager.socket?.on('join_room_error', (data) {
       if (mounted) {
-        final error = data['error'] ?? 'Unknown error';
+        final error = data['message'] ?? data['error'] ?? 'Unknown error';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Join random game failed: $error'),
@@ -74,27 +75,26 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     });
 
     try {
-      // Check if user has enough coins (default 25)
-      // Fetch fresh stats from API before checking
-      final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎯 JoinRandomGame: coins check hasEnoughCoins=$hasEnoughCoins', isOn: true);
-      }
-      if (!hasEnoughCoins) {
-        setState(() {
-          _isLoading = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Insufficient coins to join a game. Required: 25'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-        }
-        return;
-      }
-      
+      // Frontend coin check bypassed to test backend coin check
+      // final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
+      // if (LOGGING_SWITCH) {
+      //   _logger.info('🎯 JoinRandomGame: coins check hasEnoughCoins=$hasEnoughCoins', isOn: true);
+      // }
+      // if (!hasEnoughCoins) {
+      //   setState(() {
+      //     _isLoading = false;
+      //   });
+      //   if (mounted) {
+      //     ScaffoldMessenger.of(context).showSnackBar(
+      //       SnackBar(
+      //         content: Text('Insufficient coins to join a game. Required: ${LevelMatcher.levelToCoinFee(null, defaultFee: 25)}'),
+      //         backgroundColor: AppColors.errorColor,
+      //       ),
+      //     );
+      //   }
+      //   return;
+      // }
+
       // Ensure WebSocket is ready before attempting to join
       final isReady = await DutchGameHelpers.ensureWebSocketReady();
       if (LOGGING_SWITCH) {
@@ -160,17 +160,24 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
           children: [
             Text(
               'Quick Join',
-              style: AppTextStyles.headingSmall(),
+              style: AppTextStyles.headingSmall().copyWith(color: AppColors.white),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: AppPadding.mediumPadding.top),
             Text(
               'Join a random available game',
               style: AppTextStyles.label().copyWith(
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 16),
-            // Play Dutch button (Clear mode - no collection)
+            SizedBox(height: AppPadding.defaultPadding.top),
+            Text(
+              'Select Game Type',
+              style: AppTextStyles.label().copyWith(
+                color: AppColors.white,
+              ),
+            ),
+            SizedBox(height: AppPadding.smallPadding.top),
+            // Classic (no collection)
             Semantics(
               label: 'join_random_game_clear',
               identifier: 'join_random_game_clear',
@@ -186,25 +193,26 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                   ),
                   icon: _isLoading
                     ? SizedBox(
-                        height: 20,
-                        width: 20,
+                        height: AppSizes.iconSmall,
+                        width: AppSizes.iconSmall,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: AppColors.textOnAccent,
                         ),
                       )
-                    : const Icon(Icons.shuffle, size: 20),
+                    : Icon(Icons.shuffle, size: AppSizes.iconSmall),
                   label: Text(
-                    _isLoading ? 'Joining...' : 'Play Dutch',
+                    _isLoading ? 'Joining...' : 'Classic',
                     style: AppTextStyles.bodyMedium().copyWith(
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textOnAccent,
                     ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            // Play Dutch: Clear and Collect button (Collection mode)
+            SizedBox(height: AppPadding.mediumPadding.top),
+            // Clear and Collect (collection mode)
             Semantics(
               label: 'join_random_game_collection',
               identifier: 'join_random_game_collection',
@@ -220,18 +228,19 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                   ),
                   icon: _isLoading
                     ? SizedBox(
-                        height: 20,
-                        width: 20,
+                        height: AppSizes.iconSmall,
+                        width: AppSizes.iconSmall,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: AppColors.textOnAccent,
                         ),
                       )
-                    : const Icon(Icons.casino, size: 20),
+                    : Icon(Icons.casino, size: AppSizes.iconSmall),
                   label: Text(
-                    _isLoading ? 'Joining...' : 'Play Dutch: Clear and Collect',
+                    _isLoading ? 'Joining...' : 'Clear and Collect',
                     style: AppTextStyles.bodyMedium().copyWith(
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textOnAccent,
                     ),
                   ),
                 ),

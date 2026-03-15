@@ -1,0 +1,24 @@
+---
+# Verify launch tournament participants and first match (read-only).
+# Usage: ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/verify_launch_tournament.yml -e vm_name=rop01
+- name: Verify launch tournament
+  hosts: "{{ vm_name }}_user"
+  become: true
+  vars:
+    mongodb_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('') }}"
+  tasks:
+    - name: Copy verify script to target
+      copy:
+        src: scripts/verify_launch_tournament.js
+        dest: /tmp/verify_launch_tournament.js
+        mode: '0644'
+
+    - name: Run verify script in MongoDB container
+      shell: |
+        sg docker -c 'docker cp /tmp/verify_launch_tournament.js dutch_external_app_mongodb:/tmp/ && docker exec dutch_external_app_mongodb mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/verify_launch_tournament.js'
+      register: verify_out
+      changed_when: false
+
+    - name: Show verification result
+      debug:
+        msg: "{{ verify_out.stdout_lines }}"

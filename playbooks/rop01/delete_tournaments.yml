@@ -1,0 +1,22 @@
+---
+# One-off: delete all documents from external_system.tournaments on VPS MongoDB.
+# Usage: from repo root, with .env loaded: ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/delete_tournaments.yml -e vm_name=rop01
+- name: Delete all tournaments from MongoDB (VPS)
+  hosts: "{{ vm_name }}_user"
+  become: true
+  vars:
+    mongodb_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('') }}"
+  tasks:
+    - name: Delete all documents in tournaments collection
+      shell: |
+        sg docker -c 'docker exec dutch_external_app_mongodb mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+          var d = db.getSiblingDB(\"external_system\");
+          var r = d.tournaments.deleteMany({});
+          print(\"Deleted: \" + r.deletedCount + \" tournaments\");
+        "'
+      register: delete_out
+      changed_when: true
+
+    - name: Show result
+      debug:
+        msg: "{{ delete_out.stdout_lines }}"

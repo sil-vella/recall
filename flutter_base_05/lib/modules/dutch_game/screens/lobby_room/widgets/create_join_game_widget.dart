@@ -5,6 +5,7 @@ import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../core/managers/hooks_manager.dart';
 import '../../../../../core/managers/module_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
+// import '../../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../user_management_module/user_management_module.dart';
 import '../../../../../tools/logging/logger.dart';
@@ -66,7 +67,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     final wsManager = WebSocketManager.instance;
     wsManager.socket?.on('join_room_error', (data) {
       if (mounted) {
-        final error = data['error'] ?? 'Unknown error';
+        final error = data['message'] ?? data['error'] ?? 'Unknown error';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Join game failed: $error'),
@@ -185,21 +186,22 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     });
 
     try {
-      final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
-      if (!hasEnoughCoins) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Insufficient coins to join a game. Required: 25'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-        }
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
+      // Frontend coin check bypassed to test backend coin check
+      // final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
+      // if (!hasEnoughCoins) {
+      //   if (mounted) {
+      //     ScaffoldMessenger.of(context).showSnackBar(
+      //       SnackBar(
+      //         content: Text('Insufficient coins to join a game. Required: ${LevelMatcher.levelToCoinFee(null, defaultFee: 25)}'),
+      //         backgroundColor: AppColors.errorColor,
+      //       ),
+      //     );
+      //   }
+      //   setState(() {
+      //     _isLoading = false;
+      //   });
+      //   return;
+      // }
 
       final roomId = _roomIdController.text.trim();
       final password = _passwordController.text.trim();
@@ -239,7 +241,10 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       }
 
       // Not in room: join then navigate when state is ready (same pattern as random join room_creation)
-      final result = await DutchGameHelpers.joinRoom(roomId: roomId);
+      final result = await DutchGameHelpers.joinRoom(
+        roomId: roomId,
+        password: _isPrivateRoom && password.isNotEmpty ? password : null,
+      );
 
       if (result['success'] != true) {
         final errorMessage = result['error'] ?? 'Failed to join game';
@@ -386,37 +391,14 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-          // Mode Toggle (aligned with lobby section headers: accent bar + textOnAccent)
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.accentColor,
-              borderRadius: BorderRadius.circular(AppBorderRadius.large),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildModeButton('create', Icons.add, 'Create'),
-                ),
-                // Join tab commented out – creator and invitees use room-ready notification to join
-                // Expanded(
-                //   child: _buildModeButton('join', Icons.login, 'Join'),
-                // ),
-              ],
-            ),
-          ),
-          SizedBox(height: AppPadding.defaultPadding.top),
-
-          // Content based on mode (Join tab commented out)
-          if (_mode == 'create')
             _buildCreateContent(),
-          // else
-          //   _buildJoinContent(),
           ],
         ),
       ),
     );
   }
 
+  // ignore: unused_element
   Widget _buildModeButton(String mode, IconData icon, String label) {
     final isSelected = _mode == mode;
     return GestureDetector(
@@ -457,6 +439,11 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
           'Create New Game',
           style: AppTextStyles.headingSmall().copyWith(color: AppColors.white),
         ),
+        SizedBox(height: AppPadding.mediumPadding.top),
+        Text(
+          'Invite players and start a game.',
+          style: AppTextStyles.label().copyWith(color: AppColors.textSecondary),
+        ),
         SizedBox(height: AppPadding.defaultPadding.top),
         Semantics(
           label: 'create_room_open_modal',
@@ -471,8 +458,14 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
                 foregroundColor: AppColors.textOnAccent,
                 padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
               ),
-              icon: const Icon(Icons.add),
-              label: const Text('Create New Room'),
+              icon: Icon(Icons.add, size: AppSizes.iconSmall),
+              label: Text(
+                'Create',
+                style: AppTextStyles.bodyMedium().copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textOnAccent,
+                ),
+              ),
             ),
           ),
         ),
@@ -776,7 +769,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
   bool _isSearching = false;
   String? _invitingUsername;
   Timer? _pollTimer;
-  static const bool LOGGING_SWITCH = true; // Enable for invite search debugging (see .cursor/rules/enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Enable for invite search debugging (see .cursor/rules/enable-logging-switch.mdc)
   final Logger _logger = Logger();
 
   @override

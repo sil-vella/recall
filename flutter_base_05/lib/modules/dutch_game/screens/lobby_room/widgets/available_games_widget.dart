@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/game_coordinator.dart';
-import '../../../../dutch_game/utils/dutch_game_helpers.dart';
+// import '../../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
+// import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to display available games with fetch functionality
@@ -345,19 +346,18 @@ class AvailableGamesWidget extends StatelessWidget {
   /// Join a game using GameCoordinator
   Future<void> _joinGame(BuildContext context, String gameId) async {
     try {
-      // Check if user has enough coins (default 25)
-      // Fetch fresh stats from API before checking
-      final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
-      if (!hasEnoughCoins) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Insufficient coins to join a game. Required: 25'),
-            backgroundColor: AppColors.errorColor,
-          ),
-        );
-        return;
-      }
-      
+      // Frontend coin check bypassed to test backend coin check
+      // final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
+      // if (!hasEnoughCoins) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(
+      //       content: Text('Insufficient coins to join a game. Required: ${LevelMatcher.levelToCoinFee(null, defaultFee: 25)}'),
+      //       backgroundColor: AppColors.errorColor,
+      //     ),
+      //   );
+      //   return;
+      // }
+
       // Use GameCoordinator to join the game
       final gameCoordinator = GameCoordinator();
       gameCoordinator.joinGame(gameId: gameId, playerName: 'Player');

@@ -90,9 +90,12 @@ class ModuleRegistry:
                             custom_log(f"WARNING: No module class found in {item}", level="WARNING", isOn=LOGGING_SWITCH)
                             print(f"DEBUG: No module class found in {item}")
                     except Exception as e:
-                        custom_log(f"ERROR: Failed to import module {item}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
                         import traceback
+                        custom_log(f"ERROR: Failed to import module {item}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
                         custom_log(f"ERROR: Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
+                        # Always print so container logs show why a module was skipped (e.g. dutch_game)
+                        print(f"ERROR: Failed to import module {item}: {e}")
+                        print(traceback.format_exc())
                         continue
             return modules
             
@@ -198,27 +201,22 @@ class ModuleRegistry:
             print(f"DEBUG: Found modules: {list(modules.keys())}")
             print(f"DEBUG: Dependencies: {dependencies}")
             
-            # Check if all dependency references exist
-            for module_key, deps in dependencies.items():
+            # Check that for each discovered module, its dependencies are also discovered
+            # (do not require every key in dependencies to be discovered - allows app to start if a module fails to load)
+            for module_key in modules:
+                deps = dependencies.get(module_key, [])
                 custom_log(f"DEBUG: Checking module {module_key} and dependencies {deps}", level="INFO", isOn=LOGGING_SWITCH)
-                custom_log(f"DEBUG: Available modules: {list(modules.keys())}", level="INFO", isOn=LOGGING_SWITCH)
-                
-                if module_key not in modules:
-                    custom_log(f"ERROR: Module {module_key} not found in discovered modules", level="ERROR", isOn=LOGGING_SWITCH)
-                    custom_log(f"ERROR: Available modules: {list(modules.keys())}", level="ERROR", isOn=LOGGING_SWITCH)
-                    return False
-                    
                 for dep in deps:
                     custom_log(f"DEBUG: Checking dependency {dep} for module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
                     if dep not in modules:
                         custom_log(f"ERROR: Dependency {dep} not found in discovered modules for module {module_key}", level="ERROR", isOn=LOGGING_SWITCH)
                         custom_log(f"ERROR: Available modules: {list(modules.keys())}", level="ERROR", isOn=LOGGING_SWITCH)
                         return False
-                    else:
-                        custom_log(f"DEBUG: Dependency {dep} found for module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"DEBUG: Dependency {dep} found for module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Check for circular dependencies (basic check)
-            if ModuleRegistry._has_circular_dependency(dependencies):
+            # Check for circular dependencies (only among discovered modules)
+            discovered_deps = {k: [d for d in v if d in modules] for k, v in dependencies.items() if k in modules}
+            if ModuleRegistry._has_circular_dependency(discovered_deps):
                 print("DEBUG: Circular dependency detected")
                 return False
             print("DEBUG: Module registry validation passed")

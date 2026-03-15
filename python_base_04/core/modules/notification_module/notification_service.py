@@ -110,4 +110,5 @@ class NotificationService:
             return msg_id
         except Exception as e:
             custom_log(f"NotificationService.create: insert failed: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            print(f"[NotificationService] create insert failed for user_id={user_id}: {e}", flush=True)
             return None

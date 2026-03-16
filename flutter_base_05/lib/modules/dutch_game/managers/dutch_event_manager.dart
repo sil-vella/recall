@@ -11,6 +11,20 @@ import '../../dutch_game/managers/dutch_event_listener_validator.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 
 
+/// Subtypes for notification response success handling. Must match backend dutch_notifications.SUBTYPE_*.
+class _NotificationSubtype {
+  static const String invite = 'dutch_invite';
+  static const String roomJoin = 'dutch_room_join';
+  static const String matchInvite = 'dutch_match_invite';
+}
+
+/// Handler called when a notification response succeeds. (response, message, context) from hook.
+typedef _NotificationSuccessHandler = Future<void> Function(
+  Map<String, dynamic> response,
+  Map<String, dynamic> message,
+  BuildContext? context,
+);
+
 class DutchEventManager {
   static const bool LOGGING_SWITCH = false; // Enabled for match start / event routing from bridges
   static final DutchEventManager _instance = DutchEventManager._internal();
@@ -19,6 +33,9 @@ class DutchEventManager {
 
   final Logger _logger = Logger();
   final StateManager _stateManager = StateManager();
+
+  /// Map subtype -> success handler (mirrors backend source + action_identifier -> handler).
+  final Map<String, _NotificationSuccessHandler> _notificationSuccessHandlers = {};
 
   final StreamController<List<Map<String, dynamic>>> _roomMessagesController = StreamController<List<Map<String, dynamic>>>.broadcast();
   final StreamController<List<Map<String, dynamic>>> _sessionMessagesController = StreamController<List<Map<String, dynamic>>>.broadcast();
@@ -283,46 +300,19 @@ class DutchEventManager {
       }
     });
     
-    // When user taps Join on room-ready notification (dutch_room_join), join room and navigate to game play screen.
+    // Map subtype -> success handler (same idea as backend: source + action_identifier -> handler).
+    _notificationSuccessHandlers[_NotificationSubtype.roomJoin] = _onNotificationSuccessRoomJoin;
+    _notificationSuccessHandlers[_NotificationSubtype.invite] = _onNotificationSuccessInvite; // no-op for now
+    _notificationSuccessHandlers[_NotificationSubtype.matchInvite] = _onNotificationSuccessMatchInvite; // blank for now
+
     HooksManager().registerHookWithData('instant_message_response_success', (data) async {
       final subtype = data['subtype']?.toString() ?? '';
-      if (subtype != 'dutch_room_join') return;
-      final message = data['message'];
-      final response = data['response'];
-      final msgData = message is Map ? message['data'] : null;
-      final responseData = response is Map ? response : null;
-      final roomId = (msgData is Map ? msgData['room_id'] : null)?.toString() ??
-          (responseData != null ? responseData['room_id']?.toString() : null);
-      if (roomId == null || roomId.isEmpty) return;
-      final result = await DutchGameHelpers.joinRoom(roomId: roomId);
-      if (result['success'] != true) {
-        if (LOGGING_SWITCH) _logger.error('dutch_room_join joinRoom failed: ${result['error']}');
-        return;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
-      if (games.containsKey(roomId)) {
-        DutchGameHelpers.setCurrentGameSync(roomId, games);
-      } else {
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-        final retryState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-        final retryGames = Map<String, dynamic>.from(retryState['games'] as Map<String, dynamic>? ?? {});
-        if (retryGames.containsKey(roomId)) {
-          DutchGameHelpers.setCurrentGameSync(roomId, retryGames);
-        }
-      }
-      // Always navigate to game play screen after successful join (state may populate when game_state_updated arrives).
-      NavigationManager().navigateTo('/dutch/game-play');
-      final ctx = data['context'];
-      if (ctx is BuildContext && ctx.mounted) {
-        ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(
-          SnackBar(
-            content: const Text('Joined. Opening game...'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-      }
+      final handler = _notificationSuccessHandlers[subtype];
+      if (handler == null) return;
+      final message = data['message'] is Map ? Map<String, dynamic>.from(data['message'] as Map) : <String, dynamic>{};
+      final response = data['response'] is Map ? Map<String, dynamic>.from(data['response'] as Map) : <String, dynamic>{};
+      final ctx = data['context'] is BuildContext ? data['context'] as BuildContext? : null;
+      await handler(response, message, ctx);
     });
     
     // Register websocket_join_room hook callback (for joining existing rooms)
@@ -422,6 +412,62 @@ class DutchEventManager {
     
   }
 
+  /// Success handler for subtype dutch_room_join: join room, set game, navigate to game-play.
+  Future<void> _onNotificationSuccessRoomJoin(
+    Map<String, dynamic> response,
+    Map<String, dynamic> message,
+    BuildContext? context,
+  ) async {
+    final msgData = message['data'];
+    final roomId = (msgData is Map ? msgData['room_id'] : null)?.toString() ??
+        response['room_id']?.toString();
+    if (roomId == null || roomId.isEmpty) return;
+    final result = await DutchGameHelpers.joinRoom(roomId: roomId);
+    if (result['success'] != true) {
+      if (LOGGING_SWITCH) _logger.error('dutch_room_join joinRoom failed: ${result['error']}');
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
+    if (games.containsKey(roomId)) {
+      DutchGameHelpers.setCurrentGameSync(roomId, games);
+    } else {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      final retryState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final retryGames = Map<String, dynamic>.from(retryState['games'] as Map<String, dynamic>? ?? {});
+      if (retryGames.containsKey(roomId)) {
+        DutchGameHelpers.setCurrentGameSync(roomId, retryGames);
+      }
+    }
+    NavigationManager().navigateTo('/dutch/game-play');
+    if (context != null && context.mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: const Text('Joined. Opening game...'),
+          backgroundColor: AppColors.successColor,
+        ),
+      );
+    }
+  }
+
+  /// Success handler for subtype dutch_invite (accept/decline). No extra UI for now.
+  Future<void> _onNotificationSuccessInvite(
+    Map<String, dynamic> response,
+    Map<String, dynamic> message,
+    BuildContext? context,
+  ) async {
+    // Optional: refresh create-match UI, show snackbar, etc.
+  }
+
+  /// Success handler for subtype dutch_match_invite (join/decline). Blank for now.
+  Future<void> _onNotificationSuccessMatchInvite(
+    Map<String, dynamic> response,
+    Map<String, dynamic> message,
+    BuildContext? context,
+  ) async {
+    // Optional: navigate, refresh UI, etc.
+  }
 
   // void _addRoomMessage(String roomId, {required String? level, required String? title, required String? message, Map<String, dynamic>? data}) {
   //   final entry = _entry(level, title, message, data);

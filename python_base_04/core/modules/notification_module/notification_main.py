@@ -4,7 +4,7 @@ for other modules (e.g. Dutch game) to create notifications.
 """
 
 from core.modules.base_module import BaseModule
-from .notification_routes import notification_api, set_app_manager
+from .notification_routes import notification_api, set_app_manager, register_response_handlers
 from .notification_service import NotificationService
 
 LOGGING_SWITCH = False
@@ -33,3 +33,7 @@ class NotificationMain(BaseModule):
     def get_notification_service(self) -> NotificationService:
         """Return the notification service for other modules to create notifications."""
         return self._notification_service
+
+    def register_response_handlers(self, source: str, handlers: dict):
+        """Register response handlers for the given source. Modules call this during init."""
+        register_response_handlers(source, handlers)

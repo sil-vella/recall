@@ -11,7 +11,7 @@ import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for coins verification flow (create/join room) — see .cursor/rules/enable-logging-switch.mdc
+const bool LOGGING_SWITCH = true; // Enabled for create/join room + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -312,6 +312,28 @@ class MessageHandler {
       }
       if (room.gameLevel != null) createSuccessPayload['game_level'] = room.gameLevel;
       _server.sendToSession(sessionId, createSuccessPayload);
+      
+      // Tournament room: attach room_id to tournament match in Python DB now (match not started yet; start is triggered remotely)
+      if (isTournament &&
+          tournamentData != null &&
+          tournamentData.isNotEmpty) {
+        final tid = (tournamentData['tournament_id']?.toString() ?? '').trim();
+        final mid = tournamentData['match_index'] ?? tournamentData['match_id'];
+        if (tid.isNotEmpty && mid != null) {
+          if (LOGGING_SWITCH) {
+            _logger.room('🏟 Tournament room created: calling attach-tournament-match-room tournament_id=$tid match_id=$mid room_id=$roomId');
+          }
+          _server.pythonClient.attachTournamentMatchRoom(
+            tournamentId: tid,
+            roomId: roomId,
+            matchIndex: mid,
+          ).then((result) {
+            if (result['success'] != true && LOGGING_SWITCH) {
+              _logger.game('⚠️ attach-tournament-match-room failed: ${result['error']}');
+            }
+          });
+        }
+      }
       
       // 🎣 Trigger room_created hook
       final roomCreatedData = {

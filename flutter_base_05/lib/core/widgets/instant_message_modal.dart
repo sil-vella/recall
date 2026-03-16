@@ -7,18 +7,14 @@ import '../../utils/consts/theme_consts.dart';
 /// Notification type that must be shown as a modal immediately, app-wide.
 const String kNotificationTypeInstant = 'instant';
 
-/// Server-defined response action: label, endpoint, method, action (sent in body).
+/// Server-defined response action: label and action_identifier. Client calls single core endpoint with message_id + action_identifier.
 class ResponseAction {
   const ResponseAction({
     required this.label,
-    required this.endpoint,
-    required this.method,
-    required this.action,
+    required this.actionIdentifier,
   });
   final String label;
-  final String endpoint;
-  final String method;
-  final String action;
+  final String actionIdentifier;
   static List<ResponseAction> fromMessage(Map<String, dynamic> message) {
     final list = message['responses'];
     if (list is! List || list.isEmpty) return [];
@@ -26,11 +22,9 @@ class ResponseAction {
     for (final e in list) {
       if (e is! Map) continue;
       final label = e['label']?.toString().trim();
-      final endpoint = e['endpoint']?.toString().trim();
-      final method = (e['method']?.toString().toUpperCase() ?? 'POST').trim();
-      final action = e['action']?.toString().trim();
-      if (label != null && label.isNotEmpty && endpoint != null && endpoint.isNotEmpty && action != null && action.isNotEmpty) {
-        out.add(ResponseAction(label: label, endpoint: endpoint, method: method.isEmpty ? 'POST' : method, action: action));
+      final actionId = (e['action_identifier'] ?? e['action'])?.toString().trim().toLowerCase();
+      if (label != null && label.isNotEmpty && actionId != null && actionId.isNotEmpty) {
+        out.add(ResponseAction(label: label, actionIdentifier: actionId));
       }
     }
     return out;
@@ -52,7 +46,8 @@ class InstantMessageModal extends StatelessWidget {
   final Map<String, dynamic> message;
   final VoidCallback onDismiss;
   final String dismissLabel;
-  final Future<bool> Function(String endpoint, String method, Map<String, dynamic> body, Map<String, dynamic> message)? onSendResponse;
+  /// Single core endpoint: called with messageId and actionIdentifier. Returns true if success.
+  final Future<bool> Function(String messageId, String actionIdentifier)? onSendResponse;
   final Future<void> Function(String messageId)? onMarkAsRead;
 
   String get _title => message['title']?.toString().trim().isNotEmpty == true
@@ -141,8 +136,7 @@ class InstantMessageModal extends StatelessWidget {
     if (send == null) return;
     final id = message['id']?.toString() ?? '';
     if (id.isEmpty) return;
-    final body = <String, dynamic>{'message_id': id, 'action': r.action};
-    final ok = await send(r.endpoint, r.method, body, message);
+    final ok = await send(id, r.actionIdentifier);
     if (context.mounted && ok) {
       Navigator.of(context).pop();
     }
@@ -153,7 +147,7 @@ class InstantMessageModal extends StatelessWidget {
     required Map<String, dynamic> message,
     required VoidCallback onDismiss,
     String dismissLabel = 'OK',
-    Future<bool> Function(String endpoint, String method, Map<String, dynamic> body, Map<String, dynamic> message)? onSendResponse,
+    Future<bool> Function(String messageId, String actionIdentifier)? onSendResponse,
     Future<void> Function(String messageId)? onMarkAsRead,
   }) {
     return showDialog<void>(
@@ -175,7 +169,7 @@ class InstantMessageModal extends StatelessWidget {
     BuildContext context, {
     required List<Map<String, dynamic>> messages,
     required Future<void> Function(String messageId) onMarkAsRead,
-    Future<bool> Function(String endpoint, String method, Map<String, dynamic> body, Map<String, dynamic> message)? onSendResponse,
+    Future<bool> Function(String messageId, String actionIdentifier)? onSendResponse,
   }) async {
     if (!context.mounted) return;
     final instantUnread = messages.where((m) {

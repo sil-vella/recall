@@ -4,7 +4,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for coins verification flow (get-user-stats) — see .cursor/rules/enable-logging-switch.mdc
+const bool LOGGING_SWITCH = true; // Enabled for get-user-stats + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
 
 class PythonApiClient {
   final String baseUrl;
@@ -256,6 +256,78 @@ class PythonApiClient {
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('❌ Dart: Network error get-user-stats: $e');
+      }
+      return {
+        'success': false,
+        'error': 'Connection failed',
+        'message': e.toString(),
+      };
+    }
+  }
+
+  /// Attach a room_id to a tournament match (service endpoint: X-Service-Key auth).
+  /// Called by Dart backend when a tournament room's match starts so Python DB stays in sync.
+  Future<Map<String, dynamic>> attachTournamentMatchRoom({
+    required String tournamentId,
+    required String roomId,
+    dynamic matchIndex,
+  }) async {
+    if (LOGGING_SWITCH) {
+      _logger.info('🏟 Dart: attach-tournament-match-room tournament_id=$tournamentId match_index=$matchIndex room_id=$roomId');
+      _logger.info('🌐 Dart: Calling $baseUrl/service/dutch/attach-tournament-match-room');
+    }
+
+    final useKey = Config.usePythonServiceKey;
+    final serviceKey = useKey ? Config.pythonServiceKey : '';
+    if (useKey && serviceKey.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('⚠️ Dart: USE_PYTHON_SERVICE_KEY is on but DART_BACKEND_SERVICE_KEY not set; Python may reject the request');
+      }
+    }
+
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (serviceKey.isNotEmpty) 'X-Service-Key': serviceKey,
+    };
+
+    final body = <String, dynamic>{
+      'tournament_id': tournamentId,
+      'room_id': roomId,
+    };
+    if (matchIndex != null) {
+      body['match_index'] = matchIndex;
+      body['match_id'] = matchIndex; // Python accepts either
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/service/dutch/attach-tournament-match-room'),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      if (LOGGING_SWITCH) {
+        _logger.info('📡 Dart: attach-tournament-match-room response status: ${response.statusCode}');
+        _logger.info('📦 Dart: Response body: ${response.body}');
+      }
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        final success = result['success'] as bool? ?? false;
+        if (success && LOGGING_SWITCH) {
+          _logger.info('✅ Dart: attach-tournament-match-room success');
+        }
+        return result;
+      }
+      return {
+        'success': false,
+        'error': 'Failed to attach room to tournament match',
+        'status_code': response.statusCode,
+        'body': response.body,
+      };
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Dart: Network error attach-tournament-match-room: $e');
       }
       return {
         'success': false,

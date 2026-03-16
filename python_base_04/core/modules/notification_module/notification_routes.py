@@ -1,5 +1,6 @@
 """
-Notification API routes: list messages and mark as read. JWT required.
+Notification API routes: list messages, mark as read, and single response endpoint. JWT required.
+Modules register response handlers by source; core dispatches by message_id -> source -> action_identifier.
 """
 
 from datetime import datetime
@@ -17,10 +18,24 @@ notification_api = Blueprint("notification_api", __name__)
 _app_manager = None
 LOGGING_SWITCH = False  # Trace list_messages for inbox debugging
 
+# source -> { action_identifier -> callable(doc, user_id) -> dict }
+_response_handlers = {}
+
 
 def set_app_manager(app_manager):
     global _app_manager
     _app_manager = app_manager
+
+
+def register_response_handlers(source: str, handlers: dict):
+    """
+    Register response handlers for a module. Called by modules (e.g. dutch_game) during init.
+    :param source: Must match notification doc "source" (e.g. "dutch_game").
+    :param handlers: Dict of action_identifier -> callable(doc, user_id). Callable returns dict (jsonified as response).
+    """
+    if not source or not isinstance(handlers, dict):
+        return
+    _response_handlers[source.strip()] = {k.strip(): v for k, v in handlers.items() if k and callable(v)}
 
 
 def _get_current_user_id():
@@ -90,6 +105,14 @@ def list_messages():
             responses = doc.get("responses")
             if not isinstance(responses, list):
                 responses = []
+            responses_out = []
+            for r in (responses or []):
+                if not isinstance(r, dict):
+                    continue
+                label = (r.get("label") or "").strip()
+                action_id = (r.get("action_identifier") or r.get("action") or "").strip()
+                if label and action_id:
+                    responses_out.append({"label": label, "action_identifier": action_id})
             out.append({
                 "id": str(_id) if _id is not None else None,
                 "source": doc.get("source", ""),
@@ -98,7 +121,7 @@ def list_messages():
                 "title": doc.get("title", ""),
                 "body": doc.get("body", ""),
                 "data": doc.get("data") or {},
-                "responses": [dict(r) for r in responses if isinstance(r, dict)],
+                "responses": responses_out,
                 "created_at": created.isoformat() if isinstance(created, datetime) else created,
                 "read": doc.get("read", False) is True,
                 "read_at": read_at.isoformat() if isinstance(read_at, datetime) else read_at,
@@ -160,4 +183,89 @@ def mark_read():
         return jsonify({"success": True, "updated": updated}), 200
     except Exception as e:
         custom_log(f"notification mark_read error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _doc_to_dict(doc):
+    """Build a serializable dict from a notification document for handler(doc, user_id)."""
+    if not doc:
+        return {}
+    created = doc.get("created_at")
+    read_at = doc.get("read_at")
+    return {
+        "id": str(doc["_id"]) if doc.get("_id") else None,
+        "user_id": str(doc["user_id"]) if doc.get("user_id") else None,
+        "source": doc.get("source", ""),
+        "type": doc.get("type", ""),
+        "subtype": doc.get("subtype", ""),
+        "title": doc.get("title", ""),
+        "body": doc.get("body", ""),
+        "data": doc.get("data") if isinstance(doc.get("data"), dict) else {},
+        "responses": list(doc.get("responses") or []),
+        "read": bool(doc.get("read")),
+        "created_at": created.isoformat() if isinstance(created, datetime) else created,
+        "read_at": read_at.isoformat() if isinstance(read_at, datetime) else read_at,
+    }
+
+
+@notification_api.route("/userauth/notifications/response", methods=["POST"])
+def handle_response():
+    """
+    Single endpoint for all notification response actions. Body: message_id, action_identifier.
+    Core loads the notification, checks ownership, maps source -> action_identifier to registered handler, runs it, marks read on success.
+    """
+    try:
+        user_id = _get_current_user_id()
+        if not user_id:
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not configured"}), 500
+        data = request.get_json(silent=True) or {}
+        message_id = (data.get("message_id") or "").strip()
+        action_identifier = (data.get("action_identifier") or data.get("action") or "").strip().lower()
+        if not message_id or not action_identifier:
+            return jsonify({"success": False, "error": "message_id and action_identifier required"}), 400
+        try:
+            msg_oid = ObjectId(message_id)
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid message_id"}), 400
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database unavailable"}), 500
+        doc = db_manager.find_one(NOTIFICATIONS_COLLECTION, {"_id": msg_oid})
+        if not doc:
+            return jsonify({"success": False, "error": "Notification not found"}), 404
+        doc_user_id = doc.get("user_id")
+        if str(doc_user_id) != str(user_id):
+            return jsonify({"success": False, "error": "Forbidden"}), 403
+        source = (doc.get("source") or "").strip()
+        if not source:
+            return jsonify({"success": False, "error": "Notification has no source"}), 400
+        handlers = _response_handlers.get(source)
+        if not handlers:
+            return jsonify({"success": False, "error": "No handlers registered for source"}), 400
+        handler = handlers.get(action_identifier)
+        if not handler:
+            return jsonify({"success": False, "error": "Unknown action_identifier for this notification"}), 400
+        normalized_doc = _doc_to_dict(doc)
+        try:
+            result = handler(normalized_doc, user_id)
+        except Exception as e:
+            custom_log(f"notification response handler error source={source} action={action_identifier}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": str(e)}), 500
+        if not isinstance(result, dict):
+            return jsonify({"success": False, "error": "Invalid handler result"}), 500
+        if result.get("success") is True:
+            now = datetime.utcnow()
+            try:
+                db_manager.update(
+                    NOTIFICATIONS_COLLECTION,
+                    {"_id": msg_oid, "user_id": doc_user_id},
+                    {"read": True, "read_at": now, "updated_at": now},
+                )
+            except Exception:
+                pass
+        return jsonify(result), 200
+    except Exception as e:
+        custom_log(f"notification handle_response error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500

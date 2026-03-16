@@ -25,7 +25,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true; // Enabled for coins verification flow — see .cursor/rules/enable-logging-switch.mdc
+  static const bool LOGGING_SWITCH = false; // Enabled for coins verification flow — see .cursor/rules/enable-logging-switch.mdc
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -59,6 +59,8 @@ class DutchGameHelpers {
   /// [acceptedPlayers] Optional list of { user_id, username, is_comp_player } for create-match invite flow.
   /// [gameLevel] Optional game level (e.g. 1, 2, 3); passed to backend for room/game configuration.
   /// [addCreatorToRoom] If true, the creator is added to the room as a participant (default true).
+  /// [isTournament] Optional: true when this room is for a tournament match.
+  /// [tournamentData] Optional: tournament payload (e.g. id, name, format, leaderboard, matches_left, match_index).
   static Future<Map<String, dynamic>> createRoom({
     required String permission,
     required int maxPlayers,
@@ -69,6 +71,8 @@ class DutchGameHelpers {
     String? password,
     List<Map<String, dynamic>>? acceptedPlayers,
     int? gameLevel,
+    bool? isTournament,
+    Map<String, dynamic>? tournamentData,
   }) async {
     try {
       // 🎯 CRITICAL: Clear all existing game state before starting new game
@@ -99,6 +103,12 @@ class DutchGameHelpers {
     }
     if (acceptedPlayers != null && acceptedPlayers.isNotEmpty) {
       data['accepted_players'] = acceptedPlayers;
+    }
+    if (isTournament == true) {
+      data['is_tournament'] = true;
+    }
+    if (tournamentData != null && tournamentData.isNotEmpty) {
+      data['tournament_data'] = tournamentData;
     }
 
     if (LOGGING_SWITCH) {

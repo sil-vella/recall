@@ -9,6 +9,7 @@ import '../../../../../core/managers/module_manager.dart';
 import '../../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../../modules/user_management_module/user_management_module.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../utils/dutch_game_helpers.dart';
 
 /// Max number of tournament rows visible before scrolling.
 const int _kMaxVisibleTournamentRows = 5;
@@ -349,9 +350,24 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Tournament details',
-            style: AppTextStyles.headingSmall().copyWith(color: AppColors.textOnPrimary),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Tournament details',
+                style: AppTextStyles.headingSmall().copyWith(color: AppColors.textOnPrimary),
+              ),
+              IconButton(
+                icon: Icon(Icons.refresh, color: AppColors.textOnPrimary, size: 22),
+                onPressed: _loading
+                    ? null
+                    : () async {
+                        await _fetchTournaments();
+                      },
+                tooltip: 'Refresh from DB',
+              ),
+            ],
           ),
           SizedBox(height: AppPadding.defaultPadding.top),
           _buildDetailRow('ID', tournament['id']?.toString() ?? '—'),
@@ -401,6 +417,7 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
               return Padding(
                 padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
                 child: _buildMatchCard(
+                  context,
                   m,
                   tournament['id']?.toString(),
                   isExpanded: isExpanded,
@@ -433,6 +450,7 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
 
   /// One match card (accordion): tap header to expand/collapse. Only one match open at a time is enforced by caller.
   Widget _buildMatchCard(
+    BuildContext context,
     Map<String, dynamic> match,
     String? tournamentId, {
     required bool isExpanded,
@@ -441,6 +459,7 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
     final matchId = match['match_id']?.toString() ?? '—';
     final status = match['status']?.toString() ?? '—';
     final roomId = match['room_id']?.toString() ?? '—';
+    final roomIdBlank = roomId.isEmpty || roomId == '—';
     final winner = match['winner']?.toString() ?? '—';
     final startDate = _formatDate(_parseDate(match['start_date']));
     final players = match['players'] as List<dynamic>? ?? [];
@@ -486,7 +505,53 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildDetailRow('Status', status),
-                  _buildDetailRow('Room ID', roomId),
+                  if (roomIdBlank)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top / 2),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Room ID: ',
+                            style: AppTextStyles.bodySmall().copyWith(color: AppColors.textOnPrimary),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final result = await DutchGameHelpers.createRoom(
+                                addCreatorToRoom: false,
+                                maxPlayers: 4,
+                                minPlayers: 2,
+                                autoStart: false,
+                                permission: 'public',
+                                gameType: 'classic',
+                                isTournament: true,
+                                tournamentData: {
+                                  'tournament_id': tournamentId ?? '',
+                                  'match_id': matchId,
+                                },
+                              );
+                              if (!context.mounted) return;
+                              final success = result['success'] == true;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    success ? (result['room_id']?.toString() ?? 'Room created') : (result['error']?.toString() ?? 'Failed to create room'),
+                                    style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                  ),
+                                  backgroundColor: success ? AppColors.primaryColor : AppColors.errorColor,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                            child: Text(
+                              'Create room',
+                              style: AppTextStyles.bodySmall().copyWith(color: AppColors.accentColor),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    _buildDetailRow('Room ID', roomId),
                   _buildDetailRow('Winner', winner),
                   _buildDetailRow('Start date', startDate),
                   if (players.isNotEmpty) ...[
@@ -515,6 +580,131 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                       );
                     }),
                   ],
+                  SizedBox(height: AppPadding.smallPadding.top),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: roomIdBlank
+                            ? null
+                            : () async {
+                                final userIds = <String>[];
+                                for (final p in players) {
+                                  final map = p is Map ? p as Map<String, dynamic> : null;
+                                  if (map == null) continue;
+                                  final uid = (map['user_id']?.toString() ?? '').trim();
+                                  if (uid.isNotEmpty && uid != '—') {
+                                    userIds.add(uid);
+                                  }
+                                }
+                                if (userIds.isEmpty) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'No players to notify',
+                                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                        ),
+                                        backgroundColor: AppColors.warningColor,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+                                final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+                                if (api == null) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'API not available',
+                                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                        ),
+                                        backgroundColor: AppColors.errorColor,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+                                final body = <String, dynamic>{
+                                  'user_ids': userIds,
+                                  'match_id': matchId,
+                                  'title': 'Tournament match invite',
+                                  'body': 'You are invited to join the match. Room ID: $roomId',
+                                };
+                                try {
+                                  final response = await api.sendPostRequest(
+                                    '/userauth/dutch/invite-players-to-match',
+                                    body,
+                                  );
+                                  if (!context.mounted) return;
+                                  final map = response is Map ? response as Map<String, dynamic> : null;
+                                  final success = map?['success'] == true;
+                                  final notified = map?['notified'] as int? ?? 0;
+                                  final requested = map?['requested'] as int? ?? 0;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        success
+                                            ? 'Notified $notified of $requested player(s)'
+                                            : (map?['error']?.toString() ?? 'Failed to notify players'),
+                                        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                      ),
+                                      backgroundColor: success ? AppColors.successColor : AppColors.errorColor,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Error: $e',
+                                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                        ),
+                                        backgroundColor: AppColors.errorColor,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        style: TextButton.styleFrom(
+                          backgroundColor: roomIdBlank ? AppColors.disabledColor : AppColors.accentColor,
+                          foregroundColor: roomIdBlank ? AppColors.textSecondary : AppColors.textOnAccent,
+                          padding: AppPadding.cardPadding,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppBorderRadius.mediumRadius,
+                          ),
+                        ),
+                        child: Text(
+                          'Notify Players',
+                          style: AppTextStyles.buttonText().copyWith(
+                            color: roomIdBlank ? AppColors.textSecondary : AppColors.textOnAccent,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: AppPadding.smallPadding.left),
+                      TextButton(
+                        onPressed: null,
+                        style: TextButton.styleFrom(
+                          backgroundColor: AppColors.disabledColor,
+                          foregroundColor: AppColors.textSecondary,
+                          padding: AppPadding.cardPadding,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppBorderRadius.mediumRadius,
+                          ),
+                        ),
+                        child: Text(
+                          'Start Match',
+                          style: AppTextStyles.buttonText().copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

@@ -49,7 +49,7 @@ class NotificationService:
         :param title: Short title for the message.
         :param body: Body text.
         :param data: Optional extra payload (e.g. tournament_id).
-        :param responses: Optional list of server-defined actions (label, endpoint, method, action). Module-defined for its subtype.
+        :param responses: Optional list of actions: each dict with "label" and "action_identifier" (or "action"). No endpoint/method; core dispatches by source + action_identifier.
         :param subtype: Optional module-specific name (e.g. "tournament_invite") for the module's own handling and responses.
         :return: Inserted document _id as string, or None on failure.
         """
@@ -83,8 +83,12 @@ class NotificationService:
         responses_list = []
         if isinstance(responses, list):
             for r in responses:
-                if isinstance(r, dict):
-                    responses_list.append({k: v for k, v in r.items() if k in ("label", "endpoint", "method", "action")})
+                if not isinstance(r, dict):
+                    continue
+                label = (r.get("label") or "").strip()
+                action_id = (r.get("action_identifier") or r.get("action") or "").strip()
+                if label and action_id:
+                    responses_list.append({"label": label, "action_identifier": action_id})
         doc = {
             "user_id": user_oid,
             "source": (source or "").strip(),

@@ -485,27 +485,18 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       onMarkAsRead: (id) => mod.markAsRead([id]),
       onSendResponse: api == null
           ? null
-          : (String endpoint, String method, Map<String, dynamic> body, Map<String, dynamic> message) async {
+          : (String messageId, String actionIdentifier) async {
               try {
-                final Map<String, dynamic> res;
-                if (method.toUpperCase() == 'GET') {
-                  final uri = Uri.parse(endpoint);
-                  final query = Map<String, String>.from(uri.queryParameters)
-                    ..addAll({
-                      if (body['message_id'] != null) 'message_id': body['message_id'].toString(),
-                      if (body['action'] != null) 'action': body['action'].toString(),
-                    });
-                  final getUrl = uri.replace(queryParameters: query).toString();
-                  res = await api.sendGetRequest(getUrl) as Map<String, dynamic>? ?? {};
-                } else {
-                  res = await api.sendPostRequest(endpoint, body) as Map<String, dynamic>? ?? {};
-                }
+                final res = await api.sendPostRequest(
+                  '/userauth/notifications/response',
+                  {'message_id': messageId, 'action_identifier': actionIdentifier},
+                ) as Map<String, dynamic>? ?? {};
                 final ok = res['success'] == true;
                 if (ok && context.mounted) {
-                  final msgId = message['id']?.toString();
-                  if (msgId != null && msgId.isNotEmpty) {
-                    await mod.markAsRead([msgId]);
+                  if (messageId.isNotEmpty) {
+                    await mod.markAsRead([messageId]);
                   }
+                  final message = list.cast<Map<String, dynamic>>().where((m) => m['id']?.toString() == messageId).firstOrNull ?? <String, dynamic>{};
                   final subtype = message['subtype']?.toString() ?? '';
                   HooksManager().triggerHookWithData('instant_message_response_success', {
                     'context': context,

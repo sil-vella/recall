@@ -10,6 +10,7 @@ import '../../../../../core/managers/module_manager.dart';
 import '../../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../../modules/user_management_module/user_management_module.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../managers/validated_event_emitter.dart';
 import '../../utils/dutch_game_helpers.dart';
 
 /// Max number of tournament rows visible before scrolling.
@@ -47,6 +48,11 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
 
   /// Match index of the expanded match in the detail section (only one open at a time). Null = none expanded.
   dynamic _expandedMatchIndex;
+
+  /// Room IDs for which the Start Match button is enabled (5 seconds after successful Notify Players).
+  final Set<String> _startMatchEnabledRoomIds = {};
+  /// Room IDs for which a start_match request is in progress (disable button to avoid double-send).
+  final Set<String> _startMatchInProgressRoomIds = {};
 
   List<Map<String, dynamic>> get _filteredTournaments {
     return _allTournaments.where((t) {
@@ -657,7 +663,7 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                     SnackBar(
                                       content: Text(
                                         success
-                                            ? 'Notified $notified of $requested player(s)'
+                                            ? 'Notified $notified of $requested player(s). Start Match enabled in 5s.'
                                             : (map?['error']?.toString() ?? 'Failed to notify players'),
                                         style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
                                       ),
@@ -665,6 +671,15 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                       behavior: SnackBarBehavior.floating,
                                     ),
                                   );
+                                  if (success && roomId.isNotEmpty) {
+                                    Future.delayed(const Duration(seconds: 5), () {
+                                      if (mounted) {
+                                        setState(() {
+                                          _startMatchEnabledRoomIds.add(roomId);
+                                        });
+                                      }
+                                    });
+                                  }
                                 } catch (e) {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -697,19 +712,58 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                       ),
                       SizedBox(width: AppPadding.smallPadding.left),
                       TextButton(
-                        onPressed: null,
+                        onPressed: (roomIdBlank || !_startMatchEnabledRoomIds.contains(roomId) || _startMatchInProgressRoomIds.contains(roomId))
+                            ? null
+                            : () async {
+                                setState(() {
+                                  _startMatchInProgressRoomIds.add(roomId);
+                                });
+                                try {
+                                  final result = await DutchGameEventEmitter.instance.emit(
+                                    eventType: 'start_match',
+                                    data: {'game_id': roomId},
+                                  );
+                                  if (!mounted) return;
+                                  final ok = result['success'] == true;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        ok ? 'Start match sent for room $roomId' : (result['error']?.toString() ?? 'Failed to start match'),
+                                        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                      ),
+                                      backgroundColor: ok ? AppColors.successColor : AppColors.errorColor,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                  if (ok) {
+                                    _startMatchEnabledRoomIds.remove(roomId);
+                                  }
+                                } finally {
+                                  if (mounted) {
+                                    setState(() {
+                                      _startMatchInProgressRoomIds.remove(roomId);
+                                    });
+                                  }
+                                }
+                              },
                         style: TextButton.styleFrom(
-                          backgroundColor: AppColors.disabledColor,
-                          foregroundColor: AppColors.textSecondary,
+                          backgroundColor: (roomIdBlank || !_startMatchEnabledRoomIds.contains(roomId) || _startMatchInProgressRoomIds.contains(roomId))
+                              ? AppColors.disabledColor
+                              : AppColors.successColor,
+                          foregroundColor: (roomIdBlank || !_startMatchEnabledRoomIds.contains(roomId) || _startMatchInProgressRoomIds.contains(roomId))
+                              ? AppColors.textSecondary
+                              : AppColors.textOnAccent,
                           padding: AppPadding.cardPadding,
                           shape: RoundedRectangleBorder(
                             borderRadius: AppBorderRadius.mediumRadius,
                           ),
                         ),
                         child: Text(
-                          'Start Match',
+                          _startMatchInProgressRoomIds.contains(roomId) ? 'Starting…' : 'Start Match',
                           style: AppTextStyles.buttonText().copyWith(
-                            color: AppColors.textSecondary,
+                            color: (roomIdBlank || !_startMatchEnabledRoomIds.contains(roomId) || _startMatchInProgressRoomIds.contains(roomId))
+                                ? AppColors.textSecondary
+                                : AppColors.textOnAccent,
                           ),
                         ),
                       ),

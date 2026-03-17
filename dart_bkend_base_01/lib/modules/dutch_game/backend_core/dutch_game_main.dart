@@ -82,6 +82,11 @@ class DutchGameModule {
       final minPlayers = data['min_players'] as int? ?? 2;
       final gameType = data['game_type'] as String? ?? 'multiplayer';
       final gameLevel = data['game_level'] as int?;
+      final isTournament = data['is_tournament'] as bool? ?? false;
+      final tournamentData = data['tournament_data'] as Map<String, dynamic>?;
+      final permission = data['permission'] as String?;
+      final createdAt = data['created_at'] as String?;
+      final currentSize = data['current_size'] as int?;
 
       if (roomId == null || ownerId == null || sessionId == null) {
         if (LOGGING_SWITCH) {
@@ -213,24 +218,33 @@ class DutchGameModule {
       }
 
       final store = GameStateStore.instance;
+      // Build inner game_state with full room args so clients and coordinator have complete context
+      final gameStateInner = <String, dynamic>{
+        'gameId': roomId,
+        'gameName': 'Game_$roomId',
+        'gameType': gameType,
+        'maxPlayers': maxSize,
+        'minPlayers': minPlayers,
+        'isGameActive': false,
+        'phase': 'waiting_for_players',
+        'playerCount': initialPlayers.length,
+        'players': initialPlayers,
+        'drawPile': <Map<String, dynamic>>[],
+        'discardPile': <Map<String, dynamic>>[],
+        'originalDeck': <Map<String, dynamic>>[],
+      };
+      if (gameLevel != null) gameStateInner['gameLevel'] = gameLevel;
+      if (isTournament) gameStateInner['is_tournament'] = true;
+      if (tournamentData != null && tournamentData.isNotEmpty) gameStateInner['tournament_data'] = tournamentData;
+      if (permission != null && permission.isNotEmpty) gameStateInner['permission'] = permission;
+      if (createdAt != null && createdAt.isNotEmpty) gameStateInner['created_at'] = createdAt;
+      if (currentSize != null) gameStateInner['current_size'] = currentSize;
+      gameStateInner['owner_id'] = ownerId;
+
       store.mergeRoot(roomId, {
         'game_id': roomId,
         'roomDifficulty': roomDifficulty,
-        'game_state': {
-          'gameId': roomId,
-          'gameName': 'Game_$roomId',
-          'gameType': gameType,
-          if (gameLevel != null) 'gameLevel': gameLevel,
-          'maxPlayers': maxSize,
-          'minPlayers': minPlayers,
-          'isGameActive': false,
-          'phase': 'waiting_for_players',
-          'playerCount': initialPlayers.length,
-          'players': initialPlayers,
-          'drawPile': <Map<String, dynamic>>[],
-          'discardPile': <Map<String, dynamic>>[],
-          'originalDeck': <Map<String, dynamic>>[],
-        },
+        'game_state': gameStateInner,
       });
 
       if (addCreatorToRoom) {

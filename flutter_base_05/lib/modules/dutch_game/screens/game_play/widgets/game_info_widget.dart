@@ -97,6 +97,16 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final multiplayerType = gameInfo['multiplayerType'] as Map<String, dynamic>?;
         // Show Start only in waiting phase and for practice games (not for multiplayer create/join).
         final showStartButton = gamePhase == 'waiting' && isPracticeGame;
+
+        // Game level and tournament info from current game's game_state (SSOT)
+        final gameEntry = games[currentGameId] as Map<String, dynamic>? ?? {};
+        final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? {};
+        final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+        final gameLevel = gameState['gameLevel']; // int or null
+        final isTournament = gameState['is_tournament'] == true;
+        final tournamentData = gameState['tournament_data'] as Map<String, dynamic>? ?? {};
+        final tournamentId = tournamentData['tournament_id']?.toString();
+        final matchId = tournamentData['match_id']?.toString() ?? tournamentData['match_index']?.toString();
         
         if (LOGGING_SWITCH) {
           _logger.info('🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, multiplayerType: $multiplayerType, showStartButton: $showStartButton');
@@ -133,6 +143,10 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
           isMyTurn: isMyTurn,
           playerStatus: playerStatus,
           showStartButton: showStartButton,
+          gameLevel: gameLevel,
+          isTournament: isTournament,
+          tournamentId: tournamentId,
+          matchId: matchId,
         );
       },
     );
@@ -188,6 +202,10 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
     required bool isMyTurn,
     required String playerStatus,
     required bool showStartButton,
+    Object? gameLevel,
+    bool isTournament = false,
+    String? tournamentId,
+    String? matchId,
   }) {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
@@ -222,6 +240,56 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
                   ),
                 ],
               ),
+
+              if (gameLevel != null) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.star, size: 16, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Level: $gameLevel',
+                      style: AppTextStyles.bodySmall().copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              if (isTournament && (tournamentId != null || matchId != null)) ...[
+                const SizedBox(height: 4),
+                if (tournamentId != null)
+                  Row(
+                    children: [
+                      Icon(Icons.emoji_events, size: 16, color: AppColors.textSecondary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Tournament: $tournamentId',
+                        style: AppTextStyles.bodySmall().copyWith(
+                          color: AppColors.textSecondary,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                if (matchId != null) ...[
+                  if (tournamentId != null) const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.sports_esports, size: 16, color: AppColors.textSecondary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Match: $matchId',
+                        style: AppTextStyles.bodySmall().copyWith(
+                          color: AppColors.textSecondary,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
               
               const SizedBox(height: 4),
               

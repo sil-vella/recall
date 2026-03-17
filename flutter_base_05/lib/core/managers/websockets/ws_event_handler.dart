@@ -3,12 +3,13 @@ import '../module_manager.dart';
 import '../hooks_manager.dart';
 import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../../modules/dutch_game/managers/dutch_game_state_updater.dart';
+import '../../../modules/notifications_module/notifications_module.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for Start button flow: room_joined, games map updates
+const bool LOGGING_SWITCH = true; // Enabled for tournament match create flow: create_room_success/error, room_creation
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -415,6 +416,9 @@ class WSEventHandler {
       final roomId = data['room_id'] ?? '';
       final roomData = data;  // Use the entire data object since it's simplified
       final ownerId = data['owner_id'] ?? '';
+      if (LOGGING_SWITCH) {
+        _logger.info('🏟 create_room_success received — room_id=$roomId owner_id=$ownerId is_tournament=${data['is_tournament']}');
+      }
       
       // Get current user ID from login module state
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -500,6 +504,9 @@ class WSEventHandler {
   /// Handle create room error event
   void handleCreateRoomError(dynamic data) {
     try {
+      if (LOGGING_SWITCH) {
+        _logger.info('🏟 create_room_error received — data=$data');
+      }
       // Trigger error callbacks
       _eventManager.triggerCallbacks('error', {
         'error': 'Failed to create room',
@@ -915,6 +922,20 @@ class WSEventHandler {
       }
     }
   }
+  /// Handle core ws_instant_notification event (Dart backend pushes instant notification to session).
+  void handleWsInstantNotification(dynamic data) {
+    try {
+      final payload = data is Map ? Map<String, dynamic>.from(data as Map) : <String, dynamic>{};
+      if (payload.isEmpty) return;
+      final mod = _moduleManager.getModuleByType<NotificationsModule>();
+      mod?.addPendingWsInstant(payload);
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Error handling ws_instant_notification: $e');
+      }
+    }
+  }
+
   /// Handle custom events (like game event acknowledgments)
   void handleCustomEvent(String eventType, dynamic data) {
     try {

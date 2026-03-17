@@ -4,8 +4,14 @@ import 'package:flutter/material.dart';
 
 import '../../utils/consts/theme_consts.dart';
 
-/// Notification type that must be shown as a modal immediately, app-wide.
+/// Notification type that must be shown as a modal immediately, app-wide (from DB/polling).
 const String kNotificationTypeInstant = 'instant';
+
+/// Notification type pushed via WebSocket from Dart backend (event: ws_instant_notification).
+const String kNotificationTypeInstantWs = 'instant_ws';
+
+/// Frontend-only instant: predefined structure, no backend; responses: required 'Close', optional 'action'.
+const String kNotificationTypeInstantFrontendOnly = 'instant_frontend_only';
 
 /// Server-defined response action: label and action_identifier. Client calls single core endpoint with message_id + action_identifier.
 class ResponseAction {
@@ -165,6 +171,45 @@ class InstantMessageModal extends StatelessWidget {
 
   static final Set<String> _shownIds = {};
 
+  /// Shows a frontend-only instant modal (no backend). Predefined structure: title, body, data, responses.
+  /// [responses] defaults to required 'Close'; pass optional [actionLabel] and [actionIdentifier] for an extra button.
+  /// [onAction] is called when the optional action button is pressed (if provided).
+  static Future<void> showFrontendOnlyInstant(
+    BuildContext context, {
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+    String actionLabel = 'Action',
+    String actionIdentifier = 'action',
+    VoidCallback? onAction,
+  }) {
+    final responses = <Map<String, dynamic>>[
+      {'label': 'Close', 'action_identifier': 'close'},
+      if (onAction != null) {'label': actionLabel, 'action_identifier': actionIdentifier},
+    ];
+    final message = <String, dynamic>{
+      'type': kNotificationTypeInstantFrontendOnly,
+      'title': title,
+      'body': body,
+      'data': data ?? <String, dynamic>{},
+      'responses': responses,
+      'id': 'frontend_${DateTime.now().millisecondsSinceEpoch}',
+    };
+    return show(
+      context,
+      message: message,
+      onDismiss: () {},
+      dismissLabel: 'Close',
+      onSendResponse: (String id, String actionId) async {
+        if (actionId == actionIdentifier) {
+          onAction?.call();
+        }
+        return true; // always close modal on any button
+      },
+      onMarkAsRead: null,
+    );
+  }
+
   static Future<void> showUnreadInstantModals(
     BuildContext context, {
     required List<Map<String, dynamic>> messages,
@@ -176,13 +221,16 @@ class InstantMessageModal extends StatelessWidget {
       final id = m['id']?.toString() ?? '';
       final type = m['type']?.toString() ?? '';
       final readAt = m['read_at'];
-      final isUnread = readAt == null || readAt == '';
-      return type == kNotificationTypeInstant && isUnread && id.isNotEmpty && !_shownIds.contains(id);
+      final isUnread = type == kNotificationTypeInstantWs || (readAt == null || readAt == '');
+      final isInstant = type == kNotificationTypeInstant || type == kNotificationTypeInstantWs;
+      final idOrKey = id.isNotEmpty ? id : 'ws_${m['timestamp'] ?? m.hashCode}';
+      return isInstant && isUnread && !_shownIds.contains(idOrKey);
     }).toList();
     for (final msg in instantUnread) {
       if (!context.mounted) break;
       final id = msg['id']?.toString() ?? '';
-      _shownIds.add(id);
+      final idOrKey = id.isNotEmpty ? id : 'ws_${msg['timestamp'] ?? msg.hashCode}';
+      _shownIds.add(idOrKey);
       await show(
         context,
         message: msg,

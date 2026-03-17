@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/00_base/screen_base.dart';
+import '../../../../../tools/logging/logger.dart';
 import '../../../../../core/managers/module_manager.dart';
 import '../../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../../modules/user_management_module/user_management_module.dart';
@@ -29,6 +30,8 @@ class AdminTournamentsScreen extends BaseScreen {
 
 class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScreen> {
   static const String _all = 'All';
+  static const bool LOGGING_SWITCH = true; // Tournament match create flow — see .cursor/rules/enable-logging-switch.mdc
+  static final Logger _logger = Logger();
 
   /// Full tournament docs from API (id, name, status, type, format, start_date, matches, ...).
   List<Map<String, dynamic>> _allTournaments = [];
@@ -516,6 +519,9 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                           ),
                           TextButton(
                             onPressed: () async {
+                              if (LOGGING_SWITCH) {
+                                _logger.info('🏟 Admin Tournaments: Create room pressed — tournamentId=${tournamentId ?? "null"} matchId=$matchId');
+                              }
                               final result = await DutchGameHelpers.createRoom(
                                 addCreatorToRoom: false,
                                 maxPlayers: 4,
@@ -531,6 +537,9 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                               );
                               if (!context.mounted) return;
                               final success = result['success'] == true;
+                              if (LOGGING_SWITCH) {
+                                _logger.info('🏟 Admin Tournaments: Create room result — success=$success room_id=${result['room_id']} error=${result['error']}');
+                              }
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
@@ -630,6 +639,7 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                 final body = <String, dynamic>{
                                   'user_ids': userIds,
                                   'match_id': matchId,
+                                  'room_id': roomId,
                                   'title': 'Tournament match invite',
                                   'body': 'You are invited to join the match. Room ID: $roomId',
                                 };

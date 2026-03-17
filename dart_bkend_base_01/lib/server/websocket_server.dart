@@ -12,6 +12,9 @@ import '../modules/dutch_game/dutch_main.dart';
 // Logging switch for this file
 const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization and registration differences
 
+/// Core WebSocket event name for instant notifications pushed by the backend to a session.
+const String kWsInstantNotificationEvent = 'ws_instant_notification';
+
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};
   final Map<String, String> _connectionHashes = {}; // Track connection object identity
@@ -397,6 +400,16 @@ class WebSocketServer {
         _logger.warning('⚠️  Session exists in map: ${_connections.containsKey(sessionId)}');
       }
     }
+  }
+
+  /// Sends a core instant notification to a session.
+  /// Event name: [kWsInstantNotificationEvent].
+  /// [payload] should include: title, body, and optionally: data, responses, id, subtype.
+  /// Responses: list of { label, action_identifier } for modal buttons.
+  void sendInstantNotification(String sessionId, Map<String, dynamic> payload) {
+    final message = Map<String, dynamic>.from(payload);
+    message['event'] = kWsInstantNotificationEvent;
+    sendToSession(sessionId, message);
   }
 
   void broadcastToRoom(String roomId, Map<String, dynamic> message) {

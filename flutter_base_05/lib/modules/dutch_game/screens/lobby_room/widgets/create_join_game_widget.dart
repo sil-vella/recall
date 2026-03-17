@@ -1,14 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../core/managers/hooks_manager.dart';
-import '../../../../../core/managers/module_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
-// import '../../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
-import '../../../../user_management_module/user_management_module.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 /// Unified widget for creating and joining games
@@ -441,7 +436,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         ),
         SizedBox(height: AppPadding.mediumPadding.top),
         Text(
-          'Invite players and start a game.',
+          'Create a new game room.',
           style: AppTextStyles.label().copyWith(color: AppColors.textSecondary),
         ),
         SizedBox(height: AppPadding.defaultPadding.top),
@@ -739,7 +734,7 @@ class _CreateRoomModal extends StatefulWidget {
   final TextEditingController passwordController;
   final Function(String) onPermissionChanged;
   final Function(String) onGameTypeChanged;
-  /// Called with full roomSettings including accepted_players when Create is pressed (only when 3 accepted).
+  /// Called with roomSettings when Create is pressed.
   final void Function(Map<String, dynamic> roomSettings) onCreateRoom;
   final bool isCreating;
 
@@ -761,124 +756,24 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
   late String _selectedPermission;
   late String _selectedGameType;
 
-  // Invite section: session id, invited list (from backend), search + results, polling
-  String? _createMatchId;
-  List<Map<String, dynamic>> _invited = [];
-  final TextEditingController _inviteSearchController = TextEditingController();
-  List<Map<String, dynamic>> _searchResults = [];
-  bool _isSearching = false;
-  String? _invitingUsername;
-  Timer? _pollTimer;
-  static const bool LOGGING_SWITCH = false; // Enable for invite search debugging (see .cursor/rules/enable-logging-switch.mdc)
-  final Logger _logger = Logger();
-
   @override
   void initState() {
     super.initState();
     _selectedPermission = widget.selectedPermission;
     _selectedGameType = widget.selectedGameType;
-    DutchGameHelpers.createMatchSession().then((r) {
-      if (mounted && r['success'] == true && r['create_match_id'] != null) {
-        setState(() => _createMatchId = r['create_match_id'] as String?);
-        _pollTimer = Timer.periodic(const Duration(seconds: 1), (_) => _pollInviteSession());
-      }
-    });
   }
-
-  @override
-  void dispose() {
-    _pollTimer?.cancel();
-    _inviteSearchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pollInviteSession() async {
-    if (!mounted || _createMatchId == null) return;
-    final r = await DutchGameHelpers.getCreateMatchSession(_createMatchId!);
-    if (mounted && r['success'] == true && r['invited'] != null) {
-      setState(() => _invited = r['invited'] as List<Map<String, dynamic>>);
-    }
-  }
-
-  /// Create button enabled only when exactly 3 invited and all have status 'accepted'.
-  bool get _canCreateRoom =>
-      _invited.length >= 3 &&
-      _invited.every((e) => (e['status'] ?? '').toString() == 'accepted');
 
   void _onCreateRoomPressed() {
-    if (!_canCreateRoom || widget.isCreating) return;
-    final accepted = _invited
-        .where((e) => (e['status'] ?? '').toString() == 'accepted')
-        .map((e) => {
-              'user_id': e['user_id']?.toString(),
-              'username': e['username']?.toString() ?? '',
-              'is_comp_player': e['is_comp_player'] == true,
-            })
-        .toList();
+    if (widget.isCreating) return;
     final roomSettings = {
       'permission': widget.selectedPermission,
       'gameType': widget.selectedGameType,
       'maxPlayers': 4,
       'minPlayers': 4,
-      'autoStart': true, // Start when effective max reached (human count = maxSize - comp count)
+      'autoStart': false,
       'password': widget.passwordController.text.trim(),
-      'accepted_players': accepted,
     };
     widget.onCreateRoom(roomSettings);
-  }
-
-  Future<void> _runInviteSearch(String query) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('CreateRoomModal._runInviteSearch: query="$query" length=${query.trim().length}');
-    }
-    if (query.trim().length < 3) {
-      if (LOGGING_SWITCH) {
-        _logger.info('CreateRoomModal._runInviteSearch: query < 3 chars, clearing results');
-      }
-      setState(() => _searchResults = []);
-      return;
-    }
-    setState(() => _isSearching = true);
-    final moduleManager = ModuleManager();
-    final userModule = moduleManager.getModuleByType<UserManagementModule>();
-    if (LOGGING_SWITCH) {
-      _logger.info('CreateRoomModal._runInviteSearch: userModule=${userModule != null}');
-    }
-    final users = userModule != null
-        ? await userModule.searchByUsername(query.trim(), limit: 10)
-        : <Map<String, dynamic>>[];
-    if (LOGGING_SWITCH) {
-      _logger.info('CreateRoomModal._runInviteSearch: got ${users.length} users');
-    }
-    if (mounted) {
-      setState(() {
-        _searchResults = users;
-        _isSearching = false;
-      });
-    }
-  }
-
-  Future<void> _inviteUser(String username, String userId) async {
-    if (_createMatchId == null) return;
-    final alreadyInvited = _invited.any((e) => (e['user_id'] ?? e['username']) == userId || e['username'] == username);
-    if (alreadyInvited) return;
-    setState(() => _invitingUsername = username);
-    final r = await DutchGameHelpers.invitePlayer(username, createMatchId: _createMatchId);
-    if (mounted) {
-      setState(() => _invitingUsername = null);
-      if (r['success'] == true) {
-        await _pollInviteSession();
-        _inviteSearchController.clear();
-        setState(() => _searchResults = []);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(r['message']?.toString() ?? r['error']?.toString() ?? 'Invite failed'),
-            backgroundColor: AppColors.errorColor,
-          ),
-        );
-      }
-    }
   }
 
   @override
@@ -1088,140 +983,6 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         SizedBox(height: AppPadding.defaultPadding.top),
                       ],
 
-                      // Invite players: search (3+ chars) -> results with Invite -> list of invited with status (max 3)
-                      Divider(color: AppColors.white.withValues(alpha: 0.3)),
-                      Text(
-                        'Invite players',
-                        style: AppTextStyles.label().copyWith(color: AppColors.white),
-                      ),
-                      if (_invited.length >= 3)
-                        Padding(
-                          padding: EdgeInsets.only(top: AppPadding.smallPadding.top),
-                          child: Text(
-                            'Maximum 3 players invited',
-                            style: AppTextStyles.caption().copyWith(color: AppColors.white.withValues(alpha: 0.8)),
-                          ),
-                        ),
-                      SizedBox(height: AppPadding.smallPadding.top),
-                      IgnorePointer(
-                        ignoring: _invited.length >= 3,
-                        child: Opacity(
-                          opacity: _invited.length >= 3 ? 0.5 : 1,
-                          child: TextField(
-                            controller: _inviteSearchController,
-                            onChanged: (v) {
-                              if (v.trim().length >= 3) {
-                                _runInviteSearch(v);
-                              } else {
-                                setState(() => _searchResults = []);
-                              }
-                            },
-                            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                            decoration: InputDecoration(
-                              hintText: _invited.length >= 3
-                                  ? '3 players invited'
-                                  : 'Type 3+ characters to search by username',
-                              hintStyle: AppTextStyles.caption().copyWith(color: AppColors.textOnPrimary),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: AppPadding.defaultPadding.left,
-                                vertical: AppPadding.mediumPadding.top,
-                              ),
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
-                              filled: true,
-                              fillColor: AppColors.primaryColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (_isSearching)
-                        Padding(
-                          padding: EdgeInsets.only(top: AppPadding.smallPadding.top),
-                          child: SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white),
-                          ),
-                        ),
-                      if (_searchResults.isNotEmpty) ...[
-                        SizedBox(height: AppPadding.smallPadding.top),
-                        ..._searchResults.map((u) {
-                          final username = u['username']?.toString() ?? '';
-                          final userId = u['user_id']?.toString() ?? u['_id']?.toString() ?? '';
-                          final alreadyInvited = _invited.any((e) =>
-                              (e['user_id']?.toString() == userId) || (e['username']?.toString() == username));
-                          final isInviting = _invitingUsername == username;
-                          return Padding(
-                            padding: EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    username,
-                                    style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: (_invited.length >= 3 || alreadyInvited || isInviting)
-                                      ? null
-                                      : () => _inviteUser(username, userId),
-                                  child: isInviting
-                                      ? SizedBox(
-                                          height: 18,
-                                          width: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: AppColors.accentColor,
-                                          ),
-                                        )
-                                      : Text(
-                                          alreadyInvited ? 'Invited' : 'Invite',
-                                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.accentColor),
-                                        ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                      if (_invited.isNotEmpty) ...[
-                        SizedBox(height: AppPadding.defaultPadding.top),
-                        Text(
-                          'Invited',
-                          style: AppTextStyles.label().copyWith(color: AppColors.white),
-                        ),
-                        SizedBox(height: AppPadding.smallPadding.top),
-                        ..._invited.map((e) {
-                          final status = e['status']?.toString() ?? 'pending';
-                          final username = e['username']?.toString() ?? '?';
-                          return ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              username,
-                              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
-                            ),
-                            subtitle: Text(
-                              status == 'accepted'
-                                  ? 'Accepted'
-                                  : status == 'declined'
-                                      ? 'Declined'
-                                      : 'Pending',
-                              style: AppTextStyles.caption().copyWith(
-                                color: status == 'accepted'
-                                    ? AppColors.successColor
-                                    : status == 'declined'
-                                        ? AppColors.errorColor
-                                        : AppColors.white,
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-
                       SizedBox(height: AppPadding.largePadding.top),
                     ],
                   ),
@@ -1253,7 +1014,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                       identifier: 'create_room_submit',
                       button: true,
                       child: ElevatedButton(
-                        onPressed: _canCreateRoom ? _onCreateRoomPressed : null,
+                        onPressed: widget.isCreating ? null : _onCreateRoomPressed,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.accentColor,
                           foregroundColor: AppColors.textOnAccent,

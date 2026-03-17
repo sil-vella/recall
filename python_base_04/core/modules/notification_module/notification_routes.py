@@ -1,6 +1,7 @@
 """
 Notification API routes: list messages, mark as read, and single response endpoint. JWT required.
-Modules register response handlers by source; core dispatches by message_id -> source -> action_identifier.
+Core knows only source: for source "core" it handles Close (delete doc); for other sources it passes
+full payload (doc, action_identifier, user_id) to the registered callable. Modules dispatch by msg_id + action_identifier.
 """
 
 from datetime import datetime
@@ -18,7 +19,12 @@ notification_api = Blueprint("notification_api", __name__)
 _app_manager = None
 LOGGING_SWITCH = False  # Trace list_messages for inbox debugging
 
-# source -> { action_identifier -> callable(doc, user_id) -> dict }
+# Source reserved for core-built-in notifications (e.g. generic Close).
+CORE_SOURCE = "core"
+# Action for core source: close and delete the notification.
+CORE_ACTION_CLOSE = "close"
+
+# source -> callable(doc, action_identifier, user_id) -> dict. Module receives full payload and dispatches by msg_id + action_identifier.
 _response_handlers = {}
 
 
@@ -27,15 +33,16 @@ def set_app_manager(app_manager):
     _app_manager = app_manager
 
 
-def register_response_handlers(source: str, handlers: dict):
+def register_response_handler(source: str, handler):
     """
-    Register response handlers for a module. Called by modules (e.g. dutch_game) during init.
+    Register a single response handler for a source. Called by modules during init.
+    Core will call handler(normalized_doc, action_identifier, user_id); the module dispatches by doc["msg_id"] and action_identifier.
     :param source: Must match notification doc "source" (e.g. "dutch_game").
-    :param handlers: Dict of action_identifier -> callable(doc, user_id). Callable returns dict (jsonified as response).
+    :param handler: Callable(doc, action_identifier, user_id) -> dict (jsonified as response).
     """
-    if not source or not isinstance(handlers, dict):
+    if not source or not callable(handler):
         return
-    _response_handlers[source.strip()] = {k.strip(): v for k, v in handlers.items() if k and callable(v)}
+    _response_handlers[source.strip()] = handler
 
 
 def _get_current_user_id():
@@ -115,6 +122,7 @@ def list_messages():
                     responses_out.append({"label": label, "action_identifier": action_id})
             out.append({
                 "id": str(_id) if _id is not None else None,
+                "msg_id": doc.get("msg_id") or "",
                 "source": doc.get("source", ""),
                 "type": doc.get("type", ""),
                 "subtype": doc.get("subtype", ""),
@@ -187,13 +195,14 @@ def mark_read():
 
 
 def _doc_to_dict(doc):
-    """Build a serializable dict from a notification document for handler(doc, user_id)."""
+    """Build a serializable dict from a notification document for handler(doc, action_identifier, user_id)."""
     if not doc:
         return {}
     created = doc.get("created_at")
     read_at = doc.get("read_at")
     return {
         "id": str(doc["_id"]) if doc.get("_id") else None,
+        "msg_id": doc.get("msg_id") or "",
         "user_id": str(doc["user_id"]) if doc.get("user_id") else None,
         "source": doc.get("source", ""),
         "type": doc.get("type", ""),
@@ -212,7 +221,8 @@ def _doc_to_dict(doc):
 def handle_response():
     """
     Single endpoint for all notification response actions. Body: message_id, action_identifier.
-    Core loads the notification, checks ownership, maps source -> action_identifier to registered handler, runs it, marks read on success.
+    For source "core", action "close": delete the notification and return success.
+    For other sources: pass full payload (doc, action_identifier, user_id) to the registered handler; module dispatches by msg_id + action_identifier.
     """
     try:
         user_id = _get_current_user_id()
@@ -241,15 +251,25 @@ def handle_response():
         source = (doc.get("source") or "").strip()
         if not source:
             return jsonify({"success": False, "error": "Notification has no source"}), 400
-        handlers = _response_handlers.get(source)
-        if not handlers:
-            return jsonify({"success": False, "error": "No handlers registered for source"}), 400
-        handler = handlers.get(action_identifier)
-        if not handler:
-            return jsonify({"success": False, "error": "Unknown action_identifier for this notification"}), 400
+
+        # Core-built-in: source "core", action "close" -> delete doc and return success
+        if source == CORE_SOURCE and action_identifier == CORE_ACTION_CLOSE:
+            try:
+                db_manager.delete(
+                    NOTIFICATIONS_COLLECTION,
+                    {"_id": msg_oid, "user_id": doc_user_id},
+                )
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Closed"}), 200
+
+        # Other sources: pass full payload to registered handler
+        handler = _response_handlers.get(source)
+        if not handler or not callable(handler):
+            return jsonify({"success": False, "error": "No handler registered for source"}), 400
         normalized_doc = _doc_to_dict(doc)
         try:
-            result = handler(normalized_doc, user_id)
+            result = handler(normalized_doc, action_identifier, user_id)
         except Exception as e:
             custom_log(f"notification response handler error source={source} action={action_identifier}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": str(e)}), 500

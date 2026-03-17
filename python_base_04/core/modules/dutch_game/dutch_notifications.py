@@ -7,18 +7,12 @@ from typing import Any, Dict, List, Optional
 
 # Source and subtypes: use these everywhere so they stay in sync with registered handlers.
 DUTCH_GAME_SOURCE = "dutch_game"
-SUBTYPE_INVITE = "dutch_invite"
-SUBTYPE_ROOM_JOIN = "dutch_room_join"
 SUBTYPE_MATCH_INVITE = "dutch_match_invite"
 
-# Standard response maps (label + action_identifier). Handlers are registered for these action_identifiers.
-INVITE_RESPONSES = [
-    {"label": "Accept", "action_identifier": "accept"},
-    {"label": "Decline", "action_identifier": "decline"},
-]
-ROOM_JOIN_RESPONSES = [
-    {"label": "Join", "action_identifier": "join"},
-]
+# Logical message id for match invite (admin tournaments flow). Used when creating notifications and when registering response handlers.
+MSG_ID_MATCH_INVITE = "dutch_game_invite_to_match_001"
+
+# Standard response map for match invite (label + action_identifier).
 MATCH_INVITE_RESPONSES = [
     {"label": "Join", "action_identifier": "join"},
     {"label": "Decline", "action_identifier": "decline"},
@@ -31,23 +25,25 @@ def create_notification(
     subtype: str,
     title: str,
     body: str,
+    msg_id: Optional[str] = None,
     data: Optional[Dict[str, Any]] = None,
     responses: Optional[List[Dict[str, Any]]] = None,
     notification_type: str = "instant",
 ) -> Optional[str]:
     """
     Create a notification for the given user via the core notification service.
-    Always uses DUTCH_GAME_SOURCE so the core can route responses to this module's handlers.
+    Always uses DUTCH_GAME_SOURCE. Pass msg_id so response handlers can be mapped per message kind.
 
     :param app_manager: App manager (for getting notification_module).
     :param user_id: Target user ID (ObjectId string).
     :param subtype: One of SUBTYPE_* (e.g. SUBTYPE_INVITE, SUBTYPE_ROOM_JOIN).
     :param title: Short title.
     :param body: Message body.
+    :param msg_id: Logical message id (e.g. MSG_ID_INVITE, MSG_ID_ROOM_JOIN). Must match registration in register_message_handlers.
     :param data: Optional payload (e.g. create_match_id, room_id).
     :param responses: Optional list of {"label", "action_identifier"}. Use INVITE_RESPONSES / ROOM_JOIN_RESPONSES for consistency.
     :param notification_type: Core type; default "instant".
-    :return: Message id string, or None on failure.
+    :return: Inserted document _id (DB id) as string, or None on failure.
     """
     if not app_manager:
         return None
@@ -63,6 +59,7 @@ def create_notification(
         type=notification_type,
         title=(title or "").strip(),
         body=(body or "").strip(),
+        msg_id=(msg_id or "").strip() or None,
         data=data if isinstance(data, dict) else {},
         responses=responses if isinstance(responses, list) else [],
         subtype=(subtype or "").strip(),
@@ -70,47 +67,18 @@ def create_notification(
 
 
 # ---------------------------------------------------------------------------
-# Example usage (call from api_endpoints or other Dutch game code)
+# Example usage (match invite from admin tournaments)
 # ---------------------------------------------------------------------------
-#
-# Invite (game invite with Accept/Decline):
 #
 #   from . import dutch_notifications
 #
-#   msg_id = dutch_notifications.create_notification(
-#       app_manager,
-#       user_id=target_user_id,
-#       subtype=dutch_notifications.SUBTYPE_INVITE,
-#       title="Game invite",
-#       body=f"{inviter_username} invited you to play Dutch.",
-#       data={
-#           "inviter_user_id": inviter_user_id,
-#           "inviter_username": inviter_username,
-#           "create_match_id": create_match_id or None,
-#       },
-#       responses=dutch_notifications.INVITE_RESPONSES,
-#   )
-#
-# Room ready (Join button; handler returns room_id):
-#
-#   msg_id = dutch_notifications.create_notification(
-#       app_manager,
-#       user_id=participant_user_id,
-#       subtype=dutch_notifications.SUBTYPE_ROOM_JOIN,
-#       title="Game ready",
-#       body="The game room is ready. Tap Join to enter.",
-#       data={"room_id": room_id},
-#       responses=dutch_notifications.ROOM_JOIN_RESPONSES,
-#   )
-#
-# Custom responses (same source; register handler for your action_identifier):
-#
-#   msg_id = dutch_notifications.create_notification(
+#   dutch_notifications.create_notification(
 #       app_manager,
 #       user_id=user_id,
-#       subtype="my_subtype",
-#       title="Title",
-#       body="Body.",
-#       data={"key": "value"},
-#       responses=[{"label": "Do it", "action_identifier": "do_it"}],
+#       subtype=dutch_notifications.SUBTYPE_MATCH_INVITE,
+#       title="Match invite",
+#       body="You're invited to a match.",
+#       msg_id=dutch_notifications.MSG_ID_MATCH_INVITE,
+#       data={"match_id": match_id},
+#       responses=dutch_notifications.MATCH_INVITE_RESPONSES,
 #   )

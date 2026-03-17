@@ -1,11 +1,46 @@
+// =============================================================================
+// Dutch game module — hook callbacks implementation
+// =============================================================================
+//
+// This file is the ONLY place that registers Dutch game hook *callbacks*.
+// It is loaded via the re-export in ../dutch_main.dart (see that file for
+// how this module and the server act together).
+//
+// Hook flow (summary):
+// --------------------
+//   1. WebSocketServer (websocket_server.dart) owns HooksManager and calls
+//      registerHook('room_created'), registerHook('room_joined'), etc. to
+//      declare hook names. No callbacks at that point.
+//   2. WebSocketServer instantiates DutchGameModule(server, roomManager, hooksManager).
+//      This constructor calls _registerHooks() below, which registers the four
+//      callbacks with HooksManager.
+//   3. MessageHandler (message_handler.dart) triggers hooks when room events
+//      occur: triggerHook('room_created', data) after create_room,
+//      triggerHook('room_joined', data) when a user joins (or when creator
+//      auto-joins), triggerHook('leave_room', data) on leave,
+//      and RoomManager triggers triggerHook('room_closed', data) when a room
+//      is closed.
+//   4. HooksManager invokes the callbacks registered here (_onRoomCreated,
+//      _onRoomJoined, _onLeaveRoom, _onRoomClosed). This module then updates
+//      GameStateStore, GameRegistry, and sends game_state_updated to sessions
+//      as needed.
+//
+// Important: room_created receives add_creator_to_room in data. When false
+// (e.g. tournament admin flow), this module creates game state with 0 players
+// and does not send game_state_updated to the creator. When true, the creator
+// is added as the first player and receives the initial state.
+//
+// =============================================================================
+
 import '../utils/platform/shared_imports.dart';
 import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
+const bool LOGGING_SWITCH = true; // Enabled for testing game initialization / room_created vs add_creator_to_room
 
-/// Entry point for registering Dutch game module components with the server.
+/// Dutch game backend module. Registers the four room-lifecycle hook callbacks
+/// and holds the coordinator for game events. Instantiated once by WebSocketServer.
 class DutchGameModule {
   final WebSocketServer server;
   final RoomManager roomManager;
@@ -21,32 +56,28 @@ class DutchGameModule {
     }
   }
 
-  /// Register hooks for game lifecycle
+  /// Registers this module's callbacks with HooksManager. This is the only
+  /// place in the codebase that registers these four hooks; do not register
+  /// them elsewhere.
   void _registerHooks() {
-    // room_created: create game instance with minimal state
     hooksManager.registerHookCallback('room_created', _onRoomCreated, priority: 100);
-    
-    // room_joined: add player to game and send snapshot
     hooksManager.registerHookCallback('room_joined', _onRoomJoined, priority: 100);
-    
-    // leave_room: remove player from game
     hooksManager.registerHookCallback('leave_room', _onLeaveRoom, priority: 100);
-    
-    // room_closed: cleanup game instance
     hooksManager.registerHookCallback('room_closed', _onRoomClosed, priority: 100);
-    
     if (LOGGING_SWITCH) {
       _logger.info('🎣 DutchGame: Registered hooks for game lifecycle');
     }
   }
 
-  /// Hook callback: room_created
-  /// Create a minimal game state when a room is created (creator auto-joined)
+  /// Hook callback for 'room_created'. Triggered by MessageHandler after create_room
+  /// (and after random-join room creation). Creates minimal game state; when
+  /// add_creator_to_room is false (e.g. tournament admin flow), creator is not added as a player.
   Future<void> _onRoomCreated(Map<String, dynamic> data) async {
     try {
       final roomId = data['room_id'] as String?;
       final ownerId = data['owner_id'] as String?;
       final sessionId = data['session_id'] as String?; // Get sessionId for player ID
+      final addCreatorToRoom = data['add_creator_to_room'] as bool? ?? true;
       final maxSize = data['max_size'] as int? ?? 4;
       final minPlayers = data['min_players'] as int? ?? 2;
       final gameType = data['game_type'] as String? ?? 'multiplayer';
@@ -60,7 +91,7 @@ class DutchGameModule {
       }
 
       if (LOGGING_SWITCH) {
-        _logger.info('🎣 room_created: Creating game for room $roomId with player ID $sessionId');
+        _logger.info('🎣 room_created: room=$roomId add_creator_to_room=$addCreatorToRoom sessionId=$sessionId');
       }
 
       // Check if this is a practice room (practice rooms start with "practice_room_")
@@ -132,49 +163,59 @@ class DutchGameModule {
       // Create GameRound instance via registry (includes ServerGameStateCallback)
       GameRegistry.instance.getOrCreate(roomId, server);
 
-      // Fetch user profile data (full name, profile picture) for creator
-      String playerName = 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}';
-      String? profilePicture;
-      String? usernameFromProfile;
-      
-      if (ownerId.isNotEmpty) {
-        try {
-          final profileResult = await server.pythonClient.getUserProfile(ownerId);
-          if (profileResult['success'] == true) {
-            final fullName = profileResult['full_name'] as String?;
-            usernameFromProfile = profileResult['username'] as String?;
-            profilePicture = profileResult['profile_picture'] as String?;
-            
-            // Use full name if available, otherwise fallback to username, otherwise keep default
-            if (fullName != null && fullName.isNotEmpty) {
-              playerName = fullName;
-            } else if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) {
-              playerName = usernameFromProfile;
-            }
-            
-            final accountType = profileResult['account_type'] as String? ?? 'unknown';
-            if (LOGGING_SWITCH) {
-              _logger.info('✅ Fetched creator profile: name=$playerName, username=$usernameFromProfile, account_type=$accountType, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}');
-            }
-          } else {
-            if (LOGGING_SWITCH) {
+      // When addCreatorToRoom is true, add creator as first player and send them game state; otherwise start with 0 players (e.g. tournament admin flow).
+      List<Map<String, dynamic>> initialPlayers = [];
+      if (addCreatorToRoom) {
+        String playerName = 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}';
+        String? profilePicture;
+        String? usernameFromProfile;
+        if (ownerId.isNotEmpty) {
+          try {
+            final profileResult = await server.pythonClient.getUserProfile(ownerId);
+            if (profileResult['success'] == true) {
+              final fullName = profileResult['full_name'] as String?;
+              usernameFromProfile = profileResult['username'] as String?;
+              profilePicture = profileResult['profile_picture'] as String?;
+              if (fullName != null && fullName.isNotEmpty) {
+                playerName = fullName;
+              } else if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) {
+                playerName = usernameFromProfile;
+              }
+              if (LOGGING_SWITCH) {
+                _logger.info('✅ Fetched creator profile: name=$playerName, username=$usernameFromProfile');
+              }
+            } else if (LOGGING_SWITCH) {
               _logger.warning('⚠️ Failed to fetch creator profile: ${profileResult['error']}');
             }
+          } catch (e) {
+            if (LOGGING_SWITCH) _logger.warning('⚠️ Error fetching creator profile: $e');
           }
-        } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ Error fetching creator profile: $e');
-          }
-          // Continue with default name
         }
+        initialPlayers = [
+          {
+            'id': sessionId,
+            'name': playerName,
+            'isHuman': true,
+            'status': 'waiting',
+            'hand': <Map<String, dynamic>>[],
+            'visible_cards': <Map<String, dynamic>>[],
+            'points': 0,
+            'known_cards': <String, dynamic>{},
+            'collection_rank_cards': <String>[],
+            'isActive': true,
+            'userId': ownerId,
+            if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) 'username': usernameFromProfile,
+            if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
+          }
+        ];
+      } else if (LOGGING_SWITCH) {
+        _logger.info('🎣 room_created: add_creator_to_room=false, starting with 0 players for room $roomId');
       }
 
-      // Initialize minimal game state in store
-      // Use sessionId as player ID (not ownerId/userId)
       final store = GameStateStore.instance;
       store.mergeRoot(roomId, {
         'game_id': roomId,
-        'roomDifficulty': roomDifficulty, // Store room difficulty in state
+        'roomDifficulty': roomDifficulty,
         'game_state': {
           'gameId': roomId,
           'gameName': 'Game_$roomId',
@@ -183,50 +224,32 @@ class DutchGameModule {
           'maxPlayers': maxSize,
           'minPlayers': minPlayers,
           'isGameActive': false,
-          // Match Python: use 'phase' so Flutter reads it correctly
           'phase': 'waiting_for_players',
-          // Ensure counts available for UI slices
-          'playerCount': 1,
-          'players': <Map<String, dynamic>>[
-            // Creator added as first player (auto-joined)
-            // Player ID is now sessionId, not ownerId
-            {
-              'id': sessionId, // Use sessionId as player ID
-              'name': playerName,
-              'isHuman': true,
-              'status': 'waiting',
-              'hand': <Map<String, dynamic>>[],
-              'visible_cards': <Map<String, dynamic>>[],
-              'points': 0,
-              'known_cards': <String, dynamic>{},
-              'collection_rank_cards': <String>[],
-              'isActive': true,  // Required for winner calculation and same rank play filtering
-              'userId': ownerId,  // Store userId (MongoDB ObjectId) for coin deduction
-              if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) 'username': usernameFromProfile,  // Store username for display
-              if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
-            }
-          ],
+          'playerCount': initialPlayers.length,
+          'players': initialPlayers,
           'drawPile': <Map<String, dynamic>>[],
           'discardPile': <Map<String, dynamic>>[],
           'originalDeck': <Map<String, dynamic>>[],
         },
       });
 
-      // Send initial game_state_updated to creator (include owner_id and game_type for client)
-      final initialState = store.getState(roomId);
-      final payload = <String, dynamic>{
-        'event': 'game_state_updated',
-        'game_id': roomId,
-        'game_state': initialState['game_state'],
-        'owner_id': ownerId,
-        'game_type': gameType,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      if (gameLevel != null) payload['game_level'] = gameLevel;
-      server.sendToSession(sessionId, payload);
-
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ Game created for room $roomId with creator session $sessionId');
+      if (addCreatorToRoom) {
+        final initialState = store.getState(roomId);
+        final payload = <String, dynamic>{
+          'event': 'game_state_updated',
+          'game_id': roomId,
+          'game_state': initialState['game_state'],
+          'owner_id': ownerId,
+          'game_type': gameType,
+          'timestamp': DateTime.now().toIso8601String(),
+        };
+        if (gameLevel != null) payload['game_level'] = gameLevel;
+        server.sendToSession(sessionId, payload);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ Game created for room $roomId with creator session $sessionId (1 player)');
+        }
+      } else if (LOGGING_SWITCH) {
+        _logger.info('✅ Game created for room $roomId with 0 players (creator not in room)');
       }
     } catch (e) {
       if (LOGGING_SWITCH) {
@@ -235,8 +258,9 @@ class DutchGameModule {
     }
   }
 
-  /// Hook callback: room_joined
-  /// Add player to existing game and send snapshot
+  /// Hook callback for 'room_joined'. Triggered by MessageHandler when a client
+  /// sends join_room (or when creator auto-joins after create_room if add_creator_to_room).
+  /// Adds the joining session as a player in game state and sends game_state_updated.
   Future<void> _onRoomJoined(Map<String, dynamic> data) async {
     try {
       final roomId = data['room_id'] as String?;
@@ -414,6 +438,8 @@ class DutchGameModule {
 
   /// Hook callback: leave_room
   /// Remove player from game
+  /// Hook callback for 'leave_room'. Triggered by MessageHandler when a client
+  /// sends leave_room. Removes the session from game state and notifies room.
   void _onLeaveRoom(Map<String, dynamic> data) {
     try {
       final roomId = data['room_id'] as String?;
@@ -486,6 +512,8 @@ class DutchGameModule {
 
   /// Hook callback: room_closed
   /// Cleanup game instance and state
+  /// Hook callback for 'room_closed'. Triggered by RoomManager when a room is
+  /// closed (e.g. empty or TTL). Cleans up GameStateStore and GameRegistry for that room.
   void _onRoomClosed(Map<String, dynamic> data) {
     try {
       final roomId = data['room_id'] as String?;

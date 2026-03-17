@@ -36,6 +36,7 @@ class NotificationService:
         type: str,
         title: str,
         body: str,
+        msg_id: Optional[str] = None,
         data: Optional[Dict[str, Any]] = None,
         responses: Optional[List[Dict[str, Any]]] = None,
         subtype: Optional[str] = None,
@@ -48,8 +49,9 @@ class NotificationService:
         :param type: Core predefined type: one of NOTIFICATION_TYPES_PREDEFINED (instant, admin, advert). Drives core behaviour.
         :param title: Short title for the message.
         :param body: Body text.
+        :param msg_id: Optional logical message id (e.g. "dutch_game_invite_to_match_001"). Modules use this to map response handlers per message kind; stored in doc, API returns it as msg_id.
         :param data: Optional extra payload (e.g. tournament_id).
-        :param responses: Optional list of actions: each dict with "label" and "action_identifier" (or "action"). No endpoint/method; core dispatches by source + action_identifier.
+        :param responses: Optional list of actions: each dict with "label" and "action_identifier" (or "action"). Core passes full payload to source; source dispatches by msg_id + action_identifier.
         :param subtype: Optional module-specific name (e.g. "tournament_invite") for the module's own handling and responses.
         :return: Inserted document _id as string, or None on failure.
         """
@@ -95,6 +97,7 @@ class NotificationService:
             "type": type_str,
             "title": (title or "").strip(),
             "body": (body or "").strip(),
+            "msg_id": (msg_id or "").strip() or None,
             "data": data if isinstance(data, dict) else {},
             "responses": responses_list,
             "subtype": (subtype or "").strip(),

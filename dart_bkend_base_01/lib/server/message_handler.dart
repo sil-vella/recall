@@ -335,11 +335,12 @@ class MessageHandler {
         }
       }
       
-      // 🎣 Trigger room_created hook
+      // 🎣 Trigger room_created hook (Dutch uses add_creator_to_room to decide whether to add creator as first player in game state)
       final roomCreatedData = {
         'room_id': roomId,
         'owner_id': room.ownerId,
         'session_id': sessionId, // Add session_id for player ID assignment
+        'add_creator_to_room': addCreatorToRoom,
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'min_players': room.minPlayers,
@@ -350,6 +351,9 @@ class MessageHandler {
       if (isTournament) roomCreatedData['is_tournament'] = true;
       if (tournamentData != null && tournamentData.isNotEmpty) roomCreatedData['tournament_data'] = tournamentData;
       if (room.gameLevel != null) roomCreatedData['game_level'] = room.gameLevel!;
+      if (LOGGING_SWITCH) {
+        _logger.room('🎣 Triggering room_created hook: roomId=$roomId add_creator_to_room=$addCreatorToRoom is_tournament=$isTournament');
+      }
       _server.triggerHook('room_created', data: roomCreatedData);
       
       // When addCreatorToRoom is true, send room_joined and trigger hook (auto-join creator like Python does)
@@ -402,7 +406,9 @@ class MessageHandler {
       }
 
       if (LOGGING_SWITCH) {
-        _logger.room('✅ Room created and creator auto-joined: $roomId');
+        _logger.room(addCreatorToRoom
+            ? '✅ Room created and creator auto-joined: $roomId'
+            : '✅ Room created (creator not in room): $roomId');
       }
       
       } catch (e) {

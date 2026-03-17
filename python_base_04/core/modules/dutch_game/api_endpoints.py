@@ -22,9 +22,6 @@ METRICS_SWITCH = False
 # Store app_manager reference (will be set by module)
 _app_manager = None
 
-# In-memory create-match sessions: key = create_match_id (datetime-style id), value = session dict
-# Session: { "created_at": datetime, "inviter_user_id": str, "invited": [ {"user_id", "username", "status", ...} ] }
-_create_match_sessions = {}
 
 def set_app_manager(app_manager):
     """Set app manager for database access"""
@@ -650,81 +647,6 @@ def deduct_game_coins():
         return jsonify({"success": False, "message": "Failed to deduct game coins", "error": str(e)}), 500
 
 
-def invite_player():
-    """Invite a player by username. Uses user search, then creates instant notification (JWT required)."""
-    try:
-        inviter_user_id = request.user_id
-        if not inviter_user_id:
-            return jsonify({"success": False, "error": "Not authenticated", "message": "No user ID in request"}), 401
-        data = request.get_json(silent=True) or {}
-        username = (data.get('username') or '').strip()
-        if len(username) < 2:
-            return jsonify({"success": False, "error": "username is required and must be at least 2 characters", "message": "Provide a username to invite"}), 400
-        if not _app_manager:
-            return jsonify({"success": False, "error": "Server not initialized"}), 503
-        user_management = _app_manager.module_manager.get_module("user_management_module")
-        if not user_management or not hasattr(user_management, 'search_users_by_username'):
-            return jsonify({"success": False, "error": "User search unavailable", "message": "Cannot resolve username"}), 503
-        users, err = user_management.search_users_by_username(username, limit=10)
-        if err:
-            return jsonify({"success": False, "error": err, "message": err}), 400
-        if not users:
-            return jsonify({"success": False, "error": "User not found", "message": f"No user found for username '{username}'"}), 404
-        target = users[0]
-        target_user_id = target.get('user_id') or str(target.get('_id', ''))
-        if not target_user_id or target_user_id == inviter_user_id:
-            return jsonify({"success": False, "error": "Invalid target", "message": "Cannot invite yourself"}), 400
-        create_match_id = (data.get("create_match_id") or "").strip()
-        is_comp_player = target.get("is_comp_player") is True
-        if is_comp_player:
-            if create_match_id and create_match_id in _create_match_sessions:
-                _create_match_sessions[create_match_id]["invited"].append({"user_id": target_user_id, "username": target.get("username") or "", "status": "accepted", "is_comp_player": True})
-            return jsonify({"success": True, "message": "Computer player added", "target_user_id": target_user_id, "target_username": target.get("username"), "create_match_id": create_match_id or None, "is_comp_player": True}), 200
-        inviter_username = "Someone"
-        try:
-            db = _app_manager.get_db_manager(role="read_only")
-            if db:
-                inviter = db.find_one("users", {"_id": ObjectId(inviter_user_id)})
-                if inviter:
-                    inviter_username = inviter.get("username") or inviter_username
-        except Exception:
-            pass
-        title = "Game invite"
-        body = f"{inviter_username} invited you to play Dutch."
-        data = {"inviter_user_id": inviter_user_id, "inviter_username": inviter_username, "create_match_id": create_match_id or None}
-        msg_id = dutch_notifications.create_notification(
-            _app_manager,
-            user_id=target_user_id,
-            subtype=dutch_notifications.SUBTYPE_INVITE,
-            title=title,
-            body=body,
-            data=data,
-            responses=dutch_notifications.INVITE_RESPONSES,
-        )
-        if not msg_id:
-            return jsonify({"success": False, "error": "Notifications unavailable", "message": "Invite could not be sent"}), 503
-        if create_match_id and create_match_id in _create_match_sessions:
-            _create_match_sessions[create_match_id]["invited"].append({"user_id": target_user_id, "username": target.get("username") or "", "status": "pending", "is_comp_player": False})
-        return jsonify({"success": True, "message": "Invite sent", "target_user_id": target_user_id, "target_username": target.get("username"), "notification_id": msg_id, "create_match_id": create_match_id or None}), 200
-    except Exception as e:
-        custom_log(f"DutchGame: invite_player error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-        return jsonify({"success": False, "error": "Failed to send invite", "message": str(e)}), 500
-
-
-def create_match_session():
-    """Create an in-memory create-match session. Returns create_match_id for use in invite-player and polling."""
-    try:
-        inviter_user_id = request.user_id
-        if not inviter_user_id:
-            return jsonify({"success": False, "error": "Not authenticated"}), 401
-        create_match_id = datetime.utcnow().strftime("%Y%m%d%H%M%S") + "_" + uuid.uuid4().hex[:8]
-        _create_match_sessions[create_match_id] = {"created_at": datetime.utcnow().isoformat(), "inviter_user_id": inviter_user_id, "invited": []}
-        return jsonify({"success": True, "create_match_id": create_match_id}), 200
-    except Exception as e:
-        custom_log(f"DutchGame: create_match_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
 def create_tournament():
     """Create a tournament in the DB (JWT auth). Admin only. Creator is the authenticated user."""
     try:
@@ -1260,68 +1182,48 @@ def tournament_signup():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-def get_create_match_session():
-    """Get create-match session for polling (invited list with statuses). Query: create_match_id=."""
-    try:
-        inviter_user_id = request.user_id
-        if not inviter_user_id:
-            return jsonify({"success": False, "error": "Not authenticated"}), 401
-        create_match_id = (request.args.get("create_match_id") or "").strip()
-        if not create_match_id:
-            return jsonify({"success": False, "error": "create_match_id required"}), 400
-        session = _create_match_sessions.get(create_match_id)
-        if not session:
-            return jsonify({"success": False, "error": "Session not found", "invited": []}), 404
-        if session["inviter_user_id"] != inviter_user_id:
-            return jsonify({"success": False, "error": "Forbidden"}), 403
-        return jsonify({"success": True, "create_match_id": create_match_id, "created_at": session["created_at"], "invited": list(session["invited"])}), 200
-    except Exception as e:
-        custom_log(f"DutchGame: get_create_match_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-        return jsonify({"success": False, "error": str(e)}), 500
+# msg_id -> { action_identifier -> callable(doc, user_id) -> dict }. Modules register per message kind.
+_message_handlers = {}
+
+
+def register_message_handlers(msg_id: str, handlers: dict):
+    """Register response handlers for a logical message id. msg_id must match the one passed when creating the notification."""
+    if not msg_id or not isinstance(handlers, dict):
+        return
+    _message_handlers[msg_id.strip()] = {k.strip(): v for k, v in handlers.items() if k and callable(v)}
+
+
+def _dutch_dispatch(doc, action_identifier: str, user_id: str):
+    """Single handler registered with core for source dutch_game. Dispatches by doc["msg_id"] and action_identifier."""
+    msg_id = (doc.get("msg_id") or "").strip()
+    if not msg_id:
+        return {"success": False, "error": "Notification has no msg_id"}
+    handlers = _message_handlers.get(msg_id)
+    if not handlers:
+        return {"success": False, "error": f"No handlers registered for msg_id {msg_id!r}"}
+    handler = handlers.get(action_identifier)
+    if not handler:
+        return {"success": False, "error": f"Unknown action_identifier {action_identifier!r} for this notification"}
+    return handler(doc, user_id)
 
 
 def _dutch_handle_accept(doc, user_id):
-    """Registered handler: accept game invite. Updates create-match session if present."""
-    if doc.get("subtype") == dutch_notifications.SUBTYPE_MATCH_INVITE:
-        return {"success": True, "message": "Updated", "action": "accept"}
-    create_match_id = (doc.get("data") or {}).get("create_match_id")
-    if create_match_id and create_match_id in _create_match_sessions:
-        session = _create_match_sessions[create_match_id]
-        for inv in session.get("invited") or []:
-            if str(inv.get("user_id")) == str(user_id):
-                inv["status"] = "accepted"
-                break
+    """Handler for accept: match invite only."""
     return {"success": True, "message": "Updated", "action": "accept"}
 
 
 def _dutch_handle_decline(doc, user_id):
-    """Registered handler: decline game invite. Updates create-match session if present."""
-    if doc.get("subtype") == dutch_notifications.SUBTYPE_MATCH_INVITE:
-        return {"success": True, "message": "Updated", "action": "decline"}
-    create_match_id = (doc.get("data") or {}).get("create_match_id")
-    if create_match_id and create_match_id in _create_match_sessions:
-        session = _create_match_sessions[create_match_id]
-        for inv in session.get("invited") or []:
-            if str(inv.get("user_id")) == str(user_id):
-                inv["status"] = "declined"
-                break
+    """Handler for decline: match invite only."""
     return {"success": True, "message": "Updated", "action": "decline"}
 
 
 def _dutch_handle_join(doc, user_id):
-    """Registered handler: join room from room-ready notification, or match-invite Join (blank)."""
-    if doc.get("subtype") == dutch_notifications.SUBTYPE_MATCH_INVITE:
-        return {"success": True, "message": "Updated", "action": "join"}
-    if doc.get("subtype") != dutch_notifications.SUBTYPE_ROOM_JOIN:
-        return {"success": False, "error": "Invalid notification type"}
-    room_id = (doc.get("data") or {}).get("room_id")
-    if not room_id:
-        return {"success": False, "error": "room_id missing in notification"}
-    return {"success": True, "room_id": room_id}
+    """Handler for join: match invite only."""
+    return {"success": True, "message": "Updated", "action": "join"}
 
 
 def invite_players_to_match():
-    """Create dutch_match_invite notifications for each user_id in the request body. POST body: user_ids (list), optional match_id, title, body."""
+    """Create dutch_match_invite notifications for each user_id in the request body. POST body: user_ids (list), optional match_id, room_id, title, body."""
     try:
         if not request.user_id:
             return jsonify({"success": False, "error": "Not authenticated"}), 401
@@ -1330,25 +1232,30 @@ def invite_players_to_match():
         if not isinstance(user_ids, list):
             return jsonify({"success": False, "error": "user_ids must be a list"}), 400
         match_id = (data.get("match_id") or "").strip() or None
+        room_id = (data.get("room_id") or "").strip() or None
         title = (data.get("title") or "Match invite").strip()
         body = (data.get("body") or "You're invited to a match.").strip()
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
+        notification_data = {"match_id": match_id}
+        if room_id:
+            notification_data["room_id"] = room_id
         notified = 0
         for uid in user_ids:
             if not isinstance(uid, str) or not uid.strip():
                 continue
             uid = uid.strip()
-            msg_id = dutch_notifications.create_notification(
+            nid = dutch_notifications.create_notification(
                 _app_manager,
                 user_id=uid,
                 subtype=dutch_notifications.SUBTYPE_MATCH_INVITE,
                 title=title,
                 body=body,
-                data={"match_id": match_id},
+                msg_id=dutch_notifications.MSG_ID_MATCH_INVITE,
+                data=notification_data,
                 responses=dutch_notifications.MATCH_INVITE_RESPONSES,
             )
-            if msg_id:
+            if nid:
                 notified += 1
         return jsonify({"success": True, "notified": notified, "requested": len(user_ids)}), 200
     except Exception as e:
@@ -1357,29 +1264,16 @@ def invite_players_to_match():
 
 
 def register_notification_handlers(notification_module):
-    """Register dutch_game response handlers with the core notification module. Call from DutchGameMain.initialize()."""
-    if not notification_module or not hasattr(notification_module, "register_response_handlers"):
+    """Register dutch_game response handler with the core (single dispatch); register per-msg_id handlers. Call from DutchGameMain.initialize()."""
+    if not notification_module or not hasattr(notification_module, "register_response_handler"):
         return
-    notification_module.register_response_handlers(dutch_notifications.DUTCH_GAME_SOURCE, {
+    # Per-msg_id handlers: only match invite (admin tournaments flow)
+    register_message_handlers(dutch_notifications.MSG_ID_MATCH_INVITE, {
         "accept": _dutch_handle_accept,
         "decline": _dutch_handle_decline,
         "join": _dutch_handle_join,
     })
-
-
-def notify_room_ready():
-    """Stub for room-ready flow. New invite/join logic to be implemented. Body: room_id, accepted_player_user_ids."""
-    try:
-        if not request.user_id:
-            return jsonify({"success": False, "error": "Not authenticated"}), 401
-        data = request.get_json(silent=True) or {}
-        room_id = (data.get("room_id") or "").strip()
-        if not room_id:
-            return jsonify({"success": False, "error": "room_id required"}), 400
-        return jsonify({"success": True, "notified": 0}), 200
-    except Exception as e:
-        custom_log(f"DutchGame: notify_room_ready error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-        return jsonify({"success": False, "error": str(e)}), 500
+    notification_module.register_response_handler(dutch_notifications.DUTCH_GAME_SOURCE, _dutch_dispatch)
 
 
 def get_comp_players():

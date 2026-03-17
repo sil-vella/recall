@@ -56,6 +56,9 @@ class WSEventListener {
     // Message events
     _registerMessageListener();
 
+    // Core: instant notification pushed by Dart backend
+    _registerWsInstantNotificationListener();
+
     // Error events
     _registerErrorListener();
     
@@ -196,6 +199,13 @@ class WSEventListener {
     });
   }
 
+  /// Register core ws_instant_notification listener (Dart backend pushes instant notifications).
+  void _registerWsInstantNotificationListener() {
+    _socket?.on('ws_instant_notification', (data) {
+      _eventHandler.handleWsInstantNotification(data);
+    });
+  }
+
   /// Register error listener
   void _registerErrorListener() {
     _socket?.on('error', (data) {
@@ -252,6 +262,7 @@ class WSEventListener {
     _socket?.off('user_joined_rooms');
     _socket?.off('rooms_list');
     _socket?.off('message');
+    _socket?.off('ws_instant_notification');
     _socket?.off('error');
   }
 

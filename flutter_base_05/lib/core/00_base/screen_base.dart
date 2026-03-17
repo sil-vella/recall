@@ -460,6 +460,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   static const int kInstantNotificationPollSeconds = 20;
 
   /// Fetches messages (throttled per call), then shows modals for unread notifications with type 'instant'.
+  /// Also drains pending ws_instant_notification payloads from the Dart backend and shows them.
   /// Called on screen enter and periodically via timer so instant notifications appear without requiring navigation.
   void _checkAndShowInstantMessages() async {
     if (!mounted) return;
@@ -467,6 +468,18 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     if (loginState?['isLoggedIn'] != true) return;
     final mod = _moduleManager.getModuleByType<NotificationsModule>();
     if (mod == null) return;
+    // Drain pending WS instant notifications (Dart backend sends ws_instant_notification)
+    final pendingWs = mod.takePendingWsInstants();
+    for (final msg in pendingWs) {
+      if (!mounted) break;
+      await InstantMessageModal.show(
+        context,
+        message: msg,
+        onDismiss: () {},
+        onSendResponse: null,
+        onMarkAsRead: null,
+      );
+    }
     final state = StateManager().getModuleState<Map<String, dynamic>>('notifications');
     final lastFetched = state?['lastFetchedAt']?.toString();
     final shouldFetch = lastFetched == null ||
@@ -497,10 +510,10 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     await mod.markAsRead([messageId]);
                   }
                   final message = list.cast<Map<String, dynamic>>().where((m) => m['id']?.toString() == messageId).firstOrNull ?? <String, dynamic>{};
-                  final subtype = message['subtype']?.toString() ?? '';
+                  final msgId = message['msg_id']?.toString() ?? '';
                   HooksManager().triggerHookWithData('instant_message_response_success', {
                     'context': context,
-                    'subtype': subtype,
+                    'msg_id': msgId,
                     'response': res,
                     'message': message,
                   });

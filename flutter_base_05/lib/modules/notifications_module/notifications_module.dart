@@ -23,7 +23,31 @@ class NotificationsModule extends ModuleBase {
       'messages': <Map<String, dynamic>>[],
       'unreadCount': 0,
       'lastFetchedAt': null,
+      'pendingWsInstants': <Map<String, dynamic>>[],
     });
+  }
+
+  /// Appends a payload from ws_instant_notification (Dart backend) to be shown on next check.
+  void addPendingWsInstant(Map<String, dynamic> payload) {
+    final state = StateManager().getModuleState<Map<String, dynamic>>(_stateKey);
+    final pending = List<Map<String, dynamic>>.from(
+      state?['pendingWsInstants'] is List ? (state!['pendingWsInstants'] as List).cast<Map<String, dynamic>>() : [],
+    );
+    final message = Map<String, dynamic>.from(payload);
+    message['type'] = 'instant_ws';
+    pending.add(message);
+    StateManager().updateModuleState(_stateKey, {'pendingWsInstants': pending});
+  }
+
+  /// Takes and clears pending WS instant notifications so they can be shown once.
+  List<Map<String, dynamic>> takePendingWsInstants() {
+    final state = StateManager().getModuleState<Map<String, dynamic>>(_stateKey);
+    final pending = state?['pendingWsInstants'];
+    final list = pending is List
+        ? List<Map<String, dynamic>>.from(pending.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e is Map ? e : {})))
+        : <Map<String, dynamic>>[];
+    StateManager().updateModuleState(_stateKey, {'pendingWsInstants': <Map<String, dynamic>>[]});
+    return list;
   }
 
   /// Fetch messages from the core notification API. Updates state on success.

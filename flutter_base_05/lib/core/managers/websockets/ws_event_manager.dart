@@ -7,7 +7,7 @@ import 'websocket_manager.dart';
 import '../state_manager.dart';
 import 'websocket_state_validator.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for create room/tournament flow and WebSocket event management
+const bool LOGGING_SWITCH = true; // Enabled for tournament match create flow (createRoom, events)
 
 /// WebSocket Event Manager - Centralized event handling for WebSocket operations
 class WSEventManager {

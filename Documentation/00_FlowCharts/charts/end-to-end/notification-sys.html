@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notification Sys | FlowCharts</title>
+  <link rel="stylesheet" href="../../css/flowcharts.css">
+  <style media="print">
+    @page { size: A4; margin: 15mm; }
+    header, .flowcharts-header { display: none !important; }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'base' });
+  </script>
+</head>
+<body>
+  <header class="flowcharts-header" id="flowcharts-header" aria-hidden="false">
+    <div class="header-inner">
+      <a href="../../index.html" class="logo">FlowCharts</a>
+      <nav id="flowcharts-nav" class="flowcharts-nav" aria-label="Charts navigation">
+        <ul>
+<li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">End To End</button><ul>
+<li><a href="../../charts/end-to-end/notification-sys.html" class="active">Notification Sys</a></li>
+</ul></li>
+<li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Example</button><ul>
+<li><a href="../../charts/example/sample.html">Sample</a></li>
+</ul></li>
+</ul>
+      </nav>
+    </div>
+  </header>
+  <main class="flowcharts-main">
+    <h1>Notification Sys</h1>
+    <div class="mermaid">
+%%{init: {
+  &quot;theme&quot;: &quot;base&quot;,
+  &quot;themeVariables&quot;: {
+    &quot;primaryColor&quot;: &quot;#e8e0d5&quot;,
+    &quot;primaryTextColor&quot;: &quot;#2d2a26&quot;,
+    &quot;primaryBorderColor&quot;: &quot;#8b7355&quot;,
+    &quot;secondaryColor&quot;: &quot;#d4c4b0&quot;,
+    &quot;secondaryBorderColor&quot;: &quot;#6b5d4f&quot;,
+    &quot;tertiaryColor&quot;: &quot;#f5f0eb&quot;,
+    &quot;lineColor&quot;: &quot;#5c5248&quot;,
+    &quot;background&quot;: &quot;#faf8f5&quot;,
+    &quot;fontFamily&quot;: &quot;system-ui, &#x27;Segoe UI&#x27;, sans-serif&quot;,
+    &quot;fontSize&quot;: &quot;14px&quot;,
+    &quot;nodeBorder&quot;: &quot;#8b7355&quot;,
+    &quot;clusterBkg&quot;: &quot;#f0ebe3&quot;,
+    &quot;clusterBorder&quot;: &quot;#6b5d4f&quot;,
+    &quot;defaultLinkColor&quot;: &quot;#5c5248&quot;,
+    &quot;titleColor&quot;: &quot;#2d2a26&quot;,
+    &quot;nodeTextColor&quot;: &quot;#2d2a26&quot;
+  }
+}}%%
+flowchart TB
+  subgraph Backend[&quot;Backend (Python)&quot;]
+    direction TB
+    subgraph Create[&quot;Creation&quot;]
+      M1[&quot;Module (e.g. Dutch game)&lt;br/&gt;calls notif_service.create(...)&quot;]
+      M1 --&gt; M1args[&quot;user_id, source, type, title, body,&lt;br/&gt;msg_id, data, responses, subtype&quot;]
+      M1args --&gt; SVC[&quot;NotificationService.create()&quot;]
+      SVC --&gt; SVCcheck[&quot;type in instant | admin | advert&quot;]
+      SVCcheck --&gt; SVCdoc[&quot;Build doc: _id (DB), msg_id (module);&lt;br/&gt;insert into notifications coll&quot;]
+      SVCdoc --&gt; SVCret[&quot;Return doc_id&quot;]
+    end
+    subgraph Storage[&quot;Storage&quot;]
+      COLL[&quot;notifications collection&lt;br/&gt;user_id, source, type, title, body, data,&lt;br/&gt;responses (label, action_identifier), subtype,&lt;br/&gt;read, read_at, created_at, updated_at&quot;]
+    end
+    subgraph API[&quot;API&quot;]
+      LIST[&quot;GET /userauth/notifications/messages&lt;br/&gt;unread_only, limit, offset&quot;]
+      MARK[&quot;POST /userauth/notifications/mark-read&lt;br/&gt;message_ids&quot;]
+      RESP[&quot;POST /userauth/notifications/response&lt;br/&gt;message_id, action_identifier&quot;]
+      RESP --&gt; RESPLogic[&quot;Core: source+action → handler&lt;br/&gt;Module dispatches by msg_id + action_identifier;&lt;br/&gt;on success mark read&quot;]
+    end
+    SVCret --&gt; COLL
+    COLL --&gt; LIST
+    COLL --&gt; MARK
+    COLL --&gt; RESP
+  end
+
+  subgraph Frontend[&quot;Frontend (Flutter)&quot;]
+    direction TB
+    subgraph Poll[&quot;Polling (Py API)&quot;]
+      BS[&quot;BaseScreen: on entry + every 20s&lt;br/&gt;_checkAndShowInstantMessages()&quot;]
+      BS --&gt; FETCH[&quot;NotificationsModule.fetchMessages()&lt;br/&gt;→ list API&quot;]
+      FETCH --&gt; FILTER[&quot;InstantMessageModal.showUnreadInstantModals&lt;br/&gt;filter type = instant | instant_ws&quot;]
+      FILTER --&gt; MODAL[&quot;Modal: title, body, response buttons&lt;br/&gt;from message.responses&quot;]
+    end
+    subgraph WS[&quot;Instant via Dart WS&quot;]
+      WSEVT[&quot;Dart backend emits&lt;br/&gt;ws_instant_notification&quot;]
+      WSEVT --&gt; QUEUE[&quot;Client queues payload;&lt;br/&gt;type = instant_ws&quot;]
+      QUEUE --&gt; DRAIN[&quot;_checkAndShowInstantMessages&lt;br/&gt;drains pending WS instants&quot;]
+      DRAIN --&gt; MODAL
+    end
+    subgraph UserActions[&quot;On user action&quot;]
+      ONRESP[&quot;On response tap&quot;]
+      ONCLOSE[&quot;On close / after response&quot;]
+      ONRESP --&gt; POSTRESP[&quot;POST /response with message_id, action_identifier&quot;]
+      POSTRESP --&gt; SUCCESS[&quot;On success: mark read +&lt;br/&gt;HooksManager.triggerHookWithData&lt;br/&gt;(&#x27;instant_message_response_success&#x27;,&lt;br/&gt;msg_id, response, message)&quot;]
+      SUCCESS --&gt; HANDLERS[&quot;Frontend modules: response success&lt;br/&gt;handlers mapped by msg_id&quot;]
+      ONCLOSE --&gt; POSTMARK[&quot;POST mark-read with message_id&quot;]
+    end
+    MODAL --&gt; ONRESP
+    MODAL --&gt; ONCLOSE
+  end
+
+  LIST -.-&gt; FETCH
+  POSTRESP -.-&gt; RESP
+  POSTMARK -.-&gt; MARK
+
+  Backend --&gt; Frontend
+    </div>
+  </main>
+  <script>
+    (function() {
+      var el = document.getElementById('flowcharts-header');
+      if (!el) return;
+      function hide() { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); }
+      function show() { el.style.display = ''; el.setAttribute('aria-hidden', 'false'); }
+      window.addEventListener('beforeprint', hide);
+      window.addEventListener('afterprint', show);
+    })();
+  </script>
+</body>
+</html>

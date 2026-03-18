@@ -1,128 +1,182 @@
-/* Unified styles for Flowcharts hub and chart pages. Browser/theme sets colors unless overridden. */
+/* FlowCharts – shared styles for header and chart pages */
 
-* { box-sizing: border-box; }
+:root {
+  --fc-bg: #faf8f5;
+  --fc-header-bg: #2d2a26;
+  --fc-header-text: #e8e0d5;
+  --fc-header-link: #d4c4b0;
+  --fc-header-link-hover: #f5f0eb;
+  --fc-border: #8b7355;
+  --fc-text: #2d2a26;
+}
+
+* {
+  box-sizing: border-box;
+}
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
   margin: 0;
-  min-height: 100vh;
+  font-family: system-ui, "Segoe UI", sans-serif;
+  background: var(--fc-bg);
+  color: var(--fc-text);
 }
 
-.container {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 1.5rem;
+.flowcharts-header {
+  background: var(--fc-header-bg);
+  color: var(--fc-header-text);
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--fc-border);
 }
 
-.container--wide {
+.header-inner {
   max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
 }
 
-.breadcrumb {
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-}
-
-.breadcrumb a {
+.flowcharts-header .logo {
+  font-weight: 700;
+  color: var(--fc-header-link);
   text-decoration: none;
 }
 
-.breadcrumb a:hover {
+.flowcharts-header .logo:hover {
+  color: var(--fc-header-link-hover);
+}
+
+.flowcharts-nav > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+}
+
+.flowcharts-nav li {
+  position: relative;
+}
+
+/* Dropdown: submenu under folder */
+.flowcharts-nav li .nav-folder + ul {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 10rem;
+  margin: 0.25rem 0 0 0;
+  padding: 0.35rem 0;
+  background: var(--fc-header-bg);
+  border: 1px solid var(--fc-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  flex-direction: column;
+  gap: 0;
+  display: none;
+  z-index: 10;
+}
+
+.flowcharts-nav li:hover .nav-folder + ul,
+.flowcharts-nav li .nav-folder:focus + ul {
+  display: flex;
+}
+
+.flowcharts-nav li .nav-folder + ul li {
+  padding: 0;
+}
+
+.flowcharts-nav li .nav-folder + ul a {
+  display: block;
+  padding: 0.35rem 1rem;
+  white-space: nowrap;
+}
+
+.flowcharts-nav li .nav-folder + ul a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  text-decoration: none;
+}
+
+/* Folder label with dropdown cue (button for focus/keyboard) */
+.flowcharts-nav .nav-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--fc-header-link);
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.flowcharts-nav .nav-folder::after {
+  content: "▾";
+  font-size: 0.7em;
+  opacity: 0.85;
+}
+
+.flowcharts-nav .nav-folder:hover {
+  color: var(--fc-header-link-hover);
+}
+
+.flowcharts-nav a,
+.flowcharts-nav .nav-folder {
+  color: var(--fc-header-link);
+  font-size: 0.9rem;
+}
+
+.flowcharts-nav a {
+  text-decoration: none;
+}
+
+.flowcharts-nav a:hover {
+  color: var(--fc-header-link-hover);
   text-decoration: underline;
 }
 
-.breadcrumb span {
-  margin: 0 0.35rem;
+.flowcharts-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
 }
 
-h1 {
+.flowcharts-main h1 {
+  margin-top: 0;
   font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem 0;
 }
 
-.notes {
-  font-size: 0.85rem;
-  margin: 1rem 0;
-  padding: 0.75rem;
-  border-radius: 8px;
-}
-
-.chart-comment {
-  font-size: 0.8rem;
-  margin: 0.75rem 0 0 0;
-  color: #444;
-}
-
-.chart-comment code {
-  font-size: 0.9em;
-}
-
-.state-example {
-  font-size: 0.75rem;
-  max-height: 28rem;
-  overflow: auto;
-  padding: 0.75rem;
-  margin: 0.5rem 0;
-  border-radius: 6px;
-  background: #f8f8f8;
-  border: 1px solid #e0e0e0;
-}
-
-.state-example code {
-  font-family: ui-monospace, monospace;
-  white-space: pre;
-}
-
-#chart {
-  border-radius: 8px;
-  padding: 1rem;
+.flowcharts-main .mermaid {
   margin-top: 1rem;
-  overflow-x: auto;
+  min-height: 200px;
 }
 
-/* Diagram text: ensure dark on light. Targets SVG text and Mermaid foreignObject labels. */
-#chart svg text,
-#chart svg tspan,
-#chart svg .nodeLabel,
-#chart svg .edgeLabel,
-#chart svg .label {
-  fill: #111 !important;
-  font-weight: 500;
-}
-#chart svg foreignObject body,
-#chart svg foreignObject div,
-#chart svg foreignObject span {
-  color: #111 !important;
-  background: transparent !important;
+/* Print / Save as PDF: always A4 */
+@page {
+  size: A4;
+  margin: 15mm;
 }
 
-/* Index (hub) page */
-header {
-  padding-bottom: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.nav-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.nav-list a {
-  display: block;
-  padding: 0.85rem 1rem;
-  text-decoration: none;
-  border-radius: 8px;
-  transition: background 0.15s;
-}
-
-.view {
-  display: none;
-}
-
-.view.active {
-  display: block;
+@media print {
+  header.flowcharts-header,
+  .flowcharts-header,
+  header {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sample | FlowCharts</title>
+  <link rel="stylesheet" href="../../css/flowcharts.css">
+  <style media="print">
+    @page { size: A4; margin: 15mm; }
+    header, .flowcharts-header { display: none !important; }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'base' });
+  </script>
+</head>
+<body>
+  <header class="flowcharts-header" id="flowcharts-header" aria-hidden="false">
+    <div class="header-inner">
+      <a href="../../index.html" class="logo">FlowCharts</a>
+      <nav id="flowcharts-nav" class="flowcharts-nav" aria-label="Charts navigation">
+        <ul>
+<li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">End To End</button><ul>
+<li><a href="../../charts/end-to-end/notification-sys.html">Notification Sys</a></li>
+</ul></li>
+<li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Example</button><ul>
+<li><a href="../../charts/example/sample.html" class="active">Sample</a></li>
+</ul></li>
+</ul>
+      </nav>
+    </div>
+  </header>
+  <main class="flowcharts-main">
+    <h1>Sample</h1>
+    <div class="mermaid">
+%%{init: {
+  &quot;theme&quot;: &quot;base&quot;,
+  &quot;themeVariables&quot;: {
+    &quot;primaryColor&quot;: &quot;#e8e0d5&quot;,
+    &quot;primaryTextColor&quot;: &quot;#2d2a26&quot;,
+    &quot;primaryBorderColor&quot;: &quot;#8b7355&quot;,
+    &quot;secondaryColor&quot;: &quot;#d4c4b0&quot;,
+    &quot;secondaryBorderColor&quot;: &quot;#6b5d4f&quot;,
+    &quot;tertiaryColor&quot;: &quot;#f5f0eb&quot;,
+    &quot;lineColor&quot;: &quot;#5c5248&quot;,
+    &quot;background&quot;: &quot;#faf8f5&quot;,
+    &quot;fontFamily&quot;: &quot;system-ui, &#x27;Segoe UI&#x27;, sans-serif&quot;,
+    &quot;fontSize&quot;: &quot;14px&quot;,
+    &quot;nodeBorder&quot;: &quot;#8b7355&quot;,
+    &quot;clusterBkg&quot;: &quot;#f0ebe3&quot;,
+    &quot;clusterBorder&quot;: &quot;#6b5d4f&quot;,
+    &quot;defaultLinkColor&quot;: &quot;#5c5248&quot;,
+    &quot;titleColor&quot;: &quot;#2d2a26&quot;,
+    &quot;nodeTextColor&quot;: &quot;#2d2a26&quot;
+  }
+}}%%
+flowchart LR
+  A[Start] --&gt; B{OK?}
+  B --&gt;|Yes| C[End]
+  B --&gt;|No| A
+    </div>
+  </main>
+  <script>
+    (function() {
+      var el = document.getElementById('flowcharts-header');
+      if (!el) return;
+      function hide() { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); }
+      function show() { el.style.display = ''; el.setAttribute('aria-hidden', 'false'); }
+      window.addEventListener('beforeprint', hide);
+      window.addEventListener('afterprint', show);
+    })();
+  </script>
+</body>
+</html>

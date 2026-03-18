@@ -172,3 +172,6 @@ playbooks/*/logs/
 # Backup directories (any path)
 backup/
 backups/
+
+# FlowCharts: generated A4 PDFs (same dir as chart HTML)
+Documentation/00_FlowCharts/charts/**/*.pdf

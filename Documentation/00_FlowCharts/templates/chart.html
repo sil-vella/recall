@@ -3,32 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FlowCharts</title>
-  <link rel="stylesheet" href="css/flowcharts.css">
+  <title>{{CHART_TITLE}} | FlowCharts</title>
+  <link rel="stylesheet" href="{{ROOT_REL}}css/flowcharts.css">
   <style media="print">
     @page { size: A4; margin: 15mm; }
     header, .flowcharts-header { display: none !important; }
   </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'base' });
+  </script>
 </head>
 <body>
   <header class="flowcharts-header" id="flowcharts-header" aria-hidden="false">
     <div class="header-inner">
-      <a href="index.html" class="logo">FlowCharts</a>
+      <a href="{{ROOT_REL}}index.html" class="logo">FlowCharts</a>
       <nav id="flowcharts-nav" class="flowcharts-nav" aria-label="Charts navigation">
-        <ul>
-<li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">End To End</button><ul>
-<li><a href="charts/end-to-end/notification-sys.html">Notification Sys</a></li>
-</ul></li>
-<li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Example</button><ul>
-<li><a href="charts/example/sample.html">Sample</a></li>
-</ul></li>
-</ul>
+        {{NAV_CONTENT}}
       </nav>
     </div>
   </header>
   <main class="flowcharts-main">
-    <h1>FlowCharts</h1>
-    <p>Pick a chart from the nav to view. Run <code>scripts/build_nav_and_charts.py</code> to regenerate the nav and chart pages from the <code>charts/</code> directory.</p>
+    <h1>{{CHART_TITLE}}</h1>
+    <div class="mermaid">
+{{MERMAID_SOURCE}}
+    </div>
   </main>
   <script>
     (function() {

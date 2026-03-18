@@ -1,0 +1,57 @@
+flowchart TB
+  subgraph Backend["Backend (Python)"]
+    direction TB
+    subgraph Create["Creation"]
+      M1["Module (e.g. Dutch game)<br/>calls notif_service.create(...)"]
+      M1 --> M1args["user_id, source, type, title, body,<br/>msg_id, data, responses, subtype"]
+      M1args --> SVC["NotificationService.create()"]
+      SVC --> SVCcheck["type in instant | admin | advert"]
+      SVCcheck --> SVCdoc["Build doc: _id (DB), msg_id (module);<br/>insert into notifications coll"]
+      SVCdoc --> SVCret["Return doc_id"]
+    end
+    subgraph Storage["Storage"]
+      COLL["notifications collection<br/>user_id, source, type, title, body, data,<br/>responses (label, action_identifier), subtype,<br/>read, read_at, created_at, updated_at"]
+    end
+    subgraph API["API"]
+      LIST["GET /userauth/notifications/messages<br/>unread_only, limit, offset"]
+      MARK["POST /userauth/notifications/mark-read<br/>message_ids"]
+      RESP["POST /userauth/notifications/response<br/>message_id, action_identifier"]
+      RESP --> RESPLogic["Core: source+action → handler<br/>Module dispatches by msg_id + action_identifier;<br/>on success mark read"]
+    end
+    SVCret --> COLL
+    COLL --> LIST
+    COLL --> MARK
+    COLL --> RESP
+  end
+
+  subgraph Frontend["Frontend (Flutter)"]
+    direction TB
+    subgraph Poll["Polling (Py API)"]
+      BS["BaseScreen: on entry + every 20s<br/>_checkAndShowInstantMessages()"]
+      BS --> FETCH["NotificationsModule.fetchMessages()<br/>→ list API"]
+      FETCH --> FILTER["InstantMessageModal.showUnreadInstantModals<br/>filter type = instant | instant_ws"]
+      FILTER --> MODAL["Modal: title, body, response buttons<br/>from message.responses"]
+    end
+    subgraph WS["Instant via Dart WS"]
+      WSEVT["Dart backend emits<br/>ws_instant_notification"]
+      WSEVT --> QUEUE["Client queues payload;<br/>type = instant_ws"]
+      QUEUE --> DRAIN["_checkAndShowInstantMessages<br/>drains pending WS instants"]
+      DRAIN --> MODAL
+    end
+    subgraph UserActions["On user action"]
+      ONRESP["On response tap"]
+      ONCLOSE["On close / after response"]
+      ONRESP --> POSTRESP["POST /response with message_id, action_identifier"]
+      POSTRESP --> SUCCESS["On success: mark read +<br/>HooksManager.triggerHookWithData<br/>('instant_message_response_success',<br/>msg_id, response, message)"]
+      SUCCESS --> HANDLERS["Frontend modules: response success<br/>handlers mapped by msg_id"]
+      ONCLOSE --> POSTMARK["POST mark-read with message_id"]
+    end
+    MODAL --> ONRESP
+    MODAL --> ONCLOSE
+  end
+
+  LIST -.-> FETCH
+  POSTRESP -.-> RESP
+  POSTMARK -.-> MARK
+
+  Backend --> Frontend

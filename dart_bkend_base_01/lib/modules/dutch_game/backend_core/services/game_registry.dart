@@ -672,12 +672,23 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         }
         return;
       }
-      
-      // Call Python API to update statistics
+
+      // Read tournament context from game state (set at room creation) for Python
+      final state = _store.getState(roomId);
+      final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+      final isTournament = gameState['is_tournament'] == true;
+      final tournamentData = gameState['tournament_data'] as Map<String, dynamic>?;
+
+      // Call Python API to update statistics (and optional tournament stub)
       if (LOGGING_SWITCH) {
-        _logger.info('GameStateCallback: Calling Python API to update game statistics');
+        _logger.info('GameStateCallback: Calling Python API to update game statistics (isTournament=$isTournament)');
       }
-      server.pythonClient.updateGameStats(gameResults).then((result) {
+      server.pythonClient.updateGameStats(
+        gameResults,
+        isTournament: isTournament,
+        tournamentData: tournamentData,
+        roomId: roomId,
+      ).then((result) {
         if (result['success'] == true) {
           if (LOGGING_SWITCH) {
             _logger.info('GameStateCallback: Successfully updated game statistics');

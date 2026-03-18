@@ -255,6 +255,27 @@ def create_tournaments():
 # --- Handlers for routes registered via DutchGameMain._register_route_helper (use _app_manager) ---
 
 
+def get_tournaments_service():
+    """Load all tournaments and their data. Service endpoint: requires X-Service-Key (PHP dashboard / Dart backend)."""
+    try:
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_only")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database unavailable"}), 503
+        raw = db_manager.find("tournaments", {})
+        tournaments = list(raw) if raw else []
+        out = []
+        for d in tournaments:
+            j = _tournament_doc_to_json(d)
+            j["id"] = str(d.get("_id", ""))
+            out.append(j)
+        return jsonify({"success": True, "tournaments": out}), 200
+    except Exception as e:
+        custom_log(f"DutchGame: get_tournaments_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
+
+
 def get_available_games():
     """Get all available games that can be joined (JWT protected endpoint)."""
     try:
@@ -315,6 +336,61 @@ def find_room():
         return jsonify({"success": False, "message": "Failed to find game", "error": str(e)}), 500
 
 
+def _record_tournament_match_result(
+    db_manager,
+    game_results: list,
+    tournament_data: Dict[str, Any],
+    room_id: Optional[str] = None,
+) -> None:
+    """Update tournament match in DB when a tournament match ends: set status=completed and winner.
+    Match is found by tournament_id + room_id (room_id was set on the match at attach_tournament_match_room).
+    Winner is the user_id of the first game_result with is_winner=True; if multiple winners, comma-separated."""
+    if not room_id:
+        custom_log("📊 Python: _record_tournament_match_result skipped - no room_id", level="WARNING", isOn=LOGGING_SWITCH)
+        return
+    tournament_id = (tournament_data.get("tournament_id") or "").strip()
+    if not tournament_id:
+        custom_log("📊 Python: _record_tournament_match_result skipped - no tournament_id in tournament_data", level="WARNING", isOn=LOGGING_SWITCH)
+        return
+    try:
+        tournament_oid = ObjectId(tournament_id)
+    except Exception:
+        custom_log(f"📊 Python: _record_tournament_match_result invalid tournament_id format: {tournament_id}", level="WARNING", isOn=LOGGING_SWITCH)
+        return
+    tournament = db_manager.find_one("tournaments", {"_id": tournament_oid})
+    if not tournament:
+        custom_log(f"📊 Python: _record_tournament_match_result tournament not found: {tournament_id}", level="WARNING", isOn=LOGGING_SWITCH)
+        return
+    matches = list(tournament.get("matches") or [])
+    match_idx = None
+    for i, m in enumerate(matches):
+        if isinstance(m, dict) and (m.get("room_id") or "").strip() == room_id:
+            match_idx = i
+            break
+    if match_idx is None:
+        custom_log(f"📊 Python: _record_tournament_match_result no match with room_id={room_id} in tournament {tournament_id}", level="WARNING", isOn=LOGGING_SWITCH)
+        return
+    winner_user_ids = [r.get("user_id") for r in game_results if r.get("is_winner") and r.get("user_id")]
+    winner_str = ",".join(str(uid) for uid in winner_user_ids) if winner_user_ids else ""
+    matches[match_idx] = dict(matches[match_idx])
+    matches[match_idx]["status"] = "completed"
+    matches[match_idx]["winner"] = winner_str
+    now = datetime.utcnow()
+    updated_at = now.isoformat() + "Z"
+    try:
+        db_manager.db["tournaments"].update_one(
+            {"_id": tournament_oid},
+            {"$set": {"matches": matches, "updated_at": updated_at}},
+        )
+        custom_log(
+            f"📊 Python: Tournament match updated - tournament_id={tournament_id} room_id={room_id} winner={winner_str}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+    except Exception as db_err:
+        custom_log(f"📊 Python: _record_tournament_match_result db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
+
+
 def update_game_stats():
     """Update user game statistics after a game ends (service endpoint: Dart backend only, X-Service-Key auth)."""
     try:
@@ -328,11 +404,19 @@ def update_game_stats():
         if len(game_results) == 0:
             return jsonify({"success": False, "message": "game_results array cannot be empty", "error": "No game results provided"}), 400
         custom_log(f"📊 Python: Processing {len(game_results)} player result(s)", level="INFO", isOn=LOGGING_SWITCH)
+
         if not _app_manager:
             return jsonify({"success": False, "message": "Server not initialized"}), 503
         db_manager = _app_manager.get_db_manager(role="read_write")
         if not db_manager:
             return jsonify({"success": False, "message": "Database connection unavailable", "error": "Database manager not initialized"}), 500
+
+        is_tournament = data.get('is_tournament', False) is True
+        tournament_data = data.get('tournament_data') if isinstance(data.get('tournament_data'), dict) else {}
+        room_id = data.get('room_id') or data.get('game_id')
+        if is_tournament:
+            _record_tournament_match_result(db_manager, game_results, tournament_data, room_id=room_id)
+
         current_time = datetime.utcnow()
         current_timestamp = current_time.isoformat()
         updated_players = []

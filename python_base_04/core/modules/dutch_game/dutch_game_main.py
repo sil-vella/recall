@@ -68,6 +68,7 @@ class DutchGameMain(BaseModule):
             self._register_route_helper("/service/dutch/update-game-stats", api_endpoints.update_game_stats, methods=["POST"])
             self._register_route_helper("/service/dutch/get-user-stats", api_endpoints.get_user_stats_service, methods=["POST"])
             self._register_route_helper("/service/dutch/attach-tournament-match-room", api_endpoints.attach_tournament_match_room_service, methods=["POST"])
+            self._register_route_helper("/service/dutch/get-tournaments", api_endpoints.get_tournaments_service, methods=["GET"])
             self._register_route_helper("/userauth/dutch/create-tournament", api_endpoints.create_tournament, methods=["POST"], auth="jwt")
             self._register_route_helper("/userauth/dutch/get-tournaments", api_endpoints.get_tournaments, methods=["GET"], auth="jwt")
             self._register_route_helper("/userauth/dutch/add-tournament-match", api_endpoints.add_tournament_match, methods=["POST"], auth="jwt")

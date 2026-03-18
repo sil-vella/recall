@@ -67,10 +67,16 @@ class PythonApiClient {
     }
   }
   
-  /// Update game statistics for players after a game ends (service endpoint: X-Service-Key auth)
-  Future<Map<String, dynamic>> updateGameStats(List<Map<String, dynamic>> gameResults) async {
+  /// Update game statistics for players after a game ends (service endpoint: X-Service-Key auth).
+  /// [isTournament] and [tournamentData] are read from game state and sent when the match was a tournament.
+  Future<Map<String, dynamic>> updateGameStats(
+    List<Map<String, dynamic>> gameResults, {
+    bool isTournament = false,
+    Map<String, dynamic>? tournamentData,
+    String? roomId,
+  }) async {
     if (LOGGING_SWITCH) {
-      _logger.info('📊 Dart: Updating game statistics for ${gameResults.length} player(s)');
+      _logger.info('📊 Dart: Updating game statistics for ${gameResults.length} player(s), isTournament=$isTournament');
       _logger.info('🌐 Dart: Calling $baseUrl/service/dutch/update-game-stats');
     }
 
@@ -87,13 +93,18 @@ class PythonApiClient {
       if (serviceKey.isNotEmpty) 'X-Service-Key': serviceKey,
     };
 
+    final body = <String, dynamic>{
+      'game_results': gameResults,
+      if (roomId != null && roomId.isNotEmpty) 'room_id': roomId,
+      if (isTournament) 'is_tournament': true,
+      if (isTournament && tournamentData != null && tournamentData.isNotEmpty) 'tournament_data': tournamentData,
+    };
+
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/service/dutch/update-game-stats'),
         headers: headers,
-        body: jsonEncode({
-          'game_results': gameResults,
-        }),
+        body: jsonEncode(body),
       );
       
       if (LOGGING_SWITCH) {

@@ -1,0 +1,33 @@
+flowchart TB
+  subgraph DB["db Tournaments"]
+    T["Tournament"]
+    T --- T_id["id (from create time)"]
+    T --- T_name["name"]
+    T --- T_status["status: pending | active | complete"]
+    T --- T_type["type: IRL | Online"]
+    T --- T_format["format: League | Cup"]
+    T --- T_start["start_date"]
+    T --- T_matches["matches"]
+  end
+
+  subgraph Match["Match"]
+    M["Match_id"]
+    M --- M_status["status: open | active | complete"]
+    M --- M_date["date"]
+    M --- M_room["room_id"]
+    M --- M_winner["winner"]
+    M --- M_players["players"]
+  end
+
+  subgraph Player["Player"]
+    P["player entry"]
+    P --- P_uid["user_id"]
+    P --- P_username["username"]
+    P --- P_email["email"]
+    P --- P_points["points"]
+    P --- P_cards["number_of_cards_left"]
+    P_cards --- P_cards_data["cards_data: card_rank, card_suite"]
+  end
+
+  T_matches --> Match
+  M_players --> Player

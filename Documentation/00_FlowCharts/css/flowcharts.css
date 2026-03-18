@@ -60,13 +60,10 @@ body {
   position: relative;
 }
 
-/* Dropdown: submenu under folder */
+/* All dropdown panels: base layout (first and nested) */
 .flowcharts-nav li .nav-folder + ul {
   position: absolute;
-  top: 100%;
-  left: 0;
   min-width: 10rem;
-  margin: 0.25rem 0 0 0;
   padding: 0.35rem 0;
   background: var(--fc-header-bg);
   border: 1px solid var(--fc-border);
@@ -78,13 +75,36 @@ body {
   z-index: 10;
 }
 
-.flowcharts-nav li:hover .nav-folder + ul,
+/* First level only: open right under the nav (below folder button) */
+.flowcharts-nav > ul > li > .nav-folder + ul {
+  top: 100%;
+  left: 0;
+  margin-top: 0;
+}
+
+/* Nested levels (2+): open next to their parent item (to the right) */
+.flowcharts-nav li li .nav-folder + ul {
+  top: 0;
+  left: 100%;
+  margin-left: 0.15rem;
+}
+
+/* Any li that contains a dropdown needs relative positioning for placement */
+.flowcharts-nav li li {
+  position: relative;
+  padding: 0;
+}
+
+/* Keep open when hovering folder OR the dropdown at any depth */
+.flowcharts-nav li:hover > .nav-folder + ul,
+.flowcharts-nav li .nav-folder + ul:hover,
 .flowcharts-nav li .nav-folder:focus + ul {
   display: flex;
 }
 
-.flowcharts-nav li .nav-folder + ul li {
-  padding: 0;
+/* Nested: keep child dropdown open when hovering its parent li or the child ul */
+.flowcharts-nav li li:hover > .nav-folder + ul {
+  display: flex;
 }
 
 .flowcharts-nav li .nav-folder + ul a {

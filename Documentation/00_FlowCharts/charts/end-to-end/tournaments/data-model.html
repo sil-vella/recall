@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sample | FlowCharts</title>
-  <link rel="stylesheet" href="../../css/flowcharts.css">
+  <title>Data Model | FlowCharts</title>
+  <link rel="stylesheet" href="../../../css/flowcharts.css">
   <style media="print">
     @page { size: A4; margin: 15mm; }
     header, .flowcharts-header { display: none !important; }
@@ -17,21 +17,27 @@
 <body>
   <header class="flowcharts-header" id="flowcharts-header" aria-hidden="false">
     <div class="header-inner">
-      <a href="../../index.html" class="logo">FlowCharts</a>
+      <a href="../../../index.html" class="logo">FlowCharts</a>
       <nav id="flowcharts-nav" class="flowcharts-nav" aria-label="Charts navigation">
         <ul>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">End To End</button><ul>
-<li><a href="../../charts/end-to-end/notification-sys.html">Notification Sys</a></li>
+<li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Notification Sys</button><ul>
+<li><a href="../../../charts/end-to-end/notification_sys/notification-sys.html">Notification Sys</a></li>
+</ul></li>
+<li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Tournaments</button><ul>
+<li><a href="../../../charts/end-to-end/tournaments/admin-invite-play-flow.html">Admin Invite Play Flow</a></li>
+<li><a href="../../../charts/end-to-end/tournaments/data-model.html" class="active">Data Model</a></li>
+</ul></li>
 </ul></li>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Example</button><ul>
-<li><a href="../../charts/example/sample.html" class="active">Sample</a></li>
+<li><a href="../../../charts/example/sample.html">Sample</a></li>
 </ul></li>
 </ul>
       </nav>
     </div>
   </header>
   <main class="flowcharts-main">
-    <h1>Sample</h1>
+    <h1>Data Model</h1>
     <div class="mermaid">
 %%{init: {
   &quot;theme&quot;: &quot;base&quot;,
@@ -54,10 +60,39 @@
     &quot;nodeTextColor&quot;: &quot;#2d2a26&quot;
   }
 }}%%
-flowchart LR
-  A[Start] --&gt; B{OK?}
-  B --&gt;|Yes| C[End]
-  B --&gt;|No| A
+flowchart TB
+  subgraph DB[&quot;db Tournaments&quot;]
+    T[&quot;Tournament&quot;]
+    T --- T_id[&quot;id (from create time)&quot;]
+    T --- T_name[&quot;name&quot;]
+    T --- T_status[&quot;status: pending | active | complete&quot;]
+    T --- T_type[&quot;type: IRL | Online&quot;]
+    T --- T_format[&quot;format: League | Cup&quot;]
+    T --- T_start[&quot;start_date&quot;]
+    T --- T_matches[&quot;matches&quot;]
+  end
+
+  subgraph Match[&quot;Match&quot;]
+    M[&quot;Match_id&quot;]
+    M --- M_status[&quot;status: open | active | complete&quot;]
+    M --- M_date[&quot;date&quot;]
+    M --- M_room[&quot;room_id&quot;]
+    M --- M_winner[&quot;winner&quot;]
+    M --- M_players[&quot;players&quot;]
+  end
+
+  subgraph Player[&quot;Player&quot;]
+    P[&quot;player entry&quot;]
+    P --- P_uid[&quot;user_id&quot;]
+    P --- P_username[&quot;username&quot;]
+    P --- P_email[&quot;email&quot;]
+    P --- P_points[&quot;points&quot;]
+    P --- P_cards[&quot;number_of_cards_left&quot;]
+    P_cards --- P_cards_data[&quot;cards_data: card_rank, card_suite&quot;]
+  end
+
+  T_matches --&gt; Match
+  M_players --&gt; Player
     </div>
   </main>
   <script>

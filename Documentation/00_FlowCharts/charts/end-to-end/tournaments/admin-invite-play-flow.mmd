@@ -1,0 +1,25 @@
+flowchart TB
+  subgraph Admin["Admin only (pass protected)"]
+    DASH["Admin dashboard"]
+    DASH --> CREATE_T["Create tournament"]
+    CREATE_T --> PY_DB["data to Py / DB"]
+    PY_DB --> CREATE_M["Create match / ws room"]
+    CREATE_M --> INVITE_ADD["Invite to add to room"]
+    DASH --> LEADER["Tournament Leaderboard screen/tab"]
+  end
+
+  subgraph Invite["Tournament invites"]
+    SEARCH["Search for player from dashboard<br/>by username or email"]
+    SEARCH --> INV_SENT["Invite sent"]
+    INV_SENT --> INV_DATA["tournament_id, type (e.g. IRL),<br/>fee (e.g. Free), match data, Join"]
+    INV_DATA --> ACCEPT["Accept / Decline"]
+  end
+
+  subgraph Play["Join and play"]
+    ACCEPT --> JOIN["send join_room using room_id"]
+    JOIN --> REDIRECT["redirect to Play screen<br/>wait for start remote"]
+    REDIRECT --> END["End of match"]
+    END --> UPDATE_DB["Update db with match data<br/>winner, etc."]
+  end
+
+  INVITE_ADD --> SEARCH

@@ -1,0 +1,248 @@
+---
+# Set a user's modules.dutch_game.wins in local MongoDB by fixed user_id,
+# and recompute level/rank from env-configured progression mapping.
+# Run:
+#   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_wins.yml
+- name: Load app_dev/.env for MongoDB and Dutch progression mapping values (optional)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env"
+    mongodb_container_name: "dutch_external_app_mongodb"
+  tasks:
+    - name: Check if app_dev/.env exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        result = {
+            'mongodb_password': out.get('MONGODB_PASSWORD', ''),
+            'dutch_wins_per_user_level': out.get('DUTCH_WINS_PER_USER_LEVEL', ''),
+            'dutch_levels_per_rank': out.get('DUTCH_LEVELS_PER_RANK', ''),
+            'dutch_rank_hierarchy': out.get('DUTCH_RANK_HIERARCHY', ''),
+            'dutch_user_level_min': out.get('DUTCH_USER_LEVEL_MIN', '')
+        }
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env
+      set_fact:
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+        dutch_wins_per_user_level_env: "{{ (env_json.stdout | from_json).dutch_wins_per_user_level }}"
+        dutch_levels_per_rank_env: "{{ (env_json.stdout | from_json).dutch_levels_per_rank }}"
+        dutch_rank_hierarchy_env: "{{ (env_json.stdout | from_json).dutch_rank_hierarchy }}"
+        dutch_user_level_min_env: "{{ (env_json.stdout | from_json).dutch_user_level_min }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
+- name: Set user wins and derived level/rank (local Docker)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_prompt:
+    - name: target_wins_input
+      prompt: "Enter target wins (whole number >= 0)"
+      private: false
+  vars:
+    mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
+    mongodb_container_name: "dutch_external_app_mongodb"
+    target_user_id: "69aae0b0095ba0c771e43091"
+    wins_per_user_level: "{{ ((hostvars['localhost'] | default({})).get('dutch_wins_per_user_level_env') | default('') | trim) or '10' }}"
+    levels_per_rank: "{{ ((hostvars['localhost'] | default({})).get('dutch_levels_per_rank_env') | default('') | trim) or '5' }}"
+    rank_hierarchy_csv: "{{ ((hostvars['localhost'] | default({})).get('dutch_rank_hierarchy_env') | default('') | trim) or 'beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend' }}"
+    user_level_min: "{{ ((hostvars['localhost'] | default({})).get('dutch_user_level_min_env') | default('') | trim) or '1' }}"
+  tasks:
+    - name: Validate target wins input
+      assert:
+        that:
+          - target_wins_input is match('^[0-9]+$')
+        fail_msg: "Wins must be an integer >= 0."
+
+    - name: Resolve mapping inputs and computed level/rank from target wins
+      set_fact:
+        target_wins: "{{ target_wins_input | int }}"
+        wins_per_user_level_int: "{{ wins_per_user_level | int }}"
+        levels_per_rank_int: "{{ levels_per_rank | int }}"
+        user_level_min_int: "{{ user_level_min | int }}"
+        rank_hierarchy_list: "{{ rank_hierarchy_csv.split(',') | map('trim') | reject('equalto', '') | list }}"
+        computed_level_raw: "{{ 1 + ((target_wins_input | int) // (wins_per_user_level | int)) }}"
+        normalized_level: "{{ [user_level_min | int, (1 + ((target_wins_input | int) // (wins_per_user_level | int)))] | max }}"
+        rank_index_raw: "{{ (([user_level_min | int, (1 + ((target_wins_input | int) // (wins_per_user_level | int)))] | max) - 1) // (levels_per_rank | int) }}"
+
+    - name: Validate mapping inputs from .env/defaults
+      assert:
+        that:
+          - (wins_per_user_level_int | int) >= 1
+          - (levels_per_rank_int | int) >= 1
+          - (user_level_min_int | int) >= 0
+          - rank_hierarchy_list | length > 0
+        fail_msg: >-
+          Invalid mapping inputs. Need DUTCH_WINS_PER_USER_LEVEL >= 1,
+          DUTCH_LEVELS_PER_RANK >= 1, DUTCH_USER_LEVEL_MIN >= 0,
+          and non-empty DUTCH_RANK_HIERARCHY.
+
+    - name: Compute clamped rank index and target rank
+      set_fact:
+        rank_index: "{{ [0, [rank_index_raw | int, (rank_hierarchy_list | length) - 1] | min] | max }}"
+        target_rank: "{{ rank_hierarchy_list[[0, [rank_index_raw | int, (rank_hierarchy_list | length) - 1] | min] | max] }}"
+
+    - name: Lookup user by target user_id and read current wins/level/rank
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        var d = db.getSiblingDB('external_system');
+        var user = d.users.findOne(
+          { _id: ObjectId('{{ target_user_id }}') },
+          { _id: 1, email: 1, 'modules.dutch_game.wins': 1, 'modules.dutch_game.level': 1, 'modules.dutch_game.rank': 1 }
+        );
+        if (!user) { print('NOT_FOUND'); quit(0); }
+        var winsBefore = null;
+        var levelBefore = null;
+        var rankBefore = null;
+        if (user.modules && user.modules.dutch_game) {
+          if (typeof user.modules.dutch_game.wins !== 'undefined') {
+            winsBefore = user.modules.dutch_game.wins;
+          }
+          if (typeof user.modules.dutch_game.level !== 'undefined') {
+            levelBefore = user.modules.dutch_game.level;
+          }
+          if (typeof user.modules.dutch_game.rank !== 'undefined') {
+            rankBefore = user.modules.dutch_game.rank;
+          }
+        }
+        print(JSON.stringify({
+          user_id: user._id.valueOf(),
+          email: user.email,
+          wins_before: winsBefore,
+          level_before: levelBefore,
+          rank_before: rankBefore
+        }));
+        "
+      register: user_lookup_out
+      changed_when: false
+
+    - name: Extract lookup JSON line
+      set_fact:
+        user_lookup_json_line: "{{ (user_lookup_out.stdout_lines | select('match', '^\\{') | list | first) | default('') }}"
+
+    - name: Fail if target user not found
+      fail:
+        msg: "User with _id '{{ target_user_id }}' not found."
+      when: user_lookup_json_line | length == 0
+
+    - name: Parse user lookup data
+      set_fact:
+        user_lookup_data: >-
+          {{
+            user_lookup_json_line
+            if (user_lookup_json_line is mapping)
+            else (user_lookup_json_line | from_json)
+          }}
+
+    - name: Update wins, level, rank, and timestamps via mongosh
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        var d = db.getSiblingDB('external_system');
+        var userId = '{{ user_lookup_data.user_id }}';
+        var targetWins = {{ target_wins }};
+        var normalizedLevel = {{ normalized_level }};
+        var targetRank = '{{ target_rank }}';
+        var nowIso = new Date().toISOString();
+        var result = d.users.updateOne(
+          { _id: ObjectId(userId) },
+          { \$set: {
+              'modules.dutch_game.wins': targetWins,
+              'modules.dutch_game.level': normalizedLevel,
+              'modules.dutch_game.rank': targetRank,
+              updated_at: nowIso,
+              'modules.dutch_game.last_updated': nowIso
+            }
+          }
+        );
+        if (result.matchedCount === 0) { print('ERROR: User not found by _id ' + userId); quit(1); }
+        print('OK: Updated wins to ' + targetWins + ', level to ' + normalizedLevel + ', and rank to ' + targetRank + ' for user ' + userId);
+        "
+      register: wins_update_out
+      changed_when: true
+
+    - name: Read updated wins/level/rank after update
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        var d = db.getSiblingDB('external_system');
+        var userId = '{{ user_lookup_data.user_id }}';
+        var user = d.users.findOne(
+          { _id: ObjectId(userId) },
+          { _id: 1, 'modules.dutch_game.wins': 1, 'modules.dutch_game.level': 1, 'modules.dutch_game.rank': 1 }
+        );
+        if (!user) { print('NOT_FOUND'); quit(1); }
+        var winsAfter = null;
+        var levelAfter = null;
+        var rankAfter = null;
+        if (user.modules && user.modules.dutch_game) {
+          if (typeof user.modules.dutch_game.wins !== 'undefined') {
+            winsAfter = user.modules.dutch_game.wins;
+          }
+          if (typeof user.modules.dutch_game.level !== 'undefined') {
+            levelAfter = user.modules.dutch_game.level;
+          }
+          if (typeof user.modules.dutch_game.rank !== 'undefined') {
+            rankAfter = user.modules.dutch_game.rank;
+          }
+        }
+        print(JSON.stringify({
+          user_id: user._id.valueOf(),
+          wins_after: winsAfter,
+          level_after: levelAfter,
+          rank_after: rankAfter
+        }));
+        "
+      register: user_after_out
+      changed_when: false
+
+    - name: Extract after JSON line
+      set_fact:
+        user_after_json_line: "{{ (user_after_out.stdout_lines | select('match', '^\\{') | list | first) | default('') }}"
+
+    - name: Parse after data
+      set_fact:
+        user_after_data: >-
+          {{
+            user_after_json_line
+            if (user_after_json_line is mapping)
+            else (user_after_json_line | from_json)
+          }}
+
+    - name: Show before/after summary and mapping inputs
+      debug:
+        msg:
+          - "Email: {{ user_lookup_data.email }}"
+          - "User ID: {{ user_lookup_data.user_id }}"
+          - "Mapping inputs -> DUTCH_WINS_PER_USER_LEVEL: {{ wins_per_user_level_int }}, DUTCH_LEVELS_PER_RANK: {{ levels_per_rank_int }}, DUTCH_RANK_HIERARCHY: {{ rank_hierarchy_list | join(',') }}, DUTCH_USER_LEVEL_MIN: {{ user_level_min_int }}"
+          - "Requested wins input: {{ target_wins }}"
+          - "Computed levelRaw (1 + wins//step): {{ computed_level_raw }}"
+          - "Computed normalizedLevel: {{ normalized_level }}"
+          - "Computed rankIndex (raw): {{ rank_index_raw }}, rankIndex (clamped): {{ rank_index }}"
+          - "Computed targetRank: {{ target_rank }}"
+          - "Before -> wins: {{ user_lookup_data.wins_before }}, level: {{ user_lookup_data.level_before }}, rank: {{ user_lookup_data.rank_before }}"
+          - "After  -> wins: {{ user_after_data.wins_after }}, level: {{ user_after_data.level_after }}, rank: {{ user_after_data.rank_after }}"
+          - "Update output: {{ wins_update_out.stdout_lines | join(' ') }}"

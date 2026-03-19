@@ -7,7 +7,7 @@ import 'websocket_manager.dart';
 import '../state_manager.dart';
 import 'websocket_state_validator.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for tournament match create flow (createRoom, events)
+const bool LOGGING_SWITCH = false; // WS event routing for random join (enable-logging-switch.mdc)
 
 /// WebSocket Event Manager - Centralized event handling for WebSocket operations
 class WSEventManager {

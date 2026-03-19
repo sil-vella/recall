@@ -1,18 +1,16 @@
 /// Rank matching utility for player compatibility checking
 class RankMatcher {
+  static const String _rankHierarchyRaw = String.fromEnvironment(
+    'DUTCH_RANK_HIERARCHY',
+    defaultValue: 'beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend',
+  );
+
   /// Rank hierarchy in order from lowest to highest
-  static const List<String> rankHierarchy = [
-    'beginner',
-    'novice',
-    'apprentice',
-    'skilled',
-    'advanced',
-    'expert',
-    'veteran',
-    'master',
-    'elite',
-    'legend',
-  ];
+  static final List<String> rankHierarchy = _rankHierarchyRaw
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .where((e) => e.isNotEmpty)
+      .toList();
 
   /// Get rank index in hierarchy (0-9)
   /// Returns -1 if rank is not found

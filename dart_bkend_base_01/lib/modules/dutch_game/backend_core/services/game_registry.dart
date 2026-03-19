@@ -6,7 +6,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
+const bool LOGGING_SWITCH = false; // Game init after random join (enable-logging-switch.mdc)
 /// When true, log game_state_updated payload size (bytes) and emit frequency for performance measurement.
 const bool LOGGING_STATE_SIZE_SWITCH = true;
 

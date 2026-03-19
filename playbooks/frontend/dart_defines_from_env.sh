@@ -4,7 +4,7 @@
 # Output: one --dart-define=KEY="VALUE" per line (safe to read into an array).
 # Usage:
 #   source "$SCRIPT_DIR/dart_defines_from_env.sh"
-#   while IFS= read -r line; do [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" ); done < <(build_dart_defines_from_env "$SCRIPT_DIR/.env")
+#   while IFS= read -r line; do [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" ); done < <(build_dart_defines_from_env "$REPO_ROOT/.env")
 #   # add overrides: DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" )
 #   flutter build web "${DART_DEFINE_ARGS[@]}"
 

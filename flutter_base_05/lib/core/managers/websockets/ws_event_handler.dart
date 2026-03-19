@@ -9,7 +9,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for tournament match create flow: create_room_success/error, room_creation
+const bool LOGGING_SWITCH = false; // WS room/game handlers, random join responses (enable-logging-switch.mdc)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -894,6 +894,11 @@ class WSEventHandler {
         isAuthenticated: false,
         error: data is Map ? data['message'] : 'Authentication failed',
       );
+
+      // Tear down transport so the next initialize/connect uses a fresh channel + JWT (no app restart).
+      HooksManager().triggerHookWithData('websocket_reset_transport', {
+        'reason': 'authentication_failed',
+      });
       
       // Authentication failure - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
@@ -914,6 +919,10 @@ class WSEventHandler {
         isAuthenticated: false,
         error: data is Map ? data['message'] : 'Authentication error',
       );
+
+      HooksManager().triggerHookWithData('websocket_reset_transport', {
+        'reason': 'authentication_error',
+      });
       
       // Authentication error - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {

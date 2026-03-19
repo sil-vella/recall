@@ -12,14 +12,26 @@ import 'websocket_events.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues and game creation loops
+const bool LOGGING_SWITCH = false; // Lobby → random join WS connect/auth (enable-logging-switch.mdc)
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();
   factory WebSocketManager() {
     return _instance;
   }
-  WebSocketManager._internal();
+
+  WebSocketManager._internal() {
+    // Lets WSEventHandler reset transport without importing WebSocketManager (avoids circular imports).
+    HooksManager().registerHookWithData(
+      'websocket_reset_transport',
+      _hookResetTransport,
+      priority: 1,
+    );
+  }
+
+  static void _hookResetTransport(Map<String, dynamic> data) {
+    WebSocketManager.instance.resetTransportState(reason: data['reason']?.toString());
+  }
 
   static final Logger _logger = Logger();
   
@@ -104,8 +116,43 @@ class WebSocketManager {
     }
   }
 
+  /// Drop socket, listener/handler refs, and flags so the next [initialize]/[connect] rebuilds transport
+  /// with a fresh JWT (after revoked tokens, server auth_failed, or failed reconnect).
+  void resetTransportState({String? reason}) {
+    try {
+      _socket?.disconnect();
+    } catch (_) {}
+    _socket = null;
+    _eventListener = null;
+    _eventHandler = null;
+    _isInitialized = false;
+    _isConnected = false;
+    _isConnecting = false;
+    try {
+      WebSocketStateUpdater.clearState();
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('WebSocketManager: WebSocketStateUpdater.clearState during reset: $e');
+      }
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'WebSocketManager: resetTransportState${reason != null ? " ($reason)" : ""} — next init uses fresh credentials',
+      );
+    }
+  }
+
   /// Initialize the WebSocket manager
   Future<bool> initialize() async {
+    // Half-open session: still "initialized" but channel is dead → [connect] would time out on stale adapter.
+    if (_isInitialized && (_socket == null || !(_socket?.connected ?? false))) {
+      if (LOGGING_SWITCH) {
+        _logger.warning(
+          'WebSocketManager: initialize() clearing stale transport (was init=true, no live socket)',
+        );
+      }
+      resetTransportState(reason: 'stale_initialize');
+    }
     if (_isInitialized) {
       return isConnected;
     }
@@ -181,7 +228,7 @@ class WebSocketManager {
       });
 
       if (!connected) {
-        _socket = null;
+        resetTransportState(reason: 'initialize_connect_false');
         return false;
       }
       
@@ -223,6 +270,10 @@ class WebSocketManager {
       return true;
       
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('WebSocketManager.initialize exception: $e');
+      }
+      resetTransportState(reason: 'initialize_exception');
       return false;
     }
   }
@@ -638,16 +689,9 @@ class WebSocketManager {
     }
   }
 
-  /// Disconnect from WebSocket server
+  /// Disconnect and clear transport so a later [initialize]/[connect] is not stuck on stale state.
   void disconnect() {
-    try {
-      _socket?.disconnect();
-      
-      // Update our tracked connection state
-      _isConnected = false;
-    } catch (e) {
-      // Error disconnecting WebSocket
-    }
+    resetTransportState(reason: 'disconnect');
   }
 
   /// Create a room

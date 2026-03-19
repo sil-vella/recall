@@ -1,19 +1,20 @@
 #!/bin/bash
-# Generates flutter_base_05/macos/Runner/GoogleService-Info.plist from playbooks/frontend/.env
+# Generates flutter_base_05/macos/Runner/GoogleService-Info.plist from repo root .env
 # so Firebase credentials are not hardcoded in the repo. Run from repo root or playbooks/frontend.
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ENV_FILE="$REPO_ROOT/.env"
 PLIST_PATH="$REPO_ROOT/flutter_base_05/macos/Runner/GoogleService-Info.plist"
 
-if [ ! -f "$SCRIPT_DIR/.env" ]; then
-  echo "❌ Missing $SCRIPT_DIR/.env — copy .env.example to .env and set FIREBASE_IOS_* (and GCM_SENDER_ID) values."
+if [ ! -f "$ENV_FILE" ]; then
+  echo "❌ Missing $ENV_FILE — set FIREBASE_IOS_* (and GCM_SENDER_ID) values."
   exit 1
 fi
 set -a
 # shellcheck source=/dev/null
-source "$SCRIPT_DIR/.env"
+source "$ENV_FILE"
 set +a
 
 # GCM_SENDER_ID is the same as messagingSenderId (e.g. 851791240618)
@@ -51,4 +52,4 @@ cat <<EOF > "$PLIST_PATH"
 </dict>
 </plist>
 EOF
-echo "✅ Wrote $PLIST_PATH from .env"
+echo "✅ Wrote $PLIST_PATH from $ENV_FILE"

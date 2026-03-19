@@ -12,7 +12,7 @@ import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for create/join room + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
+const bool LOGGING_SWITCH = false; // join_random_game + room flow (enable-logging-switch.mdc)
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -833,9 +833,19 @@ class MessageHandler {
         : (isClearAndCollectValue is String 
             ? (isClearAndCollectValue.toLowerCase() == 'true')
             : true); // Default to true for backward compatibility
+    final requestedGameLevelRaw = data['game_level'] ?? data['gameLevel'];
+    int requestedGameLevel = 1;
+    if (requestedGameLevelRaw is int) {
+      requestedGameLevel = requestedGameLevelRaw;
+    } else if (requestedGameLevelRaw is String) {
+      requestedGameLevel = int.tryParse(requestedGameLevelRaw) ?? 1;
+    }
+    if (requestedGameLevel < 1 || requestedGameLevel > 4) {
+      requestedGameLevel = 1;
+    }
     if (LOGGING_SWITCH) {
       _logger.room('✅ _handleJoinRandomGame: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
-      _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId, isClearAndCollect=$isClearAndCollect');
+      _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId, isClearAndCollect=$isClearAndCollect, requestedGameLevel=$requestedGameLevel');
     }
     
     // Log user account type for registration differences testing
@@ -867,6 +877,10 @@ class MessageHandler {
       if (LOGGING_SWITCH) {
         _logger.room('🔍 _handleJoinRandomGame: availableRooms (after rank filter), userRank=$userRank: ${availableRooms.length}');
       }
+      availableRooms = _filterRoomsByTableLevel(availableRooms, requestedGameLevel);
+      if (LOGGING_SWITCH) {
+        _logger.room('🔍 _handleJoinRandomGame: availableRooms (after table filter), requestedGameLevel=$requestedGameLevel: ${availableRooms.length}');
+      }
       
       if (availableRooms.isNotEmpty) {
         // Pick a random room
@@ -896,10 +910,23 @@ class MessageHandler {
       }
 
       final uid = userId;
-      if (LOGGING_SWITCH) {
-        _logger.room('📊 Coins check: join_random_game (create new room) -> verifying userId=$uid level=1');
+      final joinerUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
+      if (!WinsLevelRankMatcher.userMayJoinGameTable(joinerUserLevel, requestedGameLevel)) {
+        _server.sendToSession(sessionId, {
+          'event': 'join_room_error',
+          'message':
+              'Your level ($joinerUserLevel) is too low for this table (requires level $requestedGameLevel or higher). Win more games to increase your level.',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        if (LOGGING_SWITCH) {
+          _logger.room('❌ join_random_game(create new): table gate userLevel=$joinerUserLevel requestedGameLevel=$requestedGameLevel');
+        }
+        return;
       }
-      _verifyCoinsForJoin(uid, 1).then((ok) {
+      if (LOGGING_SWITCH) {
+        _logger.room('📊 Coins check: join_random_game (create new room) -> verifying userId=$uid level=$requestedGameLevel');
+      }
+      _verifyCoinsForJoin(uid, requestedGameLevel).then((ok) {
         if (!ok) {
           if (LOGGING_SWITCH) {
             _logger.room('📊 Coins check: join_random_game failed for $uid -> sending join_room_error');
@@ -921,6 +948,7 @@ class MessageHandler {
         permission: 'public',
         autoStart: true,
         isRandomJoin: true,
+        gameLevel: requestedGameLevel,
       );
       
       // Store isClearAndCollect in game state store for later use when starting match
@@ -1270,6 +1298,15 @@ class MessageHandler {
     }
     
     return compatibleRooms;
+  }
+
+  /// Filter rooms by requested table tier (room.gameLevel).
+  /// Rooms without explicit gameLevel are treated as level 1 for compatibility.
+  List<Room> _filterRoomsByTableLevel(List<Room> rooms, int requestedGameLevel) {
+    return rooms.where((room) {
+      final roomLevel = room.gameLevel ?? 1;
+      return roomLevel == requestedGameLevel;
+    }).toList();
   }
   
   // ========= GAME EVENT HANDLER (UNIFIED) =========

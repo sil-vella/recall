@@ -1,4 +1,6 @@
 import 'rank_matcher.dart';
+import '../../../../utils/config.dart';
+import 'level_matcher.dart';
 
 /// Wins → user level → rank. Mirrors Python / Flutter [WinsLevelRankMatcher].
 ///
@@ -6,12 +8,14 @@ import 'rank_matcher.dart';
 class WinsLevelRankMatcher {
   WinsLevelRankMatcher._();
 
-  static const int userLevelMin = 1;
-  static const int tableLevelMin = 1;
-  static const int tableLevelMax = 4;
+  static int get userLevelMin => Config.DUTCH_USER_LEVEL_MIN;
+  static int get tableLevelMin =>
+      LevelMatcher.levelOrder.isEmpty ? 1 : LevelMatcher.levelOrder.first;
+  static int get tableLevelMax =>
+      LevelMatcher.levelOrder.isEmpty ? 4 : LevelMatcher.levelOrder.last;
 
-  static const int winsPerUserLevel = 10;
-  static const int levelsPerRank = 5;
+  static int get winsPerUserLevel => Config.DUTCH_WINS_PER_USER_LEVEL;
+  static int get levelsPerRank => Config.DUTCH_LEVELS_PER_RANK;
 
   static int winsToUserLevel(int? wins) {
     final w = wins == null ? 0 : (wins < 0 ? 0 : wins);
@@ -41,10 +45,14 @@ class WinsLevelRankMatcher {
   }
 
   static bool userMayJoinGameTable(int userLevel, int gameTableLevel) {
-    if (gameTableLevel < tableLevelMin || gameTableLevel > tableLevelMax) {
+    if (!LevelMatcher.isValidLevel(gameTableLevel)) {
       return true;
     }
     final ul = userLevel < userLevelMin ? userLevelMin : userLevel;
-    return ul >= gameTableLevel;
+    final required = LevelMatcher.tableLevelToRequiredUserLevel(
+      gameTableLevel,
+      defaultLevel: gameTableLevel,
+    );
+    return ul >= required;
   }
 }

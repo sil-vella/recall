@@ -14,26 +14,22 @@ user_management package __init__).
 
 from __future__ import annotations
 
+import os
 from typing import Optional, Tuple
+from core.modules.user_management_module import tier_rank_level_matcher as matcher
 
 # Game table tiers (room game_level / LevelMatcher) — eligibility only
-TABLE_LEVEL_MIN: int = 1
-TABLE_LEVEL_MAX: int = 4
+TABLE_LEVEL_MIN: int = min(matcher.LEVEL_ORDER) if matcher.LEVEL_ORDER else 1
+TABLE_LEVEL_MAX: int = max(matcher.LEVEL_ORDER) if matcher.LEVEL_ORDER else 4
 
-USER_LEVEL_MIN: int = 1
+USER_LEVEL_MIN: int = int(os.getenv("DUTCH_USER_LEVEL_MIN", "1"))
 
 # Must stay identical to Flutter rank_matcher / tier_rank_level_matcher.
-RANK_HIERARCHY: Tuple[str, ...] = (
-    "beginner",
-    "novice",
-    "apprentice",
-    "skilled",
-    "advanced",
-    "expert",
-    "veteran",
-    "master",
-    "elite",
-    "legend",
+_DEFAULT_RANK_HIERARCHY = "beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend"
+RANK_HIERARCHY: Tuple[str, ...] = tuple(
+    x.strip().lower()
+    for x in os.getenv("DUTCH_RANK_HIERARCHY", _DEFAULT_RANK_HIERARCHY).split(",")
+    if x.strip()
 )
 
 DEFAULT_RANK: str = "beginner"
@@ -45,8 +41,8 @@ class WinsLevelRankMatcher:
     user level. **Game table** access uses user level vs room ``game_level`` (1–4).
     """
 
-    WINS_PER_USER_LEVEL: int = 10
-    LEVELS_PER_RANK: int = 5
+    WINS_PER_USER_LEVEL: int = int(os.getenv("DUTCH_WINS_PER_USER_LEVEL", "10"))
+    LEVELS_PER_RANK: int = int(os.getenv("DUTCH_LEVELS_PER_RANK", "5"))
 
     @classmethod
     def wins_to_user_level(cls, wins: Optional[int]) -> int:
@@ -87,7 +83,8 @@ class WinsLevelRankMatcher:
             t = int(game_table_level)
         except (TypeError, ValueError):
             return True
-        if t < TABLE_LEVEL_MIN or t > TABLE_LEVEL_MAX:
+        if t not in matcher.LEVEL_TO_TITLE:
             return True
         ul = USER_LEVEL_MIN if user_level is None else max(USER_LEVEL_MIN, int(user_level))
-        return ul >= t
+        required = matcher.table_level_to_required_user_level(t, default_level=t)
+        return ul >= required

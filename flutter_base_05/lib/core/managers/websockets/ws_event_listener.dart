@@ -4,7 +4,7 @@ import 'ws_event_handler.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for final round debugging and game creation loops
+const bool LOGGING_SWITCH = false; // WS events → authenticated (enable-logging-switch.mdc)
 
 /// WebSocket Event Listener
 /// Centralized Socket.IO event listener registration and management

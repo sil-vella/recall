@@ -17,10 +17,11 @@ import '../../core/managers/navigation_manager.dart';
 import '../../core/managers/websockets/websocket_manager.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/config.dart';
+import 'utils/ws_jwt_access_expiry.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = false; // Login/session/logout trace (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Login + WS token / refresh path (enable-logging-switch.mdc)
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -760,7 +761,9 @@ class LoginModule extends ModuleBase {
           accessTokenTtl: accessTokenTtl,
           refreshTokenTtl: refreshTokenTtl,
         );
-        
+        // New JWT must be used on the next WS handshake; drop any half-open/stale transport.
+        WebSocketManager.instance.resetTransportState(reason: 'new_credentials_email_login');
+
         // Store user data in SharedPreferences
         await _sharedPref!.setBool('is_logged_in', true);
         final userId = userData['_id'] ?? userData['id'] ?? '';
@@ -1091,7 +1094,8 @@ class LoginModule extends ModuleBase {
           accessTokenTtl: accessTokenTtl,
           refreshTokenTtl: refreshTokenTtl,
         );
-        
+        WebSocketManager.instance.resetTransportState(reason: 'new_credentials_google_login');
+
         // Store user data in SharedPreferences
         await _sharedPref!.setBool('is_logged_in', true);
         await _sharedPref!.setString('user_id', userId);
@@ -1297,13 +1301,34 @@ class LoginModule extends ModuleBase {
   }
 
   /// ✅ Get current JWT token for WebSocket authentication
+  ///
+  /// If the access JWT [exp] is past or near expiry, calls [AuthManager.refreshToken] first so
+  /// connect/authenticate use a fresh access token. This bypasses [AuthManager]'s game-state
+  /// logic that can return a stale access token in `pre_game` / `active_game` / `post_game`,
+  /// which would cause Python token validation to fail while the user is in the lobby.
   Future<String?> getCurrentToken() async {
     if (_authManager == null) {
       return null;
     }
-    
+
     try {
-      // Use AuthManager to get current valid token
+      final access = await _authManager!.getAccessToken();
+      if (access != null &&
+          WsJwtAccessExpiry.isJwtExpiredOrNearExpiry(
+            access,
+            within: const Duration(seconds: 90),
+          )) {
+        final refreshed = await _authManager!.refreshToken();
+        if (refreshed != null && refreshed.isNotEmpty) {
+          if (LOGGING_SWITCH) {
+            Logger().info(
+              'LoginModule: WebSocket token path — refreshed access JWT (exp-based)',
+            );
+          }
+          return refreshed;
+        }
+      }
+
       final token = await _authManager!.getCurrentValidToken();
       return token;
     } catch (e) {

@@ -56,13 +56,13 @@
     mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
     mongodb_container_name: "dutch_external_app_mongodb"
     target_user_id: "{{ user_id | default('69aae0b0095ba0c771e43091') }}"
-    tier: "{{ tier | default('premium') | lower }}"
+    target_tier: "{{ (tier | default('premium')) | lower }}"
     allowed_tiers: ["promotional", "regular", "premium"]
   tasks:
     - name: Validate tier argument
       assert:
-        that: tier in allowed_tiers
-        fail_msg: "tier must be one of {{ allowed_tiers | join(', ') }}. Got: {{ tier }}"
+        that: target_tier in allowed_tiers
+        fail_msg: "tier must be one of {{ allowed_tiers | join(', ') }}. Got: {{ target_tier }}"
       run_once: true
 
     - name: Set subscription_tier via mongosh
@@ -70,7 +70,7 @@
         docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
         var d = db.getSiblingDB('external_system');
         var userId = '{{ target_user_id }}';
-        var tier = '{{ tier }}';
+        var tier = '{{ target_tier }}';
         var result = d.users.updateOne(
           { _id: ObjectId(userId) },
           { \$set: { 'modules.dutch_game.subscription_tier': tier, updated_at: new Date().toISOString() } }

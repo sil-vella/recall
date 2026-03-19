@@ -759,12 +759,33 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
   /// Room table tier (1–4) for `game_level` on create_room.
   late int _selectedTableLevel;
 
+  int _currentUserLevel() {
+    final stats = DutchGameHelpers.getUserDutchGameStats();
+    final raw = stats?['level'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '') ?? 1;
+  }
+
+  int _firstUnlockedTableLevel() {
+    final userLevel = _currentUserLevel();
+    final unlocked = LevelMatcher.levelOrder.where((level) {
+      final required = LevelMatcher.tableLevelToRequiredUserLevel(
+        level,
+        defaultLevel: level,
+      );
+      return userLevel >= required;
+    }).toList();
+    if (unlocked.isNotEmpty) return unlocked.first;
+    return LevelMatcher.levelOrder.first;
+  }
+
   @override
   void initState() {
     super.initState();
     _selectedPermission = widget.selectedPermission;
     _selectedGameType = widget.selectedGameType;
-    _selectedTableLevel = LevelMatcher.levelOrder.first;
+    _selectedTableLevel = _firstUnlockedTableLevel();
   }
 
   void _onCreateRoomPressed() {
@@ -904,7 +925,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         child: DropdownButtonFormField<int>(
                           value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
                               ? _selectedTableLevel
-                              : LevelMatcher.levelOrder.first,
+                              : _firstUnlockedTableLevel(),
                           decoration: InputDecoration(
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: AppPadding.defaultPadding.left,
@@ -929,11 +950,21 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                           style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
                           items: LevelMatcher.levelOrder.map((level) {
                             final title = LevelMatcher.levelToTitle(level);
+                            final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
+                              level,
+                              defaultLevel: level,
+                            );
+                            final isLocked = _currentUserLevel() < requiredLevel;
                             return DropdownMenuItem<int>(
                               value: level,
+                              enabled: !isLocked,
                               child: Text(
-                                '$level — $title',
-                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                isLocked
+                                    ? '$level — $title (Level $requiredLevel)'
+                                    : '$level — $title',
+                                style: AppTextStyles.bodyMedium().copyWith(
+                                  color: isLocked ? AppColors.textSecondary : AppColors.white,
+                                ),
                               ),
                             );
                           }).toList(),

@@ -7,6 +7,8 @@ player rank hierarchy, and game table levels. Aligned with Dart RankMatcher and 
 - Level: game table level (1–4); used for coin fee and display title. Not mapped to rank.
 """
 
+import json
+import os
 from typing import List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
@@ -43,17 +45,11 @@ def is_valid_tier(tier: Optional[str]) -> bool:
 # ---------------------------------------------------------------------------
 # Rank hierarchy (player skill) — same order as Dart RankMatcher.rankHierarchy
 # ---------------------------------------------------------------------------
-RANK_HIERARCHY: Tuple[str, ...] = (
-    "beginner",
-    "novice",
-    "apprentice",
-    "skilled",
-    "advanced",
-    "expert",
-    "veteran",
-    "master",
-    "elite",
-    "legend",
+_DEFAULT_RANK_HIERARCHY = "beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend"
+RANK_HIERARCHY: Tuple[str, ...] = tuple(
+    x.strip().lower()
+    for x in os.getenv("DUTCH_RANK_HIERARCHY", _DEFAULT_RANK_HIERARCHY).split(",")
+    if x.strip()
 )
 
 RANK_VARIATIONS = {
@@ -142,21 +138,66 @@ def rank_to_difficulty(rank: Optional[str], default: str = "medium") -> str:
 # User progression “level” in `modules.dutch_game` is separate; it only gates which
 # tables you may join (see WinsLevelRankMatcher.user_may_join_game_table).
 # ---------------------------------------------------------------------------
-LEVEL_TO_TITLE = {
-    1: "Home Table",
-    2: "Local Table",
-    3: "Town Table",
-    4: "City Table",
-}
+def _parse_dynamic_tables():
+    raw = (os.getenv("DUTCH_TABLES_JSON") or "").strip()
+    if raw:
+        try:
+            decoded = json.loads(raw)
+            if isinstance(decoded, dict):
+                level_to_title = {}
+                level_to_coin_fee = {}
+                level_to_min_user_level = {}
+                for k, v in decoded.items():
+                    try:
+                        lvl = int(k)
+                    except (TypeError, ValueError):
+                        continue
+                    if not isinstance(v, dict):
+                        continue
+                    title = str(v.get("title", "")).strip()
+                    try:
+                        fee = int(v.get("coin_fee"))
+                    except (TypeError, ValueError):
+                        continue
+                    try:
+                        min_user_level = int(v.get("min_user_level", lvl))
+                    except (TypeError, ValueError):
+                        continue
+                    if not title:
+                        continue
+                    level_to_title[lvl] = title
+                    level_to_coin_fee[lvl] = fee
+                    level_to_min_user_level[lvl] = min_user_level
+                if level_to_title:
+                    level_order = tuple(sorted(level_to_title.keys()))
+                    return level_to_title, level_to_coin_fee, level_to_min_user_level, level_order
+        except Exception:
+            pass
 
-LEVEL_TO_COIN_FEE = {
-    1: 25,
-    2: 50,
-    3: 100,
-    4: 200,
-}
+    # Fallback: built-in defaults
+    level_to_title = {
+        1: "Home Table",
+        2: "Local Table",
+        3: "Town Table",
+        4: "City Table",
+    }
+    level_to_coin_fee = {
+        1: 25,
+        2: 50,
+        3: 100,
+        4: 200,
+    }
+    level_to_min_user_level = {
+        1: 1,
+        2: 2,
+        3: 3,
+        4: 4,
+    }
+    level_order = (1, 2, 3, 4)
+    return level_to_title, level_to_coin_fee, level_to_min_user_level, level_order
 
-LEVEL_ORDER: Tuple[int, ...] = (1, 2, 3, 4)
+
+LEVEL_TO_TITLE, LEVEL_TO_COIN_FEE, LEVEL_TO_MIN_USER_LEVEL, LEVEL_ORDER = _parse_dynamic_tables()
 
 
 def level_to_title(level: Optional[int], default_title: Optional[str] = None) -> str:
@@ -187,6 +228,17 @@ def level_to_coin_fee(level: Optional[int], default_fee: Optional[int] = None) -
 def table_level_to_coin_fee(table_level: Optional[int], default_fee: Optional[int] = None) -> int:
     """Alias: entry cost for room **table** tier (1–4), not user profile progression level."""
     return level_to_coin_fee(table_level, default_fee=default_fee)
+
+
+def table_level_to_required_user_level(
+    table_level: Optional[int], default_level: Optional[int] = None
+) -> int:
+    """Required user progression level to join a given table."""
+    if table_level is None:
+        return default_level if default_level is not None else 1
+    return LEVEL_TO_MIN_USER_LEVEL.get(
+        table_level, default_level if default_level is not None else 1
+    )
 
 
 def is_valid_level(level: Optional[int]) -> bool:

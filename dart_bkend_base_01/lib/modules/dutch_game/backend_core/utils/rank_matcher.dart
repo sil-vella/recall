@@ -1,18 +1,32 @@
+import '../../../../utils/config.dart';
+
 /// Rank matching utility for player compatibility checking
 class RankMatcher {
+  static List<String> _buildRankHierarchy() {
+    final raw = Config.DUTCH_RANK_HIERARCHY;
+    final parsed = raw
+        .split(',')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    return parsed.isEmpty
+        ? <String>[
+            'beginner',
+            'novice',
+            'apprentice',
+            'skilled',
+            'advanced',
+            'expert',
+            'veteran',
+            'master',
+            'elite',
+            'legend',
+          ]
+        : parsed;
+  }
+
   /// Rank hierarchy in order from lowest to highest
-  static const List<String> rankHierarchy = [
-    'beginner',
-    'novice',
-    'apprentice',
-    'skilled',
-    'advanced',
-    'expert',
-    'veteran',
-    'master',
-    'elite',
-    'legend',
-  ];
+  static final List<String> rankHierarchy = _buildRankHierarchy();
 
   /// Get rank index in hierarchy (0-9)
   /// Returns -1 if rank is not found

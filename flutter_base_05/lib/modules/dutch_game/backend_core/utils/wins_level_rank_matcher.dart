@@ -1,4 +1,5 @@
 import 'rank_matcher.dart';
+import 'level_matcher.dart';
 
 /// Wins → user level → rank (Dutch progression).
 ///
@@ -11,15 +12,26 @@ import 'rank_matcher.dart';
 class WinsLevelRankMatcher {
   WinsLevelRankMatcher._();
 
-  static const int userLevelMin = 1;
-  static const int tableLevelMin = 1;
-  static const int tableLevelMax = 4;
+  static const int userLevelMin = int.fromEnvironment(
+    'DUTCH_USER_LEVEL_MIN',
+    defaultValue: 1,
+  );
+  static int get tableLevelMin =>
+      LevelMatcher.levelOrder.isEmpty ? 1 : LevelMatcher.levelOrder.first;
+  static int get tableLevelMax =>
+      LevelMatcher.levelOrder.isEmpty ? 4 : LevelMatcher.levelOrder.last;
 
   /// Wins per +1 user level (matches Python).
-  static const int winsPerUserLevel = 10;
+  static const int winsPerUserLevel = int.fromEnvironment(
+    'DUTCH_WINS_PER_USER_LEVEL',
+    defaultValue: 10,
+  );
 
   /// User levels per +1 rank tier (matches Python).
-  static const int levelsPerRank = 5;
+  static const int levelsPerRank = int.fromEnvironment(
+    'DUTCH_LEVELS_PER_RANK',
+    defaultValue: 5,
+  );
 
   /// Lifetime wins → user level: `1 + wins ~/ step`.
   static int winsToUserLevel(int? wins) {
@@ -50,12 +62,17 @@ class WinsLevelRankMatcher {
     return userLevelToRank(winsToUserLevel(wins));
   }
 
-  /// Table `T` in 1..4 requires `userLevel >= T`. Unknown table levels: allow.
+  /// Table access rule is configured by LevelMatcher.tableLevelToRequiredUserLevel.
+  /// Unknown table levels: allow.
   static bool userMayJoinGameTable(int userLevel, int gameTableLevel) {
-    if (gameTableLevel < tableLevelMin || gameTableLevel > tableLevelMax) {
+    if (!LevelMatcher.isValidLevel(gameTableLevel)) {
       return true;
     }
     final ul = userLevel < userLevelMin ? userLevelMin : userLevel;
-    return ul >= gameTableLevel;
+    final required = LevelMatcher.tableLevelToRequiredUserLevel(
+      gameTableLevel,
+      defaultLevel: gameTableLevel,
+    );
+    return ul >= required;
   }
 }

@@ -7,9 +7,10 @@
 # as it can interfere with VS Code's terminal handling
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-FRONTEND_ENV="$SCRIPT_DIR/.env"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+FRONTEND_ENV="$REPO_ROOT/.env"
 
-# Load env from playbooks/frontend/.env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+# Load env from repo root .env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
 if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null

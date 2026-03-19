@@ -7,7 +7,7 @@ import '../../../../../utils/consts/theme_consts.dart';
 import '../../../backend_core/utils/level_matcher.dart';
 
 // Enable for random game join debugging (logs to console / server.log)
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = false; // Lobby random join UI → WS (enable-logging-switch.mdc)
 
 /// Widget to join a random available game
 /// 
@@ -33,9 +33,31 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   int _selectedTableLevel = LevelMatcher.levelOrder.first;
   static final Logger _logger = Logger();
 
+  int _currentUserLevel() {
+    final stats = DutchGameHelpers.getUserDutchGameStats();
+    final raw = stats?['level'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '') ?? 1;
+  }
+
+  int _firstUnlockedTableLevel() {
+    final userLevel = _currentUserLevel();
+    final unlocked = LevelMatcher.levelOrder.where((level) {
+      final required = LevelMatcher.tableLevelToRequiredUserLevel(
+        level,
+        defaultLevel: level,
+      );
+      return userLevel >= required;
+    }).toList();
+    if (unlocked.isNotEmpty) return unlocked.first;
+    return LevelMatcher.levelOrder.first;
+  }
+
   @override
   void initState() {
     super.initState();
+    _selectedTableLevel = _firstUnlockedTableLevel();
     _setupWebSocketListeners();
   }
 
@@ -196,7 +218,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                 child: DropdownButtonFormField<int>(
                   value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
                       ? _selectedTableLevel
-                      : LevelMatcher.levelOrder.first,
+                      : _firstUnlockedTableLevel(),
                   decoration: InputDecoration(
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: AppPadding.defaultPadding.left,
@@ -221,11 +243,21 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                   style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
                   items: LevelMatcher.levelOrder.map((level) {
                     final title = LevelMatcher.levelToTitle(level);
+                    final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
+                      level,
+                      defaultLevel: level,
+                    );
+                    final isLocked = _currentUserLevel() < requiredLevel;
                     return DropdownMenuItem<int>(
                       value: level,
+                      enabled: !isLocked,
                       child: Text(
-                        '$level — $title',
-                        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                        isLocked
+                            ? '$level — $title (Level $requiredLevel)'
+                            : '$level — $title',
+                        style: AppTextStyles.bodyMedium().copyWith(
+                          color: isLocked ? AppColors.textSecondary : AppColors.white,
+                        ),
                       ),
                     );
                   }).toList(),

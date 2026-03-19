@@ -24,7 +24,7 @@ typedef _NotificationSuccessHandler = Future<void> Function(
 );
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = false; // Enabled for match start / event routing from bridges
+  static const bool LOGGING_SWITCH = false; // Event routing lobby → game (enable-logging-switch.mdc)
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();

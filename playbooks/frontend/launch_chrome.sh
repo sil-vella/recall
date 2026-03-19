@@ -4,9 +4,10 @@
 # Shows only your custom Logger calls, filters out all system logs
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-FRONTEND_ENV="$SCRIPT_DIR/.env"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+FRONTEND_ENV="$REPO_ROOT/.env"
 
-# Load env from playbooks/frontend/.env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+# Load env from repo root .env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
 if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
@@ -21,7 +22,7 @@ if [ -f "$FRONTEND_ENV" ]; then
   fi
 else
   echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
-  echo "   Create from playbooks/frontend/.env.example or copy your .env into playbooks/frontend/.env"
+  echo "   Create and fill the repo root .env file first."
 fi
 
 echo "🚀 Launching Flutter app on Chrome web with filtered Logger output..."

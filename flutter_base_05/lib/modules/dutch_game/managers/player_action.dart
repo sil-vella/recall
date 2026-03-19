@@ -33,7 +33,7 @@ class PlayerAction {
   static final DutchGameStateUpdater _stateUpdater = DutchGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for match start / practice match and leave_room
+  static const bool LOGGING_SWITCH = false; // start_match / leave after random join (enable-logging-switch.mdc)
   
   // Analytics module cache
   static AnalyticsModule? _analyticsModule;

@@ -25,7 +25,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for tournament match create flow — see .cursor/rules/enable-logging-switch.mdc
+  static const bool LOGGING_SWITCH = false; // Lobby → random join, ensureWebSocketReady (enable-logging-switch.mdc)
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -258,8 +258,12 @@ class DutchGameHelpers {
   /// automatically creates a guest user and retries.
   /// 
   /// [context] - Optional BuildContext. If not provided, will attempt to get from NavigationManager.
+  /// [allowTransportResetRetry] - If true, one full transport reset + retry after init/connect/auth failure.
   /// Returns true if ready, false otherwise
-  static Future<bool> ensureWebSocketReady({BuildContext? context}) async {
+  static Future<bool> ensureWebSocketReady({
+    BuildContext? context,
+    bool allowTransportResetRetry = true,
+  }) async {
     if (LOGGING_SWITCH) {
       _logger.info('DutchGameHelpers: ensureWebSocketReady called');
     }
@@ -349,7 +353,10 @@ class DutchGameHelpers {
           }
           // Recursively retry - now user should be fully logged in
           // Pass context to avoid re-fetching it
-          return await ensureWebSocketReady(context: effectiveContext);
+          return await ensureWebSocketReady(
+            context: effectiveContext,
+            allowTransportResetRetry: allowTransportResetRetry,
+          );
         } else {
           if (LOGGING_SWITCH) {
             _logger.warning('DutchGameHelpers: Guest creation failed: ${result['error']}');
@@ -366,26 +373,27 @@ class DutchGameHelpers {
     
     // Get WebSocket manager
     final wsManager = WebSocketManager.instance;
-    
-    // Initialize if not already initialized
-    if (!wsManager.isInitialized) {
+
+    // Always call initialize() so stale half-open transport is cleared (see WebSocketManager.initialize).
+    if (LOGGING_SWITCH) {
+      _logger.info('DutchGameHelpers: WebSocket initialize() (idempotent / stale recovery)...');
+    }
+    final initialized = await wsManager.initialize();
+    if (LOGGING_SWITCH) {
+      _logger.info('DutchGameHelpers: WebSocket initialization result: $initialized');
+    }
+    if (!initialized) {
       if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: WebSocket not initialized, initializing...');
+        _logger.warning('DutchGameHelpers: WebSocket initialization failed');
       }
-      final initialized = await wsManager.initialize();
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: WebSocket initialization result: $initialized');
-      }
-      if (!initialized) {
+      if (allowTransportResetRetry) {
         if (LOGGING_SWITCH) {
-          _logger.warning('DutchGameHelpers: WebSocket initialization failed');
+          _logger.warning('DutchGameHelpers: Resetting transport and retrying ensureWebSocketReady once...');
         }
-        return false;
+        wsManager.resetTransportState(reason: 'ensure_ready_init_failed');
+        return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
       }
-    } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: WebSocket already initialized');
-      }
+      return false;
     }
     
     // Connect if not already connected
@@ -400,6 +408,13 @@ class DutchGameHelpers {
       if (!connected) {
         if (LOGGING_SWITCH) {
           _logger.warning('DutchGameHelpers: WebSocket connection failed');
+        }
+        if (allowTransportResetRetry) {
+          if (LOGGING_SWITCH) {
+            _logger.warning('DutchGameHelpers: Resetting transport after connect failure, retrying once...');
+          }
+          wsManager.resetTransportState(reason: 'ensure_ready_connect_failed');
+          return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
         }
         return false;
       }
@@ -426,6 +441,13 @@ class DutchGameHelpers {
     if (!authCompleted) {
       if (LOGGING_SWITCH) {
         _logger.warning('DutchGameHelpers: Authentication did not complete within timeout');
+      }
+      if (allowTransportResetRetry) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('DutchGameHelpers: Resetting transport after auth timeout, retrying once...');
+        }
+        wsManager.resetTransportState(reason: 'ensure_ready_auth_timeout');
+        return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
       }
       return false;
     }

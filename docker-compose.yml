@@ -67,6 +67,11 @@ services:
       - APP_VERSION=${APP_VERSION:-2.0.0}
       - APP_DOWNLOAD_BASE_URL=${APP_DOWNLOAD_BASE_URL:-https://dutch.mt/downloads}
       - CREDIT_SYSTEM_API_KEY=${CREDIT_SYSTEM_API_KEY:-}
+      - DUTCH_WINS_PER_USER_LEVEL=${DUTCH_WINS_PER_USER_LEVEL:-10}
+      - DUTCH_LEVELS_PER_RANK=${DUTCH_LEVELS_PER_RANK:-5}
+      - DUTCH_USER_LEVEL_MIN=${DUTCH_USER_LEVEL_MIN:-1}
+      - DUTCH_RANK_HIERARCHY=${DUTCH_RANK_HIERARCHY:-beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend}
+      - DUTCH_TABLES_JSON=${DUTCH_TABLES_JSON}
       - MOBILE_RELEASE_MANIFEST=/app/data/mobile_release.json
       - RATE_LIMIT_ENABLED=false
       - RATE_LIMIT_IP_REQUESTS=1000
@@ -129,6 +134,11 @@ services:
     environment:
       - PORT=8080
       - DART_BACKEND_SERVICE_KEY=${DART_BACKEND_SERVICE_KEY}
+      - DUTCH_WINS_PER_USER_LEVEL=${DUTCH_WINS_PER_USER_LEVEL:-10}
+      - DUTCH_LEVELS_PER_RANK=${DUTCH_LEVELS_PER_RANK:-5}
+      - DUTCH_USER_LEVEL_MIN=${DUTCH_USER_LEVEL_MIN:-1}
+      - DUTCH_RANK_HIERARCHY=${DUTCH_RANK_HIERARCHY:-beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend}
+      - DUTCH_TABLES_JSON=${DUTCH_TABLES_JSON}
     ports:
       - "8080:8080"
     networks:

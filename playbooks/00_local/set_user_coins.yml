@@ -1,0 +1,161 @@
+---
+# Set a user's modules.dutch_game.coins in local MongoDB by email.
+# Run:
+#   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_coins.yml
+- name: Load app_dev/.env for MongoDB password (optional)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env"
+    mongodb_container_name: "dutch_external_app_mongodb"
+  tasks:
+    - name: Check if app_dev/.env exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'): continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        result = { 'mongodb_password': out.get('MONGODB_PASSWORD', '') }
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env
+      set_fact:
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
+- name: Set user dutch_game coins by user_id (local Docker)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_prompt:
+    - name: target_coins_input
+      prompt: "Enter target coin amount (whole number >= 0)"
+      private: false
+  vars:
+    mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
+    mongodb_container_name: "dutch_external_app_mongodb"
+    target_user_id: "69aae0b0095ba0c771e43091"
+  tasks:
+    - name: Validate target coin amount
+      assert:
+        that:
+          - target_coins_input is match('^[0-9]+$')
+        fail_msg: "Coin amount must be a whole number >= 0."
+
+    - name: Resolve selected coin amount
+      set_fact:
+        target_coins: "{{ target_coins_input | int }}"
+
+    - name: Lookup user by target user_id and read current coins
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        var d = db.getSiblingDB('external_system');
+        var user = d.users.findOne(
+          { _id: ObjectId('{{ target_user_id }}') },
+          { _id: 1, email: 1, 'modules.dutch_game.coins': 1 }
+        );
+        if (!user) { print('NOT_FOUND'); quit(0); }
+        var currentCoins = null;
+        if (user.modules && user.modules.dutch_game && typeof user.modules.dutch_game.coins !== 'undefined') {
+          currentCoins = user.modules.dutch_game.coins;
+        }
+        print(JSON.stringify({ user_id: user._id.valueOf(), email: user.email, coins_before: currentCoins }));
+        "
+      register: user_lookup_out
+      changed_when: false
+
+    - name: Extract lookup JSON line
+      set_fact:
+        user_lookup_json_line: "{{ (user_lookup_out.stdout_lines | select('match', '^\\{') | list | first) | default('') }}"
+
+    - name: Fail if target user not found
+      fail:
+        msg: "User with _id '{{ target_user_id }}' not found."
+      when: user_lookup_json_line | length == 0
+
+    - name: Parse user lookup data
+      set_fact:
+        user_lookup_data: >-
+          {{
+            user_lookup_json_line
+            if (user_lookup_json_line is mapping)
+            else (user_lookup_json_line | from_json)
+          }}
+
+    - name: Update coins field via mongosh
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        var d = db.getSiblingDB('external_system');
+        var userId = '{{ user_lookup_data.user_id }}';
+        var coins = {{ target_coins }};
+        var result = d.users.updateOne(
+          { _id: ObjectId(userId) },
+          { \$set: { 'modules.dutch_game.coins': coins, updated_at: new Date().toISOString() } }
+        );
+        if (result.matchedCount === 0) { print('ERROR: User not found by _id ' + userId); quit(1); }
+        print('OK: Updated coins to ' + coins + ' for user ' + userId);
+        "
+      register: coins_update_out
+      changed_when: true
+
+    - name: Read updated coins after update
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        var d = db.getSiblingDB('external_system');
+        var userId = '{{ user_lookup_data.user_id }}';
+        var user = d.users.findOne(
+          { _id: ObjectId(userId) },
+          { _id: 1, 'modules.dutch_game.coins': 1 }
+        );
+        if (!user) { print('NOT_FOUND'); quit(1); }
+        var coinsAfter = null;
+        if (user.modules && user.modules.dutch_game && typeof user.modules.dutch_game.coins !== 'undefined') {
+          coinsAfter = user.modules.dutch_game.coins;
+        }
+        print(JSON.stringify({ user_id: user._id.valueOf(), coins_after: coinsAfter }));
+        "
+      register: user_after_out
+      changed_when: false
+
+    - name: Extract after JSON line
+      set_fact:
+        user_after_json_line: "{{ (user_after_out.stdout_lines | select('match', '^\\{') | list | first) | default('') }}"
+
+    - name: Parse after data
+      set_fact:
+        user_after_data: >-
+          {{
+            user_after_json_line
+            if (user_after_json_line is mapping)
+            else (user_after_json_line | from_json)
+          }}
+
+    - name: Show before/after result
+      debug:
+        msg:
+          - "Email: {{ user_lookup_data.email }}"
+          - "User ID: {{ user_lookup_data.user_id }}"
+          - "Coins before: {{ user_lookup_data.coins_before }}"
+          - "Coins after: {{ user_after_data.coins_after }}"
+          - "Update output: {{ coins_update_out.stdout_lines | join(' ') }}"

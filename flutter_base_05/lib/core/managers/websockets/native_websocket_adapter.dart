@@ -4,7 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../tools/logging/logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for debugging WebSocket connections and game creation loops
+const bool LOGGING_SWITCH = false; // WS connect + authenticate emit (enable-logging-switch.mdc)
 
 class NativeWebSocketAdapter {
   static final Logger _logger = Logger();

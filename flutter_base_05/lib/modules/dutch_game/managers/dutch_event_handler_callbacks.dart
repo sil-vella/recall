@@ -5,6 +5,8 @@ import 'package:dutch/tools/logging/logger.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/module_manager.dart';
+import '../../../core/managers/navigation_manager.dart';
+import '../../../core/widgets/instant_message_modal.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
 import '../backend_core/utils/dutch_rank_level_change_checker.dart';
 import '../backend_core/utils/level_matcher.dart';
@@ -15,7 +17,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for Start button flow: room_joined, game_state_updated, _addGameToMap
+  static const bool LOGGING_SWITCH = false; // Random join: room_joined, game_state_updated (enable-logging-switch.mdc)
   /// When true, log game_state_updated payload size, receive frequency, and UI rebuild triggers for performance measurement.
   static const bool LOGGING_STATE_SIZE_SWITCH = true;
   static final Logger _logger = Logger();
@@ -25,6 +27,7 @@ class DutchEventHandlerCallbacks {
   
   // Analytics module cache
   static AnalyticsModule? _analyticsModule;
+  static String? _lastPromotionSignature;
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
@@ -67,8 +70,7 @@ class DutchEventHandlerCallbacks {
         statsAfter: statsAfter,
       );
       if (change.hadBeforeSnapshot && change.anyStoredFieldChanged) {
-        // TODO: Inform user of rank/level change (snackbar, modal, or in-game banner).
-        // Use change.storedRankTrend, storedLevelTrend, and matcherTrend for progression vs regression copy.
+        _showPromotionNotification(change, logContext);
         if (LOGGING_SWITCH) {
           _logger.info(
             '📊 $logContext: rank/level changed after match — rank: ${change.rankBefore}->${change.rankAfter} '
@@ -79,6 +81,56 @@ class DutchEventHandlerCallbacks {
         }
       }
     });
+  }
+
+  static void _showPromotionNotification(
+    DutchRankLevelChangeResult change,
+    String logContext,
+  ) {
+    final rankPromoted = change.storedRankTrend == StoredTrend.progression;
+    final levelPromoted = change.storedLevelTrend == StoredTrend.progression;
+    if (!rankPromoted && !levelPromoted) return;
+
+    final signature = '${change.rankAfter}|${change.levelAfter}|${change.winsAfter}';
+    if (_lastPromotionSignature == signature) return;
+    _lastPromotionSignature = signature;
+
+    final context = NavigationManager().navigatorKey.currentContext;
+    if (context == null) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('⚠️ $logContext: cannot show promotion modal (no active navigator context)');
+      }
+      return;
+    }
+
+    final lines = <String>[];
+    if (levelPromoted) {
+      lines.add('Level Up: ${change.levelBefore ?? '-'} -> ${change.levelAfter ?? '-'}');
+    }
+    if (rankPromoted) {
+      lines.add('Rank Up: ${change.rankBefore ?? '-'} -> ${change.rankAfter ?? '-'}');
+    }
+    if (change.winsAfter != null) {
+      lines.add('Wins: ${change.winsAfter}');
+    }
+
+    final title = rankPromoted ? 'Promotion Unlocked!' : 'Level Up!';
+    final body = lines.join('\n');
+
+    InstantMessageModal.showFrontendOnlyInstant(
+      context,
+      title: title,
+      body: body,
+      data: {
+        'event': 'dutch_promotion',
+        'rank_before': change.rankBefore,
+        'rank_after': change.rankAfter,
+        'level_before': change.levelBefore,
+        'level_after': change.levelAfter,
+        'wins_before': change.winsBefore,
+        'wins_after': change.winsAfter,
+      },
+    );
   }
 
   /// Track game event

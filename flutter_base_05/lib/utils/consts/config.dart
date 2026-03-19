@@ -125,4 +125,12 @@ class Config {
   static const String platform = String.fromEnvironment('APP_PLATFORM', defaultValue: 'flutter');
   static const String buildMode = String.fromEnvironment('BUILD_MODE', defaultValue: 'debug');
   static const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.0.0');
+
+  // Dynamic Dutch tables config passed via --dart-define from root .env
+  // Example:
+  // {"1":{"title":"Home Table","coin_fee":25},"2":{"title":"Local Table","coin_fee":50}}
+  static const String dutchTablesJson = String.fromEnvironment(
+    'DUTCH_TABLES_JSON',
+    defaultValue: '',
+  );
 }

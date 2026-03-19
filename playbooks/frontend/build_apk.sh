@@ -11,8 +11,7 @@ echo "🚀 Building Flutter APK for Dutch..."
 # Resolve repository root (two levels up from this script)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FRONTEND_ENV="$SCRIPT_DIR/.env"
-REPO_ENV="$REPO_ROOT/.env"
+FRONTEND_ENV="$REPO_ROOT/.env"
 
 # Flutter assets: set testing_mode=false and predefined_hands enabled=false for production build (restored on exit)
 # Backups go to /tmp so they are not bundled into build output
@@ -69,7 +68,7 @@ else
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
-# Load env from playbooks/frontend/.env then repo .env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+# Load env from repo root .env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
 if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
@@ -77,12 +76,6 @@ if [ -f "$FRONTEND_ENV" ]; then
   set +a
 else
   echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
-fi
-if [ -f "$REPO_ENV" ]; then
-  set -a
-  # shellcheck source=/dev/null
-  source "$REPO_ENV"
-  set +a
 fi
 CURRENT_VERSION="${APP_VERSION:-2.0.0}"
 
@@ -109,7 +102,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   NEW_VERSION="$MAJOR.$MINOR.$PATCH"
   
   # Write new version to .env (APP_VERSION=)
-  ENV_FILE="$REPO_ENV"
+  ENV_FILE="$FRONTEND_ENV"
   if [ -f "$ENV_FILE" ] && grep -q '^APP_VERSION=' "$ENV_FILE" 2>/dev/null; then
     if [[ "$OSTYPE" == "darwin"* ]]; then
       sed -i '' "s/^APP_VERSION=.*/APP_VERSION=$NEW_VERSION/" "$ENV_FILE"
@@ -195,7 +188,7 @@ source "$SCRIPT_DIR/dart_defines_from_env.sh"
 DART_DEFINE_ARGS=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$FRONTEND_ENV" "$REPO_ENV")
+done < <(build_dart_defines_from_env "$FRONTEND_ENV")
 # Overrides (script-set API_URL, WS_URL, APP_VERSION)
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
 # Build-only (not in .env)

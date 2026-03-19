@@ -169,5 +169,37 @@ class Config {
     'ws_room_cleanup_age',
     600, // 10 minutes
   );
+
+  // ========= Dutch progression / table balance SSOT =========
+  static int get DUTCH_WINS_PER_USER_LEVEL => _getConfigInt(
+    'DUTCH_WINS_PER_USER_LEVEL',
+    'dutch_wins_per_user_level',
+    10,
+  );
+
+  static int get DUTCH_LEVELS_PER_RANK => _getConfigInt(
+    'DUTCH_LEVELS_PER_RANK',
+    'dutch_levels_per_rank',
+    5,
+  );
+
+  static int get DUTCH_USER_LEVEL_MIN => _getConfigInt(
+    'DUTCH_USER_LEVEL_MIN',
+    'dutch_user_level_min',
+    1,
+  );
+
+  static String get DUTCH_TABLES_JSON => _getConfigString(
+    'DUTCH_TABLES_JSON',
+    'dutch_tables_json',
+    '',
+  );
+
+  static String get DUTCH_RANK_HIERARCHY => _getConfigString(
+    'DUTCH_RANK_HIERARCHY',
+    'dutch_rank_hierarchy',
+    'beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend',
+  );
+
 }
 

@@ -12,7 +12,7 @@ import '../../practice/practice_mode_bridge.dart';
 import '../../backend_core/services/game_state_store.dart';
 // import '../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 import '../../../dutch_game/utils/dutch_game_helpers.dart';
-// import 'widgets/create_join_game_widget.dart'; // Uncomment when re-enabling Create/Join section
+import 'widgets/create_join_game_widget.dart';
 import 'widgets/join_random_game_widget.dart';
 import 'widgets/practice_match_widget.dart';
 import 'widgets/collapsible_section_widget.dart';
@@ -41,7 +41,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for create room/tournament flow, join/games, joinedGamesSlice
+  static const bool LOGGING_SWITCH = false; // Lobby → random join trace (enable-logging-switch.mdc)
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -550,19 +550,19 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 ),
               ),
               
-              // Create & Join Room Section (Collapsible) - Third — HIDDEN FOR NOW
-              // CollapsibleSectionWidget(
-              //   title: 'Create New',
-              //   icon: Icons.group_add,
-              //   isExpanded: _expandedSection == 'Create New',
-              //   onExpandedChanged: () => _handleSectionToggled('Create New'),
-              //   child: CreateJoinGameWidget(
-              //     onCreateRoom: _createRoom,
-              //     onJoinRoom: () {
-              //       // Callback after successful join request
-              //     },
-              //   ),
-              // ),
+              // Create & Join Room Section (Collapsible) - Third
+              CollapsibleSectionWidget(
+                title: 'Create New',
+                icon: Icons.group_add,
+                isExpanded: _expandedSection == 'Create New',
+                onExpandedChanged: () => _handleSectionToggled('Create New'),
+                child: CreateJoinGameWidget(
+                  onCreateRoom: _createRoom,
+                  onJoinRoom: () {
+                    // Callback after successful join request
+                  },
+                ),
+              ),
 
               // IRL Tournaments Section (Collapsible) - Fourth — HIDDEN FOR NOW
               // CollapsibleSectionWidget(

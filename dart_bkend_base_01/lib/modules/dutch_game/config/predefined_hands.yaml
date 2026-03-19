@@ -2,26 +2,26 @@
 # Enable/disable predefined hands dealing
 enabled: true
 
-# Predefined hands for each player (player_1 = all queens; player_2 & player_3 = two 4s each)
+# Predefined hands for each player (player_0 = four jacks; player_1 = two jacks + fillers; player_2 & player_3 = two 4s each)
 hands:
-  player_0:  # Non-special cards
-    - rank: "2"
+  player_0:  # All jacks (one per suit)
+    - rank: "jack"
       suit: "hearts"
-    - rank: "3"
+    - rank: "jack"
       suit: "diamonds"
-    - rank: "6"
+    - rank: "jack"
       suit: "clubs"
-    - rank: "5"
+    - rank: "jack"
       suit: "spades"
 
-  player_1:  # All queens
-    - rank: "queen"
+  player_1:  # Two jacks (extra copies — testing deck has 4 jacks/suit) + two other cards
+    - rank: "jack"
       suit: "hearts"
-    - rank: "queen"
+    - rank: "jack"
       suit: "diamonds"
-    - rank: "queen"
-      suit: "clubs"
-    - rank: "queen"
+    - rank: "king"
+      suit: "hearts"
+    - rank: "king"
       suit: "spades"
 
   player_2:  # Two 4s

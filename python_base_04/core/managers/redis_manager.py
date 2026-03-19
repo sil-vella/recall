@@ -783,6 +783,89 @@ class RedisManager:
         except Exception as e:
             return False
 
+    # --- Single active login session (per user) + auth generation for takeover invalidation ---
+    def _session_active_key(self, user_id: str) -> str:
+        return f"session:active:{user_id}"
+
+    def _session_auth_gen_key(self, user_id: str) -> str:
+        return f"session:auth_gen:{user_id}"
+
+    def is_user_login_session_active(self, user_id: str) -> bool:
+        """True if this user has a login session within the sliding refresh window."""
+        try:
+            if not self._ensure_connection():
+                return False
+            key = self._session_active_key(user_id)
+            return bool(self.redis.exists(key))
+        except Exception as e:
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis session: is_user_login_session_active error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
+            return False
+
+    def set_user_login_session_active(self, user_id: str, ttl_seconds: int) -> bool:
+        """Mark user as having an active login; TTL should match refresh token lifetime."""
+        try:
+            if not self._ensure_connection():
+                return False
+            key = self._session_active_key(user_id)
+            self.redis.setex(key, max(1, int(ttl_seconds)), "1")
+            return True
+        except Exception as e:
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis session: set_user_login_session_active error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
+            return False
+
+    def clear_user_login_session_active(self, user_id: str) -> bool:
+        """Clear active-login marker (e.g. on logout)."""
+        try:
+            if not self._ensure_connection():
+                return False
+            self.redis.delete(self._session_active_key(user_id))
+            return True
+        except Exception as e:
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis session: clear_user_login_session_active error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
+            return False
+
+    def get_user_auth_generation(self, user_id: str) -> int:
+        """Persistent auth generation for JWT auth_gen claim; 0 if unset."""
+        try:
+            if not self._ensure_connection():
+                return 0
+            raw = self.redis.get(self._session_auth_gen_key(user_id))
+            if raw is None:
+                return 0
+            if isinstance(raw, bytes):
+                raw = raw.decode()
+            return int(raw)
+        except Exception as e:
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis session: get_user_auth_generation error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
+            return 0
+
+    def set_user_auth_generation(self, user_id: str, generation: int) -> bool:
+        try:
+            if not self._ensure_connection():
+                return False
+            self.redis.set(self._session_auth_gen_key(user_id), str(int(generation)))
+            return True
+        except Exception as e:
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis session: set_user_auth_generation error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
+            return False
+
+    def bump_user_auth_generation(self, user_id: str) -> int:
+        """INCR auth generation; used when user forces login from a new device."""
+        try:
+            if not self._ensure_connection():
+                return 1
+            new_val = self.redis.incr(self._session_auth_gen_key(user_id))
+            return int(new_val)
+        except Exception as e:
+            if RedisManager.LOGGING_SWITCH:
+                custom_log(f"Redis session: bump_user_auth_generation error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
+            return 1
+
     def ping(self):
         """Check if Redis connection is healthy."""
         try:

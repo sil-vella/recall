@@ -618,9 +618,10 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
               final bottomPadding = MediaQuery.of(context).padding.bottom;
               final totalBottomSpace = snackBarHeight + bottomPadding;
               
-              final topBannerHeight = kIsWeb
-                  ? (adsense_placeholder.hasTopAdSlot ? 50.0 : 0.0)
-                  : (bannerAdModule != null ? 50.0 : 0.0);
+              // Top banner space commented out
+              // final topBannerHeight = kIsWeb
+              //     ? (adsense_placeholder.hasTopAdSlot ? 50.0 : 0.0)
+              //     : (bannerAdModule != null ? 50.0 : 0.0);
               final bottomBannerHeight = kIsWeb
                   ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
                   : (bannerAdModule != null ? 50.0 : 0.0);
@@ -645,16 +646,16 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     title: 'Notices',
                   ),
 
-                  // Top banner: AdSense on web, AdMob on APK
-                  if (topBannerHeight > 0)
-                    SizedBox(
-                      height: topBannerHeight,
-                      child: Center(
-                        child: kIsWeb
-                            ? adsense_placeholder.buildAdSensePlaceholder('top')
-                            : bannerAdModule!.getTopBannerWidget(context),
-                      ),
-                    ),
+                  // Top banner: AdSense on web, AdMob on APK — commented out
+                  // if (topBannerHeight > 0)
+                  //   SizedBox(
+                  //     height: topBannerHeight,
+                  //     child: Center(
+                  //       child: kIsWeb
+                  //           ? adsense_placeholder.buildAdSensePlaceholder('top')
+                  //           : bannerAdModule!.getTopBannerWidget(context),
+                  //     ),
+                  //   ),
 
                   // Main content area - takes ALL remaining space
                   // This is the middle part for content, all that is available

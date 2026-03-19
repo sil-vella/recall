@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'dart:convert';
 import '../connections_api_module/connections_api_module.dart';
 import 'package:provider/provider.dart';
@@ -13,12 +14,13 @@ import '../../core/managers/state_manager.dart';
 import '../../core/managers/auth_manager.dart';
 import '../../core/managers/hooks_manager.dart';
 import '../../core/managers/navigation_manager.dart';
+import '../../core/managers/websockets/websocket_manager.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/config.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = false; // Enabled for login/create flow (see .cursor/rules/enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Login/session/logout trace (enable-logging-switch.mdc)
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -120,40 +122,110 @@ class LoginModule extends ModuleBase {
 
   /// ✅ Perform synchronous logout (for hook callbacks)
   void _performSynchronousLogout() {
-    try {
-      // Check if guest account
+    if (LOGGING_SWITCH) {
       final isGuestAccount = _sharedPref?.getBool('is_guest_account') ?? false;
-      
       if (isGuestAccount) {
-        if (LOGGING_SWITCH) {
-          Logger().info("LoginModule: Synchronous guest account logout - preserving permanent credentials");
-        }
+        Logger().info("LoginModule: Synchronous guest account logout - preserving permanent guest + form keys");
       }
-      
-      // Clear JWT tokens using AuthManager
-      _authManager?.clearTokens();
-      
-      // Clear session state
-      _sharedPref?.setBool('is_logged_in', false);
-      
-      // Clear session-only key; keep temp username/email in SharedPref for both guest and regular
-      // so that ensureWebSocketReady / account screen can recognize the user after logout
-      _sharedPref?.remove('user_id');
-      if (LOGGING_SWITCH) {
-        Logger().debug("LoginModule: Logout - cleared session (user_id); kept temp username/email in SharedPref");
+    }
+    final ctx = _currentContext;
+    unawaited(_runFullAuthTeardown(triggerContext: ctx));
+  }
+
+  /// Notify backend (revoke JWTs, bump auth gen), then wipe local auth artifacts.
+  /// [keepLoginFormFields]: keeps SharedPreferences email/username/password for pre-fill when true.
+  Future<void> _runFullAuthTeardown({
+    BuildContext? triggerContext,
+    bool keepLoginFormFields = true,
+  }) async {
+    if (LOGGING_SWITCH) {
+      Logger().info(
+        'LoginModule: _runFullAuthTeardown start keepLoginFormFields=$keepLoginFormFields context=${triggerContext != null}',
+      );
+    }
+    try {
+      if (triggerContext != null) {
+        _initDependencies(triggerContext);
       }
-      
-      // Update state manager
-      final stateManager = StateManager();
-      stateManager.updateModuleState("login", {
-        "isLoggedIn": false,
-        "userId": null,
-        "username": null,
-        "email": null,
-        "error": null
-      });
+      await _notifyBackendLogoutIfPossible();
     } catch (e) {
-      // Handle error silently
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: Auth teardown (server phase): $e');
+      }
+    }
+    await _clearAllLocalAuthArtifacts(keepLoginFormFields: keepLoginFormFields);
+    if (LOGGING_SWITCH) {
+      Logger().info('LoginModule: _runFullAuthTeardown done (local auth cleared)');
+    }
+  }
+
+  /// POST /userauth/logout with Bearer access + optional refresh in body (while tokens still exist).
+  Future<void> _notifyBackendLogoutIfPossible() async {
+    if (_connectionModule == null) {
+      return;
+    }
+    final am = _authManager ?? AuthManager();
+    final access = await am.getAccessToken();
+    if (access == null || access.isEmpty) {
+      return;
+    }
+    final refresh = await am.getRefreshToken();
+    final body = <String, dynamic>{};
+    if (refresh != null && refresh.isNotEmpty) {
+      body['refresh_token'] = refresh;
+    }
+    try {
+      if (LOGGING_SWITCH) {
+        Logger().info(
+          'LoginModule: POST /userauth/logout (refresh_in_body=${body.containsKey('refresh_token')})',
+        );
+      }
+      await _connectionModule!.sendPostRequest('/userauth/logout', body);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: POST /userauth/logout completed');
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: Backend logout request failed (local wipe still runs): $e');
+      }
+    }
+  }
+
+  /// Tokens, session prefs, in-memory login/profile/role, WebSocket disconnect.
+  Future<void> _clearAllLocalAuthArtifacts({bool keepLoginFormFields = true}) async {
+    try {
+      final am = _authManager ?? AuthManager();
+      await am.clearSessionAuthData(
+        keepLoginFormFields: keepLoginFormFields,
+        prefs: _sharedPref,
+      );
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: clearSessionAuthData failed: $e');
+      }
+    }
+
+    final stateManager = StateManager();
+    stateManager.updateModuleState('login', {
+      'isLoggedIn': false,
+      'userId': null,
+      'username': null,
+      'email': null,
+      'error': null,
+      'profile': null,
+      'profilePicture': null,
+      'role': null,
+    });
+
+    try {
+      WebSocketManager.instance.disconnect();
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: WebSocket disconnected after auth clear');
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: WebSocket disconnect on auth clear: $e');
+      }
     }
   }
 
@@ -587,6 +659,7 @@ class LoginModule extends ModuleBase {
     required BuildContext context,
     required String email,
     required String password,
+    bool forceNewSession = false,
   }) async {
     _initDependencies(context);
 
@@ -597,14 +670,34 @@ class LoginModule extends ModuleBase {
     try {
       // Log login attempt
       if (LOGGING_SWITCH) {
-        Logger().info("LoginModule: Login request initiated - Email: $email");
+        Logger().info(
+          "LoginModule: POST /public/login email=$email forceNewSession=$forceNewSession",
+        );
       }
       
       // Use the correct backend route
       final response = await _connectionModule!.sendPostRequest(
         "/public/login",
-        {"email": email, "password": password},
+        {
+          "email": email,
+          "password": password,
+          if (forceNewSession) "force_new_session": true,
+        },
       );
+
+      // Another device has an active session (single-session policy)
+      if (response?["status"] == 409 &&
+          (response?["code"] == "SESSION_ACTIVE_ELSEWHERE" ||
+              response?["error"] == "SESSION_ACTIVE_ELSEWHERE")) {
+        if (LOGGING_SWITCH) {
+          Logger().warning('LoginModule: Login -> sessionConflict (409 SESSION_ACTIVE_ELSEWHERE)');
+        }
+        return {
+          "sessionConflict": true,
+          "message": response?["message"]?.toString() ??
+              "This account is already signed in on another device.",
+        };
+      }
 
       // Handle error responses
       if (response?["status"] == 409 || response?["code"] == "CONFLICT") {
@@ -748,6 +841,7 @@ class LoginModule extends ModuleBase {
     required BuildContext context,
     String? guestEmail,
     String? guestPassword,
+    bool forceNewSession = false,
   }) async {
     _initDependencies(context);
 
@@ -921,7 +1015,7 @@ class LoginModule extends ModuleBase {
       }
 
       // Add guest account conversion info if provided
-      if (isConvertingGuest && guestEmail != null && guestPassword != null) {
+      if (isConvertingGuest) {
         requestPayload["convert_from_guest"] = true;
         requestPayload["guest_email"] = guestEmail;
         requestPayload["guest_password"] = guestPassword;
@@ -929,12 +1023,25 @@ class LoginModule extends ModuleBase {
           Logger().info("LoginModule: Adding guest account conversion info to Google Sign-In request");
         }
       }
+      if (forceNewSession) {
+        requestPayload["force_new_session"] = true;
+      }
 
       // Send to backend
       final response = await _connectionModule!.sendPostRequest(
         "/public/google-signin",
         requestPayload,
       );
+
+      if (response?["status"] == 409 &&
+          (response?["code"] == "SESSION_ACTIVE_ELSEWHERE" ||
+              response?["error"] == "SESSION_ACTIVE_ELSEWHERE")) {
+        return {
+          "sessionConflict": true,
+          "message": response?["message"]?.toString() ??
+              "This account is already signed in on another device.",
+        };
+      }
 
       // Handle error responses
       if (response?["error"] != null || response?["message"]?.contains("error") == true) {
@@ -970,8 +1077,6 @@ class LoginModule extends ModuleBase {
         final email = userData['email']?.toString() ?? googleUser.email;
         final userId = userData['_id'] ?? userData['id'] ?? '';
         final username = userData['username'] ?? '';
-        final accountType = userData['account_type']?.toString();
-        final isGuestAccount = accountType == 'guest' || email.endsWith('@guest.local');
         
         // Extract TTL values from backend response
         final expiresIn = response?["data"]?["expires_in"];
@@ -1010,7 +1115,9 @@ class LoginModule extends ModuleBase {
         
         // Log successful Google Sign-In
         if (LOGGING_SWITCH) {
-          Logger().info("LoginModule: Google Sign-In successful - Username: $username, Email: $email");
+          Logger().info(
+            "LoginModule: Google Sign-In successful - Username: $username, Email: $email, account_type: ${userData['account_type']}",
+          );
         }
         
         // Update state manager
@@ -1089,41 +1196,20 @@ class LoginModule extends ModuleBase {
     }
 
     try {
-      // Check if guest account
-      final isGuestAccount = await _sharedPref!.getBool('is_guest_account') ?? false;
-      
-      if (isGuestAccount) {
-        if (LOGGING_SWITCH) {
-          Logger().info("LoginModule: Guest account logout - preserving permanent credentials");
-        }
-      } else {
-        if (LOGGING_SWITCH) {
-          Logger().debug("LoginModule: Regular account logout");
-        }
-      }
-      
-      // Clear JWT tokens using AuthManager
-      await _authManager!.clearTokens();
-      
-      // Clear session state
-      await _sharedPref!.setBool('is_logged_in', false);
-      
-      // Clear session-only key; keep temp username/email in SharedPref for both guest and regular
-      await _sharedPref!.remove('user_id');
       if (LOGGING_SWITCH) {
-        Logger().debug("LoginModule: Logout - cleared session (user_id); kept temp username/email in SharedPref");
+        final isGuestAccount = _sharedPref?.getBool('is_guest_account') ?? false;
+        Logger().info(
+          isGuestAccount
+              ? 'LoginModule: Guest account logout - preserving guest + form prefs'
+              : 'LoginModule: Regular account logout',
+        );
       }
-      
-      // Update state manager
-      final stateManager = StateManager();
-      stateManager.updateModuleState("login", {
-        "isLoggedIn": false,
-        "userId": null,
-        "username": null,
-        "email": null,
-        "error": null
-      });
-      
+
+      await _runFullAuthTeardown(
+        triggerContext: context,
+        keepLoginFormFields: true,
+      );
+
       return {"success": "Logout successful"};
     } catch (e) {
       return {"error": "Logout failed"};
@@ -1170,6 +1256,9 @@ class LoginModule extends ModuleBase {
         "profilePicture": pictureUrl,
       };
       final responseRole = response['role'] as String?;
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: Profile response role: ${responseRole ?? "(null/empty)"}');
+      }
       if (responseRole != null && responseRole.isNotEmpty) {
         updates["role"] = responseRole;
       }

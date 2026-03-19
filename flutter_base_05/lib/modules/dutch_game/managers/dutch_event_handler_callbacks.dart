@@ -6,6 +6,7 @@ import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/module_manager.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
+import '../backend_core/utils/dutch_rank_level_change_checker.dart';
 import '../utils/game_instructions_provider.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
 import '../screens/demo/demo_action_handler.dart';
@@ -43,6 +44,42 @@ class DutchEventHandlerCallbacks {
     return _analyticsModule;
   }
   
+  /// Refresh Dutch user stats after a match and detect rank/level changes vs pre-refresh snapshot.
+  static void _refreshUserStatsAfterGameEnd(String logContext) {
+    final statsBefore = DutchRankLevelChangeChecker.snapshotRankLevelWins(
+      DutchGameHelpers.getUserDutchGameStats(),
+    );
+    DutchGameHelpers.fetchAndUpdateUserDutchGameData().then((success) {
+      if (LOGGING_SWITCH) {
+        if (success) {
+          _logger.info('✅ $logContext: Successfully refreshed user stats after game end');
+        } else {
+          _logger.warning('⚠️ $logContext: Failed to refresh user stats after game end');
+        }
+      }
+      if (!success) return;
+      final statsAfter = DutchRankLevelChangeChecker.snapshotRankLevelWins(
+        DutchGameHelpers.getUserDutchGameStats(),
+      );
+      final change = DutchRankLevelChangeChecker.analyze(
+        statsBefore: statsBefore,
+        statsAfter: statsAfter,
+      );
+      if (change.hadBeforeSnapshot && change.anyStoredFieldChanged) {
+        // TODO: Inform user of rank/level change (snackbar, modal, or in-game banner).
+        // Use change.storedRankTrend, storedLevelTrend, and matcherTrend for progression vs regression copy.
+        if (LOGGING_SWITCH) {
+          _logger.info(
+            '📊 $logContext: rank/level changed after match — rank: ${change.rankBefore}->${change.rankAfter} '
+            '(${change.storedRankTrend}), level: ${change.levelBefore}->${change.levelAfter} '
+            '(${change.storedLevelTrend}), matcher: ${change.matcherRankBefore}->${change.matcherRankAfter} '
+            '(${change.matcherTrend})',
+          );
+        }
+      }
+    });
+  }
+
   /// Track game event
   static Future<void> _trackGameEvent(String eventType, Map<String, dynamic> eventData) async {
     try {
@@ -1806,15 +1843,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (LOGGING_SWITCH) {
         _logger.info('🔄 handleGameStateUpdated: Refreshing user stats after game end to update coins display');
       }
-      DutchGameHelpers.fetchAndUpdateUserDutchGameData().then((success) {
-        if (LOGGING_SWITCH) {
-          if (success) {
-            _logger.info('✅ handleGameStateUpdated: Successfully refreshed user stats after game end');
-          } else {
-            _logger.warning('⚠️ handleGameStateUpdated: Failed to refresh user stats after game end');
-          }
-        }
-      });
+      _refreshUserStatsAfterGameEnd('handleGameStateUpdated');
     } else {
       // Normal game state update - ensure modal is hidden if game hasn't ended
       if (uiPhase != 'game_ended') {
@@ -2026,15 +2055,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (LOGGING_SWITCH) {
         _logger.info('🔄 handleGameStatePartialUpdate: Refreshing user stats after game end to update coins display');
       }
-      DutchGameHelpers.fetchAndUpdateUserDutchGameData().then((success) {
-        if (LOGGING_SWITCH) {
-          if (success) {
-            _logger.info('✅ handleGameStatePartialUpdate: Successfully refreshed user stats after game end');
-          } else {
-            _logger.warning('⚠️ handleGameStatePartialUpdate: Failed to refresh user stats after game end');
-          }
-        }
-      });
+      _refreshUserStatsAfterGameEnd('handleGameStatePartialUpdate');
       
       _addSessionMessage(
         level: 'success',

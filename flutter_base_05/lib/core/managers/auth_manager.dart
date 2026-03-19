@@ -22,7 +22,7 @@ enum AuthStatus {
 
 class AuthManager extends ChangeNotifier {
   // Logging switch for guest registration testing
-  static const bool LOGGING_SWITCH = false; // Enabled for login/create flow (see .cursor/rules/enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Session/token trace (enable-logging-switch.mdc); set false after testing
   
   static final AuthManager _instance = AuthManager._internal();
   
@@ -45,6 +45,9 @@ class AuthManager extends ChangeNotifier {
   
   // Flag to prevent duplicate hook triggers during validation
   bool _hasTriggeredAuthHook = false;
+
+  /// Prevents concurrent [handleHttp401Response] runs (parallel 401s).
+  bool _handlingHttp401 = false;
   
 
 
@@ -210,6 +213,88 @@ class AuthManager extends ChangeNotifier {
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Clears secure token storage and session-related SharedPreferences.
+  ///
+  /// [keepLoginFormFields]: when true, keeps `username`, `email`, and `password` keys for login form pre-fill.
+  /// Pass [prefs] when [initialize] was never called (AuthManager's internal SharedPref is null).
+  Future<void> clearSessionAuthData({
+    bool keepLoginFormFields = true,
+    SharedPrefManager? prefs,
+  }) async {
+    await clearTokens();
+    final sp = prefs ?? _sharedPref;
+    if (sp != null) {
+      try {
+        await sp.setBool('is_logged_in', false);
+        await sp.remove('user_id');
+        await sp.remove('last_login_timestamp');
+        if (!keepLoginFormFields) {
+          await sp.remove('username');
+          await sp.remove('email');
+          await sp.remove('password');
+        }
+      } catch (e) {
+        rethrow;
+      }
+    }
+    notifyListeners();
+  }
+
+  /// HTTP 401 from the API (e.g. revoked session / [auth_gen] mismatch). Invoked by [AuthInterceptor].
+  ///
+  /// Skips [public/login] and [public/register]. For other routes, tries one silent refresh; if that
+  /// fails or the 401 was from [public/refresh], clears local auth and fires [refresh_token_expired]
+  /// so [LoginModule] can navigate and tear down (including WebSocket).
+  Future<void> handleHttp401Response(String requestPath) async {
+    if (_handlingHttp401) return;
+    final p = requestPath.toLowerCase();
+    if (p.contains('/public/login') || p.contains('/public/register')) {
+      return;
+    }
+    _handlingHttp401 = true;
+    try {
+      if (p.contains('/public/refresh')) {
+        await _signOutAfterUnauthorizedApi();
+        return;
+      }
+      final refreshed = await _trySilentTokenRefresh();
+      if (!refreshed) {
+        await _signOutAfterUnauthorizedApi();
+      }
+    } finally {
+      _handlingHttp401 = false;
+    }
+  }
+
+  Future<bool> _trySilentTokenRefresh() async {
+    try {
+      final rt = await getRefreshToken();
+      if (rt == null || rt.isEmpty) return false;
+      if (_connectionModule == null) return false;
+      final newTok = await refreshAccessToken(rt);
+      return newTok != null && newTok.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _signOutAfterUnauthorizedApi() async {
+    if (LOGGING_SWITCH) {
+      Logger().info(
+        'AuthManager: Session cleared after API 401 (revoked/invalid tokens; LoginModule hook will navigate)',
+      );
+    }
+    await clearSessionAuthData(keepLoginFormFields: true, prefs: _sharedPref);
+    _currentStatus = AuthStatus.tokenExpired;
+    _hasTriggeredAuthHook = true;
+    notifyListeners();
+    HooksManager().triggerHookWithData('refresh_token_expired', {
+      'status': 'refresh_token_expired',
+      'reason': 'api_unauthorized',
+      'message': 'Your session is no longer valid. Please sign in again.',
+    });
   }
 
   /// ✅ Refresh token (no cooldown)
@@ -637,18 +722,12 @@ class AuthManager extends ChangeNotifier {
     _isClearingTokens = true;
     
     try {
-      // Clear tokens
-      await clearTokens();
-      
-      // Clear session data to prevent auto-login with invalid tokens
-      // This is especially important for converted guest accounts
-      if (_sharedPref != null) {
-        await _sharedPref!.setBool('is_logged_in', false);
-        await _sharedPref!.remove('user_id');
-        await _sharedPref!.remove('username');
-        await _sharedPref!.remove('email');
-        await _sharedPref!.remove('last_login_timestamp');
-      }
+      // Keep username/email/password for login pre-fill; tokens and session flags are cleared.
+      // Applies to logout, remote session takeover (auth_gen), refresh failure, etc.
+      await clearSessionAuthData(
+        keepLoginFormFields: true,
+        prefs: _sharedPref,
+      );
     } catch (e) {
     } finally {
       _isClearingTokens = false;

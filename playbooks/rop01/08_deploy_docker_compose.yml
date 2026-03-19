@@ -172,14 +172,19 @@
         mode: '0644'
         remote_src: false
 
-    - name: Ensure mobile_release.json exists (Flask check-updates reads from data dir; build_apk.sh updates it)
+    - name: Check if mobile_release.json exists
+      stat:
+        path: "{{ data_dir }}/mobile_release.json"
+      register: mobile_release_stat
+
+    - name: Create mobile_release.json only when missing (Flask check-updates reads it; build_apk.sh updates it after uploads)
       copy:
         content: '{"latest_version": "0.0.0", "min_supported_version": "0.0.0"}'
         dest: "{{ data_dir }}/mobile_release.json"
         mode: '0644'
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
-      when: vps_user is defined
+      when: vps_user is defined and not mobile_release_stat.stat.exists
 
     # - name: Create minimal Prometheus configuration file
     #   copy:

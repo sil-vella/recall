@@ -12,11 +12,11 @@ import '../../practice/practice_mode_bridge.dart';
 import '../../backend_core/services/game_state_store.dart';
 // import '../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 import '../../../dutch_game/utils/dutch_game_helpers.dart';
-import 'widgets/create_join_game_widget.dart';
+// import 'widgets/create_join_game_widget.dart'; // Uncomment when re-enabling Create/Join section
 import 'widgets/join_random_game_widget.dart';
 import 'widgets/practice_match_widget.dart';
 import 'widgets/collapsible_section_widget.dart';
-import 'widgets/irl_tournaments_widget.dart';
+// import 'widgets/irl_tournaments_widget.dart'; // Uncomment when re-enabling IRL Tournaments section
 import 'features/lobby_features.dart';
 
 
@@ -181,6 +181,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     super.dispose();
   }
  
+  // ignore: unused_element (used when Create/Join section is re-enabled)
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
       if (LOGGING_SWITCH) {
@@ -549,30 +550,30 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 ),
               ),
               
-              // Create & Join Room Section (Collapsible) - Third
-              CollapsibleSectionWidget(
-                title: 'Create New',
-                icon: Icons.group_add,
-                isExpanded: _expandedSection == 'Create New',
-                onExpandedChanged: () => _handleSectionToggled('Create New'),
-                child: CreateJoinGameWidget(
-                  onCreateRoom: _createRoom,
-                  onJoinRoom: () {
-                    // Callback after successful join request
-                  },
-                ),
-              ),
+              // Create & Join Room Section (Collapsible) - Third — HIDDEN FOR NOW
+              // CollapsibleSectionWidget(
+              //   title: 'Create New',
+              //   icon: Icons.group_add,
+              //   isExpanded: _expandedSection == 'Create New',
+              //   onExpandedChanged: () => _handleSectionToggled('Create New'),
+              //   child: CreateJoinGameWidget(
+              //     onCreateRoom: _createRoom,
+              //     onJoinRoom: () {
+              //       // Callback after successful join request
+              //     },
+              //   ),
+              // ),
 
-              // IRL Tournaments Section (Collapsible) - Fourth
-              CollapsibleSectionWidget(
-                title: 'IRL Tournaments',
-                icon: Icons.emoji_events,
-                isExpanded: _expandedSection == 'IRL Tournaments',
-                onExpandedChanged: () => _handleSectionToggled('IRL Tournaments'),
-                child: IRLTournamentsWidget(
-                  isExpanded: _expandedSection == 'IRL Tournaments',
-                ),
-              ),
+              // IRL Tournaments Section (Collapsible) - Fourth — HIDDEN FOR NOW
+              // CollapsibleSectionWidget(
+              //   title: 'IRL Tournaments',
+              //   icon: Icons.emoji_events,
+              //   isExpanded: _expandedSection == 'IRL Tournaments',
+              //   onExpandedChanged: () => _handleSectionToggled('IRL Tournaments'),
+              //   child: IRLTournamentsWidget(
+              //     isExpanded: _expandedSection == 'IRL Tournaments',
+              //   ),
+              // ),
             ],
           ),
         ),

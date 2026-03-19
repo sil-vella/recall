@@ -4,7 +4,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for get-user-stats + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
+const bool LOGGING_SWITCH = false; // Enabled for get-user-stats + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
 
 class PythonApiClient {
   final String baseUrl;

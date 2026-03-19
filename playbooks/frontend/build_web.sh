@@ -194,7 +194,7 @@ if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/index.html" ]; then
   fi
 
   # Cache-bust: add version query string so browsers load fresh script/manifest instead of cache.
-  # For best results the web server should send Cache-Control: no-cache (or max-age=0) for index.html.
+  # Nginx (04_setup_nginx) serves index.html with Cache-Control: no-cache so the shell is always revalidated.
   if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s|src=\"flutter_bootstrap.js\"|src=\"flutter_bootstrap.js?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i '' "s|href=\"manifest.json\"|href=\"manifest.json?v=$APP_VERSION\"|g" "$INDEX_HTML"
@@ -207,6 +207,17 @@ if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/index.html" ]; then
     sed -i "s|href=\"icons/Icon-192.png\"|href=\"icons/Icon-192.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
   fi
   echo "🔖 Cache-bust: added ?v=$APP_VERSION to index.html script and manifest URLs"
+
+  # Mandatory reload: inject no-cache meta tags so browsers and proxies don't serve a cached index.html.
+  # Together with Nginx sending Cache-Control: no-cache for index.html, this encourages a fresh load on each visit.
+  if grep -q "<head>" "$INDEX_HTML" && ! grep -q "Cache-Control.*no-cache" "$INDEX_HTML"; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sed -i '' 's|<head>|<head><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">|' "$INDEX_HTML"
+    else
+      sed -i 's|<head>|<head><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">|' "$INDEX_HTML"
+    fi
+    echo "🔒 No-cache meta tags added to index.html (mandatory reload on login/visit)"
+  fi
   echo "📊 Build size:"
   du -sh "$OUTPUT_DIR"
   echo ""

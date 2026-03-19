@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import time
 import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError, InvalidSignatureError, InvalidAudienceError, InvalidIssuerError
 from typing import Dict, Any, Optional, Union
@@ -63,17 +64,19 @@ class JWTManager:
         # Get state-dependent TTL
         actual_expires_in = self._get_state_dependent_ttl(token_type, expires_in)
         
-        # Set expiration based on token type and state
         if actual_expires_in:
-            expire = datetime.utcnow() + timedelta(seconds=actual_expires_in)
+            ttl_seconds = int(actual_expires_in)
+        elif token_type == TokenType.ACCESS:
+            ttl_seconds = int(self.access_token_expire_seconds)
+        elif token_type == TokenType.REFRESH:
+            ttl_seconds = int(self.refresh_token_expire_seconds)
         else:
-            if token_type == TokenType.ACCESS:
-                expire = datetime.utcnow() + timedelta(seconds=self.access_token_expire_seconds)
-            elif token_type == TokenType.REFRESH:
-                expire = datetime.utcnow() + timedelta(seconds=self.refresh_token_expire_seconds)
-            else:
-                # Default to access token expiration for unknown token types
-                expire = datetime.utcnow() + timedelta(seconds=self.access_token_expire_seconds)
+            ttl_seconds = int(self.access_token_expire_seconds)
+
+        # Use Unix timestamps for iat/exp (avoids naive utcnow().timestamp() local-TZ bug vs validation)
+        now_ts = int(time.time())
+        expire_ts = now_ts + ttl_seconds
+        expire_dt = datetime.utcfromtimestamp(expire_ts)
         
         # Add client fingerprint for token binding
         client_fingerprint = self._get_client_fingerprint()
@@ -81,15 +84,15 @@ class JWTManager:
             to_encode["fingerprint"] = client_fingerprint
             
         to_encode.update({
-            "exp": expire,
+            "exp": expire_ts,
             "type": token_type.value,
-            "iat": datetime.utcnow()
+            "iat": now_ts,
         })
         
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
         
         # Store token in Redis for revocation capability
-        self._store_token(encoded_jwt, expire, token_type)
+        self._store_token(encoded_jwt, expire_dt, token_type)
         
         return encoded_jwt
 
@@ -118,6 +121,24 @@ class JWTManager:
                 custom_log(f"🔐 JWT: Skipping revoke check (service-authenticated request)", level="DEBUG", isOn=LOGGING_SWITCH)
             else:
                 custom_log(f"✅ JWT: Token not revoked", level="DEBUG", isOn=LOGGING_SWITCH)
+
+            # Single-session / takeover: auth_gen must match Redis (tokens without claim are legacy)
+            user_id_for_gen = payload.get("user_id")
+            token_auth_gen = payload.get("auth_gen")
+            if token_auth_gen is not None and user_id_for_gen is not None:
+                try:
+                    token_gen_int = int(token_auth_gen)
+                    server_gen = self.redis_manager.get_user_auth_generation(str(user_id_for_gen))
+                    if token_gen_int != server_gen:
+                        custom_log(
+                            f"❌ JWT: auth_gen mismatch (token={token_gen_int}, server={server_gen}) user_id={user_id_for_gen}",
+                            level="WARNING",
+                            isOn=LOGGING_SWITCH,
+                        )
+                        return None
+                except (TypeError, ValueError) as e:
+                    custom_log(f"❌ JWT: Invalid auth_gen claim: {e}", level="WARNING", isOn=LOGGING_SWITCH)
+                    return None
                 
             # Verify fingerprint if present in token
             token_fingerprint = payload.get("fingerprint")
@@ -204,7 +225,7 @@ class JWTManager:
             if exp:
                 try:
                     exp_timestamp = int(exp)
-                    current_timestamp = int(datetime.utcnow().timestamp())
+                    current_timestamp = int(time.time())
                     custom_log(f"🔐 JWT Claims: Checking expiration - exp: {exp_timestamp}, current: {current_timestamp}", level="DEBUG", isOn=LOGGING_SWITCH)
                     if exp_timestamp <= current_timestamp:
                         custom_log(f"❌ JWT Claims: Token expired", level="WARNING", isOn=LOGGING_SWITCH)
@@ -220,12 +241,22 @@ class JWTManager:
             if iat:
                 try:
                     iat_timestamp = int(iat)
-                    current_timestamp = int(datetime.utcnow().timestamp())
+                    current_timestamp = int(time.time())
                     custom_log(f"🔐 JWT Claims: Checking issued at - iat: {iat_timestamp}, current: {current_timestamp}", level="DEBUG", isOn=LOGGING_SWITCH)
-                    # Token should not be issued in the future (with 5 minute tolerance)
-                    if iat_timestamp > (current_timestamp + 300):
-                        custom_log(f"❌ JWT Claims: Token issued in the future", level="WARNING", isOn=LOGGING_SWITCH)
-                        pass
+                    # Reject only if iat is far in the future (clock skew / bad token); 10 min leeway
+                    if iat_timestamp > (current_timestamp + 600):
+                        custom_log(
+                            f"❌ JWT Claims: Token iat far in the future (iat={iat_timestamp}, now={current_timestamp})",
+                            level="WARNING",
+                            isOn=LOGGING_SWITCH,
+                        )
+                        return False
+                    if iat_timestamp > (current_timestamp + 120):
+                        custom_log(
+                            f"🔐 JWT Claims: Token iat slightly ahead of server (skew ~{iat_timestamp - current_timestamp}s), accepting",
+                            level="DEBUG",
+                            isOn=LOGGING_SWITCH,
+                        )
                     else:
                         custom_log(f"✅ JWT Claims: Token issued at valid time", level="DEBUG", isOn=LOGGING_SWITCH)
                 except (ValueError, TypeError) as e:
@@ -237,7 +268,7 @@ class JWTManager:
             if nbf:
                 try:
                     nbf_timestamp = int(nbf)
-                    current_timestamp = int(datetime.utcnow().timestamp())
+                    current_timestamp = int(time.time())
                     if nbf_timestamp > current_timestamp:
                         return False
                 except (ValueError, TypeError):

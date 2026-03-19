@@ -7,7 +7,7 @@ from tools.logger.custom_logging import custom_log
 from utils.config.config import Config
 from flask import request, jsonify
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Tuple
 from bson import ObjectId
 import bcrypt
 import re
@@ -750,15 +750,75 @@ class UserManagementModule(BaseModule):
             custom_log(f"UserManagement: search_users error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
             return jsonify({'success': False, 'error': 'Failed to search users', 'users': []}), 500
 
+    def _prepare_single_session_login(
+        self, user_id: str, force_new_session: bool
+    ) -> Tuple[Optional[int], Optional[Tuple[Dict[str, Any], int]]]:
+        """
+        Enforce one active login per user (sliding window = refresh TTL).
+        Returns (auth_gen, None) on success. auth_gen -1 means skip embedding (Redis down).
+        On conflict: (None, (response_body_dict, http_status)).
+        """
+        redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
+        try:
+            redis_ok = bool(redis_mgr and redis_mgr.ping())
+        except Exception:
+            redis_ok = False
 
+        if not redis_ok:
+            custom_log(
+                "UserManagement: single-session skipped (Redis unavailable); tokens omit auth_gen",
+                level="WARNING",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
+            return -1, None
 
+        uid = str(user_id)
+        active = redis_mgr.is_user_login_session_active(uid)
+        custom_log(
+            f"UserManagement: single-session check user_id={uid} session:active={active} force_new_session={force_new_session}",
+            level="INFO",
+            isOn=UserManagementModule.LOGGING_SWITCH,
+        )
+        if active and not force_new_session:
+            custom_log(
+                f"UserManagement: single-session -> 409 SESSION_ACTIVE_ELSEWHERE user_id={uid}",
+                level="INFO",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
+            return None, (
+                {
+                    "success": False,
+                    "error": "SESSION_ACTIVE_ELSEWHERE",
+                    "code": "SESSION_ACTIVE_ELSEWHERE",
+                    "message": (
+                        "This account is already signed in on another device. "
+                        "Continue here to sign out the other session and use this device."
+                    ),
+                },
+                409,
+            )
 
+        if force_new_session:
+            gen = redis_mgr.bump_user_auth_generation(uid)
+        else:
+            gen = redis_mgr.get_user_auth_generation(uid)
+            if gen == 0:
+                redis_mgr.set_user_auth_generation(uid, 1)
+                gen = 1
+
+        custom_log(
+            f"UserManagement: single-session -> issue tokens user_id={uid} auth_gen={gen} (force_new_session={force_new_session})",
+            level="INFO",
+            isOn=UserManagementModule.LOGGING_SWITCH,
+        )
+        return gen, None
 
     def login_user(self):
         """Authenticate user and return JWT tokens."""
         try:
             data = request.get_json()
-            
+            force_new_session = bool(data.get("force_new_session", False))
+
             # Validate required fields
             if not data.get("email") or not data.get("password"):
                 return jsonify({
@@ -816,6 +876,11 @@ class UserManagementModule(BaseModule):
             }
             
             self.db_manager.update("users", {"_id": user["_id"]}, update_data)
+
+            auth_gen, session_err = self._prepare_single_session_login(str(user["_id"]), force_new_session)
+            if session_err:
+                err_body, err_status = session_err
+                return jsonify(err_body), err_status
             
             # Create JWT tokens
             access_token_payload = {
@@ -829,11 +894,24 @@ class UserManagementModule(BaseModule):
                 'user_id': str(user['_id']),
                 'type': 'refresh'
             }
+            if auth_gen is not None and auth_gen >= 0:
+                access_token_payload['auth_gen'] = auth_gen
+                refresh_token_payload['auth_gen'] = auth_gen
             
             # Get JWT manager from app_manager
             jwt_manager = self.app_manager.jwt_manager
             access_token = jwt_manager.create_token(access_token_payload, TokenType.ACCESS)
             refresh_token = jwt_manager.create_token(refresh_token_payload, TokenType.REFRESH)
+
+            redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
+            if redis_mgr and auth_gen is not None and auth_gen >= 0:
+                redis_mgr.set_user_login_session_active(str(user["_id"]), Config.JWT_REFRESH_TOKEN_EXPIRES)
+                custom_log(
+                    f"UserManagement: session:active SET user_id={user['_id']} ttl_s={Config.JWT_REFRESH_TOKEN_EXPIRES} "
+                    f"force_new_session={force_new_session}",
+                    level="INFO",
+                    isOn=UserManagementModule.LOGGING_SWITCH,
+                )
             
             # Remove password from response
             user.pop('password', None)
@@ -888,7 +966,8 @@ class UserManagementModule(BaseModule):
         """Handle Google Sign-In authentication."""
         try:
             data = request.get_json()
-            
+            force_new_session = bool(data.get("force_new_session", False))
+
             # Check for guest account conversion
             convert_from_guest = data.get("convert_from_guest", False)
             guest_email = data.get("guest_email")
@@ -1373,6 +1452,11 @@ class UserManagementModule(BaseModule):
             }
             
             self.db_manager.update("users", {"_id": user["_id"]}, update_data)
+
+            auth_gen, session_err = self._prepare_single_session_login(str(user["_id"]), force_new_session)
+            if session_err:
+                err_body, err_status = session_err
+                return jsonify(err_body), err_status
             
             # Create JWT tokens
             access_token_payload = {
@@ -1386,11 +1470,24 @@ class UserManagementModule(BaseModule):
                 'user_id': str(user['_id']),
                 'type': 'refresh'
             }
+            if auth_gen is not None and auth_gen >= 0:
+                access_token_payload['auth_gen'] = auth_gen
+                refresh_token_payload['auth_gen'] = auth_gen
             
             # Get JWT manager from app_manager
             jwt_manager = self.app_manager.jwt_manager
             access_token = jwt_manager.create_token(access_token_payload, TokenType.ACCESS)
             refresh_token = jwt_manager.create_token(refresh_token_payload, TokenType.REFRESH)
+
+            redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
+            if redis_mgr and auth_gen is not None and auth_gen >= 0:
+                redis_mgr.set_user_login_session_active(str(user["_id"]), Config.JWT_REFRESH_TOKEN_EXPIRES)
+                custom_log(
+                    f"UserManagement: session:active SET (google) user_id={user['_id']} ttl_s={Config.JWT_REFRESH_TOKEN_EXPIRES} "
+                    f"force_new_session={force_new_session}",
+                    level="INFO",
+                    isOn=UserManagementModule.LOGGING_SWITCH,
+                )
             
             # Remove password from response
             user.pop('password', None)
@@ -1451,7 +1548,7 @@ class UserManagementModule(BaseModule):
             }), 500
 
     def logout_user(self):
-        """Logout user and revoke tokens."""
+        """Logout user: revoke access (+ optional refresh), clear session marker, bump auth generation."""
         try:
             # Get token from Authorization header
             auth_header = request.headers.get('Authorization')
@@ -1462,6 +1559,8 @@ class UserManagementModule(BaseModule):
                 }), 401
             
             token = auth_header.split(' ')[1]
+            data = request.get_json(silent=True) or {}
+            refresh_from_body = data.get("refresh_token")
             
             # Get JWT manager from app_manager
             jwt_manager = self.app_manager.jwt_manager
@@ -1474,9 +1573,34 @@ class UserManagementModule(BaseModule):
                     "error": "Invalid or expired token"
                 }), 401
             
-            # Revoke the token
+            uid = payload.get("user_id")
+            uid_str = str(uid) if uid is not None else ""
+
+            # Revoke refresh token if client sent it and it belongs to this user
+            refresh_revoked = False
+            if refresh_from_body:
+                rp = jwt_manager.verify_token(refresh_from_body, TokenType.REFRESH)
+                if rp and str(rp.get("user_id")) == uid_str:
+                    jwt_manager.revoke_token(refresh_from_body)
+                    refresh_revoked = True
+
+            # Revoke the access token
             success = jwt_manager.revoke_token(token)
-            
+
+            redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
+            bumped_gen = None
+            if redis_mgr and uid_str:
+                redis_mgr.clear_user_login_session_active(uid_str)
+                # Invalidate any other copies of access/refresh (other tabs / stale storage)
+                bumped_gen = redis_mgr.bump_user_auth_generation(uid_str)
+
+            custom_log(
+                f"UserManagement: logout user_id={uid_str} access_revoked={success} refresh_revoked={refresh_revoked} "
+                f"session:active_cleared auth_gen_bumped_to={bumped_gen}",
+                level="INFO",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
+
             if success:
                 return jsonify({
                     "success": True,
@@ -1533,6 +1657,9 @@ class UserManagementModule(BaseModule):
             # For now, we'll use the email from the database lookup, but this should be the original email
             # The issue is that the database stores encrypted emails, so we need to handle this properly
             
+            # Preserve single-session generation across rotation
+            auth_gen = payload.get("auth_gen")
+
             # Create new access token
             access_token_payload = {
                 'user_id': str(user['_id']),
@@ -1546,12 +1673,24 @@ class UserManagementModule(BaseModule):
                 'user_id': str(user['_id']),
                 'type': 'refresh'
             }
+            if auth_gen is not None:
+                access_token_payload['auth_gen'] = auth_gen
+                refresh_token_payload['auth_gen'] = auth_gen
             
             new_access_token = jwt_manager.create_token(access_token_payload, TokenType.ACCESS)
             new_refresh_token = jwt_manager.create_token(refresh_token_payload, TokenType.REFRESH)
             
             # Revoke the old refresh token for security
             jwt_manager.revoke_token(refresh_token)
+
+            redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
+            if redis_mgr and user_id:
+                redis_mgr.set_user_login_session_active(str(user_id), Config.JWT_REFRESH_TOKEN_EXPIRES)
+                custom_log(
+                    f"UserManagement: session:active REFRESH user_id={user_id} ttl_s={Config.JWT_REFRESH_TOKEN_EXPIRES} auth_gen={auth_gen}",
+                    level="INFO",
+                    isOn=UserManagementModule.LOGGING_SWITCH,
+                )
             
             # Remove password from response
             user.pop('password', None)
@@ -1758,13 +1897,16 @@ class UserManagementModule(BaseModule):
             plain_email = payload.get('email') if isinstance(payload.get('email'), str) else None
             plain_username = payload.get('username') if isinstance(payload.get('username'), str) else None
             
+            role_from_db = user.get('role', 'player')
+            if UserManagementModule.LOGGING_SWITCH:
+                custom_log(f"UserManagement: get_user_profile user_id={user_id} role_from_db={role_from_db!r} (JWT has no role)", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
             profile_data = {
                 'user_id': user_id,
                 'email': plain_email or user.get('email'),
                 'username': plain_username or user.get('username'),
                 'profile': user.get('profile', {}),
                 'modules': user.get('modules', {}),
-                'role': user.get('role', 'player'),
+                'role': role_from_db,
             }
             
             return jsonify(profile_data), 200

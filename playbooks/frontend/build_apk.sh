@@ -239,6 +239,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   REMOTE_DATA_DIR="/opt/apps/reignofplay/dutch/data"
   REMOTE_MANIFEST_PATH="$REMOTE_DATA_DIR/mobile_release.json"
   REMOTE_TMP_MANIFEST="/tmp/mobile_release.json"
+  REMOTE_APP_DIR="/opt/apps/reignofplay/dutch"
 
   log_remaining_vps_tasks() {
     echo ""
@@ -256,16 +257,16 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   echo "🌐 Uploading APK to VPS ($VPS_SSH_TARGET)..."
   echo "📂 Remote path: $REMOTE_APK_PATH"
 
-  echo "  Step 1/3: Uploading APK to temporary location on VPS (rsync with compression)..."
+  echo "  Step 1/5: Uploading APK to temporary location on VPS (rsync with compression)..."
   if ! rsync -avz --progress -e "ssh -i $VPS_SSH_KEY" "$OUTPUT_APK" "$VPS_SSH_TARGET:$REMOTE_TMP_APK"; then
-    echo "❌ Step 1/3 failed: rsync APK to $REMOTE_TMP_APK"
+    echo "❌ Step 1/5 failed: rsync APK to $REMOTE_TMP_APK"
     log_remaining_vps_tasks
     exit 1
   fi
 
-  echo "  Step 2/3: Creating version dir and moving APK into place..."
+  echo "  Step 2/5: Creating version dir and moving APK into place..."
   if ! ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_VERSION_DIR' && sudo mv '$REMOTE_TMP_APK' '$REMOTE_APK_PATH' && sudo chown www-data:www-data '$REMOTE_APK_PATH' && sudo chmod 644 '$REMOTE_APK_PATH'"; then
-    echo "❌ Step 2/3 failed: mkdir/mv APK to $REMOTE_APK_PATH"
+    echo "❌ Step 2/5 failed: mkdir/mv APK to $REMOTE_APK_PATH"
     log_remaining_vps_tasks
     exit 1
   fi
@@ -277,7 +278,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   # correct version info without needing a restart.
   MIN_SUPPORTED_VERSION="${MIN_SUPPORTED_VERSION:-$APP_VERSION}"
 
-  echo "  Step 3/3: Updating mobile_release.json manifest on VPS..."
+  echo "  Step 3/5: Updating mobile_release.json manifest on VPS..."
   TMP_MANIFEST="$(mktemp)"
   cat > "$TMP_MANIFEST" <<EOF
 {
@@ -288,13 +289,13 @@ EOF
 
   if ! scp -i "$VPS_SSH_KEY" "$TMP_MANIFEST" "$VPS_SSH_TARGET":"$REMOTE_TMP_MANIFEST"; then
     rm -f "$TMP_MANIFEST"
-    echo "❌ Step 3/3 failed: scp manifest to $REMOTE_TMP_MANIFEST"
+    echo "❌ Step 3/5 failed: scp manifest to $REMOTE_TMP_MANIFEST"
     log_remaining_vps_tasks
     exit 1
   fi
   if ! ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mv '$REMOTE_TMP_MANIFEST' '$REMOTE_MANIFEST_PATH' && sudo chown rop01_user:rop01_user '$REMOTE_MANIFEST_PATH' && sudo chmod 644 '$REMOTE_MANIFEST_PATH'"; then
     rm -f "$TMP_MANIFEST"
-    echo "❌ Step 3/3 failed: mv manifest to $REMOTE_MANIFEST_PATH"
+    echo "❌ Step 3/5 failed: mv manifest to $REMOTE_MANIFEST_PATH"
     log_remaining_vps_tasks
     exit 1
   fi
@@ -302,8 +303,15 @@ EOF
 
   echo "✅ mobile_release.json updated on VPS: $REMOTE_MANIFEST_PATH"
 
+  echo "  Step 4/5: Reloading Flask container (so /public/check-updates serves latest manifest)..."
+  if ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "cd $REMOTE_APP_DIR && sg docker -c 'docker compose -f docker-compose.yml restart dutch_flask-external'"; then
+    echo "✅ Flask container restarted."
+  else
+    echo "⚠️  Flask restart skipped or failed (non-fatal). /public/check-updates may still see new manifest via bind mount."
+  fi
+
   # Keep only current and previous APK version dirs; remove older ones to save disk space
-  echo "  Step 4/4: Removing old APK versions (keeping only current and previous)..."
+  echo "  Step 5/5: Removing old APK versions (keeping only current and previous)..."
   if ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "cd $REMOTE_DOWNLOAD_ROOT && ls -d v* 2>/dev/null | sort -V | head -n -2 | xargs -r sudo rm -rf 2>/dev/null; echo done"; then
     echo "✅ Old APK version dirs removed (kept current + previous)."
   else

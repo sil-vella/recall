@@ -45,12 +45,11 @@ class AuthInterceptor implements InterceptorContract {
   @override
   Future<BaseResponse> interceptResponse({required BaseResponse response}) async {
     if (response is Response && response.statusCode == 401) {
-      // ✅ Handle Unauthorized using AuthManager - but don't clear tokens here
-      // Let AuthManager handle token clearing through its own logic
       if (_authManager == null) {
         _authManager = AuthManager();
       }
-      // Don't clear tokens here - let AuthManager handle it
+      final path = response.request?.url.path ?? '';
+      await _authManager!.handleHttp401Response(path);
     }
     return response;
   }

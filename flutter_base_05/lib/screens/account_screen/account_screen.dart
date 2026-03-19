@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -6,6 +7,7 @@ import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../core/managers/navigation_manager.dart';
 import '../../core/managers/auth_manager.dart';
+import '../../core/managers/websockets/websocket_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../modules/analytics_module/analytics_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
@@ -26,7 +28,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Enable for debugging login/account creation (unable to create account)
+  static const bool LOGGING_SWITCH = false; // Enable for debugging login/account creation and profile/role (enable-logging-switch.mdc)
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -55,6 +57,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   bool _isGuestAccount = false;
   bool _lastLoggedInState = false; // Track previous login state to prevent rebuild loops
   
+  /// Timer for delayed profile refetch (2s after entry); cancelled in dispose.
+  Timer? _profileRefetchTimer;
   
   // Module manager
   final ModuleManager _moduleManager = ModuleManager();
@@ -74,7 +78,13 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       await _checkForGuestCredentials();
     });
     _trackScreenView();
+    // Always refetch profile on account screen entry
     _fetchUserProfile();
+    // Schedule a second refetch after 2 seconds (e.g. to pick up role/DB changes)
+    _profileRefetchTimer?.cancel();
+    _profileRefetchTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) _fetchUserProfile();
+    });
     // Check for app updates on every account screen load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForAppUpdates();
@@ -300,6 +310,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   @override
   void dispose() {
+    _profileRefetchTimer?.cancel();
+    _profileRefetchTimer = null;
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -431,14 +443,23 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       for (final key in _userStorageKeys) {
         await sharedPref.remove(key);
       }
-      await AuthManager().clearTokens();
+      await AuthManager().clearSessionAuthData(
+        keepLoginFormFields: false,
+        prefs: sharedPref,
+      );
       StateManager().updateModuleState('login', {
         'isLoggedIn': false,
         'userId': null,
         'username': null,
         'email': null,
         'error': null,
+        'profile': null,
+        'profilePicture': null,
+        'role': null,
       });
+      try {
+        WebSocketManager.instance.disconnect();
+      } catch (_) {}
       _clearForms();
       if (mounted) {
         setState(() {
@@ -458,6 +479,68 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       }
     }
   }
+
+  /// Ask whether to revoke the other device's session and continue login on this device.
+  Future<bool?> _confirmTakeOverOtherSession(String message) async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text('Already signed in', style: AppTextStyles.headingSmall()),
+        content: SingleChildScrollView(
+          child: Text(
+            message,
+            style: AppTextStyles.bodyMedium(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel', style: AppTextStyles.bodyMedium()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Sign in here',
+              style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Handles [LoginModule.sessionConflict] by prompting, then retrying with [forceNewSession].
+  Future<Map<String, dynamic>> _loginResolvingSessionConflict({
+    required String email,
+    required String password,
+  }) async {
+    var result = await _loginModule!.loginUser(
+      context: context,
+      email: email,
+      password: password,
+    );
+    if (result['sessionConflict'] == true && mounted) {
+      final ok = await _confirmTakeOverOtherSession(
+        result['message']?.toString() ??
+            'This account is already signed in on another device. '
+                'Continue to sign out the other session and use this device?',
+      );
+      if (ok != true) {
+        return {'cancelled': true};
+      }
+      if (!mounted) {
+        return {'cancelled': true};
+      }
+      result = await _loginModule!.loginUser(
+        context: context,
+        email: email,
+        password: password,
+        forceNewSession: true,
+      );
+    }
+    return result;
+  }
   
   Future<void> _handleLogin() async {
     // Track button click
@@ -473,11 +556,19 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     });
     
     try {
-      final result = await _loginModule!.loginUser(
-        context: context,
+      final result = await _loginResolvingSessionConflict(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
+      if (result['cancelled'] == true) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
       
       if (result['success'] != null) {
         setState(() {
@@ -667,11 +758,19 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         _logger.info("AccountScreen: Logging in with guest credentials (temp keys) - Username: $username");
       }
       
-      final result = await _loginModule!.loginUser(
-        context: context,
+      final result = await _loginResolvingSessionConflict(
         email: guestEmail,
         password: username,
       );
+
+      if (result['cancelled'] == true) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
       
       if (result['success'] != null) {
         if (LOGGING_SWITCH) {
@@ -1165,9 +1264,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1000),
                 child: SafeArea(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      await _fetchUserProfile();
+                    },
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 40),
@@ -1408,6 +1512,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 ],
                     ),
                   ),
+                ),
                 ),
               ),
             );

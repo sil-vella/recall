@@ -11,7 +11,7 @@ import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for create/join room + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
+const bool LOGGING_SWITCH = false; // Enabled for create/join room + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
 
 class MessageHandler {
   final RoomManager _roomManager;

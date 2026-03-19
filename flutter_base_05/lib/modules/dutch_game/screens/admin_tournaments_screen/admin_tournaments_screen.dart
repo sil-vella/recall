@@ -31,7 +31,7 @@ class AdminTournamentsScreen extends BaseScreen {
 
 class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScreen> {
   static const String _all = 'All';
-  static const bool LOGGING_SWITCH = true; // Tournament match create flow — see .cursor/rules/enable-logging-switch.mdc
+  static const bool LOGGING_SWITCH = false; // Tournament match create flow — see .cursor/rules/enable-logging-switch.mdc
   static final Logger _logger = Logger();
 
   /// Full tournament docs from API (id, name, status, type, format, start_date, matches, ...).

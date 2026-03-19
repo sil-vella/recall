@@ -222,7 +222,7 @@ Backups (if the dirs existed) are written under `{{ data_dir }}/` as `mongodb.ba
 
 **What it does**:
 - Builds the Flask Docker image from `python_base_04/Dockerfile` with build context `python_base_04/`.
-- Temporarily comments out `custom_log(...)` calls (to avoid noisy logs or syntax traps), builds, then restores them.
+- Temporarily sets `LOGGING_SWITCH = False` on lines that assign `True`, builds, then restores sources. `custom_log(...)` calls are **not** modified (avoids breaking multi-line calls).
 - Tags and pushes the image to Docker Hub as:
 
   ```

@@ -10,6 +10,7 @@ import random
 import uuid
 
 from . import dutch_notifications
+from .wins_level_rank_matcher import WinsLevelRankMatcher
 
 dutch_api = Blueprint('dutch_api', __name__)
 
@@ -469,6 +470,13 @@ def update_game_stats():
                 result = db_manager.db["users"].update_one({"_id": user_id}, update_operation)
                 modified_count = result.modified_count if result else 0
                 if modified_count > 0:
+                    # Interception after stats persist: wins → progression level → derived rank (matcher only).
+                    # TODO: Define policy (min matches, never demote, persist modules.dutch_game.rank, analytics, etc.).
+                    _ = (
+                        WinsLevelRankMatcher.wins_to_progression_level(new_wins),
+                        WinsLevelRankMatcher.wins_to_rank(new_wins),
+                    )
+
                     updated_players.append({
                         "user_id": user_id_str,
                         "wins": new_wins,
@@ -593,72 +601,6 @@ def get_user_stats_service():
     except Exception as e:
         custom_log(f"❌ DutchGame: Error in get_user_stats_service: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to retrieve user statistics", "message": str(e)}), 500
-
-
-def record_game_result():
-    """Record current user's single game result (JWT protected; user_id from token)."""
-    try:
-        user_id = request.user_id
-        if not user_id:
-            return jsonify({"success": False, "error": "User not authenticated", "message": "No user ID found in request"}), 401
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "message": "Request body is required", "error": "Missing request body"}), 400
-        is_winner = data.get('is_winner', False)
-        pot = data.get('pot', 0)
-        game_mode = data.get('game_mode', 'multiplayer')
-        duration = data.get('duration', 0)
-        if not _app_manager:
-            return jsonify({"success": False, "message": "Server not initialized"}), 503
-        db_manager = _app_manager.get_db_manager(role="read_write")
-        if not db_manager:
-            return jsonify({"success": False, "message": "Database connection unavailable", "error": "Database manager not initialized"}), 500
-        try:
-            user_id_obj = ObjectId(user_id)
-        except Exception as e:
-            return jsonify({"success": False, "message": f"Invalid user_id format: {e}", "error": "Invalid user_id"}), 400
-        user = db_manager.find_one("users", {"_id": user_id_obj})
-        if not user:
-            return jsonify({"success": False, "error": "User not found", "message": f"User {user_id} not found"}), 404
-        modules = user.get('modules', {})
-        dutch_game = modules.get('dutch_game', {})
-        current_wins = dutch_game.get('wins', 0)
-        current_losses = dutch_game.get('losses', 0)
-        current_total_matches = dutch_game.get('total_matches', 0)
-        current_coins = dutch_game.get('coins', 0)
-        subscription_tier = dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL
-        coins_to_add = (pot if (is_winner and pot > 0 and not matcher.is_free_play_tier(subscription_tier)) else 0)
-        new_total_matches = current_total_matches + 1
-        new_wins = current_wins + (1 if is_winner else 0)
-        new_losses = current_losses + (0 if is_winner else 1)
-        new_coins = current_coins + coins_to_add
-        new_win_rate = float(new_wins) / float(new_total_matches) if new_total_matches > 0 else 0.0
-        current_timestamp = datetime.utcnow().isoformat()
-        update_operation = {
-            '$set': {
-                'modules.dutch_game.total_matches': new_total_matches,
-                'modules.dutch_game.wins': new_wins,
-                'modules.dutch_game.losses': new_losses,
-                'modules.dutch_game.win_rate': new_win_rate,
-                'modules.dutch_game.last_match_date': current_timestamp,
-                'modules.dutch_game.last_updated': current_timestamp,
-                'updated_at': current_timestamp
-            }
-        }
-        if coins_to_add > 0:
-            update_operation['$inc'] = {'modules.dutch_game.coins': coins_to_add}
-        result = db_manager.db["users"].update_one({"_id": user_id_obj}, update_operation)
-        if not result or result.modified_count == 0:
-            return jsonify({"success": False, "message": "Failed to update user statistics", "error": "Update failed"}), 500
-        analytics_service = _app_manager.services_manager.get_service('analytics_service') if _app_manager else None
-        if analytics_service:
-            analytics_service.track_event(user_id=user_id, event_type='game_completed', event_data={'game_mode': game_mode, 'result': 'win' if is_winner else 'loss', 'duration': duration}, metrics_enabled=METRICS_SWITCH)
-            if coins_to_add > 0:
-                analytics_service.track_event(user_id=user_id, event_type='coin_transaction', event_data={'transaction_type': 'game_reward', 'direction': 'credit', 'amount': coins_to_add}, metrics_enabled=METRICS_SWITCH)
-        return jsonify({"success": True, "message": "Game result recorded", "data": {"user_id": user_id, "wins": new_wins, "losses": new_losses, "total_matches": new_total_matches, "coins": new_coins, "win_rate": new_win_rate}, "timestamp": current_timestamp}), 200
-    except Exception as e:
-        custom_log(f"❌ DutchGame: Error in record_game_result: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-        return jsonify({"success": False, "error": "Failed to record game result", "message": str(e)}), 500
 
 
 def deduct_game_coins():

@@ -548,7 +548,7 @@ CORS(app,
 - Requires: `Authorization: Bearer <token>` header
 - Validates: JWT access token via JWTManager
 - Sets: `request.user_id`, `request.user_payload`
-- Used by: Flutter frontend (user endpoints, e.g. get-user-stats, record-game-result)
+- Used by: Flutter frontend (user endpoints, e.g. get-user-stats, deduct-game-coins)
 
 **2. `/keyauth/*`** - API Key Authentication Required:
 - Requires: `X-API-Key: <api_key>` header

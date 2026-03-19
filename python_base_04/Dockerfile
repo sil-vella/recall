@@ -24,7 +24,7 @@ COPY utils/ ./utils/
 COPY tools/ ./tools/
 
 # Set environment variables
-ENV PYTHONPATH="/app:$PYTHONPATH"
+ENV PYTHONPATH="/app"
 ENV FLASK_HOST="0.0.0.0"
 ENV FLASK_PORT="5001"
 

@@ -76,7 +76,6 @@ class DutchGameMain(BaseModule):
             self._register_route_helper("/userauth/dutch/start-tournament-match", api_endpoints.start_tournament_match, methods=["POST"], auth="jwt")
             self._register_route_helper("/userauth/dutch/attach-tournament-match-room", api_endpoints.attach_tournament_match_room, methods=["POST"], auth="jwt")
             self._register_route_helper("/userauth/dutch/get-user-stats", api_endpoints.get_user_stats, methods=["GET"], auth="jwt")
-            self._register_route_helper("/userauth/dutch/record-game-result", api_endpoints.record_game_result, methods=["POST"], auth="jwt")
             self._register_route_helper("/userauth/dutch/deduct-game-coins", api_endpoints.deduct_game_coins, methods=["POST"], auth="jwt")
             self._register_route_helper("/userauth/dutch/invite-players-to-match", api_endpoints.invite_players_to_match, methods=["POST"], auth="jwt")
             notification_module = self.app_manager.module_manager.get_module("notification_module")

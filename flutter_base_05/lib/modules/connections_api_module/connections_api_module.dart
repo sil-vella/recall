@@ -13,7 +13,7 @@ import '../../utils/consts/config.dart';
 import 'interceptor.dart';
 
 class ConnectionsApiModule extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Set true for connectivity/API debug logs
+  static const bool LOGGING_SWITCH = false; // API trace for login/logout (enable-logging-switch.mdc)
 
   /// Retry once after this delay when a request fails with a transient error (e.g. public WiFi).
   static const Duration _retryDelay = Duration(milliseconds: 1500);
@@ -161,20 +161,26 @@ class ConnectionsApiModule extends ModuleBase {
 
     if (response.statusCode == 401) {
       // Don't clear tokens here - let AuthManager handle it through its own logic
-      return {"message": "Session expired. Please log in again.", "error": "Unauthorized"};
+      return {
+        "message": "Session expired. Please log in again.",
+        "error": "Unauthorized",
+        "status": 401,
+      };
     } else {
       try {
-        final decodedResponse = jsonDecode(response.body);
+        final decodedResponse = jsonDecode(response.body) as Map<String, dynamic>;
         // Ensure we always have a message field for errors
         if (!decodedResponse.containsKey('message') && decodedResponse.containsKey('error')) {
           decodedResponse['message'] = decodedResponse['error'];
         }
+        decodedResponse['status'] = response.statusCode;
         return decodedResponse;
       } catch (e) {
         return {
           "message": "An unexpected error occurred",
           "error": "Server error",
-          "details": response.body
+          "details": response.body,
+          "status": response.statusCode,
         };
       }
     }

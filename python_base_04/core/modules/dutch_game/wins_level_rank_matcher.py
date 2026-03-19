@@ -1,25 +1,28 @@
 """
-Wins → progression level → rank (Dutch module).
+Wins → user level → rank (Dutch module).
 
-Ranks are identical in order and spelling to Flutter `RankMatcher.rankHierarchy`
-(`flutter_base_05/lib/modules/dutch_game/backend_core/utils/rank_matcher.dart`)
-and to the duplicated ``RANK_HIERARCHY`` below (same as ``tier_rank_level_matcher``).
+Rules (product):
+- Every ``WINS_PER_USER_LEVEL`` wins increases **user level** by 1 (level starts at 1).
+- Every ``LEVELS_PER_RANK`` user levels increases **rank** by one step on ``RANK_HIERARCHY``.
+- **Game table** tiers 1–4 (coin fee / room ``game_level``): table *T* requires
+  ``user_level >= T`` (table 1 open to all levels ≥ 1).
 
-Progression levels are 1..N where N == len(RANK_HIERARCHY) (10). They are
-**not** the same as game table levels (1–4 / LevelMatcher); they only drive
-rank-from-wins math until interception logic is wired.
-
-No I/O and no persistence — pure matcher for use after stats updates.
+Ranks match Flutter ``RankMatcher.rankHierarchy`` and
+``tier_rank_level_matcher.RANK_HIERARCHY`` (duplicated below to avoid importing
+user_management package __init__).
 """
 
 from __future__ import annotations
 
 from typing import Optional, Tuple
 
-# Must stay identical to:
-# - Flutter: lib/modules/dutch_game/backend_core/utils/rank_matcher.dart → rankHierarchy
-# - Python: core/modules/user_management_module/tier_rank_level_matcher.py → RANK_HIERARCHY
-# Duplicated here so this module does not import user_management (package __init__ loads DB stack).
+# Game table tiers (room game_level / LevelMatcher) — eligibility only
+TABLE_LEVEL_MIN: int = 1
+TABLE_LEVEL_MAX: int = 4
+
+USER_LEVEL_MIN: int = 1
+
+# Must stay identical to Flutter rank_matcher / tier_rank_level_matcher.
 RANK_HIERARCHY: Tuple[str, ...] = (
     "beginner",
     "novice",
@@ -36,55 +39,55 @@ RANK_HIERARCHY: Tuple[str, ...] = (
 DEFAULT_RANK: str = "beginner"
 
 
-PROGRESSION_LEVEL_MIN: int = 1
-PROGRESSION_LEVEL_MAX: int = len(RANK_HIERARCHY)
-
-
 class WinsLevelRankMatcher:
     """
-    Map lifetime wins to a progression level, then to the rank string for that level.
-
-    Default curve: each additional rank tier requires ``WINS_PER_PROGRESSION_LEVEL``
-    more wins than the previous (level 1 from 0 wins).
+    User **level** is progression from wins (unbounded). **Rank** is derived from
+    user level. **Game table** access uses user level vs room ``game_level`` (1–4).
     """
 
-    #: Wins per tier step: level L requires at least ``(L - 1) * WINS_PER_PROGRESSION_LEVEL`` wins.
-    WINS_PER_PROGRESSION_LEVEL: int = 5
+    WINS_PER_USER_LEVEL: int = 10
+    LEVELS_PER_RANK: int = 5
 
     @classmethod
-    def wins_to_progression_level(cls, wins: Optional[int]) -> int:
-        """
-        Map non-negative win count to progression level in ``PROGRESSION_LEVEL_MIN..PROGRESSION_LEVEL_MAX``.
-
-        Negative ``wins`` is treated as 0.
-        """
+    def wins_to_user_level(cls, wins: Optional[int]) -> int:
+        """Lifetime wins → user level (1 + wins // step)."""
         w = 0 if wins is None else max(0, int(wins))
-        step = max(1, cls.WINS_PER_PROGRESSION_LEVEL)
-        # 0 wins -> level 1; each `step` wins bumps one level until cap.
-        raw = w // step + 1
-        return min(PROGRESSION_LEVEL_MAX, max(PROGRESSION_LEVEL_MIN, raw))
+        step = max(1, cls.WINS_PER_USER_LEVEL)
+        return max(USER_LEVEL_MIN, 1 + w // step)
 
     @classmethod
-    def progression_level_to_rank(cls, progression_level: Optional[int]) -> str:
-        """
-        Map progression level (1-based) to rank string from ``RANK_HIERARCHY``.
-
-        Out-of-range values clamp to nearest valid rank; ``None`` -> ``DEFAULT_RANK``.
-        """
-        if progression_level is None:
-            return DEFAULT_RANK
+    def user_level_to_rank_index(cls, user_level: Optional[int]) -> int:
+        """Index into RANK_HIERARCHY from user level; capped at legend."""
+        if user_level is None:
+            return 0
         try:
-            lvl = int(progression_level)
+            lv = int(user_level)
         except (TypeError, ValueError):
-            return DEFAULT_RANK
-        idx = lvl - 1
-        if idx < 0:
-            return RANK_HIERARCHY[0]
-        if idx >= len(RANK_HIERARCHY):
-            return RANK_HIERARCHY[-1]
-        return RANK_HIERARCHY[idx]
+            return 0
+        lv = max(USER_LEVEL_MIN, lv)
+        idx = (lv - 1) // max(1, cls.LEVELS_PER_RANK)
+        return min(len(RANK_HIERARCHY) - 1, max(0, idx))
+
+    @classmethod
+    def user_level_to_rank(cls, user_level: Optional[int]) -> str:
+        return RANK_HIERARCHY[cls.user_level_to_rank_index(user_level)]
 
     @classmethod
     def wins_to_rank(cls, wins: Optional[int]) -> str:
-        """Compose ``wins_to_progression_level`` then ``progression_level_to_rank``."""
-        return cls.progression_level_to_rank(cls.wins_to_progression_level(wins))
+        return cls.user_level_to_rank(cls.wins_to_user_level(wins))
+
+    @classmethod
+    def user_may_join_game_table(cls, user_level: Optional[int], game_table_level: int) -> bool:
+        """
+        Table 1: any user with level ≥ 1.
+        Table ``T`` in 2..4: requires ``user_level >= T``.
+        Other ``game_table_level`` values: no gate (backward compatible).
+        """
+        try:
+            t = int(game_table_level)
+        except (TypeError, ValueError):
+            return True
+        if t < TABLE_LEVEL_MIN or t > TABLE_LEVEL_MAX:
+            return True
+        ul = USER_LEVEL_MIN if user_level is None else max(USER_LEVEL_MIN, int(user_level))
+        return ul >= t

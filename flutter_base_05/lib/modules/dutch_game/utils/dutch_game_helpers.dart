@@ -546,8 +546,13 @@ class DutchGameHelpers {
   }
 
   /// Join a random available game or auto-create and start a new one
-  /// Uses join_random_game WebSocket event
-  static Future<Map<String, dynamic>> joinRandomGame({bool isClearAndCollect = true}) async {
+  /// Uses join_random_game WebSocket event.
+  ///
+  /// [gameLevel] — room table tier (1–4), passed as `game_level` for create/join flows.
+  static Future<Map<String, dynamic>> joinRandomGame({
+    bool isClearAndCollect = true,
+    int gameLevel = 1,
+  }) async {
     try {
       // 🎯 CRITICAL: Clear all existing game state before starting new game
       // This prevents overlapping or old game state from interfering
@@ -579,6 +584,7 @@ class DutchGameHelpers {
         eventType: 'join_random_game',
         data: {
           'isClearAndCollect': isClearAndCollect,
+          'game_level': gameLevel,
         },
       );
       if (LOGGING_SWITCH) {
@@ -747,8 +753,9 @@ class DutchGameHelpers {
   }
 
   /// Deduct game coins from multiple players when game starts
-  /// 
-  /// [coins] - Number of coins to deduct (default: 25)
+  ///
+  /// [coins] - Per-player amount (must match [LevelMatcher.tableLevelToCoinFee] when [gameTableLevel] is set).
+  /// [gameTableLevel] - Room table tier 1–4; sent to API so the server derives/validates fee from the table.
   /// [gameId] - Game/room ID where coins are being deducted
   /// [playerIds] - List of user IDs (not session IDs) to deduct coins from
   /// 
@@ -760,6 +767,7 @@ class DutchGameHelpers {
     required int coins,
     required String gameId,
     required List<String> playerIds,
+    int? gameTableLevel,
   }) async {
     try {
       if (LOGGING_SWITCH) {
@@ -775,11 +783,12 @@ class DutchGameHelpers {
         throw Exception('ConnectionsApiModule not available - ensure it is initialized');
       }
       
-      // Prepare request body
-      final requestBody = {
+      // Prepare request body (fee tied to room table tier when known)
+      final requestBody = <String, dynamic>{
         'coins': coins,
         'game_id': gameId,
         'player_ids': playerIds,
+        if (gameTableLevel != null) 'game_table_level': gameTableLevel,
       };
       
       // Make API call to deduct coins
@@ -952,7 +961,7 @@ class DutchGameHelpers {
 
   /// Check if user has enough coins to join/create a game
   ///
-  /// [gameLevel] - Optional game level (1–4); when set, required coins are taken from [LevelMatcher.levelToCoinFee].
+  /// [gameLevel] - Optional **room table** tier (1–4); when set, required coins use [LevelMatcher.tableLevelToCoinFee].
   /// [requiredCoins] - Used when [gameLevel] is null (defaults to 25).
   /// [fetchFromAPI] - If true, fetches fresh stats from API before checking (defaults to true)
   /// Returns true only if user has explicit 'promotional' tier (skip coins) or has coins >= required.
@@ -967,7 +976,7 @@ class DutchGameHelpers {
     bool fetchFromAPI = true,
   }) async {
     final required = gameLevel != null
-        ? LevelMatcher.levelToCoinFee(gameLevel, defaultFee: 25)
+        ? LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25)
         : requiredCoins;
     if (LOGGING_SWITCH) {
       _logger.info('📊 DutchGameHelpers: checkCoinsRequirement entry gameLevel=$gameLevel required=$required fetchFromAPI=$fetchFromAPI');

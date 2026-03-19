@@ -454,29 +454,47 @@ def update_game_stats():
                 new_losses = current_losses + (0 if is_winner else 1)
                 new_coins = current_coins + coins_to_add
                 new_win_rate = float(new_wins) / float(new_total_matches) if new_total_matches > 0 else 0.0
-                update_operation = {
-                    '$set': {
-                        'modules.dutch_game.total_matches': new_total_matches,
-                        'modules.dutch_game.wins': new_wins,
-                        'modules.dutch_game.losses': new_losses,
-                        'modules.dutch_game.win_rate': new_win_rate,
-                        'modules.dutch_game.last_match_date': current_timestamp,
-                        'modules.dutch_game.last_updated': current_timestamp,
-                        'updated_at': current_timestamp
-                    }
+
+                # Progression: 10 wins → +1 user level; 5 user levels → +1 rank tier (no demotion by wins).
+                target_user_level = WinsLevelRankMatcher.wins_to_user_level(new_wins)
+                target_rank = WinsLevelRankMatcher.user_level_to_rank(target_user_level)
+                stored_rank = dutch_game.get("rank") or matcher.DEFAULT_RANK
+                idx_target = matcher.get_rank_index(target_rank)
+                idx_stored = matcher.get_rank_index(stored_rank)
+                if idx_stored < 0:
+                    idx_stored = 0
+                if idx_target < 0:
+                    idx_target = 0
+                rank_should_increase = idx_target > idx_stored
+
+                raw_level = dutch_game.get("level", matcher.DEFAULT_LEVEL)
+                try:
+                    current_user_level = int(raw_level)
+                except (TypeError, ValueError):
+                    current_user_level = matcher.DEFAULT_LEVEL
+                if current_user_level < 1:
+                    current_user_level = matcher.DEFAULT_LEVEL
+                level_changed = target_user_level != current_user_level
+
+                set_fields = {
+                    'modules.dutch_game.total_matches': new_total_matches,
+                    'modules.dutch_game.wins': new_wins,
+                    'modules.dutch_game.losses': new_losses,
+                    'modules.dutch_game.win_rate': new_win_rate,
+                    'modules.dutch_game.level': target_user_level,
+                    'modules.dutch_game.last_match_date': current_timestamp,
+                    'modules.dutch_game.last_updated': current_timestamp,
+                    'updated_at': current_timestamp
                 }
+                if rank_should_increase:
+                    set_fields['modules.dutch_game.rank'] = target_rank
+
+                update_operation = {'$set': set_fields}
                 if coins_to_add > 0:
                     update_operation['$inc'] = {'modules.dutch_game.coins': coins_to_add}
                 result = db_manager.db["users"].update_one({"_id": user_id}, update_operation)
                 modified_count = result.modified_count if result else 0
                 if modified_count > 0:
-                    # Interception after stats persist: wins → progression level → derived rank (matcher only).
-                    # TODO: Define policy (min matches, never demote, persist modules.dutch_game.rank, analytics, etc.).
-                    _ = (
-                        WinsLevelRankMatcher.wins_to_progression_level(new_wins),
-                        WinsLevelRankMatcher.wins_to_rank(new_wins),
-                    )
-
                     updated_players.append({
                         "user_id": user_id_str,
                         "wins": new_wins,
@@ -484,7 +502,9 @@ def update_game_stats():
                         "total_matches": new_total_matches,
                         "coins": new_coins,
                         "coins_added": coins_to_add,
-                        "win_rate": new_win_rate
+                        "win_rate": new_win_rate,
+                        **({"rank": target_rank} if rank_should_increase else {}),
+                        **({"level": target_user_level} if level_changed else {}),
                     })
                     analytics_service = _app_manager.services_manager.get_service('analytics_service') if _app_manager else None
                     if analytics_service:
@@ -604,7 +624,15 @@ def get_user_stats_service():
 
 
 def deduct_game_coins():
-    """Deduct game coins from multiple players when game starts (JWT protected endpoint)."""
+    """Deduct game coins when a match starts (JWT).
+
+    Fee is defined by room **table** tier (1–4), not user progression level. This endpoint also enforces
+    the eligibility gate that a player's progression ``modules.dutch_game.level`` must be >= the room
+    ``game_table_level`` tier (table 1 open; tables 2–4 require level >= tier).
+
+    Optional body field ``game_table_level`` (1–4): server sets the deduction to ``table_level_to_coin_fee``;
+    if ``coins`` is also sent it must match that fee.
+    """
     try:
         user_id = request.user_id
         if not user_id:
@@ -612,11 +640,40 @@ def deduct_game_coins():
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "error": "Request body is required", "message": "Missing request body"}), 400
-        coins = data.get('coins')
         game_id = data.get('game_id')
         player_ids = data.get('player_ids')
+        # Room table tier (1–4): fee is defined by table, not user progression level.
+        game_table_level = data.get('game_table_level')
+        coins = data.get('coins')
+        # Used for eligibility (user level gate). If game_table_level is missing, we may infer from coins.
+        table_level_for_gate: Optional[int] = None
+        if game_table_level is not None:
+            try:
+                gt = int(game_table_level)
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be an integer 1–4"}), 400
+            if not matcher.is_valid_level(gt):
+                return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be 1–4 (room table tier)"}), 400
+            fee = matcher.table_level_to_coin_fee(gt, default_fee=25)
+            if coins is not None and coins != fee:
+                return jsonify({
+                    "success": False,
+                    "error": "coins_mismatch",
+                    "message": f"coins must match table fee ({fee}) for game_table_level={gt}",
+                }), 400
+            coins = fee
+            table_level_for_gate = gt
         if coins is None or not isinstance(coins, int) or coins <= 0:
-            return jsonify({"success": False, "error": "Invalid coins amount", "message": "coins must be a positive integer"}), 400
+            return jsonify({"success": False, "error": "Invalid coins amount", "message": "coins must be a positive integer, or send game_table_level 1–4"}), 400
+
+        # If caller didn't provide game_table_level, infer it from the coin fee (defensive fallback).
+        if table_level_for_gate is None:
+            for lvl in (1, 2, 3, 4):
+                expected_fee = matcher.table_level_to_coin_fee(lvl, default_fee=25)
+                if coins == expected_fee:
+                    table_level_for_gate = lvl
+                    break
+
         if not game_id or not isinstance(game_id, str):
             return jsonify({"success": False, "error": "Invalid game_id", "message": "game_id is required and must be a string"}), 400
         if not player_ids or not isinstance(player_ids, list) or len(player_ids) == 0:
@@ -646,6 +703,21 @@ def deduct_game_coins():
                 modules = user.get('modules', {})
                 dutch_game = modules.get('dutch_game', {})
                 subscription_tier = dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL
+
+                # Eligibility gate: progression level must be high enough for the room table tier.
+                # This is a defense-in-depth check; Dart should already have validated on join/create.
+                user_level_raw = dutch_game.get('level', matcher.DEFAULT_LEVEL)
+                try:
+                    user_level = int(user_level_raw)
+                except (TypeError, ValueError):
+                    user_level = matcher.DEFAULT_LEVEL
+                if table_level_for_gate is not None:
+                    if not WinsLevelRankMatcher.user_may_join_game_table(user_level, table_level_for_gate):
+                        errors.append(
+                            f"User level too low for table tier: user {player_id_str} level={user_level} table={table_level_for_gate}"
+                        )
+                        continue
+
                 if matcher.is_free_play_tier(subscription_tier):
                     updated_players.append({"user_id": player_id_str, "coins_deducted": 0, "previous_coins": dutch_game.get('coins', 0), "new_coins": dutch_game.get('coins', 0), "skipped": True, "reason": "promotional_tier"})
                     continue

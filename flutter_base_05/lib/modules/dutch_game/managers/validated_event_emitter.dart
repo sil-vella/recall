@@ -58,6 +58,7 @@ class DutchGameEventEmitter {
     },
     'join_random_game': {
       'isClearAndCollect', // Optional: game mode flag
+      'game_level', // Optional: room table tier (1–4) when creating/joining via random flow
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
     },
     'create_room': {

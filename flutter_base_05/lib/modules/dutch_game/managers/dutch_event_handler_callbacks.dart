@@ -7,6 +7,7 @@ import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/module_manager.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
 import '../backend_core/utils/dutch_rank_level_change_checker.dart';
+import '../backend_core/utils/level_matcher.dart';
 import '../utils/game_instructions_provider.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
 import '../screens/demo/demo_action_handler.dart';
@@ -2261,6 +2262,23 @@ When anyone has played a card with the **same rank** as your **collection card**
 
   /// Handle cards_to_peek event
 
+  /// Room **table** tier from game state (`gameLevel`), not user progression level.
+  static int? _roomTableLevelFromGameState(Map<String, dynamic> gameState) {
+    final gl = gameState['gameLevel'];
+    if (gl is int) return gl;
+    if (gl is num) return gl.toInt();
+    return null;
+  }
+
+  /// Per-player coin cost: prefer backend `coin_cost_per_player`, else [LevelMatcher] from room table tier.
+  static int _coinCostPerPlayerFromGameState(Map<String, dynamic> gameState) {
+    final c = gameState['coin_cost_per_player'];
+    if (c is int && c > 0) return c;
+    if (c is num && c > 0) return c.toInt();
+    final table = _roomTableLevelFromGameState(gameState);
+    return LevelMatcher.tableLevelToCoinFee(table, defaultFee: 25);
+  }
+
   /// Handle coin deduction when game starts
   /// Called when game phase changes to initial_peek (game started)
   static Future<void> _handleCoinDeductionOnGameStart(String gameId, Map<String, dynamic> gameState) async {
@@ -2282,9 +2300,9 @@ When anyone has played a card with the **same rank** as your **collection card**
         return;
       }
       
-      // Calculate pot: coin_cost × number_of_active_players (regardless of subscription tier)
-      // Default coin cost is 25 (will be tied to match_class in future)
-      final coinCost = 25;
+      // Pot from **room table** fee (matches Dart game_state coin_cost_per_player / gameLevel).
+      final coinCost = _coinCostPerPlayerFromGameState(gameState);
+      final roomTableLevel = _roomTableLevelFromGameState(gameState);
       final activePlayerCount = players.length;
       final pot = coinCost * activePlayerCount;
       
@@ -2397,13 +2415,11 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
       
       // Note: Backend will check each player's subscription_tier and skip deduction for promotional tier
-      // We send all player IDs and let the backend handle the tier check per player
-      // Use the coin_cost_per_player that was stored in game state (default: 25 coins)
-      final requiredCoins = coinCost;
       final result = await DutchGameHelpers.deductGameCoins(
-        coins: requiredCoins,
+        coins: coinCost,
         gameId: gameId,
         playerIds: playerIds,
+        gameTableLevel: roomTableLevel,
       );
       
       if (result != null && result['success'] == true) {

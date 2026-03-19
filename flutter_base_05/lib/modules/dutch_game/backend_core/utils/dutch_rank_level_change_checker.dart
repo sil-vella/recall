@@ -61,7 +61,7 @@ class DutchRankLevelChangeResult {
     );
   }
 
-  /// Whether stored rank or table level differs (only meaningful if [hadBeforeSnapshot]).
+  /// Whether stored rank or user progression **level** differs (only if [hadBeforeSnapshot]).
   bool get anyStoredFieldChanged => rankChanged || levelChanged;
 }
 

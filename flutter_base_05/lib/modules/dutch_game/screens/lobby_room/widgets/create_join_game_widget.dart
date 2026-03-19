@@ -5,6 +5,7 @@ import '../../../../../core/managers/hooks_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../backend_core/utils/level_matcher.dart';
 
 /// Unified widget for creating and joining games
 class CreateJoinGameWidget extends StatefulWidget {
@@ -755,23 +756,27 @@ class _CreateRoomModal extends StatefulWidget {
 class _CreateRoomModalState extends State<_CreateRoomModal> {
   late String _selectedPermission;
   late String _selectedGameType;
+  /// Room table tier (1–4) for `game_level` on create_room.
+  late int _selectedTableLevel;
 
   @override
   void initState() {
     super.initState();
     _selectedPermission = widget.selectedPermission;
     _selectedGameType = widget.selectedGameType;
+    _selectedTableLevel = LevelMatcher.levelOrder.first;
   }
 
   void _onCreateRoomPressed() {
     if (widget.isCreating) return;
     final roomSettings = {
-      'permission': widget.selectedPermission,
-      'gameType': widget.selectedGameType,
+      'permission': _selectedPermission,
+      'gameType': _selectedGameType,
       'maxPlayers': 4,
       'minPlayers': 4,
       'autoStart': false,
       'password': widget.passwordController.text.trim(),
+      'gameLevel': _selectedTableLevel,
     };
     widget.onCreateRoom(roomSettings);
   }
@@ -882,6 +887,60 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                             final v = value ?? 'classic';
                             setState(() => _selectedGameType = v);
                             widget.onGameTypeChanged(v);
+                          },
+                        ),
+                      ),
+                      SizedBox(height: AppPadding.defaultPadding.top),
+
+                      // Table level (room game_level → coin tier)
+                      Text(
+                        'Table level',
+                        style: AppTextStyles.label().copyWith(color: AppColors.white),
+                      ),
+                      SizedBox(height: AppPadding.smallPadding.top),
+                      Semantics(
+                        label: 'create_room_dropdown_table_level',
+                        identifier: 'create_room_dropdown_table_level',
+                        child: DropdownButtonFormField<int>(
+                          value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
+                              ? _selectedTableLevel
+                              : LevelMatcher.levelOrder.first,
+                          decoration: InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: AppPadding.defaultPadding.left,
+                              vertical: AppPadding.mediumPadding.top,
+                            ),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.borderFocused),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            filled: true,
+                            fillColor: AppColors.primaryColor,
+                          ),
+                          dropdownColor: AppColors.widgetContainerBackground,
+                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+                          items: LevelMatcher.levelOrder.map((level) {
+                            final title = LevelMatcher.levelToTitle(level);
+                            return DropdownMenuItem<int>(
+                              value: level,
+                              child: Text(
+                                '$level — $title',
+                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedTableLevel = value);
+                            }
                           },
                         ),
                       ),

@@ -1,13 +1,8 @@
 import 'rank_matcher.dart';
 
-/// Wins → user level → rank (Dutch progression).
+/// Wins → user level → rank. Mirrors Python / Flutter [WinsLevelRankMatcher].
 ///
-/// - Every [winsPerUserLevel] wins increases **user level** by 1 (starts at 1).
-/// - Every [levelsPerRank] user levels bumps **rank** one step on [RankMatcher.rankHierarchy].
-/// - Game tables 1–4: joining table `T` requires `userLevel >= T` ([userMayJoinGameTable]).
-///
-/// User **level** in `modules.dutch_game.level` is this progression level (not the same
-/// as coin-fee titles in [LevelMatcher], which describe the **room** tier).
+/// Table `T` in 1..4: user must have `userLevel >= T` to join/create at that game level.
 class WinsLevelRankMatcher {
   WinsLevelRankMatcher._();
 
@@ -15,13 +10,9 @@ class WinsLevelRankMatcher {
   static const int tableLevelMin = 1;
   static const int tableLevelMax = 4;
 
-  /// Wins per +1 user level (matches Python).
   static const int winsPerUserLevel = 10;
-
-  /// User levels per +1 rank tier (matches Python).
   static const int levelsPerRank = 5;
 
-  /// Lifetime wins → user level: `1 + wins ~/ step`.
   static int winsToUserLevel(int? wins) {
     final w = wins == null ? 0 : (wins < 0 ? 0 : wins);
     final step = winsPerUserLevel < 1 ? 1 : winsPerUserLevel;
@@ -29,7 +20,6 @@ class WinsLevelRankMatcher {
     return lv < userLevelMin ? userLevelMin : lv;
   }
 
-  /// Rank index from user level; capped at legend.
   static int userLevelToRankIndex(int? userLevel) {
     if (userLevel == null) return 0;
     var lv = userLevel;
@@ -50,7 +40,6 @@ class WinsLevelRankMatcher {
     return userLevelToRank(winsToUserLevel(wins));
   }
 
-  /// Table `T` in 1..4 requires `userLevel >= T`. Unknown table levels: allow.
   static bool userMayJoinGameTable(int userLevel, int gameTableLevel) {
     if (gameTableLevel < tableLevelMin || gameTableLevel > tableLevelMax) {
       return true;

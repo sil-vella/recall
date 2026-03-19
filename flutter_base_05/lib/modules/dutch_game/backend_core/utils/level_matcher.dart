@@ -1,4 +1,6 @@
-/// Level-to-title mapping for game table levels (e.g. room/game level display).
+/// Room **game table** tier (1–4): titles and coin entry fees.
+///
+/// This is the room's `game_level`, not the user's progression level in `modules.dutch_game`.
 class LevelMatcher {
   /// Map level number to display title
   static const Map<int, String> levelToTitleMap = {
@@ -43,13 +45,18 @@ class LevelMatcher {
     return null;
   }
 
-  /// Get coin fee for a level number.
+  /// Get coin fee for a **room table** tier (1–4).
   /// Returns [defaultFee] (or 0 if null) when level is null or invalid.
   static int levelToCoinFee(int? level, {int? defaultFee}) {
     if (level == null) {
       return defaultFee ?? 0;
     }
     return levelToCoinFeeMap[level] ?? defaultFee ?? 0;
+  }
+
+  /// Alias: entry cost for room **table** tier — same as [levelToCoinFee].
+  static int tableLevelToCoinFee(int? roomTableLevel, {int? defaultFee}) {
+    return levelToCoinFee(roomTableLevel, defaultFee: defaultFee);
   }
 
   /// Check if a level number is valid (1–4).

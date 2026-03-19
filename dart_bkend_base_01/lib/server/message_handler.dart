@@ -9,6 +9,7 @@ import '../modules/dutch_game/backend_core/services/game_state_store.dart';
 import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
+import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = false; // Enabled for create/join room + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
@@ -32,9 +33,10 @@ class MessageHandler {
   }
 
   /// Verify user has enough coins to join/create a room (SSOT for all join flows).
+  /// [roomGameTableLevel] is the room's table tier (1–4); required coins come from [LevelMatcher] only.
   /// Returns true only if subscription_tier is explicitly 'promotional' (skip coins) or coins >= required.
   /// No default tier; if no tier and no stats, fail (same as frontend).
-  Future<bool> _verifyCoinsForJoin(String userId, int gameLevel) async {
+  Future<bool> _verifyCoinsForJoin(String userId, int roomGameTableLevel) async {
     try {
       final result = await _server.pythonClient.getUserStatsForJoin(userId);
       if (result['success'] != true) {
@@ -57,10 +59,10 @@ class MessageHandler {
         }
         return false;
       }
-      final required = LevelMatcher.levelToCoinFee(gameLevel, defaultFee: 25);
+      final required = LevelMatcher.tableLevelToCoinFee(roomGameTableLevel, defaultFee: 25);
       final ok = coins >= required;
       if (LOGGING_SWITCH) {
-        _logger.room('📊 Coins check: userId=$userId level=$gameLevel required=$required coins=$coins -> ${ok ? "ok" : "insufficient"}');
+        _logger.room('📊 Coins check: userId=$userId roomTable=$roomGameTableLevel required=$required coins=$coins -> ${ok ? "ok" : "insufficient"}');
       }
       return ok;
     } catch (e) {
@@ -424,10 +426,24 @@ class MessageHandler {
     }
 
     if (addCreatorToRoom) {
-      if (LOGGING_SWITCH) {
-        _logger.room('📊 Coins check: create_room (creator auto-join) -> verifying userId=$userId level=${gameLevel ?? 1}');
+      final createGameLevel = gameLevel ?? 1;
+      final creatorUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
+      if (!WinsLevelRankMatcher.userMayJoinGameTable(creatorUserLevel, createGameLevel)) {
+        _server.sendToSession(sessionId, {
+          'event': 'create_room_error',
+          'message':
+              'Your level ($creatorUserLevel) is too low for this table (requires level $createGameLevel or higher). Win more games to increase your level.',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        if (LOGGING_SWITCH) {
+          _logger.room('❌ create_room: table gate userLevel=$creatorUserLevel gameLevel=$createGameLevel');
+        }
+        return;
       }
-      _verifyCoinsForJoin(userId, gameLevel ?? 1).then((ok) {
+      if (LOGGING_SWITCH) {
+        _logger.room('📊 Coins check: create_room (creator auto-join) -> verifying userId=$userId level=$createGameLevel');
+      }
+      _verifyCoinsForJoin(userId, createGameLevel).then((ok) {
         if (!ok) {
           if (LOGGING_SWITCH) {
             _logger.room('📊 Coins check: create_room failed for $userId -> sending create_room_error');
@@ -565,6 +581,19 @@ class MessageHandler {
       // If room difficulty is null (first human) or user has no rank, allow join (fallback behavior)
 
     final joinLevel = room.gameLevel ?? gameLevel;
+    final joinerUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
+    if (!WinsLevelRankMatcher.userMayJoinGameTable(joinerUserLevel, joinLevel)) {
+      _server.sendToSession(sessionId, {
+        'event': 'join_room_error',
+        'message':
+            'Your level ($joinerUserLevel) is too low for this table (requires level $joinLevel or higher). Win more games to increase your level.',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      if (LOGGING_SWITCH) {
+        _logger.room('❌ join_room: table gate userLevel=$joinerUserLevel joinLevel=$joinLevel');
+      }
+      return;
+    }
     if (LOGGING_SWITCH) {
       _logger.room('📊 Coins check: join_room -> verifying userId=$userId roomId=$roomId level=$joinLevel');
     }

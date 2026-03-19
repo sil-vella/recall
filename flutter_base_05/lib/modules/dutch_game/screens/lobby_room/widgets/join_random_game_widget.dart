@@ -4,6 +4,7 @@ import '../../../../../tools/logging/logger.dart';
 // import '../../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../backend_core/utils/level_matcher.dart';
 
 // Enable for random game join debugging (logs to console / server.log)
 const bool LOGGING_SWITCH = false;
@@ -28,6 +29,8 @@ class JoinRandomGameWidget extends StatefulWidget {
 
 class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   bool _isLoading = false;
+  /// Room table tier (1–4) sent with join_random_game as `game_level`.
+  int _selectedTableLevel = LevelMatcher.levelOrder.first;
   static final Logger _logger = Logger();
 
   @override
@@ -105,7 +108,10 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       }
       
       // Use the helper method to join random game with isClearAndCollect flag
-      final result = await DutchGameHelpers.joinRandomGame(isClearAndCollect: isClearAndCollect);
+      final result = await DutchGameHelpers.joinRandomGame(
+        isClearAndCollect: isClearAndCollect,
+        gameLevel: _selectedTableLevel,
+      );
       if (LOGGING_SWITCH) {
         _logger.info('🎯 JoinRandomGame: result success=${result['success']}, error=${result['error']}', isOn: true);
       }
@@ -167,6 +173,70 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
               'Join a random available game',
               style: AppTextStyles.label().copyWith(
                 color: AppColors.textSecondary,
+              ),
+            ),
+            SizedBox(height: AppPadding.defaultPadding.top),
+            Text(
+              'Table level',
+              style: AppTextStyles.label().copyWith(
+                color: AppColors.white,
+              ),
+            ),
+            SizedBox(height: AppPadding.smallPadding.top),
+            Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: Theme.of(context).colorScheme.copyWith(
+                  surface: AppColors.widgetContainerBackground,
+                  onSurface: AppColors.white,
+                ),
+              ),
+              child: Semantics(
+                label: 'join_random_dropdown_table_level',
+                identifier: 'join_random_dropdown_table_level',
+                child: DropdownButtonFormField<int>(
+                  value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
+                      ? _selectedTableLevel
+                      : LevelMatcher.levelOrder.first,
+                  decoration: InputDecoration(
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: AppPadding.defaultPadding.left,
+                      vertical: AppPadding.mediumPadding.top,
+                    ),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.borderFocused),
+                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.primaryColor,
+                  ),
+                  dropdownColor: AppColors.widgetContainerBackground,
+                  style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+                  items: LevelMatcher.levelOrder.map((level) {
+                    final title = LevelMatcher.levelToTitle(level);
+                    return DropdownMenuItem<int>(
+                      value: level,
+                      child: Text(
+                        '$level — $title',
+                        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: _isLoading
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _selectedTableLevel = value);
+                          }
+                        },
+                ),
               ),
             ),
             SizedBox(height: AppPadding.defaultPadding.top),

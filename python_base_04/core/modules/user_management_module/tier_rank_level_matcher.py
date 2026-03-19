@@ -136,7 +136,11 @@ def rank_to_difficulty(rank: Optional[str], default: str = "medium") -> str:
 
 
 # ---------------------------------------------------------------------------
-# Game table level (1–4) — same as Dart LevelMatcher; not mapped to rank
+# Game **table** tier (1–4) — room `game_level` / LevelMatcher; not user progression
+#
+# Coin entry fees are tied to the table only (1→25, 2→50, 3→100, 4→200).
+# User progression “level” in `modules.dutch_game` is separate; it only gates which
+# tables you may join (see WinsLevelRankMatcher.user_may_join_game_table).
 # ---------------------------------------------------------------------------
 LEVEL_TO_TITLE = {
     1: "Home Table",
@@ -174,10 +178,15 @@ def title_to_level(title: Optional[str]) -> Optional[int]:
 
 
 def level_to_coin_fee(level: Optional[int], default_fee: Optional[int] = None) -> int:
-    """Coin fee for level (1–4). Returns default_fee or 0 if invalid."""
+    """Coin fee for game **table** tier (1–4). Returns default_fee or 0 if invalid."""
     if level is None:
         return default_fee if default_fee is not None else 0
     return LEVEL_TO_COIN_FEE.get(level, default_fee if default_fee is not None else 0)
+
+
+def table_level_to_coin_fee(table_level: Optional[int], default_fee: Optional[int] = None) -> int:
+    """Alias: entry cost for room **table** tier (1–4), not user profile progression level."""
+    return level_to_coin_fee(table_level, default_fee=default_fee)
 
 
 def is_valid_level(level: Optional[int]) -> bool:

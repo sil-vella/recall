@@ -905,8 +905,8 @@ class GameEventCoordinator {
 
     // showInstructions was already extracted earlier for deck selection
     
-    // Calculate pot: coin_cost × number_of_active_players (from LevelMatcher by game level)
-    final coinCost = LevelMatcher.levelToCoinFee(gameLevel, defaultFee: 25);
+    // Calculate pot: coin_cost × players — fee from **room table** tier only (LevelMatcher).
+    final coinCost = LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25);
     final activePlayerCount = players.length;
     final pot = coinCost * activePlayerCount;
     

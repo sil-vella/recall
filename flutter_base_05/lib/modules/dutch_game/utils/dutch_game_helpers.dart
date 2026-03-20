@@ -137,7 +137,7 @@ class DutchGameHelpers {
   }
 
   /// Join an existing room with validation.
-  /// [password] Optional; required for private rooms.
+  /// [password] Optional legacy field; server does not verify room passwords.
   /// [gameLevel] Optional; sent in payload (default 1).
   static Future<Map<String, dynamic>> joinRoom({
     required String roomId,

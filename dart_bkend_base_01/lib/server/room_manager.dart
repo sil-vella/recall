@@ -161,7 +161,7 @@ class RoomManager {
     return roomId;
   }
   
-  bool joinRoom(String roomId, String sessionId, String userId, {String? password}) {
+  bool joinRoom(String roomId, String sessionId, String userId) {
     final room = _rooms[roomId];
     if (room == null) {
       print('❌ Room not found: $roomId');
@@ -177,12 +177,6 @@ class RoomManager {
     // Check room capacity
     if (!room.hasCapacity) {
       print('❌ Room $roomId is full (${room.currentSize}/${room.maxSize})');
-      return false;
-    }
-    
-    // Validate password for private rooms
-    if (!validateRoomPassword(roomId, password)) {
-      print('❌ Invalid password for private room $roomId');
       return false;
     }
     
@@ -271,18 +265,6 @@ class RoomManager {
   bool canJoinRoom(String roomId) {
     final room = _rooms[roomId];
     return room?.hasCapacity ?? false;
-  }
-  
-  /// Validate password for private rooms
-  bool validateRoomPassword(String roomId, String? password) {
-    final room = _rooms[roomId];
-    if (room == null) return false;
-    
-    // Public rooms don't need password validation
-    if (room.permission == 'public') return true;
-    
-    // Private rooms require password match
-    return room.password == password;
   }
   
   // ========= TTL MANAGEMENT =========

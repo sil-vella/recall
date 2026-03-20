@@ -330,7 +330,7 @@ def find_room():
             "message": "Game info is managed by Dart backend - use WebSocket connection",
             "room_id": room_id,
             "room_permission": room_info.get('permission', 'public'),
-            "requires_password": room_info.get('permission') == 'private',
+            "requires_password": False,
             "timestamp": time.time()
         }), 200
     except Exception as e:

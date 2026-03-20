@@ -432,7 +432,7 @@ class WSEventHandler {
       final roomData = data;  // Use the entire data object since it's simplified
       final ownerId = data['owner_id'] ?? '';
       if (LOGGING_SWITCH) {
-        _logger.info('🏟 create_room_success received — room_id=$roomId owner_id=$ownerId is_tournament=${data['is_tournament']}');
+        _logger.info('🏟 create_room_success received — room_id=$roomId owner_id=$ownerId is_tournament=${data['is_tournament']} is_random_join=${data['is_random_join']}');
       }
       
       // Get current user ID from login module state

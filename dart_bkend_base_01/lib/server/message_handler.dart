@@ -324,6 +324,7 @@ class MessageHandler {
         'permission': room.permission,
         'auto_start': room.autoStart,
         'difficulty': room.difficulty, // Room difficulty (rank-based)
+        'is_random_join': false, // Lobby / explicit create — client skips auto-nav to play
         'timestamp': DateTime.now().toIso8601String(),
       };
       if (isTournament) createSuccessPayload['is_tournament'] = true;
@@ -485,7 +486,6 @@ class MessageHandler {
   
   void _handleJoinRoom(String sessionId, Map<String, dynamic> data) {
     final roomId = data['room_id'] as String?;
-    final password = data['password'] as String?;
     final gameLevel = data['game_level'] as int? ?? data['gameLevel'] as int? ?? 1;
     final isTournament = data['is_tournament'] as bool? ?? data['isTournament'] as bool? ?? false;
     final tournamentData = data['tournament_data'] as Map<String, dynamic>? ?? data['tournamentData'] as Map<String, dynamic>?;
@@ -567,39 +567,27 @@ class MessageHandler {
       });
       return;
     }
-    
-    // Validate password for private rooms
-    if (!_roomManager.validateRoomPassword(roomId, password)) {
-      _server.sendToSession(sessionId, {
-        'event': 'join_room_error',
-        'message': room.permission == 'private' 
-            ? 'Invalid password for private room' 
-            : 'Password required for private room',
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      return;
-    }
-    
-      // Validate rank compatibility (if room has difficulty set and user has rank)
-      final userRank = _server.getUserRankForSession(sessionId);
-      if (room.difficulty != null && userRank != null) {
-        final roomDifficulty = room.difficulty!.toLowerCase();
-        final normalizedUserRank = userRank.toLowerCase();
-        
-        // Check if ranks are compatible (±1)
-        if (!RankMatcher.areRanksCompatible(roomDifficulty, normalizedUserRank)) {
-          _server.sendToSession(sessionId, {
-            'event': 'join_room_error',
-            'message': 'Your rank ($userRank) is not compatible with this room\'s difficulty ($roomDifficulty). You can only join rooms within ±1 rank of your own.',
-            'timestamp': DateTime.now().toIso8601String(),
-          });
-          if (LOGGING_SWITCH) {
-            _logger.room('❌ Rank mismatch: user rank=$userRank, room difficulty=$roomDifficulty');
-          }
-          return;
+
+    // Validate rank compatibility (if room has difficulty set and user has rank)
+    final userRank = _server.getUserRankForSession(sessionId);
+    if (room.difficulty != null && userRank != null) {
+      final roomDifficulty = room.difficulty!.toLowerCase();
+      final normalizedUserRank = userRank.toLowerCase();
+
+      // Check if ranks are compatible (±1)
+      if (!RankMatcher.areRanksCompatible(roomDifficulty, normalizedUserRank)) {
+        _server.sendToSession(sessionId, {
+          'event': 'join_room_error',
+          'message': 'Your rank ($userRank) is not compatible with this room\'s difficulty ($roomDifficulty). You can only join rooms within ±1 rank of your own.',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        if (LOGGING_SWITCH) {
+          _logger.room('❌ Rank mismatch: user rank=$userRank, room difficulty=$roomDifficulty');
         }
+        return;
       }
-      // If room difficulty is null (first human) or user has no rank, allow join (fallback behavior)
+    }
+    // If room difficulty is null (first human) or user has no rank, allow join (fallback behavior)
 
     final joinLevel = room.gameLevel ?? gameLevel;
     final joinerUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
@@ -626,7 +614,7 @@ class MessageHandler {
       if (LOGGING_SWITCH) {
         _logger.room('🔍 _handleJoinRoom: About to join room with sessionId=$sessionId, userId=$ju, roomId=$jr');
       }
-      if (_roomManager.joinRoom(jr, sessionId, ju, password: password)) {
+      if (_roomManager.joinRoom(jr, sessionId, ju)) {
       // Send join_room_success (primary event matching Python)
       if (LOGGING_SWITCH) {
         _logger.room('📤 Sending join_room_success to session: $sessionId (userId=$ju)');

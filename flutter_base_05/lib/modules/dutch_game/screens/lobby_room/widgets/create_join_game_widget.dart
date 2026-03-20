@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../core/managers/hooks_manager.dart';
@@ -9,7 +10,8 @@ import '../../../backend_core/utils/level_matcher.dart';
 
 /// Unified widget for creating and joining games
 class CreateJoinGameWidget extends StatefulWidget {
-  final Function(Map<String, dynamic>) onCreateRoom;
+  /// Returns the same map as [DutchGameHelpers.createRoom] (e.g. `{ success: true }` on emit ok).
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> roomSettings) onCreateRoom;
   final VoidCallback? onJoinRoom;
 
   const CreateJoinGameWidget({
@@ -29,7 +31,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
   // Join form state
   final _joinFormKey = GlobalKey<FormState>();
   final _roomIdController = TextEditingController();
-  final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isFinding = false;
   bool _isPrivateRoom = false;
@@ -45,12 +46,8 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     // }
   }
 
-  // Create modal state
-  final TextEditingController _createPasswordController = TextEditingController();
-  String _selectedPermission = 'public';
   /// Game type: 'classic' | 'clear_and_collect' (matches random join: classic = no collection, clear_and_collect = collection)
   String _selectedGameType = 'classic';
-  bool _isCreating = false;
 
   @override
   void initState() {
@@ -85,8 +82,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
   void dispose() {
     HooksManager().deregisterCallbackWithData('room_creation', _onRoomCreation);
     _roomIdController.dispose();
-    _passwordController.dispose();
-    _createPasswordController.dispose();
     final wsManager = WebSocketManager.instance;
     wsManager.socket?.off('join_room_error');
     super.dispose();
@@ -204,11 +199,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       // }
 
       final roomId = _roomIdController.text.trim();
-      final password = _passwordController.text.trim();
-
-      if (_isPrivateRoom && password.isEmpty) {
-        throw Exception('Password is required for private games');
-      }
 
       // Ensure WebSocket is ready before attempting to join
       final isReady = await DutchGameHelpers.ensureWebSocketReady();
@@ -227,7 +217,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
           DutchGameHelpers.setCurrentGameSync(roomId, games);
           NavigationManager().navigateTo('/dutch/game-play');
           _roomIdController.clear();
-          _passwordController.clear();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -241,10 +230,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       }
 
       // Not in room: join then navigate when state is ready (same pattern as random join room_creation)
-      final result = await DutchGameHelpers.joinRoom(
-        roomId: roomId,
-        password: _isPrivateRoom && password.isNotEmpty ? password : null,
-      );
+      final result = await DutchGameHelpers.joinRoom(roomId: roomId);
 
       if (result['success'] != true) {
         final errorMessage = result['error'] ?? 'Failed to join game';
@@ -260,7 +246,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       }
 
       _roomIdController.clear();
-      _passwordController.clear();
       widget.onJoinRoom?.call();
 
       // Wait for game_state_updated to populate state (like room_creation delay for random join)
@@ -308,57 +293,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     }
   }
 
-  void _createRoom(Map<String, dynamic> roomSettings) {
-    setState(() {
-      _isCreating = true;
-    });
-
-    // Private: password required, min 4 characters
-    final permission = roomSettings['permission']?.toString() ?? _selectedPermission;
-    if (permission == 'private') {
-      final password = (roomSettings['password'] ?? _createPasswordController.text.trim()).toString().trim();
-      if (password.isEmpty) {
-        setState(() => _isCreating = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Password is required for private rooms'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-        }
-        return;
-      }
-      if (password.length < 4) {
-        setState(() => _isCreating = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Password must be at least 4 characters'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-        }
-        return;
-      }
-    }
-
-    widget.onCreateRoom(roomSettings);
-
-    setState(() {
-      _isCreating = false;
-    });
-    if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Game created successfully!'),
-          backgroundColor: AppColors.successColor,
-        ),
-      );
-    }
-  }
-
   void _showCreateRoomModal() {
     showModalBottomSheet(
       context: context,
@@ -367,13 +301,9 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppBorderRadius.large)),
       ),
       builder: (context) => _CreateRoomModal(
-        selectedPermission: _selectedPermission,
         selectedGameType: _selectedGameType,
-        passwordController: _createPasswordController,
-        onPermissionChanged: (value) => setState(() => _selectedPermission = value),
         onGameTypeChanged: (value) => setState(() => _selectedGameType = value),
-        onCreateRoom: _createRoom,
-        isCreating: _isCreating,
+        onCreateRoom: widget.onCreateRoom,
       ),
     );
   }
@@ -433,7 +363,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
 
   Widget _buildCreateContent() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Create New Game',
@@ -441,8 +371,8 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         ),
         SizedBox(height: AppPadding.mediumPadding.top),
         Text(
-          'Create a new game room.',
-          style: AppTextStyles.label().copyWith(color: AppColors.textSecondary),
+          'Create a match by inviting friends.',
+          style: AppTextStyles.bodySmall().copyWith(color: AppColors.textSecondary),
         ),
         SizedBox(height: AppPadding.defaultPadding.top),
         Semantics(
@@ -619,47 +549,6 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
           ),
           SizedBox(height: AppPadding.defaultPadding.top),
 
-          // Password Field (shown only for private rooms)
-          if (_isPrivateRoom) ...[
-            Text(
-              'Password',
-              style: AppTextStyles.label().copyWith(color: AppColors.white),
-            ),
-            SizedBox(height: AppPadding.smallPadding.top),
-            TextFormField(
-              controller: _passwordController,
-              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-              decoration: InputDecoration(
-                hintText: 'Enter game password',
-                prefixIcon: const Icon(Icons.lock),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: AppPadding.defaultPadding.left,
-                  vertical: AppPadding.mediumPadding.top,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                  borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                  borderSide: BorderSide(color: AppColors.borderFocused),
-                ),
-              ),
-              obscureText: true,
-              validator: (value) {
-                if (_isPrivateRoom && (value == null || value.trim().isEmpty)) {
-                  return 'Password is required for private games';
-                }
-                return null;
-              },
-              textInputAction: TextInputAction.done,
-            ),
-            SizedBox(height: AppPadding.defaultPadding.top),
-          ],
-
           // Find and Join Buttons
           Row(
             children: [
@@ -712,8 +601,8 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
             SizedBox(height: AppPadding.smallPadding.top),
             Text(
               _isPrivateRoom
-                  ? 'This is a private game. Password required.'
-                  : 'This is a public game. No password needed.',
+                  ? 'This is a private game. Join with the room ID (invite link).'
+                  : 'This is a public game.',
               style: AppTextStyles.bodySmall().copyWith(
                 color: _isPrivateRoom ? AppColors.warningColor : AppColors.successColor,
                 fontStyle: FontStyle.italic,
@@ -734,23 +623,14 @@ const Map<String, String> _kGameTypeLabels = {
 };
 
 class _CreateRoomModal extends StatefulWidget {
-  final String selectedPermission;
   final String selectedGameType;
-  final TextEditingController passwordController;
-  final Function(String) onPermissionChanged;
   final Function(String) onGameTypeChanged;
-  /// Called with roomSettings when Create is pressed.
-  final void Function(Map<String, dynamic> roomSettings) onCreateRoom;
-  final bool isCreating;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic> roomSettings) onCreateRoom;
 
   const _CreateRoomModal({
-    required this.selectedPermission,
     required this.selectedGameType,
-    required this.passwordController,
-    required this.onPermissionChanged,
     required this.onGameTypeChanged,
     required this.onCreateRoom,
-    required this.isCreating,
   });
 
   @override
@@ -758,10 +638,13 @@ class _CreateRoomModal extends StatefulWidget {
 }
 
 class _CreateRoomModalState extends State<_CreateRoomModal> {
-  late String _selectedPermission;
   late String _selectedGameType;
   /// Room table tier (1–4) for `game_level` on create_room.
   late int _selectedTableLevel;
+
+  bool _isSubmitting = false;
+  /// After successful create: room id + echo of settings for display.
+  Map<String, dynamic>? _createdSummary;
 
   int _currentUserLevel() {
     final stats = DutchGameHelpers.getUserDutchGameStats();
@@ -787,23 +670,205 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
   @override
   void initState() {
     super.initState();
-    _selectedPermission = widget.selectedPermission;
     _selectedGameType = widget.selectedGameType;
     _selectedTableLevel = _firstUnlockedTableLevel();
   }
 
-  void _onCreateRoomPressed() {
-    if (widget.isCreating) return;
-    final roomSettings = {
-      'permission': _selectedPermission,
+  Future<void> _onCreateRoomPressed() async {
+    if (_isSubmitting || _createdSummary != null) return;
+    final roomSettings = <String, dynamic>{
+      'permission': 'private',
       'gameType': _selectedGameType,
       'maxPlayers': 4,
-      'minPlayers': 4,
+      'minPlayers': 2,
       'autoStart': false,
-      'password': widget.passwordController.text.trim(),
       'gameLevel': _selectedTableLevel,
     };
-    widget.onCreateRoom(roomSettings);
+    setState(() => _isSubmitting = true);
+    try {
+      final result = await widget.onCreateRoom(roomSettings);
+      if (!mounted) return;
+      final ok = result['success'] == true && result['error'] == null;
+      if (!ok) {
+        final err = result['message'] ?? result['error'] ?? 'Failed to create room';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err.toString()),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+        setState(() => _isSubmitting = false);
+        return;
+      }
+
+      String? roomId;
+      for (var i = 0; i < 50; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        if (!mounted) return;
+        final st = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final cid = st['currentRoomId']?.toString();
+        if (cid != null && cid.isNotEmpty) {
+          roomId = cid;
+          break;
+        }
+      }
+
+      setState(() {
+        _isSubmitting = false;
+        _createdSummary = {
+          'room_id': roomId ?? '',
+          'gameType': roomSettings['gameType'],
+          'maxPlayers': roomSettings['maxPlayers'],
+          'minPlayers': roomSettings['minPlayers'],
+          'gameLevel': roomSettings['gameLevel'],
+          'permission': roomSettings['permission'],
+        };
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create room: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Widget _buildCreatedSummary(BuildContext context) {
+    final s = _createdSummary!;
+    final roomId = s['room_id']?.toString() ?? '';
+    final gameType = s['gameType']?.toString() ?? 'classic';
+    final gameLabel = _kGameTypeLabels[gameType] ?? gameType;
+    final level = s['gameLevel'] is int ? s['gameLevel'] as int : int.tryParse('${s['gameLevel']}') ?? 1;
+    final levelTitle = LevelMatcher.levelToTitle(level);
+    final maxP = s['maxPlayers'] ?? 4;
+    final minP = s['minPlayers'] ?? 2;
+    final permission = s['permission']?.toString() ?? 'private';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Share this game ID so friends can join from the lobby.',
+          style: AppTextStyles.bodySmall().copyWith(color: AppColors.textSecondary),
+        ),
+        SizedBox(height: AppPadding.defaultPadding.top),
+        Text('Game ID', style: AppTextStyles.label().copyWith(color: AppColors.white)),
+        SizedBox(height: AppPadding.smallPadding.top),
+        Semantics(
+          label: 'create_room_summary_room_id',
+          identifier: 'create_room_summary_room_id',
+          child: Container(
+            width: double.infinity,
+            padding: AppPadding.cardPadding,
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor,
+              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+              border: Border.all(color: AppColors.white.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    roomId.isEmpty ? '—' : roomId,
+                    style: AppTextStyles.bodyMedium().copyWith(
+                      color: AppColors.textOnPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (roomId.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Copy game ID',
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: roomId));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Game ID copied'),
+                            backgroundColor: AppColors.successColor,
+                          ),
+                        );
+                      }
+                    },
+                    icon: Icon(Icons.copy, color: AppColors.textOnPrimary, size: 20),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (roomId.isEmpty) ...[
+          SizedBox(height: AppPadding.smallPadding.top),
+          Text(
+            'If the ID does not appear, close and check “Your created games” on the Join tab.',
+            style: AppTextStyles.caption().copyWith(color: AppColors.warningColor),
+          ),
+        ],
+        SizedBox(height: AppPadding.defaultPadding.top),
+        _summaryRow('Game type', gameLabel),
+        _summaryRow('Table', '$level — $levelTitle'),
+        _summaryRow('Players', '$minP–$maxP'),
+        _summaryRow('Visibility', permission == 'private' ? 'Private (invite by ID)' : permission),
+        SizedBox(height: AppPadding.largePadding.top),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.white.withValues(alpha: 0.5)),
+                  foregroundColor: AppColors.white,
+                ),
+                child: Text('Close', style: AppTextStyles.buttonText().copyWith(color: AppColors.white)),
+              ),
+            ),
+            SizedBox(width: AppPadding.defaultPadding.left),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: roomId.isEmpty
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        NavigationManager().navigateTo('/dutch/game-play');
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accentColor,
+                  foregroundColor: AppColors.textOnAccent,
+                ),
+                child: Text('Open table', style: AppTextStyles.buttonText()),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _summaryRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: AppTextStyles.bodySmall().copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -837,7 +902,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                 Row(
                   children: [
                     Text(
-                      'Create New Game',
+                      _createdSummary != null ? 'Your game' : 'Create New Game',
                       style: AppTextStyles.headingSmall().copyWith(
                         color: AppColors.white,
                         fontWeight: FontWeight.bold,
@@ -857,277 +922,179 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                 ),
                 Divider(color: AppColors.white.withValues(alpha: 0.3)),
 
-                // Scrollable content — labels above fields to avoid clipping
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: AppPadding.defaultPadding.top),
-
-                      // Game Type (classic = no collection, clear = no collection, clear_and_collect = collection — matches random join)
-                      Text(
-                        'Game Type',
-                        style: AppTextStyles.label().copyWith(color: AppColors.white),
-                      ),
-                      SizedBox(height: AppPadding.smallPadding.top),
-                      Semantics(
-                        label: 'create_room_dropdown_game_type',
-                        identifier: 'create_room_dropdown_game_type',
-                        child: DropdownButtonFormField<String>(
-                          value: _kGameTypeValues.contains(_selectedGameType) ? _selectedGameType : 'classic',
-                          decoration: InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: AppPadding.defaultPadding.left,
-                              vertical: AppPadding.mediumPadding.top,
-                            ),
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.borderFocused),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            filled: true,
-                            fillColor: AppColors.primaryColor,
-                          ),
-                          dropdownColor: AppColors.widgetContainerBackground,
-                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                          items: _kGameTypeValues.map((type) {
-                            return DropdownMenuItem<String>(
-                              value: type,
-                              child: Text(
-                                _kGameTypeLabels[type] ?? type,
-                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    child: _createdSummary != null
+                        ? Padding(
+                            padding: EdgeInsets.only(top: AppPadding.defaultPadding.top),
+                            child: _buildCreatedSummary(context),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(height: AppPadding.defaultPadding.top),
+                              Text(
+                                'Game Type',
+                                style: AppTextStyles.label().copyWith(color: AppColors.white),
                               ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            final v = value ?? 'classic';
-                            setState(() => _selectedGameType = v);
-                            widget.onGameTypeChanged(v);
-                          },
-                        ),
-                      ),
-                      SizedBox(height: AppPadding.defaultPadding.top),
-
-                      // Table level (room game_level → coin tier)
-                      Text(
-                        'Table level',
-                        style: AppTextStyles.label().copyWith(color: AppColors.white),
-                      ),
-                      SizedBox(height: AppPadding.smallPadding.top),
-                      Semantics(
-                        label: 'create_room_dropdown_table_level',
-                        identifier: 'create_room_dropdown_table_level',
-                        child: DropdownButtonFormField<int>(
-                          value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
-                              ? _selectedTableLevel
-                              : _firstUnlockedTableLevel(),
-                          decoration: InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: AppPadding.defaultPadding.left,
-                              vertical: AppPadding.mediumPadding.top,
-                            ),
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.borderFocused),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            filled: true,
-                            fillColor: AppColors.primaryColor,
-                          ),
-                          dropdownColor: AppColors.widgetContainerBackground,
-                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                          items: LevelMatcher.levelOrder.map((level) {
-                            final title = LevelMatcher.levelToTitle(level);
-                            final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
-                              level,
-                              defaultLevel: level,
-                            );
-                            final isLocked = _currentUserLevel() < requiredLevel;
-                            return DropdownMenuItem<int>(
-                              value: level,
-                              enabled: !isLocked,
-                              child: Text(
-                                isLocked
-                                    ? '$level — $title (Level $requiredLevel)'
-                                    : '$level — $title',
-                                style: AppTextStyles.bodyMedium().copyWith(
-                                  color: isLocked ? AppColors.textSecondary : AppColors.white,
+                              SizedBox(height: AppPadding.smallPadding.top),
+                              Semantics(
+                                label: 'create_room_dropdown_game_type',
+                                identifier: 'create_room_dropdown_game_type',
+                                child: DropdownButtonFormField<String>(
+                                  value: _kGameTypeValues.contains(_selectedGameType) ? _selectedGameType : 'classic',
+                                  decoration: InputDecoration(
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: AppPadding.defaultPadding.left,
+                                      vertical: AppPadding.mediumPadding.top,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.borderFocused),
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                                    ),
+                                    filled: true,
+                                    fillColor: AppColors.primaryColor,
+                                  ),
+                                  dropdownColor: AppColors.widgetContainerBackground,
+                                  style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+                                  items: _kGameTypeValues.map((type) {
+                                    return DropdownMenuItem<String>(
+                                      value: type,
+                                      child: Text(
+                                        _kGameTypeLabels[type] ?? type,
+                                        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    final v = value ?? 'classic';
+                                    setState(() => _selectedGameType = v);
+                                    widget.onGameTypeChanged(v);
+                                  },
                                 ),
                               ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() => _selectedTableLevel = value);
-                            }
-                          },
-                        ),
-                      ),
-                      SizedBox(height: AppPadding.defaultPadding.top),
-
-                      // Permission Level
-                      Text(
-                        'Permission Level',
-                        style: AppTextStyles.label().copyWith(color: AppColors.white),
-                      ),
-                      SizedBox(height: AppPadding.smallPadding.top),
-                      Semantics(
-                        label: 'create_room_dropdown_permission',
-                        identifier: 'create_room_dropdown_permission',
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedPermission,
-                          decoration: InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: AppPadding.defaultPadding.left,
-                              vertical: AppPadding.mediumPadding.top,
-                            ),
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.borderFocused),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                            ),
-                            helperText: 'Public: Anyone can join | Private: Password required',
-                            helperStyle: AppTextStyles.caption().copyWith(color: AppColors.white),
-                            filled: true,
-                            fillColor: AppColors.primaryColor,
+                              SizedBox(height: AppPadding.defaultPadding.top),
+                              Text(
+                                'Table level',
+                                style: AppTextStyles.label().copyWith(color: AppColors.white),
+                              ),
+                              SizedBox(height: AppPadding.smallPadding.top),
+                              Semantics(
+                                label: 'create_room_dropdown_table_level',
+                                identifier: 'create_room_dropdown_table_level',
+                                child: DropdownButtonFormField<int>(
+                                  value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
+                                      ? _selectedTableLevel
+                                      : _firstUnlockedTableLevel(),
+                                  decoration: InputDecoration(
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: AppPadding.defaultPadding.left,
+                                      vertical: AppPadding.mediumPadding.top,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.borderFocused),
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                                    ),
+                                    filled: true,
+                                    fillColor: AppColors.primaryColor,
+                                  ),
+                                  dropdownColor: AppColors.widgetContainerBackground,
+                                  style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+                                  items: LevelMatcher.levelOrder.map((level) {
+                                    final title = LevelMatcher.levelToTitle(level);
+                                    final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
+                                      level,
+                                      defaultLevel: level,
+                                    );
+                                    final isLocked = _currentUserLevel() < requiredLevel;
+                                    return DropdownMenuItem<int>(
+                                      value: level,
+                                      enabled: !isLocked,
+                                      child: Text(
+                                        isLocked
+                                            ? '$level — $title (Level $requiredLevel)'
+                                            : '$level — $title',
+                                        style: AppTextStyles.bodyMedium().copyWith(
+                                          color: isLocked ? AppColors.textSecondary : AppColors.white,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => _selectedTableLevel = value);
+                                    }
+                                  },
+                                ),
+                              ),
+                              SizedBox(height: AppPadding.largePadding.top),
+                            ],
                           ),
-                          dropdownColor: AppColors.widgetContainerBackground,
-                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                          items: ['public', 'private'].map((permission) {
-                            return DropdownMenuItem<String>(
-                              value: permission,
-                              child: Text(
-                                permission.toUpperCase(),
-                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            final v = value ?? 'public';
-                            setState(() => _selectedPermission = v);
-                            widget.onPermissionChanged(v);
-                          },
-                        ),
-                      ),
-
-                      SizedBox(height: AppPadding.defaultPadding.top),
-
-                      // Password (for private rooms) — required, min 4 characters
-                      if (_selectedPermission == 'private') ...[
-                        Text(
-                          'Room Password',
-                          style: AppTextStyles.label().copyWith(color: AppColors.white),
-                        ),
-                        SizedBox(height: AppPadding.smallPadding.top),
-                        Semantics(
-                          label: 'create_room_field_password',
-                          identifier: 'create_room_field_password',
-                          textField: true,
-                          child: TextField(
-                            controller: widget.passwordController,
-                            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                            decoration: InputDecoration(
-                              hintText: 'Required, min 4 characters',
-                              hintStyle: AppTextStyles.caption().copyWith(color: AppColors.textOnPrimary),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: AppPadding.defaultPadding.left,
-                                vertical: AppPadding.mediumPadding.top,
-                              ),
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.borderFocused),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                              ),
-                              filled: true,
-                              fillColor: AppColors.primaryColor,
-                            ),
-                            obscureText: true,
-                          ),
-                        ),
-                        SizedBox(height: AppPadding.defaultPadding.top),
-                      ],
-
-                      SizedBox(height: AppPadding.largePadding.top),
-                    ],
                   ),
                 ),
-              ),
 
-              // Action Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: Semantics(
-                      label: 'create_room_cancel',
-                      identifier: 'create_room_cancel',
-                      button: true,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: AppColors.white.withValues(alpha: 0.5)),
-                          foregroundColor: AppColors.white,
+                if (_createdSummary == null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Semantics(
+                          label: 'create_room_cancel',
+                          identifier: 'create_room_cancel',
+                          button: true,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: AppColors.white.withValues(alpha: 0.5)),
+                              foregroundColor: AppColors.white,
+                            ),
+                            child: Text('Cancel', style: AppTextStyles.buttonText().copyWith(color: AppColors.white)),
+                          ),
                         ),
-                        child: Text('Cancel', style: AppTextStyles.buttonText().copyWith(color: AppColors.white)),
                       ),
-                    ),
-                  ),
-                  SizedBox(width: AppPadding.defaultPadding.left),
-                  Expanded(
-                    child: Semantics(
-                      label: 'create_room_submit',
-                      identifier: 'create_room_submit',
-                      button: true,
-                      child: ElevatedButton(
-                        onPressed: widget.isCreating ? null : _onCreateRoomPressed,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accentColor,
-                          foregroundColor: AppColors.textOnAccent,
+                      SizedBox(width: AppPadding.defaultPadding.left),
+                      Expanded(
+                        child: Semantics(
+                          label: 'create_room_submit',
+                          identifier: 'create_room_submit',
+                          button: true,
+                          child: ElevatedButton(
+                            onPressed: _isSubmitting ? null : () => _onCreateRoomPressed(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accentColor,
+                              foregroundColor: AppColors.textOnAccent,
+                            ),
+                            child: _isSubmitting
+                                ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.textOnAccent,
+                                    ),
+                                  )
+                                : Text('Create', style: AppTextStyles.buttonText()),
+                          ),
                         ),
-                        child: widget.isCreating
-                            ? SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.textOnAccent,
-                                ),
-                              )
-                            : Text('Create', style: AppTextStyles.buttonText()),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
             ],
           ),
         ),

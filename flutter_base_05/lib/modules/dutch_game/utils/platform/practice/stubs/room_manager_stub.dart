@@ -64,7 +64,7 @@ class RoomManagerStub {
     return roomId;
   }
 
-  bool joinRoom(String roomId, String sessionId, String userId, {String? password}) {
+  bool joinRoom(String roomId, String sessionId, String userId) {
     final room = _rooms[roomId];
     if (room == null) return false;
     
@@ -111,11 +111,6 @@ class RoomManagerStub {
     final room = _rooms[roomId];
     if (room == null) return false;
     return room.currentSize < room.maxSize;
-  }
-
-  bool validateRoomPassword(String roomId, String? password) {
-    // Practice rooms don't need passwords
-    return true;
   }
 
   List<RoomInfoStub> getAllRooms() {

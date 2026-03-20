@@ -251,8 +251,7 @@ class WSEventHandlers:
         """Handle room join requests"""
         try:
             room_id = data.get('room_id')
-            password = data.get('password')  # Get password from join request
-            
+
             if not room_id:
                 self.socketio.emit('join_room_error', {'error': 'No room_id provided'})
                 return False
@@ -262,22 +261,7 @@ class WSEventHandlers:
             if not room_info:
                 self.socketio.emit('join_room_error', {'error': f'Room {room_id} not found'})
                 return False
-            
-            # Validate password for private rooms
-            if room_info.get('permission') == 'private':
-                stored_password = room_info.get('password')
-                if not stored_password:
-                    self.socketio.emit('join_room_error', {'error': 'Room access configuration error'})
-                    return False
-                
-                if not password:
-                    self.socketio.emit('join_room_error', {'error': 'Password required for private room'})
-                    return False
-                
-                if password != stored_password:
-                    self.socketio.emit('join_room_error', {'error': 'Invalid password for private room'})
-                    return False
-            
+
             # Get session data
             session_data = self.websocket_manager.get_session_data(session_id)
             if not session_data:

@@ -181,8 +181,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     super.dispose();
   }
  
-  // ignore: unused_element (used when Create/Join section is re-enabled)
-  Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
+  Future<Map<String, dynamic>> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
       if (LOGGING_SWITCH) {
         final Logger _log = Logger();
@@ -224,7 +223,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         if (mounted) {
           DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
         }
-        return;
+        return {
+          'success': false,
+          'error': 'WebSocket not ready',
+        };
       }
       
       // Now proceed with room creation - bypass RoomService and call helper directly
@@ -239,18 +241,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         acceptedPlayers: acceptedPlayers,
         gameLevel: roomSettings['gameLevel'] as int?,
       );
-      if (result['success'] == true) {
-        // Room creation initiated successfully - WebSocket events will handle state updates
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Room created successfully!'),
-              backgroundColor: AppColors.successColor,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
+      if (result['success'] != true) {
         if (mounted) {
           final errorMsg = result['message'] ?? result['error'] ?? 'Failed to create room';
           ScaffoldMessenger.of(context).showSnackBar(
@@ -262,6 +253,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           );
         }
       }
+      return result;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -272,6 +264,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           ),
         );
       }
+      return {'success': false, 'error': e.toString()};
     }
   }
 

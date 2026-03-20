@@ -211,7 +211,8 @@ class DutchEventManager {
             data: data,
           );
           
-          // Navigate to game play screen: random join or creator
+          // Auto-navigate only when this room was created by join_random_game (new room path).
+          // Lobby create_room_success sets is_random_join: false — stay on lobby to invite / manage.
           if (isRandomJoin) {
             if (LOGGING_SWITCH) {
               _logger.info('🎮 Random join room created, navigating to game play screen');
@@ -219,11 +220,10 @@ class DutchEventManager {
             DutchGameHelpers.updateUIState({
               'isRandomJoinInProgress': false,
             });
+            Future.delayed(const Duration(milliseconds: 300), () {
+              NavigationManager().navigateTo('/dutch/game-play');
+            });
           }
-          // Creator always goes to play screen after successful creation
-          Future.delayed(const Duration(milliseconds: 300), () {
-            NavigationManager().navigateTo('/dutch/game-play');
-          });
           break;
           
         case 'created':

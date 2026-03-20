@@ -156,7 +156,7 @@ class DutchGameEventEmitter {
       required: false,
       minLength: 4,
       maxLength: 20,
-      description: 'Room password for private rooms: 4-20 characters',
+      description: 'Legacy optional password on create_room; join_room does not verify passwords',
     ),
     'rank': DutchEventFieldSpec(
       type: String,

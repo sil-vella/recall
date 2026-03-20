@@ -26,6 +26,9 @@ class GameRegistry {
     });
   }
 
+  /// Existing round for [roomId], or null if none (e.g. never created or disposed).
+  DutchGameRound? getExisting(String roomId) => _roomIdToRound[roomId];
+
   void dispose(String roomId) {
     _roomIdToRound.remove(roomId);
     GameStateStore.instance.clear(roomId);
@@ -162,9 +165,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
       
-      // Extract myCardsToPeek from validated updates if present (for initial peek clearing)
-      final myCardsToPeek = validatedUpdates['myCardsToPeek'] as List<dynamic>?;
-      
+      final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
+      final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+
       // Send to single player (playerId = sessionId in this system)
       server.sendToSession(playerId, {
         'event': 'game_state_updated',
@@ -172,7 +175,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'game_state': filteredGameState,
         'turn_events': turnEvents,
         if (ownerId != null) 'owner_id': ownerId,
-        if (myCardsToPeek != null) 'myCardsToPeek': myCardsToPeek, // Include myCardsToPeek if present in updates
+        if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
+        if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
         'timestamp': DateTime.now().toIso8601String(),
       });
       
@@ -239,10 +243,12 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       
       // Extract winners from validatedUpdates (if present) - needed for game end notification
       final winners = validatedUpdates['winners'] as List<dynamic>?;
-      
+      final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
+      final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
-      
+
       // Broadcast to all players except the excluded one (excludePlayerId = sessionId in this system)
       server.broadcastToRoomExcept(roomId, {
         'event': 'game_state_updated',
@@ -251,6 +257,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'turn_events': turnEvents,
         if (winners != null) 'winners': winners, // Include winners list for game end notification
         if (ownerId != null) 'owner_id': ownerId,
+        if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
+        if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
         'timestamp': DateTime.now().toIso8601String(),
       }, excludePlayerId);
       
@@ -346,7 +354,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         _logger.info('GameStateCallback: Including winners list in broadcast: ${winners.length} winner(s)');
       }
     }
-    
+
+    final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
+    final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+
     // Owner info for gating
     final ownerId = server.getRoomOwner(roomId);
     if (LOGGING_SWITCH) {
@@ -363,6 +374,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'turn_events': turnEvents, // Include turn_events for animations
       if (winners != null) 'winners': winners, // Include winners list for game end notification
       if (ownerId != null) 'owner_id': ownerId,
+      if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
+      if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
       'timestamp': DateTime.now().toIso8601String(),
     });
   }

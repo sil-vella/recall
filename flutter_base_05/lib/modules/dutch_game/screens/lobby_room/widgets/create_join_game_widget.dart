@@ -67,12 +67,12 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         final errStr = error.toString().toLowerCase();
         final skipSnack = errStr.contains('insufficient coins');
         if (!skipSnack) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Join game failed: $error'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Join game failed: $error'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
         }
         setState(() {
           _isLoading = false;
@@ -1301,180 +1301,180 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                 ),
                 Divider(color: AppColors.white.withValues(alpha: 0.3)),
 
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: scrollController,
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
                     child: _createdSummary != null
                         ? Padding(
                             padding: EdgeInsets.only(top: AppPadding.defaultPadding.top),
                             child: _buildCreatedSummary(context),
                           )
                         : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SizedBox(height: AppPadding.defaultPadding.top),
-                              Text(
-                                'Game Type',
-                                style: AppTextStyles.label().copyWith(color: AppColors.white),
-                              ),
-                              SizedBox(height: AppPadding.smallPadding.top),
-                              Semantics(
-                                label: 'create_room_dropdown_game_type',
-                                identifier: 'create_room_dropdown_game_type',
-                                child: DropdownButtonFormField<String>(
-                                  value: _kGameTypeValues.contains(_selectedGameType) ? _selectedGameType : 'classic',
-                                  decoration: InputDecoration(
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: AppPadding.defaultPadding.left,
-                                      vertical: AppPadding.mediumPadding.top,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: AppColors.borderFocused),
-                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                                    ),
-                                    filled: true,
-                                    fillColor: AppColors.primaryColor,
-                                  ),
-                                  dropdownColor: AppColors.widgetContainerBackground,
-                                  style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                                  items: _kGameTypeValues.map((type) {
-                                    return DropdownMenuItem<String>(
-                                      value: type,
-                                      child: Text(
-                                        _kGameTypeLabels[type] ?? type,
-                                        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    final v = value ?? 'classic';
-                                    setState(() => _selectedGameType = v);
-                                    widget.onGameTypeChanged(v);
-                                  },
-                                ),
-                              ),
-                              SizedBox(height: AppPadding.defaultPadding.top),
-                              Text(
-                                'Table level',
-                                style: AppTextStyles.label().copyWith(color: AppColors.white),
-                              ),
-                              SizedBox(height: AppPadding.smallPadding.top),
-                              Semantics(
-                                label: 'create_room_dropdown_table_level',
-                                identifier: 'create_room_dropdown_table_level',
-                                child: DropdownButtonFormField<int>(
-                                  value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
-                                      ? _selectedTableLevel
-                                      : _firstUnlockedTableLevel(),
-                                  decoration: InputDecoration(
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: AppPadding.defaultPadding.left,
-                                      vertical: AppPadding.mediumPadding.top,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
-                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: AppColors.borderFocused),
-                                      borderRadius: BorderRadius.circular(AppBorderRadius.small),
-                                    ),
-                                    filled: true,
-                                    fillColor: AppColors.primaryColor,
-                                  ),
-                                  dropdownColor: AppColors.widgetContainerBackground,
-                                  style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
-                                  items: LevelMatcher.levelOrder.map((level) {
-                                    final title = LevelMatcher.levelToTitle(level);
-                                    final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
-                                      level,
-                                      defaultLevel: level,
-                                    );
-                                    final isLocked = _currentUserLevel() < requiredLevel;
-                                    return DropdownMenuItem<int>(
-                                      value: level,
-                                      enabled: !isLocked,
-                                      child: Text(
-                                        isLocked
-                                            ? '$level — $title (Level $requiredLevel)'
-                                            : '$level — $title',
-                                        style: AppTextStyles.bodyMedium().copyWith(
-                                          color: isLocked ? AppColors.textSecondary : AppColors.white,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _selectedTableLevel = value);
-                                    }
-                                  },
-                                ),
-                              ),
-                              _buildInviteFriendsSection(),
-                              SizedBox(height: AppPadding.largePadding.top),
-                            ],
-                          ),
-                  ),
-                ),
-
-                if (_createdSummary == null)
-                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Semantics(
-                          label: 'create_room_cancel',
-                          identifier: 'create_room_cancel',
-                          button: true,
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: AppColors.white.withValues(alpha: 0.5)),
-                              foregroundColor: AppColors.white,
+                      SizedBox(height: AppPadding.defaultPadding.top),
+                      Text(
+                        'Game Type',
+                        style: AppTextStyles.label().copyWith(color: AppColors.white),
+                      ),
+                      SizedBox(height: AppPadding.smallPadding.top),
+                      Semantics(
+                        label: 'create_room_dropdown_game_type',
+                        identifier: 'create_room_dropdown_game_type',
+                        child: DropdownButtonFormField<String>(
+                          value: _kGameTypeValues.contains(_selectedGameType) ? _selectedGameType : 'classic',
+                          decoration: InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: AppPadding.defaultPadding.left,
+                              vertical: AppPadding.mediumPadding.top,
                             ),
-                            child: Text('Cancel', style: AppTextStyles.buttonText().copyWith(color: AppColors.white)),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.borderFocused),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            filled: true,
+                            fillColor: AppColors.primaryColor,
                           ),
+                          dropdownColor: AppColors.widgetContainerBackground,
+                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+                          items: _kGameTypeValues.map((type) {
+                            return DropdownMenuItem<String>(
+                              value: type,
+                              child: Text(
+                                _kGameTypeLabels[type] ?? type,
+                                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            final v = value ?? 'classic';
+                            setState(() => _selectedGameType = v);
+                            widget.onGameTypeChanged(v);
+                          },
                         ),
                       ),
-                      SizedBox(width: AppPadding.defaultPadding.left),
-                      Expanded(
-                        child: Semantics(
-                          label: 'create_room_submit',
-                          identifier: 'create_room_submit',
-                          button: true,
-                          child: ElevatedButton(
-                            onPressed: _isSubmitting ? null : () => _onCreateRoomPressed(),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.accentColor,
-                              foregroundColor: AppColors.textOnAccent,
+                      SizedBox(height: AppPadding.defaultPadding.top),
+                      Text(
+                        'Table level',
+                        style: AppTextStyles.label().copyWith(color: AppColors.white),
+                      ),
+                      SizedBox(height: AppPadding.smallPadding.top),
+                      Semantics(
+                        label: 'create_room_dropdown_table_level',
+                        identifier: 'create_room_dropdown_table_level',
+                        child: DropdownButtonFormField<int>(
+                          value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
+                              ? _selectedTableLevel
+                              : _firstUnlockedTableLevel(),
+                          decoration: InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: AppPadding.defaultPadding.left,
+                              vertical: AppPadding.mediumPadding.top,
                             ),
-                            child: _isSubmitting
-                                ? SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.textOnAccent,
-                                    ),
-                                  )
-                                : Text('Create', style: AppTextStyles.buttonText()),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.borderFocused),
+                              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                            ),
+                            filled: true,
+                            fillColor: AppColors.primaryColor,
                           ),
+                          dropdownColor: AppColors.widgetContainerBackground,
+                          style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+                          items: LevelMatcher.levelOrder.map((level) {
+                            final title = LevelMatcher.levelToTitle(level);
+                            final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
+                              level,
+                              defaultLevel: level,
+                            );
+                            final isLocked = _currentUserLevel() < requiredLevel;
+                            return DropdownMenuItem<int>(
+                              value: level,
+                              enabled: !isLocked,
+                              child: Text(
+                                isLocked
+                                    ? '$level — $title (Level $requiredLevel)'
+                                    : '$level — $title',
+                                style: AppTextStyles.bodyMedium().copyWith(
+                                  color: isLocked ? AppColors.textSecondary : AppColors.white,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedTableLevel = value);
+                            }
+                          },
                         ),
                       ),
+                              _buildInviteFriendsSection(),
+                      SizedBox(height: AppPadding.largePadding.top),
                     ],
                   ),
+                ),
+              ),
+
+                if (_createdSummary == null)
+              Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      label: 'create_room_cancel',
+                      identifier: 'create_room_cancel',
+                      button: true,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: AppColors.white.withValues(alpha: 0.5)),
+                          foregroundColor: AppColors.white,
+                        ),
+                        child: Text('Cancel', style: AppTextStyles.buttonText().copyWith(color: AppColors.white)),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: AppPadding.defaultPadding.left),
+                  Expanded(
+                    child: Semantics(
+                      label: 'create_room_submit',
+                      identifier: 'create_room_submit',
+                      button: true,
+                      child: ElevatedButton(
+                            onPressed: _isSubmitting ? null : () => _onCreateRoomPressed(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accentColor,
+                          foregroundColor: AppColors.textOnAccent,
+                        ),
+                            child: _isSubmitting
+                            ? SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.textOnAccent,
+                                ),
+                              )
+                            : Text('Create', style: AppTextStyles.buttonText()),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

@@ -5,7 +5,7 @@ import '../../core/managers/state_manager.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = true; // lastCoinPurchaseJoinContext on /coin-purchase (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // lastCoinPurchaseJoinContext on /coin-purchase (enable-logging-switch.mdc)
 
 /// Placeholder for coin purchases. Shows [lastCoinPurchaseJoinContext] from Dutch game state
 /// when the user was sent here after a failed join (insufficient coins).

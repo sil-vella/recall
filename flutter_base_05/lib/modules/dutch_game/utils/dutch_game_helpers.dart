@@ -145,10 +145,7 @@ class DutchGameHelpers {
     int? gameLevel,
   }) async {
     try {
-      // 🎯 CRITICAL: Clear all existing game state before starting new game
-      // This prevents overlapping or old game state from interfering
-      await clearAllGameStateBeforeNewGame();
-      
+      // Clearance runs in DutchGameEventEmitter immediately before join_room WebSocket send (SSOT).
       // Ensure WebSocket is ready (logged in, initialized, and connected)
       final isReady = await ensureWebSocketReady();
       if (!isReady) {
@@ -1322,9 +1319,10 @@ class DutchGameHelpers {
   }
 
   /// Clear all existing games, game maps, and game logic state before starting a new game.
-  /// SSOT for "before starting a match" — called at the very beginning of createRoom, joinRoom,
-  /// joinRandomGame, and lobby create/join/practice. Leaves all games (WS leave_room for multi)
-  /// and clears state before any new match init or WS send to backend.
+  /// SSOT for "before starting a match" — called at the very beginning of createRoom,
+  /// joinRandomGame, and lobby create/join/practice. For [joinRoom], the same clearance runs
+  /// inside [DutchGameEventEmitter.emit] immediately before `join_room` is routed/sent.
+  /// Leaves all games (WS leave_room for multi) and clears state before any new match init or WS send to backend.
   static Future<void> clearAllGameStateBeforeNewGame() async {
     try {
       if (LOGGING_SWITCH) {

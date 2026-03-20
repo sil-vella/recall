@@ -2,6 +2,7 @@ import 'package:dutch/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
+import '../utils/dutch_game_helpers.dart';
 import '../utils/field_specifications.dart';
 import '../practice/practice_mode_bridge.dart';
 import '../screens/demo/demo_mode_bridge.dart';
@@ -366,6 +367,11 @@ class DutchGameEventEmitter {
       if (LOGGING_SWITCH) {
         _logger.info('Sending event to backend: $eventPayload');
         _logger.info('🎯 EventEmitter: Transport mode is $_transportMode for event $eventType');
+      }
+
+      // SSOT: full clearance before join_room is handled by any transport (WS or bridge)
+      if (eventType == 'join_room') {
+        await DutchGameHelpers.clearAllGameStateBeforeNewGame();
       }
       
       // Route based on transport mode

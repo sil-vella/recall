@@ -95,8 +95,10 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final isInGame = gameInfo['isInGame'] ?? false;
         final isPracticeGame = gameInfo['isPractice'] as bool? ?? currentGameId.startsWith('practice_room_');
         final multiplayerType = gameInfo['multiplayerType'] as Map<String, dynamic>?;
-        // Show Start only in waiting phase and for practice games (not for multiplayer create/join).
-        final showStartButton = gamePhase == 'waiting' && isPracticeGame;
+        final isRandomJoin = multiplayerType?['isRandom'] == true;
+        // Waiting: practice always; multiplayer only for room owner and non–random-join rooms.
+        final showStartButton = gamePhase == 'waiting' &&
+            (isPracticeGame || (isRoomOwner && !isRandomJoin));
 
         // Game level and tournament info from current game's game_state (SSOT)
         final gameEntry = games[currentGameId] as Map<String, dynamic>? ?? {};
@@ -109,7 +111,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final matchId = tournamentData['match_id']?.toString() ?? tournamentData['match_index']?.toString();
         
         if (LOGGING_SWITCH) {
-          _logger.info('🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, multiplayerType: $multiplayerType, showStartButton: $showStartButton');
+          _logger.info('🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, isRandomJoin: $isRandomJoin, multiplayerType: $multiplayerType, showStartButton: $showStartButton');
         }
         
         // Get additional game state for context
@@ -312,7 +314,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
             
             const SizedBox(height: 16),
             
-            // Start Match: practice always; multiplayer only when non-random and room owner
+            // Start Match: practice in waiting; else room owner and not random join
             if (showStartButton)
               _buildStartMatchButton(isLoading: _isStartingMatch),
           ],

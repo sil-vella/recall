@@ -189,9 +189,18 @@ class GameCoordinator {
         isClearAndCollect = practiceSettings?['isClearAndCollect'] as bool?;
       } else {
         showInstructions = null; // Multiplayer games don't use showInstructions
-        // For random join games, read isClearAndCollect from state (stored when join_random_game was called)
-        // For regular multiplayer games, default to true (collection mode)
-        isClearAndCollect = dutchGameState['randomJoinIsClearAndCollect'] as bool? ?? true;
+        // join_random_game stores randomJoinIsClearAndCollect (true/false) before match start.
+        // Lobby create_room never sets it — must infer from games map game_type (classic vs clear_and_collect),
+        // otherwise we wrongly default to collection mode and send isClearAndCollect: true in start_match.
+        final rj = dutchGameState['randomJoinIsClearAndCollect'] as bool?;
+        if (rj != null) {
+          isClearAndCollect = rj;
+        } else {
+          final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+          final entry = games[currentGameId] as Map<String, dynamic>?;
+          final gt = entry?['game_type']?.toString() ?? 'classic';
+          isClearAndCollect = gt == 'clear_and_collect';
+        }
       }
       
       // Create and execute the player action

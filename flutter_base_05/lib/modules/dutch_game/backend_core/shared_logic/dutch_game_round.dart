@@ -1971,7 +1971,10 @@ class DutchGameRound {
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
       };
-      
+
+      // Opponents must see playing_card in STEP 1 (broadcastExcept). If we only set status in
+      // STEP 2 (sendToPlayer), other clients keep drawing_card until the next unrelated broadcast.
+      player['status'] = 'playing_card';
       
       // STEP 1: Broadcast ID-only drawnCard to all players EXCEPT the drawing player
       // This shows other players that a card was drawn without revealing sensitive details
@@ -2015,10 +2018,6 @@ class DutchGameRound {
           'games': currentGames, // Games map with full drawnCard and updated status for this player
           'turn_events': turnEvents, // Include turn events
         });
-        
-      } else {
-        // For computer players, update status in games map
-        _updatePlayerStatusInGamesMap('playing_card', playerId: actualPlayerId);
       }
       
       // Start play timer for ALL players (human and CPU) if status is playing_card
@@ -4776,6 +4775,66 @@ class DutchGameRound {
       if (LOGGING_SWITCH) {
         _logger.error('Dutch: Error ending final round and calculating winners: $e');
       };
+    }
+  }
+
+  /// Ends the match when only one active player remains (opponent left mid-game).
+  /// Uses [_checkGameEnding] for the same broadcast and stats path as a normal end (game_ended, winners, onGameEnded).
+  void endGameWithSoleRemainingPlayer() {
+    try {
+      if (_gameEndedCallbackCalled) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: endGameWithSoleRemainingPlayer skipped — game already ended');
+        }
+        return;
+      }
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: endGameWithSoleRemainingPlayer — no game state');
+        }
+        return;
+      }
+      final phase = gameState['phase'] as String? ?? '';
+      if (phase == 'waiting_for_players' || phase == 'game_ended') {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: endGameWithSoleRemainingPlayer skipped — phase=$phase');
+        }
+        return;
+      }
+      final players = (gameState['players'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .where((p) => (p['isActive'] as bool? ?? true) == true)
+          .toList();
+      if (players.length != 1) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: endGameWithSoleRemainingPlayer skipped — activeCount=${players.length}');
+        }
+        return;
+      }
+      final p = players.first;
+      final playerId = p['id']?.toString() ?? '';
+      final playerName = p['name']?.toString() ?? 'Unknown';
+      if (playerId.isEmpty) return;
+      final points = _calculatePlayerPoints(p, gameState);
+      final cardCount = _getPlayerCardCountForWinner(p);
+      _winnersList
+        ..clear()
+        ..add({
+          'playerId': playerId,
+          'playerName': playerName,
+          'winType': 'last_player',
+          'points': points,
+          'cardCount': cardCount,
+        });
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Sole remaining player wins — $playerName ($playerId), winType=last_player');
+      }
+      _checkGameEnding();
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in endGameWithSoleRemainingPlayer: $e');
+      }
     }
   }
 

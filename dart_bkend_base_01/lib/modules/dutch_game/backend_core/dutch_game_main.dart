@@ -503,6 +503,21 @@ class DutchGameModule {
         _logger.info('✅ Player with session $sessionId removed from game $roomId (players: $initialPlayerCount -> $newPlayerCount)');
       }
 
+      // One player left mid-match: declare winner and use normal game_ended broadcast (same as regular end).
+      final phaseAfterLeave = gameState['phase'] as String? ?? '';
+      if (newPlayerCount == 1 &&
+          phaseAfterLeave != 'waiting_for_players' &&
+          phaseAfterLeave != 'game_ended') {
+        final round = GameRegistry.instance.getExisting(roomId);
+        if (round != null) {
+          round.endGameWithSoleRemainingPlayer();
+          if (LOGGING_SWITCH) {
+            _logger.info('🎣 leave_room: Sole player remains — match ended via game_ended path');
+          }
+          return;
+        }
+      }
+
       // CRITICAL: Broadcast the updated game state to all remaining players
       // This ensures other players see that the player has left
       // Note: If this was triggered by auto-leave, _moveToNextPlayer() was already called

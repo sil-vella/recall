@@ -30,6 +30,9 @@ class GameRegistry {
     });
   }
 
+  /// Existing round for [roomId], or null if none (e.g. never created or disposed).
+  DutchGameRound? getExisting(String roomId) => _roomIdToRound[roomId];
+
   void dispose(String roomId) {
     _roomIdToRound.remove(roomId);
     GameStateStore.instance.clear(roomId);
@@ -169,16 +172,18 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
       
-      // Extract myCardsToPeek from validated updates if present (for initial peek clearing)
-      final myCardsToPeek = validatedUpdates['myCardsToPeek'] as List<dynamic>?;
-      
+      // Root peek slices (merged at store root; same keys as broadcast)
+      final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
+      final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+
       final payload = <String, dynamic>{
         'event': 'game_state_updated',
         'game_id': roomId,
         'game_state': filteredGameState,
         'turn_events': turnEvents,
         if (ownerId != null) 'owner_id': ownerId,
-        if (myCardsToPeek != null) 'myCardsToPeek': myCardsToPeek,
+        if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
+        if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
         'timestamp': DateTime.now().toIso8601String(),
       };
       if (LOGGING_STATE_SIZE_SWITCH) {
@@ -251,10 +256,12 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       
       // Extract winners from validatedUpdates (if present) - needed for game end notification
       final winners = validatedUpdates['winners'] as List<dynamic>?;
-      
+      final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
+      final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
-      
+
       final payload = <String, dynamic>{
         'event': 'game_state_updated',
         'game_id': roomId,
@@ -262,6 +269,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'turn_events': turnEvents,
         if (winners != null) 'winners': winners,
         if (ownerId != null) 'owner_id': ownerId,
+        if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
+        if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
         'timestamp': DateTime.now().toIso8601String(),
       };
       if (LOGGING_STATE_SIZE_SWITCH) {
@@ -363,7 +372,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         _logger.info('GameStateCallback: Including winners list in broadcast: ${winners.length} winner(s)');
       }
     }
-    
+
+    final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
+    final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+
     // Owner info for gating
     final ownerId = server.getRoomOwner(roomId);
     if (LOGGING_SWITCH) {
@@ -380,6 +392,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'turn_events': turnEvents,
       if (winners != null) 'winners': winners,
       if (ownerId != null) 'owner_id': ownerId,
+      if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
+      if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
       'timestamp': DateTime.now().toIso8601String(),
     };
     if (LOGGING_STATE_SIZE_SWITCH) {

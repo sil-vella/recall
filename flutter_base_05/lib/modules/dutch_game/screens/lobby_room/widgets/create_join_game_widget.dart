@@ -64,12 +64,16 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     wsManager.socket?.on('join_room_error', (data) {
       if (mounted) {
         final error = data['message'] ?? data['error'] ?? 'Unknown error';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Join game failed: $error'),
-            backgroundColor: AppColors.errorColor,
-          ),
-        );
+        final errStr = error.toString().toLowerCase();
+        final skipSnack = errStr.contains('insufficient coins');
+        if (!skipSnack) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Join game failed: $error'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+        }
         setState(() {
           _isLoading = false;
         });

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
+import '../../core/widgets/instant_message_modal.dart';
+import '../../core/widgets/instant_notification_response.dart';
+import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../utils/consts/theme_consts.dart';
 
@@ -83,6 +86,49 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
     }
   }
 
+  /// Local list only — server already marked read (e.g. after [submitInstantNotificationResponse]).
+  void _syncReadInList(String messageId) {
+    if (messageId.isEmpty || !mounted) return;
+    setState(() {
+      final idx = _messages.indexWhere((m) => m['id']?.toString() == messageId);
+      if (idx >= 0) {
+        _messages = List<Map<String, dynamic>>.from(_messages);
+        _messages[idx] = Map<String, dynamic>.from(_messages[idx])
+          ..['read'] = true
+          ..['read_at'] = DateTime.now().toIso8601String();
+      }
+    });
+  }
+
+  /// Same [InstantMessageModal] as app-wide instant flow: full title/body/responses and Join actions.
+  Future<void> _openNotificationInModal(Map<String, dynamic> raw) async {
+    final message = Map<String, dynamic>.from(raw);
+    final id = message['id']?.toString() ?? '';
+    if (!mounted) return;
+    final api = _moduleManager.getModuleByType<ConnectionsApiModule>();
+    await InstantMessageModal.show(
+      context,
+      message: message,
+      onDismiss: () {},
+      dismissLabel: 'Close',
+      onSendResponse: api == null
+          ? null
+          : (String messageId, String actionIdentifier) async {
+              final ok = await submitInstantNotificationResponse(
+                api: api,
+                mod: _notificationsModule,
+                messageId: messageId,
+                actionIdentifier: actionIdentifier,
+                context: context,
+                messageRow: message,
+              );
+              if (ok && mounted) _syncReadInList(messageId);
+              return ok;
+            },
+      onMarkAsRead: id.isEmpty ? null : (mid) => _markAsRead(mid),
+    );
+  }
+
   String _formatDate(dynamic value) {
     if (value == null) return '';
     if (value is String) {
@@ -137,7 +183,6 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
         itemCount: _messages.length,
         itemBuilder: (context, index) {
           final m = _messages[index];
-          final id = m['id']?.toString() ?? '';
           final title = m['title']?.toString().trim() ?? 'Notification';
           final body = m['body']?.toString().trim() ?? '';
           final read = m['read'] == true || (m['read_at']?.toString().trim().isNotEmpty == true);
@@ -159,9 +204,7 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
               ),
             ),
             child: InkWell(
-              onTap: () {
-                if (!read && id.isNotEmpty) _markAsRead(id);
-              },
+              onTap: () => _openNotificationInModal(m),
               borderRadius: AppBorderRadius.smallRadius,
               child: Padding(
                 padding: AppPadding.cardPadding,

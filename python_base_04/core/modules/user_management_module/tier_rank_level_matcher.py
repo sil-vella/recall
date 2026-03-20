@@ -2,7 +2,8 @@
 Tier, rank, and level matcher — single source of truth for subscription tiers,
 player rank hierarchy, and game table levels. Aligned with Dart RankMatcher and LevelMatcher.
 
-- Tiers: subscription_tier — promotional = free play (no coin check); regular and premium = both require coin check.
+- Tiers: subscription_tier — promotional = free play (no coin economy); regular and premium = coin economy when the match requires coins.
+- Match flag ``is_coin_required`` (game state): when False, no entry deduction and no winner pot credit for anyone, regardless of tier.
 - Rank: player skill rank (beginner..legend); used for matchmaking and AI difficulty.
 - Level: game table level (1–4); used for coin fee and display title. Not mapped to rank.
 """
@@ -35,6 +36,30 @@ def normalize_tier(tier: Optional[str]) -> str:
 def is_free_play_tier(tier: Optional[str]) -> bool:
     """True only if tier is promotional (skip coin check). Regular and premium both require coins."""
     return normalize_tier(tier) == TIER_PROMOTIONAL
+
+
+def should_skip_match_coin_economy(
+    subscription_tier: Optional[str],
+    *,
+    is_coin_required: Optional[bool] = None,
+) -> bool:
+    """Per-user gate for *whether this account* participates in coin moves for a match.
+
+    **Room-wide (match):** ``is_coin_required`` comes from game state (same value for all players).
+    When False, every player skips entry deduction and winner credit — the whole match is non-coin.
+
+    **User-specific:** ``subscription_tier`` is read from each user's DB record. When
+    ``is_coin_required`` is True (or omitted), only **promotional** tier skips that user's deduction
+    and that user's winner payout. Regular/premium players still pay and still receive pot credit.
+
+    **Display pot (e.g. 25 × 4 = 100):** Sized from all seated players in game state; it does not
+    shrink because one seat is promotional. Only that user's *actual* deduct/credit is skipped.
+
+    Omitted ``is_coin_required`` means coin-based match (backward compatible with older clients).
+    """
+    if is_coin_required is False:
+        return True
+    return is_free_play_tier(subscription_tier)
 
 
 def is_valid_tier(tier: Optional[str]) -> bool:

@@ -5,8 +5,10 @@ import 'package:dutch/tools/logging/logger.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/hooks_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
+import '../../../core/widgets/instant_message_modal.dart';
 import '../../../utils/consts/theme_consts.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
+import '../backend_core/utils/level_matcher.dart';
 import '../../dutch_game/managers/dutch_event_listener_validator.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 
@@ -24,7 +26,7 @@ typedef _NotificationSuccessHandler = Future<void> Function(
 );
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = false; // Event routing lobby → game (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Insufficient coins → stash / coin-purchase (enable-logging-switch.mdc)
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();
@@ -290,6 +292,66 @@ class DutchEventManager {
       final ctx = data['context'] is BuildContext ? data['context'] as BuildContext? : null;
       await handler(response, message, ctx);
     });
+
+    // Insufficient coins on join_room / join_random — frontend modal + stash context for /coin-purchase
+    HooksManager().registerHookWithData('websocket_join_room_error', (hookData) {
+      final msg = hookData['message']?.toString().toLowerCase() ?? '';
+      if (!msg.contains('insufficient coins')) {
+        return;
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '💰 websocket_join_room_error (insufficient coins): hookData keys=${hookData.keys.toList()} msg=$msg',
+        );
+      }
+      final rawPayload = hookData['payload'];
+      final payload = rawPayload is Map
+          ? Map<String, dynamic>.from(rawPayload)
+          : <String, dynamic>{};
+      final roomId = hookData['room_id']?.toString() ?? payload['room_id']?.toString() ?? '';
+      final glRaw = hookData['game_level'] ?? payload['game_level'];
+      final gameLevel = _parseTableLevel(glRaw);
+      final reqRaw = hookData['required_coins'] ?? payload['required_coins'];
+      final requiredCoins = _parseRequiredCoins(reqRaw, gameLevel);
+
+      final stash = <String, dynamic>{
+        ...payload,
+        'updatedAt': DateTime.now().toIso8601String(),
+        'room_id': roomId.isNotEmpty ? roomId : payload['room_id'],
+        'game_level': gameLevel,
+        'required_coins': requiredCoins,
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '💰 Stashing lastCoinPurchaseJoinContext room_id=$roomId game_level=$gameLevel required_coins=$requiredCoins payloadKeys=${payload.keys.toList()}',
+        );
+      }
+      DutchGameHelpers.updateUIState({'lastCoinPurchaseJoinContext': stash});
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final navCtx = NavigationManager().navigatorKey.currentContext;
+        if (navCtx == null || !navCtx.mounted) {
+          if (LOGGING_SWITCH) {
+            _logger.warning('💰 Insufficient-coins modal: navigatorKey.currentContext null or unmounted');
+          }
+          return;
+        }
+        if (LOGGING_SWITCH) {
+          _logger.info('💰 Showing insufficient-coins frontend modal (Buy coins → /coin-purchase)');
+        }
+        InstantMessageModal.showFrontendOnlyInstant(
+          navCtx,
+          title: 'Not enough coins',
+          body: 'Not enough coins to join the game. Required coins: $requiredCoins.',
+          data: Map<String, dynamic>.from(stash),
+          actionLabel: 'Buy coins',
+          actionIdentifier: 'buy_coins',
+          onAction: () {
+            NavigationManager().navigateTo('/coin-purchase');
+          },
+        );
+      });
+    });
     
     // Register websocket_join_room hook callback (for joining existing rooms)
     HooksManager().registerHookWithData('websocket_join_room', (data) {
@@ -487,6 +549,26 @@ class DutchEventManager {
 
   List<Map<String, dynamic>> getSessionBoard() => List<Map<String, dynamic>>.from(_sessionBoard);
   List<Map<String, dynamic>> getRoomBoard(String roomId) => List<Map<String, dynamic>>.from(_roomBoards[roomId] ?? const []);
+
+  static int _parseTableLevel(dynamic v) {
+    if (v is int) {
+      return v;
+    }
+    if (v is num) {
+      return v.toInt();
+    }
+    return int.tryParse(v?.toString() ?? '') ?? 1;
+  }
+
+  static int _parseRequiredCoins(dynamic v, int gameLevel) {
+    if (v is int) {
+      return v;
+    }
+    if (v is num) {
+      return v.toInt();
+    }
+    return LevelMatcher.levelToCoinFee(gameLevel, defaultFee: 25);
+  }
 
   void dispose() {
     _roomMessagesController.close();

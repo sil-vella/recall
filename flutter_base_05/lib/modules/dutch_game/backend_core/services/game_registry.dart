@@ -649,12 +649,20 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         }
         return;
       }
-      
+
+      final state = _store.getState(roomId);
+      final gameStateForCoins = state['game_state'] as Map<String, dynamic>? ?? {};
+      final rawCoinReq = gameStateForCoins['isCoinRequired'];
+      final isCoinRequired = rawCoinReq is bool ? rawCoinReq : true;
+
       // Call Python API to update statistics
       if (LOGGING_SWITCH) {
         _logger.info('GameStateCallback: Calling Python API to update game statistics');
       }
-      server.pythonClient.updateGameStats(gameResults).then((result) {
+      server.pythonClient.updateGameStats(
+        gameResults,
+        isCoinRequired: isCoinRequired,
+      ).then((result) {
         if (result['success'] == true) {
           if (LOGGING_SWITCH) {
             _logger.info('GameStateCallback: Successfully updated game statistics');

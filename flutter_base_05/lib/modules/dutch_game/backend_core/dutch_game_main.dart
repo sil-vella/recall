@@ -50,6 +50,8 @@ class DutchGameModule {
       final maxSize = data['max_size'] as int? ?? 4;
       final minPlayers = data['min_players'] as int? ?? 2;
       final gameType = data['game_type'] as String? ?? 'multiplayer';
+      final isCoinRequired =
+          data['is_coin_required'] as bool? ?? data['isCoinRequired'] as bool? ?? true;
 
       if (roomId == null || ownerId == null || sessionId == null) {
         if (LOGGING_SWITCH) {
@@ -206,6 +208,7 @@ class DutchGameModule {
           'drawPile': <Map<String, dynamic>>[],
           'discardPile': <Map<String, dynamic>>[],
           'originalDeck': <Map<String, dynamic>>[],
+          'isCoinRequired': isCoinRequired,
         },
       });
 

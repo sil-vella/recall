@@ -393,7 +393,11 @@ def _record_tournament_match_result(
 
 
 def update_game_stats():
-    """Update user game statistics after a game ends (service endpoint: Dart backend only, X-Service-Key auth)."""
+    """Update user game statistics after a game ends (service endpoint: Dart backend only, X-Service-Key auth).
+
+    Optional body ``is_coin_required`` / ``isCoinRequired`` (default true): when false, winner pot credits are
+    skipped for all players; combined with subscription tier in ``should_skip_match_coin_economy``.
+    """
     try:
         custom_log("📊 Python: Received game statistics update request", level="INFO", isOn=LOGGING_SWITCH)
         data = request.get_json()
@@ -405,6 +409,9 @@ def update_game_stats():
         if len(game_results) == 0:
             return jsonify({"success": False, "message": "game_results array cannot be empty", "error": "No game results provided"}), 400
         custom_log(f"📊 Python: Processing {len(game_results)} player result(s)", level="INFO", isOn=LOGGING_SWITCH)
+
+        _raw_coin_req = data.get("is_coin_required", data.get("isCoinRequired"))
+        game_coin_required = True if _raw_coin_req is None else bool(_raw_coin_req)
 
         if not _app_manager:
             return jsonify({"success": False, "message": "Server not initialized"}), 503
@@ -447,7 +454,10 @@ def update_game_stats():
                 is_winner = player_result.get('is_winner', False)
                 pot = player_result.get('pot', 0)
                 coins_to_add = 0
-                if is_winner and pot > 0 and not matcher.is_free_play_tier(subscription_tier):
+                # game_coin_required = room-wide; subscription_tier = this user's DB (promo skips credit only for them).
+                if is_winner and pot > 0 and not matcher.should_skip_match_coin_economy(
+                    subscription_tier, is_coin_required=game_coin_required
+                ):
                     coins_to_add = pot
                 new_total_matches = current_total_matches + 1
                 new_wins = current_wins + (1 if is_winner else 0)
@@ -632,6 +642,9 @@ def deduct_game_coins():
 
     Optional body field ``game_table_level`` (1–4): server sets the deduction to ``table_level_to_coin_fee``;
     if ``coins`` is also sent it must match that fee.
+
+    Optional ``is_coin_required`` / ``isCoinRequired`` (default true): when false, no coin validation and all
+    players are recorded as skipped (``coin_match_disabled``); same economy SSOT as ``update_game_stats``.
     """
     try:
         user_id = request.user_id
@@ -640,8 +653,67 @@ def deduct_game_coins():
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "error": "Request body is required", "message": "Missing request body"}), 400
+        _raw_coin_req = data.get("is_coin_required", data.get("isCoinRequired"))
+        game_coin_required = True if _raw_coin_req is None else bool(_raw_coin_req)
+
         game_id = data.get('game_id')
         player_ids = data.get('player_ids')
+        if not game_id or not isinstance(game_id, str):
+            return jsonify({"success": False, "error": "Invalid game_id", "message": "game_id is required and must be a string"}), 400
+        if not player_ids or not isinstance(player_ids, list) or len(player_ids) == 0:
+            return jsonify({"success": False, "error": "Invalid player_ids", "message": "player_ids must be a non-empty array"}), 400
+
+        if not game_coin_required:
+            if not _app_manager:
+                return jsonify({"success": False, "error": "Server not initialized"}), 503
+            db_manager = _app_manager.get_db_manager(role="read_write")
+            if not db_manager:
+                return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
+            updated_players = []
+            errors = []
+            for player_id_str in player_ids:
+                try:
+                    if not player_id_str or not isinstance(player_id_str, str):
+                        errors.append(f"Invalid player_id format: {player_id_str}")
+                        continue
+                    try:
+                        player_id = ObjectId(player_id_str)
+                    except Exception:
+                        errors.append(f"Invalid player_id format '{player_id_str}'")
+                        continue
+                    user = db_manager.find_one("users", {"_id": player_id})
+                    if not user:
+                        errors.append(f"User not found: {player_id_str}")
+                        continue
+                    dutch_game = (user.get("modules") or {}).get("dutch_game", {})
+                    updated_players.append({
+                        "user_id": player_id_str,
+                        "coins_deducted": 0,
+                        "previous_coins": dutch_game.get("coins", 0),
+                        "new_coins": dutch_game.get("coins", 0),
+                        "skipped": True,
+                        "reason": "coin_match_disabled",
+                    })
+                except Exception as e:
+                    errors.append(f"Error processing player {player_id_str}: {str(e)}")
+            if len(updated_players) > 0:
+                response_data = {
+                    "success": True,
+                    "message": f"Coin match disabled — recorded {len(updated_players)} player(s) as skipped",
+                    "game_id": game_id,
+                    "coins_deducted": 0,
+                    "updated_players": updated_players,
+                }
+                if errors:
+                    response_data["warnings"] = errors
+                return jsonify(response_data), 200
+            return jsonify({
+                "success": False,
+                "message": "Failed to record skipped players",
+                "error": "All players failed validation",
+                "errors": errors,
+            }), 500
+
         # Room table tier (1–4): fee is defined by table, not user progression level.
         game_table_level = data.get('game_table_level')
         coins = data.get('coins')
@@ -674,10 +746,6 @@ def deduct_game_coins():
                     table_level_for_gate = lvl
                     break
 
-        if not game_id or not isinstance(game_id, str):
-            return jsonify({"success": False, "error": "Invalid game_id", "message": "game_id is required and must be a string"}), 400
-        if not player_ids or not isinstance(player_ids, list) or len(player_ids) == 0:
-            return jsonify({"success": False, "error": "Invalid player_ids", "message": "player_ids must be a non-empty array"}), 400
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         db_manager = _app_manager.get_db_manager(role="read_write")
@@ -718,7 +786,7 @@ def deduct_game_coins():
                         )
                         continue
 
-                if matcher.is_free_play_tier(subscription_tier):
+                if matcher.should_skip_match_coin_economy(subscription_tier, is_coin_required=game_coin_required):
                     updated_players.append({"user_id": player_id_str, "coins_deducted": 0, "previous_coins": dutch_game.get('coins', 0), "new_coins": dutch_game.get('coins', 0), "skipped": True, "reason": "promotional_tier"})
                     continue
                 current_coins = dutch_game.get('coins', 0)
@@ -1122,6 +1190,7 @@ def start_tournament_match():
             "max_players": 4,
             "game_type": "classic",
             "permission": "private",
+            "is_coin_required": False,
         }
         return jsonify({
             "success": True,

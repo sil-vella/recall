@@ -314,6 +314,7 @@ class GameEventCoordinator {
     final roomInfo = roomManager.getRoomInfo(roomId);
     final minPlayers = roomInfo?.minPlayers ?? (data['min_players'] as int? ?? 2);
     final maxPlayers = roomInfo?.maxSize ?? (data['max_players'] as int? ?? 4);
+    final isCoinRequired = current['isCoinRequired'] as bool? ?? true;
 
     // Auto-create computer players
     // For practice mode: fill to maxPlayers (practice rooms start with "practice_room_")
@@ -903,7 +904,6 @@ class GameEventCoordinator {
     // showInstructions was already extracted earlier for deck selection
     
     // Calculate pot: coin_cost × number_of_active_players (regardless of subscription tier)
-    // Default coin cost is 25 (will be tied to match_class in future)
     final coinCost = 25;
     final activePlayerCount = players.length;
     final pot = coinCost * activePlayerCount;
@@ -939,6 +939,7 @@ class GameEventCoordinator {
         'match_class': 'standard', // Placeholder for future match class system
         'coin_cost_per_player': coinCost,
         'match_pot': pot,
+        'isCoinRequired': isCoinRequired,
         'isClearAndCollect': () {
           try {
             final rawValue = data['isClearAndCollect'];

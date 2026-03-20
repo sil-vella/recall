@@ -536,6 +536,7 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                 permission: 'public',
                                 gameType: 'classic',
                                 isTournament: true,
+                                isCoinRequired: false,
                                 tournamentData: {
                                   'tournament_id': tournamentId ?? '',
                                   'match_id': matchId,

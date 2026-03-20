@@ -74,6 +74,8 @@ class PythonApiClient {
     bool isTournament = false,
     Map<String, dynamic>? tournamentData,
     String? roomId,
+    /// When false, Python skips winner pot credit (with promotional tier in same SSOT).
+    bool? isCoinRequired,
   }) async {
     if (LOGGING_SWITCH) {
       _logger.info('📊 Dart: Updating game statistics for ${gameResults.length} player(s), isTournament=$isTournament');
@@ -98,6 +100,7 @@ class PythonApiClient {
       if (roomId != null && roomId.isNotEmpty) 'room_id': roomId,
       if (isTournament) 'is_tournament': true,
       if (isTournament && tournamentData != null && tournamentData.isNotEmpty) 'tournament_data': tournamentData,
+      if (isCoinRequired != null) 'is_coin_required': isCoinRequired,
     };
 
     try {

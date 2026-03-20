@@ -84,6 +84,8 @@ class DutchGameModule {
       final gameLevel = data['game_level'] as int?;
       final isTournament = data['is_tournament'] as bool? ?? false;
       final tournamentData = data['tournament_data'] as Map<String, dynamic>?;
+      final isCoinRequired =
+          data['is_coin_required'] as bool? ?? data['isCoinRequired'] as bool? ?? true;
       final permission = data['permission'] as String?;
       final createdAt = data['created_at'] as String?;
       final currentSize = data['current_size'] as int?;
@@ -236,6 +238,7 @@ class DutchGameModule {
       if (gameLevel != null) gameStateInner['gameLevel'] = gameLevel;
       if (isTournament) gameStateInner['is_tournament'] = true;
       if (tournamentData != null && tournamentData.isNotEmpty) gameStateInner['tournament_data'] = tournamentData;
+      gameStateInner['isCoinRequired'] = isCoinRequired;
       if (permission != null && permission.isNotEmpty) gameStateInner['permission'] = permission;
       if (createdAt != null && createdAt.isNotEmpty) gameStateInner['created_at'] = createdAt;
       if (currentSize != null) gameStateInner['current_size'] = currentSize;

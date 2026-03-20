@@ -18,6 +18,7 @@ import '../dutch_game/managers/dutch_game_state_updater.dart';
 import '../dutch_game/utils/dutch_game_helpers.dart';
 import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
 import '../../screens/admin_dashboard_screen/admin_dashboard_screen.dart';
+import '../../screens/coin_purchase_screen/coin_purchase_screen.dart';
 import '../dutch_game/screens/admin_tournaments_screen/admin_tournaments_screen.dart';
 
 /// Dutch Game Module
@@ -339,6 +340,15 @@ class DutchGameMain extends ModuleBase {
       drawerTitle: null,
       drawerIcon: null,
       drawerPosition: 999,
+    );
+
+    // Coin purchase (placeholder UI; also fed by insufficient-coins join flow)
+    navigationManager.registerRoute(
+      path: '/coin-purchase',
+      screen: (BuildContext context) => const CoinPurchaseScreen(),
+      drawerTitle: 'Buy coins',
+      drawerIcon: Icons.monetization_on,
+      drawerPosition: 4,
     );
   }
 

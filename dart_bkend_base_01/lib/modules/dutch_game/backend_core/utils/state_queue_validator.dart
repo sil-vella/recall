@@ -483,6 +483,13 @@ class StateQueueValidator {
       defaultValue: [],
       description: 'List of game IDs for which coins have already been deducted (prevents duplicate deductions)',
     ),
+    // Keep in sync with flutter_base_05 state_queue_validator (client-only usage; schema shared)
+    'lastCoinPurchaseJoinContext': DutchStateFieldSpec(
+      type: Map,
+      required: false,
+      nullable: true,
+      description: 'Last join_room_error coin context for client coin-purchase flow',
+    ),
   };
 
   /// Set the handler for applying validated updates (platform-specific)

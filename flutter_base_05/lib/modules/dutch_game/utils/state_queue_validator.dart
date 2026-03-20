@@ -39,7 +39,7 @@ class StateQueueValidator {
 
   /// Logger instance (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for match start / state updates
+  static const bool LOGGING_SWITCH = true; // lastCoinPurchaseJoinContext / coin-purchase flow (enable-logging-switch.mdc)
 
   /// Define the complete state schema with validation rules
   /// Must remain identical across Flutter and Dart backend implementations
@@ -556,6 +556,13 @@ class StateQueueValidator {
       required: false,
       defaultValue: [],
       description: 'List of game IDs for which coins have already been deducted (prevents duplicate deductions)',
+    ),
+    // Insufficient-coins join: stash server payload for /coin-purchase screen
+    'lastCoinPurchaseJoinContext': DutchStateFieldSpec(
+      type: Map,
+      required: false,
+      nullable: true,
+      description: 'Last join_room_error coin context (room_id, game_level, required_coins, server payload)',
     ),
   };
 

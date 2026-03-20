@@ -2396,7 +2396,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         }
         return;
       }
-      
+
       // Check if coins were already deducted for this game (prevent duplicate deductions)
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final coinsDeductedGames = Set<String>.from(currentState['coinsDeductedGames'] as List<dynamic>? ?? []);
@@ -2466,12 +2466,15 @@ When anyone has played a card with the **same rank** as your **collection card**
         _logger.info('💰 _handleCoinDeductionOnGameStart: Deducting coins for ${playerIds.length} player(s) out of ${players.length} total players');
       }
       
-      // Note: Backend will check each player's subscription_tier and skip deduction for promotional tier
+      // Backend SSOT: promotional tier or is_coin_required false → no deduction
+      final coinReq = gameState['isCoinRequired'];
+      final isCoinRequired = coinReq is bool ? coinReq : true;
       final result = await DutchGameHelpers.deductGameCoins(
         coins: coinCost,
         gameId: gameId,
         playerIds: playerIds,
         gameTableLevel: roomTableLevel,
+        isCoinRequired: isCoinRequired,
       );
       
       if (result != null && result['success'] == true) {

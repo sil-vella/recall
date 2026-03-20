@@ -678,6 +678,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
       final isTournament = gameState['is_tournament'] == true;
       final tournamentData = gameState['tournament_data'] as Map<String, dynamic>?;
+      final rawCoinReq = gameState['isCoinRequired'];
+      final isCoinRequired = rawCoinReq is bool ? rawCoinReq : true;
 
       // Call Python API to update statistics (and optional tournament stub)
       if (LOGGING_SWITCH) {
@@ -688,6 +690,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         isTournament: isTournament,
         tournamentData: tournamentData,
         roomId: roomId,
+        isCoinRequired: isCoinRequired,
       ).then((result) {
         if (result['success'] == true) {
           if (LOGGING_SWITCH) {

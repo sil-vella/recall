@@ -14,8 +14,8 @@ import '../../modules/dutch_game/managers/feature_contracts.dart';
 import '../../modules/dutch_game/managers/feature_registry_manager.dart';
 import '../widgets/state_aware_features/index.dart';
 import '../widgets/instant_message_modal.dart';
+import '../widgets/instant_notification_response.dart';
 import '../managers/state_manager.dart';
-import '../managers/hooks_manager.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../tools/logging/logger.dart';
@@ -499,29 +499,15 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       onSendResponse: api == null
           ? null
           : (String messageId, String actionIdentifier) async {
-              try {
-                final res = await api.sendPostRequest(
-                  '/userauth/notifications/response',
-                  {'message_id': messageId, 'action_identifier': actionIdentifier},
-                ) as Map<String, dynamic>? ?? {};
-                final ok = res['success'] == true;
-                if (ok && context.mounted) {
-                  if (messageId.isNotEmpty) {
-                    await mod.markAsRead([messageId]);
-                  }
-                  final message = list.cast<Map<String, dynamic>>().where((m) => m['id']?.toString() == messageId).firstOrNull ?? <String, dynamic>{};
-                  final msgId = message['msg_id']?.toString() ?? '';
-                  HooksManager().triggerHookWithData('instant_message_response_success', {
-                    'context': context,
-                    'msg_id': msgId,
-                    'response': res,
-                    'message': message,
-                  });
-                }
-                return ok;
-              } catch (_) {
-                return false;
-              }
+              final message = list.cast<Map<String, dynamic>>().where((m) => m['id']?.toString() == messageId).firstOrNull ?? <String, dynamic>{};
+              return submitInstantNotificationResponse(
+                api: api,
+                mod: mod,
+                messageId: messageId,
+                actionIdentifier: actionIdentifier,
+                context: context,
+                messageRow: message,
+              );
             },
     );
   }

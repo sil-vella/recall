@@ -69,6 +69,7 @@ class DutchGameEventEmitter {
       'is_tournament', 'tournament_data', // Optional: tournament match (id, name, format, leaderboard, matches_left)
       'accepted_players', // Optional: list of { user_id, username, is_comp_player } for create-match invite flow
       'add_creator_to_room', // Optional: when false, room is created but creator is not added (default true)
+      'is_coin_required', // Optional: echoed into game state; default true
     },
     'join_room': {
       'room_id', 'password', 'user_id', 'game_level', // user_id fallback; game_level default 1
@@ -132,6 +133,11 @@ class DutchGameEventEmitter {
       type: bool,
       required: false,
       description: 'When true (default), creator is added to the room. When false, room is created but creator is not in it.',
+    ),
+    'is_coin_required': DutchEventFieldSpec(
+      type: bool,
+      required: false,
+      description: 'Whether the match expects coin entry (metadata; stored in game state as isCoinRequired).',
     ),
     'game_type': DutchEventFieldSpec(
       type: String,

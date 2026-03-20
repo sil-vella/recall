@@ -317,6 +317,7 @@ class GameEventCoordinator {
     final maxPlayers = roomInfo?.maxSize ?? (data['max_players'] as int? ?? 4);
     // Game level from state (set in room_created) or room; used for coin fee and stored in game_state
     final gameLevel = current['gameLevel'] as int? ?? roomInfo?.gameLevel;
+    final isCoinRequired = current['isCoinRequired'] as bool? ?? true;
 
     // Auto-create computer players
     // For practice mode: fill to maxPlayers (practice rooms start with "practice_room_")
@@ -905,7 +906,8 @@ class GameEventCoordinator {
 
     // showInstructions was already extracted earlier for deck selection
     
-    // Calculate pot: coin_cost × players — fee from **room table** tier only (LevelMatcher).
+    // Display pot: table fee × all seated players (room-wide). Promotional tier is per-user at
+    // deduct / Python stats time — it does not reduce match_pot for regular players' UI.
     final coinCost = LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25);
     final activePlayerCount = players.length;
     final pot = coinCost * activePlayerCount;
@@ -942,6 +944,7 @@ class GameEventCoordinator {
         'match_class': 'standard', // Placeholder for future match class system
         'coin_cost_per_player': coinCost,
         'match_pot': pot,
+        'isCoinRequired': isCoinRequired,
         'isClearAndCollect': () {
           try {
             final rawValue = data['isClearAndCollect'];

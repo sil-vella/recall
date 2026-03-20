@@ -60,6 +60,7 @@ class DutchGameHelpers {
   /// [addCreatorToRoom] If true, the creator is added to the room as a participant (default true).
   /// [isTournament] Optional: true when this room is for a tournament match.
   /// [tournamentData] Optional: tournament payload (e.g. id, name, format, leaderboard, matches_left, match_index).
+  /// [isCoinRequired] Carried in payload as `is_coin_required` and into game state as `isCoinRequired` (default true).
   static Future<Map<String, dynamic>> createRoom({
     required String permission,
     required int maxPlayers,
@@ -72,6 +73,7 @@ class DutchGameHelpers {
     int? gameLevel,
     bool? isTournament,
     Map<String, dynamic>? tournamentData,
+    bool isCoinRequired = true,
   }) async {
     try {
       // 🎯 CRITICAL: Clear all existing game state before starting new game
@@ -94,6 +96,7 @@ class DutchGameHelpers {
       'game_type': gameType,
       'auto_start': autoStart,
       'add_creator_to_room': addCreatorToRoom,
+      'is_coin_required': isCoinRequired,
     };
     data['game_level'] = gameLevel ?? 1;
     // Add password for private rooms
@@ -790,6 +793,8 @@ class DutchGameHelpers {
     required String gameId,
     required List<String> playerIds,
     int? gameTableLevel,
+    /// When false, API skips deductions for all players (same SSOT as promotional tier).
+    bool? isCoinRequired,
   }) async {
     try {
       if (LOGGING_SWITCH) {
@@ -811,6 +816,7 @@ class DutchGameHelpers {
         'game_id': gameId,
         'player_ids': playerIds,
         if (gameTableLevel != null) 'game_table_level': gameTableLevel,
+        if (isCoinRequired != null) 'is_coin_required': isCoinRequired,
       };
       
       // Make API call to deduct coins

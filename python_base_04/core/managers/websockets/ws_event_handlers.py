@@ -409,6 +409,7 @@ class WSEventHandlers:
                         'owner_id': owner_id,
                         'max_size': data.get('max_players') or Config.WS_ROOM_SIZE_LIMIT,  # Use frontend value or config fallback
                         'min_players': data.get('min_players') or 2,  # Use frontend value or default fallback
+                        'is_coin_required': bool(data.get('is_coin_required', True)),
                         'timestamp': datetime.now().isoformat(),
                     })
                     
@@ -433,6 +434,7 @@ class WSEventHandlers:
                         'game_type': data.get('game_type', 'classic'),
                         'turn_time_limit': data.get('turn_time_limit', 30),
                         'auto_start': data.get('auto_start', True),
+                        'is_coin_required': bool(data.get('is_coin_required', True)),
                         'created_at': datetime.now().isoformat(),
                         'current_size': 1
                     }

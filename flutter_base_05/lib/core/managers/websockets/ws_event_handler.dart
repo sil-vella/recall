@@ -9,7 +9,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // WS room/game handlers, random join responses (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // join_room_error coin payload → hook (enable-logging-switch.mdc)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -389,6 +389,16 @@ class WSEventHandler {
   /// Handle join room error event
   void handleJoinRoomError(dynamic data) {
     try {
+      final Map<String, dynamic> payload = data is Map
+          ? Map<String, dynamic>.from(data)
+          : <String, dynamic>{};
+      final message = payload['message']?.toString() ?? '';
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '📛 join_room_error message=$message keys=${payload.keys.toList()} room_id=${payload['room_id']} game_level=${payload['game_level']} required_coins=${payload['required_coins']}',
+        );
+      }
+
       // Trigger error callbacks
       _eventManager.triggerCallbacks('error', {
         'error': 'Failed to join room',
@@ -402,6 +412,11 @@ class WSEventHandler {
       HooksManager().triggerHookWithData('websocket_join_room_error', {
         'status': 'error',
         'error': 'Failed to join room',
+        'message': message,
+        'room_id': payload['room_id'],
+        'game_level': payload['game_level'],
+        'required_coins': payload['required_coins'],
+        'payload': payload,
         'details': data.toString(),
         'timestamp': DateTime.now().toIso8601String(),
       });

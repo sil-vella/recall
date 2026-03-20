@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../core/managers/module_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../core/managers/hooks_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../backend_core/utils/level_matcher.dart';
+import '../../../../../modules/connections_api_module/connections_api_module.dart';
+import '../../../../../modules/user_management_module/user_management_module.dart';
 
 /// Unified widget for creating and joining games
 class CreateJoinGameWidget extends StatefulWidget {
@@ -646,6 +649,22 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
   /// After successful create: room id + echo of settings for display.
   Map<String, dynamic>? _createdSummary;
 
+  /// Same availability check as admin tournaments match picker (`ConnectionsApiModule` + `UserManagementModule`).
+  bool _inviteSearchReady = false;
+  UserManagementModule? _userManagementModule;
+  ConnectionsApiModule? _connectionsApi;
+
+  /// After room created: [Join Match] stays off until notify succeeds + delay when there are invitees.
+  bool _joinMatchEnabled = false;
+  bool _notifyPlayersInProgress = false;
+  bool _inviteNotificationsSent = false;
+
+  /// Mirrors admin tournament match dialog: min 3 chars, 350ms debounce, [UserManagementModule.searchByUsername].
+  String _inviteSearchQuery = '';
+  List<Map<String, dynamic>> _inviteSearchResults = [];
+  List<Map<String, dynamic>> _inviteSelectedUsers = [];
+  bool _inviteSearching = false;
+
   int _currentUserLevel() {
     final stats = DutchGameHelpers.getUserDutchGameStats();
     final raw = stats?['level'];
@@ -672,6 +691,181 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     super.initState();
     _selectedGameType = widget.selectedGameType;
     _selectedTableLevel = _firstUnlockedTableLevel();
+    final moduleManager = ModuleManager();
+    _connectionsApi = moduleManager.getModuleByType<ConnectionsApiModule>();
+    _userManagementModule = moduleManager.getModuleByType<UserManagementModule>();
+    _inviteSearchReady = _connectionsApi != null && _userManagementModule != null;
+  }
+
+  List<Map<String, dynamic>> _acceptedPlayersPayload() {
+    return _inviteSelectedUsers
+        .map((u) {
+          final uid = u['user_id']?.toString() ?? u['_id']?.toString() ?? '';
+          final username = u['username']?.toString() ?? '';
+          return <String, dynamic>{
+            'user_id': uid,
+            'username': username,
+            'is_comp_player': false,
+          };
+        })
+        .where((e) => (e['user_id'] as String).isNotEmpty)
+        .toList();
+  }
+
+  Widget _buildInviteFriendsSection() {
+    if (!_inviteSearchReady) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: AppPadding.defaultPadding.top),
+          Text(
+            'Invite friends (optional)',
+            style: AppTextStyles.label().copyWith(color: AppColors.white),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'User search is not available. Use the app logged in with API access.',
+            style: AppTextStyles.caption().copyWith(color: AppColors.warningColor),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: AppPadding.defaultPadding.top),
+        Text(
+          'Search users (username or email)',
+          style: AppTextStyles.label().copyWith(color: AppColors.white),
+        ),
+        SizedBox(height: 4),
+        Semantics(
+          label: 'create_room_field_invite_search',
+          identifier: 'create_room_field_invite_search',
+          textField: true,
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Min 3 characters – results update as you type',
+              hintStyle: AppTextStyles.bodyMedium().copyWith(color: AppColors.textSecondary),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.4)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                borderSide: BorderSide(color: AppColors.borderFocused),
+              ),
+              filled: true,
+              fillColor: AppColors.primaryColor,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: AppPadding.defaultPadding.left,
+                vertical: AppPadding.mediumPadding.top,
+              ),
+              suffixIcon: _inviteSearching
+                  ? Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentColor),
+                      ),
+                    )
+                  : null,
+            ),
+            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+            onChanged: (v) {
+              setState(() {
+                _inviteSearchQuery = v;
+                if (v.trim().length < 3) {
+                  _inviteSearchResults = [];
+                }
+              });
+              if (v.trim().length >= 3) {
+                final q = v.trim();
+                setState(() => _inviteSearching = true);
+                Future.delayed(const Duration(milliseconds: 350), () async {
+                  final list = await _userManagementModule!.searchByUsername(q, limit: 20);
+                  if (!mounted) return;
+                  setState(() {
+                    if (_inviteSearchQuery.trim() == q) _inviteSearchResults = list;
+                    _inviteSearching = false;
+                  });
+                });
+              }
+            },
+          ),
+        ),
+        if (_inviteSearchResults.isNotEmpty) ...[
+          SizedBox(height: 8),
+          Text('Results', style: AppTextStyles.caption().copyWith(color: AppColors.white)),
+          Semantics(
+            identifier: 'create_room_list_invite_results',
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 120),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const ClampingScrollPhysics(),
+                itemCount: _inviteSearchResults.length,
+                itemBuilder: (_, i) {
+                  final u = _inviteSearchResults[i];
+                  final uid = u['user_id']?.toString() ?? u['_id']?.toString() ?? '';
+                  final username = u['username']?.toString() ?? '';
+                  final email = u['email']?.toString() ?? '';
+                  final already = _inviteSelectedUsers.any(
+                    (s) => (s['user_id']?.toString() ?? s['_id']?.toString()) == uid,
+                  );
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      username.isNotEmpty ? username : uid,
+                      style: AppTextStyles.bodySmall().copyWith(color: AppColors.textOnPrimary),
+                    ),
+                    subtitle: email.isNotEmpty
+                        ? Text(email, style: AppTextStyles.caption().copyWith(color: AppColors.textSecondary))
+                        : null,
+                    trailing: already
+                        ? Icon(Icons.check, color: AppColors.accentColor, size: 20)
+                        : Icon(Icons.add, color: AppColors.accentColor, size: 20),
+                    onTap: already
+                        ? null
+                        : () {
+                            setState(() {
+                              _inviteSelectedUsers.add({...u, 'user_id': uid});
+                            });
+                          },
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+        if (_inviteSelectedUsers.isNotEmpty) ...[
+          SizedBox(height: 12),
+          Text('Invited', style: AppTextStyles.caption().copyWith(color: AppColors.white)),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _inviteSelectedUsers.map((u) {
+              final uid = u['user_id']?.toString() ?? '';
+              final label = u['username']?.toString() ?? u['email']?.toString() ?? uid;
+              return Chip(
+                label: Text(label, style: AppTextStyles.caption().copyWith(color: AppColors.textOnPrimary)),
+                deleteIcon: Icon(Icons.close, size: 16, color: AppColors.textOnPrimary),
+                onDeleted: () => setState(() {
+                  _inviteSelectedUsers.removeWhere((e) => (e['user_id']?.toString()) == uid);
+                }),
+                backgroundColor: AppColors.cardVariant,
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
   }
 
   Future<void> _onCreateRoomPressed() async {
@@ -684,6 +878,10 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
       'autoStart': false,
       'gameLevel': _selectedTableLevel,
     };
+    final accepted = _acceptedPlayersPayload();
+    if (accepted.isNotEmpty) {
+      roomSettings['accepted_players'] = accepted;
+    }
     setState(() => _isSubmitting = true);
     try {
       final result = await widget.onCreateRoom(roomSettings);
@@ -713,16 +911,36 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
         }
       }
 
+      final invitedUserIds = _inviteSelectedUsers
+          .map((u) => u['user_id']?.toString() ?? u['_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+      final rid = roomId ?? '';
       setState(() {
         _isSubmitting = false;
         _createdSummary = {
-          'room_id': roomId ?? '',
+          'room_id': rid,
           'gameType': roomSettings['gameType'],
           'maxPlayers': roomSettings['maxPlayers'],
           'minPlayers': roomSettings['minPlayers'],
           'gameLevel': roomSettings['gameLevel'],
           'permission': roomSettings['permission'],
+          'invited_labels': _inviteSelectedUsers
+              .map(
+                (u) =>
+                    u['username']?.toString() ??
+                    u['email']?.toString() ??
+                    u['user_id']?.toString() ??
+                    '',
+              )
+              .where((s) => s.isNotEmpty)
+              .toList(),
+          'invited_user_ids': invitedUserIds,
         };
+        // Same idea as admin tournaments: if nobody to notify, join is allowed once we have a room id.
+        _joinMatchEnabled = invitedUserIds.isEmpty && rid.isNotEmpty;
+        _notifyPlayersInProgress = false;
+        _inviteNotificationsSent = false;
       });
     } catch (e) {
       if (mounted) {
@@ -737,6 +955,102 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     }
   }
 
+  List<String> _summaryInvitedUserIds(Map<String, dynamic> s) {
+    final raw = s['invited_user_ids'];
+    if (raw is! List) return [];
+    return raw.map((e) => e.toString().trim()).where((x) => x.isNotEmpty).toList();
+  }
+
+  /// Same endpoint and payload shape as admin tournament match [Notify Players].
+  Future<void> _notifyInvitedPlayers() async {
+    final s = _createdSummary;
+    if (s == null || !mounted) return;
+    final roomId = s['room_id']?.toString() ?? '';
+    final userIds = _summaryInvitedUserIds(s);
+    if (roomId.isEmpty || userIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No players to notify',
+            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+          ),
+          backgroundColor: AppColors.warningColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final api = _connectionsApi ?? ModuleManager().getModuleByType<ConnectionsApiModule>();
+    if (api == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'API not available',
+            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+          ),
+          backgroundColor: AppColors.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    setState(() => _notifyPlayersInProgress = true);
+    try {
+      final body = <String, dynamic>{
+        'user_ids': userIds,
+        'room_id': roomId,
+        'title': 'Match invite',
+        'body': 'You are invited to join a match. Room ID: $roomId',
+      };
+      final response = await api.sendPostRequest(
+        '/userauth/dutch/invite-players-to-match',
+        body,
+      );
+      if (!mounted) return;
+      final map = response is Map ? Map<String, dynamic>.from(Map.from(response)) : null;
+      final success = map?['success'] == true;
+      setState(() {
+        _notifyPlayersInProgress = false;
+        if (success) _inviteNotificationsSent = true;
+      });
+      final notified = map?['notified'] as int? ?? 0;
+      final requested = map?['requested'] as int? ?? 0;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success
+                ? 'Notified $notified of $requested player(s). Join Match enables in 5s.'
+                : (map?['error']?.toString() ?? 'Failed to notify players'),
+            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+          ),
+          backgroundColor: success ? AppColors.successColor : AppColors.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      if (success) {
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) {
+            setState(() => _joinMatchEnabled = true);
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _notifyPlayersInProgress = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error: $e',
+              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+            ),
+            backgroundColor: AppColors.errorColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildCreatedSummary(BuildContext context) {
     final s = _createdSummary!;
     final roomId = s['room_id']?.toString() ?? '';
@@ -747,6 +1061,18 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     final maxP = s['maxPlayers'] ?? 4;
     final minP = s['minPlayers'] ?? 2;
     final permission = s['permission']?.toString() ?? 'private';
+    final invitedRaw = s['invited_labels'];
+    final invitedLine = invitedRaw is List
+        ? invitedRaw.map((e) => e.toString()).where((x) => x.isNotEmpty).join(', ')
+        : '';
+    final invitedUserIds = _summaryInvitedUserIds(s);
+    final roomIdBlank = roomId.isEmpty;
+    final canNotify = !roomIdBlank &&
+        invitedUserIds.isNotEmpty &&
+        _connectionsApi != null &&
+        !_notifyPlayersInProgress &&
+        !_inviteNotificationsSent;
+    final canJoinMatch = !roomIdBlank && _joinMatchEnabled;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,36 +1138,89 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
         _summaryRow('Table', '$level — $levelTitle'),
         _summaryRow('Players', '$minP–$maxP'),
         _summaryRow('Visibility', permission == 'private' ? 'Private (invite by ID)' : permission),
+        if (invitedLine.isNotEmpty) _summaryRow('Invited', invitedLine),
+        if (invitedUserIds.isNotEmpty) ...[
+          SizedBox(height: AppPadding.smallPadding.top),
+          Text(
+            'Tap Notify Players to send a match invite, then Join Match when it enables (5s after notify).',
+            style: AppTextStyles.caption().copyWith(color: AppColors.textSecondary),
+          ),
+        ],
         SizedBox(height: AppPadding.largePadding.top),
         Row(
           children: [
             Expanded(
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.white.withValues(alpha: 0.5)),
-                  foregroundColor: AppColors.white,
+              child: Semantics(
+                label: 'create_room_summary_notify_players',
+                identifier: 'create_room_summary_notify_players',
+                button: true,
+                child: TextButton(
+                  onPressed: canNotify ? _notifyInvitedPlayers : null,
+                  style: TextButton.styleFrom(
+                    backgroundColor: canNotify ? AppColors.accentColor : AppColors.disabledColor,
+                    foregroundColor: canNotify ? AppColors.textOnAccent : AppColors.textSecondary,
+                    padding: AppPadding.cardPadding,
+                    shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
+                  ),
+                  child: _notifyPlayersInProgress
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.textOnAccent,
+                          ),
+                        )
+                      : Text(
+                          'Notify Players',
+                          style: AppTextStyles.buttonText().copyWith(
+                            color: canNotify ? AppColors.textOnAccent : AppColors.textSecondary,
+                          ),
+                        ),
                 ),
-                child: Text('Close', style: AppTextStyles.buttonText().copyWith(color: AppColors.white)),
               ),
             ),
-            SizedBox(width: AppPadding.defaultPadding.left),
+            SizedBox(width: AppPadding.smallPadding.left),
             Expanded(
-              child: ElevatedButton(
-                onPressed: roomId.isEmpty
-                    ? null
-                    : () {
-                        Navigator.pop(context);
-                        NavigationManager().navigateTo('/dutch/game-play');
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accentColor,
-                  foregroundColor: AppColors.textOnAccent,
+              child: Semantics(
+                label: 'create_room_summary_join_match',
+                identifier: 'create_room_summary_join_match',
+                button: true,
+                child: TextButton(
+                  onPressed: canJoinMatch
+                      ? () {
+                          Navigator.pop(context);
+                          NavigationManager().navigateTo('/dutch/game-play');
+                        }
+                      : null,
+                  style: TextButton.styleFrom(
+                    backgroundColor: canJoinMatch ? AppColors.successColor : AppColors.disabledColor,
+                    foregroundColor: canJoinMatch ? AppColors.textOnAccent : AppColors.textSecondary,
+                    padding: AppPadding.cardPadding,
+                    shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
+                  ),
+                  child: Text(
+                    'Join Match',
+                    style: AppTextStyles.buttonText().copyWith(
+                      color: canJoinMatch ? AppColors.textOnAccent : AppColors.textSecondary,
+                    ),
+                  ),
                 ),
-                child: Text('Open table', style: AppTextStyles.buttonText()),
               ),
             ),
           ],
+        ),
+        SizedBox(height: AppPadding.defaultPadding.top),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppColors.white.withValues(alpha: 0.5)),
+              foregroundColor: AppColors.white,
+            ),
+            child: Text('Close', style: AppTextStyles.buttonText().copyWith(color: AppColors.white)),
+          ),
         ),
       ],
     );
@@ -1044,6 +1423,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                                   },
                                 ),
                               ),
+                              _buildInviteFriendsSection(),
                               SizedBox(height: AppPadding.largePadding.top),
                             ],
                           ),

@@ -348,15 +348,18 @@ class PythonApiClient {
   }
 
   /// Before rematch reset: send full store + room snapshot to Python for tournament persistence (service key).
-  /// Handler currently logs payload only.
+  /// [initialMatchGameResults] — finished casual game rows (same shape as [updateGameStats] `game_results`);
+  /// Python stores them as `match_index` 1 `completed` when creating the tournament.
   Future<Map<String, dynamic>> notifyRematchTournamentSnapshot({
     required String roomId,
     required Map<String, dynamic> storeSnapshot,
     required Map<String, dynamic> roomSnapshot,
+    List<Map<String, dynamic>>? initialMatchGameResults,
   }) async {
     if (LOGGING_SWITCH) {
       _logger.info(
-        '🏟 Dart: rematch-tournament-snapshot room_id=$roomId store_keys=${storeSnapshot.keys.toList()}',
+        '🏟 Dart: rematch-tournament-snapshot room_id=$roomId store_keys=${storeSnapshot.keys.toList()} '
+        'initial_match_rows=${initialMatchGameResults?.length ?? 0}',
       );
       _logger.info('🌐 Dart: Calling $baseUrl/service/dutch/rematch-tournament-snapshot');
     }
@@ -380,6 +383,8 @@ class PythonApiClient {
       'room_id': roomId,
       'store_snapshot': storeSnapshot,
       'room_snapshot': roomSnapshot,
+      if (initialMatchGameResults != null && initialMatchGameResults.isNotEmpty)
+        'initial_match_game_results': initialMatchGameResults,
     };
 
     try {

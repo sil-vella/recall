@@ -176,16 +176,14 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
       final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
 
-      final payload = <String, dynamic>{
-        'event': 'game_state_updated',
-        'game_id': roomId,
-        'game_state': filteredGameState,
-        'turn_events': turnEvents,
-        if (ownerId != null) 'owner_id': ownerId,
-        if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
-        if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
+      final payload = _gameStateUpdatedPayloadBase(
+        filteredGameState: filteredGameState,
+        turnEvents: turnEvents,
+        ownerId: ownerId,
+        myCardsToPeekFromState: myCardsToPeekFromState,
+        cardsToPeekFromState: cardsToPeekFromState,
+        winners: null,
+      );
       if (LOGGING_STATE_SIZE_SWITCH) {
         _gameStateEmitCount++;
         final sizeBytes = utf8.encode(jsonEncode(payload)).length;
@@ -262,17 +260,14 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
 
-      final payload = <String, dynamic>{
-        'event': 'game_state_updated',
-        'game_id': roomId,
-        'game_state': filteredGameState,
-        'turn_events': turnEvents,
-        if (winners != null) 'winners': winners,
-        if (ownerId != null) 'owner_id': ownerId,
-        if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
-        if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
+      final payload = _gameStateUpdatedPayloadBase(
+        filteredGameState: filteredGameState,
+        turnEvents: turnEvents,
+        ownerId: ownerId,
+        myCardsToPeekFromState: myCardsToPeekFromState,
+        cardsToPeekFromState: cardsToPeekFromState,
+        winners: winners,
+      );
       if (LOGGING_STATE_SIZE_SWITCH) {
         _gameStateEmitCount++;
         final sizeBytes = utf8.encode(jsonEncode(payload)).length;
@@ -298,6 +293,32 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     return filtered;
   }
 
+  /// [Room.isRandomJoin] — included on every `game_state_updated` so the Flutter client can persist
+  /// `gameData.is_random_join` (WS payload did not carry it; `isRandomJoinInProgress` clears too early).
+  bool _roomIsRandomJoin() => server.getRoomInfo(roomId)?.isRandomJoin == true;
+
+  Map<String, dynamic> _gameStateUpdatedPayloadBase({
+    required Map<String, dynamic> filteredGameState,
+    required List<dynamic> turnEvents,
+    String? ownerId,
+    List<dynamic>? myCardsToPeekFromState,
+    List<dynamic>? cardsToPeekFromState,
+    List<dynamic>? winners,
+  }) {
+    return <String, dynamic>{
+      'event': 'game_state_updated',
+      'game_id': roomId,
+      'game_state': filteredGameState,
+      'turn_events': turnEvents,
+      if (winners != null) 'winners': winners,
+      if (ownerId != null) 'owner_id': ownerId,
+      if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
+      if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
+      if (_roomIsRandomJoin()) 'is_random_join': true,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+  }
+
   /// Broadcast current store state (e.g. after Python [update_game_stats] returns enriched `tournament_data`).
   void _broadcastFullGameStateFromStore() {
     final state = _store.getState(roomId);
@@ -309,16 +330,14 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
     final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
     final ownerId = server.getRoomOwner(roomId);
-    final payload = <String, dynamic>{
-      'event': 'game_state_updated',
-      'game_id': roomId,
-      'game_state': filteredGameState,
-      'turn_events': turnEvents,
-      if (ownerId != null) 'owner_id': ownerId,
-      if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
-      if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
-      'timestamp': DateTime.now().toIso8601String(),
-    };
+    final payload = _gameStateUpdatedPayloadBase(
+      filteredGameState: filteredGameState,
+      turnEvents: turnEvents,
+      ownerId: ownerId,
+      myCardsToPeekFromState: myCardsToPeekFromState,
+      cardsToPeekFromState: cardsToPeekFromState,
+      winners: null,
+    );
     server.broadcastToRoom(roomId, payload);
   }
 
@@ -409,17 +428,14 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
     }
     
-    final payload = <String, dynamic>{
-      'event': 'game_state_updated',
-      'game_id': roomId,
-      'game_state': filteredGameState,
-      'turn_events': turnEvents,
-      if (winners != null) 'winners': winners,
-      if (ownerId != null) 'owner_id': ownerId,
-      if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
-      if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
-      'timestamp': DateTime.now().toIso8601String(),
-    };
+    final payload = _gameStateUpdatedPayloadBase(
+      filteredGameState: filteredGameState,
+      turnEvents: turnEvents,
+      ownerId: ownerId,
+      myCardsToPeekFromState: myCardsToPeekFromState,
+      cardsToPeekFromState: cardsToPeekFromState,
+      winners: winners,
+    );
     if (LOGGING_STATE_SIZE_SWITCH) {
       _gameStateEmitCount++;
       final sizeBytes = utf8.encode(jsonEncode(payload)).length;

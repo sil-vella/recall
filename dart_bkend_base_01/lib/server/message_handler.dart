@@ -16,6 +16,55 @@ import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 // Logging switch for this file
 const bool LOGGING_SWITCH = true; // rematch + coin verify; join_random_game + room (enable-logging-switch.mdc)
 
+/// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
+/// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.
+///
+/// [GameRegistry._applyValidatedUpdates] merges `gamePhase` and `winners` onto the **store root**
+/// (`mergeRoot`); inner [game_state] uses `phase` (not `gamePhase`) for broadcast. Read root first.
+List<Map<String, dynamic>>? buildInitialMatchGameResultsForRematchSnapshot(
+  Map<String, dynamic> storeRoot,
+  String? Function(String sessionId) getUserIdForSession,
+) {
+  final gs = storeRoot['game_state'];
+  final gsMap = gs is Map ? Map<String, dynamic>.from(gs) : null;
+
+  final phaseRoot = storeRoot['gamePhase']?.toString() ?? '';
+  final phaseInner = gsMap?['gamePhase']?.toString() ??
+      gsMap?['phase']?.toString() ??
+      '';
+  final phase = phaseRoot.isNotEmpty ? phaseRoot : phaseInner;
+  if (phase != 'game_ended') return null;
+
+  final raw = storeRoot['winners'] ?? gsMap?['winners'];
+  if (raw is! List || raw.isEmpty) return null;
+
+  final out = <Map<String, dynamic>>[];
+  for (final item in raw) {
+    if (item is! Map) continue;
+    final m = item.map((k, v) => MapEntry(k.toString(), v));
+    final playerId = m['playerId']?.toString() ?? '';
+    if (playerId.isEmpty) continue;
+    var uid = getUserIdForSession(playerId);
+    uid ??= m['userId']?.toString();
+    if (uid == null || uid.isEmpty) continue;
+    final winType = m['winType'];
+    final isWinner = winType != null;
+    final pts = m['points'];
+    final cc = m['cardCount'];
+    final pi = pts is num ? pts.toInt() : int.tryParse('$pts') ?? 0;
+    final ci = cc is num ? cc.toInt() : int.tryParse('$cc') ?? 0;
+    out.add({
+      'user_id': uid,
+      'is_winner': isWinner,
+      'total_end_points': pi,
+      'end_card_count': ci,
+      'pot': 0,
+      if (isWinner && winType != null) 'win_type': winType.toString(),
+    });
+  }
+  return out.isEmpty ? null : out;
+}
+
 class MessageHandler {
   final RoomManager _roomManager;
   final WebSocketServer _server;
@@ -562,10 +611,15 @@ class MessageHandler {
           .toList();
     }
 
+    final initialMatch = buildInitialMatchGameResultsForRematchSnapshot(
+      storeSnapshot,
+      _server.getUserIdForSession,
+    );
     final result = await _server.pythonClient.notifyRematchTournamentSnapshot(
       roomId: roomId,
       storeSnapshot: storeSnapshot,
       roomSnapshot: roomSnapshot,
+      initialMatchGameResults: initialMatch,
     );
     room.pendingRematchTournamentData = null;
     if (result['success'] == true) {

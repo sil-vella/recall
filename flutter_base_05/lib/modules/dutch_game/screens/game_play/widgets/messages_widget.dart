@@ -302,7 +302,6 @@ class GameEndedModalData {
     required this.autoCloseDelay,
     required this.orderedWinners,
     required this.isCurrentUserWinner,
-    this.userStats,
     required this.currentUserId,
     required this.gameId,
     required this.showPlayAgain,
@@ -321,7 +320,6 @@ class GameEndedModalData {
   /// Deep-copied rows from `game_state.winners` at capture time.
   final List<Map<String, dynamic>> orderedWinners;
   final bool isCurrentUserWinner;
-  final Map<String, dynamic>? userStats;
   /// Captured once with the snapshot (for "You" labels); not read from globals in the modal.
   final String currentUserId;
 
@@ -392,8 +390,6 @@ class GameEndedModalData {
       }
     }
 
-    final rawStats = dutchGameState['userStats'] as Map<String, dynamic>?;
-    final userStats = rawStats == null ? null : Map<String, dynamic>.from(rawStats);
     final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
 
     final tournamentLeaderboard = _buildTournamentLeaderboardRows(
@@ -412,7 +408,6 @@ class GameEndedModalData {
       autoCloseDelay: autoCloseDelay,
       orderedWinners: deepWinners,
       isCurrentUserWinner: isCurrentUserWinner,
-      userStats: userStats,
       currentUserId: currentUserId,
       gameId: currentGameId,
       showPlayAgain: showPlayAgain,
@@ -452,30 +447,6 @@ IconData _modalMessageTypeIcon(String messageType) {
     default:
       return Icons.info;
   }
-}
-
-Widget _modalStatChip(IconData icon, String label, String value, Color color) {
-  return Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, size: 18, color: color),
-      const SizedBox(height: 2),
-      Text(
-        value,
-        style: AppTextStyles.bodyMedium().copyWith(
-          color: AppColors.white,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      Text(
-        label,
-        style: AppTextStyles.label().copyWith(
-          color: AppColors.textSecondary,
-          fontSize: 11,
-        ),
-      ),
-    ],
-  );
 }
 
 /// Ordered standings — uses only [orderedWinners] and [currentUserId] from [GameEndedModalData].
@@ -621,39 +592,6 @@ Widget _gameEndedOrderedWinnersColumn(
         ),
       ],
     ],
-  );
-}
-
-Widget _gameEndedUserStatsRow(Map<String, dynamic> userStats) {
-  final wins = userStats['wins'] as int? ?? 0;
-  final losses = userStats['losses'] as int? ?? 0;
-  final totalMatches = userStats['total_matches'] as int? ?? 0;
-  final draws = totalMatches - wins - losses;
-  final coins = userStats['coins'] as int? ?? 0;
-
-  return Container(
-    padding: EdgeInsets.symmetric(
-      horizontal: AppPadding.cardPadding.left,
-      vertical: AppPadding.smallPadding.top,
-    ),
-    decoration: BoxDecoration(
-      color: AppColors.cardVariant.withValues(alpha: 0.6),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    margin: EdgeInsets.only(
-      left: AppPadding.cardPadding.left,
-      right: AppPadding.cardPadding.right,
-      bottom: AppPadding.smallPadding.top,
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _modalStatChip(Icons.emoji_events, 'Wins', wins.toString(), AppColors.successColor),
-        _modalStatChip(Icons.trending_down, 'Losses', losses.toString(), AppColors.errorColor),
-        _modalStatChip(Icons.handshake, 'Draws', draws.toString(), AppColors.textSecondary),
-        _modalStatChip(Icons.monetization_on, 'Coins', coins.toString(), AppColors.matchPotGold),
-      ],
-    ),
   );
 }
 
@@ -837,7 +775,6 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
                         ),
                 ),
               ),
-              if (hasRows && d.userStats != null) _gameEndedUserStatsRow(d.userStats!),
               if (d.showCloseButton)
                 Container(
                   padding: AppPadding.cardPadding,

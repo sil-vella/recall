@@ -53,7 +53,24 @@ class DutchGameEventListenerValidator {
       handlerMethod: 'handleTurnStarted',
     ),
     'game_state_updated': EventConfig(
-      schema: {'game_id', 'game_state', 'owner_id', 'round_number', 'current_player', 'current_player_status', 'round_status', 'timestamp', 'reason', 'changes', 'winners'},
+      schema: {
+        'game_id',
+        'game_state',
+        'owner_id',
+        'round_number',
+        'current_player',
+        'current_player_status',
+        'round_status',
+        'timestamp',
+        'reason',
+        'changes',
+        'winners',
+        // Dart backend extras (must be listed or _validateEventData drops them)
+        'turn_events',
+        'myCardsToPeek',
+        'cards_to_peek',
+        'is_random_join',
+      },
       handlerMethod: 'handleGameStateUpdated',
     ),
     'game_state_partial_update': EventConfig(

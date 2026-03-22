@@ -1592,6 +1592,18 @@ When anyone has played a card with the **same rank** as your **collection card**
       _updateGameData(gameId, {
         'game_state': gameState,
       });
+      // Dart backend now sends `is_random_join` on every game_state_updated; merge so game end modal can hide Play Again.
+      if (data['is_random_join'] == true) {
+        _updateGameData(gameId, {'is_random_join': true});
+        final gt = (currentGamesForCheck[gameId] as Map<String, dynamic>?)?['gameData'] as Map<String, dynamic>?;
+        final gameTypeStr = gt?['game_type']?.toString() ?? 'classic';
+        _updateGameInMap(gameId, {
+          'multiplayerType': {
+            'type': gameTypeStr == 'tournament' ? 'tournament' : 'classic',
+            'isRandom': true,
+          },
+        });
+      }
       
       // Update owner_id in gameData and at top level, recalculate isRoomOwner
       if (ownerId != null) {

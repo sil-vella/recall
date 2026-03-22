@@ -410,6 +410,113 @@ def _stats_by_user_from_game_results(game_results: list) -> Dict[str, Tuple[int,
     return out
 
 
+def _insert_initial_completed_match_single_room_league(
+    db_manager,
+    tournament_oid: ObjectId,
+    tournament_id: str,
+    room_id: str,
+    roster_user_id_strs: list,
+    game_results: list,
+) -> bool:
+    """After creating a new tournament, push match_index=1 completed row for the casual game that just ended.
+
+    roster_user_id_strs: participant order from store snapshot (fallback if game_results omits ids)."""
+    user_id_strs = _ordered_user_id_strs_from_game_results(game_results)
+    if not user_id_strs:
+        user_id_strs = [str(u).strip() for u in (roster_user_id_strs or []) if u]
+    if not user_id_strs:
+        custom_log(
+            "📊 Python: _insert_initial_completed_match no user_ids",
+            level="WARNING",
+            isOn=LOGGING_SWITCH,
+        )
+        return False
+
+    user_oids = []
+    for uid_str in user_id_strs:
+        try:
+            user_oids.append(ObjectId(uid_str))
+        except Exception:
+            return False
+
+    now = datetime.utcnow()
+    updated_at = now.isoformat() + "Z"
+    match_date = now.date().isoformat() if hasattr(now, "date") else updated_at[:10]
+    match_id_str = now.strftime("%Y%m%d%H%M%S") + "_" + uuid.uuid4().hex[:8]
+    winner_str = _winner_str_from_game_results(game_results)
+    stats_by_uid = _stats_by_user_from_game_results(game_results)
+
+    players = []
+    for uid_str in user_id_strs:
+        tp, ec = stats_by_uid.get(uid_str, (0, 0))
+        entry = {
+            "user_id": uid_str,
+            "username": "",
+            "email": "",
+            "points": tp,
+            "number_of_cards_left": ec,
+        }
+        try:
+            u = db_manager.find_one("users", {"_id": ObjectId(uid_str)})
+            if u:
+                entry["username"] = (u.get("username") or "").strip() or ("user_%s" % uid_str[:8])
+                entry["email"] = (u.get("email") or "").strip()
+                entry["is_comp_player"] = u.get("is_comp_player") is True
+        except Exception:
+            pass
+        players.append(entry)
+    scores = [
+        {
+            "user_id": uid,
+            "end_card_count": stats_by_uid.get(uid, (0, 0))[1],
+            "total_end_points": stats_by_uid.get(uid, (0, 0))[0],
+        }
+        for uid in user_id_strs
+    ]
+
+    new_match = {
+        "match_id": match_id_str,
+        "match_index": 1,
+        "status": "completed",
+        "room_id": (room_id or "").strip(),
+        "winner": winner_str,
+        "user_ids": user_oids,
+        "match_date": match_date,
+        "start_date": match_date,
+        "players": players,
+        "scores": scores,
+    }
+
+    try:
+        result = db_manager.db["tournaments"].update_one(
+            {"_id": tournament_oid},
+            {"$push": {"matches": new_match}, "$set": {"updated_at": updated_at}},
+        )
+    except Exception as db_err:
+        custom_log(
+            f"📊 Python: _insert_initial_completed_match db error: {db_err}",
+            level="ERROR",
+            isOn=LOGGING_SWITCH,
+        )
+        return False
+
+    if not result or result.modified_count == 0:
+        custom_log(
+            "📊 Python: _insert_initial_completed_match failed (no document modified)",
+            level="WARNING",
+            isOn=LOGGING_SWITCH,
+        )
+        return False
+
+    custom_log(
+        f"📊 Python: single_room_league — inserted initial completed match tournament_id={tournament_id} "
+        f"match_id={match_id_str} match_index=1 room_id={room_id} winner={winner_str}",
+        level="INFO",
+        isOn=LOGGING_SWITCH,
+    )
+    return True
+
+
 def _append_single_room_league_completed_match(
     db_manager,
     tournament_oid: ObjectId,
@@ -1667,12 +1774,20 @@ def attach_tournament_match_room_service():
 
 def rematch_tournament_snapshot_service():
     """Dart rematch: create or extend `online` / `single_room_league` tournament, append match, set room_id (X-Service-Key).
-    POST body: room_id, store_snapshot, room_snapshot."""
+
+    POST body: room_id, store_snapshot, room_snapshot.
+
+    Optional ``initial_match_game_results`` (same shape as ``update-game-stats`` ``game_results``): when **creating**
+    a new tournament (first rematch after a casual game), rows for the **finished** game are applied as
+    ``match_index`` 1 ``completed`` before appending the pending row for the next game."""
     try:
         data = request.get_json(silent=True) or {}
         room_id = (data.get("room_id") or "").strip()
         store_snapshot = data.get("store_snapshot") if isinstance(data.get("store_snapshot"), dict) else {}
         room_snapshot = data.get("room_snapshot") if isinstance(data.get("room_snapshot"), dict) else {}
+        initial_match_game_results = data.get("initial_match_game_results")
+        if not isinstance(initial_match_game_results, list):
+            initial_match_game_results = []
         custom_log(
             f"DutchGame: rematch_tournament_snapshot_service room_id={room_id!r}",
             level="INFO",
@@ -1745,9 +1860,22 @@ def rematch_tournament_snapshot_service():
         except Exception:
             return jsonify({"success": False, "error": "invalid_new_tournament_id"}), 500
 
+        tid_str = str(tournament_id_hex)
+        if initial_match_game_results:
+            ok_initial = _insert_initial_completed_match_single_room_league(
+                db_manager,
+                new_oid,
+                tid_str,
+                room_id,
+                user_id_strs,
+                initial_match_game_results,
+            )
+            if not ok_initial:
+                return jsonify({"success": False, "error": "initial_match_insert_failed"}), 500
+
         res, err = _append_match_row_to_tournament(
             new_oid,
-            str(tournament_id_hex),
+            tid_str,
             user_id_strs,
             db_manager,
             room_id_str=room_id,
@@ -1756,7 +1884,6 @@ def rematch_tournament_snapshot_service():
         if err or not res:
             return jsonify({"success": False, "error": err or "append_match_failed"}), 500
 
-        tid_str = str(tournament_id_hex)
         td_out = {
             "tournament_id": tid_str,
             "match_id": res["match_id"],
@@ -1764,7 +1891,8 @@ def rematch_tournament_snapshot_service():
         }
         td_out = _enrich_td_out_from_tournament_doc(db_manager, new_oid, td_out)
         custom_log(
-            f"DutchGame: rematch_tournament_snapshot created tournament_id={tid_str} format=single_room_league match_index={res['match_index']}",
+            f"DutchGame: rematch_tournament_snapshot created tournament_id={tid_str} format=single_room_league "
+            f"pending_match_index={res['match_index']} initial_completed_sent={bool(initial_match_game_results)}",
             level="INFO",
             isOn=LOGGING_SWITCH,
         )

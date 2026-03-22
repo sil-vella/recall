@@ -1,11 +1,22 @@
 ---
-# Set a user's subscription_tier in local MongoDB. Takes tier (and optional user_id) as arguments.
+# Set a user's modules.dutch_game.subscription_tier in local MongoDB by user_id.
 # Valid tiers: promotional, regular, premium (see tier_rank_level_matcher).
-# Run:
-#   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_tier_premium.yml -e tier=premium
-#   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_tier_premium.yml -e tier=regular
-#   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_tier_premium.yml -e tier=promotional
-#   ansible-playbook ... -e tier=regular -e user_id=ANOTHER_USER_OBJECT_ID
+#
+# Tier (one of):
+#   Interactive: run without -e tier to be prompted (see vars_prompt on the play below).
+#   -e tier=promotional|regular|premium
+#
+# User selection (one of):
+#   -e user_choice=1   # default: 69aae0b0095ba0c771e43091
+#   -e user_choice=2   # 69aca835e20a93b2f6699e17
+#   -e target_user_id=<24-char hex>   # overrides user_choice
+#   -e user_id=<24-char hex>   # legacy alias for target_user_id
+#
+# Examples:
+#   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_tier.yml -e tier=regular
+#   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_tier.yml -e tier=premium -e user_choice=2
+#   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_tier.yml -e tier=promotional -e target_user_id=69aca835e20a93b2f6699e17
+# Non-interactive (no prompt): always pass -e tier=...
 - name: Load app_dev/.env for MongoDB password (optional)
   hosts: localhost
   connection: local
@@ -48,39 +59,134 @@
         mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
       when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
 
-- name: Set user subscription_tier (local Docker)
+- name: Set user dutch_game subscription_tier by user_id (local Docker)
   hosts: localhost
   connection: local
   gather_facts: false
+  vars_prompt:
+    - name: tier
+      prompt: "Subscription tier (promotional | regular | premium)"
+      default: "regular"
+      private: false
   vars:
     mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
     mongodb_container_name: "dutch_external_app_mongodb"
-    target_user_id: "{{ user_id | default('69aae0b0095ba0c771e43091') }}"
-    target_tier: "{{ (tier | default('premium')) | lower }}"
+    # Local test users (override with -e target_user_id=... or -e user_id=...)
+    dutch_local_test_user_ids:
+      "1": "69aae0b0095ba0c771e43091"
+      "2": "69aca835e20a93b2f6699e17"
+    user_choice: "1"
     allowed_tiers: ["promotional", "regular", "premium"]
   tasks:
+    - name: Normalize tier
+      set_fact:
+        target_tier: "{{ (tier | default('regular')) | lower | trim }}"
+
     - name: Validate tier argument
       assert:
         that: target_tier in allowed_tiers
         fail_msg: "tier must be one of {{ allowed_tiers | join(', ') }}. Got: {{ target_tier }}"
       run_once: true
 
+    - name: Validate user_choice when target_user_id / user_id not set
+      assert:
+        that:
+          - (target_user_id | default('') | length > 0) or (user_id | default('') | length > 0) or (user_choice | string in dutch_local_test_user_ids)
+        fail_msg: "Use -e user_choice=1 or user_choice=2, or pass -e target_user_id=<Mongo ObjectId hex> (or legacy -e user_id=...)."
+
+    - name: Resolve target Mongo user _id
+      set_fact:
+        resolved_user_id: "{{ target_user_id | default(user_id | default(dutch_local_test_user_ids[user_choice | string], true), true) }}"
+
+    - name: Lookup user by target user_id and read current tier
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        var d = db.getSiblingDB('external_system');
+        var user = d.users.findOne(
+          { _id: ObjectId('{{ resolved_user_id }}') },
+          { _id: 1, email: 1, 'modules.dutch_game.subscription_tier': 1 }
+        );
+        if (!user) { print('NOT_FOUND'); quit(0); }
+        var currentTier = null;
+        if (user.modules && user.modules.dutch_game && typeof user.modules.dutch_game.subscription_tier !== 'undefined') {
+          currentTier = user.modules.dutch_game.subscription_tier;
+        }
+        print(JSON.stringify({ user_id: user._id.valueOf(), email: user.email, tier_before: currentTier }));
+        "
+      register: user_lookup_out
+      changed_when: false
+
+    - name: Extract lookup JSON line
+      set_fact:
+        user_lookup_json_line: "{{ (user_lookup_out.stdout_lines | select('match', '^\\{') | list | first) | default('') }}"
+
+    - name: Fail if target user not found
+      fail:
+        msg: "User with _id '{{ resolved_user_id }}' not found."
+      when: user_lookup_json_line | length == 0
+
+    - name: Parse user lookup data
+      set_fact:
+        user_lookup_data: >-
+          {{
+            user_lookup_json_line
+            if (user_lookup_json_line is mapping)
+            else (user_lookup_json_line | from_json)
+          }}
+
     - name: Set subscription_tier via mongosh
       shell: |
         docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
         var d = db.getSiblingDB('external_system');
-        var userId = '{{ target_user_id }}';
-        var tier = '{{ target_tier }}';
+        var userId = '{{ user_lookup_data.user_id }}';
+        var tierVal = '{{ target_tier }}';
         var result = d.users.updateOne(
           { _id: ObjectId(userId) },
-          { \$set: { 'modules.dutch_game.subscription_tier': tier, updated_at: new Date().toISOString() } }
+          { \$set: { 'modules.dutch_game.subscription_tier': tierVal, updated_at: new Date().toISOString() } }
         );
-        if (result.matchedCount === 0) { print('ERROR: User ' + userId + ' not found'); quit(1); }
-        print('OK: Set subscription_tier to ' + tier + ' for user ' + userId);
+        if (result.matchedCount === 0) { print('ERROR: User not found by _id ' + userId); quit(1); }
+        print('OK: Set subscription_tier to ' + tierVal + ' for user ' + userId);
         "
       register: tier_out
       changed_when: true
 
-    - name: Show result
+    - name: Read updated tier after update
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        var d = db.getSiblingDB('external_system');
+        var userId = '{{ user_lookup_data.user_id }}';
+        var user = d.users.findOne(
+          { _id: ObjectId(userId) },
+          { _id: 1, 'modules.dutch_game.subscription_tier': 1 }
+        );
+        if (!user) { print('NOT_FOUND'); quit(1); }
+        var tierAfter = null;
+        if (user.modules && user.modules.dutch_game && typeof user.modules.dutch_game.subscription_tier !== 'undefined') {
+          tierAfter = user.modules.dutch_game.subscription_tier;
+        }
+        print(JSON.stringify({ user_id: user._id.valueOf(), tier_after: tierAfter }));
+        "
+      register: user_after_out
+      changed_when: false
+
+    - name: Extract after JSON line
+      set_fact:
+        user_after_json_line: "{{ (user_after_out.stdout_lines | select('match', '^\\{') | list | first) | default('') }}"
+
+    - name: Parse after data
+      set_fact:
+        user_after_data: >-
+          {{
+            user_after_json_line
+            if (user_after_json_line is mapping)
+            else (user_after_json_line | from_json)
+          }}
+
+    - name: Show before/after result
       debug:
-        msg: "{{ tier_out.stdout_lines }}"
+        msg:
+          - "Email: {{ user_lookup_data.email }}"
+          - "User ID: {{ user_lookup_data.user_id }}"
+          - "Tier before: {{ user_lookup_data.tier_before }}"
+          - "Tier after: {{ user_after_data.tier_after }}"
+          - "Update output: {{ tier_out.stdout_lines | join(' ') }}"

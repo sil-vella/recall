@@ -15,6 +15,10 @@ class NotificationsModule extends ModuleBase {
 
   static const String _stateKey = 'notifications';
 
+  /// Listeners notified immediately when a WS instant (e.g. rematch invite) is queued,
+  /// so UI can show [InstantMessageModal] without waiting for the periodic poll.
+  final List<VoidCallback> _pendingWsInstantListeners = [];
+
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
@@ -27,6 +31,22 @@ class NotificationsModule extends ModuleBase {
     });
   }
 
+  void addPendingWsInstantListener(VoidCallback listener) {
+    if (!_pendingWsInstantListeners.contains(listener)) {
+      _pendingWsInstantListeners.add(listener);
+    }
+  }
+
+  void removePendingWsInstantListener(VoidCallback listener) {
+    _pendingWsInstantListeners.remove(listener);
+  }
+
+  void _notifyPendingWsInstantAdded() {
+    for (final l in List<VoidCallback>.from(_pendingWsInstantListeners)) {
+      l();
+    }
+  }
+
   /// Appends a payload from ws_instant_notification (Dart backend) to be shown on next check.
   void addPendingWsInstant(Map<String, dynamic> payload) {
     final state = StateManager().getModuleState<Map<String, dynamic>>(_stateKey);
@@ -37,6 +57,7 @@ class NotificationsModule extends ModuleBase {
     message['type'] = 'instant_ws';
     pending.add(message);
     StateManager().updateModuleState(_stateKey, {'pendingWsInstants': pending});
+    _notifyPendingWsInstantAdded();
   }
 
   /// Takes and clears pending WS instant notifications so they can be shown once.

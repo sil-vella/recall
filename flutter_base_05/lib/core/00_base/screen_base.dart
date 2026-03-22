@@ -78,6 +78,15 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   Timer? _instantNotificationTimer;
 
+  /// Drains pending `instant_ws` rows (same modal path as periodic check) when [NotificationsModule] signals new items.
+  void _onPendingWsInstantQueued() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _drainPendingWsInstantModals();
+    });
+  }
+
   /// Stable key for the app bar feature slot when [BaseScreen.useGlobalKeyForAppBarFeatureSlot] is true.
   /// Used to resolve slot position for overlays (e.g. coin stream to coins display).
   final GlobalKey appBarFeatureSlotKey = GlobalKey();
@@ -419,6 +428,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   @override
   void dispose() {
+    _moduleManager.getModuleByType<NotificationsModule>()?.removePendingWsInstantListener(_onPendingWsInstantQueued);
     _instantNotificationTimer?.cancel();
     _instantNotificationTimer = null;
     // Note: State-aware features are automatically managed by StateManager
@@ -444,6 +454,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       }
 
       // App-wide: show instant-type notification modals when unread (any screen)
+      _moduleManager.getModuleByType<NotificationsModule>()?.addPendingWsInstantListener(_onPendingWsInstantQueued);
       _checkAndShowInstantMessages();
       // Re-check periodically so new invites appear without navigating away
       _instantNotificationTimer?.cancel();
@@ -459,6 +470,40 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   /// Interval for re-checking instant notifications while screen is visible (seconds).
   static const int kInstantNotificationPollSeconds = 20;
 
+  /// Response handler for pending [instant_ws] rows (e.g. rematch invite — see [submitRematchInviteResponse]).
+  Future<bool> Function(String messageId, String actionIdentifier)? _pendingWsOnSendResponse(
+    Map<String, dynamic> msg,
+  ) {
+    final data = msg['data'];
+    if (data is Map && data['respond_via'] == 'rematch_ws') {
+      return (messageId, actionIdentifier) => submitRematchInviteResponse(
+            actionIdentifier: actionIdentifier,
+            messageRow: msg,
+          );
+    }
+    return null;
+  }
+
+  /// Shows queued `instant_ws` modals (rematch invite, etc.) using the same path as the rest of the instant system.
+  Future<void> _drainPendingWsInstantModals() async {
+    if (!mounted) return;
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login');
+    if (loginState?['isLoggedIn'] != true) return;
+    final mod = _moduleManager.getModuleByType<NotificationsModule>();
+    if (mod == null) return;
+    final pendingWs = mod.takePendingWsInstants();
+    for (final msg in pendingWs) {
+      if (!mounted) break;
+      await InstantMessageModal.show(
+        context,
+        message: msg,
+        onDismiss: () {},
+        onSendResponse: _pendingWsOnSendResponse(msg),
+        onMarkAsRead: null,
+      );
+    }
+  }
+
   /// Fetches messages (throttled per call), then shows modals for unread notifications with type 'instant'.
   /// Also drains pending ws_instant_notification payloads from the Dart backend and shows them.
   /// Called on screen enter and periodically via timer so instant notifications appear without requiring navigation.
@@ -468,18 +513,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     if (loginState?['isLoggedIn'] != true) return;
     final mod = _moduleManager.getModuleByType<NotificationsModule>();
     if (mod == null) return;
-    // Drain pending WS instant notifications (Dart backend sends ws_instant_notification)
-    final pendingWs = mod.takePendingWsInstants();
-    for (final msg in pendingWs) {
-      if (!mounted) break;
-      await InstantMessageModal.show(
-        context,
-        message: msg,
-        onDismiss: () {},
-        onSendResponse: null,
-        onMarkAsRead: null,
-      );
-    }
+    await _drainPendingWsInstantModals();
+    if (!mounted) return;
     final state = StateManager().getModuleState<Map<String, dynamic>>('notifications');
     final lastFetched = state?['lastFetchedAt']?.toString();
     final shouldFetch = lastFetched == null ||

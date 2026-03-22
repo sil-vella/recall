@@ -59,6 +59,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   List<dynamic>? _protectedMyHandCardsToPeek;
   Timer? _myHandCardsToPeekProtectionTimer;
   String? _previousPlayerStatus; // Track previous status to detect transitions
+  /// Last [game_state.phase] seen — used to reset local flags on transition to `initial_peek` (rematch / new deal).
+  String? _lastPhaseForLocalReset;
   /// Effective width used for my hand card sizing; updates 2s after layout change to avoid jitter on resize.
   double? _myHandEffectiveWidth;
   Timer? _myHandResizeDelayTimer;
@@ -586,6 +588,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final result = ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
+        _maybeResetLocalPlayFlagsForPhaseEntry();
         return Stack(
           key: _mainStackKey,
           clipBehavior: Clip.none,
@@ -622,6 +625,54 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       _logger.info('📊 UnifiedGameBoardWidget REBUILD #$_unifiedWidgetRebuildCount duration=${stopwatch.elapsedMilliseconds} ms');
     }
     return result;
+  }
+
+  /// Resets play-surface local flags when entering `initial_peek`: first build already in peek, or any phase → `initial_peek`.
+  void _maybeResetLocalPlayFlagsForPhaseEntry() {
+    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final phase = gameState['phase'] as String?;
+
+    if (phase != 'initial_peek') {
+      _lastPhaseForLocalReset = phase;
+      return;
+    }
+
+    final prev = _lastPhaseForLocalReset;
+    final shouldReset = prev == null || prev != 'initial_peek';
+    _lastPhaseForLocalReset = phase;
+
+    if (shouldReset) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(_resetLocalPlayFlagsForNewDeal);
+      });
+    }
+  }
+
+  void _resetLocalPlayFlagsForNewDeal() {
+    _callFinalRoundTappedPending = false;
+    _isProcessingAction = false;
+    _clickedCardId = null;
+    _clickedPileType = null;
+    _initialPeekSelectionCount = 0;
+    _initialPeekSelectedCardIds.clear();
+    _isCardsToPeekProtected = false;
+    _protectedCardsToPeek = null;
+    _cardsToPeekProtectionTimer?.cancel();
+    _cardsToPeekProtectionTimer = null;
+    _isMyHandCardsToPeekProtected = false;
+    _protectedMyHandCardsToPeek = null;
+    _myHandCardsToPeekProtectionTimer?.cancel();
+    _myHandCardsToPeekProtectionTimer = null;
+    _selectedCardOverlayTimer?.cancel();
+    _selectedCardOverlayTimer = null;
+    _previousPlayerStatus = null;
+    PlayerAction.resetJackSwapSelections();
   }
   
   // ========== Card Key Management ==========

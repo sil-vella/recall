@@ -90,6 +90,21 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     super.dispose();
   }
 
+  /// Best-effort table tier for coin pre-check (matches [joinRoom] when list has the room).
+  int _gameLevelForJoinRoom(String roomId) {
+    final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final availableGames = dutchState['availableGames'] as List<dynamic>? ?? [];
+    for (final g in availableGames) {
+      if (g is! Map) continue;
+      final id = g['roomId']?.toString() ?? g['room_id']?.toString();
+      if (id != roomId) continue;
+      final gl = g['gameLevel'] ?? g['game_level'];
+      if (gl is int) return gl;
+      if (gl is num) return gl.toInt();
+    }
+    return 1;
+  }
+
   void _onRoomIdChanged(String value) {
     setState(() {
       _isPrivateRoom = false;
@@ -206,6 +221,26 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       // Ensure WebSocket is ready before attempting to join
       final isReady = await DutchGameHelpers.ensureWebSocketReady();
       if (!isReady) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final joinLevel = _gameLevelForJoinRoom(roomId);
+      if (!await DutchGameHelpers.checkCoinsRequirement(
+            gameLevel: joinLevel,
+            fetchFromAPI: true,
+          )) {
+        final required = LevelMatcher.tableLevelToCoinFee(joinLevel, defaultFee: 25);
+        await DutchGameHelpers.stashLastCoinPurchaseContextAndShowBuyModal(
+          stash: {
+            'room_id': roomId,
+            'game_level': joinLevel,
+            'source': 'lobby_join_prejoin',
+          },
+          requiredCoins: required,
+        );
         setState(() {
           _isLoading = false;
         });

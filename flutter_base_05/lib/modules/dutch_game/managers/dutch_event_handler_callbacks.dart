@@ -9,7 +9,6 @@ import '../../../core/managers/navigation_manager.dart';
 import '../../../core/widgets/instant_message_modal.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
 import '../backend_core/utils/dutch_rank_level_change_checker.dart';
-import '../backend_core/utils/level_matcher.dart';
 import '../utils/game_instructions_provider.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
 import '../screens/demo/demo_action_handler.dart';
@@ -1728,17 +1727,9 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
     }
 
-    // Check if game just started (phase changed to initial_peek) and deduct coins
+    // Entry-fee deduction is server-side (Dart WS → Python) on start_match; do not deduct from the client.
+
     final previousPhase = currentStateForGameId['gamePhase']?.toString();
-    final isGameStarting = (previousPhase == null || previousPhase == 'waiting' || previousPhase == 'waiting_for_players') && 
-                           (rawPhase == 'initial_peek');
-    
-    if (isGameStarting) {
-      if (LOGGING_SWITCH) {
-        _logger.info('💰 handleGameStateUpdated: Game starting - phase changed to initial_peek, checking for coin deduction');
-      }
-      _handleCoinDeductionOnGameStart(gameId, gameState);
-    }
     
     // Track same rank window triggers BEFORE updating state
     // Check if we're transitioning INTO same_rank_window (not already in it)
@@ -2309,206 +2300,6 @@ When anyone has played a card with the **same rank** as your **collection card**
           'is_my_peek': false,
         },
       );
-    }
-  }
-
-  /// Handle cards_to_peek event
-
-  /// Room **table** tier from game state (`gameLevel`), not user progression level.
-  static int? _roomTableLevelFromGameState(Map<String, dynamic> gameState) {
-    final gl = gameState['gameLevel'];
-    if (gl is int) return gl;
-    if (gl is num) return gl.toInt();
-    return null;
-  }
-
-  /// Per-player coin cost: prefer backend `coin_cost_per_player`, else [LevelMatcher] from room table tier.
-  static int _coinCostPerPlayerFromGameState(Map<String, dynamic> gameState) {
-    final c = gameState['coin_cost_per_player'];
-    if (c is int && c > 0) return c;
-    if (c is num && c > 0) return c.toInt();
-    final table = _roomTableLevelFromGameState(gameState);
-    return LevelMatcher.tableLevelToCoinFee(table, defaultFee: 25);
-  }
-
-  /// Handle coin deduction when game starts
-  /// Called when game phase changes to initial_peek (game started)
-  static Future<void> _handleCoinDeductionOnGameStart(String gameId, Map<String, dynamic> gameState) async {
-    try {
-      if (LOGGING_SWITCH) {
-        _logger.info('💰 _handleCoinDeductionOnGameStart: Processing coin deduction for game $gameId');
-      }
-      
-      // Get all active players from game state (for both practice and multiplayer)
-      final players = (gameState['players'] as List<dynamic>? ?? [])
-          .whereType<Map<String, dynamic>>()
-          .where((p) => (p['isActive'] as bool? ?? true) == true)  // Only active players
-          .toList();
-      
-      if (players.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ _handleCoinDeductionOnGameStart: No active players found');
-        }
-        return;
-      }
-      
-      // Pot from **room table** fee (matches Dart game_state coin_cost_per_player / gameLevel).
-      final coinCost = _coinCostPerPlayerFromGameState(gameState);
-      final roomTableLevel = _roomTableLevelFromGameState(gameState);
-      final activePlayerCount = players.length;
-      final pot = coinCost * activePlayerCount;
-      
-      // Store match_class, coin_cost_per_player, and match_pot in game_state
-      // This allows the pot to be displayed during gameplay
-      // Need to update game_state within gameData, not gameData directly
-      final currentGames = _getCurrentGamesMap();
-      if (currentGames.containsKey(gameId)) {
-        final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
-        final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-        final currentGameState = currentGameData['game_state'] as Map<String, dynamic>? ?? {};
-        
-        // Update game_state with pot information
-        final updatedGameState = Map<String, dynamic>.from(currentGameState);
-        updatedGameState.addAll({
-          'match_class': 'standard', // Placeholder for future match class system
-          'coin_cost_per_player': coinCost,
-          'match_pot': pot,
-        });
-        
-        // Update gameData with updated game_state
-        final updatedGameData = Map<String, dynamic>.from(currentGameData);
-        updatedGameData['game_state'] = updatedGameState;
-        
-        // Update the game
-        _updateGameInMap(gameId, {
-          'gameData': updatedGameData,
-        });
-      }
-      
-      if (LOGGING_SWITCH) {
-        _logger.info('💰 _handleCoinDeductionOnGameStart: Calculated pot for game $gameId - coin_cost: $coinCost, players: $activePlayerCount, pot: $pot');
-      }
-      
-      // Skip coin deduction for practice mode games (but pot is still calculated and stored)
-      if (gameId.startsWith('practice_room_')) {
-        if (LOGGING_SWITCH) {
-          _logger.info('💰 _handleCoinDeductionOnGameStart: Skipping coin deduction for practice mode game (pot calculated: $pot)');
-        }
-        return;
-      }
-
-      // Check if coins were already deducted for this game (prevent duplicate deductions)
-      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      final coinsDeductedGames = Set<String>.from(currentState['coinsDeductedGames'] as List<dynamic>? ?? []);
-      
-      if (coinsDeductedGames.contains(gameId)) {
-        if (LOGGING_SWITCH) {
-          _logger.info('💰 _handleCoinDeductionOnGameStart: Coins already deducted for game $gameId, skipping');
-        }
-        return;
-      }
-      
-      if (LOGGING_SWITCH) {
-        _logger.info('💰 _handleCoinDeductionOnGameStart: Found ${players.length} active player(s) for coin deduction');
-      }
-      
-      // Get user IDs for all players
-      // Note: Player IDs are sessionIds, but we need user IDs (MongoDB ObjectIds) for the API
-      // userId is stored in player objects when they join (from room_created/room_joined events)
-      final playerIds = <String>[];
-      final currentUserId = getCurrentUserId();
-      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-      final currentUserMongoId = loginState['userId']?.toString() ?? '';
-      
-      for (final player in players) {
-        final playerSessionId = player['id']?.toString() ?? '';
-        if (playerSessionId.isEmpty) continue;
-        
-        // First, try to get userId from player object (stored when player joins)
-        final playerUserId = player['userId']?.toString() ?? player['user_id']?.toString();
-        if (playerUserId != null && playerUserId.isNotEmpty) {
-          playerIds.add(playerUserId);
-          if (LOGGING_SWITCH) {
-            _logger.info('💰 _handleCoinDeductionOnGameStart: Added player userId from player object: $playerUserId (sessionId: $playerSessionId)');
-          }
-        } else {
-          // Fallback: If this is the current user and userId not in player object, use login state
-          if (playerSessionId == currentUserId && currentUserMongoId.isNotEmpty) {
-            playerIds.add(currentUserMongoId);
-            if (LOGGING_SWITCH) {
-              _logger.info('💰 _handleCoinDeductionOnGameStart: Added current user MongoDB ID from login state: $currentUserMongoId');
-            }
-          } else {
-            // Cannot get userId for this player - log warning but continue
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ _handleCoinDeductionOnGameStart: Cannot get userId for player $playerSessionId, skipping coin deduction for this player');
-            }
-          }
-        }
-      }
-      
-      if (playerIds.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ _handleCoinDeductionOnGameStart: No valid user IDs found for coin deduction. Players: ${players.length}, User IDs found: 0');
-        }
-        // Don't return - log error but allow game to continue (backend should have validated coins already)
-        return;
-      }
-      
-      // Check if we got user IDs for all players
-      if (playerIds.length < players.length) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ _handleCoinDeductionOnGameStart: Only found user IDs for ${playerIds.length} out of ${players.length} players. Some players may not have coins deducted.');
-        }
-      }
-      
-      if (LOGGING_SWITCH) {
-        _logger.info('💰 _handleCoinDeductionOnGameStart: Deducting coins for ${playerIds.length} player(s) out of ${players.length} total players');
-      }
-      
-      // Backend SSOT: promotional tier or is_coin_required false → no deduction
-      final coinReq = gameState['isCoinRequired'];
-      final isCoinRequired = coinReq is bool ? coinReq : true;
-      final result = await DutchGameHelpers.deductGameCoins(
-        coins: coinCost,
-        gameId: gameId,
-        playerIds: playerIds,
-        gameTableLevel: roomTableLevel,
-        isCoinRequired: isCoinRequired,
-      );
-      
-      if (result != null && result['success'] == true) {
-        // Mark coins as deducted for this game
-        coinsDeductedGames.add(gameId);
-        _updateMainGameState({
-          'coinsDeductedGames': coinsDeductedGames.toList(),
-        });
-        
-        final updatedPlayers = result['updated_players'] as List<dynamic>? ?? [];
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ _handleCoinDeductionOnGameStart: Successfully deducted coins for game $gameId. Updated ${updatedPlayers.length} player(s)');
-        }
-        
-        // Check if all players had coins deducted
-        if (updatedPlayers.length < playerIds.length) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ _handleCoinDeductionOnGameStart: Only ${updatedPlayers.length} out of ${playerIds.length} players had coins deducted successfully');
-          }
-        }
-      } else {
-        final error = result?['error'] ?? 'Unknown error';
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ _handleCoinDeductionOnGameStart: Failed to deduct coins: $error');
-        }
-        // Note: Game has already started, so we can't prevent it now
-        // The coin check should have happened before game start, so this is a rare edge case
-        // Log error for monitoring but allow game to continue
-      }
-      
-    } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ _handleCoinDeductionOnGameStart: Error processing coin deduction: $e', error: e, stackTrace: stackTrace);
-      }
     }
   }
 

@@ -1003,6 +1003,18 @@ class GameEventCoordinator {
       }
     }
 
+    final deductOk = await _deductEntryCoinsOnMatchStart(
+      roomId: roomId,
+      players: players,
+      gameLevel: gameLevel,
+      isCoinRequired: isCoinRequired,
+      coinCost: coinCost,
+      sessionId: sessionId,
+    );
+    if (!deductOk) {
+      return;
+    }
+
     stateRoot['game_state'] = gameState;
     _store.mergeRoot(roomId, stateRoot);
 
@@ -1041,6 +1053,77 @@ class GameEventCoordinator {
     if (LOGGING_SWITCH) {
       _logger.info('GameEventCoordinator: Initial peek phase started - waiting for human player');
     }
+  }
+
+  /// Authoritative entry-fee deduction via Python (promotional tier skips; [isCoinRequired] false skips economy).
+  Future<bool> _deductEntryCoinsOnMatchStart({
+    required String roomId,
+    required List<Map<String, dynamic>> players,
+    required int? gameLevel,
+    required bool isCoinRequired,
+    required int coinCost,
+    required String sessionId,
+  }) async {
+    if (roomId.startsWith('practice_room_')) {
+      return true;
+    }
+    if (!isCoinRequired) {
+      return true;
+    }
+    final humanMongoIds = <String>[];
+    for (final p in players) {
+      if (!_isHumanPlayerForEntryCoins(p)) continue;
+      final uid = _mongoUserIdFromPlayerMap(p);
+      if (uid != null && uid.isNotEmpty) {
+        humanMongoIds.add(uid);
+      }
+    }
+    if (humanMongoIds.isEmpty) {
+      return true;
+    }
+    final result = await server.pythonClient.deductGameCoinsService(
+      gameId: roomId,
+      playerIds: humanMongoIds,
+      coins: coinCost,
+      gameTableLevel: gameLevel,
+      isCoinRequired: isCoinRequired,
+    );
+    if (result['success'] != true) {
+      final msg = result['message']?.toString() ?? result['error']?.toString() ?? 'Coin deduction failed';
+      server.sendToSession(sessionId, {
+        'event': 'action_error',
+        'message': msg,
+        'game_id': roomId,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      return false;
+    }
+    final warnings = result['warnings'] as List<dynamic>?;
+    if (warnings != null &&
+        warnings.any((w) => w.toString().contains('Insufficient coins'))) {
+      server.sendToSession(sessionId, {
+        'event': 'action_error',
+        'message': 'Insufficient coins for one or more players',
+        'game_id': roomId,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      return false;
+    }
+    return true;
+  }
+
+  bool _isHumanPlayerForEntryCoins(Map<String, dynamic> p) {
+    if (p['is_comp_player'] == true) return false;
+    if (p['isHuman'] == false) return false;
+    final id = p['id']?.toString() ?? '';
+    if (id.startsWith('comp_')) return false;
+    return true;
+  }
+
+  String? _mongoUserIdFromPlayerMap(Map<String, dynamic> p) {
+    final u = p['userId']?.toString() ?? p['user_id']?.toString();
+    if (u != null && u.isNotEmpty) return u;
+    return null;
   }
 
   /// Process AI initial peeks - select 2 random cards and store in known_cards, decide collection rank

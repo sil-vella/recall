@@ -1,11 +1,10 @@
-import 'dart:async';
+import 'dart:async' show StreamController, unawaited;
 import 'package:flutter/material.dart';
 import 'package:dutch/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/hooks_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
-import '../../../core/widgets/instant_message_modal.dart';
 import '../../../utils/consts/theme_consts.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
 import '../backend_core/utils/level_matcher.dart';
@@ -26,7 +25,7 @@ typedef _NotificationSuccessHandler = Future<void> Function(
 );
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = true; // Insufficient coins → stash / coin-purchase (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Insufficient coins → stash / coin-purchase (enable-logging-switch.mdc)
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();
@@ -293,64 +292,54 @@ class DutchEventManager {
       await handler(response, message, ctx);
     });
 
-    // Insufficient coins on join_room / join_random — frontend modal + stash context for /coin-purchase
+    // Insufficient coins on join_room / join_random / rematch_accept — stash + modal (retries if context null)
     HooksManager().registerHookWithData('websocket_join_room_error', (hookData) {
-      final msg = hookData['message']?.toString().toLowerCase() ?? '';
-      if (!msg.contains('insufficient coins')) {
-        return;
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '💰 websocket_join_room_error (insufficient coins): hookData keys=${hookData.keys.toList()} msg=$msg',
-        );
-      }
-      final rawPayload = hookData['payload'];
-      final payload = rawPayload is Map
-          ? Map<String, dynamic>.from(rawPayload)
-          : <String, dynamic>{};
-      final roomId = hookData['room_id']?.toString() ?? payload['room_id']?.toString() ?? '';
-      final glRaw = hookData['game_level'] ?? payload['game_level'];
-      final gameLevel = _parseTableLevel(glRaw);
-      final reqRaw = hookData['required_coins'] ?? payload['required_coins'];
-      final requiredCoins = _parseRequiredCoins(reqRaw, gameLevel);
-
-      final stash = <String, dynamic>{
-        ...payload,
-        'updatedAt': DateTime.now().toIso8601String(),
-        'room_id': roomId.isNotEmpty ? roomId : payload['room_id'],
-        'game_level': gameLevel,
-        'required_coins': requiredCoins,
-      };
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '💰 Stashing lastCoinPurchaseJoinContext room_id=$roomId game_level=$gameLevel required_coins=$requiredCoins payloadKeys=${payload.keys.toList()}',
-        );
-      }
-      DutchGameHelpers.updateUIState({'lastCoinPurchaseJoinContext': stash});
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final navCtx = NavigationManager().navigatorKey.currentContext;
-        if (navCtx == null || !navCtx.mounted) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('💰 Insufficient-coins modal: navigatorKey.currentContext null or unmounted');
-          }
+      try {
+        final msg = hookData['message']?.toString().toLowerCase() ?? '';
+        final insufficientCoins = msg.contains('insufficient coins') ||
+            (msg.contains('insufficient') &&
+                (msg.contains('coin') || msg.contains('balance')));
+        if (!insufficientCoins) {
           return;
         }
         if (LOGGING_SWITCH) {
-          _logger.info('💰 Showing insufficient-coins frontend modal (Buy coins → /coin-purchase)');
+          _logger.info(
+            '💰 websocket_join_room_error (insufficient coins): hookData keys=${hookData.keys.toList()} msg=$msg',
+          );
         }
-        InstantMessageModal.showFrontendOnlyInstant(
-          navCtx,
-          title: 'Not enough coins',
-          body: 'Not enough coins to join the game. Required coins: $requiredCoins.',
-          data: Map<String, dynamic>.from(stash),
-          actionLabel: 'Buy coins',
-          actionIdentifier: 'buy_coins',
-          onAction: () {
-            NavigationManager().navigateTo('/coin-purchase');
-          },
+        final rawPayload = hookData['payload'];
+        final payload = rawPayload is Map
+            ? Map<String, dynamic>.from(rawPayload)
+            : <String, dynamic>{};
+        final roomId = hookData['room_id']?.toString() ?? payload['room_id']?.toString() ?? '';
+        final glRaw = hookData['game_level'] ?? payload['game_level'];
+        final gameLevel = _parseTableLevel(glRaw);
+        final reqRaw = hookData['required_coins'] ?? payload['required_coins'];
+        final requiredCoins = _parseRequiredCoins(reqRaw, gameLevel);
+
+        final stash = <String, dynamic>{
+          ...payload,
+          'updatedAt': DateTime.now().toIso8601String(),
+          'room_id': roomId.isNotEmpty ? roomId : payload['room_id'],
+          'game_level': gameLevel,
+          'required_coins': requiredCoins,
+        };
+        if (LOGGING_SWITCH) {
+          _logger.info(
+            '💰 Stashing lastCoinPurchaseJoinContext room_id=$roomId game_level=$gameLevel required_coins=$requiredCoins payloadKeys=${payload.keys.toList()}',
+          );
+        }
+        unawaited(
+          DutchGameHelpers.stashLastCoinPurchaseContextAndShowBuyModal(
+            stash: stash,
+            requiredCoins: requiredCoins,
+          ),
         );
-      });
+      } catch (e, st) {
+        if (LOGGING_SWITCH) {
+          _logger.error('💰 websocket_join_room_error hook failed: $e\n$st');
+        }
+      }
     });
     
     // Register websocket_join_room hook callback (for joining existing rooms)
@@ -468,6 +457,38 @@ class DutchEventManager {
     roomId ??= response['room_id']?.toString().trim();
     if (roomId == null || roomId.isEmpty) {
       if (LOGGING_SWITCH) _logger.error('Match invite Join: no room_id in message data');
+      return;
+    }
+
+    // [sendCustomEvent] returns success before server responds; block join/nav on insufficient coins locally.
+    var inviteGameLevel = 1;
+    if (msgData is Map<String, dynamic>) {
+      final gl = msgData['game_level'] ?? msgData['gameLevel'];
+      if (gl is int) {
+        inviteGameLevel = gl;
+      } else if (gl is num) {
+        inviteGameLevel = gl.toInt();
+      }
+    }
+    final glResp = response['game_level'] ?? response['gameLevel'];
+    if (glResp is int) {
+      inviteGameLevel = glResp;
+    } else if (glResp is num) {
+      inviteGameLevel = glResp.toInt();
+    }
+    if (!await DutchGameHelpers.checkCoinsRequirement(
+          gameLevel: inviteGameLevel,
+          fetchFromAPI: true,
+        )) {
+      final required = LevelMatcher.tableLevelToCoinFee(inviteGameLevel, defaultFee: 25);
+      await DutchGameHelpers.stashLastCoinPurchaseContextAndShowBuyModal(
+        stash: {
+          'room_id': roomId,
+          'game_level': inviteGameLevel,
+          'source': 'match_invite_prejoin',
+        },
+        requiredCoins: required,
+      );
       return;
     }
 

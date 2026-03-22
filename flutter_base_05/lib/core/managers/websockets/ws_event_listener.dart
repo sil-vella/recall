@@ -59,6 +59,8 @@ class WSEventListener {
     // Core: instant notification pushed by Dart backend
     _registerWsInstantNotificationListener();
 
+    _registerRestartInviteListener();
+
     // Error events
     _registerErrorListener();
     
@@ -206,6 +208,13 @@ class WSEventListener {
     });
   }
 
+  /// Rematch: peer sent `rematch` — server notifies others with `restart_invite`.
+  void _registerRestartInviteListener() {
+    _socket?.on('restart_invite', (data) {
+      _eventHandler.handleRestartInvite(data);
+    });
+  }
+
   /// Register error listener
   void _registerErrorListener() {
     _socket?.on('error', (data) {
@@ -263,6 +272,7 @@ class WSEventListener {
     _socket?.off('rooms_list');
     _socket?.off('message');
     _socket?.off('ws_instant_notification');
+    _socket?.off('restart_invite');
     _socket?.off('error');
   }
 

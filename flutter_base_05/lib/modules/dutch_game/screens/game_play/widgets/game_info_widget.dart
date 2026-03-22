@@ -74,7 +74,6 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
         final roomName = 'Game $currentGameId';
         final currentSize = gameInfo['currentSize'] ?? 0;
-        final maxSize = gameInfo['maxSize'] ?? 4;
         
         // Derive phase from SSOT (games map) with fallback to gameInfo slice
         final ssotPhase = _getPhaseFromGamesMap(games, currentGameId);
@@ -96,19 +95,22 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final isPracticeGame = gameInfo['isPractice'] as bool? ?? currentGameId.startsWith('practice_room_');
         final multiplayerType = gameInfo['multiplayerType'] as Map<String, dynamic>?;
         final isRandomJoin = multiplayerType?['isRandom'] == true;
-        // Waiting: practice always; multiplayer only for room owner and non–random-join rooms.
-        final showStartButton = gamePhase == 'waiting' &&
-            (isPracticeGame || (isRoomOwner && !isRandomJoin));
 
         // Game level and tournament info from current game's game_state (SSOT)
         final gameEntry = games[currentGameId] as Map<String, dynamic>? ?? {};
         final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? {};
         final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
         final gameLevel = gameState['gameLevel']; // int or null
+        final minPlayers = (gameState['minPlayers'] as num?)?.toInt() ?? 2;
         final isTournament = gameState['is_tournament'] == true;
         final tournamentData = gameState['tournament_data'] as Map<String, dynamic>? ?? {};
         final tournamentId = tournamentData['tournament_id']?.toString();
         final matchId = tournamentData['match_id']?.toString() ?? tournamentData['match_index']?.toString();
+
+        // Waiting: practice always; multiplayer: owner, not random join, and joined >= minPlayers.
+        final hasEnoughPlayersForStart = currentSize >= minPlayers;
+        final showStartButton = gamePhase == 'waiting' &&
+            (isPracticeGame || (isRoomOwner && !isRandomJoin && hasEnoughPlayersForStart));
         
         if (LOGGING_SWITCH) {
           _logger.info('🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, isRandomJoin: $isRandomJoin, multiplayerType: $multiplayerType, showStartButton: $showStartButton');
@@ -137,7 +139,6 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
           currentGameId: currentGameId,
           roomName: roomName,
           currentSize: currentSize,
-          maxSize: maxSize,
           gamePhase: gamePhase,
           gameStatus: gameStatus,
           isRoomOwner: isRoomOwner,
@@ -196,7 +197,6 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
     required String currentGameId,
     required String roomName,
     required int currentSize,
-    required int maxSize,
     required String gamePhase,
     required String gameStatus,
     required bool isRoomOwner,
@@ -300,7 +300,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
                   Icon(Icons.people, size: 16, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
-                    'Players: $currentSize/$maxSize',
+                    'Joined: $currentSize',
                     style: AppTextStyles.bodySmall().copyWith(
                       color: AppColors.textSecondary,
                     ),

@@ -429,6 +429,8 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                   context,
                   m,
                   tournament['id']?.toString(),
+                  tournamentType: tournament['type']?.toString(),
+                  tournamentFormat: tournament['format']?.toString(),
                   isExpanded: isExpanded,
                   onTap: () {
                     setState(() {
@@ -462,6 +464,8 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
     BuildContext context,
     Map<String, dynamic> match,
     String? tournamentId, {
+    String? tournamentType,
+    String? tournamentFormat,
     required bool isExpanded,
     required VoidCallback onTap,
   }) {
@@ -528,6 +532,8 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                               if (LOGGING_SWITCH) {
                                 _logger.info('🏟 Admin Tournaments: Create room pressed — tournamentId=${tournamentId ?? "null"} matchId=$matchId');
                               }
+                              final tt = tournamentType?.trim() ?? '';
+                              final tf = tournamentFormat?.trim() ?? '';
                               final result = await DutchGameHelpers.createRoom(
                                 addCreatorToRoom: false,
                                 maxPlayers: 4,
@@ -540,6 +546,8 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                 tournamentData: {
                                   'tournament_id': tournamentId ?? '',
                                   'match_id': matchId,
+                                  if (tt.isNotEmpty) 'type': tt,
+                                  if (tf.isNotEmpty) 'format': tf,
                                 },
                               );
                               if (!context.mounted) return;

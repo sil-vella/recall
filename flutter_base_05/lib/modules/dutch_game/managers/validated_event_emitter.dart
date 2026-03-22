@@ -93,6 +93,11 @@ class DutchGameEventEmitter {
     'queen_peek': {'game_id', 'card_id', 'ownerId'}, // ownerId for card owner
     'completed_initial_peek': {'game_id', 'card_ids'}, // player_id auto-added
     'collect_from_discard': {'game_id'}, // player_id auto-added
+    // Rematch: client sends ended-game snapshot for server to validate and start follow-up flow.
+    // Dart backend must handle event type `rematch` in message_handler (not wired yet).
+    'rematch': {'game_id', 'game_state', 'user_id'},
+    'rematch_accepted': {'room_id', 'game_id'},
+    'rematch_declined': {'room_id', 'game_id'},
   };
   
   /// Define validation rules for each field
@@ -296,6 +301,11 @@ class DutchGameEventEmitter {
       required: false,
       description: 'Create-match invite: list of { user_id, username, is_comp_player }',
     ),
+    'game_state': DutchEventFieldSpec(
+      type: Map,
+      required: true,
+      description: 'Snapshot of game_state at game end (rematch payload)',
+    ),
   };
   
   /// Emit a validated event
@@ -447,7 +457,31 @@ class DutchGameEventEmitter {
     
     // 🚨 Check for required fields
     _validateRequiredFields(eventType, allowedFields, validatedData);
-    
+
+    if (eventType == 'rematch' && !validatedData.containsKey('game_id')) {
+      throw DutchEventException(
+        'Field "game_id" is required for rematch',
+        eventType: eventType,
+        fieldName: 'game_id',
+      );
+    }
+    if (eventType == 'rematch_accepted' || eventType == 'rematch_declined') {
+      if (!validatedData.containsKey('room_id')) {
+        throw DutchEventException(
+          'Field "room_id" is required for $eventType',
+          eventType: eventType,
+          fieldName: 'room_id',
+        );
+      }
+      if (!validatedData.containsKey('game_id')) {
+        throw DutchEventException(
+          'Field "game_id" is required for $eventType',
+          eventType: eventType,
+          fieldName: 'game_id',
+        );
+      }
+    }
+
     return validatedData;
   }
   

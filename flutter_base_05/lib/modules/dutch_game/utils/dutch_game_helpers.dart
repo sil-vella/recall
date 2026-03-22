@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/managers/module_manager.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
+import '../../../core/widgets/instant_message_modal.dart';
 import '../../connections_api_module/connections_api_module.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
@@ -1083,6 +1084,42 @@ class DutchGameHelpers {
         _logger.error('❌ DutchGameHelpers: Error checking coins requirement: $e');
       }
       return false;
+    }
+  }
+
+  /// Persists [lastCoinPurchaseJoinContext] and shows the buy-coins modal, retrying until
+  /// [NavigationManager.navigatorKey] has a mounted [BuildContext] (Web/overlays often miss the first frame).
+  static Future<void> stashLastCoinPurchaseContextAndShowBuyModal({
+    required Map<String, dynamic> stash,
+    required int requiredCoins,
+  }) async {
+    updateUIState({'lastCoinPurchaseJoinContext': stash});
+    const maxAttempts = 24;
+    const delay = Duration(milliseconds: 75);
+    for (var i = 0; i < maxAttempts; i++) {
+      if (i > 0) {
+        await Future<void>.delayed(delay);
+      }
+      final ctx = NavigationManager().navigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        await InstantMessageModal.showFrontendOnlyInstant(
+          ctx,
+          title: 'Not enough coins',
+          body: 'Not enough coins to join the game. Required coins: $requiredCoins.',
+          data: Map<String, dynamic>.from(stash),
+          actionLabel: 'Buy coins',
+          actionIdentifier: 'buy_coins',
+          onAction: () {
+            NavigationManager().navigateTo('/coin-purchase');
+          },
+        );
+        return;
+      }
+    }
+    if (LOGGING_SWITCH) {
+      _logger.warning(
+        'stashLastCoinPurchaseContextAndShowBuyModal: no navigator context after $maxAttempts attempts (stash still set)',
+      );
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 import 'room_manager.dart';
 import 'websocket_server.dart';
@@ -6,13 +7,14 @@ import '../utils/config.dart';
 import 'random_join_timer_manager.dart';
 import '../modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart';
 import '../modules/dutch_game/backend_core/services/game_state_store.dart';
+import '../modules/dutch_game/backend_core/services/game_registry.dart';
 import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // join_random_game + room flow (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // rematch + coin verify; join_random_game + room (enable-logging-switch.mdc)
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -30,6 +32,29 @@ class MessageHandler {
     if (v == true) return true;
     if (v is String && (v == 'true' || v == '1')) return true;
     return false;
+  }
+
+  static bool _coerceBool(dynamic v, {required bool ifNull}) {
+    if (v == null) return ifNull;
+    if (v is bool) return v;
+    if (v is String) {
+      final s = v.toLowerCase().trim();
+      if (s == 'true' || s == '1') return true;
+      if (s == 'false' || s == '0') return false;
+    }
+    return ifNull;
+  }
+
+  /// Display / identity fields to carry across rematch; hands and round state are reset separately.
+  static Map<String, dynamic> _lobbyPlayerExtrasFromPrevious(Map<String, dynamic> prev) {
+    final out = <String, dynamic>{};
+    final u = prev['username'];
+    if (u is String && u.isNotEmpty) out['username'] = u;
+    final pic = prev['profile_picture'];
+    if (pic is String && pic.isNotEmpty) out['profile_picture'] = pic;
+    final comp = prev['is_comp_player'] ?? prev['isCompPlayer'];
+    if (comp != null) out['is_comp_player'] = comp;
+    return out;
   }
 
   /// Verify user has enough coins to join/create a room (SSOT for all join flows).
@@ -205,6 +230,19 @@ class MessageHandler {
         _handleGameEvent(sessionId, event, data);
         break;
 
+      case 'rematch':
+        _handleRematchStub(sessionId, data);
+        break;
+
+      case 'rematch_accepted':
+      case 'rematch_declined':
+        _handleRematchDecisionStub(sessionId, event, data);
+        break;
+
+      case 'start_rematch':
+        _handleStartRematch(sessionId, data);
+        break;
+
       default:
         _sendError(sessionId, 'Unknown event: $event');
     }
@@ -218,7 +256,504 @@ class MessageHandler {
       'timestamp': DateTime.now().toIso8601String(),
     });
   }
-  
+
+  /// Client **rematch** (Play Again): duplicate guard via [Room.hasMatchRestarted], then `restart_invite` to others.
+  /// Initiator is appended to [Room.rematchAccepted] only after [_verifyCoinsForJoin] succeeds; then
+  /// [hasMatchRestarted] is set and invites go out. Match start runs only when every session is in
+  /// [rematchAccepted] after their own coin checks ([_tryCompleteRematchIfReady]).
+  ///
+  /// TODO(rematch — eligibility): Before accepting rematch (when [Room.hasMatchRestarted] is false), verify
+  /// **authoritative** game status / phase is `game_ended` (do not rely only on client `game_state`).
+  /// Only then proceed with restart / tournament persistence.
+  void _handleRematchStub(String sessionId, Map<String, dynamic> data) {
+    final gameId = data['game_id'] as String?;
+    final gameState = data['game_state'];
+    final userId = data['user_id'] as String?;
+
+    if (gameId == null || gameId.isEmpty) {
+      _sendError(sessionId, 'rematch requires game_id');
+      return;
+    }
+
+    final roomIdForSession = _roomManager.getRoomForSession(sessionId);
+    if (roomIdForSession == null || roomIdForSession != gameId) {
+      _sendError(sessionId, 'rematch: session not in room or game_id mismatch');
+      return;
+    }
+
+    final room = _roomManager.getRoomInfo(gameId);
+    if (room == null) {
+      _sendError(sessionId, 'rematch: room not found');
+      return;
+    }
+    if (!room.sessionIds.contains(sessionId)) {
+      _sendError(sessionId, 'rematch: session not in room');
+      return;
+    }
+
+    if (room.hasMatchRestarted) {
+      print('[rematch] early exit: hasMatchRestarted=true room=$gameId session=$sessionId');
+      return;
+    }
+
+    final resolvedUserId = userId ?? _server.getUserIdForSession(sessionId);
+    if (resolvedUserId == null || resolvedUserId.isEmpty) {
+      _sendError(sessionId, 'rematch: user id required');
+      return;
+    }
+    final joinLevel = room.gameLevel ?? 1;
+
+    _verifyCoinsForJoin(resolvedUserId, joinLevel).then((ok) {
+      if (!ok) {
+        if (LOGGING_SWITCH) {
+          _logger.room('📊 Coins check: rematch failed for $resolvedUserId room=$gameId');
+        }
+        _server.sendToSession(
+          sessionId,
+          _joinRoomCoinErrorPayload(
+            message: 'Insufficient coins to start a rematch at this table. Check your balance.',
+            roomId: gameId,
+            gameLevel: joinLevel,
+          ),
+        );
+        return;
+      }
+
+      final r = _roomManager.getRoomInfo(gameId);
+      if (r == null || !r.sessionIds.contains(sessionId)) {
+        return;
+      }
+      if (r.hasMatchRestarted) {
+        print('[rematch] coin ok but another rematch already started room=$gameId');
+        return;
+      }
+
+      r.rematchPendingTimer?.cancel();
+      r.rematchInitiatorSessionId = sessionId;
+      r.rematchInitiatorUserId = resolvedUserId;
+      r.rematchAccepted.clear();
+      r.rematchDeclined.clear();
+      // Seed initiator only after coin check — peers are added the same way in [rematch_accepted].
+      r.rematchAccepted.add({
+        'session_id': sessionId,
+        'user_id': resolvedUserId,
+      });
+      r.hasMatchRestarted = true;
+
+      if (LOGGING_SWITCH) {
+        _logger.websocket(
+          '🔄 rematch: sessionId=$sessionId user_id=$resolvedUserId game_id=$gameId keys=${data.keys.toList()}',
+        );
+      }
+
+      print('[rematch] sessionId=$sessionId user_id=$resolvedUserId game_id=$gameId — broadcasting restart_invite to others');
+      try {
+        if (gameState is Map) {
+          final encoded = jsonEncode(gameState);
+          final preview =
+              encoded.length > 8000 ? '${encoded.substring(0, 8000)}…(truncated, len=${encoded.length})' : encoded;
+          print('[rematch] game_state: $preview');
+        } else {
+          print('[rematch] game_state: ${gameState?.toString() ?? 'null'} (not a Map)');
+        }
+      } catch (e, st) {
+        print('[rematch] game_state log error: $e\n$st');
+      }
+
+      var isCoinRequired = true;
+      try {
+        final gs = GameStateStore.instance.getGameState(gameId);
+        final v = gs['isCoinRequired'];
+        if (v is bool) {
+          isCoinRequired = v;
+        }
+      } catch (_) {}
+
+      _server.broadcastToRoomExcept(
+        gameId,
+        {
+          'event': 'restart_invite',
+          'room_id': gameId,
+          'game_id': gameId,
+          'from_session_id': sessionId,
+          'from_user_id': resolvedUserId,
+          'game_level': joinLevel,
+          'is_coin_required': isCoinRequired,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+        sessionId,
+      );
+    });
+  }
+
+  /// Clears [Room.hasMatchRestarted] when a new match is about to start.
+  void _resetMatchRestartedFlag(String roomId) {
+    final room = _roomManager.getRoomInfo(roomId);
+    if (room != null) {
+      room.hasMatchRestarted = false;
+    }
+  }
+
+  /// Peer responded to `restart_invite` (Accept / Decline).
+  /// For [rematch_accepted], the session is appended to [Room.rematchAccepted] only after
+  /// [_verifyCoinsForJoin] succeeds — never before. Then [_tryCompleteRematchIfReady] runs;
+  /// [_handleStartRematch] is invoked only when every [Room.sessionIds] entry is in [rematchAccepted].
+  void _handleRematchDecisionStub(String sessionId, String event, Map<String, dynamic> data) {
+    final gameId = data['game_id'] as String? ?? data['room_id'] as String?;
+    if (gameId == null || gameId.isEmpty) {
+      _sendError(sessionId, 'rematch decision requires game_id or room_id');
+      return;
+    }
+    final room = _roomManager.getRoomInfo(gameId);
+    if (room == null) {
+      _sendError(sessionId, 'rematch decision: room not found');
+      return;
+    }
+    if (!room.sessionIds.contains(sessionId)) {
+      _sendError(sessionId, 'rematch decision: session not in room');
+      return;
+    }
+    if (!room.hasMatchRestarted) {
+      return;
+    }
+
+    final userId = data['user_id'] as String? ?? _server.getUserIdForSession(sessionId) ?? '';
+    final entry = <String, dynamic>{
+      'session_id': sessionId,
+      'user_id': userId,
+    };
+
+    if (event == 'rematch_declined') {
+      if (!_rematchEntryHasSession(room.rematchDeclined, sessionId)) {
+        room.rematchDeclined.add(entry);
+      }
+      room.rematchPendingTimer?.cancel();
+      room.rematchPendingTimer = null;
+      _clearRematchLobbyRoom(room);
+      room.hasMatchRestarted = false;
+      print('[rematch_declined] sessionId=$sessionId user_id=$userId room=$gameId — rematch cancelled');
+      return;
+    }
+
+    if (event == 'rematch_accepted') {
+      if (userId.isEmpty) {
+        _sendError(sessionId, 'rematch_accepted: user id required');
+        return;
+      }
+      // Idempotent: already recorded after a prior successful coin check.
+      if (_rematchEntryHasSession(room.rematchAccepted, sessionId)) {
+        _tryCompleteRematchIfReady(gameId);
+        return;
+      }
+
+      final acceptEntry = <String, dynamic>{
+        'session_id': sessionId,
+        'user_id': userId,
+      };
+      final joinLevel = room.gameLevel ?? 1;
+      _verifyCoinsForJoin(userId, joinLevel).then((ok) {
+        if (!ok) {
+          if (LOGGING_SWITCH) {
+            _logger.room('📊 Coins check: rematch_accepted failed for $userId room=$gameId');
+          }
+          _server.sendToSession(
+            sessionId,
+            _joinRoomCoinErrorPayload(
+              message: 'Insufficient coins to accept this rematch. Check your balance.',
+              roomId: gameId,
+              gameLevel: joinLevel,
+            ),
+          );
+          return;
+        }
+        final r = _roomManager.getRoomInfo(gameId);
+        if (r == null || !r.sessionIds.contains(sessionId) || !r.hasMatchRestarted) {
+          return;
+        }
+        // Only append after coin verification; do not add on failed or pending coin paths.
+        if (!_rematchEntryHasSession(r.rematchAccepted, sessionId)) {
+          r.rematchAccepted.add(acceptEntry);
+        }
+        _tryCompleteRematchIfReady(gameId);
+      });
+    }
+  }
+
+  bool _rematchEntryHasSession(List<Map<String, dynamic>> list, String sessionId) {
+    return list.any((e) => e['session_id'] == sessionId);
+  }
+
+  /// True when every [Room.sessionIds] session appears in [Room.rematchAccepted]
+  /// (initiator seeded after coin check on `rematch`; others after coin check on `rematch_accepted`).
+  bool _allSessionsAcceptedRematch(Room room) {
+    final needed = room.sessionIds.toSet();
+    if (needed.isEmpty) return false;
+    final accepted = room.rematchAccepted
+        .map((e) => e['session_id'] as String?)
+        .whereType<String>()
+        .toSet();
+    return needed.every(accepted.contains);
+  }
+
+  void _clearRematchLobbyRoom(Room room) {
+    room.rematchPendingTimer?.cancel();
+    room.rematchPendingTimer = null;
+    room.rematchAccepted.clear();
+    room.rematchDeclined.clear();
+    room.rematchInitiatorSessionId = null;
+    room.rematchInitiatorUserId = null;
+  }
+
+  /// When [Room.rematchAccepted] contains every session in [Room.sessionIds] (each added only after
+  /// that session's coin check), starts the rematch flow.
+  void _tryCompleteRematchIfReady(String roomId) {
+    final room = _roomManager.getRoomInfo(roomId);
+    if (room == null || !room.hasMatchRestarted) return;
+    if (!_allSessionsAcceptedRematch(room)) return;
+    if (room.rematchDeclined.isNotEmpty) return;
+
+    room.rematchPendingTimer?.cancel();
+    room.rematchPendingTimer = null;
+
+    final initiatorSid = room.rematchInitiatorSessionId ?? room.sessionIds.first;
+    _handleStartRematch(initiatorSid, {
+      'room_id': roomId,
+      'game_id': roomId,
+      if (room.rematchInitiatorUserId != null && room.rematchInitiatorUserId!.isNotEmpty)
+        'user_id': room.rematchInitiatorUserId,
+      'trigger': 'all_accepted',
+    });
+  }
+
+  /// Sends pre-reset [GameStateStore] root + [Room] snapshot to Python (`/service/dutch/rematch-tournament-snapshot`).
+  /// On success, sets [Room.pendingRematchTournamentData] for the next [_resetGameStateForRematch]. Rematch continues if the call fails.
+  Future<void> _notifyRematchTournamentPython(String roomId, Room room) async {
+    Map<String, dynamic> storeSnapshot;
+    try {
+      final storeRoot = GameStateStore.instance.getState(roomId);
+      storeSnapshot = jsonDecode(jsonEncode(storeRoot)) as Map<String, dynamic>;
+    } catch (e, st) {
+      if (LOGGING_SWITCH) {
+        _logger.error('rematch tournament snapshot: store JSON encode failed: $e\n$st');
+      }
+      storeSnapshot = {
+        'error': 'store_encode_failed',
+        'detail': e.toString(),
+      };
+    }
+
+    final roomSnapshot = <String, dynamic>{
+      ...room.toJson(),
+      'session_ids': List<String>.from(room.sessionIds),
+      'is_random_join': room.isRandomJoin,
+      'has_match_restarted': room.hasMatchRestarted,
+      'rematch_accepted': room.rematchAccepted
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(),
+      'rematch_declined': room.rematchDeclined
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(),
+      'rematch_initiator_session_id': room.rematchInitiatorSessionId,
+      'rematch_initiator_user_id': room.rematchInitiatorUserId,
+    };
+    if (room.acceptedPlayers != null && room.acceptedPlayers!.isNotEmpty) {
+      roomSnapshot['accepted_players'] = room.acceptedPlayers!
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    final result = await _server.pythonClient.notifyRematchTournamentSnapshot(
+      roomId: roomId,
+      storeSnapshot: storeSnapshot,
+      roomSnapshot: roomSnapshot,
+    );
+    room.pendingRematchTournamentData = null;
+    if (result['success'] == true) {
+      final td = result['tournament_data'];
+      if (td is Map) {
+        final merged = Map<String, dynamic>.from(td);
+        final topTid = result['tournament_id']?.toString();
+        if (topTid != null && topTid.isNotEmpty) {
+          merged['tournament_id'] = merged['tournament_id'] ?? topTid;
+        }
+        room.pendingRematchTournamentData = merged;
+        // Persist on Room so start_match, game end stats, and join payloads see tournament context.
+        room.isTournament = true;
+        room.tournamentData = merged;
+      }
+    }
+    if (LOGGING_SWITCH) {
+      _logger.room(
+        '📤 rematch-tournament-snapshot room=$roomId success=${result['success']}',
+      );
+    }
+  }
+
+  /// Drop prior round + store; recreate [DutchGameRound] and a fresh `waiting_for_players` blob matching
+  /// [GameStateStore.ensure] / `room_created` shape (same [roomId] as `game_id`).
+  ///
+  /// Preserves room-level intent from [Room] + pre-reset store (e.g. `isClearAndCollect` on root for random
+  /// join, `isCoinRequired`, player names / profile fields). Strips gameplay-only state (hands, known_cards,
+  /// piles, round flags) by rebuilding the lobby from scratch.
+  void _resetGameStateForRematch(String roomId) {
+    final room = _roomManager.getRoomInfo(roomId);
+    if (room == null) return;
+
+    final store = GameStateStore.instance;
+    Map<String, dynamic> prevGs = {};
+    Map<String, dynamic> prevRoot = {};
+    try {
+      final raw = store.getState(roomId);
+      prevRoot = Map<String, dynamic>.from(raw);
+      final gs = raw['game_state'];
+      if (gs is Map<String, dynamic>) {
+        prevGs = Map<String, dynamic>.from(gs);
+      }
+    } catch (_) {}
+
+    final prevPlayersById = <String, Map<String, dynamic>>{};
+    final pl = prevGs['players'];
+    if (pl is List) {
+      for (final p in pl) {
+        if (p is Map<String, dynamic>) {
+          final id = p['id']?.toString();
+          if (id != null && id.isNotEmpty) {
+            prevPlayersById[id] = Map<String, dynamic>.from(p);
+          }
+        }
+      }
+    }
+
+    GameRegistry.instance.dispose(roomId);
+    GameRegistry.instance.getOrCreate(roomId, _server);
+
+    final players = <Map<String, dynamic>>[];
+    for (final sid in room.sessionIds) {
+      final uid = _server.getUserIdForSession(sid) ?? '';
+      final prevP = prevPlayersById[sid];
+      final short = sid.length > 8 ? 8 : sid.length;
+      final fallbackName = 'Player_${sid.substring(0, short)}';
+      final fromPrevName = prevP?['name']?.toString().trim();
+      players.add({
+        'id': sid,
+        'name': (fromPrevName != null && fromPrevName.isNotEmpty) ? fromPrevName : fallbackName,
+        'isHuman': prevP?['isHuman'] ?? true,
+        'status': 'waiting',
+        'hand': <Map<String, dynamic>>[],
+        'visible_cards': <Map<String, dynamic>>[],
+        'points': 0,
+        'known_cards': <String, dynamic>{},
+        'collection_rank_cards': <String>[],
+        'isActive': true,
+        if (uid.isNotEmpty) 'userId': uid,
+        if (prevP != null) ..._lobbyPlayerExtrasFromPrevious(prevP),
+      });
+    }
+
+    final defaultClearCollect = room.gameType == 'clear_and_collect';
+    final isClearAndCollectRoot = prevRoot.containsKey('isClearAndCollect')
+        ? _coerceBool(prevRoot['isClearAndCollect'], ifNull: defaultClearCollect)
+        : defaultClearCollect;
+
+    final isCoinRequired = _coerceBool(prevGs['isCoinRequired'], ifNull: true);
+
+    Map<String, dynamic>? effectiveTournamentData;
+    if (room.pendingRematchTournamentData != null &&
+        room.pendingRematchTournamentData!.isNotEmpty) {
+      effectiveTournamentData =
+          Map<String, dynamic>.from(room.pendingRematchTournamentData!);
+    } else if (room.tournamentData != null && room.tournamentData!.isNotEmpty) {
+      effectiveTournamentData = Map<String, dynamic>.from(room.tournamentData!);
+    }
+    final includeTournament = room.isTournament ||
+        (effectiveTournamentData != null && effectiveTournamentData.isNotEmpty);
+
+    final gameStateInner = <String, dynamic>{
+      'gameId': roomId,
+      'gameName': 'Game_$roomId',
+      'gameType': room.gameType,
+      'maxPlayers': room.maxSize,
+      'minPlayers': room.minPlayers,
+      'isGameActive': false,
+      'phase': 'waiting_for_players',
+      'playerCount': players.length,
+      'players': players,
+      'drawPile': <Map<String, dynamic>>[],
+      'discardPile': <Map<String, dynamic>>[],
+      'originalDeck': <Map<String, dynamic>>[],
+      if (room.gameLevel != null) 'gameLevel': room.gameLevel,
+      'isCoinRequired': isCoinRequired,
+      'permission': room.permission,
+      'created_at': room.createdAt.toIso8601String(),
+      'current_size': room.sessionIds.length,
+      'owner_id': room.ownerId,
+      if (includeTournament) 'is_tournament': true,
+      if (effectiveTournamentData != null && effectiveTournamentData.isNotEmpty)
+        'tournament_data': effectiveTournamentData,
+      if (room.rematchInitiatorUserId != null && room.rematchInitiatorUserId!.isNotEmpty)
+        'rematch_creator_id': room.rematchInitiatorUserId,
+    };
+
+    room.pendingRematchTournamentData = null;
+
+    store.mergeRoot(roomId, {
+      'game_id': roomId,
+      'roomDifficulty': room.difficulty ?? prevRoot['roomDifficulty'],
+      'isClearAndCollect': isClearAndCollectRoot,
+      'game_state': gameStateInner,
+    });
+  }
+
+  /// After [Room.rematchAccepted] lists every in-room session (post coin-check) and none declined:
+  /// [GameRegistry] reset, fresh lobby state, then [_startMatchForRoom].
+  Future<void> _handleStartRematch(String sessionId, Map<String, dynamic> data) async {
+    if (LOGGING_SWITCH) {
+      _logger.websocket('start_rematch sessionId=$sessionId keys=${data.keys.toList()}');
+    }
+    final trigger = data['trigger'] as String?;
+    final gameId = data['game_id'] as String? ?? data['room_id'] as String?;
+    print(
+      '[start_rematch] sessionId=$sessionId trigger=$trigger room_id=${data['room_id']} game_id=$gameId',
+    );
+
+    if (gameId == null || gameId.isEmpty) {
+      _sendError(sessionId, 'start_rematch requires game_id');
+      return;
+    }
+
+    final roomIdForSession = _roomManager.getRoomForSession(sessionId);
+    if (roomIdForSession != gameId) {
+      _sendError(sessionId, 'start_rematch: session not in room');
+      return;
+    }
+
+    final room = _roomManager.getRoomInfo(gameId);
+    if (room == null) {
+      _sendError(sessionId, 'start_rematch: room not found');
+      return;
+    }
+
+    room.rematchPendingTimer?.cancel();
+    room.rematchPendingTimer = null;
+
+    if (room.rematchDeclined.isNotEmpty) {
+      print('[start_rematch] aborted: room has declines');
+      _clearRematchLobbyRoom(room);
+      room.hasMatchRestarted = false;
+      return;
+    }
+
+    if (!_allSessionsAcceptedRematch(room)) {
+      print('[start_rematch] skip: not all sessions accepted (trigger=$trigger)');
+      return;
+    }
+
+    await _notifyRematchTournamentPython(gameId, room);
+    _resetGameStateForRematch(gameId);
+    _startMatchForRoom(gameId);
+    _clearRematchLobbyRoom(room);
+  }
+
   // ========= ROOM MANAGEMENT HANDLERS =========
   
   void _handleCreateRoom(String sessionId, Map<String, dynamic> data) {
@@ -1160,6 +1695,7 @@ class MessageHandler {
         _logger.game('🎮 Starting match for random join room: $roomId (isClearAndCollect=$isClearAndCollect)');
         _logger.game('📤 Passing isClearAndCollect to start_match: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
       }
+      room.hasMatchRestarted = false;
       _gameCoordinator.handle(sessionId, 'start_match', {
         'game_id': roomId,
         'min_players': room.minPlayers,
@@ -1238,26 +1774,45 @@ class MessageHandler {
       }
 
       final sessionId = sessions.first;
-      
-      // Derive isClearAndCollect from room game type (create-room flow; matches random join semantics)
-      final isClearAndCollect = room.gameType == 'clear_and_collect';
+
+      // Prefer store root (random join stores user choice here; game_type may stay `classic`).
+      final roomState = store.getState(roomId);
+      final defaultFromGameType = room.gameType == 'clear_and_collect';
+      final isClearAndCollect = roomState.containsKey('isClearAndCollect')
+          ? _coerceBool(roomState['isClearAndCollect'], ifNull: defaultFromGameType)
+          : defaultFromGameType;
       if (LOGGING_SWITCH) {
-        _logger.game('🎮 Starting match for room: $roomId (gameType=${room.gameType}, isClearAndCollect=$isClearAndCollect)');
+        _logger.game(
+          '🎮 Starting match for room: $roomId (gameType=${room.gameType}, isClearAndCollect=$isClearAndCollect)',
+        );
       }
       final Map<String, dynamic> startMatchData = {
         'game_id': roomId,
         'min_players': room.minPlayers,
         'max_players': room.maxSize,
         'auto_start': room.autoStart, // Pass autoStart flag so coordinator can fill to maxPlayers
+        'is_random_join': room.isRandomJoin, // Must match room_created / join_random_game semantics for CPU fill
         'isClearAndCollect': isClearAndCollect,
       };
       if (room.acceptedPlayers != null && room.acceptedPlayers!.isNotEmpty) {
         startMatchData['accepted_players'] = room.acceptedPlayers!;
       }
-      if (room.isTournament) startMatchData['is_tournament'] = true;
+      final gsForStart = store.getGameState(roomId);
+      final gsTd = gsForStart['tournament_data'] as Map<String, dynamic>?;
+      Map<String, dynamic>? tdForStart;
       if (room.tournamentData != null && room.tournamentData!.isNotEmpty) {
-        startMatchData['tournament_data'] = room.tournamentData!;
+        tdForStart = Map<String, dynamic>.from(room.tournamentData!);
+      } else if (gsTd != null && gsTd.isNotEmpty) {
+        tdForStart = Map<String, dynamic>.from(gsTd);
       }
+      final tournamentForStart = room.isTournament ||
+          gsForStart['is_tournament'] == true ||
+          (tdForStart != null && tdForStart.isNotEmpty);
+      if (tournamentForStart) startMatchData['is_tournament'] = true;
+      if (tdForStart != null && tdForStart.isNotEmpty) {
+        startMatchData['tournament_data'] = tdForStart;
+      }
+      room.hasMatchRestarted = false;
       _gameCoordinator.handle(sessionId, 'start_match', startMatchData);
 
       // Cleanup timer state (this also clears isStarting flag)
@@ -1356,6 +1911,12 @@ class MessageHandler {
       _logger.game('📦 Data: $data');
       if (event == 'jack_swap') {
         _logger.game('🃏 _handleGameEvent: jack_swap event received - routing to GameEventCoordinator');
+      }
+    }
+    if (event == 'start_match') {
+      final gid = data['game_id'] as String? ?? data['room_id'] as String?;
+      if (gid != null && gid.isNotEmpty) {
+        _resetMatchRestartedFlag(gid);
       }
     }
     _gameCoordinator.handle(sessionId, event, data);

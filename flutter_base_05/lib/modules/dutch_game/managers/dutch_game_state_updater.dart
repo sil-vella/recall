@@ -905,7 +905,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for join/games investigation and joinedGamesSlice debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for join/games investigation and joinedGamesSlice debugging
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

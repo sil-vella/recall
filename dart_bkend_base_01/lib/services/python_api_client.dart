@@ -4,7 +4,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Token validate for WS auth (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Coin check: get-user-stats + WS auth paths (enable-logging-switch.mdc)
 
 class PythonApiClient {
   final String baseUrl;
@@ -270,6 +270,143 @@ class PythonApiClient {
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('❌ Dart: Network error get-user-stats: $e');
+      }
+      return {
+        'success': false,
+        'error': 'Connection failed',
+        'message': e.toString(),
+      };
+    }
+  }
+
+  /// Authoritative entry-fee deduction when Dart WS starts a match (service endpoint: X-Service-Key).
+  /// Same SSOT as `/userauth/dutch/deduct-game-coins`: promotional tier skips; [is_coin_required] false skips economy.
+  Future<Map<String, dynamic>> deductGameCoinsService({
+    required String gameId,
+    required List<String> playerIds,
+    required int coins,
+    int? gameTableLevel,
+    bool isCoinRequired = true,
+  }) async {
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '📊 Dart: deduct-game-coins (service) gameId=$gameId players=${playerIds.length} coins=$coins table=$gameTableLevel coinReq=$isCoinRequired',
+      );
+      _logger.info('🌐 Dart: Calling $baseUrl/service/dutch/deduct-game-coins');
+    }
+
+    final useKey = Config.usePythonServiceKey;
+    final serviceKey = useKey ? Config.pythonServiceKey : '';
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (serviceKey.isNotEmpty) 'X-Service-Key': serviceKey,
+    };
+
+    final body = <String, dynamic>{
+      'game_id': gameId,
+      'player_ids': playerIds,
+      'coins': coins,
+      if (gameTableLevel != null) 'game_table_level': gameTableLevel,
+      'is_coin_required': isCoinRequired,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/service/dutch/deduct-game-coins'),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      if (LOGGING_SWITCH) {
+        _logger.info('📡 Dart: deduct-game-coins (service) status: ${response.statusCode}');
+      }
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        return result;
+      }
+      Map<String, dynamic>? errBody;
+      try {
+        errBody = jsonDecode(response.body) as Map<String, dynamic>?;
+      } catch (_) {}
+      return {
+        'success': false,
+        'error': errBody?['error'] ?? errBody?['message'] ?? 'HTTP ${response.statusCode}',
+        'status_code': response.statusCode,
+        'body': response.body,
+      };
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Dart: Network error deduct-game-coins (service): $e');
+      }
+      return {
+        'success': false,
+        'error': 'Connection failed',
+        'message': e.toString(),
+      };
+    }
+  }
+
+  /// Before rematch reset: send full store + room snapshot to Python for tournament persistence (service key).
+  /// Handler currently logs payload only.
+  Future<Map<String, dynamic>> notifyRematchTournamentSnapshot({
+    required String roomId,
+    required Map<String, dynamic> storeSnapshot,
+    required Map<String, dynamic> roomSnapshot,
+  }) async {
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '🏟 Dart: rematch-tournament-snapshot room_id=$roomId store_keys=${storeSnapshot.keys.toList()}',
+      );
+      _logger.info('🌐 Dart: Calling $baseUrl/service/dutch/rematch-tournament-snapshot');
+    }
+
+    final useKey = Config.usePythonServiceKey;
+    final serviceKey = useKey ? Config.pythonServiceKey : '';
+    if (useKey && serviceKey.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.warning(
+          '⚠️ Dart: USE_PYTHON_SERVICE_KEY is on but DART_BACKEND_SERVICE_KEY not set; Python may reject the request',
+        );
+      }
+    }
+
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (serviceKey.isNotEmpty) 'X-Service-Key': serviceKey,
+    };
+
+    final body = <String, dynamic>{
+      'room_id': roomId,
+      'store_snapshot': storeSnapshot,
+      'room_snapshot': roomSnapshot,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/service/dutch/rematch-tournament-snapshot'),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      if (LOGGING_SWITCH) {
+        _logger.info('📡 Dart: rematch-tournament-snapshot status: ${response.statusCode}');
+        _logger.info('📦 Dart: rematch-tournament-snapshot body: ${response.body}');
+      }
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        return result;
+      }
+      return {
+        'success': false,
+        'error': 'rematch-tournament-snapshot failed',
+        'status_code': response.statusCode,
+        'body': response.body,
+      };
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Dart: Network error rematch-tournament-snapshot: $e');
       }
       return {
         'success': false,

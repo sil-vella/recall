@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for computer same-rank decision process and round flow testing (practice mode)
+const bool LOGGING_SWITCH = true; // Round flow; rematch/game trace (enable-logging-switch.mdc)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -4968,6 +4968,16 @@ class DutchGameRound {
           final players = (currentGameState['players'] as List<dynamic>? ?? [])
               .whereType<Map<String, dynamic>>()
               .toList();
+
+          // Stats / tournament DB: attach end-of-hand points and card count so Python can persist
+          // real per-match scores (leaderboard aggregates historical matches + this hand).
+          final playersForStats = <Map<String, dynamic>>[];
+          for (final p in players) {
+            final m = Map<String, dynamic>.from(p);
+            m['end_game_total_points'] = _calculatePlayerPoints(p, currentGameState);
+            m['end_game_card_count'] = _getPlayerCardCountForWinner(p);
+            playersForStats.add(m);
+          }
           
           // Get match_pot from game state (calculated at game start)
           // Pot is stored in game_state.match_pot (not gameData.match_pot)
@@ -4986,7 +4996,7 @@ class DutchGameRound {
           
           // Call onGameEnded callback to trigger stats update
           // Pass match_pot so it can be included in game_results for winner reward
-          _stateCallback.onGameEnded(_winnersList, players, matchPot: matchPot);
+          _stateCallback.onGameEnded(_winnersList, playersForStats, matchPot: matchPot);
         }
       } else {
         if (LOGGING_SWITCH) {

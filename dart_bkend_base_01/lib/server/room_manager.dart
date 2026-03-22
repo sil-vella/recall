@@ -26,10 +26,29 @@ class Room {
   String? difficulty; // Room difficulty (set by first human player's rank)
   /// Accepted players for create-match invite flow: [{ user_id, username, is_comp_player }]. Available in _handleJoinRoom.
   final List<Map<String, dynamic>>? acceptedPlayers;
-  /// True when this room is for a tournament match (from create_room payload).
-  final bool isTournament;
-  /// Tournament payload from DB (tournament_id, match_index, name, etc.). Passed into game state when match starts.
-  final Map<String, dynamic>? tournamentData;
+  /// True when this room is for a tournament match (create_room or rematch snapshot from Python).
+  bool isTournament;
+  /// Tournament payload (tournament_id, match_index, type, format, matches, …). May be set at create or after rematch.
+  Map<String, dynamic>? tournamentData;
+
+  /// Set by Python `rematch-tournament-snapshot` before lobby reset; merged into `game_state` once then cleared.
+  Map<String, dynamic>? pendingRematchTournamentData;
+
+  /// Set to `true` after a **rematch** request has been processed (`restart_invite` sent). Cleared when a new match **starts** (`start_match`).
+  /// Prevents duplicate rematch handling for the same ended match until the next match begins.
+  bool hasMatchRestarted = false;
+
+  /// Cancelled when rematch completes or aborts (no scheduled rematch timer — all must accept first).
+  Timer? rematchPendingTimer;
+
+  /// Rematch accept list: `{session_id, user_id}` (initiator is seeded when `rematch` is received).
+  final List<Map<String, dynamic>> rematchAccepted = [];
+
+  /// Rematch decline list: `{session_id, user_id}`.
+  final List<Map<String, dynamic>> rematchDeclined = [];
+
+  String? rematchInitiatorSessionId;
+  String? rematchInitiatorUserId;
 
   Room({
     required this.roomId,

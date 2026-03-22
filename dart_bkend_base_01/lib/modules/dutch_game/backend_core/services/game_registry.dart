@@ -6,7 +6,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Game init after random join (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // GameRegistry + callback; rematch/game trace (enable-logging-switch.mdc)
 /// When true, log game_state_updated payload size (bytes) and emit frequency for performance measurement.
 const bool LOGGING_STATE_SIZE_SWITCH = true;
 
@@ -296,6 +296,30 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final filtered = Map<String, dynamic>.from(gameState);
     filtered.remove('originalDeck');
     return filtered;
+  }
+
+  /// Broadcast current store state (e.g. after Python [update_game_stats] returns enriched `tournament_data`).
+  void _broadcastFullGameStateFromStore() {
+    final state = _store.getState(roomId);
+    final gameState = Map<String, dynamic>.from(state['game_state'] as Map<String, dynamic>? ?? {});
+    gameState['phase'] = gameState['phase'] ?? 'playing';
+    gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
+    final filteredGameState = _filterGameStateForFrontend(gameState);
+    final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+    final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
+    final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+    final ownerId = server.getRoomOwner(roomId);
+    final payload = <String, dynamic>{
+      'event': 'game_state_updated',
+      'game_id': roomId,
+      'game_state': filteredGameState,
+      'turn_events': turnEvents,
+      if (ownerId != null) 'owner_id': ownerId,
+      if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
+      if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    server.broadcastToRoom(roomId, payload);
   }
 
   /// Apply validated updates to GameStateStore and broadcast
@@ -667,12 +691,23 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         // Calculate pot for this player (full pot if winner, 0 if not)
         // If multiple winners, pot will be split equally among winners
         final playerPot = isWinner ? (pot > 0 && winners.isNotEmpty ? (pot / winners.length).round() : 0) : 0;
+
+        final rawPts = player['end_game_total_points'];
+        final rawCards = player['end_game_card_count'];
+        final totalEndPoints = rawPts is int
+            ? rawPts
+            : int.tryParse('$rawPts') ?? 0;
+        final endCardCount = rawCards is int
+            ? rawCards
+            : int.tryParse('$rawCards') ?? 0;
         
         gameResults.add({
           'user_id': userId,
           'is_winner': isWinner,
           'pot': playerPot, // Pot amount for this player (full pot if single winner, split if multiple winners)
           'win_type': winType,
+          'total_end_points': totalEndPoints,
+          'end_card_count': endCardCount,
         });
         
         if (LOGGING_SWITCH) {
@@ -709,6 +744,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         if (result['success'] == true) {
           if (LOGGING_SWITCH) {
             _logger.info('GameStateCallback: Successfully updated game statistics');
+          }
+          final td = result['tournament_data'];
+          if (td is Map<String, dynamic> && td.isNotEmpty) {
+            final gs = _store.getGameState(roomId);
+            final prev = gs['tournament_data'] as Map<String, dynamic>?;
+            gs['tournament_data'] = <String, dynamic>{...?prev, ...td};
+            _broadcastFullGameStateFromStore();
           }
         } else {
           if (LOGGING_SWITCH) {

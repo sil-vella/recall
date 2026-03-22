@@ -1,5 +1,6 @@
+import json
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, List
 from flask import Blueprint, request, jsonify
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.modules.user_management_module import tier_rank_level_matcher as matcher
@@ -15,7 +16,7 @@ from .wins_level_rank_matcher import WinsLevelRankMatcher
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Enabled for get-user-stats + tournament attach flow — see .cursor/rules/enable-logging-switch.mdc
+LOGGING_SWITCH = True  # Coin check: get_user_stats / get_user_stats_service + deduct_game_coins; tournaments attach — see .cursor/rules/enable-logging-switch.mdc
 
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
@@ -28,6 +29,19 @@ def set_app_manager(app_manager):
     """Set app manager for database access"""
     global _app_manager
     _app_manager = app_manager
+
+
+def _enrich_td_out_from_tournament_doc(db_manager, tournament_oid: ObjectId, td_out: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge type, format, and matches[] from DB into rematch / snapshot tournament_data for clients."""
+    doc = db_manager.find_one("tournaments", {"_id": tournament_oid})
+    if not doc:
+        return td_out
+    full = _tournament_doc_to_json(doc)
+    out = dict(td_out)
+    out["type"] = full.get("type")
+    out["format"] = full.get("format")
+    out["matches"] = full.get("matches") or []
+    return out
 
 
 def _tournament_doc_to_json(doc: Dict[str, Any]) -> Dict[str, Any]:
@@ -203,7 +217,12 @@ def create_tournament_in_db(creator_id, data, db_manager):
                 user_ids.append(ObjectId(uid) if isinstance(uid, str) else uid)
             except Exception:
                 pass
+        # Unique index tournament_id_1: inserts without tournament_id collide as duplicate null — set before insert.
+        new_oid = ObjectId()
+        tid_str = str(new_oid)
         doc = {
+            "_id": new_oid,
+            "tournament_id": tid_str,
             "creator_id": creator_oid,
             "user_ids": user_ids,
             "matches": data.get("matches") or [],
@@ -213,6 +232,10 @@ def create_tournament_in_db(creator_id, data, db_manager):
         }
         if data.get("name") is not None:
             doc["name"] = data["name"]
+        if data.get("type") is not None:
+            doc["type"] = str(data["type"]).strip().lower()
+        if data.get("format") is not None:
+            doc["format"] = str(data["format"]).strip().lower()
         start_date = data.get("start_date")
         if start_date is not None and isinstance(start_date, str) and start_date.strip():
             doc["start_date"] = start_date.strip()
@@ -337,6 +360,189 @@ def find_room():
         return jsonify({"success": False, "message": "Failed to find game", "error": str(e)}), 500
 
 
+def _winner_str_from_game_results(game_results: list) -> str:
+    """Comma-separated user_ids for winners (Dart sends one row per player with is_winner)."""
+    winner_user_ids = [r.get("user_id") for r in game_results if r.get("is_winner") and r.get("user_id")]
+    return ",".join(str(uid) for uid in winner_user_ids) if winner_user_ids else ""
+
+
+def _ordered_user_id_strs_from_game_results(game_results: list) -> list:
+    """Preserve order, de-dupe user_ids from game_results."""
+    out = []
+    seen = set()
+    for r in game_results:
+        uid = (r.get("user_id") or "").strip()
+        if not uid or uid in seen:
+            continue
+        try:
+            ObjectId(uid)
+        except Exception:
+            continue
+        seen.add(uid)
+        out.append(uid)
+    return out
+
+
+def _int_from_game_result_row(r: Dict[str, Any], *keys: str, default: int = 0) -> int:
+    for k in keys:
+        v = r.get(k)
+        if v is None:
+            continue
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            continue
+    return default
+
+
+def _stats_by_user_from_game_results(game_results: list) -> Dict[str, Tuple[int, int]]:
+    """Map user_id str -> (total_end_points, end_card_count) from Dart game_results."""
+    out: Dict[str, Tuple[int, int]] = {}
+    for r in game_results:
+        if not isinstance(r, dict):
+            continue
+        uid = (r.get("user_id") or "").strip()
+        if not uid:
+            continue
+        tp = _int_from_game_result_row(r, "total_end_points", "totalEndPoints")
+        ec = _int_from_game_result_row(r, "end_card_count", "endCardCount")
+        out[uid] = (tp, ec)
+    return out
+
+
+def _append_single_room_league_completed_match(
+    db_manager,
+    tournament_oid: ObjectId,
+    tournament_id: str,
+    tournament_doc: Dict[str, Any],
+    room_id: str,
+    game_results: list,
+) -> bool:
+    """Append a new matches[] row (new match_id / match_index) with status=completed and winner.
+
+    Used when the same physical room_id is reused across rematches so we do not overwrite the prior row
+    found by room_id."""
+    user_id_strs = _ordered_user_id_strs_from_game_results(game_results)
+    if not user_id_strs:
+        for u in tournament_doc.get("user_ids") or []:
+            s = str(u).strip() if u is not None else ""
+            if not s:
+                continue
+            try:
+                ObjectId(s)
+            except Exception:
+                continue
+            if s not in user_id_strs:
+                user_id_strs.append(s)
+    if not user_id_strs:
+        custom_log(
+            "📊 Python: _append_single_room_league_completed_match no user_ids from game_results or tournament",
+            level="WARNING",
+            isOn=LOGGING_SWITCH,
+        )
+        return False
+
+    user_oids = []
+    for uid_str in user_id_strs:
+        try:
+            user_oids.append(ObjectId(uid_str))
+        except Exception:
+            return False
+
+    matches = tournament_doc.get("matches") or []
+    next_index = 1
+    if matches:
+        indices = [m.get("match_index") for m in matches if isinstance(m, dict) and m.get("match_index") is not None]
+        next_index = max(indices, default=0) + 1
+
+    now = datetime.utcnow()
+    updated_at = now.isoformat() + "Z"
+    match_date = now.date().isoformat() if hasattr(now, "date") else updated_at[:10]
+    match_id_str = now.strftime("%Y%m%d%H%M%S") + "_" + uuid.uuid4().hex[:8]
+    winner_str = _winner_str_from_game_results(game_results)
+    stats_by_uid = _stats_by_user_from_game_results(game_results)
+
+    players = []
+    for uid_str in user_id_strs:
+        tp, ec = stats_by_uid.get(uid_str, (0, 0))
+        entry = {
+            "user_id": uid_str,
+            "username": "",
+            "email": "",
+            "points": tp,
+            "number_of_cards_left": ec,
+        }
+        try:
+            u = db_manager.find_one("users", {"_id": ObjectId(uid_str)})
+            if u:
+                entry["username"] = (u.get("username") or "").strip() or ("user_%s" % uid_str[:8])
+                entry["email"] = (u.get("email") or "").strip()
+                entry["is_comp_player"] = u.get("is_comp_player") is True
+        except Exception:
+            pass
+        players.append(entry)
+    scores = [
+        {
+            "user_id": uid,
+            "end_card_count": stats_by_uid.get(uid, (0, 0))[1],
+            "total_end_points": stats_by_uid.get(uid, (0, 0))[0],
+        }
+        for uid in user_id_strs
+    ]
+
+    new_match = {
+        "match_id": match_id_str,
+        "match_index": next_index,
+        "status": "completed",
+        "room_id": (room_id or "").strip(),
+        "winner": winner_str,
+        "user_ids": user_oids,
+        "match_date": match_date,
+        "start_date": match_date,
+        "players": players,
+        "scores": scores,
+    }
+
+    rid = (room_id or "").strip()
+    # Rematch pre-appends a pending row for this room; remove it so we do not keep pending + completed for the same game.
+    pull_spec = {"room_id": rid, "status": "pending"}
+
+    # MongoDB forbids $pull and $push on the same array path in a single update (path conflict).
+    try:
+        db_manager.db["tournaments"].update_one(
+            {"_id": tournament_oid},
+            {"$pull": {"matches": pull_spec}, "$set": {"updated_at": updated_at}},
+        )
+    except Exception as db_err:
+        custom_log(f"📊 Python: _append_single_room_league_completed_match pull db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
+        return False
+
+    try:
+        result = db_manager.db["tournaments"].update_one(
+            {"_id": tournament_oid},
+            {"$push": {"matches": new_match}, "$set": {"updated_at": updated_at}},
+        )
+    except Exception as db_err:
+        custom_log(f"📊 Python: _append_single_room_league_completed_match push db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
+        return False
+
+    if not result or result.modified_count == 0:
+        custom_log(
+            "📊 Python: _append_single_room_league_completed_match failed (no document modified)",
+            level="WARNING",
+            isOn=LOGGING_SWITCH,
+        )
+        return False
+
+    custom_log(
+        f"📊 Python: single_room_league — appended completed match tournament_id={tournament_id} "
+        f"match_id={match_id_str} match_index={next_index} room_id={room_id} winner={winner_str}",
+        level="INFO",
+        isOn=LOGGING_SWITCH,
+    )
+    return True
+
+
 def _record_tournament_match_result(
     db_manager,
     game_results: list,
@@ -344,8 +550,12 @@ def _record_tournament_match_result(
     room_id: Optional[str] = None,
 ) -> None:
     """Update tournament match in DB when a tournament match ends: set status=completed and winner.
-    Match is found by tournament_id + room_id (room_id was set on the match at attach_tournament_match_room).
-    Winner is the user_id of the first game_result with is_winner=True; if multiple winners, comma-separated."""
+
+    For format ``single_room_league``, appends a **new** matches[] row (new match_id) with completed data,
+    because the same ``room_id`` is reused across rematches and updating by room_id would overwrite the same row.
+
+    Other formats: match is found by tournament_id + room_id (room_id was set on the match at creation/attach).
+    Winner is the user_id of game_result rows with is_winner=True; if multiple winners, comma-separated."""
     if not room_id:
         custom_log("📊 Python: _record_tournament_match_result skipped - no room_id", level="WARNING", isOn=LOGGING_SWITCH)
         return
@@ -362,6 +572,14 @@ def _record_tournament_match_result(
     if not tournament:
         custom_log(f"📊 Python: _record_tournament_match_result tournament not found: {tournament_id}", level="WARNING", isOn=LOGGING_SWITCH)
         return
+
+    fmt = (tournament.get("format") or "").strip().lower()
+    if fmt == "single_room_league":
+        _append_single_room_league_completed_match(
+            db_manager, tournament_oid, tournament_id, tournament, room_id, game_results
+        )
+        return
+
     matches = list(tournament.get("matches") or [])
     match_idx = None
     for i, m in enumerate(matches):
@@ -371,11 +589,41 @@ def _record_tournament_match_result(
     if match_idx is None:
         custom_log(f"📊 Python: _record_tournament_match_result no match with room_id={room_id} in tournament {tournament_id}", level="WARNING", isOn=LOGGING_SWITCH)
         return
-    winner_user_ids = [r.get("user_id") for r in game_results if r.get("is_winner") and r.get("user_id")]
-    winner_str = ",".join(str(uid) for uid in winner_user_ids) if winner_user_ids else ""
+    winner_str = _winner_str_from_game_results(game_results)
     matches[match_idx] = dict(matches[match_idx])
     matches[match_idx]["status"] = "completed"
     matches[match_idx]["winner"] = winner_str
+    stats_by_uid = _stats_by_user_from_game_results(game_results)
+    uid_order: List[str] = []
+    for u in matches[match_idx].get("user_ids") or []:
+        uid_order.append(str(u))
+    if not uid_order:
+        uid_order = list(_ordered_user_id_strs_from_game_results(game_results))
+    if uid_order and stats_by_uid:
+        matches[match_idx]["scores"] = [
+            {
+                "user_id": u,
+                "total_end_points": stats_by_uid.get(u, (0, 0))[0],
+                "end_card_count": stats_by_uid.get(u, (0, 0))[1],
+            }
+            for u in uid_order
+        ]
+        pl_existing = matches[match_idx].get("players")
+        if isinstance(pl_existing, list):
+            new_players = []
+            for p in pl_existing:
+                if not isinstance(p, dict):
+                    continue
+                pu = (p.get("user_id") or "").strip()
+                if not pu:
+                    continue
+                q = dict(p)
+                tp, ec = stats_by_uid.get(pu, (0, 0))
+                q["points"] = tp
+                q["number_of_cards_left"] = ec
+                new_players.append(q)
+            if new_players:
+                matches[match_idx]["players"] = new_players
     now = datetime.utcnow()
     updated_at = now.isoformat() + "Z"
     try:
@@ -540,6 +788,21 @@ def update_game_stats():
             response_data = {"success": True, "message": f"Game statistics updated successfully for {len(updated_players)} player(s)", "updated_players": updated_players}
             if errors:
                 response_data["warnings"] = errors
+            if is_tournament:
+                tid = (tournament_data.get("tournament_id") or "").strip()
+                if tid:
+                    try:
+                        tdoc = db_manager.find_one("tournaments", {"_id": ObjectId(tid)})
+                        if tdoc:
+                            tj = _tournament_doc_to_json(tdoc)
+                            response_data["tournament_data"] = {
+                                "tournament_id": tid,
+                                "type": tj.get("type"),
+                                "format": tj.get("format"),
+                                "matches": tj.get("matches") or [],
+                            }
+                    except Exception as e_td:
+                        custom_log(f"📊 Python: update_game_stats tournament_data attach skipped: {e_td}", level="DEBUG", isOn=LOGGING_SWITCH)
             return jsonify(response_data), 200
         return jsonify({"success": False, "message": "Failed to update any player statistics", "error": "All updates failed", "errors": errors}), 500
     except Exception as e:
@@ -583,6 +846,12 @@ def get_user_stats():
             stats_data['last_match_date'] = stats_data['last_match_date'].isoformat()
         if stats_data.get('last_updated') and isinstance(stats_data['last_updated'], datetime):
             stats_data['last_updated'] = stats_data['last_updated'].isoformat()
+        if LOGGING_SWITCH:
+            custom_log(
+                f"📊 DutchGame: get_user_stats (JWT) user_id={user_id} coins={stats_data.get('coins')} subscription_tier={stats_data.get('subscription_tier')}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
         return jsonify({"success": True, "message": "User statistics retrieved successfully", "data": stats_data, "user_id": str(user_id), "timestamp": datetime.utcnow().isoformat()}), 200
     except Exception as e:
         custom_log(f"❌ DutchGame: Error in get_user_stats: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -633,6 +902,189 @@ def get_user_stats_service():
         return jsonify({"success": False, "error": "Failed to retrieve user statistics", "message": str(e)}), 500
 
 
+def _deduct_game_coins_from_body(data: Dict[str, Any]):
+    """Shared body for JWT and Dart service deduct-game-coins routes."""
+    _raw_coin_req = data.get("is_coin_required", data.get("isCoinRequired"))
+    game_coin_required = True if _raw_coin_req is None else bool(_raw_coin_req)
+
+    game_id = data.get('game_id')
+    player_ids = data.get('player_ids')
+    if not game_id or not isinstance(game_id, str):
+        return jsonify({"success": False, "error": "Invalid game_id", "message": "game_id is required and must be a string"}), 400
+    if not player_ids or not isinstance(player_ids, list) or len(player_ids) == 0:
+        return jsonify({"success": False, "error": "Invalid player_ids", "message": "player_ids must be a non-empty array"}), 400
+
+    if not game_coin_required:
+        if LOGGING_SWITCH:
+            custom_log(
+                f"📊 DutchGame: deduct_game_coins skipped (is_coin_required=false) game_id={game_id} players={len(player_ids)}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
+        updated_players = []
+        errors = []
+        for player_id_str in player_ids:
+            try:
+                if not player_id_str or not isinstance(player_id_str, str):
+                    errors.append(f"Invalid player_id format: {player_id_str}")
+                    continue
+                try:
+                    player_id = ObjectId(player_id_str)
+                except Exception:
+                    errors.append(f"Invalid player_id format '{player_id_str}'")
+                    continue
+                user = db_manager.find_one("users", {"_id": player_id})
+                if not user:
+                    errors.append(f"User not found: {player_id_str}")
+                    continue
+                dutch_game = (user.get("modules") or {}).get("dutch_game", {})
+                updated_players.append({
+                    "user_id": player_id_str,
+                    "coins_deducted": 0,
+                    "previous_coins": dutch_game.get("coins", 0),
+                    "new_coins": dutch_game.get("coins", 0),
+                    "skipped": True,
+                    "reason": "coin_match_disabled",
+                })
+            except Exception as e:
+                errors.append(f"Error processing player {player_id_str}: {str(e)}")
+        if len(updated_players) > 0:
+            response_data = {
+                "success": True,
+                "message": f"Coin match disabled — recorded {len(updated_players)} player(s) as skipped",
+                "game_id": game_id,
+                "coins_deducted": 0,
+                "updated_players": updated_players,
+            }
+            if errors:
+                response_data["warnings"] = errors
+            return jsonify(response_data), 200
+        return jsonify({
+            "success": False,
+            "message": "Failed to record skipped players",
+            "error": "All players failed validation",
+            "errors": errors,
+        }), 500
+
+    # Room table tier (1–4): fee is defined by table, not user progression level.
+    game_table_level = data.get('game_table_level')
+    coins = data.get('coins')
+    # Used for eligibility (user level gate). If game_table_level is missing, we may infer from coins.
+    table_level_for_gate: Optional[int] = None
+    if game_table_level is not None:
+        try:
+            gt = int(game_table_level)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be an integer 1–4"}), 400
+        if not matcher.is_valid_level(gt):
+            return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be 1–4 (room table tier)"}), 400
+        fee = matcher.table_level_to_coin_fee(gt, default_fee=25)
+        if coins is not None and coins != fee:
+            return jsonify({
+                "success": False,
+                "error": "coins_mismatch",
+                "message": f"coins must match table fee ({fee}) for game_table_level={gt}",
+            }), 400
+        coins = fee
+        table_level_for_gate = gt
+    if coins is None or not isinstance(coins, int) or coins <= 0:
+        return jsonify({"success": False, "error": "Invalid coins amount", "message": "coins must be a positive integer, or send game_table_level 1–4"}), 400
+
+    # If caller didn't provide game_table_level, infer it from the coin fee (defensive fallback).
+    if table_level_for_gate is None:
+        for lvl in (1, 2, 3, 4):
+            expected_fee = matcher.table_level_to_coin_fee(lvl, default_fee=25)
+            if coins == expected_fee:
+                table_level_for_gate = lvl
+                break
+
+    if not _app_manager:
+        return jsonify({"success": False, "error": "Server not initialized"}), 503
+    db_manager = _app_manager.get_db_manager(role="read_write")
+    if not db_manager:
+        return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
+    current_timestamp = datetime.utcnow().isoformat()
+    if LOGGING_SWITCH:
+        custom_log(
+            f"📊 DutchGame: deduct_game_coins start game_id={game_id} fee={coins} game_table_level={table_level_for_gate} players={len(player_ids)}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+    updated_players = []
+    errors = []
+    for player_id_str in player_ids:
+        try:
+            if not player_id_str or not isinstance(player_id_str, str):
+                errors.append(f"Invalid player_id format: {player_id_str}")
+                continue
+            try:
+                player_id = ObjectId(player_id_str)
+            except Exception as e:
+                errors.append(f"Invalid player_id format '{player_id_str}': {str(e)}")
+                continue
+            user = db_manager.find_one("users", {"_id": player_id})
+            if not user:
+                errors.append(f"User not found: {player_id_str}")
+                continue
+            modules = user.get('modules', {})
+            dutch_game = modules.get('dutch_game', {})
+            subscription_tier = dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL
+
+            # Eligibility gate: progression level must be high enough for the room table tier.
+            # This is a defense-in-depth check; Dart should already have validated on join/create.
+            user_level_raw = dutch_game.get('level', matcher.DEFAULT_LEVEL)
+            try:
+                user_level = int(user_level_raw)
+            except (TypeError, ValueError):
+                user_level = matcher.DEFAULT_LEVEL
+            if table_level_for_gate is not None:
+                if not WinsLevelRankMatcher.user_may_join_game_table(user_level, table_level_for_gate):
+                    errors.append(
+                        f"User level too low for table tier: user {player_id_str} level={user_level} table={table_level_for_gate}"
+                    )
+                    continue
+
+            if matcher.should_skip_match_coin_economy(subscription_tier, is_coin_required=game_coin_required):
+                updated_players.append({"user_id": player_id_str, "coins_deducted": 0, "previous_coins": dutch_game.get('coins', 0), "new_coins": dutch_game.get('coins', 0), "skipped": True, "reason": "promotional_tier"})
+                continue
+            current_coins = dutch_game.get('coins', 0)
+            if current_coins < coins:
+                errors.append(f"Insufficient coins for user {player_id_str}: has {current_coins}, needs {coins}")
+                continue
+            new_coins = current_coins - coins
+            update_operation = {'$inc': {'modules.dutch_game.coins': -coins}, '$set': {'modules.dutch_game.last_updated': current_timestamp, 'updated_at': current_timestamp}}
+            result = db_manager.db["users"].update_one({"_id": player_id}, update_operation)
+            if result.modified_count > 0:
+                updated_players.append({"user_id": player_id_str, "coins_deducted": coins, "previous_coins": current_coins, "new_coins": new_coins})
+            else:
+                errors.append(f"Failed to update coins for user: {player_id_str}")
+        except Exception as e:
+            errors.append(f"Error processing coin deduction for player {player_id_str}: {str(e)}")
+    if len(updated_players) > 0:
+        if LOGGING_SWITCH:
+            custom_log(
+                f"📊 DutchGame: deduct_game_coins ok game_id={game_id} fee={coins} updated={len(updated_players)} error_lines={len(errors)}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+        response_data = {"success": True, "message": f"Coins deducted successfully for {len(updated_players)} player(s)", "game_id": game_id, "coins_deducted": coins, "updated_players": updated_players}
+        if errors:
+            response_data["warnings"] = errors
+        return jsonify(response_data), 200
+    if LOGGING_SWITCH:
+        custom_log(
+            f"📊 DutchGame: deduct_game_coins failed game_id={game_id} fee={coins} errors={errors!r}",
+            level="WARNING",
+            isOn=LOGGING_SWITCH,
+        )
+    return jsonify({"success": False, "message": "Failed to deduct coins for any player", "error": "All deductions failed", "errors": errors}), 500
+
+
 def deduct_game_coins():
     """Deduct game coins when a match starts (JWT).
 
@@ -653,163 +1105,21 @@ def deduct_game_coins():
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "error": "Request body is required", "message": "Missing request body"}), 400
-        _raw_coin_req = data.get("is_coin_required", data.get("isCoinRequired"))
-        game_coin_required = True if _raw_coin_req is None else bool(_raw_coin_req)
-
-        game_id = data.get('game_id')
-        player_ids = data.get('player_ids')
-        if not game_id or not isinstance(game_id, str):
-            return jsonify({"success": False, "error": "Invalid game_id", "message": "game_id is required and must be a string"}), 400
-        if not player_ids or not isinstance(player_ids, list) or len(player_ids) == 0:
-            return jsonify({"success": False, "error": "Invalid player_ids", "message": "player_ids must be a non-empty array"}), 400
-
-        if not game_coin_required:
-            if not _app_manager:
-                return jsonify({"success": False, "error": "Server not initialized"}), 503
-            db_manager = _app_manager.get_db_manager(role="read_write")
-            if not db_manager:
-                return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
-            updated_players = []
-            errors = []
-            for player_id_str in player_ids:
-                try:
-                    if not player_id_str or not isinstance(player_id_str, str):
-                        errors.append(f"Invalid player_id format: {player_id_str}")
-                        continue
-                    try:
-                        player_id = ObjectId(player_id_str)
-                    except Exception:
-                        errors.append(f"Invalid player_id format '{player_id_str}'")
-                        continue
-                    user = db_manager.find_one("users", {"_id": player_id})
-                    if not user:
-                        errors.append(f"User not found: {player_id_str}")
-                        continue
-                    dutch_game = (user.get("modules") or {}).get("dutch_game", {})
-                    updated_players.append({
-                        "user_id": player_id_str,
-                        "coins_deducted": 0,
-                        "previous_coins": dutch_game.get("coins", 0),
-                        "new_coins": dutch_game.get("coins", 0),
-                        "skipped": True,
-                        "reason": "coin_match_disabled",
-                    })
-                except Exception as e:
-                    errors.append(f"Error processing player {player_id_str}: {str(e)}")
-            if len(updated_players) > 0:
-                response_data = {
-                    "success": True,
-                    "message": f"Coin match disabled — recorded {len(updated_players)} player(s) as skipped",
-                    "game_id": game_id,
-                    "coins_deducted": 0,
-                    "updated_players": updated_players,
-                }
-                if errors:
-                    response_data["warnings"] = errors
-                return jsonify(response_data), 200
-            return jsonify({
-                "success": False,
-                "message": "Failed to record skipped players",
-                "error": "All players failed validation",
-                "errors": errors,
-            }), 500
-
-        # Room table tier (1–4): fee is defined by table, not user progression level.
-        game_table_level = data.get('game_table_level')
-        coins = data.get('coins')
-        # Used for eligibility (user level gate). If game_table_level is missing, we may infer from coins.
-        table_level_for_gate: Optional[int] = None
-        if game_table_level is not None:
-            try:
-                gt = int(game_table_level)
-            except (TypeError, ValueError):
-                return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be an integer 1–4"}), 400
-            if not matcher.is_valid_level(gt):
-                return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be 1–4 (room table tier)"}), 400
-            fee = matcher.table_level_to_coin_fee(gt, default_fee=25)
-            if coins is not None and coins != fee:
-                return jsonify({
-                    "success": False,
-                    "error": "coins_mismatch",
-                    "message": f"coins must match table fee ({fee}) for game_table_level={gt}",
-                }), 400
-            coins = fee
-            table_level_for_gate = gt
-        if coins is None or not isinstance(coins, int) or coins <= 0:
-            return jsonify({"success": False, "error": "Invalid coins amount", "message": "coins must be a positive integer, or send game_table_level 1–4"}), 400
-
-        # If caller didn't provide game_table_level, infer it from the coin fee (defensive fallback).
-        if table_level_for_gate is None:
-            for lvl in (1, 2, 3, 4):
-                expected_fee = matcher.table_level_to_coin_fee(lvl, default_fee=25)
-                if coins == expected_fee:
-                    table_level_for_gate = lvl
-                    break
-
-        if not _app_manager:
-            return jsonify({"success": False, "error": "Server not initialized"}), 503
-        db_manager = _app_manager.get_db_manager(role="read_write")
-        if not db_manager:
-            return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
-        current_timestamp = datetime.utcnow().isoformat()
-        updated_players = []
-        errors = []
-        for player_id_str in player_ids:
-            try:
-                if not player_id_str or not isinstance(player_id_str, str):
-                    errors.append(f"Invalid player_id format: {player_id_str}")
-                    continue
-                try:
-                    player_id = ObjectId(player_id_str)
-                except Exception as e:
-                    errors.append(f"Invalid player_id format '{player_id_str}': {str(e)}")
-                    continue
-                user = db_manager.find_one("users", {"_id": player_id})
-                if not user:
-                    errors.append(f"User not found: {player_id_str}")
-                    continue
-                modules = user.get('modules', {})
-                dutch_game = modules.get('dutch_game', {})
-                subscription_tier = dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL
-
-                # Eligibility gate: progression level must be high enough for the room table tier.
-                # This is a defense-in-depth check; Dart should already have validated on join/create.
-                user_level_raw = dutch_game.get('level', matcher.DEFAULT_LEVEL)
-                try:
-                    user_level = int(user_level_raw)
-                except (TypeError, ValueError):
-                    user_level = matcher.DEFAULT_LEVEL
-                if table_level_for_gate is not None:
-                    if not WinsLevelRankMatcher.user_may_join_game_table(user_level, table_level_for_gate):
-                        errors.append(
-                            f"User level too low for table tier: user {player_id_str} level={user_level} table={table_level_for_gate}"
-                        )
-                        continue
-
-                if matcher.should_skip_match_coin_economy(subscription_tier, is_coin_required=game_coin_required):
-                    updated_players.append({"user_id": player_id_str, "coins_deducted": 0, "previous_coins": dutch_game.get('coins', 0), "new_coins": dutch_game.get('coins', 0), "skipped": True, "reason": "promotional_tier"})
-                    continue
-                current_coins = dutch_game.get('coins', 0)
-                if current_coins < coins:
-                    errors.append(f"Insufficient coins for user {player_id_str}: has {current_coins}, needs {coins}")
-                    continue
-                new_coins = current_coins - coins
-                update_operation = {'$inc': {'modules.dutch_game.coins': -coins}, '$set': {'modules.dutch_game.last_updated': current_timestamp, 'updated_at': current_timestamp}}
-                result = db_manager.db["users"].update_one({"_id": player_id}, update_operation)
-                if result.modified_count > 0:
-                    updated_players.append({"user_id": player_id_str, "coins_deducted": coins, "previous_coins": current_coins, "new_coins": new_coins})
-                else:
-                    errors.append(f"Failed to update coins for user: {player_id_str}")
-            except Exception as e:
-                errors.append(f"Error processing coin deduction for player {player_id_str}: {str(e)}")
-        if len(updated_players) > 0:
-            response_data = {"success": True, "message": f"Coins deducted successfully for {len(updated_players)} player(s)", "game_id": game_id, "coins_deducted": coins, "updated_players": updated_players}
-            if errors:
-                response_data["warnings"] = errors
-            return jsonify(response_data), 200
-        return jsonify({"success": False, "message": "Failed to deduct coins for any player", "error": "All deductions failed", "errors": errors}), 500
+        return _deduct_game_coins_from_body(data)
     except Exception as e:
         custom_log(f"❌ DutchGame: Error in deduct_game_coins: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "message": "Failed to deduct game coins", "error": str(e)}), 500
+
+
+def deduct_game_coins_service():
+    """Dart WebSocket backend: deduct entry coins when a match starts (X-Service-Key). Same rules as [deduct_game_coins]."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "Request body is required", "message": "Missing request body"}), 400
+        return _deduct_game_coins_from_body(data)
+    except Exception as e:
+        custom_log(f"❌ DutchGame: Error in deduct_game_coins_service: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "message": "Failed to deduct game coins", "error": str(e)}), 500
 
 
@@ -861,6 +1171,124 @@ def get_tournaments():
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
 
 
+def _mongo_user_ids_from_store_snapshot(store_snapshot: Dict[str, Any]) -> list:
+    """Collect human Mongo user ids from Dart game_state.players (userId / user_id)."""
+    out = []
+    gs = store_snapshot.get("game_state") if isinstance(store_snapshot, dict) else None
+    if not isinstance(gs, dict):
+        return out
+    players = gs.get("players") or []
+    if not isinstance(players, list):
+        return out
+    for p in players:
+        if not isinstance(p, dict):
+            continue
+        uid = (p.get("userId") or p.get("user_id") or "").strip()
+        if not uid:
+            continue
+        try:
+            ObjectId(uid)
+        except Exception:
+            continue
+        if uid not in out:
+            out.append(uid)
+    return out
+
+
+def _append_match_row_to_tournament(
+    tournament_oid: ObjectId,
+    tournament_id_str: str,
+    user_id_strs: list,
+    db_manager,
+    room_id_str: str = "",
+    start_date_str: str = "",
+) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Append one match row (same schema as add_tournament_match). Returns (result dict, error message)."""
+    if not user_id_strs:
+        return None, "user_id_strs is empty"
+    tournament = db_manager.find_one("tournaments", {"_id": tournament_oid})
+    if not tournament:
+        return None, "Tournament not found"
+
+    user_oids = []
+    for uid_str in user_id_strs:
+        try:
+            user_oids.append(ObjectId(uid_str))
+        except Exception:
+            return None, f"Invalid user_id format: {uid_str}"
+
+    matches = tournament.get("matches") or []
+    next_index = 1
+    if matches:
+        indices = [m.get("match_index") for m in matches if isinstance(m, dict) and m.get("match_index") is not None]
+        next_index = max(indices, default=0) + 1
+
+    now = datetime.utcnow()
+    updated_at = now.isoformat() + "Z"
+    match_date = now.date().isoformat() if hasattr(now, "date") else updated_at[:10]
+    if start_date_str:
+        try:
+            datetime.strptime(start_date_str[:10], "%Y-%m-%d")
+            match_date = start_date_str[:10]
+        except ValueError:
+            pass
+
+    match_id_str = now.strftime("%Y%m%d%H%M%S") + "_" + uuid.uuid4().hex[:8]
+
+    players = []
+    for uid_str in user_id_strs:
+        entry = {"user_id": uid_str, "username": "", "email": "", "points": 0, "number_of_cards_left": []}
+        try:
+            u = db_manager.find_one("users", {"_id": ObjectId(uid_str)})
+            if u:
+                entry["username"] = (u.get("username") or "").strip() or ("user_%s" % uid_str[:8])
+                entry["email"] = (u.get("email") or "").strip()
+                entry["is_comp_player"] = u.get("is_comp_player") is True
+        except Exception:
+            pass
+        players.append(entry)
+    scores = [
+        {"user_id": uid, "end_card_count": 0, "total_end_points": 0}
+        for uid in user_id_strs
+    ]
+
+    new_match = {
+        "match_id": match_id_str,
+        "match_index": next_index,
+        "status": "pending",
+        "room_id": (room_id_str or "").strip(),
+        "winner": "",
+        "user_ids": user_oids,
+        "match_date": match_date,
+        "start_date": match_date,
+        "players": players,
+        "scores": scores,
+    }
+
+    update_op = {
+        "$push": {"matches": new_match},
+        "$set": {"updated_at": updated_at},
+    }
+    try:
+        result = db_manager.db["tournaments"].update_one(
+            {"_id": tournament_oid},
+            update_op,
+        )
+    except Exception as db_err:
+        custom_log(f"DutchGame: _append_match_row_to_tournament db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
+        return None, "Failed to update tournament"
+
+    if not result or result.modified_count == 0:
+        return None, "Failed to add match (no document modified)"
+
+    return {
+        "match_id": match_id_str,
+        "match_index": next_index,
+        "tournament_id": tournament_id_str,
+        "user_ids": user_id_strs,
+    }, None
+
+
 def add_tournament_match():
     """Add a match to a tournament (JWT auth, admin only). POST body: tournament_id, user_ids (invited players), start_date (optional).
     Finds the tournament in DB and appends a new match with players (user_id, username, email, points, number_of_cards_left per playbook)."""
@@ -885,95 +1313,35 @@ def add_tournament_match():
         except Exception:
             return jsonify({"success": False, "error": "Invalid tournament_id format"}), 400
 
-        user_oids = []
-        for uid_str in user_id_strs:
-            try:
-                user_oids.append(ObjectId(uid_str))
-            except Exception:
-                return jsonify({"success": False, "error": f"Invalid user_id format: {uid_str}"}), 400
-
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         db_manager = _app_manager.get_db_manager(role="read_write")
         if not db_manager:
             return jsonify({"success": False, "error": "Database unavailable"}), 503
 
-        tournament = db_manager.find_one("tournaments", {"_id": tournament_oid})
-        if not tournament:
-            return jsonify({"success": False, "error": "Tournament not found"}), 404
+        res, err = _append_match_row_to_tournament(
+            tournament_oid,
+            tournament_id,
+            user_id_strs,
+            db_manager,
+            room_id_str="",
+            start_date_str=start_date_str,
+        )
+        if err or not res:
+            status = 404 if err == "Tournament not found" else 500
+            return jsonify({"success": False, "error": err or "append failed"}), status
 
-        matches = tournament.get("matches") or []
-        next_index = 1
-        if matches:
-            indices = [m.get("match_index") for m in matches if isinstance(m, dict) and m.get("match_index") is not None]
-            next_index = max(indices, default=0) + 1
-
-        now = datetime.utcnow()
-        updated_at = now.isoformat() + "Z"
-        match_date = now.date().isoformat() if hasattr(now, "date") else updated_at[:10]
-        if start_date_str:
-            try:
-                datetime.strptime(start_date_str[:10], "%Y-%m-%d")
-                match_date = start_date_str[:10]
-            except ValueError:
-                pass
-
-        match_id_str = now.strftime("%Y%m%d%H%M%S") + "_" + uuid.uuid4().hex[:8]
-
-        # Build players: user_id, username, email, points, number_of_cards_left (playbook schema)
-        players = []
-        for uid_str in user_id_strs:
-            entry = {"user_id": uid_str, "username": "", "email": "", "points": 0, "number_of_cards_left": []}
-            try:
-                u = db_manager.find_one("users", {"_id": ObjectId(uid_str)})
-                if u:
-                    entry["username"] = (u.get("username") or "").strip() or ("user_%s" % uid_str[:8])
-                    entry["email"] = (u.get("email") or "").strip()
-                    entry["is_comp_player"] = u.get("is_comp_player") is True
-            except Exception:
-                pass
-            players.append(entry)
-        scores = [
-            {"user_id": uid, "end_card_count": 0, "total_end_points": 0}
-            for uid in user_id_strs
-        ]
-
-        new_match = {
-            "match_id": match_id_str,
-            "match_index": next_index,
-            "status": "pending",
-            "room_id": "",
-            "winner": "",
-            "user_ids": user_oids,
-            "match_date": match_date,
-            "start_date": match_date,
-            "players": players,
-            "scores": scores,
-        }
-
-        update_op = {
-            "$push": {"matches": new_match},
-            "$set": {"updated_at": updated_at},
-        }
-        try:
-            result = db_manager.db["tournaments"].update_one(
-                {"_id": tournament_oid},
-                update_op,
-            )
-        except Exception as db_err:
-            custom_log(f"DutchGame: add_tournament_match db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
-            return jsonify({"success": False, "error": "Failed to update tournament"}), 500
-
-        if not result or result.modified_count == 0:
-            return jsonify({"success": False, "error": "Failed to add match (no document modified)"}), 500
-
-        custom_log(f"DutchGame: add_tournament_match tournament_id={tournament_id} match_index={next_index} players={len(user_id_strs)}", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(
+            f"DutchGame: add_tournament_match tournament_id={tournament_id} match_index={res['match_index']} players={len(user_id_strs)}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
         return jsonify({
             "success": True,
             "message": "Match added",
             "tournament_id": tournament_id,
-            "match_index": next_index,
-            "match_id": match_id_str,
+            "match_index": res["match_index"],
+            "match_id": res["match_id"],
             "user_ids": user_id_strs,
         }), 200
     except Exception as e:
@@ -1294,6 +1662,115 @@ def attach_tournament_match_room_service():
         return jsonify(result), status
     except Exception as e:
         custom_log(f"DutchGame: attach_tournament_match_room_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def rematch_tournament_snapshot_service():
+    """Dart rematch: create or extend `online` / `single_room_league` tournament, append match, set room_id (X-Service-Key).
+    POST body: room_id, store_snapshot, room_snapshot."""
+    try:
+        data = request.get_json(silent=True) or {}
+        room_id = (data.get("room_id") or "").strip()
+        store_snapshot = data.get("store_snapshot") if isinstance(data.get("store_snapshot"), dict) else {}
+        room_snapshot = data.get("room_snapshot") if isinstance(data.get("room_snapshot"), dict) else {}
+        custom_log(
+            f"DutchGame: rematch_tournament_snapshot_service room_id={room_id!r}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+        if not room_id:
+            return jsonify({"success": False, "error": "room_id is required"}), 400
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database unavailable"}), 503
+
+        user_id_strs = _mongo_user_ids_from_store_snapshot(store_snapshot)
+        if not user_id_strs:
+            return jsonify({"success": False, "error": "no_valid_user_ids_in_store_snapshot"}), 400
+
+        initiator = (room_snapshot.get("rematch_initiator_user_id") or "").strip() or user_id_strs[0]
+        try:
+            ObjectId(initiator)
+        except Exception:
+            return jsonify({"success": False, "error": "invalid_rematch_initiator_user_id"}), 400
+
+        td_in = room_snapshot.get("tournament_data") if isinstance(room_snapshot.get("tournament_data"), dict) else {}
+        existing_tid = (td_in.get("tournament_id") or "").strip()
+        already_tournament = bool(room_snapshot.get("is_tournament")) and bool(existing_tid)
+
+        if already_tournament:
+            try:
+                tournament_oid = ObjectId(existing_tid)
+            except Exception:
+                return jsonify({"success": False, "error": "invalid_existing_tournament_id"}), 400
+            res, err = _append_match_row_to_tournament(
+                tournament_oid,
+                existing_tid,
+                user_id_strs,
+                db_manager,
+                room_id_str=room_id,
+                start_date_str="",
+            )
+            if err or not res:
+                return jsonify({"success": False, "error": err or "append_match_failed"}), 500
+            td_out = {
+                "tournament_id": existing_tid,
+                "match_id": res["match_id"],
+                "match_index": res["match_index"],
+            }
+            td_out = _enrich_td_out_from_tournament_doc(db_manager, tournament_oid, td_out)
+            custom_log(
+                f"DutchGame: rematch_tournament_snapshot extended tournament_id={existing_tid} match_index={res['match_index']}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+            return jsonify({"success": True, "tournament_id": existing_tid, "tournament_data": td_out}), 200
+
+        create_data = {
+            "name": (data.get("tournament_name") or "").strip() or "Rematch %s" % room_id[-16:],
+            "user_ids": user_id_strs,
+            "matches": [],
+            "status": "active",
+            "type": "online",
+            "format": "single_room_league",
+        }
+        tournament_id_hex, _created_at, cerr = create_tournament_in_db(initiator, create_data, db_manager)
+        if cerr or not tournament_id_hex:
+            return jsonify({"success": False, "error": cerr or "create_tournament_failed"}), 500
+
+        try:
+            new_oid = ObjectId(tournament_id_hex)
+        except Exception:
+            return jsonify({"success": False, "error": "invalid_new_tournament_id"}), 500
+
+        res, err = _append_match_row_to_tournament(
+            new_oid,
+            str(tournament_id_hex),
+            user_id_strs,
+            db_manager,
+            room_id_str=room_id,
+            start_date_str="",
+        )
+        if err or not res:
+            return jsonify({"success": False, "error": err or "append_match_failed"}), 500
+
+        tid_str = str(tournament_id_hex)
+        td_out = {
+            "tournament_id": tid_str,
+            "match_id": res["match_id"],
+            "match_index": res["match_index"],
+        }
+        td_out = _enrich_td_out_from_tournament_doc(db_manager, new_oid, td_out)
+        custom_log(
+            f"DutchGame: rematch_tournament_snapshot created tournament_id={tid_str} format=single_room_league match_index={res['match_index']}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+        return jsonify({"success": True, "tournament_id": tid_str, "tournament_data": td_out}), 200
+    except Exception as e:
+        custom_log(f"DutchGame: rematch_tournament_snapshot_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 

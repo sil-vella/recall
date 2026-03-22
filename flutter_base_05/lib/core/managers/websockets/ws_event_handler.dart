@@ -960,6 +960,59 @@ class WSEventHandler {
     }
   }
 
+  /// Rematch invite from another player — queued as [instant_ws] with Accept/Decline (see [submitRematchInviteResponse]).
+  void handleRestartInvite(dynamic data) {
+    try {
+      final map = data is Map ? Map<String, dynamic>.from(data as Map) : <String, dynamic>{};
+      final roomId = map['room_id'] as String? ?? map['game_id'] as String? ?? '';
+      if (roomId.isEmpty) return;
+      final fromSession = map['from_session_id'] as String? ?? '';
+      final fromUser = map['from_user_id'] as String?;
+      final gameLevelRaw = map['game_level'];
+      final gameLevel = gameLevelRaw is int
+          ? gameLevelRaw
+          : (gameLevelRaw is num
+              ? gameLevelRaw.toInt()
+              : int.tryParse(gameLevelRaw?.toString() ?? '') ?? 1);
+      final isCoinRequiredRaw = map['is_coin_required'];
+      final isCoinRequired = isCoinRequiredRaw is bool
+          ? isCoinRequiredRaw
+          : (isCoinRequiredRaw?.toString().toLowerCase() != 'false');
+      final id = 'restart_invite_${roomId}_${DateTime.now().millisecondsSinceEpoch}';
+      final message = <String, dynamic>{
+        'id': id,
+        'type': 'instant_ws',
+        'title': 'Rematch invite',
+        'body': 'You were invited to rematch.',
+        'responses': [
+          {'label': 'Accept', 'action_identifier': 'rematch_accept'},
+          {'label': 'Decline', 'action_identifier': 'rematch_decline'},
+        ],
+        'data': {
+          'respond_via': 'rematch_ws',
+          'room_id': roomId,
+          'game_id': map['game_id'] as String? ?? roomId,
+          'from_session_id': fromSession,
+          'game_level': gameLevel,
+          'is_coin_required': isCoinRequired,
+          if (fromUser != null && fromUser.isNotEmpty) 'from_user_id': fromUser,
+        },
+        'timestamp': map['timestamp'] ?? DateTime.now().toIso8601String(),
+      };
+      final mod = _moduleManager.getModuleByType<NotificationsModule>();
+      mod?.addPendingWsInstant(message);
+
+      // Game-ended overlay: show "Waiting Rematch" on Play Again (same room).
+      _stateManager.updateModuleState('dutch_game', {
+        'rematch_waiting_game_id': roomId,
+      });
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Error handling restart_invite: $e');
+      }
+    }
+  }
+
   /// Handle custom events (like game event acknowledgments)
   void handleCustomEvent(String eventType, dynamic data) {
     try {

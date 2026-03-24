@@ -1,19 +1,19 @@
 ---
-# Load env vars from app_dev/.env on the controller so the deploy play can use them (no manual paste into vault).
-# Values from .env are set as facts on localhost; the deploy play then uses hostvars['localhost'] with fallback to lookup('env').
-- name: Load app_dev/.env for VPS deploy (optional)
+# Load env vars from app_dev/.env.prod on the controller so the deploy play can use them (no manual paste into vault).
+# Values from .env.prod are set as facts on localhost; the deploy play then uses hostvars['localhost'] with fallback to lookup('env').
+- name: Load app_dev/.env.prod for VPS deploy (optional)
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    local_env_path: "{{ playbook_dir }}/../../.env"
+    local_env_path: "{{ playbook_dir }}/../../.env.prod"
   tasks:
     - name: Check if app_dev/.env exists
       stat:
         path: "{{ local_env_path }}"
       register: local_env_check
 
-    - name: Parse app_dev/.env into JSON
+    - name: Parse app_dev/.env.prod into JSON
       shell: |
         python3 << 'PYEOF'
         import json, os, re
@@ -48,7 +48,7 @@
         LOCAL_ENV_PATH: "{{ local_env_path }}"
       when: local_env_check.stat.exists | default(false)
 
-    - name: Set env facts from app_dev/.env
+    - name: Set env facts from app_dev/.env.prod
       set_fact:
         mongodb_root_password: "{{ (env_json.stdout | from_json).mongodb_root_password }}"
         mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
@@ -76,8 +76,8 @@
     # Override with -e local_repo_root=/path/to/app_dev if running from elsewhere.
     local_repo_root: "{{ playbook_dir }}/../.."
   tasks:
-    # Use env vars from app_dev/.env (play 1) or vault/lookup('env'); template env.j2 uses these.
-    - name: Set deploy env vars from localhost (app_dev/.env) or shell/vault
+    # Use env vars from app_dev/.env.prod (play 1) or vault/lookup('env'); template env.j2 uses these.
+    - name: Set deploy env vars from localhost (app_dev/.env.prod) or shell/vault
       set_fact:
         mongodb_root_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_root_password') or lookup('env', 'MONGODB_ROOT_PASSWORD') | default('') }}"
         mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"

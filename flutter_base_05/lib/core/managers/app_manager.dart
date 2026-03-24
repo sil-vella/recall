@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
@@ -34,6 +36,21 @@ class AppManager extends ChangeNotifier {
     
     // Initialize all registered modules
     await moduleManager.initializeModules(context);
+  }
+
+  /// Connect to the Dart WS server without blocking [initializeApp] / first frame.
+  Future<void> _initWebSocketInBackground() async {
+    try {
+      final webSocketManager = WebSocketManager.instance;
+      final initialized = await webSocketManager.initialize();
+      if (LOGGING_SWITCH) {
+        _logger.info('AppManager: WebSocketManager initialization result: $initialized');
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('AppManager: Error initializing WebSocketManager: $e');
+      }
+    }
   }
 
   Future<void> initializeApp(BuildContext context) async {
@@ -76,24 +93,13 @@ class AppManager extends ChangeNotifier {
           _logger.info('AppManager: Session validation result: $authStatus');
         }
         
-        // Initialize WebSocketManager after authentication (if user is authenticated)
-        // Note: authStatus is an AuthStatus enum, not a string
+        // WebSocket (Dart game server): init in background so cold start is not blocked when WS is down.
+        // NativeWebSocketAdapter already uses a short connect timeout, but awaiting here still delayed UI.
         if (authStatus == AuthStatus.loggedIn) {
           if (LOGGING_SWITCH) {
-            _logger.info('AppManager: User is authenticated, initializing WebSocketManager');
+            _logger.info('AppManager: User is authenticated, scheduling WebSocketManager init (non-blocking)');
           }
-          try {
-            // Initialize WebSocketManager
-            final webSocketManager = WebSocketManager.instance;
-            final initialized = await webSocketManager.initialize();
-            if (LOGGING_SWITCH) {
-              _logger.info('AppManager: WebSocketManager initialization result: $initialized');
-            }
-          } catch (e) {
-            if (LOGGING_SWITCH) {
-              _logger.error('AppManager: Error initializing WebSocketManager: $e');
-            }
-          }
+          unawaited(_initWebSocketInBackground());
         } else {
           if (LOGGING_SWITCH) {
             _logger.info('AppManager: User is not authenticated (status: $authStatus), skipping WebSocket initialization');

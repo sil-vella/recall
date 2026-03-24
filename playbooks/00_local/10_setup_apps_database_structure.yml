@@ -6,7 +6,7 @@
     mongodb_container_name: "dutch_external_app_mongodb"
     database_name: "external_system"
     app_user: "external_app_user"
-    # Use MONGODB_PASSWORD from env (e.g. source app_dev/.env) or default
+    # Use MONGODB_PASSWORD from env (e.g. source app_dev/.env.local) or default
     app_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
 
     # MongoDB connection details for Docker (external host/port)

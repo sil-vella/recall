@@ -1,18 +1,18 @@
 ---
-# One-off: load .env then exec into MongoDB on VPS to list DB structure (dbs, collections, sample docs).
-- name: Load app_dev/.env for MongoDB introspection
+# One-off: load .env.prod then exec into MongoDB on VPS to list DB structure (dbs, collections, sample docs).
+- name: Load app_dev/.env.prod for MongoDB introspection
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    local_env_path: "{{ playbook_dir }}/../../.env"
+    local_env_path: "{{ playbook_dir }}/../../.env.prod"
   tasks:
-    - name: Check if app_dev/.env exists
+    - name: Check if app_dev/.env.prod exists
       stat:
         path: "{{ local_env_path }}"
       register: local_env_check
 
-    - name: Parse app_dev/.env into JSON
+    - name: Parse app_dev/.env.prod into JSON
       shell: |
         python3 << 'PYEOF'
         import json, os, re
@@ -39,7 +39,7 @@
         LOCAL_ENV_PATH: "{{ local_env_path }}"
       when: local_env_check.stat.exists | default(false)
 
-    - name: Set env facts from app_dev/.env
+    - name: Set env facts from app_dev/.env.prod
       set_fact:
         mongodb_root_password: "{{ (env_json.stdout | from_json).mongodb_root_password }}"
         mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"

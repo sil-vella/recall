@@ -1,4 +1,4 @@
-# Local dev: sensitive data from .env (copy .env.example to .env and fill values).
+# Local dev: sensitive data from .env.local.
 # No secret files; config.py uses env then defaults.
 
 services:
@@ -6,7 +6,7 @@ services:
   dutch_mongodb-external:
     image: bitnami/mongodb:latest
     container_name: dutch_external_app_mongodb
-    env_file: .env
+    env_file: .env.local
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
       - MONGODB_DATABASE=external_system
@@ -25,7 +25,7 @@ services:
   dutch_redis-external:
     image: bitnami/redis:latest
     container_name: dutch_external_app_redis
-    env_file: .env
+    env_file: .env.local
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
     ports:

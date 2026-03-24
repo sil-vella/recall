@@ -1,19 +1,19 @@
 ---
 # One-off: set user 69ad608e5cfa3eb1703c134a (silvestervella) role to "admin" on VPS. Same structure as playbooks/00_local/set_user_role_admin.yml.
 # Usage: from app_dev: ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_role_admin.yml -e vm_name=rop01
-- name: Load app_dev/.env for MongoDB password (optional)
+- name: Load app_dev/.env.prod for MongoDB password (optional)
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    local_env_path: "{{ playbook_dir }}/../../.env"
+    local_env_path: "{{ playbook_dir }}/../../.env.prod"
   tasks:
-    - name: Check if app_dev/.env exists
+    - name: Check if app_dev/.env.prod exists
       stat:
         path: "{{ local_env_path }}"
       register: local_env_check
 
-    - name: Parse app_dev/.env into JSON
+    - name: Parse app_dev/.env.prod into JSON
       shell: |
         python3 << 'PYEOF'
         import json, os, re
@@ -37,7 +37,7 @@
         LOCAL_ENV_PATH: "{{ local_env_path }}"
       when: local_env_check.stat.exists | default(false)
 
-    - name: Set env facts from app_dev/.env
+    - name: Set env facts from app_dev/.env.prod
       set_fact:
         mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
       when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0

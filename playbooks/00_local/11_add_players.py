@@ -20,7 +20,7 @@ from typing import Dict, Any, List
 # Bcrypt hash for password "comp_player_pass"
 COMP_PLAYER_PASSWORD = "$2b$12$PHGvsjOG3/fjNuEZQP1Szu5/igAj8pppp8XoAFeVyzDbj2EBh3o82"
 
-# MongoDB connection details: from env (e.g. app_dev/.env) so local matches compose
+# MongoDB connection details: from env (e.g. app_dev/.env.local) so local matches compose
 MONGODB_CONTAINER = os.environ.get("MONGODB_CONTAINER", "dutch_external_app_mongodb")
 MONGODB_DATABASE = os.environ.get("MONGODB_DATABASE", "external_system")
 MONGODB_USER = os.environ.get("MONGODB_USER", "external_app_user")

@@ -12,7 +12,7 @@ echo "🚀 Building Flutter App Bundle (AAB) for Dutch..."
 # Resolve repository root (two levels up from this script)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FRONTEND_ENV="$REPO_ROOT/.env"
+FRONTEND_ENV="$REPO_ROOT/.env.prod"
 
 # Flutter assets: set testing_mode=false and predefined_hands enabled=false for production build (restored on exit)
 # Backups go to /tmp so they are not bundled into build output
@@ -69,7 +69,7 @@ else
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
-# Load env from repo root .env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+# Load env from repo root .env.prod (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
 if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
@@ -81,7 +81,7 @@ fi
 CURRENT_VERSION="${APP_VERSION:-2.0.0}"
 
 echo ""
-echo "📦 Current version (APP_VERSION from .env): $CURRENT_VERSION"
+echo "📦 Current version (APP_VERSION from .env.prod): $CURRENT_VERSION"
 
 # Auto-bump patch version for each bundle build
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
@@ -94,7 +94,7 @@ if ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then PATCH=0; fi
 PATCH=$((PATCH + 1))
 APP_VERSION="$MAJOR.$MINOR.$PATCH"
 
-# Write bumped version to .env (APP_VERSION=)
+# Write bumped version to .env.prod (APP_VERSION=)
 ENV_FILE="$FRONTEND_ENV"
 if [ -f "$ENV_FILE" ] && grep -q '^APP_VERSION=' "$ENV_FILE" 2>/dev/null; then
   if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -171,7 +171,7 @@ echo ""
 
 set_production_deck_config
 
-# Build --dart-define from .env (all vars) then overrides and build-only extras (same as build_apk.sh)
+# Build --dart-define from .env.prod (all vars) then overrides and build-only extras (same as build_apk.sh)
 source "$SCRIPT_DIR/dart_defines_from_env.sh"
 DART_DEFINE_ARGS=()
 while IFS= read -r line; do

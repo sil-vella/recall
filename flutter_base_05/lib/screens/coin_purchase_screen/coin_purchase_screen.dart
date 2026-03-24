@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../../core/00_base/screen_base.dart';
+import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
+import '../../modules/connections_api_module/connections_api_module.dart';
+import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false; // lastCoinPurchaseJoinContext on /coin-purchase (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Coin purchase flow debugging (enable-logging-switch.mdc)
 
-/// Placeholder for coin purchases. Shows [lastCoinPurchaseJoinContext] from Dutch game state
-/// when the user was sent here after a failed join (insufficient coins).
+/// Coin purchases on **web**: Stripe Checkout via Python `/userauth/stripe/create-coin-checkout-session`.
+/// Also shows [lastCoinPurchaseJoinContext] when the user was sent here after a failed join.
 class CoinPurchaseScreen extends BaseScreen {
   const CoinPurchaseScreen({Key? key}) : super(key: key);
 
@@ -21,7 +25,182 @@ class CoinPurchaseScreen extends BaseScreen {
 
 class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   static const String _contextKey = 'lastCoinPurchaseJoinContext';
-  static final Logger _logger = Logger();
+  final Logger _logger = Logger();
+
+  static const List<_CoinPackage> _recommendedPackages = [
+    _CoinPackage(key: 'starter', label: 'Starter', coins: 100, priceLabel: '\$0.99'),
+    _CoinPackage(key: 'casual', label: 'Casual', coins: 300, priceLabel: '\$2.49'),
+    _CoinPackage(key: 'popular', label: 'Popular', coins: 700, priceLabel: '\$4.99', isPopular: true),
+    _CoinPackage(key: 'grinder', label: 'Grinder', coins: 1500, priceLabel: '\$9.99'),
+    _CoinPackage(key: 'pro', label: 'Pro', coins: 3500, priceLabel: '\$19.99'),
+  ];
+
+  String? _loadingPackageKey;
+  bool _handledStripeReturn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (LOGGING_SWITCH) {
+      _logger.info('CoinPurchaseScreen: initState (kIsWeb=$kIsWeb)');
+    }
+    if (kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeHandleStripeReturn());
+    }
+  }
+
+  /// Return `success` / `cancel` / `none` by parsing top-level query and hash-query.
+  String _stripeResultInUri(Uri u) {
+    final direct = u.queryParameters['stripe_checkout'];
+    if (direct == 'success' || direct == 'cancel') return direct.toString();
+    final fragment = u.fragment;
+    final qMark = fragment.indexOf('?');
+    if (qMark >= 0 && qMark < fragment.length - 1) {
+      final inner = Uri.splitQueryString(fragment.substring(qMark + 1));
+      final fromHash = inner['stripe_checkout'];
+      if (fromHash == 'success' || fromHash == 'cancel') return fromHash.toString();
+    }
+    return 'none';
+  }
+
+  Future<void> _maybeHandleStripeReturn() async {
+    if (!kIsWeb || _handledStripeReturn || !mounted) return;
+    final uri = Uri.base;
+    final result = _stripeResultInUri(uri);
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'CoinPurchaseScreen: return check url=${uri.toString()} '
+        'path=${uri.path} query=${uri.query} fragment=${uri.fragment} result=$result',
+      );
+    }
+    if (result == 'none') return;
+    if (result == 'cancel') {
+      _handledStripeReturn = true;
+      if (LOGGING_SWITCH) {
+        _logger.warning('CoinPurchaseScreen: stripe return indicates cancel');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Payment canceled.',
+            style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+          ),
+          backgroundColor: AppColors.primaryColor,
+        ),
+      );
+      return;
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info('CoinPurchaseScreen: stripe success detected in return URL');
+    }
+    _handledStripeReturn = true;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Payment complete. Refreshing your coin balance…',
+          style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+        ),
+        backgroundColor: AppColors.primaryColor,
+      ),
+    );
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    final ok = await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+    if (LOGGING_SWITCH) {
+      _logger.info('CoinPurchaseScreen: user coin refresh result=$ok');
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'Balance updated.' : 'Coins may take a moment to appear. Open this screen again in a few seconds.',
+          style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+        ),
+        backgroundColor: AppColors.primaryColor,
+      ),
+    );
+  }
+
+  Future<void> _startCheckout(_CoinPackage pack) async {
+    if (LOGGING_SWITCH) {
+      _logger.info('CoinPurchaseScreen: checkout requested for package=${pack.key}');
+    }
+    final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+    if (api == null) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('CoinPurchaseScreen: ConnectionsApiModule is null');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cannot reach payment service.', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      return;
+    }
+    setState(() => _loadingPackageKey = pack.key);
+    try {
+      final raw = await api.sendPostRequest('/userauth/stripe/create-coin-checkout-session', {
+        'package_key': pack.key,
+      });
+      if (raw is! Map) {
+        throw Exception('Unexpected response');
+      }
+      final map = Map<String, dynamic>.from(raw);
+      if (map['success'] != true || map['url'] == null) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('CoinPurchaseScreen: checkout session creation failed: ${map['message'] ?? map['error']}');
+        }
+        final msg = map['message']?.toString() ?? map['error']?.toString() ?? 'Checkout could not start';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg, style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+              backgroundColor: AppColors.primaryColor,
+            ),
+          );
+        }
+        return;
+      }
+      final url = map['url'].toString();
+      if (LOGGING_SWITCH) {
+        _logger.info('CoinPurchaseScreen: launching checkout URL');
+      }
+      final launched = await ConnectionsApiModule.launchUrl(url);
+      if (!launched && mounted) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('CoinPurchaseScreen: checkout URL launch failed');
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open checkout. Check popup blocker.', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('CoinPurchaseScreen: checkout error: $e', error: e);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Checkout failed. Try again later.', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } finally {
+      if (LOGGING_SWITCH) {
+        _logger.info('CoinPurchaseScreen: checkout flow finished for package=${pack.key}');
+      }
+      if (mounted) setState(() => _loadingPackageKey = null);
+    }
+  }
 
   @override
   Widget buildContent(BuildContext context) {
@@ -29,28 +208,31 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       listenable: StateManager(),
       builder: (context, _) {
         final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            '🪙 CoinPurchaseScreen: dutch_game keys=${dutch.keys.toList()} hasContext=${dutch.containsKey(_contextKey)}',
-          );
-        }
         final joinCtx = dutch[_contextKey];
         final Map<String, dynamic> map = joinCtx is Map
             ? Map<String, dynamic>.from(joinCtx)
             : <String, dynamic>{};
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            '🪙 CoinPurchaseScreen: context map size=${map.length} room_id=${map['room_id']} required_coins=${map['required_coins']}',
-          );
-        }
 
         return SingleChildScrollView(
           padding: AppPadding.defaultPadding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (kIsWeb) ...[
+                Text('Coin packages', style: AppTextStyles.headingSmall()),
+                const SizedBox(height: 8),
+                Text(
+                  'Each match starts from a 25 coin table fee. Secure checkout is processed by Stripe.',
+                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                ),
+                SizedBox(height: AppPadding.defaultPadding.top),
+                ..._recommendedPackages.map(_buildPackageCard),
+                SizedBox(height: AppPadding.defaultPadding.top),
+              ],
               Text(
-                'Coin purchases are not available yet. Below is the join attempt data from the server (for debugging / future checkout).',
+                kIsWeb
+                    ? 'Join attempt details (debug / support):'
+                    : 'Coin purchases are not available yet. Below is the join attempt data from the server (for debugging / future checkout).',
                 style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
               ),
               SizedBox(height: AppPadding.defaultPadding.top),
@@ -89,4 +271,86 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     }
     return buf.toString().trim();
   }
+
+  Widget _buildPackageCard(_CoinPackage pack) {
+    final busy = _loadingPackageKey == pack.key;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: AppPadding.cardPadding,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppBorderRadius.smallRadius,
+        border: Border.all(
+          color: pack.isPopular ? AppColors.accentColor : AppColors.borderDefault,
+          width: pack.isPopular ? 1.5 : 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(pack.label, style: AppTextStyles.bodyLarge(color: AppColors.textPrimary)),
+                    if (pack.isPopular) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentColor,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Most Popular',
+                          style: AppTextStyles.bodySmall(color: AppColors.textOnPrimary),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text('${pack.coins} coins', style: AppTextStyles.bodyMedium(color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(pack.priceLabel, style: AppTextStyles.headingSmall()),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: busy ? null : () => _startCheckout(pack),
+            child: busy
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.textOnPrimary,
+                    ),
+                  )
+                : const Text('Buy'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoinPackage {
+  final String key;
+  final String label;
+  final int coins;
+  final String priceLabel;
+  final bool isPopular;
+
+  const _CoinPackage({
+    required this.key,
+    required this.label,
+    required this.coins,
+    required this.priceLabel,
+    this.isPopular = false,
+  });
 }

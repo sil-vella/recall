@@ -1,4 +1,4 @@
-# Sensitive values come from .env (create from .env.example; playbook creates on VPS).
+# Sensitive values come from .env.prod.
 # Config.py uses env vars then defaults for non-sensitive; no secret files.
 
 services:
@@ -6,7 +6,7 @@ services:
   dutch_mongodb-external:
     image: bitnami/mongodb:latest
     container_name: dutch_external_app_mongodb
-    env_file: .env
+    env_file: .env.prod
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
       - MONGODB_DATABASE=external_system
@@ -27,7 +27,7 @@ services:
     image: bitnami/redis:latest
     container_name: dutch_external_app_redis
     user: "${VPS_APP_UID:-1000}:${VPS_APP_GID:-1000}"
-    env_file: .env
+    env_file: .env.prod
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - ALLOW_EMPTY_PASSWORD=yes
@@ -43,7 +43,7 @@ services:
   dutch_flask-external:
     image: silvella/dutch_flask_app:latest
     container_name: dutch_external_app_flask
-    env_file: .env
+    env_file: .env.prod
     ports:
       - "5001:5001"
     environment:
@@ -130,7 +130,7 @@ services:
   dutch_dart-game-server:
     image: silvella/dutch_dart_game_server:latest
     container_name: dutch_dart_game_server
-    env_file: .env
+    env_file: .env.prod
     environment:
       - PORT=8080
       - DART_BACKEND_SERVICE_KEY=${DART_BACKEND_SERVICE_KEY}

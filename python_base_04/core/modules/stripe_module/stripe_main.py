@@ -11,6 +11,11 @@ import hashlib
 import json
 from decimal import Decimal
 
+from bson import ObjectId
+
+# Coin purchase / Checkout Session + webhook tracing for testing
+LOGGING_SWITCH = True
+
 
 class StripeModule(BaseModule):
     def __init__(self, app_manager=None):
@@ -62,6 +67,17 @@ class StripeModule(BaseModule):
         self._register_route_helper("/stripe/webhook", self.handle_webhook, methods=["POST"])
         self._register_route_helper("/stripe/payment-status/<payment_intent_id>", self.get_payment_status, methods=["GET"])
         self._register_route_helper("/stripe/credit-packages", self.get_credit_packages, methods=["GET"])
+        # Dutch game: web coin packs (Checkout Session + webhook → modules.dutch_game.coins)
+        self._register_route_helper(
+            "/public/stripe/coin-packages",
+            self.list_coin_packages_public,
+            methods=["GET"],
+        )
+        self._register_route_helper(
+            "/userauth/stripe/create-coin-checkout-session",
+            self.create_coin_checkout_session,
+            methods=["POST"],
+        )
         self._register_route_helper("/stripe/customers", self.create_customer, methods=["POST"])
         self._register_route_helper("/stripe/customers/<customer_id>", self.get_customer, methods=["GET"])
         self._register_route_helper("/stripe/payment-methods", self.list_payment_methods, methods=["GET"])
@@ -256,7 +272,9 @@ class StripeModule(BaseModule):
     def handle_webhook(self):
         """Handle Stripe webhooks securely."""
         try:
+            custom_log("Stripe webhook: request received", level="INFO", isOn=LOGGING_SWITCH)
             if not self.webhook_secret:
+                custom_log("Stripe webhook: missing STRIPE_WEBHOOK_SECRET", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Webhook secret not configured"
@@ -265,8 +283,14 @@ class StripeModule(BaseModule):
             # Get the webhook payload
             payload = request.get_data()
             sig_header = request.headers.get('Stripe-Signature')
+            custom_log(
+                f"Stripe webhook: payload_bytes={len(payload)} has_signature={bool(sig_header)}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
 
             if not sig_header:
+                custom_log("Stripe webhook: missing Stripe-Signature header", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Missing Stripe signature"
@@ -277,9 +301,16 @@ class StripeModule(BaseModule):
                 event = stripe.Webhook.construct_event(
                     payload, sig_header, self.webhook_secret
                 )
+                custom_log(
+                    f"Stripe webhook: signature verified event_type={event.get('type')}",
+                    level="INFO",
+                    isOn=LOGGING_SWITCH,
+                )
             except ValueError as e:
+                custom_log(f"Stripe webhook: invalid payload ({e})", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({"error": "Invalid payload"}), 400
             except stripe.error.SignatureVerificationError as e:
+                custom_log(f"Stripe webhook: signature verification failed ({e})", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({"error": "Invalid signature"}), 400
 
             # Handle the event
@@ -289,12 +320,20 @@ class StripeModule(BaseModule):
                 self._handle_payment_failed(event['data']['object'])
             elif event['type'] == 'charge.dispute.created':
                 self._handle_dispute_created(event['data']['object'])
+            elif event['type'] == 'checkout.session.completed':
+                self._handle_checkout_session_completed(event['data']['object'])
             else:
-                pass
+                custom_log(
+                    f"Stripe webhook: unhandled event_type={event['type']}",
+                    level="INFO",
+                    isOn=LOGGING_SWITCH,
+                )
 
+            custom_log(f"Stripe webhook: processed event_type={event['type']}", level="INFO", isOn=LOGGING_SWITCH)
             return jsonify({"success": True}), 200
 
         except Exception as e:
+            custom_log(f"Stripe webhook: processing error {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({
                 "success": False,
                 "error": "Webhook processing error"
@@ -353,6 +392,198 @@ class StripeModule(BaseModule):
             
         except Exception as e:
             pass
+
+    @staticmethod
+    def _coin_package_rows():
+        """SSOT for Dutch coin pack keys, labels, coin amounts, and configured Stripe Price IDs."""
+        from utils.config.config import Config
+
+        def _pid(v):
+            s = (v or "").strip()
+            return s if s else None
+
+        return (
+            {"key": "starter", "label": "Starter", "coins": 100, "price_id": _pid(Config.STRIPE_PRICE_COIN_STARTER)},
+            {"key": "casual", "label": "Casual", "coins": 300, "price_id": _pid(Config.STRIPE_PRICE_COIN_CASUAL)},
+            {"key": "popular", "label": "Popular", "coins": 700, "price_id": _pid(Config.STRIPE_PRICE_COIN_POPULAR)},
+            {"key": "grinder", "label": "Grinder", "coins": 1500, "price_id": _pid(Config.STRIPE_PRICE_COIN_GRINDER)},
+            {"key": "pro", "label": "Pro", "coins": 3500, "price_id": _pid(Config.STRIPE_PRICE_COIN_PRO)},
+        )
+
+    def list_coin_packages_public(self):
+        """Which coin packages exist and whether Stripe price IDs are configured (no secrets)."""
+        try:
+            packages = []
+            for row in self._coin_package_rows():
+                packages.append(
+                    {
+                        "key": row["key"],
+                        "label": row["label"],
+                        "coins": row["coins"],
+                        "available": row["price_id"] is not None,
+                    }
+                )
+            return jsonify({"success": True, "packages": packages}), 200
+        except Exception as e:
+            custom_log(f"Stripe list_coin_packages_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": "Failed to list packages"}), 500
+
+    def create_coin_checkout_session(self):
+        """Create a Stripe Checkout Session for a Dutch coin pack (JWT: request.user_id)."""
+        try:
+            if not self.stripe:
+                return jsonify({"success": False, "error": "Stripe is not configured"}), 503
+
+            from utils.config.config import Config
+
+            user_id = getattr(request, "user_id", None)
+            if not user_id:
+                return jsonify({"success": False, "error": "Authentication required", "code": "JWT_REQUIRED"}), 401
+
+            body = request.get_json() or {}
+            package_key = (body.get("package_key") or "").strip().lower()
+            if not package_key:
+                return jsonify({"success": False, "error": "package_key is required"}), 400
+            custom_log(
+                f"create_coin_checkout_session: user_id={user_id} package_key={package_key}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+
+            selected = None
+            for row in self._coin_package_rows():
+                if row["key"] == package_key:
+                    selected = row
+                    break
+            if not selected or not selected.get("price_id"):
+                return jsonify({"success": False, "error": "Invalid or unavailable package"}), 400
+
+            success_url = (Config.STRIPE_COIN_CHECKOUT_SUCCESS_URL or "").strip()
+            cancel_url = (Config.STRIPE_COIN_CHECKOUT_CANCEL_URL or "").strip()
+            custom_log(
+                f"create_coin_checkout_session: success_url={success_url} cancel_url={cancel_url}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+            if not success_url or not cancel_url:
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": "Checkout URLs not configured",
+                        "message": "Set STRIPE_COIN_CHECKOUT_SUCCESS_URL and STRIPE_COIN_CHECKOUT_CANCEL_URL",
+                    }
+                ), 503
+
+            session = self.stripe.checkout.Session.create(
+                mode="payment",
+                line_items=[{"price": selected["price_id"], "quantity": 1}],
+                success_url=success_url,
+                cancel_url=cancel_url,
+                client_reference_id=str(user_id),
+                metadata={
+                    "user_id": str(user_id),
+                    "coins": str(int(selected["coins"])),
+                    "package_key": package_key,
+                    "purchase_type": "dutch_coins",
+                },
+            )
+            custom_log(
+                f"create_coin_checkout_session: created session_id={session.id} package_key={package_key}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+
+            return jsonify({"success": True, "url": session.url, "session_id": session.id}), 200
+
+        except stripe.error.StripeError as e:
+            custom_log(f"Stripe create_coin_checkout_session: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": str(e)}), 400
+        except Exception as e:
+            custom_log(f"create_coin_checkout_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    def _handle_checkout_session_completed(self, session_obj):
+        """Credit Dutch game coins after successful Checkout (idempotent per session id)."""
+        try:
+            if isinstance(session_obj, dict):
+                session = session_obj
+            elif hasattr(session_obj, "to_dict"):
+                session = session_obj.to_dict()
+            else:
+                session = dict(session_obj)
+            if session.get("mode") != "payment":
+                return
+            session_id = session.get("id")
+            if not session_id:
+                return
+            if session.get("payment_status") != "paid":
+                custom_log(
+                    f"Stripe checkout.session.completed: session {session_id} payment_status={session.get('payment_status')}",
+                    level="WARNING",
+                    isOn=LOGGING_SWITCH,
+                )
+                return
+
+            meta = session.get("metadata") or {}
+            if meta.get("purchase_type") != "dutch_coins":
+                return
+
+            existing = self.db_manager.find_one("stripe_coin_purchases", {"checkout_session_id": session_id})
+            if existing:
+                return
+
+            user_id_str = meta.get("user_id") or session.get("client_reference_id")
+            if not user_id_str:
+                custom_log("checkout.session.completed: missing user_id", level="ERROR", isOn=LOGGING_SWITCH)
+                return
+            try:
+                coins = int(meta.get("coins", "0"))
+            except (TypeError, ValueError):
+                coins = 0
+            if coins <= 0:
+                custom_log(f"checkout.session.completed: invalid coins for session {session_id}", level="ERROR", isOn=LOGGING_SWITCH)
+                return
+
+            try:
+                oid = ObjectId(user_id_str)
+            except Exception:
+                custom_log(f"checkout.session.completed: bad user_id {user_id_str!r}", level="ERROR", isOn=LOGGING_SWITCH)
+                return
+
+            self._credit_dutch_game_coins(oid, coins)
+
+            self.db_manager.insert(
+                "stripe_coin_purchases",
+                {
+                    "checkout_session_id": session_id,
+                    "user_id": user_id_str,
+                    "coins": coins,
+                    "package_key": meta.get("package_key", ""),
+                    "created_at": datetime.utcnow().isoformat(),
+                },
+            )
+            custom_log(
+                f"Stripe coin purchase credited user_id={user_id_str} coins={coins} session={session_id}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+        except Exception as e:
+            custom_log(f"_handle_checkout_session_completed error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _credit_dutch_game_coins(self, user_oid: ObjectId, coins: int):
+        """Increment modules.dutch_game.coins (same field as match economy)."""
+        if coins <= 0:
+            return
+        ts = datetime.utcnow().isoformat()
+        result = self.db_manager.db["users"].update_one(
+            {"_id": user_oid},
+            {
+                "$inc": {"modules.dutch_game.coins": coins},
+                "$set": {"modules.dutch_game.last_updated": ts, "updated_at": ts},
+            },
+        )
+        if result.matched_count == 0:
+            raise ValueError(f"user not found: {user_oid}")
 
     def get_payment_status(self, payment_intent_id):
         """Get payment status from Stripe."""

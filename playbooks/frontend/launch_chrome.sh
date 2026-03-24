@@ -5,15 +5,15 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FRONTEND_ENV="$REPO_ROOT/.env"
+FRONTEND_ENV="$REPO_ROOT/.env.local"
 
-# Load env from repo root .env (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+# Load env from repo root .env.local (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
 if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
   source "$FRONTEND_ENV"
   set +a
-  echo "✅ Loaded .env from: $FRONTEND_ENV"
+  echo "✅ Loaded .env.local from: $FRONTEND_ENV"
   if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
     GOOGLE_CLIENT_ID_PREVIEW="${GOOGLE_CLIENT_ID:0:40}..."
     echo "   GOOGLE_CLIENT_ID (for web): ${GOOGLE_CLIENT_ID_PREVIEW} (length=${#GOOGLE_CLIENT_ID})"
@@ -22,7 +22,7 @@ if [ -f "$FRONTEND_ENV" ]; then
   fi
 else
   echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
-  echo "   Create and fill the repo root .env file first."
+  echo "   Create and fill the repo root .env.local file first."
 fi
 
 echo "🚀 Launching Flutter app on Chrome web with filtered Logger output..."

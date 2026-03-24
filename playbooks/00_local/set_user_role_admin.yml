@@ -1,15 +1,15 @@
 ---
 # One-off: set user 69aae0b0095ba0c771e43091 (silvestervella) role to "admin".
 # Run: ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_role_admin.yml
-- name: Load app_dev/.env for MongoDB password (optional)
+- name: Load app_dev/.env.local for MongoDB password (optional)
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    local_env_path: "{{ playbook_dir }}/../../.env"
+    local_env_path: "{{ playbook_dir }}/../../.env.local"
     mongodb_container_name: "dutch_external_app_mongodb"
   tasks:
-    - name: Check if app_dev/.env exists
+    - name: Check if app_dev/.env.local exists
       stat:
         path: "{{ local_env_path }}"
       register: local_env_check
@@ -38,7 +38,7 @@
         LOCAL_ENV_PATH: "{{ local_env_path }}"
       when: local_env_check.stat.exists | default(false)
 
-    - name: Set env facts from app_dev/.env
+    - name: Set env facts from app_dev/.env.local
       set_fact:
         mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
       when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0

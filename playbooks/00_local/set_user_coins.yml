@@ -13,12 +13,12 @@
 #   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_coins.yml -e target_coins=5000
 #   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_coins.yml -e target_coins=10000 -e user_choice=2
 #   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_coins.yml -e target_coins=0 -e target_user_id=69aca835e20a93b2f6699e17
-- name: Load app_dev/.env for MongoDB password (optional)
+- name: Load app_dev/.env.local for MongoDB password (optional)
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    local_env_path: "{{ playbook_dir }}/../../.env"
+    local_env_path: "{{ playbook_dir }}/../../.env.local"
     mongodb_container_name: "dutch_external_app_mongodb"
   tasks:
     - name: Check if app_dev/.env exists
@@ -26,7 +26,7 @@
         path: "{{ local_env_path }}"
       register: local_env_check
 
-    - name: Parse app_dev/.env into JSON
+    - name: Parse app_dev/.env.local into JSON
       shell: |
         python3 << 'PYEOF'
         import json, os, re
@@ -50,7 +50,7 @@
         LOCAL_ENV_PATH: "{{ local_env_path }}"
       when: local_env_check.stat.exists | default(false)
 
-    - name: Set env facts from app_dev/.env
+    - name: Set env facts from app_dev/.env.local
       set_fact:
         mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
       when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0

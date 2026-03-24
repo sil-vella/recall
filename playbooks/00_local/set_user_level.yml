@@ -2,15 +2,15 @@
 # Set a user's modules.dutch_game.level and modules.dutch_game.rank in local MongoDB by fixed user_id.
 # Run:
 #   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_level.yml
-- name: Load app_dev/.env for MongoDB and Dutch game mapping values (optional)
+- name: Load app_dev/.env.local for MongoDB and Dutch game mapping values (optional)
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    local_env_path: "{{ playbook_dir }}/../../.env"
+    local_env_path: "{{ playbook_dir }}/../../.env.local"
     mongodb_container_name: "dutch_external_app_mongodb"
   tasks:
-    - name: Check if app_dev/.env exists
+    - name: Check if app_dev/.env.local exists
       stat:
         path: "{{ local_env_path }}"
       register: local_env_check
@@ -45,7 +45,7 @@
         LOCAL_ENV_PATH: "{{ local_env_path }}"
       when: local_env_check.stat.exists | default(false)
 
-    - name: Set env facts from app_dev/.env
+    - name: Set env facts from app_dev/.env.local
       set_fact:
         mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
         dutch_levels_per_rank_env: "{{ (env_json.stdout | from_json).dutch_levels_per_rank }}"

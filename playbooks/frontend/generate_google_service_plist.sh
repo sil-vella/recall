@@ -1,11 +1,11 @@
 #!/bin/bash
-# Generates flutter_base_05/macos/Runner/GoogleService-Info.plist from repo root .env
+# Generates flutter_base_05/macos/Runner/GoogleService-Info.plist from repo root .env.local
 # so Firebase credentials are not hardcoded in the repo. Run from repo root or playbooks/frontend.
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ENV_FILE="$REPO_ROOT/.env"
+ENV_FILE="$REPO_ROOT/.env.local"
 PLIST_PATH="$REPO_ROOT/flutter_base_05/macos/Runner/GoogleService-Info.plist"
 
 if [ ! -f "$ENV_FILE" ]; then

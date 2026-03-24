@@ -23,7 +23,7 @@ from pathlib import Path
 # Bcrypt hash for password "comp_player_pass"
 COMP_PLAYER_PASSWORD = "$2b$12$PHGvsjOG3/fjNuEZQP1Szu5/igAj8pppp8XoAFeVyzDbj2EBh3o82"
 
-# MongoDB connection details: from env (e.g. app_dev/.env) so VPS uses same creds as compose. No defaults in repo.
+# MongoDB connection details: from env (e.g. source app_dev/.env.prod) so VPS uses same creds as compose. No defaults in repo.
 MONGODB_CONTAINER = os.environ.get("MONGODB_CONTAINER", "dutch_external_app_mongodb")
 MONGODB_DATABASE = os.environ.get("MONGODB_DATABASE", "external_system")
 MONGODB_USER = os.environ.get("MONGODB_USER", "external_app_user")
@@ -429,7 +429,7 @@ def main():
     args = parser.parse_args()
     
     if not MONGODB_PASSWORD:
-        print("❌ MONGODB_PASSWORD not set. Source app_dev/.env first: set -a && source app_dev/.env && set +a", file=sys.stderr)
+        print("❌ MONGODB_PASSWORD not set. Source app_dev/.env.prod first: set -a && source app_dev/.env.prod && set +a", file=sys.stderr)
         sys.exit(1)
     
     # Determine project root (two levels up from playbooks/rop01/)

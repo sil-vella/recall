@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,6 +14,58 @@ import '../../tools/logging/logger.dart';
 import 'hooks_manager.dart';
 import '../../modules/analytics_module/analytics_module.dart';
 import 'module_manager.dart';
+
+/// Hash URLs: `http://host/#/path?query`. Path URLs: `http://host/path?query`.
+const bool LOGGING_SWITCH = true; // Stripe return routing trace (enable-logging-switch.mdc)
+
+String computeWebInitialLocation() {
+  if (!kIsWeb) return '/';
+  final logger = Logger();
+  if (LOGGING_SWITCH) {
+    logger.info(
+      'NavigationManager.computeWebInitialLocation: href=${Uri.base.toString()} '
+      'path=${Uri.base.path} query=${Uri.base.query} fragment=${Uri.base.fragment}',
+    );
+  }
+
+  final fragment = Uri.base.fragment;
+  if (fragment.isNotEmpty) {
+    final fromFragment = fragment.startsWith('/') ? fragment : '/$fragment';
+    if (LOGGING_SWITCH) {
+      logger.info('NavigationManager.computeWebInitialLocation: using fragment route=$fromFragment');
+    }
+    return fromFragment;
+  }
+
+  // Path-based Stripe return support (when success/cancel URL is not hash-based).
+  final path = Uri.base.path;
+  final q = Uri.base.query;
+  final hasStripeReturnSignals =
+      Uri.base.queryParameters.containsKey('session_id') ||
+      Uri.base.queryParameters.containsKey('stripe_checkout');
+  if (path == '/coin-purchase' || path.endsWith('/coin-purchase')) {
+    final fromPath = q.isEmpty ? '/coin-purchase' : '/coin-purchase?$q';
+    if (LOGGING_SWITCH) {
+      logger.info('NavigationManager.computeWebInitialLocation: using path route=$fromPath');
+    }
+    return fromPath;
+  }
+  if (hasStripeReturnSignals) {
+    final fromSignal = q.isEmpty ? '/coin-purchase' : '/coin-purchase?$q';
+    if (LOGGING_SWITCH) {
+      logger.warning(
+        'NavigationManager.computeWebInitialLocation: stripe return params without coin path; '
+        'forcing route=$fromSignal',
+      );
+    }
+    return fromSignal;
+  }
+
+  if (LOGGING_SWITCH) {
+    logger.info('NavigationManager.computeWebInitialLocation: defaulting to "/"');
+  }
+  return '/';
+}
 
 class RegisteredRoute {
   final String path;
@@ -49,7 +102,6 @@ class RegisteredRoute {
 }
 
 class NavigationManager extends ChangeNotifier {
-  static final Logger _logger = Logger();
   static final NavigationManager _instance = NavigationManager._internal();
   static final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   
@@ -222,7 +274,7 @@ class NavigationManager extends ChangeNotifier {
     
     final newRouter = GoRouter(
       navigatorKey: _navigatorKey,
-      initialLocation: '/',
+      initialLocation: kIsWeb ? computeWebInitialLocation() : '/',
       routes: allRoutes,
     );
     

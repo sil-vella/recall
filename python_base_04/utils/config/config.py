@@ -365,6 +365,21 @@ class Config:
     STRIPE_PUBLISHABLE_KEY = get_sensitive_config_value("flask-app/stripe", "publishable_key", "stripe_publishable_key", "STRIPE_PUBLISHABLE_KEY", "")
     STRIPE_WEBHOOK_SECRET = get_sensitive_config_value("flask-app/stripe", "webhook_secret", "stripe_webhook_secret", "STRIPE_WEBHOOK_SECRET", "")
     STRIPE_API_VERSION = get_file_first_config_value("stripe_api_version", "STRIPE_API_VERSION", "2023-10-16")
+    # Dutch web coin packs: Stripe Checkout (hosted). Success URL may include {CHECKOUT_SESSION_ID}.
+    # Path URLs: https://dutch.mt/coin-purchase?stripe_checkout=success&session_id={CHECKOUT_SESSION_ID}
+    # Hash routing: https://dutch.mt/#/coin-purchase?stripe_checkout=success&session_id={CHECKOUT_SESSION_ID}
+    STRIPE_COIN_CHECKOUT_SUCCESS_URL = get_file_first_config_value(
+        "stripe_coin_checkout_success_url", "STRIPE_COIN_CHECKOUT_SUCCESS_URL", ""
+    )
+    STRIPE_COIN_CHECKOUT_CANCEL_URL = get_file_first_config_value(
+        "stripe_coin_checkout_cancel_url", "STRIPE_COIN_CHECKOUT_CANCEL_URL", ""
+    )
+    # Price IDs from Stripe Dashboard → Product "Coin Packages" (one per tier)
+    STRIPE_PRICE_COIN_STARTER = get_file_first_config_value("stripe_price_coin_starter", "STRIPE_PRICE_COIN_STARTER", "")
+    STRIPE_PRICE_COIN_CASUAL = get_file_first_config_value("stripe_price_coin_casual", "STRIPE_PRICE_COIN_CASUAL", "")
+    STRIPE_PRICE_COIN_POPULAR = get_file_first_config_value("stripe_price_coin_popular", "STRIPE_PRICE_COIN_POPULAR", "")
+    STRIPE_PRICE_COIN_GRINDER = get_file_first_config_value("stripe_price_coin_grinder", "STRIPE_PRICE_COIN_GRINDER", "")
+    STRIPE_PRICE_COIN_PRO = get_file_first_config_value("stripe_price_coin_pro", "STRIPE_PRICE_COIN_PRO", "")
 
     # Google OAuth2 Configuration (for Google Sign-In)
     GOOGLE_CLIENT_ID = get_config_value("flask-app/google-oauth", "client_id", "google_client_id", "GOOGLE_CLIENT_ID", "")

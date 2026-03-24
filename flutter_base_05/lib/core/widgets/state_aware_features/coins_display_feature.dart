@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../managers/state_manager.dart';
+import '../../managers/navigation_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/theme_consts.dart';
 
@@ -51,27 +53,44 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
           _logger.info('✅ Coins Display: Rendering coins chip with value: $coins');
         }
         
-        // Return coins display chip with gold styling (same as winning pot)
+        // Tappable coins display — same navigation pattern as notifications / profile app bar features.
         final goldColor = AppColors.matchPotGold;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Chip(
-            avatar: Icon(
-              Icons.monetization_on,
-              size: 18,
-              color: goldColor,
-            ),
-            label: Text(
-              coins.toString(),
-              style: AppTextStyles.label().copyWith(
-                fontWeight: FontWeight.bold,
+          child: Semantics(
+            label: 'Buy coins',
+            identifier: 'app_bar_coins_purchase',
+            button: true,
+            child: ActionChip(
+              avatar: Icon(
+                Icons.monetization_on,
+                size: 18,
                 color: goldColor,
               ),
+              label: Text(
+                coins.toString(),
+                style: AppTextStyles.label().copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: goldColor,
+                ),
+              ),
+              tooltip: 'Buy coins',
+              onPressed: () {
+                try {
+                  final navigationManager =
+                      Provider.of<NavigationManager>(context, listen: false);
+                  navigationManager.navigateTo('/coin-purchase');
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Navigation failed: $e')),
+                  );
+                }
+              },
+              backgroundColor: goldColor.withOpacity(0.2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
             ),
-            backgroundColor: goldColor.withOpacity(0.2),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
           ),
         );
       },

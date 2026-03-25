@@ -1,0 +1,28 @@
+flowchart TD
+  subgraph Cloud["Firebase Project (Cloud)"]
+    REG["App registered in project"]
+    CFG["Config values<br/>apiKey, appId, projectId"]
+    REG --> CFG
+  end
+
+  subgraph Client["Frontend app (client)"]
+    START["App startup"]
+    SDKREAD["Firebase SDK reads config"]
+    POINT["SDK points app to Firebase project"]
+    PKG["Add product package<br/>e.g. firebase_analytics"]
+    INIT["Import package and create instance"]
+    CALL["Call instance API<br/>logEvent(...)"]
+    EX["Example event<br/>name: start_match_after<br/>params: minutes"]
+    BATCH["SDK batches and sends events"]
+
+    START --> SDKREAD
+    SDKREAD --> POINT
+    POINT --> PKG
+    PKG --> INIT
+    INIT --> CALL
+    CALL --> EX
+    EX --> BATCH
+  end
+
+  CFG --> SDKREAD
+  BATCH --> INGEST["Events ingested in Firebase Analytics"]

@@ -16,6 +16,7 @@ import smtplib
 import ssl
 import string
 import requests as http_requests
+import traceback
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -39,8 +40,8 @@ from core.services.analytics_service import AnalyticsService
 
 
 class UserManagementModule(BaseModule):
-    # Logging switch for guest registration, conversion, and user search (invite flow)
-    LOGGING_SWITCH = True  # Enabled for login/create and invite search debugging (see .cursor/rules/enable-logging-switch.mdc)
+    # Logging switch: /public/register, /public/register-guest, login, Google sign-in, invite search, etc.
+    LOGGING_SWITCH = True  # Registration + auth paths → server.log (see .cursor/rules/enable-logging-switch.mdc)
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):
@@ -114,7 +115,17 @@ class UserManagementModule(BaseModule):
         """Create a new user account with comprehensive setup."""
         try:
             data = request.get_json()
-            
+            if data is None:
+                custom_log(
+                    "UserManagement: create_user rejected — empty or non-JSON body",
+                    level="WARNING",
+                    isOn=UserManagementModule.LOGGING_SWITCH,
+                )
+                return jsonify({
+                    "success": False,
+                    "error": "Request body must be JSON with username, email, and password",
+                }), 400
+
             # Validate required fields
             required_fields = ["username", "email", "password"]
             for field in required_fields:
@@ -201,6 +212,12 @@ class UserManagementModule(BaseModule):
                     "success": False,
                     "error": "Username already taken"
                 }), 409
+
+            custom_log(
+                "UserManagement: create_user — validations passed, no duplicate email/username",
+                level="DEBUG",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
             
             # Hash password
             hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
@@ -250,6 +267,9 @@ class UserManagementModule(BaseModule):
                     user_data['modules']['dutch_game']['rank'] = matcher.DEFAULT_RANK
                 if 'level' not in user_data['modules']['dutch_game']:
                     user_data['modules']['dutch_game']['level'] = matcher.DEFAULT_LEVEL
+                # Apply registration defaults for converted accounts.
+                user_data['modules']['dutch_game']['subscription_tier'] = matcher.TIER_REGULAR
+                user_data['modules']['dutch_game']['coins'] = Config.REGISTRATION_COIN_BONUS
                 
                 custom_log(f"UserManagement: Copied guest account data for conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}, rank: {user_data['modules'].get('dutch_game', {}).get('rank')}, level: {user_data['modules'].get('dutch_game', {}).get('level')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             else:
@@ -312,10 +332,11 @@ class UserManagementModule(BaseModule):
                         'losses': 0,
                         'total_matches': 0,
                         'points': 0,
+                        'coins': Config.REGISTRATION_COIN_BONUS,
                         'level': matcher.DEFAULT_LEVEL,
                         'rank': matcher.DEFAULT_RANK,
                         'win_rate': 0.0,
-                        'subscription_tier': matcher.TIER_PROMOTIONAL,
+                        'subscription_tier': matcher.TIER_REGULAR,
                         'last_match_date': None,
                         'last_updated': current_time.isoformat()
                     }
@@ -329,6 +350,12 @@ class UserManagementModule(BaseModule):
                     'profile_updated_at': current_time.isoformat()
                 }
             }
+
+            custom_log(
+                f"UserManagement: create_user — inserting into users (convert_from_guest={convert_from_guest})",
+                level="INFO",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
             
             # Insert user using database manager
             user_id = self.db_manager.insert("users", user_data)
@@ -360,9 +387,6 @@ class UserManagementModule(BaseModule):
             
             # Trigger user_created hook for other modules to listen to
             if self.app_manager:
-                # Import config to get app identification
-                from utils.config.config import Config
-                
                 hook_data = {
                     'user_id': user_id,
                     'username': username,
@@ -374,6 +398,11 @@ class UserManagementModule(BaseModule):
                     'source': 'external_app',
                     'account_type': 'normal' if not convert_from_guest else 'converted_from_guest'
                 }
+                custom_log(
+                    "UserManagement: create_user — firing user_created hook",
+                    level="DEBUG",
+                    isOn=UserManagementModule.LOGGING_SWITCH,
+                )
                 self.app_manager.trigger_hook("user_created", hook_data)
             
             # Log successful registration
@@ -415,7 +444,18 @@ class UserManagementModule(BaseModule):
                     )
             
             # Send confirmation email (non-blocking: failure does not fail registration)
+            custom_log(
+                "UserManagement: create_user — sending confirmation email (errors are non-fatal)",
+                level="DEBUG",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
             self._send_confirmation_email(email, username)
+
+            custom_log(
+                f"UserManagement: create_user — returning 201 for user_id={user_id}",
+                level="INFO",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
             
             return jsonify({
                 "success": True,
@@ -426,6 +466,16 @@ class UserManagementModule(BaseModule):
             }), 201
             
         except Exception as e:
+            custom_log(
+                f"UserManagement: create_user FAILED — {type(e).__name__}: {e}",
+                level="ERROR",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
+            custom_log(
+                f"UserManagement: create_user traceback:\n{traceback.format_exc()}",
+                level="ERROR",
+                isOn=UserManagementModule.LOGGING_SWITCH,
+            )
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -531,10 +581,11 @@ class UserManagementModule(BaseModule):
                         'losses': 0,
                         'total_matches': 0,
                         'points': 0,
+                        'coins': Config.REGISTRATION_COIN_BONUS,
                         'level': matcher.DEFAULT_LEVEL,
                         'rank': matcher.DEFAULT_RANK,
                         'win_rate': 0.0,
-                        'subscription_tier': matcher.TIER_PROMOTIONAL,
+                        'subscription_tier': matcher.TIER_REGULAR,
                         'last_match_date': None,
                         'last_updated': current_time.isoformat()
                     }
@@ -568,9 +619,6 @@ class UserManagementModule(BaseModule):
             
             # Trigger user_created hook for other modules to listen to
             if self.app_manager:
-                # Import config to get app identification
-                from utils.config.config import Config
-                
                 hook_data = {
                     'user_id': user_id,
                     'username': username,
@@ -1272,6 +1320,9 @@ class UserManagementModule(BaseModule):
                         user_data['modules']['dutch_game']['rank'] = matcher.DEFAULT_RANK
                     if 'level' not in user_data['modules']['dutch_game']:
                         user_data['modules']['dutch_game']['level'] = matcher.DEFAULT_LEVEL
+                    # Apply registration defaults for converted accounts.
+                    user_data['modules']['dutch_game']['subscription_tier'] = matcher.TIER_REGULAR
+                    user_data['modules']['dutch_game']['coins'] = Config.REGISTRATION_COIN_BONUS
                     
                     custom_log(f"UserManagement: Copied guest account data for Google Sign-In conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}, rank: {user_data['modules'].get('dutch_game', {}).get('rank')}, level: {user_data['modules'].get('dutch_game', {}).get('level')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 else:
@@ -1337,10 +1388,11 @@ class UserManagementModule(BaseModule):
                                 'losses': 0,
                                 'total_matches': 0,
                                 'points': 0,
+                                'coins': Config.REGISTRATION_COIN_BONUS,
                                 'level': matcher.DEFAULT_LEVEL,
                                 'rank': matcher.DEFAULT_RANK,
                                 'win_rate': 0.0,
-                                'subscription_tier': matcher.TIER_PROMOTIONAL,
+                                'subscription_tier': matcher.TIER_REGULAR,
                                 'last_match_date': None,
                                 'last_updated': current_time.isoformat()
                             }

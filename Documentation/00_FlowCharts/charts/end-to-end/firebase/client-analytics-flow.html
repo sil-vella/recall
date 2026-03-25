@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Invite Play Flow | FlowCharts</title>
+  <title>Client Analytics Flow | FlowCharts</title>
   <link rel="stylesheet" href="../../../css/flowcharts.css">
   <style media="print">
     @page { size: A4; margin: 15mm; }
@@ -22,13 +22,13 @@
         <ul>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">End To End</button><ul>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Firebase</button><ul>
-<li><a href="../../../charts/end-to-end/firebase/client-analytics-flow.html">Client Analytics Flow</a></li>
+<li><a href="../../../charts/end-to-end/firebase/client-analytics-flow.html" class="active">Client Analytics Flow</a></li>
 </ul></li>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Notification Sys</button><ul>
 <li><a href="../../../charts/end-to-end/notification_sys/notification-sys.html">Notification Sys</a></li>
 </ul></li>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Tournaments</button><ul>
-<li><a href="../../../charts/end-to-end/tournaments/admin-invite-play-flow.html" class="active">Admin Invite Play Flow</a></li>
+<li><a href="../../../charts/end-to-end/tournaments/admin-invite-play-flow.html">Admin Invite Play Flow</a></li>
 <li><a href="../../../charts/end-to-end/tournaments/data-model.html">Data Model</a></li>
 </ul></li>
 </ul></li>
@@ -37,7 +37,7 @@
     </div>
   </header>
   <main class="flowcharts-main">
-    <h1>Admin Invite Play Flow</h1>
+    <h1>Client Analytics Flow</h1>
     <div class="mermaid">
 %%{init: {
   &quot;theme&quot;: &quot;base&quot;,
@@ -60,31 +60,34 @@
     &quot;nodeTextColor&quot;: &quot;#2d2a26&quot;
   }
 }}%%
-flowchart TB
-  subgraph Admin[&quot;Admin only (pass protected)&quot;]
-    DASH[&quot;Admin dashboard&quot;]
-    DASH --&gt; CREATE_T[&quot;Create tournament&quot;]
-    CREATE_T --&gt; PY_DB[&quot;data to Py / DB&quot;]
-    PY_DB --&gt; CREATE_M[&quot;Create match / ws room&quot;]
-    CREATE_M --&gt; INVITE_ADD[&quot;Invite to add to room&quot;]
-    DASH --&gt; LEADER[&quot;Tournament Leaderboard screen/tab&quot;]
+flowchart TD
+  subgraph Cloud[&quot;Firebase Project (Cloud)&quot;]
+    REG[&quot;App registered in project&quot;]
+    CFG[&quot;Config values&lt;br/&gt;apiKey, appId, projectId&quot;]
+    REG --&gt; CFG
   end
 
-  subgraph Invite[&quot;Tournament invites&quot;]
-    SEARCH[&quot;Search for player from dashboard&lt;br/&gt;by username or email&quot;]
-    SEARCH --&gt; INV_SENT[&quot;Invite sent&quot;]
-    INV_SENT --&gt; INV_DATA[&quot;tournament_id, type (e.g. IRL),&lt;br/&gt;fee (e.g. Free), match data, Join&quot;]
-    INV_DATA --&gt; ACCEPT[&quot;Accept / Decline&quot;]
+  subgraph Client[&quot;Frontend app (client)&quot;]
+    START[&quot;App startup&quot;]
+    SDKREAD[&quot;Firebase SDK reads config&quot;]
+    POINT[&quot;SDK points app to Firebase project&quot;]
+    PKG[&quot;Add product package&lt;br/&gt;e.g. firebase_analytics&quot;]
+    INIT[&quot;Import package and create instance&quot;]
+    CALL[&quot;Call instance API&lt;br/&gt;logEvent(...)&quot;]
+    EX[&quot;Example event&lt;br/&gt;name: start_match_after&lt;br/&gt;params: minutes&quot;]
+    BATCH[&quot;SDK batches and sends events&quot;]
+
+    START --&gt; SDKREAD
+    SDKREAD --&gt; POINT
+    POINT --&gt; PKG
+    PKG --&gt; INIT
+    INIT --&gt; CALL
+    CALL --&gt; EX
+    EX --&gt; BATCH
   end
 
-  subgraph Play[&quot;Join and play&quot;]
-    ACCEPT --&gt; JOIN[&quot;send join_room using room_id&quot;]
-    JOIN --&gt; REDIRECT[&quot;redirect to Play screen&lt;br/&gt;wait for start remote&quot;]
-    REDIRECT --&gt; END[&quot;End of match&quot;]
-    END --&gt; UPDATE_DB[&quot;Update db with match data&lt;br/&gt;winner, etc.&quot;]
-  end
-
-  INVITE_ADD --&gt; SEARCH
+  CFG --&gt; SDKREAD
+  BATCH --&gt; INGEST[&quot;Events ingested in Firebase Analytics&quot;]
     </div>
   </main>
   <script>

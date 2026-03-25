@@ -28,7 +28,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Enable for debugging login/account creation and profile/role (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Registration + login/account + profile (enable-logging-switch.mdc)
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -416,7 +416,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         return AlertDialog(
           title: const Text('Clear app storage?'),
           content: const Text(
-            'This will remove all saved login data from this device (email, password, session). '
+            'This will remove saved login data from this device (email, password, session flags) '
+            'and delete JWT access and refresh tokens from secure storage. '
             'You will need to sign in again. Your account on the server is not affected.',
           ),
           actions: [
@@ -438,12 +439,15 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       _clearMessages();
     });
     try {
+      final auth = AuthManager();
+      // Clear JWTs first so stale tokens cannot be used even if prefs cleanup fails mid-way.
+      await auth.clearTokens();
       final sharedPref = SharedPrefManager();
       await sharedPref.initialize();
       for (final key in _userStorageKeys) {
         await sharedPref.remove(key);
       }
-      await AuthManager().clearSessionAuthData(
+      await auth.clearSessionAuthData(
         keepLoginFormFields: false,
         prefs: sharedPref,
       );
@@ -1974,7 +1978,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Text(
-            'This only clears data from app storage on this device. It does not delete your user account.',
+            'Clears SharedPreferences session data and JWT tokens in secure storage. '
+            'Does not delete your user account on the server.',
             style: AppTextStyles.bodySmall().copyWith(
               color: AppColors.textSecondary,
             ),

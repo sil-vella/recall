@@ -21,7 +21,7 @@ import 'utils/ws_jwt_access_expiry.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = false; // Login + WS token / refresh path (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Registration + login + WS token (enable-logging-switch.mdc)
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -230,6 +230,22 @@ class LoginModule extends ModuleBase {
     }
   }
 
+  /// Drop JWT + session flags before [/public/register] and [/public/register-guest] so stale
+  /// tokens do not trigger refresh or attach Authorization to public signup calls.
+  /// Keeps username/email/password prefs for form pre-fill; does not call backend logout.
+  Future<void> _clearStaleAuthBeforePublicSignup() async {
+    try {
+      await _clearAllLocalAuthArtifacts(keepLoginFormFields: true);
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: Cleared stale local auth before public signup');
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: Pre-signup auth clear failed (continuing): $e');
+      }
+    }
+  }
+
   /// ✅ Handle token refresh failure
   void _handleTokenRefreshFailed() {
     if (LOGGING_SWITCH) {
@@ -428,6 +444,8 @@ class LoginModule extends ModuleBase {
       return {"error": "Service not available."};
     }
 
+    await _clearStaleAuthBeforePublicSignup();
+
     // Validate username
     if (username.length < 3) {
       return {"error": "Username must be at least 3 characters long"};
@@ -555,6 +573,8 @@ class LoginModule extends ModuleBase {
       }
       return {"error": "Service not available."};
     }
+
+    await _clearStaleAuthBeforePublicSignup();
 
     try {
       if (LOGGING_SWITCH) {

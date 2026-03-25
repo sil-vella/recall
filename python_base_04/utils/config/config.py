@@ -562,6 +562,7 @@ class Config:
 
     # Dutch Game Configuration
     DUTCH_PLAYER_ACTION_TIMEOUT = int(get_file_first_config_value("dutch_player_action_timeout", "DUTCH_PLAYER_ACTION_TIMEOUT", "10"))  # Player action timeout in seconds
+    REGISTRATION_COIN_BONUS = int(get_file_first_config_value("registration_coin_bonus", "REGISTRATION_COIN_BONUS", "500"))  # Starting coins assigned on account registration
 
     @classmethod
     def refresh_from_vault(cls):

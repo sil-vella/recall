@@ -20,7 +20,57 @@ else
   echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
 fi
 
-echo "🚀 Launching Flutter app on OnePlus device (84fbcf31) with filtered Logger output..."
+# Known device labels (extend this list when adding new phones)
+get_device_label() {
+    case "$1" in
+        84fbcf31) echo "OnePlus device" ;;
+        R3CWB0CS63D) echo "Samsung Galaxy S23 Ultra" ;;
+        5dad288e7d91) echo "Xiaomi Redmi tablet" ;;
+        *) echo "Android device" ;;
+    esac
+}
+
+# Resolve numeric shortcut/device alias into a concrete adb serial
+resolve_device_id() {
+    case "$1" in
+        1|oneplus|OnePlus|ONEPLUS) echo "84fbcf31" ;;
+        2|samsung|Samsung|SAMSUNG|s23|S23) echo "R3CWB0CS63D" ;;
+        3|xiaomi|Xiaomi|XIAOMI|redmi|Redmi|REDMI) echo "5dad288e7d91" ;;
+        *) echo "$1" ;;
+    esac
+}
+
+prompt_for_device_selection() {
+    echo "📲 Select target device:" >&2
+    echo "   1) OnePlus (84fbcf31)" >&2
+    echo "   2) Samsung Galaxy S23 Ultra (R3CWB0CS63D)" >&2
+    echo "   3) Xiaomi Redmi tablet (5dad288e7d91)" >&2
+    read -r -p "Enter choice [1/2/3] (default: 1): " device_choice >&2
+    case "${device_choice:-1}" in
+        1) echo "84fbcf31" ;;
+        2) echo "R3CWB0CS63D" ;;
+        3) echo "5dad288e7d91" ;;
+        *)
+            echo "⚠️  Invalid choice '${device_choice}', using default: 1 (OnePlus)" >&2
+            echo "84fbcf31"
+            ;;
+    esac
+}
+
+# Args:
+#   $1 = backend target: local (default) or vps
+#   $2 = Android device id/serial/shortcut (optional)
+#        Shortcuts: 1=OnePlus, 2=Samsung, 3=Xiaomi Redmi tablet
+# You can also set ANDROID_DEVICE_ID env var to override.
+RAW_DEVICE_INPUT="${ANDROID_DEVICE_ID:-$2}"
+if [ -z "$RAW_DEVICE_INPUT" ]; then
+    DEVICE_ID="$(prompt_for_device_selection)"
+else
+    DEVICE_ID="$(resolve_device_id "$RAW_DEVICE_INPUT")"
+fi
+DEVICE_LABEL="$(get_device_label "$DEVICE_ID")"
+
+echo "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) with filtered Logger output..."
 
 # Check if adb is available
 if ! command -v adb &> /dev/null; then
@@ -30,15 +80,15 @@ fi
 
 # Check if device is connected
 echo "📱 Checking device connection..."
-adb devices | grep -q "84fbcf31"
+adb devices | grep -q "$DEVICE_ID"
 if [ $? -ne 0 ]; then
-    echo "❌ Error: OnePlus device (84fbcf31) not found"
+    echo "❌ Error: $DEVICE_LABEL ($DEVICE_ID) not found"
     echo "Available devices:"
     adb devices
     exit 1
 fi
 
-echo "✅ OnePlus device (84fbcf31) is connected"
+echo "✅ $DEVICE_LABEL ($DEVICE_ID) is connected"
 
 # Navigate to Flutter project directory
 cd "$SCRIPT_DIR/../../flutter_base_05" 2>/dev/null || cd flutter_base_05
@@ -58,8 +108,8 @@ if [ ! -w "$LOG_DIR" ]; then
     exit 1
 fi
 
-# Launch Flutter app with OnePlus device configuration
-echo "🎯 Launching Flutter app with OnePlus configuration..."
+# Launch Flutter app with selected device configuration
+echo "🎯 Launching Flutter app for $DEVICE_LABEL..."
 
 # Determine backend target from first argument: 'local' (default) or 'vps'
 BACKEND_TARGET="${1:-local}"
@@ -117,7 +167,7 @@ filter_logs() {
 
 # Clear logcat buffer to start fresh
 echo "🧹 Clearing logcat buffer..."
-adb -s 84fbcf31 logcat -c
+adb -s "$DEVICE_ID" logcat -c
 
 # Start adb logcat in background to capture Android logs
 # Filter for Flutter/Dart tags and AppLogger messages
@@ -161,7 +211,7 @@ cleanup() {
     fi
     
     # Kill any orphaned adb logcat processes for this device
-    ADB_LOGCAT_PIDS=$(pgrep -f "adb.*84fbcf31.*logcat" 2>/dev/null || true)
+    ADB_LOGCAT_PIDS=$(pgrep -f "adb.*$DEVICE_ID.*logcat" 2>/dev/null || true)
     if [ ! -z "$ADB_LOGCAT_PIDS" ]; then
         echo "🧹 Killing orphaned adb logcat processes: $ADB_LOGCAT_PIDS"
         for pid in $ADB_LOGCAT_PIDS; do
@@ -218,7 +268,7 @@ ANSI_STRIP_SED="s/$(printf '\033')\[[0-9;]*[a-zA-Z]//g; s/\[[0-9;]*m//g; s/^\[[0
     # Capture Flutter and Dart logs, suppress other tags
     # Strip ANSI in pipeline first so filter_logs never sees SGR codes (logcat/pipe can drop ESC)
     # Then grep for AppLogger lines, trim logcat prefix, filter and write clean lines only
-    adb -s 84fbcf31 logcat flutter:I dart:I *:S 2>&1 | \
+    adb -s "$DEVICE_ID" logcat flutter:I dart:I *:S 2>&1 | \
     sed -E "$ANSI_STRIP_SED" | \
     grep "\[.*\] \[.*\] \[AppLogger\]" | \
     sed -E 's/^[^[]*//' | \
@@ -258,7 +308,7 @@ DART_DEFINE_ARGS+=( \
 
 # Launch Flutter app (logs will be captured via logcat)
 flutter run \
-    -d 84fbcf31 \
+    -d "$DEVICE_ID" \
     "${DART_DEFINE_ARGS[@]}"
 
 FLUTTER_EXIT_CODE=$?

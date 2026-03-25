@@ -13,7 +13,7 @@ import '../../utils/consts/config.dart';
 import 'interceptor.dart';
 
 class ConnectionsApiModule extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Login/refresh API (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Registration/public POST + login/refresh API (enable-logging-switch.mdc)
 
   /// Retry once after this delay when a request fails with a transient error (e.g. public WiFi).
   static const Duration _retryDelay = Duration(milliseconds: 1500);

@@ -69,6 +69,8 @@ else
     DEVICE_ID="$(resolve_device_id "$RAW_DEVICE_INPUT")"
 fi
 DEVICE_LABEL="$(get_device_label "$DEVICE_ID")"
+ANDROID_APP_ID="com.reignofplay.dutch"
+FIREBASE_DEBUGVIEW_ENABLED=false
 
 echo "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) with filtered Logger output..."
 
@@ -89,6 +91,16 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "✅ $DEVICE_LABEL ($DEVICE_ID) is connected"
+
+# Enable Firebase Analytics DebugView for this app on this device.
+# This makes local events appear quickly in Firebase DebugView.
+echo "🧪 Enabling Firebase Analytics DebugView for $ANDROID_APP_ID on $DEVICE_LABEL..."
+if adb -s "$DEVICE_ID" shell setprop debug.firebase.analytics.app "$ANDROID_APP_ID"; then
+    FIREBASE_DEBUGVIEW_ENABLED=true
+    echo "✅ Firebase DebugView enabled"
+else
+    echo "⚠️  Could not enable Firebase DebugView (continuing without it)"
+fi
 
 # Navigate to Flutter project directory
 cd "$SCRIPT_DIR/../../flutter_base_05" 2>/dev/null || cd flutter_base_05
@@ -191,6 +203,12 @@ cleanup() {
     CLEANUP_DONE=true
     
     echo "🛑 Stopping logcat capture and cleaning up..."
+
+    # Disable Firebase Analytics DebugView when script exits.
+    if [ "$FIREBASE_DEBUGVIEW_ENABLED" = true ]; then
+        echo "🧪 Disabling Firebase Analytics DebugView for $ANDROID_APP_ID..."
+        adb -s "$DEVICE_ID" shell setprop debug.firebase.analytics.app .none. >/dev/null 2>&1 || true
+    fi
     
     # Kill the background logcat pipeline process and its children
     if [ ! -z "$LOG_PID" ]; then
@@ -296,6 +314,8 @@ while IFS= read -r line; do
   [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
 done < <(build_dart_defines_from_env "$FRONTEND_ENV")
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" )
+# Ensure Firebase runtime toggle is always present (defaults to true when missing).
+DART_DEFINE_ARGS+=( --dart-define=FIREBASE_SWITCH="${FIREBASE_SWITCH:-true}" )
 DART_DEFINE_ARGS+=( \
   --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
   --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \

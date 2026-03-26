@@ -191,6 +191,8 @@ while IFS= read -r line; do
 done < <(build_dart_defines_from_env "$FRONTEND_ENV")
 # Overrides (script-set API_URL, WS_URL, APP_VERSION)
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
+# Ensure Firebase runtime toggle is always present (defaults to true when missing).
+DART_DEFINE_ARGS+=( --dart-define=FIREBASE_SWITCH="${FIREBASE_SWITCH:-true}" )
 # Build-only (not in .env)
 DART_DEFINE_ARGS+=( \
   --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \

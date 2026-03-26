@@ -26,6 +26,11 @@ else
 fi
 
 echo "🚀 Launching Flutter app on Chrome web with filtered Logger output..."
+echo "ℹ️  Firebase Analytics DebugView:"
+echo "   • Android: use adb debug mode (see Firebase DebugView docs)."
+echo "   • Web: install the Google Analytics Debugger extension in THIS Chrome profile, enable it, reload the app."
+echo "     https://chrome.google.com/webstore/detail/google-analytics-debugger/jnkmfdileelhofjcijamephohjechhna"
+echo "     (This script uses a dedicated user-data-dir so you install the extension once in the Flutter Chrome window.)"
 
 # Navigate to Flutter project directory
 cd "$SCRIPT_DIR/../../flutter_base_05" || cd flutter_base_05
@@ -113,6 +118,8 @@ while IFS= read -r line; do
   [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
 done < <(build_dart_defines_from_env "$FRONTEND_ENV")
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" )
+# Ensure Firebase runtime toggle is always present (defaults to true when missing).
+DART_DEFINE_ARGS+=( --dart-define=FIREBASE_SWITCH="${FIREBASE_SWITCH:-true}" )
 DART_DEFINE_ARGS+=( \
   --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
   --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
@@ -140,11 +147,46 @@ if [ "$GOOGLE_IN_DEFINES" = false ]; then
 fi
 echo "   Total dart-defines: ${#DART_DEFINE_ARGS[@]}"
 
+# Quit Chrome completely so profile lock / blank-screen issues don't happen, then wait.
+echo "🛑 Quitting Google Chrome (all windows)..."
+osascript -e 'quit app "Google Chrome"' 2>/dev/null || true
+for _ in $(seq 1 20); do
+  if ! pgrep -qf "/Applications/Google Chrome.app" 2>/dev/null; then
+    break
+  fi
+  sleep 0.5
+done
+if pgrep -qf "/Applications/Google Chrome.app" 2>/dev/null; then
+  echo "⚠️  Chrome still running — force closing..."
+  pkill -9 -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" 2>/dev/null || true
+  sleep 1
+fi
+echo "⏳ Waiting 5s before launch..."
+sleep 5
+
+# Use a wrapper so Flutter's default --disable-extensions is removed (extensions work).
+export CHROME_EXECUTABLE="$SCRIPT_DIR/chrome_no_disable_extensions.sh"
+
+# Chrome profile for Flutter web:
+# - Default: a dedicated user-data dir (~/.flutter_chrome_profile) so it does NOT conflict
+#   with your normal Chrome window. Sharing the system Chrome profile while Chrome is
+#   already open often yields a blank white page (profile lock / second instance).
+# - Install extensions (e.g. GA Debugger) once in the window Flutter opens; they persist
+#   in that folder.
+# - To use your main Chrome profile instead: quit Chrome completely first, then e.g.
+#   CHROME_USER_DATA_DIR="$HOME/Library/Application Support/Google/Chrome" CHROME_PROFILE_DIR=Default ./launch_chrome.sh
+CHROME_USER_DATA_DIR="${CHROME_USER_DATA_DIR:-$HOME/.flutter_chrome_profile}"
+CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-Default}"
+echo "🌐 Chrome user-data-dir: $CHROME_USER_DATA_DIR (profile: $CHROME_PROFILE_DIR)"
+echo "🔍 DebugView (web): after the app loads, enable GA Debugger on this tab and refresh — then pick this device in Firebase DebugView’s device selector."
+
 # Launch Flutter and filter output
 flutter run \
     -d chrome \
     --web-port=3002 \
     --web-hostname=localhost \
+    --web-browser-flag="--user-data-dir=$CHROME_USER_DATA_DIR" \
+    --web-browser-flag="--profile-directory=$CHROME_PROFILE_DIR" \
     "${DART_DEFINE_ARGS[@]}" 2>&1 | filter_logs
 
 echo "✅ Flutter app launch completed"

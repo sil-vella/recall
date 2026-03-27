@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
-import '../../../../utils/analytics_service.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
@@ -42,15 +41,13 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = true; // Lobby → random join trace (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Lobby → random join trace (enable-logging-switch.mdc)
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
   @override
   void initState() {
     super.initState();
-
-    _logLobbyLoaded();
     
     // Default expanded section on load (none)
     _expandedSection = null;
@@ -67,25 +64,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         _featureRegistrar.registerDefaults(context);
       });
     });
-  }
-
-  Future<void> _logLobbyLoaded() async {
-    try {
-      await AnalyticsService.logEvent(
-        name: 'lobby_loaded',
-        parameters: {
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-    } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        Logger().error(
-          'LobbyScreen: failed to log lobby_loaded analytics event',
-          error: e,
-          stackTrace: stackTrace,
-        );
-      }
-    }
   }
 
   @override

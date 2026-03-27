@@ -4,7 +4,7 @@ import '../tools/logging/logger.dart';
 import 'firebase_runtime_config.dart';
 
 class AnalyticsService {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
 
   static final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 

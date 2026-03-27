@@ -6,6 +6,7 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../../utils/consts/config.dart';
 import '../../../../utils/widgets/felt_texture_widget.dart';
 import '../../../../core/managers/state_manager.dart';
+import '../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../../../tools/logging/logger.dart';
 import 'widgets/game_info_widget.dart';
 import 'widgets/unified_game_board_widget.dart';
@@ -145,10 +146,11 @@ class InnerShadowPainter extends CustomPainter {
   }
 }
 
-/// Background widget that only builds once - contains table color and texture
-/// Uses RepaintBoundary to prevent unnecessary repaints
+/// Background widget for the play surface: felt texture + edge spotlights from [DutchGamePlayTableStyle].
 class TableBackgroundWidget extends StatefulWidget {
-  const TableBackgroundWidget({Key? key}) : super(key: key);
+  final DutchGamePlayTableStyle tableStyle;
+
+  const TableBackgroundWidget({Key? key, required this.tableStyle}) : super(key: key);
 
   @override
   State<TableBackgroundWidget> createState() => _TableBackgroundWidgetState();
@@ -157,29 +159,25 @@ class TableBackgroundWidget extends StatefulWidget {
 class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
   @override
   Widget build(BuildContext context) {
+    final spot = widget.tableStyle.spotlightColor;
     return RepaintBoundary(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final width = constraints.maxWidth;
           final height = constraints.maxHeight;
-          
+
           // Calculate spotlight positions - evenly spaced vertically
           // 2 spotlights from left, 2 from right
           final spotlightSize = 800.0; // Size of circular spotlight
           final topSpotlightY = height * 0.25; // Top spotlight position
           final bottomSpotlightY = height * 0.75; // Bottom spotlight position
-          
+
           return Stack(
             children: [
-              // Background color and texture - using reusable FeltTextureWidget
               Positioned.fill(
                 child: FeltTextureWidget(
-                  backgroundColor: AppColors.pokerTableGreen,
-                  // Using default parameters (seed: 42, pointDensity: 0.15, etc.)
-                  // See THEME_SYSTEM.md for customization options
+                  backgroundColor: widget.tableStyle.feltBackground,
                 ),
               ),
-              // Left side spotlights (2 evenly spaced) - bright at edge, quick fade
               Positioned(
                 left: -0,
                 top: topSpotlightY - spotlightSize / 2,
@@ -192,11 +190,11 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
                       center: Alignment.centerLeft,
                       radius: 1.0,
                       colors: [
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.25), // Warm fade
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
+                        spot.withValues(alpha: 0.85),
+                        spot.withValues(alpha: 0.25),
+                        spot.withValues(alpha: 0.0),
                       ],
-                      stops: const [0.0, 0.08, 0.4], // Fades to zero at 40% - well before edge
+                      stops: const [0.0, 0.08, 0.4],
                     ),
                   ),
                 ),
@@ -213,16 +211,15 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
                       center: Alignment.centerLeft,
                       radius: 1.0,
                       colors: [
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.25), // Warm fade
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
+                        spot.withValues(alpha: 0.85),
+                        spot.withValues(alpha: 0.25),
+                        spot.withValues(alpha: 0.0),
                       ],
-                      stops: const [0.0, 0.08, 0.4], // Fades to zero at 40% - well before edge
+                      stops: const [0.0, 0.08, 0.4],
                     ),
                   ),
                 ),
               ),
-              // Right side spotlights (2 evenly spaced) - bright at edge, quick fade
               Positioned(
                 right: -0,
                 top: topSpotlightY - spotlightSize / 2,
@@ -235,11 +232,11 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
                       center: Alignment.centerRight,
                       radius: 1.0,
                       colors: [
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.25), // Warm fade
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
+                        spot.withValues(alpha: 0.85),
+                        spot.withValues(alpha: 0.25),
+                        spot.withValues(alpha: 0.0),
                       ],
-                      stops: const [0.0, 0.08, 0.4], // Fades to zero at 40% - well before edge
+                      stops: const [0.0, 0.08, 0.4],
                     ),
                   ),
                 ),
@@ -256,11 +253,11 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
                       center: Alignment.centerRight,
                       radius: 1.0,
                       colors: [
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.25), // Warm fade
-                        AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
+                        spot.withValues(alpha: 0.85),
+                        spot.withValues(alpha: 0.25),
+                        spot.withValues(alpha: 0.0),
                       ],
-                      stops: const [0.0, 0.08, 0.4], // Fades to zero at 40% - well before edge
+                      stops: const [0.0, 0.08, 0.4],
                     ),
                   ),
                 ),
@@ -287,9 +284,7 @@ class GamePlayScreen extends BaseScreen {
 
   @override
   Decoration? getBackground(BuildContext context) {
-    return BoxDecoration(
-      color: AppColors.pokerTableGreen,
-    );
+    return const BoxDecoration(color: DutchGamePlayTableStyles.playScreenBackdropColor);
   }
 
   @override
@@ -308,14 +303,28 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   // GlobalKey for the main Stack
   final GlobalKey _mainStackKey = GlobalKey(); // Track game ID to detect navigation away
-  
-  // Cached background widget - only builds once on screen load
-  late final Widget _tableBackground = const TableBackgroundWidget();
+
+  /// Last resolved room table tier; used to avoid rebuilding the whole screen on unrelated state churn.
+  int? _cachedPlayTableLevel;
+
+  void _onStateManagerForTableStyle() {
+    if (!mounted) return;
+    final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final level = resolveDutchGamePlayTableLevel(dutch);
+    if (level != _cachedPlayTableLevel) {
+      _cachedPlayTableLevel = level;
+      setState(() {});
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    
+    _cachedPlayTableLevel = resolveDutchGamePlayTableLevel(
+      StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {},
+    );
+    StateManager().addListener(_onStateManagerForTableStyle);
+
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
       _initializeGameState();
@@ -410,6 +419,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   @override
   void dispose() {
+    StateManager().removeListener(_onStateManagerForTableStyle);
     if (LOGGING_SWITCH) {
       _logger.info('GamePlay: Disposing');
     }
@@ -548,7 +558,11 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     if (LOGGING_SWITCH) {
       _logger.info('GamePlayScreen: buildContent called');
     }
-    
+
+    final dutchSnapshot = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final playTableLevel = resolveDutchGamePlayTableLevel(dutchSnapshot);
+    final tableStyle = DutchGamePlayTableStyles.forLevel(playTableLevel);
+
     final content = Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1000),
@@ -613,7 +627,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                     margin: EdgeInsets.all(outerBorderWidth + 6.0),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8.0),
-                      color: AppColors.pokerTableGreen, // Fill background to prevent black edges
+                      color: tableStyle.feltBackground, // Match felt; prevents black edges at clip
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8.0),
@@ -624,10 +638,11 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                           final overlaySize = tableWidth * 0.5;
                           return Stack(
                             children: [
-                              // Background layer - poker table green with felt texture
-                              // Uses cached widget instance that only builds once on screen load
                               Positioned.fill(
-                                child: _tableBackground,
+                                child: TableBackgroundWidget(
+                                  key: ValueKey<int>(playTableLevel),
+                                  tableStyle: tableStyle,
+                                ),
                               ),
                               // Table overlay (table_logo): assets in practice, network with asset fallback in multiplayer
                               Center(

@@ -11,7 +11,6 @@ import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
-import '../../../../../utils/widgets/felt_texture_widget.dart';
 import '../../demo/demo_functionality.dart';
 import '../functionality/playscreenfunctions.dart';
 import '../functionality/animations.dart';
@@ -1938,19 +1937,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         // Safely convert Map<String, dynamic> to Map<String, int>
         final timerConfigRaw = gameState?['timerConfig'] as Map<String, dynamic>?;
         final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
-    
-        // Order opponents: opp1 to column 1 (left), opp2 to middle column
-        List<dynamic> reorderedOpponents = [];
-        if (opponents.length >= 2) {
-          reorderedOpponents = [
-            opponents[0], // opp1 goes to column 1 (left)
-            opponents[1], // opp2 goes to middle column
-            if (opponents.length > 2) ...opponents.sublist(2), // opp3+ goes to right column
-          ];
-        } else {
-          reorderedOpponents = opponents; // If less than 2 opponents, keep original order
-        }
-        
+
         // Create a map to find original index from player ID for currentTurnIndex calculation
         final originalIndexMap = <String, int>{};
         for (int i = 0; i < opponents.length; i++) {
@@ -1960,24 +1947,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             originalIndexMap[playerId] = i;
           }
         }
-    
-        // Build list of opponent widgets with equal width columns
-        final opponentWidgets = <Widget>[];
-        final entries = reorderedOpponents.asMap().entries.toList();
-        
-        for (int i = 0; i < entries.length; i++) {
-          final entry = entries[i];
-          final displayIndex = entry.key; // Position in UI (0=left, 1=middle, 2=right)
-          final player = entry.value as Map<String, dynamic>;
+
+        Padding paddedOpponentSlot(Map<String, dynamic> player, int displayIndex) {
           final playerId = player['id']?.toString() ?? '';
-          // Use original index from opponents list for turn calculation
           final originalIndex = originalIndexMap[playerId] ?? displayIndex;
           final isCurrentTurn = originalIndex == currentTurnIndex;
           final isCurrentPlayer = playerId == currentPlayerId;
           final knownCards = player['known_cards'] as Map<String, dynamic>?;
-          
-          // Opponent columns keep their padding; game board lives in middle column
-          final opponentContent = Padding(
+          return Padding(
             padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
             child: _buildOpponentCard(
               player,
@@ -1994,10 +1971,65 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               opponentIndex: displayIndex,
             ),
           );
+        }
 
-          // Game board in middle column (index 1), or in the only column when there is a single opponent.
-          // Game board height is intrinsic (as much as children require); pile widths stay within parent column.
-          final bool isColumnWithGameBoard = displayIndex == 1 || entries.length == 1;
+        // Fixed 3-column layout: 1 opponent → middle column only; 2 → left + right, board in empty middle.
+        if (opponents.length == 1) {
+          final player = opponents[0] as Map<String, dynamic>;
+          final slot = paddedOpponentSlot(player, 1);
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Expanded(child: SizedBox.shrink()),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: slot),
+                    _buildGameBoard(),
+                  ],
+                ),
+              ),
+              const Expanded(child: SizedBox.shrink()),
+            ],
+          );
+        }
+
+        if (opponents.length == 2) {
+          final left = opponents[0] as Map<String, dynamic>;
+          final right = opponents[1] as Map<String, dynamic>;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: paddedOpponentSlot(left, 0)),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Expanded(child: SizedBox.shrink()),
+                    _buildGameBoard(),
+                  ],
+                ),
+              ),
+              Expanded(child: paddedOpponentSlot(right, 2)),
+            ],
+          );
+        }
+
+        // 3+ opponents: left-to-middle-right+ use list order; game board stays under middle column (index 1)
+        final reorderedOpponents = List<dynamic>.from(opponents);
+        final opponentWidgets = <Widget>[];
+        final entries = reorderedOpponents.asMap().entries.toList();
+
+        for (int i = 0; i < entries.length; i++) {
+          final entry = entries[i];
+          final displayIndex = entry.key;
+          final player = entry.value as Map<String, dynamic>;
+          final opponentContent = paddedOpponentSlot(player, displayIndex);
+
+          final bool isColumnWithGameBoard = displayIndex == 1;
           if (isColumnWithGameBoard) {
             opponentWidgets.add(
               Expanded(
@@ -2019,9 +2051,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             );
           }
         }
-        
+
         return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch, // Expand columns to fill available height
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: opponentWidgets,
         );
       },

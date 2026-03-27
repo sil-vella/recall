@@ -31,7 +31,7 @@ class AdminTournamentsScreen extends BaseScreen {
 
 class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScreen> {
   static const String _all = 'All';
-  static const bool LOGGING_SWITCH = false; // Tournament match create flow — see .cursor/rules/enable-logging-switch.mdc
+  static const bool LOGGING_SWITCH = false; // Match create / notify / start_match — see .cursor/rules/enable-logging-switch.mdc
   static final Logger _logger = Logger();
 
   /// Full tournament docs from API (id, name, status, type, format, start_date, matches, ...).
@@ -94,6 +94,9 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
         return;
       }
 
+      if (LOGGING_SWITCH) {
+        _logger.info('🏟 Admin Tournaments: GET /userauth/dutch/get-tournaments');
+      }
       // Admin-only endpoint (JWT required): returns all tournaments with type, format, status.
       final response = await api.sendGetRequest('/userauth/dutch/get-tournaments');
       if (!mounted) return;
@@ -103,6 +106,9 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
       final list = map?['tournaments'] as List<dynamic>? ?? [];
 
       if (!success) {
+        if (LOGGING_SWITCH) {
+          _logger.info('🏟 Admin Tournaments: get-tournaments failed error=${map?['error']}');
+        }
         setState(() {
           _loading = false;
           _allTournaments = [];
@@ -120,6 +126,9 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
         items.add(m);
       }
 
+      if (LOGGING_SWITCH) {
+        _logger.info('🏟 Admin Tournaments: get-tournaments ok count=${items.length}');
+      }
       setState(() {
         _allTournaments = items;
         _loading = false;
@@ -129,6 +138,9 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
         }
       });
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🏟 Admin Tournaments: get-tournaments exception $e');
+      }
       if (mounted) {
         setState(() {
           _loading = false;
@@ -316,14 +328,13 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   SizedBox(height: AppPadding.smallPadding.top),
-                                  Row(
+                                  Wrap(
+                                    spacing: AppPadding.defaultPadding.left,
+                                    runSpacing: AppPadding.smallPadding.top / 2,
                                     children: [
                                       _labelValue('Status', status),
-                                      SizedBox(width: AppPadding.defaultPadding.left),
                                       _labelValue('Type', type),
-                                      SizedBox(width: AppPadding.defaultPadding.left),
                                       _labelValue('Format', format),
-                                      SizedBox(width: AppPadding.defaultPadding.left),
                                       _labelValue('Start', _formatDate(startDate)),
                                     ],
                                   ),
@@ -658,6 +669,11 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                   'title': 'Tournament match invite',
                                   'body': 'You are invited to join the match. Room ID: $roomId',
                                 };
+                                if (LOGGING_SWITCH) {
+                                  _logger.info(
+                                    '🏟 Admin Tournaments: POST invite-players-to-match match_id=$matchId room_id=$roomId user_count=${userIds.length}',
+                                  );
+                                }
                                 try {
                                   final response = await api.sendPostRequest(
                                     '/userauth/dutch/invite-players-to-match',
@@ -668,6 +684,11 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                   final success = map?['success'] == true;
                                   final notified = map?['notified'] as int? ?? 0;
                                   final requested = map?['requested'] as int? ?? 0;
+                                  if (LOGGING_SWITCH) {
+                                    _logger.info(
+                                      '🏟 Admin Tournaments: invite-players-to-match result success=$success notified=$notified requested=$requested',
+                                    );
+                                  }
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
@@ -690,6 +711,9 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                     });
                                   }
                                 } catch (e) {
+                                  if (LOGGING_SWITCH) {
+                                    _logger.info('🏟 Admin Tournaments: invite-players-to-match exception $e');
+                                  }
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -728,12 +752,18 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                                   _startMatchInProgressRoomIds.add(roomId);
                                 });
                                 try {
+                                  if (LOGGING_SWITCH) {
+                                    _logger.info('🏟 Admin Tournaments: emit start_match game_id=$roomId');
+                                  }
                                   final result = await DutchGameEventEmitter.instance.emit(
                                     eventType: 'start_match',
                                     data: {'game_id': roomId},
                                   );
                                   if (!mounted) return;
                                   final ok = result['success'] == true;
+                                  if (LOGGING_SWITCH) {
+                                    _logger.info('🏟 Admin Tournaments: start_match emit result success=$ok error=${result['error']}');
+                                  }
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
@@ -961,23 +991,39 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
                             if (d.isNotEmpty) body['start_date'] = d;
                           }
                           final endpoint = isAddMatch ? '/userauth/dutch/add-tournament-match' : '/userauth/dutch/update-tournament-match';
+                          if (LOGGING_SWITCH) {
+                            _logger.info(
+                              '🏟 Admin Tournaments: POST $endpoint tournament_id=$tournamentId is_add=$isAddMatch user_count=${userIds.length} match_index=$matchIndex',
+                            );
+                          }
                           try {
                             final response = await api.sendPostRequest(endpoint, body);
                             if (!mounted) return;
                             final map = response is Map ? response as Map<String, dynamic> : null;
                             if (map?['success'] == true) {
+                              if (LOGGING_SWITCH) {
+                                _logger.info(
+                                  '🏟 Admin Tournaments: match save ok message=${map?['message']} match_index=${map?['match_index']} match_id=${map?['match_id']}',
+                                );
+                              }
                               Navigator.of(context).pop();
                               onSaved();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text(map?['message'] ?? 'Saved'), backgroundColor: AppColors.primaryColor, behavior: SnackBarBehavior.floating),
                               );
                             } else {
+                              if (LOGGING_SWITCH) {
+                                _logger.info('🏟 Admin Tournaments: match save failed error=${map?['error']}');
+                              }
                               setDialogState(() => saving = false);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text(map?['error'] ?? 'Failed to save'), backgroundColor: AppColors.errorColor, behavior: SnackBarBehavior.floating),
                               );
                             }
                           } catch (e) {
+                            if (LOGGING_SWITCH) {
+                              _logger.info('🏟 Admin Tournaments: match save exception $e');
+                            }
                             if (mounted) setDialogState(() => saving = false);
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -1032,9 +1078,13 @@ class _AdminTournamentsScreenState extends BaseScreenState<AdminTournamentsScree
   }
 
   Widget _labelValue(String label, String value) {
+    final displayValue = value.replaceAll('_', ' ');
     return Text(
-      '$label: $value',
+      '$label: $displayValue',
       style: AppTextStyles.caption().copyWith(color: AppColors.textOnPrimary),
+      softWrap: true,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

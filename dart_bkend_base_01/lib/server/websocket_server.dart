@@ -10,7 +10,7 @@ import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // WS sessions, random join (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // WS connect + sessions while setting up games (enable-logging-switch.mdc)
 
 /// Core WebSocket event name for instant notifications pushed by the backend to a session.
 const String kWsInstantNotificationEvent = 'ws_instant_notification';

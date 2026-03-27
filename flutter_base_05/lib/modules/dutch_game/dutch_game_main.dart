@@ -190,10 +190,19 @@ class DutchGameMain extends ModuleBase {
   void _registerHooks() {
     final hooksManager = HooksManager();
     
-    // Register hook to fetch user stats when user is fully logged in (after tokens are stored)
+    // Interactive login / registration (LoginModule after tokens stored)
     hooksManager.registerHookWithData('auth_login_complete', (data) {
       if (LOGGING_SWITCH) {
         _logger.info('🎬 DutchGameMain: auth_login_complete hook triggered - fetching user stats');
+      }
+      _fetchUserStats();
+    });
+
+    // Session restore and any path that sets AuthStatus.loggedIn via handleAuthState
+    // (HooksManager replays to late registrants via _triggeredHooksData.)
+    hooksManager.registerHookWithData('auth_login_success', (data) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameMain: auth_login_success hook triggered - fetching user stats');
       }
       _fetchUserStats();
     });
@@ -214,7 +223,9 @@ class DutchGameMain extends ModuleBase {
     });
     
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 DutchGameMain: Registered auth_login_complete and home_screen_main hooks');
+      _logger.info(
+        '🎬 DutchGameMain: Registered auth_login_complete, auth_login_success, and home_screen_main hooks',
+      );
     }
   }
   

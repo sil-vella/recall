@@ -59,6 +59,14 @@ bool _shouldShowPlayAgain(Map<String, dynamic>? gameState, Map<String, dynamic>?
   return gameData?['is_random_join'] != true;
 }
 
+/// IRL (in-person) tournaments: `tournament_data.type` is present on [game_state] through game end (see server `game_state_updated`).
+bool _tournamentDataHidesPlayAgain(Map<String, dynamic>? gameState) {
+  final td = gameState?['tournament_data'];
+  if (td is! Map) return false;
+  final type = (td['type'] ?? '').toString().trim().toUpperCase();
+  return type == 'IRL';
+}
+
 /// One row for tournament cumulative leaderboard (least points, then least cards).
 class TournamentLeaderboardRow {
   const TournamentLeaderboardRow({
@@ -374,7 +382,8 @@ class GameEndedModalData {
         currentGameId.isNotEmpty &&
         rematchSnap.isNotEmpty &&
         !currentGameId.startsWith('practice_room_') &&
-        !currentGameId.startsWith('demo_game_');
+        !currentGameId.startsWith('demo_game_') &&
+        !_tournamentDataHidesPlayAgain(gameState);
     final orderedWinnersRaw = gameState?['winners'] as List<dynamic>?;
     final hasOrderedWinners = orderedWinnersRaw != null && orderedWinnersRaw.isNotEmpty;
     if (!hasOrderedWinners && content.isEmpty) return null;

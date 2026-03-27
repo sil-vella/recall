@@ -26,7 +26,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Lobby → random join, ensureWebSocketReady (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Tournament dashboard create_room (enable-logging-switch.mdc)
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};

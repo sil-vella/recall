@@ -14,7 +14,7 @@ import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // rematch + coin verify; join_random_game + room (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // tournament dashboard create_room + remote start_match; room/join (enable-logging-switch.mdc)
 
 /// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
 /// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.
@@ -258,6 +258,11 @@ class MessageHandler {
             if (userId == null || room.ownerId != userId) {
               _sendError(sessionId, 'Only the room owner can start the match remotely');
               break;
+            }
+            if (LOGGING_SWITCH) {
+              _logger.room(
+                '🏟 Remote start_match (dashboard owner): room=$remoteRoomId userId=$userId',
+              );
             }
             _startMatchForRoom(remoteRoomId);
             break;
@@ -867,7 +872,7 @@ class MessageHandler {
     }
 
     final uid = userId;
-    void doCreateRoom() {
+    Future<void> doCreateRoom() async {
       try {
         // Create room with settings (timer values are now phase-based, managed by RoomManager)
         final roomId = _roomManager.createRoom(
@@ -892,6 +897,41 @@ class MessageHandler {
         _sendError(sessionId, 'Failed to create room');
         return;
       }
+
+      Map<String, dynamic>? effectiveTournamentData = tournamentData != null
+          ? Map<String, dynamic>.from(tournamentData)
+          : null;
+
+      // Tournament: attach room in Python DB and merge match roster (comps + humans) into tournament_data before room_created hook
+      if (isTournament &&
+          effectiveTournamentData != null &&
+          effectiveTournamentData.isNotEmpty) {
+        final tid = (effectiveTournamentData['tournament_id']?.toString() ?? '').trim();
+        final mid = effectiveTournamentData['match_index'] ?? effectiveTournamentData['match_id'];
+        if (tid.isNotEmpty && mid != null) {
+          if (LOGGING_SWITCH) {
+            _logger.room('🏟 Tournament room: attach-tournament-match-room (await) tournament_id=$tid match_id=$mid room_id=$roomId');
+          }
+          final result = await _server.pythonClient.attachTournamentMatchRoom(
+            tournamentId: tid,
+            roomId: roomId,
+            matchIndex: mid,
+          );
+          if (result['success'] == true) {
+            final mp = result['match_players'];
+            if (mp is List && mp.isNotEmpty) {
+              effectiveTournamentData['match_players'] = mp;
+              room.tournamentData = effectiveTournamentData;
+              if (LOGGING_SWITCH) {
+                _logger.room('🏟 Merged match_players into tournament_data count=${mp.length}');
+              }
+            }
+          } else if (LOGGING_SWITCH) {
+            _logger.game('⚠️ attach-tournament-match-room failed: ${result['error']}');
+          }
+        }
+      }
+
       if (LOGGING_SWITCH) {
         final roomData = Map<String, dynamic>.from(room.toJson())
           ..['session_ids'] = room.sessionIds
@@ -917,35 +957,15 @@ class MessageHandler {
         'timestamp': DateTime.now().toIso8601String(),
       };
       if (isTournament) createSuccessPayload['is_tournament'] = true;
-      if (tournamentData != null && tournamentData.isNotEmpty) createSuccessPayload['tournament_data'] = tournamentData;
+      if (effectiveTournamentData != null && effectiveTournamentData.isNotEmpty) {
+        createSuccessPayload['tournament_data'] = effectiveTournamentData;
+      }
       if (room.acceptedPlayers != null && room.acceptedPlayers!.isNotEmpty) {
         createSuccessPayload['accepted_players'] = room.acceptedPlayers;
       }
       if (room.gameLevel != null) createSuccessPayload['game_level'] = room.gameLevel;
       createSuccessPayload['is_coin_required'] = isCoinRequired;
       _server.sendToSession(sessionId, createSuccessPayload);
-      
-      // Tournament room: attach room_id to tournament match in Python DB now (match not started yet; start is triggered remotely)
-      if (isTournament &&
-          tournamentData != null &&
-          tournamentData.isNotEmpty) {
-        final tid = (tournamentData['tournament_id']?.toString() ?? '').trim();
-        final mid = tournamentData['match_index'] ?? tournamentData['match_id'];
-        if (tid.isNotEmpty && mid != null) {
-          if (LOGGING_SWITCH) {
-            _logger.room('🏟 Tournament room created: calling attach-tournament-match-room tournament_id=$tid match_id=$mid room_id=$roomId');
-          }
-          _server.pythonClient.attachTournamentMatchRoom(
-            tournamentId: tid,
-            roomId: roomId,
-            matchIndex: mid,
-          ).then((result) {
-            if (result['success'] != true && LOGGING_SWITCH) {
-              _logger.game('⚠️ attach-tournament-match-room failed: ${result['error']}');
-            }
-          });
-        }
-      }
       
       // 🎣 Trigger room_created hook (Dutch uses add_creator_to_room to decide whether to add creator as first player in game state)
       final roomCreatedData = {
@@ -961,7 +981,9 @@ class MessageHandler {
         'created_at': DateTime.now().toIso8601String(),
       };
       if (isTournament) roomCreatedData['is_tournament'] = true;
-      if (tournamentData != null && tournamentData.isNotEmpty) roomCreatedData['tournament_data'] = tournamentData;
+      if (effectiveTournamentData != null && effectiveTournamentData.isNotEmpty) {
+        roomCreatedData['tournament_data'] = effectiveTournamentData;
+      }
       if (room.gameLevel != null) roomCreatedData['game_level'] = room.gameLevel!;
       roomCreatedData['is_coin_required'] = isCoinRequired;
       if (LOGGING_SWITCH) {
@@ -984,7 +1006,9 @@ class MessageHandler {
         'timestamp': DateTime.now().toIso8601String(),
         };
         if (isTournament) creatorRoomJoinedPayload['is_tournament'] = true;
-        if (tournamentData != null && tournamentData.isNotEmpty) creatorRoomJoinedPayload['tournament_data'] = tournamentData;
+        if (effectiveTournamentData != null && effectiveTournamentData.isNotEmpty) {
+          creatorRoomJoinedPayload['tournament_data'] = effectiveTournamentData;
+        }
         _server.sendToSession(sessionId, creatorRoomJoinedPayload);
         
         final creatorRoomJoinedHookData = {
@@ -998,7 +1022,9 @@ class MessageHandler {
           'joined_at': DateTime.now().toIso8601String(),
         };
         if (isTournament) creatorRoomJoinedHookData['is_tournament'] = true;
-        if (tournamentData != null && tournamentData.isNotEmpty) creatorRoomJoinedHookData['tournament_data'] = tournamentData;
+        if (effectiveTournamentData != null && effectiveTournamentData.isNotEmpty) {
+          creatorRoomJoinedHookData['tournament_data'] = effectiveTournamentData;
+        }
         _server.triggerHook('room_joined', data: creatorRoomJoinedHookData);
       }
 

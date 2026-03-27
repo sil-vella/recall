@@ -16,7 +16,7 @@ import '../../modules/analytics_module/analytics_module.dart';
 import 'module_manager.dart';
 
 /// Hash URLs: `http://host/#/path?query`. Path URLs: `http://host/path?query`.
-const bool LOGGING_SWITCH = true; // Stripe return routing trace (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Stripe return routing trace (enable-logging-switch.mdc)
 
 String computeWebInitialLocation() {
   if (!kIsWeb) return '/';

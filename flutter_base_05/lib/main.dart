@@ -16,7 +16,7 @@ import 'utils/firebase_runtime_config.dart';
 import 'utils/consts/theme_consts.dart';
 
 // Logging switch for main.dart - enable for debugging init (see .cursor/rules/enable-logging-switch.mdc)
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = true; // App init — enable-logging-switch.mdc
 
 void main() async {
   final logger = Logger();

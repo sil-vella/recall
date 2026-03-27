@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Round flow; rematch/game trace (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Round flow; rematch/game trace (enable-logging-switch.mdc)
 
 class DutchGameRound {
   final Logger _logger = Logger();

@@ -45,7 +45,14 @@ prompt_for_device_selection() {
     echo "   1) OnePlus (84fbcf31)" >&2
     echo "   2) Samsung Galaxy S23 Ultra (R3CWB0CS63D)" >&2
     echo "   3) Xiaomi Redmi tablet (5dad288e7d91)" >&2
-    read -r -p "Enter choice [1/2/3] (default: 1): " device_choice >&2
+    # Read from controlling terminal when stdin is not a TTY (e.g. piped launch).
+    local _tty=/dev/tty
+    [ -r "$_tty" ] || _tty=/dev/stdin
+    if ! read -r -t 10 -p "Enter choice [1/2/3] (default: 1, auto after 10s): " device_choice < "$_tty"; then
+        echo "" >&2
+        echo "⏱️  No selection within 10s — using 1 (OnePlus)." >&2
+        device_choice="1"
+    fi
     case "${device_choice:-1}" in
         1) echo "84fbcf31" ;;
         2) echo "R3CWB0CS63D" ;;
@@ -62,6 +69,7 @@ prompt_for_device_selection() {
 #   $2 = Android device id/serial/shortcut (optional)
 #        Shortcuts: 1=OnePlus, 2=Samsung, 3=Xiaomi Redmi tablet
 # You can also set ANDROID_DEVICE_ID env var to override.
+# Interactive prompt: if neither is set, choose within 10s or default to 1 (OnePlus).
 RAW_DEVICE_INPUT="${ANDROID_DEVICE_ID:-$2}"
 if [ -z "$RAW_DEVICE_INPUT" ]; then
     DEVICE_ID="$(prompt_for_device_selection)"

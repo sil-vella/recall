@@ -16,7 +16,7 @@ from .wins_level_rank_matcher import WinsLevelRankMatcher
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Coin check: get_user_stats / get_user_stats_service + deduct_game_coins; tournaments attach — see .cursor/rules/enable-logging-switch.mdc
+LOGGING_SWITCH = True  # Dutch API: coins, tournaments, get_tournaments, add/update match, invite-players — see .cursor/rules/enable-logging-switch.mdc
 
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
@@ -66,6 +66,19 @@ def _tournament_doc_to_json(doc: Dict[str, Any]) -> Dict[str, Any]:
         else:
             out[k] = v
     return out
+
+
+def _tournament_json_for_public(obj: Any) -> Any:
+    """Strip PII from serialized tournament trees for unauthenticated clients (e.g. match player emails)."""
+    if isinstance(obj, dict):
+        return {
+            k: _tournament_json_for_public(v)
+            for k, v in obj.items()
+            if k != "email"
+        }
+    if isinstance(obj, list):
+        return [_tournament_json_for_public(x) for x in obj]
+    return obj
 
 
 def _require_admin():
@@ -297,6 +310,32 @@ def get_tournaments_service():
         return jsonify({"success": True, "tournaments": out}), 200
     except Exception as e:
         custom_log(f"DutchGame: get_tournaments_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
+
+
+def get_tournaments_public():
+    """Public (no auth): same listing and shape as get_tournaments_service (all tournaments, full JSON), with email keys stripped recursively."""
+    try:
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_only")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database unavailable"}), 503
+        raw = db_manager.find("tournaments", {})
+        tournaments = list(raw) if raw else []
+        out = []
+        for d in tournaments:
+            j = _tournament_doc_to_json(d)
+            j["id"] = str(d.get("_id", ""))
+            out.append(_tournament_json_for_public(j))
+        custom_log(
+            f"DutchGame: get_tournaments_public ok count={len(out)}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+        return jsonify({"success": True, "tournaments": out}), 200
+    except Exception as e:
+        custom_log(f"DutchGame: get_tournaments_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
 
 
@@ -1272,6 +1311,11 @@ def get_tournaments():
             j = _tournament_doc_to_json(d)
             j["id"] = str(d.get("_id", ""))
             out.append(j)
+        custom_log(
+            f"DutchGame: get_tournaments admin ok count={len(out)}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
         return jsonify({"success": True, "tournaments": out}), 200
     except Exception as e:
         custom_log(f"DutchGame: get_tournaments error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -1730,7 +1774,42 @@ def _attach_tournament_match_room_impl(tournament_id, match_index, room_id):
         custom_log(f"DutchGame: attach_tournament_match_room db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
         return {"success": False, "error": "Failed to update tournament"}, 500
     custom_log(f"DutchGame: attach_tournament_match_room tournament_id={tournament_id} match_index={match_index} room_id={room_id}", level="INFO", isOn=LOGGING_SWITCH)
-    return {"success": True, "message": "Match updated", "room_id": room_id}, 200
+    # Enriched roster for Dart: comp vs human so start_match can add tournament comps before random Flask CPUs
+    match_row = matches[match_idx]
+    players_raw = match_row.get("players") or []
+    match_players_out: List[Dict[str, Any]] = []
+    for p in players_raw:
+        if not isinstance(p, dict):
+            continue
+        uid = (p.get("user_id") or "").strip()
+        if not uid:
+            continue
+        udoc = None
+        try:
+            uoid = ObjectId(uid)
+            udoc = db_manager.find_one("users", {"_id": uoid})
+        except Exception:
+            pass
+        is_comp = bool(udoc and udoc.get("is_comp_player") is True)
+        uname = (p.get("username") or "").strip()
+        if not uname and udoc:
+            uname = (udoc.get("username") or "").strip()
+        if not uname:
+            uname = "user_%s" % (uid[:8],)
+        match_players_out.append(
+            {
+                "user_id": uid,
+                "username": uname,
+                "is_comp_player": is_comp,
+                "isHuman": not is_comp,
+            }
+        )
+    return {
+        "success": True,
+        "message": "Match updated",
+        "room_id": room_id,
+        "match_players": match_players_out,
+    }, 200
 
 
 def attach_tournament_match_room():
@@ -2007,6 +2086,11 @@ def invite_players_to_match():
         room_id = (data.get("room_id") or "").strip() or None
         title = (data.get("title") or "Match invite").strip()
         body = (data.get("body") or "You're invited to a match.").strip()
+        custom_log(
+            f"DutchGame: invite_players_to_match requested={len(user_ids)} match_id={match_id!r} room_id={room_id!r}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         notification_data = {"match_id": match_id}
@@ -2029,6 +2113,11 @@ def invite_players_to_match():
             )
             if nid:
                 notified += 1
+        custom_log(
+            f"DutchGame: invite_players_to_match ok notified={notified} requested={len(user_ids)}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
         return jsonify({"success": True, "notified": notified, "requested": len(user_ids)}), 200
     except Exception as e:
         custom_log(f"DutchGame: invite_players_to_match error: {e}", level="ERROR", isOn=LOGGING_SWITCH)

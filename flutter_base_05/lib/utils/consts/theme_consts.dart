@@ -291,6 +291,9 @@ class AppColors {
   // Poker table green for game screens
   static const Color pokerTableGreen = Color.fromARGB(255, 18, 109, 79); // Dark green similar to poker table felt
 
+  /// Blue felt variant for higher-tier game tables (table level 2+ styling).
+  static const Color pokerTableBlue = Color.fromARGB(255, 22, 78, 132);
+
   // Casino border colors - for layered casino table borders
   static Color get casinoBorderColor => ThemeConfig.casinoBorderColor;
   static Color get casinoOuterBorderColor => ThemeConfig.casinoOuterBorderColor;

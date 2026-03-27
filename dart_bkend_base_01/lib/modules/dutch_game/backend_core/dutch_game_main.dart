@@ -37,7 +37,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Game module init / room flow (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Room created/joined, game state before start_match (enable-logging-switch.mdc)
 
 /// Dutch game backend module. Registers the four room-lifecycle hook callbacks
 /// and holds the coordinator for game events. Instantiated once by WebSocketServer.

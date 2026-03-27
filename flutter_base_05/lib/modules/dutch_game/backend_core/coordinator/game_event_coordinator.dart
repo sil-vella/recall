@@ -403,9 +403,30 @@ class GameEventCoordinator {
         needed--;
       }
     } else {
-      // Multiplayer mode: use accepted_players comp list (create-room) or fetch from Flask (random join)
+      // Multiplayer mode: tournament match roster comps first, then accepted_players (create-room), then Flask
       int compPlayersAdded = 0;
       int remainingNeeded = needed;
+
+      final tdRoster = current['tournament_data'] as Map<String, dynamic>? ??
+          roomInfo?.tournamentData;
+      final List<Map<String, dynamic>> tournamentRosterComps = [];
+      final mpr = tdRoster?['match_players'] as List<dynamic>?;
+      if (mpr != null) {
+        for (final raw in mpr) {
+          if (raw is! Map) continue;
+          final e = Map<String, dynamic>.from(raw);
+          final isComp = e['is_comp_player'] == true || e['isHuman'] == false;
+          if (!isComp) continue;
+          final uid = (e['user_id'] ?? '').toString();
+          if (uid.isEmpty) continue;
+          if (players.any((p) => (p['userId']?.toString() ?? '') == uid)) continue;
+          tournamentRosterComps.add({
+            'user_id': uid,
+            'username': (e['username'] ?? 'CompPlayer').toString(),
+            'is_comp_player': true,
+          });
+        }
+      }
 
       final acceptedPlayersRaw = data['accepted_players'];
       final List<Map<String, dynamic>> acceptedCompList = (acceptedPlayersRaw is List)
@@ -415,16 +436,26 @@ class GameEventCoordinator {
               .toList()
           : <Map<String, dynamic>>[];
 
-      if (acceptedCompList.isNotEmpty) {
-        // Create-room invite flow: add pre-selected comp players from accepted_players (no API fetch)
+      final List<Map<String, dynamic>> allCompPrefill = [
+        ...tournamentRosterComps,
+        ...acceptedCompList,
+      ];
+
+      if (allCompPrefill.isNotEmpty) {
         if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Using ${acceptedCompList.length} accepted comp player(s) from create-room');
+          _logger.info(
+            'GameEventCoordinator: Prefill comps — tournament roster=${tournamentRosterComps.length}, accepted_players=${acceptedCompList.length}',
+          );
         }
         const defaultRank = 'beginner';
         const defaultDifficulty = 'medium';
-        for (final comp in acceptedCompList) {
+        final seenCompUserIds = <String>{};
+        for (final comp in allCompPrefill) {
           if (players.length >= maxPlayers) break;
+          if (comp['is_comp_player'] != true) continue;
           final userId = (comp['user_id'] ?? '').toString();
+          if (userId.isEmpty || seenCompUserIds.contains(userId)) continue;
+          seenCompUserIds.add(userId);
           final username = (comp['username'] ?? 'CompPlayer').toString();
           final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
           String uniqueName = username;
@@ -449,12 +480,12 @@ class GameEventCoordinator {
             'rank': defaultRank,
             'level': 1,
             'userId': userId,
-            'email': '',
+            'email': (comp['email'] ?? '').toString(),
             'username': username,
           });
           compPlayersAdded++;
           if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Added accepted comp player - id: $playerId, name: $uniqueName, userId: $userId');
+            _logger.info('GameEventCoordinator: Added roster/accepted comp — id=$playerId name=$uniqueName userId=$userId');
           }
         }
         remainingNeeded = needed - compPlayersAdded;

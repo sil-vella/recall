@@ -33,7 +33,7 @@ class DutchGameEventEmitter {
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final DemoModeBridge _demoBridge = DemoModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // join_random_game emit + validation (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Tournament dashboard start_match + WS emit trace (enable-logging-switch.mdc)
   
   // Current transport mode (defaults to WebSocket for backward compatibility; unset after clear so practice/WS re-apply)
   EventTransportMode _transportMode = EventTransportMode.websocket;

@@ -84,6 +84,7 @@ class DutchGameMain(BaseModule):
             api_endpoints.register_notification_handlers(notification_module)
             self._register_route_helper("/public/dutch/get-comp-players", api_endpoints.get_comp_players, methods=["POST"])
             self._register_route_helper("/public/dutch/get-tournaments-list", api_endpoints.get_tournaments_list_public, methods=["GET"])
+            self._register_route_helper("/public/dutch/get-tournaments", api_endpoints.get_tournaments_public, methods=["GET"])
             self._register_route_helper("/userauth/dutch/tournament-signup", api_endpoints.tournament_signup, methods=["POST"], auth="jwt")
 
             custom_log("🔐 DutchGame: All routes registered successfully", level="INFO", isOn=LOGGING_SWITCH)

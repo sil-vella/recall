@@ -146,6 +146,127 @@ class InnerShadowPainter extends CustomPainter {
   }
 }
 
+/// Stroked rounded-rect ring only (no fill) — wide glow band + crisp inner rim for final round.
+/// Alpha across the band: 1 from inner edge through midpoint, then linear to 0 at outer edge.
+/// Avoids [BoxDecoration] shadows which bleed across the whole felt.
+class _FinalRoundEdgeGlowPainter extends CustomPainter {
+  final double borderRadius;
+  final double pulse;
+  final Color color;
+
+  _FinalRoundEdgeGlowPainter({
+    required this.borderRadius,
+    required this.pulse,
+    required this.color,
+  });
+
+  static const double _innerInset = 1.5;
+  /// Tripled from original ~12px effective band.
+  static const double _glowDepth = 36.0;
+  static const int _glowSteps = 28;
+  static const double _rimStrokeWidth = 6.0;
+
+  /// t: 0 = inner (table side), 1 = outer. Returns 1 for [0, 0.5], then 1→0 on (0.5, 1].
+  static double _edgeFade(double t) {
+    if (t <= 0.5) return 1.0;
+    return (2.0 - 2.0 * t).clamp(0.0, 1.0);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final baseA = 0.35 + 0.45 * pulse;
+    final maxR = 0.5 * (size.width < size.height ? size.width : size.height);
+
+    // Outermost → innermost bands; skip i==0 (rim draws the inner edge).
+    for (int i = _glowSteps - 1; i >= 1; i--) {
+      final t = i / (_glowSteps - 1);
+      final fade = _edgeFade(t);
+      if (fade <= 0) continue;
+
+      final inset = _innerInset - t * _glowDepth;
+      final rr = (borderRadius - inset).clamp(0.0, maxR);
+      final rect = Rect.fromLTWH(inset, inset, size.width - 2 * inset, size.height - 2 * inset);
+      final path = Path()..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(rr)));
+
+      final band = Paint()
+        ..color = color.withValues(alpha: (baseA * fade * 0.92).clamp(0.0, 1.0))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _glowDepth / _glowSteps + 1.2
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+      canvas.drawPath(path, band);
+    }
+
+    final rrRim = (borderRadius - _innerInset).clamp(0.0, maxR);
+    final rimRect = Rect.fromLTWH(
+      _innerInset,
+      _innerInset,
+      size.width - 2 * _innerInset,
+      size.height - 2 * _innerInset,
+    );
+    final rimPath = Path()..addRRect(RRect.fromRectAndRadius(rimRect, Radius.circular(rrRim)));
+    final rim = Paint()
+      ..color = color.withValues(alpha: (0.5 + 0.45 * pulse).clamp(0.0, 1.0))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _rimStrokeWidth;
+    canvas.drawPath(rimPath, rim);
+  }
+
+  @override
+  bool shouldRepaint(_FinalRoundEdgeGlowPainter oldDelegate) {
+    return oldDelegate.pulse != pulse ||
+        oldDelegate.borderRadius != borderRadius ||
+        oldDelegate.color != color;
+  }
+}
+
+/// Pulsing glow on the inner felt edge only (ring, not a full-surface overlay).
+class _FinalRoundInnerGlowPulse extends StatefulWidget {
+  final double borderRadius;
+
+  const _FinalRoundInnerGlowPulse({required this.borderRadius});
+
+  @override
+  State<_FinalRoundInnerGlowPulse> createState() => _FinalRoundInnerGlowPulseState();
+}
+
+class _FinalRoundInnerGlowPulseState extends State<_FinalRoundInnerGlowPulse>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = Curves.easeInOut.transform(_controller.value);
+        return CustomPaint(
+          painter: _FinalRoundEdgeGlowPainter(
+            borderRadius: widget.borderRadius,
+            pulse: t,
+            color: AppColors.callFinalRoundChipBackground,
+          ),
+          child: const SizedBox.expand(),
+        );
+      },
+    );
+  }
+}
+
 /// Background widget for the play surface: felt texture + edge spotlights from [DutchGamePlayTableStyle].
 class TableBackgroundWidget extends StatefulWidget {
   final DutchGamePlayTableStyle tableStyle;
@@ -722,6 +843,26 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                                     ),
                                     size: Size(innerConstraints.maxWidth, innerConstraints.maxHeight),
                                   ),
+                                ),
+                              ),
+                              // Final round: pulsing glow on inner felt edge (matches call-final-round chip color)
+                              Positioned.fill(
+                                child: ListenableBuilder(
+                                  listenable: StateManager(),
+                                  builder: (context, _) {
+                                    final dutch =
+                                        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+                                    final gameId = dutch['currentGameId']?.toString() ?? '';
+                                    final games = dutch['games'] as Map<String, dynamic>? ?? {};
+                                    final game = games[gameId] as Map<String, dynamic>?;
+                                    final gs = game?['gameData'] as Map<String, dynamic>?;
+                                    final gameState = gs?['game_state'] as Map<String, dynamic>?;
+                                    final finalRoundActive = gameState?['finalRoundActive'] as bool? ?? false;
+                                    if (!finalRoundActive) return const SizedBox.shrink();
+                                    return IgnorePointer(
+                                      child: _FinalRoundInnerGlowPulse(borderRadius: 8.0),
+                                    );
+                                  },
                                 ),
                               ),
                             ],

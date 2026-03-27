@@ -3694,7 +3694,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.warningColor,
+                        color: AppColors.callFinalRoundChipBackground,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
@@ -3723,7 +3723,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.warningColor,
+                      color: AppColors.callFinalRoundChipBackground,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(

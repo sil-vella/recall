@@ -55,6 +55,19 @@ class FeltTextureWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Never pass non-finite dimensions to CustomPaint (e.g. dropdown intrinsic layout).
+        double w = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : constraints.minWidth;
+        double h = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : constraints.minHeight;
+        if (!w.isFinite) w = 1.0;
+        if (!h.isFinite) h = 1.0;
+        if (w <= 0 || h <= 0) {
+          return const SizedBox.shrink();
+        }
+        final size = Size(w, h);
         return Container(
           color: backgroundColor,
           child: CustomPaint(
@@ -66,7 +79,7 @@ class FeltTextureWidget extends StatelessWidget {
               grainRadius: grainRadius,
               strokeWidth: strokeWidth,
             ),
-            size: Size(constraints.maxWidth, constraints.maxHeight),
+            size: size,
           ),
         );
       },

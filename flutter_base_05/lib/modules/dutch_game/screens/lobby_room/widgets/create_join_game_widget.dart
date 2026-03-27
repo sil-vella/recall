@@ -8,6 +8,7 @@ import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../backend_core/utils/level_matcher.dart';
+import '../../../widgets/table_tier_felt_panel.dart';
 import '../../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../../modules/user_management_module/user_management_module.dart';
 
@@ -1261,6 +1262,72 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     );
   }
 
+  static const double _kTableLevelDropdownItemHeight = 52;
+
+  static const List<Shadow> _kFeltLabelShadows = [
+    Shadow(color: Color(0x88000000), blurRadius: 4, offset: Offset(0, 1)),
+  ];
+
+  /// Table tier row with [TableTierFeltPanel] behind the label (create modal menu + selected field).
+  DropdownMenuItem<int> _buildTableLevelDropdownMenuItem({
+    required int level,
+    required bool isLocked,
+    required String label,
+  }) {
+    return DropdownMenuItem<int>(
+      value: level,
+      enabled: !isLocked,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Never use screen width here — it is wider than the modal/dropdown and causes huge overflow.
+          // When maxWidth is unbounded (intrinsic pass), use a modest cap; with isExpanded + stretch parent,
+          // layout usually supplies a finite maxWidth.
+          final w = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+              ? constraints.maxWidth
+              : 360.0;
+          return SizedBox(
+            width: w,
+            height: _kTableLevelDropdownItemHeight,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppBorderRadius.small),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: TableTierFeltPanel(tableLevel: level),
+                  ),
+                  if (isLocked)
+                    Positioned.fill(
+                      child: ColoredBox(
+                        color: Colors.black.withValues(alpha: 0.42),
+                      ),
+                    ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppPadding.defaultPadding.left,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyMedium().copyWith(
+                          color: isLocked ? AppColors.textSecondary : AppColors.white,
+                          shadows: isLocked ? null : _kFeltLabelShadows,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _summaryRow(String label, String value) {
     return Padding(
       padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
@@ -1310,7 +1377,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
           child: Theme(
             data: dropdownTheme,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Header
                 Row(
@@ -1345,7 +1412,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                             child: _buildCreatedSummary(context),
                           )
                         : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       SizedBox(height: AppPadding.defaultPadding.top),
                       Text(
@@ -1357,6 +1424,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         label: 'create_room_dropdown_game_type',
                         identifier: 'create_room_dropdown_game_type',
                         child: DropdownButtonFormField<String>(
+                          isExpanded: true,
                           value: _kGameTypeValues.contains(_selectedGameType) ? _selectedGameType : 'classic',
                           decoration: InputDecoration(
                             contentPadding: EdgeInsets.symmetric(
@@ -1406,9 +1474,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         label: 'create_room_dropdown_table_level',
                         identifier: 'create_room_dropdown_table_level',
                         child: DropdownButtonFormField<int>(
+                          isExpanded: true,
                           value: LevelMatcher.levelOrder.contains(_selectedTableLevel)
                               ? _selectedTableLevel
                               : _firstUnlockedTableLevel(),
+                          itemHeight: _kTableLevelDropdownItemHeight,
                           decoration: InputDecoration(
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: AppPadding.defaultPadding.left,
@@ -1438,17 +1508,13 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                               defaultLevel: level,
                             );
                             final isLocked = _currentUserLevel() < requiredLevel;
-                            return DropdownMenuItem<int>(
-                              value: level,
-                              enabled: !isLocked,
-                              child: Text(
-                                isLocked
-                                    ? '$level — $title (Level $requiredLevel)'
-                                    : '$level — $title',
-                                style: AppTextStyles.bodyMedium().copyWith(
-                                  color: isLocked ? AppColors.textSecondary : AppColors.white,
-                                ),
-                              ),
+                            final label = isLocked
+                                ? '$level — $title (Level $requiredLevel)'
+                                : '$level — $title';
+                            return _buildTableLevelDropdownMenuItem(
+                              level: level,
+                              isLocked: isLocked,
+                              label: label,
                             );
                           }).toList(),
                           onChanged: (value) {

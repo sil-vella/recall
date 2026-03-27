@@ -17,6 +17,8 @@ class DutchGameRound {
   final GameStateCallback _stateCallback;
   final String _gameId;
   Timer? _sameRankTimer; // Timer for same rank window (5 seconds)
+  /// Player who played the card that opened the current same-rank window (cleared when window ends).
+  String? _sameRankWindowInitiatorPlayerId;
   Timer? _specialCardTimer; // Timer for special card window (10 seconds per card)
   Timer? _drawActionTimer; // Timer for draw action (applies to both human and CPU)
   Timer? _playActionTimer; // Timer for play action (applies to both human and CPU)
@@ -690,6 +692,27 @@ class DutchGameRound {
     }
   }
 
+  /// When the same-rank window ends, CPU initiator may call [handleCallFinalRound] (same SSOT as humans).
+  /// Stub: always false until real heuristics replace this.
+  bool _shouldCpuCallFinalRoundAfterPlay(String playerId, Map<String, dynamic> gameState) {
+    return false;
+  }
+
+  Future<void> _invokeCpuCallFinalRoundAfterSameRankWindowIfNeeded(String playerId) async {
+    if (_isGameEnded()) return;
+    final gameState = _getCurrentGameState();
+    if (gameState == null) return;
+    if (!_shouldCpuCallFinalRoundAfterPlay(playerId, gameState)) return;
+    final ok = await handleCallFinalRound(playerId);
+    if (LOGGING_SWITCH) {
+      if (ok) {
+        _logger.info('Dutch: CPU call final round after same-rank window succeeded for $playerId');
+      } else {
+        _logger.info('Dutch: CPU call final round after same-rank window skipped or failed for $playerId');
+      }
+    }
+  }
+
   /// Initialize computer player turn logic
   /// This method will handle the complete computer player turn flow
   /// Uses declarative YAML configuration for computer behavior
@@ -1135,7 +1158,7 @@ class DutchGameRound {
               };
               // Note: Do NOT call _moveToNextPlayer() here
               // The same rank window (triggered in handlePlayCard) will handle moving to next player
-              // Flow: _handleSameRankWindow() -> 5s timer -> _endSameRankWindow() -> _handleSpecialCardsWindow() -> _moveToNextPlayer()
+              // Flow: _handleSameRankWindow(initiator) -> timer -> _endSameRankWindow() (CPU final round) -> ...
             }
           } else {
             if (LOGGING_SWITCH) {
@@ -2872,7 +2895,7 @@ class DutchGameRound {
 
       // Then trigger same rank window (backend game_round.py line 487)
       // This allows other players to play cards of the same rank out-of-turn
-      _handleSameRankWindow();
+      _handleSameRankWindow(actualPlayerId);
 
       // CRITICAL: Update known_cards BEFORE clearing drawnCard property
       // This ensures the just-drawn card detection logic can work properly
@@ -4166,7 +4189,8 @@ class DutchGameRound {
 
   /// Handle same rank window - sets all players to same_rank_window status
   /// Replicates backend's _handle_same_rank_window method in game_round.py lines 566-585
-  void _handleSameRankWindow() {
+  /// [initiatorPlayerId] Player who played the card that opened this window (used when window ends).
+  void _handleSameRankWindow(String initiatorPlayerId) {
     try {
       if (_winnersList.isNotEmpty) {
         if (LOGGING_SWITCH) {
@@ -4177,6 +4201,8 @@ class DutchGameRound {
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Starting same rank window - setting all players to same_rank_window status');
       };
+      
+      _sameRankWindowInitiatorPlayerId = initiatorPlayerId;
       
       // Update all players' status to same_rank_window
       _updatePlayerStatusInGamesMap('same_rank_window', playerId: null);
@@ -4274,6 +4300,9 @@ class DutchGameRound {
       final currentGamesForSameRank = _stateCallback.currentGamesMap;
       await _checkComputerPlayerSameRankPlays(gamesMap: currentGamesForSameRank);
       
+      final initiatorForFinalRound = _sameRankWindowInitiatorPlayerId;
+      _sameRankWindowInitiatorPlayerId = null;
+      
       // Check if game has ended (winners exist) - prevent progression if game is over
       // Winners might be added during same rank plays (empty hand win condition)
       if (_winnersList.isNotEmpty) {
@@ -4282,6 +4311,21 @@ class DutchGameRound {
         };
         _checkGameEnding();
         return;
+      }
+      
+      if (initiatorForFinalRound != null) {
+        final gs = _getCurrentGameState();
+        if (gs != null) {
+          final players = gs['players'] as List<Map<String, dynamic>>? ?? [];
+          final initiator = players.firstWhere(
+            (p) => p['id']?.toString() == initiatorForFinalRound,
+            orElse: () => <String, dynamic>{},
+          );
+          final isHuman = initiator['isHuman'] as bool? ?? true;
+          if (initiator.isNotEmpty && !isHuman) {
+            await _invokeCpuCallFinalRoundAfterSameRankWindowIfNeeded(initiatorForFinalRound);
+          }
+        }
       }
       
       // Check if computer players can collect from discard pile
@@ -4308,6 +4352,8 @@ class DutchGameRound {
       if (LOGGING_SWITCH) {
         _logger.error('Dutch: Error ending same rank window: $e');
       };
+    } finally {
+      _sameRankWindowInitiatorPlayerId = null;
     }
   }
 

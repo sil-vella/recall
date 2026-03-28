@@ -20,7 +20,7 @@ class SwitchScreenAdOverlay {
       context: context,
       barrierDismissible: false,
       barrierLabel: 'Promotional ad',
-      barrierColor: Colors.black54,
+      barrierColor: Colors.black,
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (ctx, animation, secondaryAnimation) {
         return _SwitchScreenAdDialog(
@@ -47,17 +47,26 @@ class _SwitchScreenAdDialog extends StatefulWidget {
 
 class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
   bool _canSkip = false;
-  Timer? _timer;
+  Timer? _countdownTicker;
+  double _progress = 0;
 
   @override
   void initState() {
     super.initState();
-    final d = widget.delayBeforeSkipSeconds;
-    if (d <= 0) {
+    final totalSecs = widget.delayBeforeSkipSeconds;
+    if (totalSecs <= 0) {
       _canSkip = true;
+      _progress = 1;
     } else {
-      _timer = Timer(Duration(seconds: d), () {
-        if (mounted) {
+      final start = DateTime.now();
+      final totalMs = totalSecs * 1000;
+      _countdownTicker = Timer.periodic(const Duration(milliseconds: 32), (_) {
+        if (!mounted) return;
+        final elapsedMs = DateTime.now().difference(start).inMilliseconds;
+        final p = (elapsedMs / totalMs).clamp(0.0, 1.0);
+        setState(() => _progress = p);
+        if (elapsedMs >= totalMs) {
+          _countdownTicker?.cancel();
           setState(() => _canSkip = true);
         }
       });
@@ -66,7 +75,7 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _countdownTicker?.cancel();
     super.dispose();
   }
 
@@ -78,60 +87,96 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
     }
   }
 
+  Widget _buildSkipOrTimer() {
+    final secs = widget.delayBeforeSkipSeconds;
+    if (_canSkip || secs <= 0) {
+      return TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(
+          'Skip',
+          style: AppTextStyles.bodyMedium().copyWith(
+            color: AppColors.white,
+          ),
+        ),
+      );
+    }
+
+    final remaining =
+        (secs * (1 - _progress)).ceil().clamp(0, secs);
+    return SizedBox(
+      width: 52,
+      height: 52,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: _progress.clamp(0.0, 1.0),
+            strokeWidth: 3,
+            backgroundColor: Colors.white24,
+            color: AppColors.white,
+          ),
+          Text(
+            '$remaining',
+            style: AppTextStyles.bodyMedium().copyWith(
+              color: AppColors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title = widget.ad.title ?? 'Promo';
-    return SafeArea(
-      child: Material(
-        color: AppColors.surface,
-        child: Padding(
-          padding: AppPadding.defaultPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.zero,
+      child: SizedBox.expand(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: AdvertFullscreenCoverMedia(
+                imageAssetPath: widget.ad.imageAssetPath,
+                videoAssetPath: widget.ad.videoAssetPath,
+              ),
+            ),
+            SafeArea(
+              child: Stack(
                 children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: AppTextStyles.headingSmall(),
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Material(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(8),
+                        child: _buildSkipOrTimer(),
+                      ),
                     ),
                   ),
-                  TextButton(
-                    onPressed: _canSkip ? () => Navigator.of(context).pop() : null,
-                    child: Text(
-                      'Skip',
-                      style: AppTextStyles.bodyMedium().copyWith(
-                        color: _canSkip ? AppColors.primaryColor : AppColors.lightGray,
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: AppPadding.defaultPadding,
+                      child: FilledButton(
+                        onPressed: _openLink,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primaryColor,
+                          foregroundColor: AppColors.white,
+                        ),
+                        child: Text(
+                          'Open link',
+                          style: AppTextStyles.bodyMedium(),
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              AdvertMediaPanel(
-                imageAssetPath: widget.ad.imageAssetPath,
-                videoAssetPath: widget.ad.videoAssetPath,
-                maxHeight: 280,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                widget.ad.link,
-                style: AppTextStyles.bodySmall(),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const Spacer(),
-              FilledButton(
-                onPressed: _openLink,
-                child: Text(
-                  'Open link',
-                  style: AppTextStyles.bodyMedium(),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

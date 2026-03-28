@@ -7,6 +7,13 @@ import '../../../../core/managers/hooks_manager.dart';
 import '../../../../core/managers/app_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import '../../../../utils/consts/config.dart';
+import '../../promotional_ads_module/ad_registry.dart';
+
+bool _yamlBottomSlotIsAdmob() {
+  final cfg = AdRegistry.instance.typeById('bottom_banner_promo');
+  final s = (cfg?.bannerSwitch ?? 'sponsors').trim().toLowerCase();
+  return s == 'admob' || s == 'admobs';
+}
 
 class BannerAdModule extends ModuleBase {
   static final Logger _logger = Logger();
@@ -42,10 +49,12 @@ class BannerAdModule extends ModuleBase {
       loadBannerAd(Config.admobsTopBanner);
     }, priority: 10); // Lower priority so it runs after the global hook
     
-    // Register callback for bottom banner bar hook
+    // Register callback for bottom banner bar hook (only when YAML `switch` is admob — not sponsors strip).
     _hooksManager.registerHookWithData('bottom_banner_bar_loaded', (data) {
-      _logger.info('📢 Bottom banner bar callback triggered');
-      // Load the bottom banner ad when global hook is triggered
+      if (!_yamlBottomSlotIsAdmob()) {
+        return;
+      }
+      _logger.info('📢 Bottom banner bar callback triggered (AdMob slot)');
       loadBannerAd(Config.admobsBottomBanner);
     }, priority: 10); // Lower priority so it runs after the global hook
     

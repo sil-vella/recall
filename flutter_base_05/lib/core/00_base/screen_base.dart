@@ -16,6 +16,7 @@ import '../widgets/state_aware_features/index.dart';
 import '../widgets/instant_message_modal.dart';
 import '../widgets/instant_notification_response.dart';
 import '../managers/state_manager.dart';
+import '../../modules/promotional_ads_module/ad_registry.dart';
 import '../../modules/promotional_ads_module/widgets/promotional_bottom_strip.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
@@ -634,25 +635,27 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
             // ),
           child: LayoutBuilder(
             builder: (context, constraints) {
+              // TEMP: snack-bar reserved strip disabled — re-enable [totalBottomSpace] + [SizedBox] below if needed.
               // Account for snack bar height (typically 48-56px, using 56px for safety)
               // Also account for system bottom padding (safe area)
-              const snackBarHeight = 56.0;
-              final bottomPadding = MediaQuery.of(context).padding.bottom;
-              final totalBottomSpace = snackBarHeight + bottomPadding;
+              // const snackBarHeight = 56.0;
+              // final bottomPadding = MediaQuery.of(context).padding.bottom;
+              // final totalBottomSpace = snackBarHeight + bottomPadding;
               
               // Top banner space commented out
               // final topBannerHeight = kIsWeb
               //     ? (adsense_placeholder.hasTopAdSlot ? 50.0 : 0.0)
               //     : (bannerAdModule != null ? 50.0 : 0.0);
-              final bottomBannerHeight = kIsWeb
-                  ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
-                  : (bannerAdModule != null ? 50.0 : 0.0);
+              // TEMP: AdSense / AdMob bottom slot disabled — re-enable [bottomBannerHeight] + block below.
+              // final bottomBannerHeight = kIsWeb
+              //     ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
+              //     : (bannerAdModule != null ? 50.0 : 0.0);
               
               if (LOGGING_SWITCH) {
                 _logger.info(
                   'BaseScreen LayoutBuilder: maxHeight=${constraints.maxHeight}, '
-                  'maxWidth=${constraints.maxWidth}, bottomPadding=$bottomPadding, '
-                  'totalBottomSpace=$totalBottomSpace, bannerAdModule=${bannerAdModule != null}',
+                  'maxWidth=${constraints.maxWidth}, bottomPadding=${MediaQuery.of(context).padding.bottom}, '
+                  'bannerAdModule=${bannerAdModule != null}',
                 );
               }
               
@@ -666,7 +669,18 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                   if (b is Map) {
                     bottomPromo = Map<String, dynamic>.from(b);
                   }
-                  final promoHeight = bottomPromo != null ? 44.0 : 0.0;
+                  final bottomCfg = AdRegistry.instance.typeById('bottom_banner_promo');
+                  final bottomSource =
+                      (bottomCfg?.bannerSwitch ?? 'sponsors').trim().toLowerCase();
+                  final useAdmobBottom =
+                      bottomSource == 'admob' || bottomSource == 'admobs';
+                  final promoHeight =
+                      !useAdmobBottom && bottomPromo != null ? 44.0 : 0.0;
+                  final bottomBannerHeight = useAdmobBottom
+                      ? (kIsWeb
+                          ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
+                          : (bannerAdModule != null ? 50.0 : 0.0))
+                      : 0.0;
 
                   return Column(
                     mainAxisSize: MainAxisSize.max,
@@ -720,7 +734,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                           ),
                         ),
 
-                      // Bottom banner: AdSense on web, AdMob on APK
+                      // Bottom banner: AdSense on web, AdMob on APK (YAML `switch: admob` on bottom_banner_promo)
                       if (bottomBannerHeight > 0)
                         SizedBox(
                           height: bottomBannerHeight,
@@ -733,7 +747,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                       
                       // Reserved space at the bottom for snack bars (fixed)
                       // Nothing behind it - this takes its space
-                      SizedBox(height: totalBottomSpace),
+                      // TEMP: disabled — pair with [totalBottomSpace] locals above when re-enabling.
+                      // SizedBox(height: totalBottomSpace),
                     ],
                   );
                 },

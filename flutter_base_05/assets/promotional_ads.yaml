@@ -2,33 +2,54 @@
 #
 # Media: put files under assets/adverts/ and reference by file name only, e.g. image: promo.png
 # Optional video: video: clip.mp4 (fullscreen overlay prefers video over image when both set).
+# switch_screen:
+#   show_after_screen_changes = PageRoute navigations before interstitial (counter resets after show).
+#   exclude_from_screen_change_count = destination paths that do NOT increment the counter.
+#   Identify screens by GoRouter path (same as URL path on web), e.g. /account, /notifications
+#   Optional prefix: /dutch* matches /dutch and /dutch/...
 
 ad_event_types:
   - id: switch_screen
     hook_name: switch_screen_ad
     selection_strategy: round_robin
     delay_before_skip_seconds: 10
+    show_after_screen_changes: 3
+    exclude_from_screen_change_count:
+      - /update-required
+      - /dutch/game-play
+      - /coin-purchase
+      - /admin*
+      # - /dutch*
 
+  # switch: sponsors = YAML strip (PromotionalBottomStrip); admob = AdMob / AdSense bottom slot.
   - id: bottom_banner_promo
     hook_name: bottom_banner_bar_loaded
     selection_strategy: round_robin
+    switch: sponsors
 
 ads:
   - id: switch_screen_intro
     ad_type_id: switch_screen
-    link: "https://flutter.dev"
-    title: "Switch screen promo"
-    image: switch_promo.png
+    link: "https://mixta.mt"
+    title: "Mixta"
+    image: mixta_promo.png
+    # video: switch_promo.mp4
+
+  - id: switch_screen_fittruck
+    ad_type_id: switch_screen
+    link: "https://www.facebook.com/fittruckmalta"
+    title: "Fit Truck"
+    image: fittruck_promo_002.jpg
     # video: switch_promo.mp4
 
   - id: bottom_promo_one
     ad_type_id: bottom_banner_promo
-    link: "https://flutter.dev/docs"
-    title: "Banner promo 1"
-    image: banner_one.png
+    link: "https://www.facebook.com/fittruckmalta"
+    title: "Fit Truck promo"
+    image: fittruck_promo.png
 
-  - id: bottom_promo_two
-    ad_type_id: bottom_banner_promo
-    link: "https://dart.dev"
-    title: "Banner promo 2"
-    image: banner_two.png
+  # - id: bottom_promo_two
+  #   ad_type_id: bottom_banner_promo
+  #   link: "https://dart.dev"
+  #   title: "Banner promo 2"
+  #   image: banner_two.png

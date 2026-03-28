@@ -41,6 +41,14 @@ class PromotionalAdsModule extends ModuleBase {
   }
 
   void _onBottomBannerHook(Map<String, dynamic> data) {
+    final typeCfg = AdRegistry.instance.typeById('bottom_banner_promo');
+    final source = (typeCfg?.bannerSwitch ?? 'sponsors').trim().toLowerCase();
+    if (source == 'admob' || source == 'admobs') {
+      StateManager().updateModuleState('promotional_ads', <String, dynamic>{
+        'bottom': null,
+      });
+      return;
+    }
     final ad = AdRegistry.instance.pickNextForType('bottom_banner_promo');
     if (ad == null) {
       return;
@@ -64,13 +72,23 @@ class PromotionalAdsModule extends ModuleBase {
       return;
     }
     final delay = typeCfg.delayBeforeSkipSeconds ?? 0;
+
+    // Showing a route/dialog from [NavigatorObserver.didPush] in the same synchronous
+    // turn trips Navigator assertions (HeroControllerScope / navigator.dart ~5048).
+    // Defer until after the push frame completes.
     _switchOverlayOpen = true;
-    SwitchScreenAdOverlay.show(
-      ctx,
-      ad: ad,
-      delayBeforeSkipSeconds: delay,
-    ).whenComplete(() {
-      _switchOverlayOpen = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!ctx.mounted) {
+        _switchOverlayOpen = false;
+        return;
+      }
+      SwitchScreenAdOverlay.show(
+        ctx,
+        ad: ad,
+        delayBeforeSkipSeconds: delay,
+      ).whenComplete(() {
+        _switchOverlayOpen = false;
+      });
     });
   }
 }

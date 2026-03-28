@@ -28,39 +28,38 @@ class PromotionalBottomStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface,
-      child: InkWell(
-        onTap: _open,
-        child: Padding(
-          padding: AppPadding.cardPadding,
+    final label = title.isNotEmpty ? title : link;
+    return Semantics(
+      label: label,
+      button: true,
+      child: Material(
+        color: AppColors.accentContrast,
+        child: InkWell(
+          onTap: _open,
           child: Row(
             children: [
-              if (imageAssetPath != null && imageAssetPath!.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                    imageAssetPath!,
-                    width: 36,
-                    height: 36,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.campaign_outlined,
-                      color: AppColors.primaryColor,
-                      size: 20,
-                    ),
-                  ),
-                )
-              else
-                Icon(Icons.campaign_outlined, color: AppColors.primaryColor, size: 20),
-              const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  title.isNotEmpty ? title : link,
-                  style: AppTextStyles.bodySmall(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: imageAssetPath != null && imageAssetPath!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: Image.asset(
+                          imageAssetPath!,
+                          fit: BoxFit.contain,
+                          alignment: Alignment.center,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.campaign_outlined,
+                            color: AppColors.primaryColor,
+                            size: 20,
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Icon(
+                          Icons.campaign_outlined,
+                          color: AppColors.primaryColor,
+                          size: 20,
+                        ),
+                      ),
               ),
               Icon(Icons.open_in_new, size: 18, color: AppColors.lightGray),
             ],

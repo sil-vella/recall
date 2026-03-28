@@ -693,9 +693,130 @@ class DutchGameRound {
   }
 
   /// When the same-rank window ends, CPU initiator may call [handleCallFinalRound] (same SSOT as humans).
-  /// Stub: always false until real heuristics replace this.
+  /// Dispatches by [_getComputerDifficulty]; per-difficulty methods hold the real conditions (stubs for now).
   bool _shouldCpuCallFinalRoundAfterPlay(String playerId, Map<String, dynamic> gameState) {
-    return false;
+    final difficulty = _getComputerDifficulty(gameState, playerId).toLowerCase();
+    switch (difficulty) {
+      case 'easy':
+        return _shouldCpuCallFinalRoundAfterPlayEasy(playerId, gameState);
+      case 'hard':
+        return _shouldCpuCallFinalRoundAfterPlayHard(playerId, gameState);
+      case 'expert':
+        return _shouldCpuCallFinalRoundAfterPlayExpert(playerId, gameState);
+      case 'medium':
+      default:
+        return _shouldCpuCallFinalRoundAfterPlayMedium(playerId, gameState);
+    }
+  }
+
+  /// Easy: call final round when this CPU's hand has 4 points or less.
+  bool _shouldCpuCallFinalRoundAfterPlayEasy(String playerId, Map<String, dynamic> gameState) {
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? self;
+    for (final p in players) {
+      if (p is Map<String, dynamic> && p['id']?.toString() == playerId) {
+        self = p;
+        break;
+      }
+    }
+    if (self == null) return false;
+    return _calculatePlayerPoints(self, gameState) <= 4;
+  }
+
+  /// Medium: call final round when this CPU has 2 points or less and exactly one card in hand.
+  bool _shouldCpuCallFinalRoundAfterPlayMedium(String playerId, Map<String, dynamic> gameState) {
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? self;
+    for (final p in players) {
+      if (p is Map<String, dynamic> && p['id']?.toString() == playerId) {
+        self = p;
+        break;
+      }
+    }
+    if (self == null) return false;
+    if (_getPlayerCardCountForWinner(self) != 1) return false;
+    return _calculatePlayerPoints(self, gameState) <= 2;
+  }
+
+  /// Hard: call final round only when this CPU's hand has 0 points.
+  bool _shouldCpuCallFinalRoundAfterPlayHard(String playerId, Map<String, dynamic> gameState) {
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? self;
+    for (final p in players) {
+      if (p is Map<String, dynamic> && p['id']?.toString() == playerId) {
+        self = p;
+        break;
+      }
+    }
+    if (self == null) return false;
+    return _calculatePlayerPoints(self, gameState) == 0;
+  }
+
+  /// Resolves [rank] for a discard/draw pile card; uses [originalDeck] by [cardId] when rank is missing or '?'.
+  String? _resolveCardRankFromPileCard(Map<String, dynamic> card, Map<String, dynamic> gameState) {
+    final raw = card['rank']?.toString() ?? '';
+    if (raw.isNotEmpty && raw != '?') {
+      return raw.toLowerCase();
+    }
+    final cardId = card['cardId']?.toString();
+    if (cardId == null || cardId.isEmpty) return null;
+    final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
+    for (final deckCard in originalDeck) {
+      if (deckCard is Map<String, dynamic> && deckCard['cardId']?.toString() == cardId) {
+        return deckCard['rank']?.toString().toLowerCase();
+      }
+    }
+    return null;
+  }
+
+  /// True when no opponent has strictly fewer hand cards than [playerId] (this player is at minimum count, ties OK).
+  bool _noOtherPlayerHasFewerHandCardsThan(String playerId, Map<String, dynamic> gameState) {
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? self;
+    for (final p in players) {
+      if (p is Map<String, dynamic> && p['id']?.toString() == playerId) {
+        self = p;
+        break;
+      }
+    }
+    if (self == null) return false;
+    final myCount = _getPlayerCardCountForWinner(self);
+    for (final p in players) {
+      if (p is! Map<String, dynamic>) continue;
+      if (p['id']?.toString() == playerId) continue;
+      final c = _getPlayerCardCountForWinner(p);
+      if (c < myCount) return false;
+    }
+    return true;
+  }
+
+  /// Counts cards in the discard pile whose resolved rank is `jack` (four jacks in a standard deck).
+  int _countJacksInDiscardPile(Map<String, dynamic> gameState) {
+    final discardPile = _ensureCardMapList(gameState['discardPile']);
+    var n = 0;
+    for (final c in discardPile) {
+      final rank = _resolveCardRankFromPileCard(c, gameState);
+      if (rank == 'jack') n++;
+    }
+    return n;
+  }
+
+  /// Expert: call final round only when hand is 0 points, this player ties the smallest hand size,
+  /// and all four jacks are in the discard pile.
+  bool _shouldCpuCallFinalRoundAfterPlayExpert(String playerId, Map<String, dynamic> gameState) {
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? self;
+    for (final p in players) {
+      if (p is Map<String, dynamic> && p['id']?.toString() == playerId) {
+        self = p;
+        break;
+      }
+    }
+    if (self == null) return false;
+    if (_calculatePlayerPoints(self, gameState) != 0) return false;
+    if (!_noOtherPlayerHasFewerHandCardsThan(playerId, gameState)) return false;
+    if (_countJacksInDiscardPile(gameState) != 4) return false;
+    return true;
   }
 
   Future<void> _invokeCpuCallFinalRoundAfterSameRankWindowIfNeeded(String playerId) async {

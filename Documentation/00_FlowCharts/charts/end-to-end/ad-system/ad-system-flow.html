@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Client Analytics Flow | FlowCharts</title>
+  <title>Ad System Flow | FlowCharts</title>
   <link rel="stylesheet" href="../../../css/flowcharts.css">
   <style media="print">
     @page { size: A4; margin: 15mm; }
@@ -22,10 +22,10 @@
         <ul>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">End To End</button><ul>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Ad System</button><ul>
-<li><a href="../../../charts/end-to-end/ad-system/ad-system-flow.html">Ad System Flow</a></li>
+<li><a href="../../../charts/end-to-end/ad-system/ad-system-flow.html" class="active">Ad System Flow</a></li>
 </ul></li>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Firebase</button><ul>
-<li><a href="../../../charts/end-to-end/firebase/client-analytics-flow.html" class="active">Client Analytics Flow</a></li>
+<li><a href="../../../charts/end-to-end/firebase/client-analytics-flow.html">Client Analytics Flow</a></li>
 </ul></li>
 <li><button type="button" class="nav-folder" aria-haspopup="true" aria-expanded="false">Notification Sys</button><ul>
 <li><a href="../../../charts/end-to-end/notification_sys/notification-sys.html">Notification Sys</a></li>
@@ -40,7 +40,7 @@
     </div>
   </header>
   <main class="flowcharts-main">
-    <h1>Client Analytics Flow</h1>
+    <h1>Ad System Flow</h1>
     <div class="mermaid">
 %%{init: {
   &quot;theme&quot;: &quot;base&quot;,
@@ -64,33 +64,18 @@
   }
 }}%%
 flowchart TD
-  subgraph Cloud[&quot;Firebase Project (Cloud)&quot;]
-    REG[&quot;App registered in project&quot;]
-    CFG[&quot;Config values&lt;br/&gt;apiKey, appId, projectId&quot;]
-    REG --&gt; CFG
-  end
+  TITLE[&quot;Ad System&quot;]
+  A[&quot;AppInit gets configs and creates an instance&quot;]
+  B[&quot;Get registered ad events&lt;br/&gt;e.g. Switch Screen, bottom banner, …&quot;]
+  C[&quot;Hooks trigger events&quot;]
+  D[&quot;Load a registered ad&quot;]
+  E[&quot;Each ad event type gets sets of configs&lt;br/&gt;display time, frequency, …&lt;br/&gt;(add Firebase Analytics for each event)&quot;]
 
-  subgraph Client[&quot;Frontend app (client)&quot;]
-    START[&quot;App startup&quot;]
-    SDKREAD[&quot;Firebase SDK reads config&quot;]
-    POINT[&quot;SDK points app to Firebase project&quot;]
-    PKG[&quot;Add product package&lt;br/&gt;e.g. firebase_analytics&quot;]
-    INIT[&quot;Import package and create instance&quot;]
-    CALL[&quot;Call instance API&lt;br/&gt;logEvent(...)&quot;]
-    EX[&quot;Example event&lt;br/&gt;name: start_match_after&lt;br/&gt;params: minutes&quot;]
-    BATCH[&quot;SDK batches and sends events&quot;]
-
-    START --&gt; SDKREAD
-    SDKREAD --&gt; POINT
-    POINT --&gt; PKG
-    PKG --&gt; INIT
-    INIT --&gt; CALL
-    CALL --&gt; EX
-    EX --&gt; BATCH
-  end
-
-  CFG --&gt; SDKREAD
-  BATCH --&gt; INGEST[&quot;Events ingested in Firebase Analytics&quot;]
+  TITLE --&gt; A
+  A --&gt; B
+  B --&gt; C
+  C --&gt; D
+  D &lt;--&gt; E
     </div>
   </main>
   <script>

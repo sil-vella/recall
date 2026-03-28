@@ -13,6 +13,7 @@ import '../00_base/module_base.dart';
 import '../../tools/logging/logger.dart';
 import 'hooks_manager.dart';
 import '../../modules/analytics_module/analytics_module.dart';
+import '../../modules/promotional_ads_module/ads_navigator_observer.dart';
 import 'module_manager.dart';
 
 /// Hash URLs: `http://host/#/path?query`. Path URLs: `http://host/path?query`.
@@ -191,6 +192,9 @@ class NavigationManager extends ChangeNotifier {
   String? _lastNavigationRoute;
   DateTime? _lastNavigationTime;
 
+  final AdsSwitchScreenNavigatorObserver _adsSwitchScreenObserver =
+      AdsSwitchScreenNavigatorObserver();
+
   /// ✅ Set navigation callback
   void setNavigationCallback(Function(String) callback) {
     _navigationCallback = callback;
@@ -276,6 +280,7 @@ class NavigationManager extends ChangeNotifier {
       navigatorKey: _navigatorKey,
       initialLocation: kIsWeb ? computeWebInitialLocation() : '/',
       routes: allRoutes,
+      observers: <NavigatorObserver>[_adsSwitchScreenObserver],
     );
     
     // Store the router instance

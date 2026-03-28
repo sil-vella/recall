@@ -1,0 +1,13 @@
+flowchart TD
+  TITLE["Ad System"]
+  A["AppInit gets configs and creates an instance"]
+  B["Get registered ad events<br/>e.g. Switch Screen, bottom banner, …"]
+  C["Hooks trigger events"]
+  D["Load a registered ad"]
+  E["Each ad event type gets sets of configs<br/>display time, frequency, …<br/>(add Firebase Analytics for each event)"]
+
+  TITLE --> A
+  A --> B
+  B --> C
+  C --> D
+  D <--> E

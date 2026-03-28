@@ -16,6 +16,7 @@ import '../widgets/state_aware_features/index.dart';
 import '../widgets/instant_message_modal.dart';
 import '../widgets/instant_notification_response.dart';
 import '../managers/state_manager.dart';
+import '../../modules/promotional_ads_module/widgets/promotional_bottom_strip.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../tools/logging/logger.dart';
@@ -447,10 +448,10 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       // Register global app bar features for this screen (ALWAYS)
       _registerGlobalAppBarFeatures();
       
-      // Trigger AdMob banner hooks only on non-web (APK); web uses AdSense
+      // Bottom hook: YAML promotional ads on all platforms; AdMob also listens on native.
+      appManager.triggerBottomBannerBarHook(context);
       if (!kIsWeb && bannerAdModule != null) {
         appManager.triggerTopBannerBarHook(context);
-        appManager.triggerBottomBannerBarHook(context);
       }
 
       // App-wide: show instant-type notification modals when unread (any screen)
@@ -655,62 +656,87 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                 );
               }
               
-              return Column(
-                mainAxisSize: MainAxisSize.max,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Global header slot at the top (fixed, takes natural height)
-                  // Nothing behind it - this takes its space
-                  FeatureSlot(
-                    scopeKey: widget.runtimeType.toString(),
-                    slotId: 'header',
-                    title: 'Notices',
-                  ),
+              return ListenableBuilder(
+                listenable: StateManager(),
+                builder: (context, __) {
+                  final promoRaw =
+                      StateManager().getModuleState<Map<String, dynamic>>('promotional_ads');
+                  Map<String, dynamic>? bottomPromo;
+                  final b = promoRaw?['bottom'];
+                  if (b is Map) {
+                    bottomPromo = Map<String, dynamic>.from(b);
+                  }
+                  final promoHeight = bottomPromo != null ? 44.0 : 0.0;
 
-                  // Top banner: AdSense on web, AdMob on APK — commented out
-                  // if (topBannerHeight > 0)
-                  //   SizedBox(
-                  //     height: topBannerHeight,
-                  //     child: Center(
-                  //       child: kIsWeb
-                  //           ? adsense_placeholder.buildAdSensePlaceholder('top')
-                  //           : bannerAdModule!.getTopBannerWidget(context),
-                  //     ),
-                  //   ),
-
-                  // Main content area - takes ALL remaining space
-                  // This is the middle part for content, all that is available
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, contentConstraints) {
-                        if (LOGGING_SWITCH) {
-                          _logger.info(
-                            'BaseScreen: Content area for ${widget.runtimeType}, '
-                            'contentConstraints.maxHeight=${contentConstraints.maxHeight}, '
-                            'contentConstraints.maxWidth=${contentConstraints.maxWidth}',
-                          );
-                        }
-                        // Pass full constraints to content - screens take full size
-                        return buildContent(context);
-                      },
-                    ),
-                  ),
-
-                  // Bottom banner: AdSense on web, AdMob on APK
-                  if (bottomBannerHeight > 0)
-                    SizedBox(
-                      height: bottomBannerHeight,
-                      child: Center(
-                        child: kIsWeb
-                            ? adsense_placeholder.buildAdSensePlaceholder('bottom')
-                            : bannerAdModule!.getBottomBannerWidget(context),
+                  return Column(
+                    mainAxisSize: MainAxisSize.max,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Global header slot at the top (fixed, takes natural height)
+                      // Nothing behind it - this takes its space
+                      FeatureSlot(
+                        scopeKey: widget.runtimeType.toString(),
+                        slotId: 'header',
+                        title: 'Notices',
                       ),
-                    ),
-                  
-                  // Reserved space at the bottom for snack bars (fixed)
-                  // Nothing behind it - this takes its space
-                  SizedBox(height: totalBottomSpace),
-                ],
+
+                      // Top banner: AdSense on web, AdMob on APK — commented out
+                      // if (topBannerHeight > 0)
+                      //   SizedBox(
+                      //     height: topBannerHeight,
+                      //     child: Center(
+                      //       child: kIsWeb
+                      //           ? adsense_placeholder.buildAdSensePlaceholder('top')
+                      //           : bannerAdModule!.getTopBannerWidget(context),
+                      //     ),
+                      //   ),
+
+                      // Main content area - takes ALL remaining space
+                      // This is the middle part for content, all that is available
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, contentConstraints) {
+                            if (LOGGING_SWITCH) {
+                              _logger.info(
+                                'BaseScreen: Content area for ${widget.runtimeType}, '
+                                'contentConstraints.maxHeight=${contentConstraints.maxHeight}, '
+                                'contentConstraints.maxWidth=${contentConstraints.maxWidth}',
+                              );
+                            }
+                            // Pass full constraints to content - screens take full size
+                            return buildContent(context);
+                          },
+                        ),
+                      ),
+
+                      // YAML promotional strip (round-robin between registered ads)
+                      if (promoHeight > 0 && bottomPromo != null)
+                        SizedBox(
+                          height: promoHeight,
+                          child: PromotionalBottomStrip(
+                            title: bottomPromo['title']?.toString() ?? '',
+                            link: bottomPromo['link']?.toString() ?? '',
+                            imageAssetPath: bottomPromo['image_asset']?.toString(),
+                          ),
+                        ),
+
+                      // Bottom banner: AdSense on web, AdMob on APK
+                      if (bottomBannerHeight > 0)
+                        SizedBox(
+                          height: bottomBannerHeight,
+                          child: Center(
+                            child: kIsWeb
+                                ? adsense_placeholder.buildAdSensePlaceholder('bottom')
+                                : bannerAdModule!.getBottomBannerWidget(context),
+                          ),
+                        ),
+                      
+                      // Reserved space at the bottom for snack bars (fixed)
+                      // Nothing behind it - this takes its space
+                      SizedBox(height: totalBottomSpace),
+                    ],
+                  );
+                },
               );
             },
           ),

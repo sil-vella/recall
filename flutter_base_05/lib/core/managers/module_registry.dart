@@ -19,6 +19,7 @@ import '../../modules/animations_module/animations_module.dart';
 import '../../modules/admobs/banner/banner_ad.dart';
 import '../../modules/admobs/interstitial/interstitial_ad.dart';
 import '../../modules/admobs/rewarded/rewarded_ad.dart';
+import '../../modules/promotional_ads_module/promotional_ads_module.dart';
 
 class ModuleRegistry {
   static final Logger _logger = Logger();
@@ -111,6 +112,8 @@ class ModuleRegistry {
     registerModule('audio', () => AudioModule());
     
     registerModule('animations', () => AnimationsModule());
+
+    registerModule('promotional_ads', () => PromotionalAdsModule());
     
     // In-app purchases module removed - switching to RevenueCat
     // registerModule('in_app_purchases', () => InAppPurchasesModule());

@@ -14,17 +14,21 @@ import 'modules/analytics_module/analytics_module.dart';
 import 'tools/logging/logger.dart';
 import 'utils/firebase_runtime_config.dart';
 import 'utils/consts/theme_consts.dart';
+import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 
 // Logging switch for main.dart - enable for debugging init (see .cursor/rules/enable-logging-switch.mdc)
 const bool LOGGING_SWITCH = true; // App init — enable-logging-switch.mdc
 
-void main() async {
+Future<void> main() async {
   final logger = Logger();
   if (LOGGING_SWITCH) logger.info('main: start', isOn: true);
 
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
   if (LOGGING_SWITCH) logger.info('main: WidgetsBinding done', isOn: true);
+
+  await PromotionalAdsConfigLoader.loadFromAsset('assets/promotional_ads.yaml');
+  if (LOGGING_SWITCH) logger.info('main: promotional ads YAML loaded', isOn: true);
 
   // Initialize Firebase (Analytics, AdMob-ready) only when enabled.
   if (FirebaseRuntimeConfig.isEnabled) {

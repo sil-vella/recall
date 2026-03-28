@@ -9,6 +9,10 @@ import '../../../widgets/table_tier_felt_panel.dart';
 // Enable for random game join debugging (logs to console / server.log)
 const bool LOGGING_SWITCH = false; // Lobby random join UI → WS (enable-logging-switch.mdc)
 
+/// Cover graphic over table-tier felt on the Quick Join panel.
+const String _kJoinRandomTableBackGraphicAsset =
+    'assets/images/backgrounds/home-table-backgraphic.png';
+
 /// First unlocked table tier for the current user (join default).
 int joinRandomDefaultTableLevel() {
   final stats = DutchGameHelpers.getUserDutchGameStats();
@@ -466,6 +470,20 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
           children: [
             Positioned.fill(
               child: TableTierFeltPanel(tableLevel: _displayTableLevel),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: 0.3,
+                  child: Image.asset(
+                    _kJoinRandomTableBackGraphicAsset,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
+                  ),
+                ),
+              ),
             ),
             Padding(
               padding: AppPadding.cardPadding,

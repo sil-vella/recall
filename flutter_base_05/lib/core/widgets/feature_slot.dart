@@ -204,21 +204,6 @@ class _FeatureSlotState extends State<FeatureSlot> {
                   ),
                 ),
               ),
-            // Overlay: 45° gradient accent → primary at 0.8 opacity
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.accentColor.withOpacity(0.8),
-                      AppColors.primaryColor.withOpacity(0.8),
-                    ],
-                  ),
-                ),
-              ),
-            ),
             // Tap target and label
             Material(
               color: Colors.transparent,

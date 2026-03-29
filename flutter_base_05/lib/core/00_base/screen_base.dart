@@ -22,7 +22,7 @@ import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../tools/logging/logger.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
 
-const bool LOGGING_SWITCH = false; // Enabled for debugging layout issues
+const bool LOGGING_SWITCH = true; // BaseScreen + promotional strip debug — enable-logging-switch.mdc
 
 abstract class BaseScreen extends StatefulWidget {
   const BaseScreen({Key? key}) : super(key: key);
@@ -681,6 +681,12 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                       bottomSource == 'admob' || bottomSource == 'admobs';
                   final promoHeight =
                       !useAdmobBottom && bottomPromo != null ? 44.0 : 0.0;
+                  if (LOGGING_SWITCH) {
+                    _logger.info(
+                      'BaseScreen promo strip: bottomSource=$bottomSource useAdmobBottom=$useAdmobBottom '
+                      'bottomPromo=${bottomPromo != null} promoHeight=$promoHeight',
+                    );
+                  }
                   final bottomBannerHeight = useAdmobBottom
                       ? (kIsWeb
                           ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
@@ -736,6 +742,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                             title: bottomPromo['title']?.toString() ?? '',
                             link: bottomPromo['link']?.toString() ?? '',
                             imageAssetPath: bottomPromo['image_asset']?.toString(),
+                            imageNetworkUrl: bottomPromo['image_network']?.toString(),
                           ),
                         ),
 

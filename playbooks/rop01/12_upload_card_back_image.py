@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Upload Card Back Image Script
-Reads the card back image from sponsors/images/card_back.png (relative to project root)
-and uploads it to the VPS at /var/www/dutch.reignofplay.com/sponsors/images/card_back.png (served at https://dutch.mt/...).
+Reads the card back image from sponsors/media/card_back.png (relative to project root)
+and uploads it to the VPS at /var/www/dutch.reignofplay.com/sponsors/media/card_back.png (served at https://dutch.mt/...).
 Creates the remote directory structure if it doesn't exist.
 """
 
@@ -26,10 +26,10 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 # Configuration
 VPS_SSH_TARGET = os.environ.get('VPS_SSH_TARGET', 'rop01_user@65.181.125.135')
 VPS_SSH_KEY = os.environ.get('VPS_SSH_KEY', os.path.expanduser('~/.ssh/rop01_key'))
-REMOTE_IMAGE_DIR = '/var/www/dutch.reignofplay.com/sponsors/images'
+REMOTE_IMAGE_DIR = '/var/www/dutch.reignofplay.com/sponsors/media'
 REMOTE_IMAGE_PATH = f'{REMOTE_IMAGE_DIR}/card_back.png'
 REMOTE_TMP_IMAGE = '/tmp/card_back.png'
-LOCAL_IMAGE_PATH = PROJECT_ROOT / 'sponsors' / 'images' / 'card_back.png'
+LOCAL_IMAGE_PATH = PROJECT_ROOT / 'sponsors' / 'media' / 'card_back.png'
 
 def check_ssh_key():
     """Check if SSH key exists."""
@@ -134,7 +134,7 @@ def upload_image(local_image_path: Path):
     
     print(f"\n{Colors.GREEN}=== Upload Complete ==={Colors.NC}")
     print(f"Image available at: {Colors.BLUE}{REMOTE_IMAGE_PATH}{Colors.NC}")
-    print(f"Expected URL: {Colors.BLUE}https://dutch.mt/sponsors/images/card_back.png{Colors.NC}")
+    print(f"Expected URL: {Colors.BLUE}https://dutch.mt/sponsors/media/card_back.png{Colors.NC}")
     print()
     
     return True
@@ -147,7 +147,7 @@ def main():
     if not check_ssh_key():
         sys.exit(1)
     
-    # Image is always taken from sponsors/images/card_back.png
+    # Image is always taken from sponsors/media/card_back.png
     local_image_path = LOCAL_IMAGE_PATH.resolve()
     print(f"{Colors.BLUE}Source image: {local_image_path}{Colors.NC}\n")
     

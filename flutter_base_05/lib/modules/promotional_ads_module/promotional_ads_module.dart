@@ -11,12 +11,13 @@ import 'models/ad_event_type_config.dart';
 import 'models/ad_registration.dart';
 import 'widgets/switch_screen_ad_overlay.dart';
 
-/// YAML-driven promotional ads (hooks + overlay). Config is preloaded in [main].
+/// Promotional ads (hooks + overlay). Config is loaded in [main] from the server or bundled YAML.
 class PromotionalAdsModule extends ModuleBase {
   PromotionalAdsModule() : super('promotional_ads_module', dependencies: []);
 
   static final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  /// enable-logging-switch.mdc — set false after debugging.
+  static const bool LOGGING_SWITCH = true;
 
   static bool _switchOverlayOpen = false;
 
@@ -43,7 +44,15 @@ class PromotionalAdsModule extends ModuleBase {
   void _onBottomBannerHook(Map<String, dynamic> data) {
     final typeCfg = AdRegistry.instance.typeById('bottom_banner_promo');
     final source = (typeCfg?.bannerSwitch ?? 'sponsors').trim().toLowerCase();
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'PromotionalAdsModule: bottom_banner_bar_loaded typeCfg=${typeCfg != null} switch=$source',
+      );
+    }
     if (source == 'admob' || source == 'admobs') {
+      if (LOGGING_SWITCH) {
+        _logger.info('PromotionalAdsModule: bottom strip skipped (AdMob path)');
+      }
       StateManager().updateModuleState('promotional_ads', <String, dynamic>{
         'bottom': null,
       });
@@ -51,7 +60,13 @@ class PromotionalAdsModule extends ModuleBase {
     }
     final ad = AdRegistry.instance.pickNextForType('bottom_banner_promo');
     if (ad == null) {
+      if (LOGGING_SWITCH) {
+        _logger.info('PromotionalAdsModule: no bottom_banner_promo ad in registry');
+      }
       return;
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info('PromotionalAdsModule: bottom strip ad id=${ad.id} networkImg=${ad.networkImageUrl}');
     }
     StateManager().updateModuleState('promotional_ads', <String, dynamic>{
       'bottom': ad.toMap(),
@@ -61,15 +76,31 @@ class PromotionalAdsModule extends ModuleBase {
   void _onSwitchScreenHook(Map<String, dynamic> data) {
     final ctx = data['context'];
     if (ctx is! BuildContext || !ctx.mounted) {
+      if (LOGGING_SWITCH) {
+        _logger.info('PromotionalAdsModule: switch_screen_ad skipped (no context)');
+      }
       return;
     }
     if (_switchOverlayOpen) {
+      if (LOGGING_SWITCH) {
+        _logger.info('PromotionalAdsModule: switch_screen_ad skipped (overlay already open)');
+      }
       return;
     }
     final AdEventTypeConfig? typeCfg = AdRegistry.instance.typeById('switch_screen');
     final AdRegistration? ad = AdRegistry.instance.pickNextForType('switch_screen');
     if (typeCfg == null || ad == null) {
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          'PromotionalAdsModule: switch_screen_ad no overlay typeCfg=$typeCfg ad=$ad',
+        );
+      }
       return;
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'PromotionalAdsModule: showing switch_screen overlay ad=${ad.id} delay=${typeCfg.delayBeforeSkipSeconds}',
+      );
     }
     final delay = typeCfg.delayBeforeSkipSeconds ?? 0;
 

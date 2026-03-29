@@ -10,13 +10,17 @@ class PromotionalBottomStrip extends StatelessWidget {
     required this.title,
     required this.link,
     this.imageAssetPath,
+    this.imageNetworkUrl,
   });
 
   final String title;
   final String link;
 
-  /// Optional `assets/adverts/...` image (from YAML `image:`).
+  /// Optional bundled asset path (rare; production uses [imageNetworkUrl]).
   final String? imageAssetPath;
+
+  /// Optional HTTPS URL for server-driven ads (`/sponsors/adverts/...`).
+  final String? imageNetworkUrl;
 
   Future<void> _open() async {
     final uri = Uri.tryParse(link);
@@ -39,11 +43,11 @@ class PromotionalBottomStrip extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: imageAssetPath != null && imageAssetPath!.isNotEmpty
+                child: (imageNetworkUrl != null && imageNetworkUrl!.isNotEmpty)
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: Image.asset(
-                          imageAssetPath!,
+                        child: Image.network(
+                          imageNetworkUrl!,
                           fit: BoxFit.contain,
                           alignment: Alignment.center,
                           errorBuilder: (_, __, ___) => Icon(
@@ -53,13 +57,27 @@ class PromotionalBottomStrip extends StatelessWidget {
                           ),
                         ),
                       )
-                    : Center(
-                        child: Icon(
-                          Icons.campaign_outlined,
-                          color: AppColors.primaryColor,
-                          size: 20,
-                        ),
-                      ),
+                    : (imageAssetPath != null && imageAssetPath!.isNotEmpty)
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.asset(
+                              imageAssetPath!,
+                              fit: BoxFit.contain,
+                              alignment: Alignment.center,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.campaign_outlined,
+                                color: AppColors.primaryColor,
+                                size: 20,
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Icon(
+                              Icons.campaign_outlined,
+                              color: AppColors.primaryColor,
+                              size: 20,
+                            ),
+                          ),
               ),
               Icon(Icons.open_in_new, size: 18, color: AppColors.lightGray),
             ],

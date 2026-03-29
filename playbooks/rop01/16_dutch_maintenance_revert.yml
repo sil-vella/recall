@@ -1,0 +1,40 @@
+---
+# One-time: remove dutch-mt maintenance snippet + include lines from nginx (undo 16_dutch_maintenance.yml).
+#
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/16_dutch_maintenance_revert.yml -e vm_name=rop01
+
+- name: Revert dutch.mt maintenance nginx changes
+  hosts: "{{ vm_name | default('rop01') }}_user"
+  become: true
+  vars:
+    nginx_dutch_site: /etc/nginx/sites-available/dutch.mt
+    maintenance_snippet_path: /etc/nginx/snippets/dutch-mt-maintenance.conf
+
+  tasks:
+    - name: Remove include lines for dutch-mt-maintenance snippet
+      ansible.builtin.replace:
+        path: "{{ nginx_dutch_site }}"
+        regexp: '[ \t]*include /etc/nginx/snippets/dutch-mt-maintenance\.conf;\s*\n'
+        replace: ''
+      register: _rm_inc
+      until: _rm_inc is not changed
+      retries: 20
+      delay: 0
+
+    - name: Remove maintenance snippet file
+      ansible.builtin.file:
+        path: "{{ maintenance_snippet_path }}"
+        state: absent
+
+    - name: Resolve Dutch site root
+      ansible.builtin.set_fact:
+        dutch_site_root: "{{ dutch_site_root | default('/var/www/dutch.reignofplay.com') }}"
+
+    - name: Remove maintenance flag file
+      ansible.builtin.file:
+        path: "{{ dutch_site_root }}/.maintenance"
+        state: absent
+
+    - name: Validate nginx configuration and reload
+      ansible.builtin.shell: nginx -t && systemctl reload nginx
+      changed_when: true

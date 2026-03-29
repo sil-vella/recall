@@ -134,6 +134,25 @@ This ensures the VPS exposes only the necessary services.
 
 This serves `https://dutch.mt/downloads/...` (and dutch.reignofplay.com) directly from the filesystem.
 
+#### Promotional ads (Flutter, static JSON + media)
+
+The app loads promotional ad definitions from nginx under `/sponsors/` (same static tree as card-back images):
+
+- **Manifest:** `https://dutch.mt/sponsors/promotional_ads.json` (JSON converted from `sponsors/promotional_ads.yaml` at repo root during upload).
+- **Media:** `https://dutch.mt/sponsors/adverts/<filename>` (images/videos referenced in the manifest).
+
+**Update production** after editing the YAML and/or files in `sponsors/media/` (see `sponsors/media/README.txt`):
+
+```bash
+cd /path/to/app_dev
+# Requires: pip install pyyaml
+python3 playbooks/rop01/15_upload_promotional_bundle.py
+```
+
+Environment variables match the other VPS upload scripts: `VPS_SSH_TARGET`, `VPS_SSH_KEY`. The Flutter client fetches the manifest at startup (`PromotionalAdsConfigLoader`); bump `clientManifestQueryVersion` in that loader if you need to force a fresh fetch past browser caches.
+
+**Local testing (no VPS):** run `python3 playbooks/00_local/sync_promotional_ads_local.py -y`, then `cd playbooks/00_local/sponsors_static && python3 -m http.server 8765`, and point the app at `http://127.0.0.1:8765` via `API_URL`.
+
 ---
 
 ### 5. Docker & App Deployment (`05_install_docker.yml`, `08_deploy_docker_compose.yml`)

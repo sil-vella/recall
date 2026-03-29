@@ -1,6 +1,9 @@
 # Promotional ads (in-app links). Types are registered first; ads reference ad_type_id.
 #
-# Media: put files under assets/adverts/ and reference by file name only, e.g. image: promo.png
+# Source of truth for VPS upload: run playbooks/rop01/15_upload_promotional_bundle.py
+# (converts this file to JSON on the server). The Flutter app loads only from the network.
+#
+# Media: put files under sponsors/media/ and reference by file name only, e.g. image: promo.png
 # Optional video: video: clip.mp4 (fullscreen overlay prefers video over image when both set).
 # switch_screen:
 #   show_after_screen_changes = PageRoute navigations before interstitial (counter resets after show).

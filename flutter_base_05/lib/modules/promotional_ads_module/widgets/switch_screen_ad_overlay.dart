@@ -3,19 +3,30 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/theme_consts.dart';
 import '../models/ad_registration.dart';
 import 'advert_media_panel.dart';
 
+/// enable-logging-switch.mdc
+const bool LOGGING_SWITCH = true;
+
 /// Full-screen promotional overlay with optional delay before Skip is enabled.
 class SwitchScreenAdOverlay {
   SwitchScreenAdOverlay._();
+
+  static final Logger _logger = Logger();
 
   static Future<void> show(
     BuildContext context, {
     required AdRegistration ad,
     required int delayBeforeSkipSeconds,
   }) {
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'SwitchScreenAdOverlay.show id=${ad.id} netImg=${ad.networkImageUrl} netVid=${ad.networkVideoUrl}',
+      );
+    }
     return showGeneralDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -140,6 +151,8 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
               child: AdvertFullscreenCoverMedia(
                 imageAssetPath: widget.ad.imageAssetPath,
                 videoAssetPath: widget.ad.videoAssetPath,
+                imageNetworkUrl: widget.ad.networkImageUrl,
+                videoNetworkUrl: widget.ad.networkVideoUrl,
               ),
             ),
             SafeArea(

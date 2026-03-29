@@ -751,7 +751,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                                       final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
                                       final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
                                       final isPracticeMode = currentGameId.startsWith('practice_room_');
-                                      const int imageVersion = 1;
+                                      const int imageVersion = 2;
                                       if (isPracticeMode) {
                                         return Image(
                                           image: const AssetImage('assets/images/table_logo.png'),
@@ -764,8 +764,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                                         );
                                       }
                                       final imageUrl = currentGameId.isNotEmpty
-                                          ? '${Config.apiUrl}/sponsors/images/table_logo.png?gameId=$currentGameId&v=$imageVersion'
-                                          : '${Config.apiUrl}/sponsors/images/table_logo.png?v=$imageVersion';
+                                          ? '${Config.apiUrl}/sponsors/media/table_logo.png?gameId=$currentGameId&v=$imageVersion'
+                                          : '${Config.apiUrl}/sponsors/media/table_logo.png?v=$imageVersion';
                                       return Image.network(
                                         imageUrl,
                                         fit: BoxFit.contain,

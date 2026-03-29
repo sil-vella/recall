@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Upload Card Back Image Script
-Reads the card back image from sponsors/images/table_logo.png (relative to project root)
-and uploads it to the VPS at /var/www/dutch.reignofplay.com/sponsors/images/table_logo.png (served at https://dutch.mt/...).
+Reads the table logo image from sponsors/media/table_logo.png (relative to project root)
+and uploads it to the VPS at /var/www/dutch.reignofplay.com/sponsors/media/table_logo.png (served at https://dutch.mt/...).
 Creates the remote directory structure if it doesn't exist.
 """
 
@@ -26,10 +26,10 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 # Configuration
 VPS_SSH_TARGET = os.environ.get('VPS_SSH_TARGET', 'rop01_user@65.181.125.135')
 VPS_SSH_KEY = os.environ.get('VPS_SSH_KEY', os.path.expanduser('~/.ssh/rop01_key'))
-REMOTE_IMAGE_DIR = '/var/www/dutch.reignofplay.com/sponsors/images'
+REMOTE_IMAGE_DIR = '/var/www/dutch.reignofplay.com/sponsors/media'
 REMOTE_IMAGE_PATH = f'{REMOTE_IMAGE_DIR}/table_logo.png'
 REMOTE_TMP_IMAGE = '/tmp/table_logo.png'
-LOCAL_IMAGE_PATH = PROJECT_ROOT / 'sponsors' / 'images' / 'table_logo.png'
+LOCAL_IMAGE_PATH = PROJECT_ROOT / 'sponsors' / 'media' / 'table_logo.png'
 
 def check_ssh_key():
     """Check if SSH key exists."""
@@ -134,7 +134,7 @@ def upload_image(local_image_path: Path):
     
     print(f"\n{Colors.GREEN}=== Upload Complete ==={Colors.NC}")
     print(f"Image available at: {Colors.BLUE}{REMOTE_IMAGE_PATH}{Colors.NC}")
-    print(f"Expected URL: {Colors.BLUE}https://dutch.mt/sponsors/images/table_logo.png{Colors.NC}")
+    print(f"Expected URL: {Colors.BLUE}https://dutch.mt/sponsors/media/table_logo.png{Colors.NC}")
     print()
     
     return True
@@ -147,7 +147,7 @@ def main():
     if not check_ssh_key():
         sys.exit(1)
     
-    # Image is always taken from sponsors/images/table_logo.png
+    # Image is always taken from sponsors/media/table_logo.png
     local_image_path = LOCAL_IMAGE_PATH.resolve()
     print(f"{Colors.BLUE}Source image: {local_image_path}{Colors.NC}\n")
     

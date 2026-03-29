@@ -9,11 +9,15 @@ class AdvertMediaPanel extends StatefulWidget {
     super.key,
     this.imageAssetPath,
     this.videoAssetPath,
+    this.imageNetworkUrl,
+    this.videoNetworkUrl,
     this.maxHeight = 240,
   });
 
   final String? imageAssetPath;
   final String? videoAssetPath;
+  final String? imageNetworkUrl;
+  final String? videoNetworkUrl;
   final double maxHeight;
 
   @override
@@ -27,9 +31,33 @@ class _AdvertMediaPanelState extends State<AdvertMediaPanel> {
   @override
   void initState() {
     super.initState();
-    final v = widget.videoAssetPath;
-    if (v != null && v.isNotEmpty) {
-      _controller = VideoPlayerController.asset(v)
+    _initVideo();
+  }
+
+  void _initVideo() {
+    final net = widget.videoNetworkUrl;
+    final asset = widget.videoAssetPath;
+    if (net != null && net.isNotEmpty) {
+      final uri = Uri.tryParse(net);
+      if (uri != null && uri.hasScheme) {
+        _controller = VideoPlayerController.networkUrl(uri)
+          ..initialize().then((_) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {});
+            _controller!.setLooping(true);
+            _controller!.play();
+          }).catchError((Object _) {
+            if (mounted) {
+              setState(() => _videoFailed = true);
+            }
+          });
+        return;
+      }
+    }
+    if (asset != null && asset.isNotEmpty) {
+      _controller = VideoPlayerController.asset(asset)
         ..initialize().then((_) {
           if (!mounted) {
             return;
@@ -53,10 +81,11 @@ class _AdvertMediaPanelState extends State<AdvertMediaPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final v = widget.videoAssetPath;
-    final i = widget.imageAssetPath;
+    final vNet = widget.videoNetworkUrl;
+    final vAsset = widget.videoAssetPath;
+    final hasVideo = (vNet != null && vNet.isNotEmpty) || (vAsset != null && vAsset.isNotEmpty);
 
-    if (v != null && v.isNotEmpty && !_videoFailed && _controller != null && _controller!.value.isInitialized) {
+    if (hasVideo && !_videoFailed && _controller != null && _controller!.value.isInitialized) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: ConstrainedBox(
@@ -71,7 +100,7 @@ class _AdvertMediaPanelState extends State<AdvertMediaPanel> {
       );
     }
 
-    if (v != null && v.isNotEmpty && !_videoFailed && _controller != null && !_controller!.value.isInitialized) {
+    if (hasVideo && !_videoFailed && _controller != null && !_controller!.value.isInitialized) {
       return SizedBox(
         height: 120,
         child: Center(
@@ -83,6 +112,40 @@ class _AdvertMediaPanelState extends State<AdvertMediaPanel> {
       );
     }
 
+    final iNet = widget.imageNetworkUrl;
+    if (iNet != null && iNet.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: widget.maxHeight),
+          child: Image.network(
+            iNet,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                padding: AppPadding.defaultPadding,
+                color: AppColors.surface,
+                child: Row(
+                  children: [
+                    Icon(Icons.broken_image_outlined, color: AppColors.lightGray),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Missing image: $iNet',
+                        style: AppTextStyles.bodySmall(),
+                        maxLines: 2,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    final i = widget.imageAssetPath;
     if (i != null && i.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -125,10 +188,14 @@ class AdvertFullscreenCoverMedia extends StatefulWidget {
     super.key,
     this.imageAssetPath,
     this.videoAssetPath,
+    this.imageNetworkUrl,
+    this.videoNetworkUrl,
   });
 
   final String? imageAssetPath;
   final String? videoAssetPath;
+  final String? imageNetworkUrl;
+  final String? videoNetworkUrl;
 
   @override
   State<AdvertFullscreenCoverMedia> createState() => _AdvertFullscreenCoverMediaState();
@@ -141,9 +208,29 @@ class _AdvertFullscreenCoverMediaState extends State<AdvertFullscreenCoverMedia>
   @override
   void initState() {
     super.initState();
-    final v = widget.videoAssetPath;
-    if (v != null && v.isNotEmpty) {
-      _controller = VideoPlayerController.asset(v)
+    final net = widget.videoNetworkUrl;
+    final asset = widget.videoAssetPath;
+    if (net != null && net.isNotEmpty) {
+      final uri = Uri.tryParse(net);
+      if (uri != null && uri.hasScheme) {
+        _controller = VideoPlayerController.networkUrl(uri)
+          ..initialize().then((_) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {});
+            _controller!.setLooping(true);
+            _controller!.play();
+          }).catchError((Object _) {
+            if (mounted) {
+              setState(() => _videoFailed = true);
+            }
+          });
+        return;
+      }
+    }
+    if (asset != null && asset.isNotEmpty) {
+      _controller = VideoPlayerController.asset(asset)
         ..initialize().then((_) {
           if (!mounted) {
             return;
@@ -167,10 +254,11 @@ class _AdvertFullscreenCoverMediaState extends State<AdvertFullscreenCoverMedia>
 
   @override
   Widget build(BuildContext context) {
-    final v = widget.videoAssetPath;
-    final i = widget.imageAssetPath;
+    final vNet = widget.videoNetworkUrl;
+    final vAsset = widget.videoAssetPath;
+    final hasVideo = (vNet != null && vNet.isNotEmpty) || (vAsset != null && vAsset.isNotEmpty);
 
-    if (v != null && v.isNotEmpty && !_videoFailed && _controller != null && _controller!.value.isInitialized) {
+    if (hasVideo && !_videoFailed && _controller != null && _controller!.value.isInitialized) {
       final size = _controller!.value.size;
       return ColoredBox(
         color: Colors.black,
@@ -188,7 +276,7 @@ class _AdvertFullscreenCoverMediaState extends State<AdvertFullscreenCoverMedia>
       );
     }
 
-    if (v != null && v.isNotEmpty && !_videoFailed && _controller != null && !_controller!.value.isInitialized) {
+    if (hasVideo && !_videoFailed && _controller != null && !_controller!.value.isInitialized) {
       return const ColoredBox(
         color: Colors.black,
         child: Center(
@@ -200,6 +288,45 @@ class _AdvertFullscreenCoverMediaState extends State<AdvertFullscreenCoverMedia>
       );
     }
 
+    final iNet = widget.imageNetworkUrl;
+    if (iNet != null && iNet.isNotEmpty) {
+      return ColoredBox(
+        color: Colors.black,
+        child: SizedBox.expand(
+          child: Image.network(
+            iNet,
+            fit: BoxFit.contain,
+            alignment: Alignment.center,
+            errorBuilder: (context, error, stackTrace) {
+              return ColoredBox(
+                color: AppColors.surface,
+                child: Center(
+                  child: Padding(
+                    padding: AppPadding.defaultPadding,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.broken_image_outlined, color: AppColors.lightGray),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Missing image: $iNet',
+                            style: AppTextStyles.bodySmall(),
+                            maxLines: 2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    final i = widget.imageAssetPath;
     if (i != null && i.isNotEmpty) {
       return ColoredBox(
         color: Colors.black,

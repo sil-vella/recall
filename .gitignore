@@ -175,3 +175,6 @@ backups/
 
 # FlowCharts: generated A4 PDFs (same dir as chart HTML)
 Documentation/00_FlowCharts/charts/**/*.pdf
+
+# Local static sponsors tree (playbooks/00_local/sync_promotional_ads_local.py)
+playbooks/00_local/sponsors_static/

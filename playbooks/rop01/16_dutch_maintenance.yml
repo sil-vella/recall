@@ -1,0 +1,98 @@
+---
+# Toggle maintenance for dutch.mt: when ON, all requests get HTTP 302 to /maintenance.html
+# (static file in site root). When OFF, removes flag file only; snippet stays installed.
+# While OFF, GET /maintenance.html redirects (302) to / so the page is not browsable.
+#
+# Installs nginx snippet and (once) adds include after each `server_name dutch.mt...;` line
+# in /etc/nginx/sites-available/dutch.mt.
+#
+# Usage:
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/16_dutch_maintenance.yml \
+#     -e vm_name=rop01 -e maintenance=on
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/16_dutch_maintenance.yml \
+#     -e vm_name=rop01 -e maintenance=off
+#
+# Revert previous 503-based install on the server (run once if needed):
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/16_dutch_maintenance_revert.yml -e vm_name=rop01
+#
+# Extra vars:
+#   maintenance      required: "on" | "off"
+#   dutch_site_root  optional (default: /var/www/dutch.reignofplay.com)
+#   vm_name          optional (default: rop01)
+
+- name: Dutch.mt maintenance mode toggle
+  hosts: "{{ vm_name | default('rop01') }}_user"
+  become: true
+  vars:
+    nginx_dutch_site: /etc/nginx/sites-available/dutch.mt
+    maintenance_snippet_path: /etc/nginx/snippets/dutch-mt-maintenance.conf
+
+  tasks:
+    - name: Validate maintenance parameter
+      ansible.builtin.assert:
+        that:
+          - maintenance is defined
+          - maintenance | lower in ['on', 'off']
+        fail_msg: "Set -e maintenance=on or -e maintenance=off"
+
+    - name: Resolve Dutch site root (avoid recursive play vars; optional -e dutch_site_root=...)
+      ansible.builtin.set_fact:
+        dutch_site_root: "{{ dutch_site_root | default('/var/www/dutch.reignofplay.com') }}"
+
+    - name: Ensure Dutch site root exists
+      ansible.builtin.file:
+        path: "{{ dutch_site_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Ensure nginx snippets directory exists
+      ansible.builtin.file:
+        path: /etc/nginx/snippets
+        state: directory
+        mode: '0755'
+
+    - name: Deploy nginx maintenance snippet
+      ansible.builtin.template:
+        src: dutch_maintenance_nginx_snippet.conf.j2
+        dest: "{{ maintenance_snippet_path }}"
+        mode: '0644'
+
+    - name: Ensure include directive exists after each dutch.mt server_name line
+      ansible.builtin.replace:
+        path: "{{ nginx_dutch_site }}"
+        regexp: '(server_name\s+dutch\.mt[^;]*;\s*\n)(?!\s*include /etc/nginx/snippets/dutch-mt-maintenance\.conf;)'
+        replace: '\1    include /etc/nginx/snippets/dutch-mt-maintenance.conf;\n'
+        backup: true
+      register: _dutch_mt_include
+      until: _dutch_mt_include is not changed
+      retries: 20
+      delay: 0
+
+    - name: Install maintenance.html
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/templates/maintenance.html"
+        dest: "{{ dutch_site_root }}/maintenance.html"
+        owner: www-data
+        group: www-data
+        mode: '0644'
+
+    - name: Enable maintenance flag (.maintenance)
+      ansible.builtin.file:
+        path: "{{ dutch_site_root }}/.maintenance"
+        state: touch
+        owner: www-data
+        group: www-data
+        mode: '0644'
+      when: maintenance | lower == 'on'
+
+    - name: Disable maintenance flag
+      ansible.builtin.file:
+        path: "{{ dutch_site_root }}/.maintenance"
+        state: absent
+      when: maintenance | lower == 'off'
+
+    - name: Validate nginx configuration and reload
+      ansible.builtin.shell: nginx -t && systemctl reload nginx
+      changed_when: true

@@ -105,6 +105,30 @@
         loop_var: item
       when: domains | length > 0
 
+    - name: Create sponsors/adverts directory for each domain
+      file:
+        path: "{{ (item.root_dir | default('/var/www/' + item.domain)) }}/sponsors/adverts"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0755'
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+
+    - name: Create sponsors/media directory for each domain (card_back, table_logo)
+      file:
+        path: "{{ (item.root_dir | default('/var/www/' + item.domain)) }}/sponsors/media"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0755'
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+
     - name: Create sim_players/images directory for each domain
       file:
         path: "{{ (item.root_dir | default('/var/www/' + item.domain)) }}/sim_players/images"

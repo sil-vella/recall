@@ -431,10 +431,10 @@ class CardWidget extends StatelessWidget {
                 // Load from server for multiplayer games
                 // Build image URL with cache-busting query parameters
                 // Version 2: Increment this when uploading a new image to force cache refresh
-                const int imageVersion = 2;
+                const int imageVersion = 3;
                 final imageUrl = currentGameId.isNotEmpty
-                    ? '${Config.apiUrl}/sponsors/images/card_back.png?gameId=$currentGameId&v=$imageVersion'
-                    : '${Config.apiUrl}/sponsors/images/card_back.png?v=$imageVersion';
+                    ? '${Config.apiUrl}/sponsors/media/card_back.png?gameId=$currentGameId&v=$imageVersion'
+                    : '${Config.apiUrl}/sponsors/media/card_back.png?v=$imageVersion';
                 
                 // Use Image.network which uses browser's native image loading on web
                 // This avoids CORS issues that affect the http package

@@ -79,9 +79,11 @@ if [ -f "$FRONTEND_ENV" ]; then
 else
   echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
 fi
-APP_VERSION="${APP_VERSION:-2.0.0}"
-echo "📦 Using version: $APP_VERSION (from APP_VERSION env / .env)"
-echo "ℹ️  Web apps update automatically on the server - no version bump needed"
+
+# APP_VERSION SSOT: .env.prod; interactive patch bump shared with build_apk.sh
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/bump_app_version_prompt.sh"
+bump_app_version_prompt
 
 # Derive a numeric build number from APP_VERSION (e.g. 2.1.0 -> 20100)
 IFS='.' read -r APP_MAJOR APP_MINOR APP_PATCH <<< "$APP_VERSION"

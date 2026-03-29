@@ -77,50 +77,11 @@ if [ -f "$FRONTEND_ENV" ]; then
 else
   echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
 fi
-CURRENT_VERSION="${APP_VERSION:-2.0.0}"
 
-echo ""
-echo "📦 Current version (APP_VERSION from .env.prod): $CURRENT_VERSION"
-echo ""
-read -p "🤔 Bump version number? (y/n) [n]: " -n 1 -r
-echo ""
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-  # Parse current version
-  IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-  MAJOR=${MAJOR:-0}
-  MINOR=${MINOR:-0}
-  PATCH=${PATCH:-0}
-  
-  # Validate numbers
-  if ! [[ "$MAJOR" =~ ^[0-9]+$ ]]; then MAJOR=0; fi
-  if ! [[ "$MINOR" =~ ^[0-9]+$ ]]; then MINOR=0; fi
-  if ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then PATCH=0; fi
-  
-  # Increment patch version
-  PATCH=$((PATCH + 1))
-  NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-  
-  # Write new version to .env (APP_VERSION=)
-  ENV_FILE="$FRONTEND_ENV"
-  if [ -f "$ENV_FILE" ] && grep -q '^APP_VERSION=' "$ENV_FILE" 2>/dev/null; then
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      sed -i '' "s/^APP_VERSION=.*/APP_VERSION=$NEW_VERSION/" "$ENV_FILE"
-    else
-      sed -i "s/^APP_VERSION=.*/APP_VERSION=$NEW_VERSION/" "$ENV_FILE"
-    fi
-  else
-    echo "APP_VERSION=$NEW_VERSION" >> "$ENV_FILE"
-  fi
-  echo "✅ Version bumped: $CURRENT_VERSION → $NEW_VERSION"
-  echo "📝 Updated APP_VERSION in $ENV_FILE"
-  APP_VERSION="$NEW_VERSION"
-else
-  APP_VERSION="$CURRENT_VERSION"
-  echo "ℹ️  Using existing version: $APP_VERSION"
-fi
-
-echo "📦 Building with APP_VERSION=$APP_VERSION"
+# APP_VERSION SSOT: .env.prod; interactive patch bump shared with build_web.sh
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/bump_app_version_prompt.sh"
+bump_app_version_prompt
 
 # Derive a numeric build number from APP_VERSION (e.g. 2.1.0 -> 20100)
 IFS='.' read -r APP_MAJOR APP_MINOR APP_PATCH <<< "$APP_VERSION"

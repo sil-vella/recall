@@ -7,7 +7,7 @@ import '../../../managers/dutch_game_state_updater.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = true; // Start flow: _enterGameRoom, isRoomOwner (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Start flow: _enterGameRoom, isRoomOwner (enable-logging-switch.mdc)
 
 /// Widget to display all joined rooms with join functionality
 /// 

@@ -413,6 +413,11 @@ class Config:
     # Set via file dart_backend_service_key or env DART_BACKEND_SERVICE_KEY; must match Dart backend config.
     DART_BACKEND_SERVICE_KEY = get_file_first_config_value("dart_backend_service_key", "DART_BACKEND_SERVICE_KEY", "")
 
+    # Python → Dart HTTP (inbox push). No trailing slash. Empty = skip notify.
+    # Docker: http://dutch_dart-game-server:8080
+    # Local: run Dart on 8080 and set e.g. DART_BACKEND_NOTIFY_URL=http://127.0.0.1:8080 (same DART_BACKEND_SERVICE_KEY as Dart).
+    DART_BACKEND_NOTIFY_URL = get_file_first_config_value("dart_backend_notify_url", "DART_BACKEND_NOTIFY_URL", "")
+
     # PHP dashboard service-to-service auth (shared secret for PHP dashboard -> Python /service/* calls)
     # Set via file dutch_mt_dashboard_service_key or env DUTCH_MT_DASHBOARD_SERVICE_KEY; must match PHP dashboard config.
     DUTCH_MT_DASHBOARD_SERVICE_KEY = get_file_first_config_value("dutch_mt_dashboard_service_key", "DUTCH_MT_DASHBOARD_SERVICE_KEY", "")

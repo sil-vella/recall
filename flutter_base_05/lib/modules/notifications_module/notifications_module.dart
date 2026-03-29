@@ -19,6 +19,9 @@ class NotificationsModule extends ModuleBase {
   /// so UI can show [InstantMessageModal] without waiting for the periodic poll.
   final List<VoidCallback> _pendingWsInstantListeners = [];
 
+  /// Listeners for Dart [inbox_changed] (Python created a DB notification) — run inbox fetch + modals.
+  final List<VoidCallback> _inboxRefreshListeners = [];
+
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
@@ -39,6 +42,23 @@ class NotificationsModule extends ModuleBase {
 
   void removePendingWsInstantListener(VoidCallback listener) {
     _pendingWsInstantListeners.remove(listener);
+  }
+
+  void addInboxRefreshListener(VoidCallback listener) {
+    if (!_inboxRefreshListeners.contains(listener)) {
+      _inboxRefreshListeners.add(listener);
+    }
+  }
+
+  void removeInboxRefreshListener(VoidCallback listener) {
+    _inboxRefreshListeners.remove(listener);
+  }
+
+  /// Called when WebSocket receives [inbox_changed] from Dart (after Python notify).
+  void notifyInboxRefreshRequested() {
+    for (final l in List<VoidCallback>.from(_inboxRefreshListeners)) {
+      l();
+    }
   }
 
   void _notifyPendingWsInstantAdded() {

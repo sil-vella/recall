@@ -19,7 +19,7 @@ import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
-const bool LOGGING_SWITCH = true; // End of random join → play screen (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // End of random join → play screen (enable-logging-switch.mdc)
 /// When true, log build count and rebuild duration for performance measurement.
 const bool LOGGING_REBUILD_SWITCH = true;
 
@@ -493,33 +493,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
 
   Future<void> _initializeWebSocket() async {
     try {
-      // Initialize WebSocket manager if not already initialized
-      if (!_websocketManager.isInitialized) {
-        final initialized = await _websocketManager.initialize();
-        if (!initialized) {
-          if (LOGGING_SWITCH) {
-            _logger.error('GamePlay: Failed to initialize WebSocket');
-          }
-          return;
-        }
-      }
-      
-      // Connect to WebSocket if not already connected
-      if (!_websocketManager.isConnected) {
-        final connected = await _websocketManager.connect();
-        if (!connected) {
-          if (LOGGING_SWITCH) {
-            _logger.error('GamePlay: Failed to connect to WebSocket');
-          }
-          return;
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('GamePlay: WebSocket connected successfully');
-        }
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('GamePlay: WebSocket already connected');
-        }
+      final ok = await _websocketManager.ensureInitializedAndConnected();
+      if (LOGGING_SWITCH) {
+        _logger.info('GamePlay: ensureInitializedAndConnected => $ok');
       }
     } catch (e, stackTrace) {
       if (LOGGING_SWITCH) {

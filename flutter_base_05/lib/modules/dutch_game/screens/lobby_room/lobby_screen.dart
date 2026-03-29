@@ -42,7 +42,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = true; // Lobby → create/join trace (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Lobby → create/join trace (enable-logging-switch.mdc)
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -102,74 +102,30 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     });
   }
 
+  /// Ensures Dart WS (JWT + listeners) matches [AppManager] app-init path; idempotent.
   Future<void> _initializeWebSocket() async {
     final Logger _logger = Logger();
     if (LOGGING_SWITCH) {
       _logger.info('LobbyScreen: _initializeWebSocket called, mounted: $mounted');
     }
-    
-    // Check if user is logged in before attempting WebSocket connection
-    final stateManager = StateManager();
-    final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final isLoggedIn = loginState['isLoggedIn'] == true;
-    if (LOGGING_SWITCH) {
-      _logger.info('LobbyScreen: User login status - isLoggedIn: $isLoggedIn');
-    }
-    
-    // Allow unauthenticated users to stay on lobby screen (they can see the lobby but can't play)
-    // Individual game actions will check authentication and redirect if needed
     if (!isLoggedIn) {
       if (LOGGING_SWITCH) {
-        _logger.info('LobbyScreen: User is not logged in, skipping WebSocket initialization. User can stay on lobby screen.');
+        _logger.info('LobbyScreen: Not logged in, skipping WebSocket.');
       }
       return;
     }
-    
+
     try {
-      // Initialize WebSocket manager if not already initialized
-      if (!_websocketManager.isInitialized) {
-        if (LOGGING_SWITCH) {
-          _logger.info('LobbyScreen: WebSocket not initialized, initializing...');
-        }
-        final initialized = await _websocketManager.initialize();
-        if (LOGGING_SWITCH) {
-          _logger.info('LobbyScreen: WebSocket initialization result: $initialized');
-        }
-        if (!initialized) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('LobbyScreen: WebSocket initialization failed, mounted: $mounted');
-          }
-          return;
-        }
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('LobbyScreen: WebSocket already initialized');
-        }
-      }
-      
-      // Connect to WebSocket if not already connected
-      if (!_websocketManager.isConnected) {
-        if (LOGGING_SWITCH) {
-          _logger.info('LobbyScreen: WebSocket not connected, connecting...');
-        }
-        final connected = await _websocketManager.connect();
-        if (LOGGING_SWITCH) {
-          _logger.info('LobbyScreen: WebSocket connection result: $connected');
-        }
-        if (!connected) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('LobbyScreen: WebSocket connection failed, mounted: $mounted');
-          }
-          return;
-        }
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('LobbyScreen: WebSocket already connected');
-        }
+      final ok = await _websocketManager.ensureInitializedAndConnected();
+      if (LOGGING_SWITCH) {
+        _logger.info('LobbyScreen: ensureInitializedAndConnected => $ok');
       }
     } catch (e, stackTrace) {
       if (LOGGING_SWITCH) {
-        _logger.error('LobbyScreen: WebSocket initialization error: $e', error: e, stackTrace: stackTrace);
+        _logger.error('LobbyScreen: WebSocket error: $e', error: e, stackTrace: stackTrace);
       }
     }
   }

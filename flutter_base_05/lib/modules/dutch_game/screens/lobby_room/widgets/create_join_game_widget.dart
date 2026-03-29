@@ -678,7 +678,7 @@ class _CreateRoomModal extends StatefulWidget {
 }
 
 class _CreateRoomModalState extends State<_CreateRoomModal> {
-  static const bool LOGGING_SWITCH = true; // accepted_players payload (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // accepted_players payload (enable-logging-switch.mdc)
   static final Logger _log = Logger();
 
   late String _selectedGameType;

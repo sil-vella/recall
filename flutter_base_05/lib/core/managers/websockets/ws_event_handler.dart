@@ -9,7 +9,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // create_room_success, room_joined, hooks (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // inbox_changed + WS hooks (enable-logging-switch.mdc; set false after verify)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -988,6 +988,21 @@ class WSEventHandler {
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('Error handling ws_instant_notification: $e');
+      }
+    }
+  }
+
+  /// Dart backend pushed [inbox_changed] after Python created a notification — refresh inbox from API.
+  void handleInboxChanged(dynamic data) {
+    try {
+      if (LOGGING_SWITCH) {
+        _logger.info('inbox_changed: refresh inbox (payload keys: ${data is Map ? (data as Map).keys.toList() : []})');
+      }
+      final mod = _moduleManager.getModuleByType<NotificationsModule>();
+      mod?.notifyInboxRefreshRequested();
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Error handling inbox_changed: $e');
       }
     }
   }

@@ -34,7 +34,7 @@ BUILD_CONTEXT = PROJECT_ROOT / 'python_base_04'
 # Original file contents for files we modified (path -> text)
 LOGGING_SWITCH_BACKUP: dict[Path, str] = {}
 
-# Match a line that is only: optional indent, LOGGING_SWITCH = True, optional trailing comment/whitespace
+# Match a line that is only: optional indent, LOGGING_SWITCH = False, optional trailing comment/whitespace
 _ASSIGN_TRUE_LINE = re.compile(r'^(\s*)(LOGGING_SWITCH\s*=\s*)True(\s*(?:#.*)?)$')
 
 
@@ -104,7 +104,7 @@ def disable_python_logging_switches() -> None:
 
     if modified_count == 0:
         print(
-            f"{Colors.YELLOW}No LOGGING_SWITCH = True assignments found "
+            f"{Colors.YELLOW}No LOGGING_SWITCH = False assignments found "
             f"(already False / Config-driven).{Colors.NC}"
         )
     else:

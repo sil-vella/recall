@@ -29,7 +29,7 @@ class AppManager extends ChangeNotifier {
   final AuthManager _authManager = AuthManager();
   final AdaptersManager _adaptersManager = AdaptersManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for init debugging (see .cursor/rules/enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Set true to trace app init + WebSocket ensureInitializedAndConnected (enable-logging-switch.mdc)
 
   Future<void> _initializeModules(BuildContext context) async {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
@@ -38,13 +38,13 @@ class AppManager extends ChangeNotifier {
     await moduleManager.initializeModules(context);
   }
 
-  /// Connect to the Dart WS server without blocking [initializeApp] / first frame.
+  /// Connect to the Dart WS server without blocking [initializeApp] / first frame (JWT via [WebSocketManager.initialize]).
   Future<void> _initWebSocketInBackground() async {
     try {
       final webSocketManager = WebSocketManager.instance;
-      final initialized = await webSocketManager.initialize();
+      final ok = await webSocketManager.ensureInitializedAndConnected();
       if (LOGGING_SWITCH) {
-        _logger.info('AppManager: WebSocketManager initialization result: $initialized');
+        _logger.info('AppManager: WebSocket ensureInitializedAndConnected result: $ok');
       }
     } catch (e) {
       if (LOGGING_SWITCH) {
@@ -293,6 +293,11 @@ class AppManager extends ChangeNotifier {
     _hooksManager.registerHookWithData('home_screen_main', (data) {
       // Home screen main hook
     }, priority: 1);
+
+    // After login (fresh session), connect WS so inbox/game events work before opening Dutch lobby.
+    _hooksManager.registerHookWithData('auth_login_complete', (data) {
+      unawaited(_initWebSocketInBackground());
+    }, priority: 20);
   }
 
   /// Trigger top banner bar hook

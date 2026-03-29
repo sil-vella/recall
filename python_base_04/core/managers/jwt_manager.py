@@ -11,7 +11,7 @@ import hashlib
 from flask import request, jsonify
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Enabled for auth (verify/revoke/login/create token) - see .cursor/rules/enable-logging-switch.mdc
+LOGGING_SWITCH = False  # Enabled for auth (verify/revoke/login/create token) - see .cursor/rules/enable-logging-switch.mdc
 
 class TokenType(Enum):
     ACCESS = "access"

@@ -1,6 +1,6 @@
 import '../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for match start / state store
+const bool LOGGING_SWITCH = false; // Enabled for match start / state store
 
 /// In-memory game state store keyed by roomId.
 /// Holds a mutable Map<String,dynamic> representing the current game state

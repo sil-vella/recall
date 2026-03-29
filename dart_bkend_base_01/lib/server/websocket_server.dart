@@ -10,10 +10,13 @@ import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // WS connect + sessions while setting up games (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // WS connect + sessions (enable-logging-switch.mdc); inbox HTTP trace → http_notify_handler.dart
 
 /// Core WebSocket event name for instant notifications pushed by the backend to a session.
 const String kWsInstantNotificationEvent = 'ws_instant_notification';
+
+/// Python notified Dart → push to this user's WS sessions: client should GET inbox from API.
+const String kWsInboxChangedEvent = 'inbox_changed';
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};
@@ -410,6 +413,27 @@ class WebSocketServer {
     final message = Map<String, dynamic>.from(payload);
     message['event'] = kWsInstantNotificationEvent;
     sendToSession(sessionId, message);
+  }
+
+  /// Notify every authenticated WebSocket session mapped to [userId] (multi-tab / multi-device).
+  /// Returns count of sessions that received the event.
+  int notifyInboxChangedForUser(String userId) {
+    if (userId.isEmpty) return 0;
+    var n = 0;
+    for (final e in _sessionToUser.entries) {
+      if (e.value == userId && _connections.containsKey(e.key)) {
+        sendToSession(e.key, {'event': kWsInboxChangedEvent});
+        n++;
+      }
+    }
+    if (LOGGING_SWITCH) {
+      if (n == 0) {
+        _logger.info('notifyInboxChangedForUser: no sessions for userId=$userId');
+      } else {
+        _logger.info('notifyInboxChangedForUser: userId=$userId sessions_notified=$n');
+      }
+    }
+    return n;
   }
 
   void broadcastToRoom(String roomId, Map<String, dynamic> message) {

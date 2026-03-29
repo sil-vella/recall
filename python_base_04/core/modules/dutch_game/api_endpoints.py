@@ -17,7 +17,7 @@ from .wins_level_rank_matcher import WinsLevelRankMatcher
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
+LOGGING_SWITCH = False  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
 
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False

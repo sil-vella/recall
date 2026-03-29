@@ -28,7 +28,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = true; // Registration + login/account + profile (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Registration + login/account + profile (enable-logging-switch.mdc)
   static final Logger _logger = Logger();
   
   // Form controllers

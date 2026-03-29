@@ -10,6 +10,8 @@ from bson import ObjectId
 
 from tools.logger.custom_logging import custom_log
 
+from .dart_inbox_notify import notify_dart_inbox_changed_async
+
 NOTIFICATIONS_COLLECTION = "notifications"
 LOGGING_SWITCH = False  # Set True to trace notification create (e.g. tournament invite)
 
@@ -114,6 +116,7 @@ class NotificationService:
                     level="INFO",
                     isOn=LOGGING_SWITCH,
                 )
+            notify_dart_inbox_changed_async(user_id)
             return msg_id
         except Exception as e:
             custom_log(f"NotificationService.create: insert failed: {e}", level="ERROR", isOn=LOGGING_SWITCH)

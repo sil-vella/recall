@@ -1,7 +1,7 @@
 import '../state_manager.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // currentRoomInfo / updateRoomInfo (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // currentRoomInfo / updateRoomInfo (enable-logging-switch.mdc)
 
 /// WebSocket State Field Specification
 class WebSocketStateFieldSpec {

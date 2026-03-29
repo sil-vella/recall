@@ -14,7 +14,7 @@ from decimal import Decimal
 from bson import ObjectId
 
 # Coin purchase / Checkout Session + webhook tracing for testing
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class StripeModule(BaseModule):

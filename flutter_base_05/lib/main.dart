@@ -17,7 +17,7 @@ import 'utils/consts/theme_consts.dart';
 import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 
 // Logging switch for main.dart - enable for debugging init (see .cursor/rules/enable-logging-switch.mdc)
-const bool LOGGING_SWITCH = true; // App init — enable-logging-switch.mdc
+const bool LOGGING_SWITCH = false; // App init — enable-logging-switch.mdc
 
 Future<void> main() async {
   final logger = Logger();

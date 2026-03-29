@@ -26,7 +26,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true; // Lobby create_room → WS (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Lobby create_room → WS (enable-logging-switch.mdc)
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -372,20 +372,19 @@ class DutchGameHelpers {
       }
     }
     
-    // Get WebSocket manager
+    // Get WebSocket manager (same path as AppManager app init: JWT + listeners + connect).
     final wsManager = WebSocketManager.instance;
 
-    // Always call initialize() so stale half-open transport is cleared (see WebSocketManager.initialize).
     if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: WebSocket initialize() (idempotent / stale recovery)...');
+      _logger.info('DutchGameHelpers: ensureInitializedAndConnected()...');
     }
-    final initialized = await wsManager.initialize();
+    final ready = await wsManager.ensureInitializedAndConnected();
     if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: WebSocket initialization result: $initialized');
+      _logger.info('DutchGameHelpers: ensureInitializedAndConnected result: $ready');
     }
-    if (!initialized) {
+    if (!ready) {
       if (LOGGING_SWITCH) {
-        _logger.warning('DutchGameHelpers: WebSocket initialization failed');
+        _logger.warning('DutchGameHelpers: WebSocket not ready');
       }
       if (allowTransportResetRetry) {
         if (LOGGING_SWITCH) {
@@ -395,34 +394,6 @@ class DutchGameHelpers {
         return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
       }
       return false;
-    }
-    
-    // Connect if not already connected
-    if (!wsManager.isConnected) {
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: WebSocket not connected, connecting...');
-      }
-      final connected = await wsManager.connect();
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: WebSocket connection result: $connected');
-      }
-      if (!connected) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('DutchGameHelpers: WebSocket connection failed');
-        }
-        if (allowTransportResetRetry) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('DutchGameHelpers: Resetting transport after connect failure, retrying once...');
-          }
-          wsManager.resetTransportState(reason: 'ensure_ready_connect_failed');
-          return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
-        }
-        return false;
-      }
-    } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: WebSocket already connected');
-      }
     }
     
     // Wait for authentication to complete (with timeout; backend may call Python to validate token)

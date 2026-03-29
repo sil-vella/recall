@@ -25,7 +25,7 @@ except ImportError:
 class RedisManager:
     _instance = None
     _initialized = False
-    LOGGING_SWITCH = True  # Token store/validity (see .cursor/rules/enable-logging-switch.mdc)
+    LOGGING_SWITCH = False  # Token store/validity (see .cursor/rules/enable-logging-switch.mdc)
 
     def __new__(cls):
         if cls._instance is None:

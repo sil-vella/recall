@@ -9,7 +9,7 @@ import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = true; // Coin purchase flow debugging (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Coin purchase flow debugging (enable-logging-switch.mdc)
 
 /// Coin purchases on **web**: Stripe Checkout via Python `/userauth/stripe/create-coin-checkout-session`.
 /// Also shows [lastCoinPurchaseJoinContext] when the user was sent here after a failed join.

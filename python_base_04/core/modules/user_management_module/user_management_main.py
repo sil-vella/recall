@@ -41,7 +41,7 @@ from core.services.analytics_service import AnalyticsService
 
 class UserManagementModule(BaseModule):
     # Logging switch: /public/register, /public/register-guest, login, Google sign-in, invite search, etc.
-    LOGGING_SWITCH = True  # Registration + auth paths → server.log (see .cursor/rules/enable-logging-switch.mdc)
+    LOGGING_SWITCH = False  # Registration + auth paths → server.log (see .cursor/rules/enable-logging-switch.mdc)
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):

@@ -59,6 +59,8 @@ class WSEventListener {
     // Core: instant notification pushed by Dart backend
     _registerWsInstantNotificationListener();
 
+    _registerInboxChangedListener();
+
     _registerRestartInviteListener();
 
     // Error events
@@ -208,6 +210,13 @@ class WSEventListener {
     });
   }
 
+  /// Python → Dart HTTP → push: client should GET /notifications/messages.
+  void _registerInboxChangedListener() {
+    _socket?.on('inbox_changed', (data) {
+      _eventHandler.handleInboxChanged(data);
+    });
+  }
+
   /// Rematch: peer sent `rematch` — server notifies others with `restart_invite`.
   void _registerRestartInviteListener() {
     _socket?.on('restart_invite', (data) {
@@ -272,6 +281,7 @@ class WSEventListener {
     _socket?.off('rooms_list');
     _socket?.off('message');
     _socket?.off('ws_instant_notification');
+    _socket?.off('inbox_changed');
     _socket?.off('restart_invite');
     _socket?.off('error');
   }

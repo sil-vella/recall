@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:shelf/shelf_io.dart' as shelf_io;
-import 'package:shelf_web_socket/shelf_web_socket.dart';
+import 'lib/server/http_notify_handler.dart';
 import 'lib/server/websocket_server.dart';
 import 'lib/utils/server_logger.dart';
 
@@ -22,10 +22,10 @@ void main(List<String> args) async {
     // Create WebSocket server with localhost URL (for local development)
     final wsServer = WebSocketServer(pythonApiUrl: 'http://localhost:5001');
     
-    // WebSocket handler
-    final handler = webSocketHandler((webSocket) {
-      wsServer.handleConnection(webSocket);
-    });
+    final handler = createHttpAndWebSocketHandler(
+      wsServer: wsServer,
+      onWebSocket: wsServer.handleConnection,
+    );
     
     // Start server
     final server = await shelf_io.serve(handler, '0.0.0.0', port);

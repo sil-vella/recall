@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:dutch/modules/admobs/banner/banner_ad.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -78,8 +76,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   final ModuleManager _moduleManager = ModuleManager();
   BannerAdModule? bannerAdModule;
   final Logger _logger = Logger();
-
-  Timer? _instantNotificationTimer;
 
   /// Drains pending `instant_ws` rows (same modal path as periodic check) when [NotificationsModule] signals new items.
   void _onPendingWsInstantQueued() {
@@ -432,8 +428,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   @override
   void dispose() {
     _moduleManager.getModuleByType<NotificationsModule>()?.removePendingWsInstantListener(_onPendingWsInstantQueued);
-    _instantNotificationTimer?.cancel();
-    _instantNotificationTimer = null;
+    _moduleManager.getModuleByType<NotificationsModule>()?.removeInboxRefreshListener(_onInboxRefreshFromWs);
     // Note: State-aware features are automatically managed by StateManager
     // No need to manually clean up subscriptions or unregister features
     super.dispose();
@@ -457,21 +452,19 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       }
 
       // App-wide: show instant-type notification modals when unread (any screen)
-      _moduleManager.getModuleByType<NotificationsModule>()?.addPendingWsInstantListener(_onPendingWsInstantQueued);
+      final notifMod = _moduleManager.getModuleByType<NotificationsModule>();
+      notifMod?.addPendingWsInstantListener(_onPendingWsInstantQueued);
+      notifMod?.addInboxRefreshListener(_onInboxRefreshFromWs);
       _checkAndShowInstantMessages();
-      // Re-check periodically so new invites appear without navigating away
-      _instantNotificationTimer?.cancel();
-      _instantNotificationTimer = Timer.periodic(
-        Duration(seconds: kInstantNotificationPollSeconds),
-        (_) {
-          if (mounted) _checkAndShowInstantMessages();
-        },
-      );
     });
   }
 
-  /// Interval for re-checking instant notifications while screen is visible (seconds).
-  static const int kInstantNotificationPollSeconds = 20;
+  void _onInboxRefreshFromWs() {
+    if (!mounted) return;
+    // Bypass 15s fetch throttle so inbox_changed always pulls fresh rows from the API.
+    StateManager().updateModuleState('notifications', {'lastFetchedAt': null});
+    _checkAndShowInstantMessages();
+  }
 
   /// Response handler for pending [instant_ws] rows (e.g. rematch invite — see [submitRematchInviteResponse]).
   Future<bool> Function(String messageId, String actionIdentifier)? _pendingWsOnSendResponse(

@@ -694,6 +694,17 @@ class WebSocketManager {
     resetTransportState(reason: 'disconnect');
   }
 
+  /// Single entry point for app init and lobby/game: [initialize] (JWT + listeners + connect), then [connect] if needed.
+  Future<bool> ensureInitializedAndConnected() async {
+    if (!await initialize()) {
+      return false;
+    }
+    if (isConnected) {
+      return true;
+    }
+    return connect();
+  }
+
   /// Create a room
   Future<Map<String, dynamic>> createRoom(String userId, [Map<String, dynamic>? roomData]) async {
     if (_socket == null) {

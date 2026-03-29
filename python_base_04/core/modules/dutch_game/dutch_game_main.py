@@ -11,7 +11,7 @@ from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
 
 # Logging switch for route registration (see .cursor/rules/enable-logging-switch.mdc)
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class DutchGameMain(BaseModule):

@@ -6,7 +6,7 @@ import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/theme_consts.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // App bar → /coin-purchase (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // App bar → /coin-purchase (enable-logging-switch.mdc)
 
 /// State-aware coins display feature widget
 /// 

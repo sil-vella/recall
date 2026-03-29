@@ -1009,6 +1009,14 @@ class MessageHandler {
         if (effectiveTournamentData != null && effectiveTournamentData.isNotEmpty) {
           creatorRoomJoinedPayload['tournament_data'] = effectiveTournamentData;
         }
+        // Keep invite roster on the payload that follows create_room_success so clients
+        // merging room state do not drop accepted_players (play screen Start / effective count).
+        final ap = room.acceptedPlayers;
+        if (ap != null && ap.isNotEmpty) {
+          creatorRoomJoinedPayload['accepted_players'] =
+              List<Map<String, dynamic>>.from(ap);
+        }
+        creatorRoomJoinedPayload['min_players'] = room.minPlayers;
         _server.sendToSession(sessionId, creatorRoomJoinedPayload);
         
         final creatorRoomJoinedHookData = {

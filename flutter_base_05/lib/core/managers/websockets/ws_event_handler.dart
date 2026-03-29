@@ -9,7 +9,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // join_room_error coin payload → hook (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // create_room_success, room_joined, hooks (enable-logging-switch.mdc)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -432,7 +432,9 @@ class WSEventHandler {
       final roomData = data;  // Use the entire data object since it's simplified
       final ownerId = data['owner_id'] ?? '';
       if (LOGGING_SWITCH) {
-        _logger.info('🏟 create_room_success received — room_id=$roomId owner_id=$ownerId is_tournament=${data['is_tournament']} is_random_join=${data['is_random_join']}');
+        _logger.info(
+          '🏟 create_room_success — room_id=$roomId owner_id=$ownerId is_tournament=${data['is_tournament']} is_random_join=${data['is_random_join']} min_players=${data['min_players']} accepted_players=${data['accepted_players']}',
+        );
       }
       
       // Get current user ID from login module state

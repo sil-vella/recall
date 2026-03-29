@@ -21,10 +21,103 @@ class GameInfoWidget extends StatefulWidget {
 }
 
 class _GameInfoWidgetState extends State<GameInfoWidget> {
-  static const bool LOGGING_SWITCH = false; // Enabled for Start button / play screen flow debugging
+  static const bool LOGGING_SWITCH = true; // Start / roster / effective size → server.log via Logger (enable-logging-switch.mdc)
   static final Logger _logger = Logger();
   bool _isStartingMatch = false;
-  
+
+  /// One-shot delayed rebuild when tournament [match_players] may arrive after first frame.
+  bool _rosterRetryScheduled = false;
+  bool _rosterRetryFired = false;
+  String? _rosterRetryGameId;
+
+  /// Mongo/session user ids already seated in [gameState.players] (excluded from roster comp bonus).
+  Set<String> _seatedUserIds(Map<String, dynamic> gameState) {
+    final players = gameState['players'];
+    if (players is! List) return {};
+    final out = <String>{};
+    for (final p in players) {
+      if (p is! Map) continue;
+      final uid = p['userId']?.toString().trim() ?? '';
+      if (uid.isNotEmpty) out.add(uid);
+    }
+    return out;
+  }
+
+  bool _isCompMatchPlayerEntry(Map<String, dynamic> e) {
+    if (e['is_comp_player'] == true) return true;
+    if (e['isHuman'] == false) return true;
+    return false;
+  }
+
+  /// Comp roster slots from tournament [match_players] and/or [currentRoomInfo.accepted_players],
+  /// deduped by [user_id] and excluding seated ids. Mirrors backend prefill intent.
+  int _rosterCompBonus(
+    Map<String, dynamic> gameState,
+    Map<String, dynamic>? currentRoomInfo,
+    String currentGameId,
+  ) {
+    if (currentGameId.isEmpty) return 0;
+    final seated = _seatedUserIds(gameState);
+    final bonusIds = <String>{};
+
+    final td = gameState['tournament_data'];
+    if (td is Map) {
+      final mpr = td['match_players'];
+      if (mpr is List) {
+        for (final raw in mpr) {
+          if (raw is! Map) continue;
+          final e = Map<String, dynamic>.from(raw);
+          if (!_isCompMatchPlayerEntry(e)) continue;
+          final uid = (e['user_id'] ?? '').toString().trim();
+          if (uid.isEmpty || seated.contains(uid)) continue;
+          bonusIds.add(uid);
+        }
+      }
+    }
+
+    if (currentRoomInfo != null &&
+        (currentRoomInfo['room_id']?.toString() ?? '') == currentGameId) {
+      final ap = currentRoomInfo['accepted_players'];
+      if (ap is List) {
+        for (final raw in ap) {
+          if (raw is! Map) continue;
+          final e = Map<String, dynamic>.from(raw);
+          if (e['is_comp_player'] != true) continue;
+          final uid = (e['user_id'] ?? '').toString().trim();
+          if (uid.isEmpty || seated.contains(uid)) continue;
+          bonusIds.add(uid);
+        }
+      }
+    }
+
+    return bonusIds.length;
+  }
+
+  /// Tournament match is expected but [match_players] not loaded yet; one retry may help.
+  bool _shouldScheduleTournamentRosterRetry(
+    Map<String, dynamic> gameState,
+    int rosterBonus,
+    int baseSize,
+    int minPlayers,
+  ) {
+    if (gameState['is_tournament'] != true) return false;
+    if (baseSize >= minPlayers) return false;
+    if (rosterBonus > 0) return false;
+    final td = gameState['tournament_data'];
+    if (td is! Map) return false;
+    final mpr = td['match_players'];
+    if (mpr is List && mpr.isNotEmpty) return false;
+    return true;
+  }
+
+  void _syncRosterRetryGameId(String currentGameId) {
+    if (_rosterRetryGameId != currentGameId) {
+      _rosterRetryGameId = currentGameId;
+      _rosterRetryScheduled = false;
+      _rosterRetryFired = false;
+    }
+  }
+
   String? _getPhaseFromGamesMap(Map<String, dynamic> games, String gameId) {
     if (gameId.isEmpty || !games.containsKey(gameId)) {
       return null;
@@ -69,11 +162,15 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       builder: (context, child) {
         // Get gameInfo state slice
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final wsState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+        final currentRoomInfo = wsState['currentRoomInfo'] as Map<String, dynamic>?;
         final gameInfo = dutchGameState['gameInfo'] as Map<String, dynamic>? ?? {};
         final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
         final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
+        _syncRosterRetryGameId(currentGameId);
         final roomName = 'Game $currentGameId';
-        final currentSize = gameInfo['currentSize'] ?? 0;
+        final rawSize = gameInfo['currentSize'];
+        final baseSize = rawSize is num ? rawSize.toInt() : int.tryParse('$rawSize') ?? 0;
         
         // Derive phase from SSOT (games map) with fallback to gameInfo slice
         final ssotPhase = _getPhaseFromGamesMap(games, currentGameId);
@@ -107,13 +204,39 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final tournamentId = tournamentData['tournament_id']?.toString();
         final matchId = tournamentData['match_id']?.toString() ?? tournamentData['match_index']?.toString();
 
-        // Waiting: practice always; multiplayer: owner, not random join, and joined >= minPlayers.
-        final hasEnoughPlayersForStart = currentSize >= minPlayers;
+        final rosterCompBonus = (gamePhase == 'waiting' && !isPracticeGame)
+            ? _rosterCompBonus(gameState, currentRoomInfo, currentGameId)
+            : 0;
+        final effectiveSize = baseSize + rosterCompBonus;
+        final displayJoinedSize =
+            (gamePhase == 'waiting' && !isPracticeGame && rosterCompBonus > 0) ? effectiveSize : baseSize;
+
+        if (gamePhase == 'waiting' &&
+            !isPracticeGame &&
+            !_rosterRetryFired &&
+            !_rosterRetryScheduled &&
+            _shouldScheduleTournamentRosterRetry(gameState, rosterCompBonus, baseSize, minPlayers)) {
+          _rosterRetryScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Future<void>.delayed(const Duration(seconds: 3), () {
+              if (!mounted) return;
+              _rosterRetryFired = true;
+              setState(() {});
+            });
+          });
+        }
+
+        // Waiting: practice always; multiplayer: owner, not random join, and effective seats >= minPlayers.
+        final hasEnoughPlayersForStart =
+            isPracticeGame ? baseSize >= minPlayers : effectiveSize >= minPlayers;
         final showStartButton = gamePhase == 'waiting' &&
             (isPracticeGame || (isRoomOwner && !isRandomJoin && hasEnoughPlayersForStart));
         
         if (LOGGING_SWITCH) {
-          _logger.info('🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, isRandomJoin: $isRandomJoin, multiplayerType: $multiplayerType, showStartButton: $showStartButton');
+          _logger.info(
+            '🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, baseSize: $baseSize, rosterCompBonus: $rosterCompBonus, effectiveSize: $effectiveSize, minPlayers: $minPlayers, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, isRandomJoin: $isRandomJoin, multiplayerType: $multiplayerType, showStartButton: $showStartButton',
+          );
         }
         
         // Get additional game state for context
@@ -138,7 +261,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         return _buildGameInfoCard(
           currentGameId: currentGameId,
           roomName: roomName,
-          currentSize: currentSize,
+          currentSize: displayJoinedSize,
           gamePhase: gamePhase,
           gameStatus: gameStatus,
           isRoomOwner: isRoomOwner,

@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Random join start_match / WS events (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Random join start_match / WS events (enable-logging-switch.mdc)
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -428,7 +428,8 @@ class GameEventCoordinator {
         }
       }
 
-      final acceptedPlayersRaw = data['accepted_players'];
+      // start_match payload often omits accepted_players; roster is on Room from create_room.
+      final acceptedPlayersRaw = data['accepted_players'] ?? roomInfo?.acceptedPlayers;
       final List<Map<String, dynamic>> acceptedCompList = (acceptedPlayersRaw is List)
           ? acceptedPlayersRaw
               .whereType<Map<String, dynamic>>()
@@ -444,7 +445,7 @@ class GameEventCoordinator {
       if (allCompPrefill.isNotEmpty) {
         if (LOGGING_SWITCH) {
           _logger.info(
-            'GameEventCoordinator: Prefill comps — tournament roster=${tournamentRosterComps.length}, accepted_players=${acceptedCompList.length}',
+            'GameEventCoordinator: Prefill comps — tournament roster=${tournamentRosterComps.length}, accepted_players=${acceptedCompList.length} (from start_match data or Room.acceptedPlayers)',
           );
         }
         const defaultRank = 'beginner';

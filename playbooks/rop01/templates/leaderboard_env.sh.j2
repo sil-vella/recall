@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Deployed by Ansible (14_leaderboard_cron.yml). Contains secrets — mode 0600 on server.
+export FLASK_BASE_URL="{{ leaderboard_flask_base_url }}"
+export DART_BACKEND_SERVICE_KEY="{{ dart_backend_service_key }}"

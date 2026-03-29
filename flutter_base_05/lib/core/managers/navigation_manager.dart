@@ -122,7 +122,7 @@ class NavigationManager extends ChangeNotifier {
       screen: (context) => AccountScreen(),
       drawerTitle: 'My Account',
       drawerIcon: Icons.account_circle,
-      drawerPosition: 3, // After Play and Learn How
+      drawerPosition: 60, // After Dutch drawer items (10–50); keep below Leaderboard / Buy coins
     );
 
     registerRoute(
@@ -230,8 +230,12 @@ class NavigationManager extends ChangeNotifier {
   List<RegisteredRoute> get drawerRoutes {
     final filteredRoutes = _routes.where((r) => r.shouldAppearInDrawer).toList();
 
-    // ✅ Sort drawer items based on `drawerPosition`
-    filteredRoutes.sort((a, b) => a.drawerPosition.compareTo(b.drawerPosition));
+    // Sort by `drawerPosition`, then path (deterministic when positions tie).
+    filteredRoutes.sort((a, b) {
+      final byPos = a.drawerPosition.compareTo(b.drawerPosition);
+      if (byPos != 0) return byPos;
+      return a.path.compareTo(b.path);
+    });
 
     return filteredRoutes;
   }

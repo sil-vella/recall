@@ -66,6 +66,11 @@ class DutchGameMain(BaseModule):
             self._register_route_helper("/userauth/dutch/get-available-games", api_endpoints.get_available_games, methods=["GET"], auth="jwt")
             self._register_route_helper("/userauth/dutch/find-room", api_endpoints.find_room, methods=["POST"], auth="jwt")
             self._register_route_helper("/service/dutch/update-game-stats", api_endpoints.update_game_stats, methods=["POST"])
+            self._register_route_helper(
+                "/service/dutch/snapshot-wins-leaderboard",
+                api_endpoints.snapshot_wins_leaderboard_service,
+                methods=["POST"],
+            )
             self._register_route_helper("/service/dutch/get-user-stats", api_endpoints.get_user_stats_service, methods=["POST"])
             self._register_route_helper("/service/dutch/deduct-game-coins", api_endpoints.deduct_game_coins_service, methods=["POST"])
             self._register_route_helper("/service/dutch/attach-tournament-match-room", api_endpoints.attach_tournament_match_room_service, methods=["POST"])
@@ -84,6 +89,12 @@ class DutchGameMain(BaseModule):
             api_endpoints.register_notification_handlers(notification_module)
             self._register_route_helper("/public/dutch/get-comp-players", api_endpoints.get_comp_players, methods=["POST"])
             self._register_route_helper("/public/dutch/get-tournaments-list", api_endpoints.get_tournaments_list_public, methods=["GET"])
+            self._register_route_helper("/public/dutch/leaderboards", api_endpoints.get_leaderboards_list_public, methods=["GET"])
+            self._register_route_helper(
+                "/public/dutch/leaderboard-period-wins",
+                api_endpoints.get_period_wins_leaderboard_public,
+                methods=["GET"],
+            )
             self._register_route_helper("/public/dutch/get-tournaments", api_endpoints.get_tournaments_public, methods=["GET"])
             self._register_route_helper("/userauth/dutch/tournament-signup", api_endpoints.tournament_signup, methods=["POST"], auth="jwt")
 

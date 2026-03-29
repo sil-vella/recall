@@ -16,6 +16,7 @@ import '../widgets/state_aware_features/index.dart';
 import '../widgets/instant_message_modal.dart';
 import '../widgets/instant_notification_response.dart';
 import '../managers/state_manager.dart';
+import '../managers/navigation_manager.dart';
 import '../../modules/promotional_ads_module/ad_registry.dart';
 import '../../modules/promotional_ads_module/widgets/promotional_bottom_strip.dart';
 import '../../modules/notifications_module/notifications_module.dart';
@@ -482,6 +483,17 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
             actionIdentifier: actionIdentifier,
             messageRow: msg,
           );
+    }
+    if (data is Map &&
+        data['source'] == 'create_room_error' &&
+        data['insufficient_coins'] == true) {
+      return (messageId, actionIdentifier) async {
+        final aid = actionIdentifier.toLowerCase();
+        if (aid == 'buy_coins') {
+          NavigationManager().navigateTo('/coin-purchase');
+        }
+        return true;
+      };
     }
     return null;
   }

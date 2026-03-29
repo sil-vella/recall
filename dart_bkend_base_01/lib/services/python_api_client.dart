@@ -4,7 +4,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Coin check: get-user-stats + WS auth paths (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Coin check: get-user-stats + WS auth paths (enable-logging-switch.mdc)
 
 class PythonApiClient {
   final String baseUrl;

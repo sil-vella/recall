@@ -1,11 +1,12 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple, List
 from flask import Blueprint, request, jsonify
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.modules.user_management_module import tier_rank_level_matcher as matcher
 from tools.logger.custom_logging import custom_log
 from bson import ObjectId
+from pymongo.errors import DuplicateKeyError
 import time
 import random
 import uuid
@@ -16,10 +17,13 @@ from .wins_level_rank_matcher import WinsLevelRankMatcher
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Dutch API: coins, tournaments, get_tournaments, add/update match, invite-players — see .cursor/rules/enable-logging-switch.mdc
+LOGGING_SWITCH = True  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
 
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
+
+# Per-match win facts for time-bounded leaderboards (insert-only; idempotent via unique index).
+MATCH_WIN_OUTCOMES_COLL = "dutch_match_win_outcomes"
 
 # Store app_manager reference (will be set by module)
 _app_manager = None
@@ -786,11 +790,83 @@ def _record_tournament_match_result(
         custom_log(f"📊 Python: _record_tournament_match_result db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
 
 
+def _ensure_match_win_outcomes_indexes(db_manager) -> None:
+    """Idempotent indexes: range queries on ended_at; unique (room_id, user_id) for insert-only idempotency."""
+    try:
+        coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
+        coll.create_index([("ended_at", 1)])
+        coll.create_index(
+            [("room_id", 1), ("user_id", 1)],
+            unique=True,
+            name="room_user_unique",
+        )
+    except Exception as e:
+        custom_log(f"📊 Python: match_win_outcomes index ensure (non-fatal): {e}", level="WARNING", isOn=LOGGING_SWITCH)
+
+
+def _insert_match_win_outcome_additive(
+    db_manager,
+    *,
+    room_id: str,
+    user_id: ObjectId,
+    ended_at_utc,
+    is_tournament: bool,
+    tournament_id: Optional[str],
+    game_mode: Optional[str],
+) -> None:
+    """Single additive insert for one match win. Duplicate (room_id, user_id) is ignored (no races, no double count)."""
+    doc = {
+        "room_id": room_id,
+        "user_id": user_id,
+        "ended_at": ended_at_utc,
+        "is_tournament": is_tournament,
+        "tournament_id": tournament_id,
+        "game_mode": game_mode,
+    }
+    try:
+        db_manager.db[MATCH_WIN_OUTCOMES_COLL].insert_one(doc)
+        custom_log(
+            f"📊 Python: match_win_outcome inserted room_id={room_id} user_id={user_id} ended_at={ended_at_utc.isoformat()}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+    except DuplicateKeyError:
+        custom_log(
+            f"📊 Python: match_win_outcome duplicate skip room_id={room_id} user_id={user_id}",
+            level="DEBUG",
+            isOn=LOGGING_SWITCH,
+        )
+
+
+def _utc_bounds_calendar_month(now_utc: datetime) -> Tuple[datetime, datetime]:
+    """Inclusive start, exclusive end for the calendar month containing now_utc (UTC)."""
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    first = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if first.month == 12:
+        nxt = first.replace(year=first.year + 1, month=1)
+    else:
+        nxt = first.replace(month=first.month + 1)
+    return first, nxt
+
+
+def _utc_bounds_calendar_year(now_utc: datetime) -> Tuple[datetime, datetime]:
+    """Inclusive start, exclusive end for the calendar year containing now_utc (UTC)."""
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    first = datetime(now_utc.year, 1, 1, tzinfo=timezone.utc)
+    nxt = datetime(now_utc.year + 1, 1, 1, tzinfo=timezone.utc)
+    return first, nxt
+
+
 def update_game_stats():
     """Update user game statistics after a game ends (service endpoint: Dart backend only, X-Service-Key auth).
 
     Optional body ``is_coin_required`` / ``isCoinRequired`` (default true): when false, winner pot credits are
     skipped for all players; combined with subscription tier in ``should_skip_match_coin_economy``.
+
+    Winners (human and comp) get an **insert-only** row in ``dutch_match_win_outcomes`` (UTC ``ended_at``,
+    unique ``(room_id, user_id)``) so period leaderboards can aggregate without races or double counts.
     """
     try:
         custom_log("📊 Python: Received game statistics update request", level="INFO", isOn=LOGGING_SWITCH)
@@ -819,8 +895,10 @@ def update_game_stats():
         if is_tournament:
             _record_tournament_match_result(db_manager, game_results, tournament_data, room_id=room_id)
 
+        _ensure_match_win_outcomes_indexes(db_manager)
         current_time = datetime.utcnow()
         current_timestamp = current_time.isoformat()
+        ended_at_utc = datetime.now(timezone.utc)
         updated_players = []
         errors = []
         for player_result in game_results:
@@ -910,6 +988,18 @@ def update_game_stats():
                         **({"rank": target_rank} if rank_should_increase else {}),
                         **({"level": target_user_level} if level_changed else {}),
                     })
+                    room_key = str(room_id).strip() if room_id else ""
+                    if is_winner and room_key:
+                        tid_out = (tournament_data.get("tournament_id") or "").strip() or None
+                        _insert_match_win_outcome_additive(
+                            db_manager,
+                            room_id=room_key,
+                            user_id=user_id,
+                            ended_at_utc=ended_at_utc,
+                            is_tournament=is_tournament,
+                            tournament_id=tid_out,
+                            game_mode=player_result.get("game_mode"),
+                        )
                     analytics_service = _app_manager.services_manager.get_service('analytics_service') if _app_manager else None
                     if analytics_service:
                         game_mode = player_result.get('game_mode', 'multiplayer')
@@ -954,6 +1044,167 @@ def update_game_stats():
     except Exception as e:
         custom_log(f"❌ Python: Error in update_game_stats: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "message": "Failed to update game statistics", "error": str(e)}), 500
+
+
+def _leaderboard_period_key_monthly(now_utc: datetime) -> str:
+    """Calendar month immediately before now_utc (YYYY-MM). E.g. cron on 2026-03-01 -> '2026-02'."""
+    first_this = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_prev = first_this - timedelta(days=1)
+    return last_prev.strftime("%Y-%m")
+
+
+def _leaderboard_period_key_yearly(now_utc: datetime) -> str:
+    """Calendar year immediately before now_utc (YYYY). E.g. cron on 2026-01-01 -> '2025'."""
+    return str(now_utc.year - 1)
+
+
+def _ensure_leaderboards_indexes(db_manager) -> None:
+    """Create leaderboards indexes if missing (idempotent)."""
+    try:
+        coll = db_manager.db["leaderboards"]
+        coll.create_index([("leaderboard_type", 1), ("date_time", -1)])
+        coll.create_index([("period_key", 1), ("leaderboard_type", 1)])
+        coll.create_index(
+            [
+                ("leaderboard_type", 1),
+                ("tournament_type", 1),
+                ("tournament_format", 1),
+                ("date_time", -1),
+            ]
+        )
+        coll.create_index([("date_time", -1)])
+    except Exception as e:
+        custom_log(f"📊 Python: leaderboards index ensure (non-fatal): {e}", level="WARNING", isOn=LOGGING_SWITCH)
+
+
+def snapshot_wins_leaderboard_service():
+    """Service: record top player(s) by cumulative ``modules.dutch_game.wins`` into ``leaderboards``.
+
+    Includes all active users with a ``dutch_game`` module (human and comp players).
+
+    POST JSON: ``leaderboard_type`` required: ``monthly`` | ``yearly``.
+    Optional ``period_key`` (e.g. ``2026-02`` or ``2025``) — default derived from UTC now (previous month / year).
+
+    Idempotent: one document per `(leaderboard_type, period_key)` for non-tournament snapshots (skips if exists).
+    **Note:** Wins are lifetime totals at snapshot time, not wins earned only inside the period (until per-period stats exist).
+    """
+    try:
+        data = request.get_json() or {}
+        lb_type = (data.get("leaderboard_type") or data.get("leaderboardType") or "").strip().lower()
+        if lb_type not in ("monthly", "yearly"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "leaderboard_type must be 'monthly' or 'yearly'",
+                    }
+                ),
+                400,
+            )
+        if not _app_manager:
+            return jsonify({"success": False, "message": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "message": "Database connection unavailable"}), 500
+
+        now_utc = datetime.now(timezone.utc)
+        period_key = (data.get("period_key") or data.get("periodKey") or "").strip()
+        if not period_key:
+            period_key = (
+                _leaderboard_period_key_monthly(now_utc)
+                if lb_type == "monthly"
+                else _leaderboard_period_key_yearly(now_utc)
+            )
+
+        _ensure_leaderboards_indexes(db_manager)
+        coll = db_manager.db["leaderboards"]
+
+        existing = coll.find_one(
+            {
+                "leaderboard_type": lb_type,
+                "period_key": period_key,
+                "tournament_type": {"$exists": False},
+                "tournament_format": {"$exists": False},
+            }
+        )
+        if existing:
+            custom_log(
+                f"📊 Python: snapshot_wins_leaderboard skip (exists) type={lb_type} period={period_key}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "skipped": True,
+                        "reason": "already_recorded",
+                        "leaderboard_type": lb_type,
+                        "period_key": period_key,
+                        "existing_id": str(existing.get("_id")),
+                    }
+                ),
+                200,
+            )
+
+        match_user = {
+            "status": "active",
+            "modules.dutch_game": {"$exists": True},
+        }
+        top = db_manager.db["users"].find_one(match_user, sort=[("modules.dutch_game.wins", -1)])
+        if not top:
+            win_count = None
+            winners_rows = []
+        else:
+            max_w = (top.get("modules") or {}).get("dutch_game", {}).get("wins", 0) or 0
+            win_count = int(max_w)
+            cursor = db_manager.db["users"].find(
+                {**match_user, "modules.dutch_game.wins": win_count},
+                {"username": 1, "modules.dutch_game.wins": 1},
+            )
+            winners_rows = []
+            rank = 1
+            for u in cursor:
+                uid = u.get("_id")
+                winners_rows.append(
+                    {
+                        "user_id": str(uid),
+                        "username": u.get("username") or "",
+                        "rank": rank,
+                        "wins": win_count,
+                    }
+                )
+
+        doc = {
+            "leaderboard_type": lb_type,
+            "period_key": period_key,
+            "date_time": now_utc,
+            "winners": winners_rows,
+            "metric": "cumulative_wins_snapshot",
+            "metric_note": "modules.dutch_game.wins at snapshot time; not wins-only-within-period",
+        }
+        ins = coll.insert_one(doc)
+        custom_log(
+            f"📊 Python: snapshot_wins_leaderboard inserted type={lb_type} period={period_key} id={ins.inserted_id}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "leaderboard_type": lb_type,
+                    "period_key": period_key,
+                    "inserted_id": str(ins.inserted_id),
+                    "winners": winners_rows,
+                    "top_wins": win_count,
+                }
+            ),
+            200,
+        )
+    except Exception as e:
+        custom_log(f"❌ Python: snapshot_wins_leaderboard: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "message": "Failed to snapshot leaderboard", "error": str(e)}), 500
 
 
 def get_user_stats():
@@ -2007,6 +2258,182 @@ def get_tournaments_list_public():
     except Exception as e:
         custom_log(f"DutchGame: get_tournaments_list_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
+
+
+def _aggregate_period_wins_summaries(coll, start: datetime, end: datetime) -> List[Dict[str, Any]]:
+    """Full standings for the window: [{ _id: ObjectId, wins: int }, ...] sorted like the leaderboard."""
+    pipeline = [
+        {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
+        {"$group": {"_id": "$user_id", "wins": {"$sum": 1}}},
+        {"$sort": {"wins": -1, "_id": 1}},
+    ]
+    return list(coll.aggregate(pipeline))
+
+
+def get_period_wins_leaderboard_public():
+    """Public (no auth): rank users by win count in the **current UTC** calendar month or year.
+
+    Data comes from insert-only ``dutch_match_win_outcomes``; aggregation runs **on each request** (no precomputed board).
+
+    Query: ``period`` or ``scope`` = ``monthly`` | ``yearly`` (default ``monthly``); ``limit`` default 20, max 50.
+    Optional ``user_id`` / ``userId``: include ``viewer`` with that user's rank and wins in the same period (no JWT).
+    """
+    try:
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized", "rows": []}), 503
+        db_manager = _app_manager.get_db_manager(role="read_only")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database unavailable", "rows": []}), 503
+
+        raw_period = (request.args.get("period") or request.args.get("scope") or "monthly").strip().lower()
+        if raw_period not in ("monthly", "yearly"):
+            return jsonify({"success": False, "error": "period must be 'monthly' or 'yearly'", "rows": []}), 400
+
+        try:
+            raw_limit = request.args.get("limit", "20")
+            limit = min(max(int(raw_limit), 1), 50)
+        except (TypeError, ValueError):
+            limit = 20
+
+        now_utc = datetime.now(timezone.utc)
+        if raw_period == "monthly":
+            start, end = _utc_bounds_calendar_month(now_utc)
+            period_key = now_utc.strftime("%Y-%m")
+        else:
+            start, end = _utc_bounds_calendar_year(now_utc)
+            period_key = str(now_utc.year)
+
+        coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
+        summaries = _aggregate_period_wins_summaries(coll, start, end)
+
+        user_ids_top = [d["_id"] for d in summaries[:limit]]
+        username_map: Dict[Any, str] = {}
+        if user_ids_top:
+            for u in db_manager.db["users"].find({"_id": {"$in": user_ids_top}}, {"username": 1}):
+                username_map[u["_id"]] = u.get("username") or ""
+
+        rows = []
+        for rank, doc in enumerate(summaries[:limit], start=1):
+            uid = doc["_id"]
+            rows.append(
+                {
+                    "rank": rank,
+                    "user_id": str(uid),
+                    "username": username_map.get(uid, ""),
+                    "wins": int(doc.get("wins") or 0),
+                }
+            )
+
+        viewer_out: Optional[Dict[str, Any]] = None
+        raw_viewer_uid = (request.args.get("user_id") or request.args.get("userId") or "").strip()
+        if raw_viewer_uid:
+            try:
+                viewer_oid = ObjectId(raw_viewer_uid)
+            except Exception:
+                viewer_oid = None
+            if viewer_oid is not None:
+                found_idx: Optional[int] = None
+                for idx, doc in enumerate(summaries):
+                    if doc["_id"] == viewer_oid:
+                        found_idx = idx
+                        break
+                udoc = db_manager.find_one("users", {"_id": viewer_oid})
+                uname = (udoc or {}).get("username") or ""
+                if found_idx is not None:
+                    doc = summaries[found_idx]
+                    viewer_out = {
+                        "user_id": raw_viewer_uid,
+                        "rank": found_idx + 1,
+                        "wins": int(doc.get("wins") or 0),
+                        "username": uname,
+                        "in_period": True,
+                    }
+                else:
+                    viewer_out = {
+                        "user_id": raw_viewer_uid,
+                        "rank": None,
+                        "wins": 0,
+                        "username": uname,
+                        "in_period": False,
+                    }
+
+        custom_log(
+            f"📊 Python: GET leaderboard-period-wins period={raw_period} period_key={period_key} limit={limit} "
+            f"row_count={len(rows)} viewer={'yes' if viewer_out else 'no'}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+        payload: Dict[str, Any] = {
+            "success": True,
+            "period": raw_period,
+            "period_key": period_key,
+            "range_start_utc": start.isoformat(),
+            "range_end_exclusive_utc": end.isoformat(),
+            "rows": rows,
+        }
+        if viewer_out is not None:
+            payload["viewer"] = viewer_out
+        return jsonify(payload), 200
+    except Exception as e:
+        custom_log(f"DutchGame: get_period_wins_leaderboard_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": str(e), "rows": []}), 500
+
+
+def get_leaderboards_list_public():
+    """Public (no auth): list wins snapshot rows from ``leaderboards`` (monthly/yearly, non-tournament).
+
+    Query: ``leaderboard_type`` optional ``monthly`` | ``yearly``; ``limit`` default 20, max 20.
+    """
+    try:
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized", "leaderboards": []}), 503
+        db_manager = _app_manager.get_db_manager(role="read_only")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database unavailable", "leaderboards": []}), 503
+
+        _max = 20
+        raw_limit = request.args.get("limit", str(_max))
+        try:
+            limit = min(max(int(raw_limit), 1), _max)
+        except (TypeError, ValueError):
+            limit = _max
+
+        lb_filter = (request.args.get("leaderboard_type") or request.args.get("leaderboardType") or "").strip().lower()
+        query: Dict[str, Any] = {
+            "tournament_type": {"$exists": False},
+            "tournament_format": {"$exists": False},
+        }
+        if lb_filter in ("monthly", "yearly"):
+            query["leaderboard_type"] = lb_filter
+
+        coll = db_manager.db["leaderboards"]
+        cur = coll.find(query).sort("date_time", -1).limit(limit)
+        out = []
+        for d in cur:
+            dt = d.get("date_time")
+            if hasattr(dt, "isoformat"):
+                dt_s = dt.isoformat()
+            else:
+                dt_s = None
+            item = {
+                "id": str(d.get("_id", "")),
+                "leaderboard_type": d.get("leaderboard_type"),
+                "period_key": d.get("period_key"),
+                "date_time": dt_s,
+                "metric": d.get("metric"),
+                "metric_note": d.get("metric_note"),
+                "winners": d.get("winners") or [],
+            }
+            out.append(item)
+        custom_log(
+            f"📊 Python: GET leaderboards list type={lb_filter or 'all'} limit={limit} doc_count={len(out)}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+        return jsonify({"success": True, "leaderboards": out}), 200
+    except Exception as e:
+        custom_log(f"DutchGame: get_leaderboards_list_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": str(e), "leaderboards": []}), 500
 
 
 def tournament_signup():

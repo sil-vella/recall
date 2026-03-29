@@ -42,7 +42,7 @@
       when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
 
 - name: Add Missing Modules to Existing Database (Non-Destructive, Remote Docker)
-  hosts: "{{ vm_name }}_user"
+  hosts: "{{ (vm_name | default('rop01')) }}_user"
   become: true
   vars:
     mongodb_container_name: "dutch_external_app_mongodb"
@@ -397,6 +397,73 @@
               if (e.code !== 85 && e.code !== 86) { throw e; }
             }
           }
+
+          // ========================================
+          // 6. STRIPE + WALLETS COLLECTIONS (parity with local docker-compose dev DB)
+          // ========================================
+          // Local external_system includes empty stripe_coin_purchases + wallets with _id index only.
+          print("\n💳 Step 6: Ensuring stripe_coin_purchases and wallets collections (local structure parity)...");
+          var allColls = db.getCollectionNames();
+          ["stripe_coin_purchases", "wallets"].forEach(function (collName) {
+            if (allColls.indexOf(collName) === -1) {
+              db.createCollection(collName);
+              print("  ✅ Created collection: " + collName + " (_id only)");
+            } else {
+              print("  ✓ Collection already exists: " + collName);
+            }
+          });
+
+          // ========================================
+          // 7. TOURNAMENTS INDEXES — align with local (drop indexes present on VPS but not on local dev)
+          // ========================================
+          // Local dev tournaments indexes: _id_, format_1, matches.*, name_1, start_date_1, status_1,
+          // tournament_id_1, type_1. VPS may have extra: creator_id_1, user_ids_1, created_at_-1, updated_at_-1.
+          print("\n🏆 Step 7: Aligning tournaments indexes with local dev (safe drops only)...");
+          if (db.getCollectionNames().indexOf("tournaments") !== -1) {
+            var dropThese = ["creator_id_1", "user_ids_1", "created_at_-1", "updated_at_-1"];
+            var idxNames = db.tournaments.getIndexes().map(function (i) { return i.name; });
+            dropThese.forEach(function (idxName) {
+              if (idxNames.indexOf(idxName) === -1) {
+                print("  ✓ Index not present (skip): " + idxName);
+                return;
+              }
+              try {
+                db.tournaments.dropIndex(idxName);
+                print("  ✅ Dropped tournaments index: " + idxName);
+              } catch (e) {
+                print("  ⚠️ Could not drop index " + idxName + ": " + e);
+              }
+            });
+          } else {
+            print("  ✓ No tournaments collection — skip index alignment");
+          }
+
+          // ========================================
+          // 8. LEADERBOARDS COLLECTION (cron snapshots via Flask — see 14_leaderboard_cron.yml)
+          // ========================================
+          print("\n📊 Step 8: Ensuring leaderboards collection exists...");
+          var collsLb = db.getCollectionNames();
+          if (collsLb.indexOf("leaderboards") === -1) {
+            db.createCollection("leaderboards");
+            print("  ✅ Created leaderboards collection");
+          } else {
+            print("  ✓ leaderboards collection already exists");
+          }
+          try {
+            db.leaderboards.createIndex({ "leaderboard_type": 1, "date_time": -1 });
+            db.leaderboards.createIndex({ "period_key": 1, "leaderboard_type": 1 });
+            db.leaderboards.createIndex({
+              "leaderboard_type": 1,
+              "tournament_type": 1,
+              "tournament_format": 1,
+              "date_time": -1
+            });
+            db.leaderboards.createIndex({ "date_time": -1 });
+            print("  ✅ Ensured leaderboards indexes");
+          } catch (e) {
+            if (e.code !== 85 && e.code !== 86) { throw e; }
+            print("  ✓ leaderboards indexes already present or partial create");
+          }
           
           // ========================================
           // FINAL SUMMARY
@@ -409,6 +476,9 @@
           print("- Users updated: " + usersUpdated);
           print("- Users skipped (already up-to-date): " + usersSkipped);
           print("- Tournaments collection: " + (db.tournaments ? db.tournaments.countDocuments() : 0) + " docs");
+          print("- stripe_coin_purchases: " + db.stripe_coin_purchases.countDocuments() + " docs");
+          print("- wallets: " + db.wallets.countDocuments() + " docs");
+          print("- leaderboards: " + db.leaderboards.countDocuments() + " docs");
           print("\n✅ All missing modules have been added to existing users!");
         mode: '0644'
 
@@ -498,8 +568,10 @@
           - Added role field to all users (default: player); created index on role
           - Ensured notifications collection exists (if missing)
           - Ensured tournaments collection exists (if missing)
+          - Ensured stripe_coin_purchases + wallets collections exist (local DB parity; _id index only)
+          - Dropped VPS-only tournaments indexes if present (creator_id, user_ids, created_at, updated_at) to match local index set
           - Preserved all existing user data
-          - No collections were dropped or erased
+          - No user documents or tournament documents were deleted
           
           🔧 Modules Added:
           - in_app_purchases: In-app purchase and subscription management
@@ -509,15 +581,8 @@
           - is_comp_player: Boolean field to identify computer players (default: false)
           - role: string (default: "player"); index on role for user authorization
           
-          🏆 Tournaments collection (when created):
-          - _id: unique (ObjectId)
-          - creator_id: user ObjectId (tournament creator)
-          - name: optional string
-          - start_date: optional (ISO date string; tournament start)
-          - user_ids: array of user ObjectIds (linked participants)
-          - participants: optional array of { user_id (string), username?, email? }; not set by create-tournament; add-participants endpoint will populate
-          - matches: array of { match_index (1-based), room_id, user_ids, match_date (optional), players (optional [{ user_id, username?, email? }]), scores: [{ user_id, optional username, optional email, end_card_count, total_end_points }] }
-          - created_at, updated_at. Indexes: creator_id, user_ids, status, created_at, updated_at, start_date
+          🏆 Tournaments: documents may still contain creator_id, user_ids, created_at, updated_at fields;
+          indexes on those fields are removed on VPS after this playbook so the index set matches local dev.
           
           📝 Note:
           - Computer players can be added using the 11_add_players.py script

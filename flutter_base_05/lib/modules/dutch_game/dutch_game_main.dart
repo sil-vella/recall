@@ -20,6 +20,7 @@ import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
 import '../../screens/admin_dashboard_screen/admin_dashboard_screen.dart';
 import '../../screens/coin_purchase_screen/coin_purchase_screen.dart';
 import '../dutch_game/screens/admin_tournaments_screen/admin_tournaments_screen.dart';
+import '../dutch_game/screens/leaderboard/leaderboard_screen.dart';
 
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
@@ -296,7 +297,7 @@ class DutchGameMain extends ModuleBase {
       screen: (context) => const LobbyScreen(),
       drawerTitle: 'Play',
       drawerIcon: Icons.games,
-      drawerPosition: 1, // After Home
+      drawerPosition: 10, // After Home; unique positions avoid path-only tie-break
     );
 
     // Register Game Play Screen
@@ -314,7 +315,7 @@ class DutchGameMain extends ModuleBase {
       screen: (BuildContext context) => const DemoScreen(),
       drawerTitle: 'Learn How',
       drawerIcon: Icons.school,
-      drawerPosition: 2,
+      drawerPosition: 30,
     );
 
     // Register Game Rules Screen
@@ -323,7 +324,7 @@ class DutchGameMain extends ModuleBase {
       screen: (BuildContext context) => const GameRulesScreen(),
       drawerTitle: 'Game Rules',
       drawerIcon: Icons.rule,
-      drawerPosition: 1, // Above Account screen (which is 2)
+      drawerPosition: 20,
     );
 
     // Register Video Tutorial Screen (from Demo screen)
@@ -353,13 +354,21 @@ class DutchGameMain extends ModuleBase {
       drawerPosition: 999,
     );
 
-    // Coin purchase (placeholder UI; also fed by insufficient-coins join flow)
+    // Leaderboard before Buy coins; My Account is drawerPosition 60 in NavigationManager.
+    navigationManager.registerRoute(
+      path: '/dutch/leaderboard',
+      screen: (BuildContext context) => const LeaderboardScreen(),
+      drawerTitle: 'Leaderboard',
+      drawerIcon: Icons.emoji_events,
+      drawerPosition: 40,
+    );
+
     navigationManager.registerRoute(
       path: '/coin-purchase',
       screen: (BuildContext context) => const CoinPurchaseScreen(),
       drawerTitle: 'Buy coins',
       drawerIcon: Icons.monetization_on,
-      drawerPosition: 4,
+      drawerPosition: 50,
     );
   }
 

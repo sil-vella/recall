@@ -9,7 +9,7 @@ import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false; // Coin purchase flow debugging (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Coin purchase flow debugging (enable-logging-switch.mdc)
 
 /// Coin purchases on **web**: Stripe Checkout via Python `/userauth/stripe/create-coin-checkout-session`.
 /// Also shows [lastCoinPurchaseJoinContext] when the user was sent here after a failed join.
@@ -63,6 +63,20 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     return 'none';
   }
 
+  /// Stripe expands `{CHECKOUT_SESSION_ID}` in the success URL; read from path query or hash query.
+  String? _sessionIdInUri(Uri u) {
+    final direct = u.queryParameters['session_id'];
+    if (direct != null && direct.isNotEmpty) return direct;
+    final fragment = u.fragment;
+    final qMark = fragment.indexOf('?');
+    if (qMark >= 0 && qMark < fragment.length - 1) {
+      final inner = Uri.splitQueryString(fragment.substring(qMark + 1));
+      final id = inner['session_id'];
+      if (id != null && id.isNotEmpty) return id;
+    }
+    return null;
+  }
+
   Future<void> _maybeHandleStripeReturn() async {
     if (!kIsWeb || _handledStripeReturn || !mounted) return;
     final uri = Uri.base;
@@ -95,6 +109,10 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       _logger.info('CoinPurchaseScreen: stripe success detected in return URL');
     }
     _handledStripeReturn = true;
+    final sessionId = _sessionIdInUri(uri);
+    if (LOGGING_SWITCH) {
+      _logger.info('CoinPurchaseScreen: session_id from return URL=$sessionId');
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -105,7 +123,25 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         backgroundColor: AppColors.primaryColor,
       ),
     );
-    await Future<void>.delayed(const Duration(seconds: 2));
+    // Credits are applied in the webhook; on localhost the webhook often never arrives.
+    // Ask the API to retrieve the session from Stripe and credit (same idempotent path as webhook).
+    if (sessionId != null && sessionId.isNotEmpty) {
+      final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+      if (api != null) {
+        try {
+          final raw = await api.sendPostRequest('/userauth/stripe/verify-coin-checkout-session', {
+            'session_id': sessionId,
+          });
+          if (LOGGING_SWITCH) {
+            _logger.info('CoinPurchaseScreen: verify-coin-checkout-session response=$raw');
+          }
+        } catch (e) {
+          if (LOGGING_SWITCH) {
+            _logger.warning('CoinPurchaseScreen: verify-coin-checkout-session failed: $e');
+          }
+        }
+      }
+    }
     if (!mounted) return;
     final ok = await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
     if (LOGGING_SWITCH) {

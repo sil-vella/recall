@@ -78,6 +78,11 @@ class StripeModule(BaseModule):
             self.create_coin_checkout_session,
             methods=["POST"],
         )
+        self._register_route_helper(
+            "/userauth/stripe/verify-coin-checkout-session",
+            self.verify_coin_checkout_session,
+            methods=["POST"],
+        )
         self._register_route_helper("/stripe/customers", self.create_customer, methods=["POST"])
         self._register_route_helper("/stripe/customers/<customer_id>", self.get_customer, methods=["GET"])
         self._register_route_helper("/stripe/payment-methods", self.list_payment_methods, methods=["GET"])
@@ -500,6 +505,69 @@ class StripeModule(BaseModule):
             return jsonify({"success": False, "error": str(e)}), 400
         except Exception as e:
             custom_log(f"create_coin_checkout_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    def verify_coin_checkout_session(self):
+        """
+        After Checkout redirect: retrieve the session from Stripe and run the same credit path as the webhook.
+        Use when webhooks cannot reach the server (e.g. localhost). Idempotent via stripe_coin_purchases.
+        """
+        try:
+            if not self.stripe:
+                return jsonify({"success": False, "error": "Stripe is not configured"}), 503
+
+            user_id = getattr(request, "user_id", None)
+            if not user_id:
+                return jsonify({"success": False, "error": "Authentication required", "code": "JWT_REQUIRED"}), 401
+
+            body = request.get_json() or {}
+            session_id = (body.get("session_id") or "").strip()
+            if not session_id:
+                return jsonify({"success": False, "error": "session_id is required"}), 400
+
+            custom_log(
+                f"verify_coin_checkout_session: user_id={user_id} session_id={session_id}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+
+            try:
+                session = self.stripe.checkout.Session.retrieve(session_id)
+            except stripe.error.StripeError as e:
+                custom_log(f"verify_coin_checkout_session Stripe retrieve: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+                return jsonify({"success": False, "error": str(e)}), 400
+
+            if isinstance(session, dict):
+                sd = session
+            elif hasattr(session, "to_dict"):
+                sd = session.to_dict()
+            else:
+                sd = {}
+
+            meta_dict = sd.get("metadata") or {}
+            if meta_dict.get("purchase_type") != "dutch_coins":
+                return jsonify({"success": False, "error": "Not a Dutch coin checkout session"}), 400
+
+            uid_meta = str(meta_dict.get("user_id") or sd.get("client_reference_id") or "")
+            if uid_meta != str(user_id):
+                custom_log(
+                    f"verify_coin_checkout_session: user mismatch jwt={user_id!r} session={uid_meta!r}",
+                    level="WARNING",
+                    isOn=LOGGING_SWITCH,
+                )
+                return jsonify({"success": False, "error": "Session does not belong to this user"}), 403
+
+            self._handle_checkout_session_completed(session)
+
+            custom_log(
+                f"verify_coin_checkout_session: handled session_id={session_id}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+            return jsonify({"success": True, "message": "Checkout verified"}), 200
+
+        except Exception as e:
+            custom_log(f"verify_coin_checkout_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     def _handle_checkout_session_completed(self, session_obj):

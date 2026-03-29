@@ -1178,7 +1178,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
         if (roomId.isEmpty) ...[
           SizedBox(height: AppPadding.smallPadding.top),
           Text(
-            'If the ID does not appear, close and check “Your created games” on the Join tab.',
+            'The game was not created. Please try again or log out and back in.',
             style: AppTextStyles.caption().copyWith(color: AppColors.warningColor),
           ),
         ],

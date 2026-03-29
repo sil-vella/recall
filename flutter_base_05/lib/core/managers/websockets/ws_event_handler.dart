@@ -524,6 +524,36 @@ class WSEventHandler {
       if (LOGGING_SWITCH) {
         _logger.info('🏟 create_room_error received — data=$data');
       }
+      // Same modal path as ws_instant_notification / rematch invite ([NotificationsModule.addPendingWsInstant]).
+      final map =
+          data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      final userMessage = map['message']?.toString().trim();
+      final body = (userMessage != null && userMessage.isNotEmpty)
+          ? userMessage
+          : 'Failed to create room. Please try again.';
+      final lowered = body.toLowerCase();
+      final insufficientCoins = lowered.contains('insufficient coins') ||
+          (lowered.contains('insufficient') &&
+              (lowered.contains('coin') || lowered.contains('balance')));
+      final id = 'create_room_error_${DateTime.now().millisecondsSinceEpoch}';
+      final instant = <String, dynamic>{
+        'id': id,
+        'type': 'instant_ws',
+        'title': 'Cannot create game',
+        'body': body,
+        'timestamp': map['timestamp'] ?? DateTime.now().toIso8601String(),
+        'data': <String, dynamic>{
+          'source': 'create_room_error',
+          if (insufficientCoins) 'insufficient_coins': true,
+        },
+        if (insufficientCoins)
+          'responses': <Map<String, dynamic>>[
+            {'label': 'Close', 'action_identifier': 'close'},
+            {'label': 'Buy coins', 'action_identifier': 'buy_coins'},
+          ],
+      };
+      _moduleManager.getModuleByType<NotificationsModule>()?.addPendingWsInstant(instant);
+
       // Trigger error callbacks
       _eventManager.triggerCallbacks('error', {
         'error': 'Failed to create room',

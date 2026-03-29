@@ -25,7 +25,7 @@ typedef _NotificationSuccessHandler = Future<void> Function(
 );
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = false; // Insufficient coins → stash / coin-purchase (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Insufficient coins → stash / coin-purchase (enable-logging-switch.mdc)
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();

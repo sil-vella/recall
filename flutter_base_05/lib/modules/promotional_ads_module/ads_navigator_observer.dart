@@ -6,7 +6,7 @@ import 'ad_registry.dart';
 import 'route_path_utils.dart';
 
 /// enable-logging-switch.mdc — set false after debugging.
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Fires [switch_screen_ad] on real screen transitions only — not dialogs, sheets, or
 /// other [PopupRoute]s. Those use [ModalRoute] branches that are not [PageRoute].

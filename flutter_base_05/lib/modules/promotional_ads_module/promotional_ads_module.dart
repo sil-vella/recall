@@ -17,7 +17,7 @@ class PromotionalAdsModule extends ModuleBase {
 
   static final Logger _logger = Logger();
   /// enable-logging-switch.mdc — set false after debugging.
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
 
   static bool _switchOverlayOpen = false;
 

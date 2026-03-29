@@ -117,6 +117,132 @@ class DutchGameRound {
     return number.toString();
   }
 
+  String _effectiveGamePhase(Map<String, dynamic> gameState) {
+    final gp = gameState['gamePhase']?.toString() ?? '';
+    if (gp.isNotEmpty) return gp;
+    return gameState['phase']?.toString() ?? '';
+  }
+
+  bool _isNormalPlayPhase(String phase) {
+    final p = phase.toLowerCase();
+    return p == 'player_turn' || p == 'playing' || p.isEmpty;
+  }
+
+  Map<String, dynamic>? _resolveCurrentPlayer(Map<String, dynamic> gameState) {
+    final main = _stateCallback.getMainStateCurrentPlayer();
+    if (main != null) return main;
+    return gameState['currentPlayer'] as Map<String, dynamic>?;
+  }
+
+  /// Normal turn: current player, expected status, and main play phase only.
+  bool _allowNormalTurnAction(
+    Map<String, dynamic> gameState,
+    String playerId,
+    String expectedPlayerStatus,
+  ) {
+    final phase = _effectiveGamePhase(gameState);
+    if (!_isNormalPlayPhase(phase)) {
+      _stateCallback.onActionError(
+        'Action not allowed in this phase',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    final cp = _resolveCurrentPlayer(gameState);
+    final currentId = cp?['id']?.toString();
+    if (currentId == null || currentId != playerId) {
+      _stateCallback.onActionError(
+        'Not your turn',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+    final player = players.firstWhere(
+      (p) => p['id']?.toString() == playerId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (player.isEmpty) {
+      return false;
+    }
+    final st = player['status']?.toString() ?? '';
+    if (st != expectedPlayerStatus) {
+      _stateCallback.onActionError(
+        'Action not allowed in your current player state',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    return true;
+  }
+
+  /// Same-rank window: any player with same_rank_window status; not currentPlayer-only.
+  bool _allowSameRankPlayPhase(Map<String, dynamic> gameState, String playerId) {
+    if (_effectiveGamePhase(gameState) != 'same_rank_window') {
+      _stateCallback.onActionError(
+        'Same rank play is not active',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+    final player = players.firstWhere(
+      (p) => p['id']?.toString() == playerId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (player.isEmpty) {
+      return false;
+    }
+    if ((player['status']?.toString() ?? '') != 'same_rank_window') {
+      _stateCallback.onActionError(
+        'Same rank play not available for your player state',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    return true;
+  }
+
+  /// Special play window: head of [_specialCardPlayers] must match [actorId] and [expectedSpecialPower].
+  bool _allowSpecialWindowHead(
+    Map<String, dynamic> gameState,
+    String actorId,
+    String expectedSpecialPower,
+  ) {
+    if (_effectiveGamePhase(gameState) != 'special_play_window') {
+      _stateCallback.onActionError(
+        'Special action not available in this phase',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    if (_specialCardPlayers.isEmpty) {
+      _stateCallback.onActionError(
+        'No special play pending',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    final head = _specialCardPlayers[0];
+    final headPid = head['player_id']?.toString() ?? '';
+    if (headPid != actorId) {
+      _stateCallback.onActionError(
+        'Not your special card action',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    final power = head['special_power']?.toString() ?? '';
+    if (power != expectedSpecialPower) {
+      _stateCallback.onActionError(
+        'Wrong special action type for this step',
+        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      );
+      return false;
+    }
+    return true;
+  }
+
   /// Normalize a pile from game state to List<Map<String, dynamic>>.
   /// Handles drawPile/discardPile stored as List<String> (card IDs) or List<Map> (id-only or full cards).
   static List<Map<String, dynamic>> _ensureCardMapList(dynamic raw) {
@@ -1357,6 +1483,7 @@ class DutchGameRound {
               firstPlayerId: firstPlayerId,
               secondCardId: secondCardId,
               secondPlayerId: secondPlayerId,
+              actingPlayerId: playerId,
             );
             if (!success) {
               if (LOGGING_SWITCH) {
@@ -1642,6 +1769,7 @@ class DutchGameRound {
               firstPlayerId: playerId,
               secondCardId: 'placeholder_second_card',
               secondPlayerId: 'placeholder_target_player',
+              actingPlayerId: playerId,
             );
             if (!success) {
               if (LOGGING_SWITCH) {
@@ -1851,6 +1979,10 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.error('Dutch: Invalid playerId for draw card');
         };
+        return false;
+      }
+
+      if (!_allowNormalTurnAction(gameState, actualPlayerId, 'drawing_card')) {
         return false;
       }
       
@@ -2420,7 +2552,7 @@ class DutchGameRound {
       }
       
       // Check if game is in restricted phases
-      final gamePhase = gameState['gamePhase']?.toString() ?? 'unknown';
+      final gamePhase = _effectiveGamePhase(gameState);
       if (gamePhase == 'same_rank_window' || gamePhase == 'initial_peek' || gamePhase == 'game_ended') {
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Cannot collect during $gamePhase phase');
@@ -2434,6 +2566,9 @@ class DutchGameRound {
         
         return false;
       }
+
+      // Clear & collect: any player whose collection_rank matches top discard may collect when
+      // the computer loop or client fires collect_from_discard—not only currentPlayer/playing_card.
       
       // Get player
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
@@ -2746,6 +2881,10 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.error('Dutch: Invalid playerId for play card');
         };
+        return false;
+      }
+
+      if (!_allowNormalTurnAction(gameState, actualPlayerId, 'playing_card')) {
         return false;
       }
       
@@ -3271,6 +3410,10 @@ class DutchGameRound {
         };
         return false;
       }
+
+      if (!_allowSameRankPlayPhase(gameState, playerId)) {
+        return false;
+      }
       
       final handRaw = player['hand'] as List<dynamic>? ?? [];
       final hand = List<dynamic>.from(handRaw);
@@ -3640,6 +3783,7 @@ class DutchGameRound {
     required String firstPlayerId,
     required String secondCardId,
     required String secondPlayerId,
+    required String actingPlayerId,
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
@@ -3673,9 +3817,9 @@ class DutchGameRound {
         };
       }
 
-      // Clear previous action data for the acting player (currentPlayer who played the Jack)
-      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-      final actingPlayerId = currentPlayer?['id']?.toString();
+      if (!_allowSpecialWindowHead(gameState, actingPlayerId, 'jack_swap')) {
+        return false;
+      }
 
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
 
@@ -3773,8 +3917,8 @@ class DutchGameRound {
       secondPlayerHand[secondCardIndex] = firstCardIdOnly;
       
       // Add action to queue for animation (SSOT: same queue format as drawn_card, play_card, queen_peek, etc.)
-      // actingPlayerId is the player who played the Jack (human or comp)
-      if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
+      // [actingPlayerId] is the player whose Jack power is being resolved this step (matches special-queue head).
+      if (actingPlayerId.isNotEmpty) {
         final actingPlayer = players.firstWhere(
           (p) => p['id']?.toString() == actingPlayerId,
           orElse: () => <String, dynamic>{},
@@ -4025,6 +4169,10 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.error('Dutch: Peeking player $peekingPlayerId not found for Queen peek');
         };
+        return false;
+      }
+
+      if (!_allowSpecialWindowHead(gameState, peekingPlayerId, 'queen_peek')) {
         return false;
       }
 

@@ -9,7 +9,7 @@ import '../models/ad_registration.dart';
 import 'advert_media_panel.dart';
 
 /// enable-logging-switch.mdc
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Full-screen promotional overlay with optional delay before Skip is enabled.
 class SwitchScreenAdOverlay {

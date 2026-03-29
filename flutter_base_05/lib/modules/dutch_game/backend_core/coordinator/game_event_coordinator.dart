@@ -18,6 +18,9 @@ class GameEventCoordinator {
   final Logger _logger = Logger();
   final Map<String, Timer?> _initialPeekTimers = {};
 
+  /// Serialize game events per room so async handlers never interleave (race on shared state).
+  final Map<String, Future<void>> _roomEventTail = {};
+
   GameEventCoordinator(this.roomManager, this.server);
 
   /// Get current games map in Flutter format: {roomId: {'gameData': {'game_state': ...}}}
@@ -105,11 +108,51 @@ class GameEventCoordinator {
     // Get or create the game round for this room
     final round = _registry.getOrCreate(roomId, server);
 
+    final previous = _roomEventTail[roomId] ?? Future.value();
+    final done = Completer<void>();
+    _roomEventTail[roomId] = done.future;
+
+    await previous;
     try {
+      await _dispatchGameEvent(sessionId, roomId, round, event, data);
+
+      // Acknowledge success
+      server.sendToSession(sessionId, {
+        'event': '${event}_acknowledged',
+        'room_id': roomId,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    } catch (e, stackTrace) {
       if (LOGGING_SWITCH) {
-        _logger.info('🎯 GameEventCoordinator: Event validation - Processing event "$event" for room: $roomId');
+        _logger.error('GameEventCoordinator: error on $event -> $e');
       }
-      switch (event) {
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace');
+      }
+      server.sendToSession(sessionId, {
+        'event': '${event}_error',
+        'room_id': roomId,
+        'message': e.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    } finally {
+      if (!done.isCompleted) {
+        done.complete();
+      }
+    }
+  }
+
+  Future<void> _dispatchGameEvent(
+    String sessionId,
+    String roomId,
+    DutchGameRound round,
+    String event,
+    Map<String, dynamic> data,
+  ) async {
+    if (LOGGING_SWITCH) {
+      _logger.info('🎯 GameEventCoordinator: Event validation - Processing event "$event" for room: $roomId');
+    }
+    switch (event) {
         case 'start_match':
           await _handleStartMatch(roomId, round, sessionId, data);
           break;
@@ -190,6 +233,7 @@ class GameEventCoordinator {
           if (LOGGING_SWITCH) {
             _logger.info('🃏 GameEventCoordinator: jack_swap case reached');
           }
+          final actingPlayerId = _getPlayerIdFromSession(sessionId, roomId);
           final firstCardId = (data['first_card_id'] as String?) ?? (data['firstCardId'] as String?);
           final firstPlayerId = (data['first_player_id'] as String?) ?? (data['firstPlayerId'] as String?);
           final secondCardId = (data['second_card_id'] as String?) ?? (data['secondCardId'] as String?);
@@ -197,6 +241,15 @@ class GameEventCoordinator {
           
           if (LOGGING_SWITCH) {
             _logger.info('🃏 GameEventCoordinator: jack_swap event received - firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId');
+          }
+
+          if (actingPlayerId == null || actingPlayerId.isEmpty) {
+            server.sendToSession(sessionId, {
+              'event': 'error',
+              'message': 'Player not in game',
+              'room_id': roomId,
+            });
+            break;
           }
           
           if (firstCardId != null && firstCardId.isNotEmpty &&
@@ -209,6 +262,7 @@ class GameEventCoordinator {
               firstPlayerId: firstPlayerId,
               secondCardId: secondCardId,
               secondPlayerId: secondPlayerId,
+              actingPlayerId: actingPlayerId,
               gamesMap: gamesMap,
             );
           } else {
@@ -248,27 +302,6 @@ class GameEventCoordinator {
           // Acknowledge unknown-but-allowed for forward-compat
           break;
       }
-
-      // Acknowledge success
-      server.sendToSession(sessionId, {
-        'event': '${event}_acknowledged',
-        'room_id': roomId,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-    } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: error on $event -> $e');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace');
-      }
-      server.sendToSession(sessionId, {
-        'event': '${event}_error',
-        'room_id': roomId,
-        'message': e.toString(),
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-    }
   }
 
   /// Initialize match: create base state, players (human/computers), deck, then initialize round

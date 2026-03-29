@@ -35,7 +35,23 @@
             'DUTCH_MT_DASHBOARD_SERVICE_KEY': 'dutch_mt_dashboard_service_key',
             'GOOGLE_CLIENT_ID': 'google_client_id', 'GOOGLE_CLIENT_SECRET': 'google_client_secret',
             'APP_VERSION': 'app_version', 'APP_DOWNLOAD_BASE_URL': 'app_download_base_url',
-            'CREDIT_SYSTEM_API_KEY': 'credit_system_api_key'
+            'CREDIT_SYSTEM_API_KEY': 'credit_system_api_key',
+            'DUTCH_WINS_PER_USER_LEVEL': 'dutch_wins_per_user_level',
+            'DUTCH_LEVELS_PER_RANK': 'dutch_levels_per_rank',
+            'DUTCH_USER_LEVEL_MIN': 'dutch_user_level_min',
+            'DUTCH_RANK_HIERARCHY': 'dutch_rank_hierarchy',
+            'DUTCH_TABLES_JSON': 'dutch_tables_json',
+            'REGISTRATION_COIN_BONUS': 'registration_coin_bonus',
+            'STRIPE_SECRET_KEY': 'stripe_secret_key',
+            'STRIPE_PUBLISHABLE_KEY': 'stripe_publishable_key',
+            'STRIPE_WEBHOOK_SECRET': 'stripe_webhook_secret',
+            'STRIPE_PRICE_COIN_STARTER': 'stripe_price_coin_starter',
+            'STRIPE_PRICE_COIN_CASUAL': 'stripe_price_coin_casual',
+            'STRIPE_PRICE_COIN_POPULAR': 'stripe_price_coin_popular',
+            'STRIPE_PRICE_COIN_GRINDER': 'stripe_price_coin_grinder',
+            'STRIPE_PRICE_COIN_PRO': 'stripe_price_coin_pro',
+            'STRIPE_COIN_CHECKOUT_SUCCESS_URL': 'stripe_coin_checkout_success_url',
+            'STRIPE_COIN_CHECKOUT_CANCEL_URL': 'stripe_coin_checkout_cancel_url',
         }
         result = { v: out.get(k, '') for k, v in mapping.items() }
         result.setdefault('app_version', '2.0.0')
@@ -62,6 +78,22 @@
         app_version: "{{ (env_json.stdout | from_json).app_version | default('2.0.0') }}"
         app_download_base_url: "{{ (env_json.stdout | from_json).app_download_base_url | default('https://dutch.mt/downloads') }}"
         credit_system_api_key: "{{ (env_json.stdout | from_json).credit_system_api_key | default('') }}"
+        dutch_wins_per_user_level: "{{ (env_json.stdout | from_json).dutch_wins_per_user_level | default('10') }}"
+        dutch_levels_per_rank: "{{ (env_json.stdout | from_json).dutch_levels_per_rank | default('5') }}"
+        dutch_user_level_min: "{{ (env_json.stdout | from_json).dutch_user_level_min | default('1') }}"
+        dutch_rank_hierarchy: "{{ (env_json.stdout | from_json).dutch_rank_hierarchy | default('beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend') }}"
+        dutch_tables_json: "{{ (env_json.stdout | from_json).dutch_tables_json | default('') }}"
+        registration_coin_bonus: "{{ (env_json.stdout | from_json).registration_coin_bonus | default('500') }}"
+        stripe_secret_key: "{{ (env_json.stdout | from_json).stripe_secret_key | default('') }}"
+        stripe_publishable_key: "{{ (env_json.stdout | from_json).stripe_publishable_key | default('') }}"
+        stripe_webhook_secret: "{{ (env_json.stdout | from_json).stripe_webhook_secret | default('') }}"
+        stripe_price_coin_starter: "{{ (env_json.stdout | from_json).stripe_price_coin_starter | default('') }}"
+        stripe_price_coin_casual: "{{ (env_json.stdout | from_json).stripe_price_coin_casual | default('') }}"
+        stripe_price_coin_popular: "{{ (env_json.stdout | from_json).stripe_price_coin_popular | default('') }}"
+        stripe_price_coin_grinder: "{{ (env_json.stdout | from_json).stripe_price_coin_grinder | default('') }}"
+        stripe_price_coin_pro: "{{ (env_json.stdout | from_json).stripe_price_coin_pro | default('') }}"
+        stripe_coin_checkout_success_url: "{{ (env_json.stdout | from_json).stripe_coin_checkout_success_url | default('') }}"
+        stripe_coin_checkout_cancel_url: "{{ (env_json.stdout | from_json).stripe_coin_checkout_cancel_url | default('') }}"
       when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
 
 - name: Deploy Docker Compose Application
@@ -91,6 +123,22 @@
         app_version: "{{ (hostvars['localhost'] | default({})).get('app_version') or lookup('env', 'APP_VERSION') | default('2.0.0') }}"
         app_download_base_url: "{{ (hostvars['localhost'] | default({})).get('app_download_base_url') or lookup('env', 'APP_DOWNLOAD_BASE_URL') | default('https://dutch.mt/downloads') }}"
         credit_system_api_key: "{{ (hostvars['localhost'] | default({})).get('credit_system_api_key') or lookup('env', 'CREDIT_SYSTEM_API_KEY') | default('') }}"
+        dutch_wins_per_user_level: "{{ (hostvars['localhost'] | default({})).get('dutch_wins_per_user_level') or lookup('env', 'DUTCH_WINS_PER_USER_LEVEL') | default('10') }}"
+        dutch_levels_per_rank: "{{ (hostvars['localhost'] | default({})).get('dutch_levels_per_rank') or lookup('env', 'DUTCH_LEVELS_PER_RANK') | default('5') }}"
+        dutch_user_level_min: "{{ (hostvars['localhost'] | default({})).get('dutch_user_level_min') or lookup('env', 'DUTCH_USER_LEVEL_MIN') | default('1') }}"
+        dutch_rank_hierarchy: "{{ (hostvars['localhost'] | default({})).get('dutch_rank_hierarchy') or lookup('env', 'DUTCH_RANK_HIERARCHY') | default('beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend') }}"
+        dutch_tables_json: "{{ (hostvars['localhost'] | default({})).get('dutch_tables_json') or lookup('env', 'DUTCH_TABLES_JSON') | default('') }}"
+        registration_coin_bonus: "{{ (hostvars['localhost'] | default({})).get('registration_coin_bonus') or lookup('env', 'REGISTRATION_COIN_BONUS') | default('500') }}"
+        stripe_secret_key: "{{ (hostvars['localhost'] | default({})).get('stripe_secret_key') or lookup('env', 'STRIPE_SECRET_KEY') | default('') }}"
+        stripe_publishable_key: "{{ (hostvars['localhost'] | default({})).get('stripe_publishable_key') or lookup('env', 'STRIPE_PUBLISHABLE_KEY') | default('') }}"
+        stripe_webhook_secret: "{{ (hostvars['localhost'] | default({})).get('stripe_webhook_secret') or lookup('env', 'STRIPE_WEBHOOK_SECRET') | default('') }}"
+        stripe_price_coin_starter: "{{ (hostvars['localhost'] | default({})).get('stripe_price_coin_starter') or lookup('env', 'STRIPE_PRICE_COIN_STARTER') | default('') }}"
+        stripe_price_coin_casual: "{{ (hostvars['localhost'] | default({})).get('stripe_price_coin_casual') or lookup('env', 'STRIPE_PRICE_COIN_CASUAL') | default('') }}"
+        stripe_price_coin_popular: "{{ (hostvars['localhost'] | default({})).get('stripe_price_coin_popular') or lookup('env', 'STRIPE_PRICE_COIN_POPULAR') | default('') }}"
+        stripe_price_coin_grinder: "{{ (hostvars['localhost'] | default({})).get('stripe_price_coin_grinder') or lookup('env', 'STRIPE_PRICE_COIN_GRINDER') | default('') }}"
+        stripe_price_coin_pro: "{{ (hostvars['localhost'] | default({})).get('stripe_price_coin_pro') or lookup('env', 'STRIPE_PRICE_COIN_PRO') | default('') }}"
+        stripe_coin_checkout_success_url: "{{ (hostvars['localhost'] | default({})).get('stripe_coin_checkout_success_url') or lookup('env', 'STRIPE_COIN_CHECKOUT_SUCCESS_URL') | default('') }}"
+        stripe_coin_checkout_cancel_url: "{{ (hostvars['localhost'] | default({})).get('stripe_coin_checkout_cancel_url') or lookup('env', 'STRIPE_COIN_CHECKOUT_CANCEL_URL') | default('') }}"
 
     - name: Create application directory structure
       file:

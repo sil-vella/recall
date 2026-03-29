@@ -1,6 +1,8 @@
 import 'dart:async';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
+import '../../../../utils/analytics_service.dart';
+import 'dutch_game_state_updater.dart';
 import 'player_action.dart';
 import '../utils/dutch_game_helpers.dart';
 
@@ -211,6 +213,11 @@ class GameCoordinator {
       );
       
       await action.execute();
+      await _logFirebaseStartMatch(
+        currentGameId: currentGameId,
+        isPractice: currentGameId.startsWith('practice_room_'),
+        isClearAndCollect: isClearAndCollect == true,
+      );
       return true;
     } catch (e) {
       if (LOGGING_SWITCH) {
@@ -218,5 +225,74 @@ class GameCoordinator {
       }
       rethrow;
     }
+  }
+
+  /// Firebase: separate events for random vs create vs join, classic vs clear/collect, practice.
+  Future<void> _logFirebaseStartMatch({
+    required String currentGameId,
+    required bool isPractice,
+    required bool isClearAndCollect,
+  }) async {
+    if (isPractice) {
+      final name = isClearAndCollect
+          ? 'start_match_practice_clear_collect'
+          : 'start_match_practice_classic';
+      await AnalyticsService.logEvent(
+        name: name,
+        parameters: {'game_id': currentGameId},
+      );
+      DutchGameStateUpdater.instance.updateStateSync({
+        'pending_start_match_source': null,
+      });
+      return;
+    }
+
+    final dutchGameState =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    var source = dutchGameState['pending_start_match_source']?.toString() ?? '';
+    if (source.isEmpty) {
+      final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+      final entry = games[currentGameId] as Map<String, dynamic>?;
+      final isRandom = entry?['is_random_join'] == true;
+      if (isRandom) {
+        source = 'random_join';
+      } else {
+        final topOwner = dutchGameState['isRoomOwner'] == true;
+        final entryOwner = entry?['isRoomOwner'] == true;
+        source = (topOwner || entryOwner) ? 'create_room' : 'join_room';
+      }
+    }
+
+    late final String eventName;
+    switch (source) {
+      case 'random_join':
+        eventName = isClearAndCollect
+            ? 'start_match_random_clear_collect'
+            : 'start_match_random_classic';
+        break;
+      case 'create_room':
+        eventName = isClearAndCollect
+            ? 'start_match_create_clear_collect'
+            : 'start_match_create_classic';
+        break;
+      case 'join_room':
+        eventName = isClearAndCollect
+            ? 'start_match_join_clear_collect'
+            : 'start_match_join_classic';
+        break;
+      default:
+        eventName = isClearAndCollect
+            ? 'start_match_join_clear_collect'
+            : 'start_match_join_classic';
+        break;
+    }
+
+    await AnalyticsService.logEvent(
+      name: eventName,
+      parameters: {'game_id': currentGameId},
+    );
+    DutchGameStateUpdater.instance.updateStateSync({
+      'pending_start_match_source': null,
+    });
   }
 }

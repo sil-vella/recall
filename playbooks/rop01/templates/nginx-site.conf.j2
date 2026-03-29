@@ -84,7 +84,7 @@ server {
 
     # Explicit API routes - proxy known Flask routes to backend (security: only known routes)
     # Must come before catch-all location / to ensure proper matching
-    location ~ ^/(public|userauth|api-keys|api|api-auth|metrics|actions|modules|wallet|transactions|get-db-data|test-jwt|health) {
+    location ~ ^/(public|userauth|api-keys|api|api-auth|metrics|actions|modules|wallet|transactions|get-db-data|test-jwt|health|stripe) {
         proxy_pass http://127.0.0.1:{{ item.backend_port }};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -100,9 +100,9 @@ server {
     # - Have at least one character after / (excludes root path /)
     # - Don't have common static file extensions (js, css, png, etc.)
     # - Don't start with known static directories (assets, downloads, sponsors, sim_players, ws, register)
-    # - Don't match Flutter-specific files (main.dart.js, flutter.js, canvaskit, index.html)
+    # - Don't match Flutter-specific files (bootstrap, entry JS, canvaskit, index.html)
     # Note: This uses negative lookahead patterns to exclude static files while allowing multi-segment API routes
-    location ~ ^/(?!(assets|downloads|sponsors|sim_players|ws|register|main\.dart\.js|flutter\.js|canvaskit|index\.html))[^/].+(?!\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|html|json|wasm|bin|map)$) {
+    location ~ ^/(?!(assets|downloads|sponsors|sim_players|ws|register|main\.dart\.js|flutter\.js|flutter_bootstrap\.js|flutter_service_worker\.js|canvaskit|index\.html))[^/].+(?!\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|html|json|wasm|bin|map)$) {
         proxy_pass http://127.0.0.1:{{ item.backend_port }};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -117,15 +117,23 @@ server {
         index index.html;
         try_files $uri $uri/ /index.html;
 
-        # Cache static assets (JS, CSS, images, fonts)
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        # Flutter entry scripts: same URL every deploy — do NOT use 1y+immutable or browsers keep old JS/CSS logic after you ship a new build.
+        # (index.html is no-cache, but it still references these paths; without this, users need hard refresh.)
+        # Must appear before the generic *.js location (first regex match wins).
+        location ~* ^/(flutter_bootstrap\.js|main\.dart\.js|flutter\.js|flutter_service_worker\.js)$ {
+            add_header Cache-Control "no-cache, must-revalidate";
+            add_header Pragma "no-cache";
+        }
+
+        # CanvasKit under /canvaskit/ — large; paths usually versioned; safe to cache long
+        location ~* ^/canvaskit/ {
             expires 1y;
             add_header Cache-Control "public, immutable";
             access_log off;
         }
 
-        # Cache Flutter main files
-        location ~* ^/(main\.dart\.js|flutter\.js|canvaskit.*)$ {
+        # Cache static assets (JS, CSS, images, fonts) — e.g. hashed files under assets/
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
             expires 1y;
             add_header Cache-Control "public, immutable";
             access_log off;

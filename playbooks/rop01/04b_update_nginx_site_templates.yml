@@ -1,0 +1,100 @@
+---
+# Apply only `templates/nginx-site.conf.j2` to `/etc/nginx/sites-available/<domain>` and reload nginx.
+# Does NOT install packages, run Certbot, or stop nginx — use for iterative config changes from the repo.
+#
+# IMPORTANT — Certbot:
+# After first SSL setup, Certbot edits the live site file (443, certificates). The Jinja template is
+# HTTP-only (port 80). Overwriting the live file would REMOVE those SSL blocks.
+#
+# This playbook REFUSES to overwrite a file that looks Certbot-managed unless you pass:
+#   -e nginx_allow_certbot_overwrite=true
+#
+# If you force overwrite, re-run Certbot for that host afterward, e.g.:
+#   sudo certbot --nginx -d dutch.mt -d www.dutch.mt --reinstall
+# (or restore from /etc/nginx/sites-available/<domain>.bak if you took one)
+#
+# Typical use on an already-SSL host: patch the live file manually (or merge by hand), or use a
+# backup+edit workflow — do NOT template blindly.
+
+- name: Update nginx site templates from repo (no Certbot / no apt)
+  hosts: "{{ vm_name }}_user"
+  become: true
+  vars:
+    domains: "{{ nginx_domains | default([
+      {
+        'domain': 'reignofplay.com',
+        'www_domain': 'www.reignofplay.com',
+        'root_dir': '/var/www/reignofplay.com'
+      },
+      {
+        'domain': 'dashboard.reignofplay.com',
+        'root_dir': '/var/www/reignofplay.com/dashboard',
+        'php_backend_port': 8081
+      },
+      {
+        'domain': 'dutch.mt',
+        'www_domain': 'www.dutch.mt',
+        'root_dir': '/var/www/dutch.reignofplay.com',
+        'backend_port': 5001,
+        'backend_ws_port': 8080,
+        'serve_flutter_web': true
+      }
+    ]) }}"
+    nginx_user: "www-data"
+
+  tasks:
+    - name: Check existing site files for Certbot markers
+      shell: |
+        set -e
+        f="/etc/nginx/sites-available/{{ item.domain }}"
+        if [ -f "$f" ] && grep -q -i certbot "$f"; then echo CERTBOT_YES; else echo CERTBOT_NO; fi
+      args:
+        executable: /bin/bash
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      register: nginx_certbot_probe
+      changed_when: false
+      when: domains | length > 0
+
+    - name: Refuse overwrite of Certbot-managed nginx files (unless allowed)
+      fail:
+        msg: |
+          /etc/nginx/sites-available/{{ item.item.domain | default('?') }} appears Certbot-managed.
+          The repo template is HTTP-only and would strip SSL. Options:
+          (1) Patch the live file manually / use ssh patch, or
+          (2) Re-run with: -e nginx_allow_certbot_overwrite=true
+          then repair SSL: sudo certbot --nginx -d dutch.mt -d www.dutch.mt --reinstall
+      loop: "{{ nginx_certbot_probe.results | default([]) }}"
+      when:
+        - item.stdout is defined
+        - item.stdout | trim == 'CERTBOT_YES'
+        - not (nginx_allow_certbot_overwrite | default(false) | bool)
+
+    - name: Template nginx site configuration for each domain
+      template:
+        src: nginx-site.conf.j2
+        dest: "/etc/nginx/sites-available/{{ item.domain }}"
+        mode: '0644'
+        backup: true
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+      notify: Validate nginx and reload
+
+    - name: Ensure Nginx sites enabled (symlink)
+      file:
+        src: "/etc/nginx/sites-available/{{ item.domain }}"
+        dest: "/etc/nginx/sites-enabled/{{ item.domain }}"
+        state: link
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+
+  handlers:
+    - name: Validate nginx and reload
+      shell: nginx -t && systemctl reload nginx
+      args:
+        executable: /bin/bash

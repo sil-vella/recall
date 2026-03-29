@@ -441,6 +441,11 @@
           // ========================================
           // 8. LEADERBOARDS COLLECTION (cron snapshots via Flask — see 14_leaderboard_cron.yml)
           // ========================================
+          // leaderboard_type: "daily" | "monthly" | "yearly" | "tournament"
+          // For leaderboard_type === "tournament": set tournament_type + tournament_format (e.g. IRL/Online × League/Cup)
+          // winners: [ { user_id, username?, rank? } ] — one doc per resolved period / tournament snapshot
+          // date_time: UTC (BSON Date)
+          // period_key: optional string bucket, e.g. "2026-03-29", "2026-03", "2026"
           print("\n📊 Step 8: Ensuring leaderboards collection exists...");
           var collsLb = db.getCollectionNames();
           if (collsLb.indexOf("leaderboards") === -1) {
@@ -464,7 +469,36 @@
             if (e.code !== 85 && e.code !== 86) { throw e; }
             print("  ✓ leaderboards indexes already present or partial create");
           }
-          
+          print("  📋 Doc shape: { leaderboard_type, date_time (UTC), winners[], optional period_key,");
+          print("      for tournament: tournament_type, tournament_format }");
+
+          // ========================================
+          // 9. DUTCH MATCH WIN OUTCOMES (insert-only; period leaderboards aggregate from this)
+          // ========================================
+          // One document per winning player per match (human or comp). ended_at: UTC (BSON Date).
+          // Unique (room_id, user_id) prevents double-count on replay; app uses insert_one only.
+          print("\n📊 Step 9: Ensuring dutch_match_win_outcomes collection exists...");
+          var collsMw = db.getCollectionNames();
+          if (collsMw.indexOf("dutch_match_win_outcomes") === -1) {
+            db.createCollection("dutch_match_win_outcomes");
+            print("  ✅ Created dutch_match_win_outcomes collection");
+          } else {
+            print("  ✓ dutch_match_win_outcomes collection already exists");
+          }
+          try {
+            db.dutch_match_win_outcomes.createIndex({ "ended_at": 1 });
+            db.dutch_match_win_outcomes.createIndex(
+              { "room_id": 1, "user_id": 1 },
+              { unique: true, name: "room_user_unique" }
+            );
+            print("  ✅ Ensured dutch_match_win_outcomes indexes");
+          } catch (e) {
+            if (e.code !== 85 && e.code !== 86) { throw e; }
+            print("  ✓ dutch_match_win_outcomes indexes already present or partial create");
+          }
+          print("  📋 Doc shape: { room_id (string), user_id (ObjectId), ended_at (UTC),");
+          print("      is_tournament (bool), tournament_id (optional string), game_mode (optional string) }");
+
           // ========================================
           // FINAL SUMMARY
           // ========================================
@@ -478,7 +512,8 @@
           print("- Tournaments collection: " + (db.tournaments ? db.tournaments.countDocuments() : 0) + " docs");
           print("- stripe_coin_purchases: " + db.stripe_coin_purchases.countDocuments() + " docs");
           print("- wallets: " + db.wallets.countDocuments() + " docs");
-          print("- leaderboards: " + db.leaderboards.countDocuments() + " docs");
+          print("- Leaderboards collection: " + db.leaderboards.countDocuments() + " docs");
+          print("- dutch_match_win_outcomes: " + db.dutch_match_win_outcomes.countDocuments() + " docs");
           print("\n✅ All missing modules have been added to existing users!");
         mode: '0644'
 
@@ -542,6 +577,10 @@
           // Tournaments collection
           var tournamentsExist = db.getCollectionNames().indexOf('tournaments') !== -1;
           print('\\n🏆 Tournaments collection: ' + (tournamentsExist ? 'exists, ' + db.tournaments.countDocuments() + ' docs' : 'not present'));
+          var lb = db.getCollectionNames().indexOf('leaderboards') >= 0 ? db.leaderboards.countDocuments() : 0;
+          print('\\n📊 Leaderboards docs: ' + lb);
+          var mw = db.getCollectionNames().indexOf('dutch_match_win_outcomes') >= 0 ? db.dutch_match_win_outcomes.countDocuments() : 0;
+          print('📊 dutch_match_win_outcomes docs: ' + mw);
         "
       register: verification_summary
       changed_when: false
@@ -570,6 +609,8 @@
           - Ensured tournaments collection exists (if missing)
           - Ensured stripe_coin_purchases + wallets collections exist (local DB parity; _id index only)
           - Dropped VPS-only tournaments indexes if present (creator_id, user_ids, created_at, updated_at) to match local index set
+          - Ensured leaderboards collection exists (daily / monthly / yearly / tournament by type+format; winners + date_time UTC)
+          - Ensured dutch_match_win_outcomes exists (insert-only per win human or comp; indexes on ended_at and unique room_id+user_id)
           - Preserved all existing user data
           - No user documents or tournament documents were deleted
           

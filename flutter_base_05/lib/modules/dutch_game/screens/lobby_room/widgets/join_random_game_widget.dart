@@ -34,15 +34,15 @@ int joinRandomDefaultTableLevel() {
 }
 
 /// Carousel table picker — same interaction model as home [FeatureSlot] carousel (PageView + arrows).
+/// [onDisplayLevelChanged] fires for every page (including locked previews); join must use that tier,
+/// not a separate "last unlocked" selection.
 class _JoinRandomTableCarousel extends StatefulWidget {
   final int selectedLevel;
-  final ValueChanged<int> onLevelChanged;
   final ValueChanged<int>? onDisplayLevelChanged;
   final bool lockedInteraction;
 
   const _JoinRandomTableCarousel({
     required this.selectedLevel,
-    required this.onLevelChanged,
     this.onDisplayLevelChanged,
     required this.lockedInteraction,
   });
@@ -126,9 +126,6 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
     final level = levels[index];
     setState(() => _pageIndex = index);
     widget.onDisplayLevelChanged?.call(level);
-    if (!_isLevelLocked(level)) {
-      widget.onLevelChanged(level);
-    }
   }
 
   void _prev() {
@@ -344,21 +341,30 @@ class JoinRandomGameWidget extends StatefulWidget {
 
 class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   bool _isLoading = false;
-  /// Room table tier (1–4) sent with join_random_game as `game_level`.
-  int _selectedTableLevel = LevelMatcher.levelOrder.first;
-  /// Carousel page tier (including locked preview) — drives inner panel felt styling.
+  /// Visible carousel tier (1–4) — sent with join_random_game as `game_level`; includes locked previews.
   int _displayTableLevel = LevelMatcher.levelOrder.first;
   static final Logger _logger = Logger();
-
-  int _firstUnlockedTableLevel() => joinRandomDefaultTableLevel();
 
   @override
   void initState() {
     super.initState();
-    final initial = _firstUnlockedTableLevel();
-    _selectedTableLevel = initial;
-    _displayTableLevel = initial;
+    _displayTableLevel = joinRandomDefaultTableLevel();
     _setupWebSocketListeners();
+  }
+
+  bool _isDisplayLevelLocked(int level) {
+    final required = LevelMatcher.tableLevelToRequiredUserLevel(
+      level,
+      defaultLevel: level,
+    );
+    final stats = DutchGameHelpers.getUserDutchGameStats();
+    final raw = stats?['level'];
+    final userLevel = raw is int
+        ? raw
+        : raw is num
+            ? raw.toInt()
+            : int.tryParse(raw?.toString() ?? '') ?? 1;
+    return userLevel < required;
   }
 
   void _setupWebSocketListeners() {
@@ -398,6 +404,21 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       _logger.info('🎯 JoinRandomGame: button pressed (isClearAndCollect=$isClearAndCollect)', isOn: true);
     }
 
+    if (_isDisplayLevelLocked(_displayTableLevel)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Table ${_displayTableLevel} is locked. Raise your player level or pick an unlocked table.',
+              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+            ),
+            backgroundColor: AppColors.warningColor,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -415,7 +436,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       // Use the helper method to join random game with isClearAndCollect flag
       final result = await DutchGameHelpers.joinRandomGame(
         isClearAndCollect: isClearAndCollect,
-        gameLevel: _selectedTableLevel,
+        gameLevel: _displayTableLevel,
       );
       if (LOGGING_SWITCH) {
         _logger.info('🎯 JoinRandomGame: result success=${result['success']}, error=${result['error']}', isOn: true);
@@ -458,9 +479,14 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final safeLevel = LevelMatcher.levelOrder.contains(_selectedTableLevel)
-        ? _selectedTableLevel
-        : _firstUnlockedTableLevel();
+    final carouselSyncLevel = LevelMatcher.levelOrder.contains(_displayTableLevel)
+        ? _displayTableLevel
+        : LevelMatcher.levelOrder.first;
+    final tableLocked = _isDisplayLevelLocked(_displayTableLevel);
+    final requiredPlayerLevel = LevelMatcher.tableLevelToRequiredUserLevel(
+      _displayTableLevel,
+      defaultLevel: _displayTableLevel,
+    );
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
@@ -510,17 +536,42 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
             ),
             SizedBox(height: AppPadding.smallPadding.top),
             _JoinRandomTableCarousel(
-              selectedLevel: safeLevel,
+              selectedLevel: carouselSyncLevel,
               lockedInteraction: _isLoading,
               onDisplayLevelChanged: (level) {
                 setState(() => _displayTableLevel = level);
               },
-              onLevelChanged: _isLoading
-                  ? (_) {}
-                  : (level) {
-                      setState(() => _selectedTableLevel = level);
-                    },
             ),
+            if (tableLocked) ...[
+              SizedBox(height: AppPadding.smallPadding.top),
+              Semantics(
+                label: 'join_random_table_locked_notice',
+                identifier: 'join_random_table_locked_notice',
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(
+                        Icons.lock_outline,
+                        size: 18,
+                        color: AppColors.warningColor,
+                      ),
+                    ),
+                    SizedBox(width: AppPadding.smallPadding.left),
+                    Expanded(
+                      child: Text(
+                        'This table is locked for your account. Reach player level $requiredPlayerLevel to play here, or swipe to an unlocked table.',
+                        style: AppTextStyles.caption().copyWith(
+                          color: AppColors.warningColor,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             SizedBox(height: AppPadding.defaultPadding.top),
             Text(
               'Select Game Type',

@@ -1,4 +1,7 @@
 ---
+# Full nginx + Certbot bootstrap (install, template HTTP sites, obtain SSL).
+# For config-only updates from `templates/nginx-site.conf.j2` on an already-SSL host, use
+# `04b_update_nginx_site_templates.yml` (refuses to overwrite Certbot files unless forced — read that playbook).
 - name: Setup Nginx with SSL and Domain Configuration
   hosts: "{{ vm_name }}_user"
   become: true

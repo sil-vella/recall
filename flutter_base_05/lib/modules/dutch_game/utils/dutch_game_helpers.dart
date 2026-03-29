@@ -125,6 +125,11 @@ class DutchGameHelpers {
       if (LOGGING_SWITCH) {
         _logger.info('DutchGameHelpers.createRoom: emit returned — success=${result['success']} room_id=${result['room_id']} error=${result['error']}');
       }
+      if (result['success'] == true) {
+        _stateUpdater.updateStateSync({
+          'pending_start_match_source': 'create_room',
+        });
+      }
       return result;
     } catch (e) {
       if (LOGGING_SWITCH) {
@@ -166,10 +171,16 @@ class DutchGameHelpers {
     final uid = loginState?['userId']?.toString() ?? loginState?['user_id']?.toString() ?? '';
     if (uid.isNotEmpty) data['user_id'] = uid;
 
-    return await _eventEmitter.emit(
+    final joinResult = await _eventEmitter.emit(
       eventType: 'join_room',
       data: data,
     );
+    if (joinResult['success'] == true) {
+      _stateUpdater.updateStateSync({
+        'pending_start_match_source': 'join_room',
+      });
+    }
+    return joinResult;
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('DutchGameHelpers: Error joining room: $e');
@@ -333,7 +344,10 @@ class DutchGameHelpers {
         if (LOGGING_SWITCH) {
           _logger.info('DutchGameHelpers: Calling LoginModule.registerGuestUser');
         }
-        final result = await loginModule.registerGuestUser(context: effectiveContext);
+        final result = await loginModule.registerGuestUser(
+          context: effectiveContext,
+          guestProvisionSource: 'auto_websocket',
+        );
         
         if (result['success'] != null) {
           if (LOGGING_SWITCH) {
@@ -565,6 +579,7 @@ class DutchGameHelpers {
       _stateUpdater.updateStateSync({
         'isRandomJoinInProgress': true,
         'randomJoinIsClearAndCollect': isClearAndCollect, // Store for use in start_match
+        'pending_start_match_source': 'random_join',
       });
       if (LOGGING_SWITCH) {
         _logger.info('🎯 Set isRandomJoinInProgress=true and randomJoinIsClearAndCollect=$isClearAndCollect using updateStateSync');
@@ -1472,6 +1487,7 @@ class DutchGameHelpers {
         // Clear random join flags (CRITICAL: Must be cleared when staying in same mode)
         'isRandomJoinInProgress': false,
         'randomJoinIsClearAndCollect': null,
+        'pending_start_match_source': null,
       });
       
       // 7. CRITICAL (WS → Practice): Clear state queue again so any updates enqueued by

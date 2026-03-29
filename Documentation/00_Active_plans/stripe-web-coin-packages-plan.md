@@ -41,9 +41,9 @@ Ship **hosted Stripe Checkout** for the five Dutch **coin packages** on **Flutte
 | `pro` | 3500 | `STRIPE_PRICE_COIN_PRO` |
 
 - [ ] **`STRIPE_COIN_CHECKOUT_SUCCESS_URL`** — must land user on app with **`stripe_checkout=success`**; may include Stripe’s `{CHECKOUT_SESSION_ID}`  
-  - **Recommended** (verified): path-style URL  
-  - Example: `https://dutch.mt/coin-purchase?stripe_checkout=success&session_id={CHECKOUT_SESSION_ID}`  
-- [ ] **`STRIPE_COIN_CHECKOUT_CANCEL_URL`** — e.g. `https://dutch.mt/coin-purchase?stripe_checkout=cancel` (or hash equivalent)
+  - **Production (Flutter web + nginx)**: **hash URL** so the shell loads `index.html` (path-only `/coin-purchase?…` often **404**).  
+  - Example: `https://dutch.mt/#/coin-purchase?stripe_checkout=success&session_id={CHECKOUT_SESSION_ID}`  
+- [ ] **`STRIPE_COIN_CHECKOUT_CANCEL_URL`** — e.g. `https://dutch.mt/#/coin-purchase?stripe_checkout=cancel`
 
 ### TODO — Verification
 
@@ -90,7 +90,7 @@ When moving from local test mode to production, update both code/runtime config 
     - `STRIPE_SECRET_KEY` (live key)
     - `STRIPE_WEBHOOK_SECRET` (from production Dashboard webhook endpoint, not Stripe CLI)
     - `STRIPE_PRICE_COIN_STARTER|CASUAL|POPULAR|GRINDER|PRO` (live mode price IDs)
-    - `STRIPE_COIN_CHECKOUT_SUCCESS_URL` and `STRIPE_COIN_CHECKOUT_CANCEL_URL` to production domain (path-style recommended)
+    - `STRIPE_COIN_CHECKOUT_SUCCESS_URL` and `STRIPE_COIN_CHECKOUT_CANCEL_URL` to production domain (**hash URLs** for Flutter web on nginx, e.g. `https://dutch.mt/#/coin-purchase?…`)
   - Restart backend after env/secret changes.
   - Optionally set `LOGGING_SWITCH` back to `false` in `stripe_main.py`, `coin_purchase_screen.dart`, and `navigation_manager.dart` after validation.
 

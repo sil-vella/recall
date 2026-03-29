@@ -1,0 +1,93 @@
+---
+# Set every user's modules.dutch_game.subscription_tier to "regular" and modules.dutch_game.coins to 500.
+# Default: dry_run=true (stats only, no writes). Apply: -e "dry_run=false"
+#
+# Usage (VPS):
+#   cd app_dev && ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_all_users_dutch_tier_coins.yml
+#   ansible-playbook ... -e "dry_run=false"   # apply on VPS
+
+- name: Load app_dev/.env.prod for MongoDB password (optional)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env.prod"
+  tasks:
+    - name: Check if app_dev/.env.prod exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env.prod into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'): continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        result = { 'mongodb_password': out.get('MONGODB_PASSWORD', '') }
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env.prod
+      set_fact:
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
+- name: Set all users Dutch tier/coins (VPS Docker MongoDB)
+  hosts: "{{ (vm_name | default('rop01')) }}_user"
+  become: true
+  gather_facts: false
+  vars:
+    mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
+    mongodb_container_name: "dutch_external_app_mongodb"
+    dry_run: true
+  tasks:
+    - name: Render mongosh script
+      template:
+        src: set_all_users_dutch_tier_coins.js.j2
+        dest: /tmp/set_all_users_dutch_tier_coins.js
+        mode: "0644"
+
+    - name: Copy script into MongoDB container
+      shell: sg docker -c 'docker cp /tmp/set_all_users_dutch_tier_coins.js {{ mongodb_container_name }}:/tmp/set_all_users_dutch_tier_coins.js'
+      register: copy_out
+      changed_when: copy_out.rc == 0
+
+    - name: Run mongosh script
+      shell: |
+        sg docker -c 'docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/set_all_users_dutch_tier_coins.js'
+      register: script_out
+      changed_when: not (dry_run | bool)
+
+    - name: Script stdout
+      debug:
+        msg: "{{ script_out.stdout_lines | default([]) }}"
+
+    - name: Script stderr
+      debug:
+        msg: "{{ script_out.stderr_lines | default([]) }}"
+      when: script_out.stderr_lines | default([]) | length > 0
+
+    - name: Fail if mongosh failed
+      fail:
+        msg: "MongoDB script failed rc={{ script_out.rc }}"
+      when: script_out.rc != 0
+
+    - name: Remove script from host
+      file:
+        path: /tmp/set_all_users_dutch_tier_coins.js
+        state: absent

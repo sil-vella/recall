@@ -8,6 +8,48 @@ class AnalyticsService {
 
   static final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
+  /// GA4 screen view (separate from custom [logEvent]).
+  static Future<void> logScreenView(String screenName) async {
+    if (!FirebaseRuntimeConfig.isEnabled) {
+      return;
+    }
+    try {
+      await _analytics.logScreenView(
+        screenName: screenName,
+        screenClass: screenName,
+      );
+      if (LOGGING_SWITCH) {
+        Logger().info('AnalyticsService: logScreenView $screenName');
+      }
+    } catch (e, stackTrace) {
+      if (LOGGING_SWITCH) {
+        Logger().error(
+          'AnalyticsService: logScreenView failed',
+          error: e,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+  }
+
+  /// Clears analytics user id on logout when [id] is null.
+  static Future<void> setUserId(String? id) async {
+    if (!FirebaseRuntimeConfig.isEnabled) {
+      return;
+    }
+    try {
+      await _analytics.setUserId(id: id);
+    } catch (e, stackTrace) {
+      if (LOGGING_SWITCH) {
+        Logger().error(
+          'AnalyticsService: setUserId failed',
+          error: e,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+  }
+
   static Future<void> logEvent({
     required String name,
     Map<String, Object>? parameters,

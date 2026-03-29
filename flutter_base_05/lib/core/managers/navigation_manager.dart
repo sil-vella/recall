@@ -13,6 +13,7 @@ import '../00_base/module_base.dart';
 import '../../tools/logging/logger.dart';
 import 'hooks_manager.dart';
 import '../../modules/analytics_module/analytics_module.dart';
+import '../../utils/analytics_service.dart';
 import '../../modules/promotional_ads_module/ads_navigator_observer.dart';
 import 'module_manager.dart';
 
@@ -382,6 +383,7 @@ class NavigationManager extends ChangeNotifier {
       
       // Track screen view asynchronously (don't await to avoid blocking navigation)
       _analyticsModule?.trackScreenView(screenName);
+      AnalyticsService.logScreenView(screenName);
     } catch (e) {
       // Silently fail - don't block navigation if analytics fails
     }

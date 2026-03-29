@@ -1,0 +1,75 @@
+// Set every user's modules.dutch_game.subscription_tier to "regular" and modules.dutch_game.coins to 500.
+// Tier constants: tier_rank_level_matcher.TIER_REGULAR === "regular"
+// DRY_RUN: only print stats (no writes). Controlled by Ansible template.
+var DRY_RUN = {% if dry_run | bool %}true{% else %}false{% endif %};
+var TARGET_TIER = "regular";
+var TARGET_COINS = 500;
+
+var d = db.getSiblingDB("external_system");
+var coll = d.users;
+
+if (DRY_RUN) {
+  var users = coll.find(
+    {},
+    { username: 1, email: 1, "modules.dutch_game.subscription_tier": 1, "modules.dutch_game.coins": 1 }
+  ).toArray();
+  var total = users.length;
+  var tierBreakdown = {};
+  var notRegular = 0;
+  var notTargetCoins = 0;
+  users.forEach(function (u) {
+    var dg = u.modules && u.modules.dutch_game ? u.modules.dutch_game : null;
+    var t =
+      dg && dg.subscription_tier !== undefined && dg.subscription_tier !== null
+        ? String(dg.subscription_tier)
+        : "(missing)";
+    tierBreakdown[t] = (tierBreakdown[t] || 0) + 1;
+    if (t !== TARGET_TIER) notRegular++;
+    var c = dg && dg.coins !== undefined && dg.coins !== null ? dg.coins : null;
+    if (c !== TARGET_COINS) notTargetCoins++;
+  });
+  print("=== DRY RUN (no writes) ===");
+  print("Total users: " + total);
+  print("Users where subscription_tier is not '" + TARGET_TIER + "' (or missing): " + notRegular);
+  print("Users where coins !== " + TARGET_COINS + " (or missing): " + notTargetCoins);
+  print("Tier breakdown (modules.dutch_game.subscription_tier):");
+  Object.keys(tierBreakdown)
+    .sort()
+    .forEach(function (k) {
+      print("  " + k + ": " + tierBreakdown[k]);
+    });
+  print("Sample (first 5 users, projected fields):");
+  printjson(users.slice(0, 5));
+  quit(0);
+}
+
+var now = new Date();
+var result = coll.updateMany(
+  {},
+  {
+    $set: {
+      "modules.dutch_game.subscription_tier": TARGET_TIER,
+      "modules.dutch_game.coins": TARGET_COINS,
+      "modules.dutch_game.last_updated": now,
+      updated_at: now,
+    },
+  }
+);
+print("=== APPLY ===");
+print("matchedCount: " + result.matchedCount);
+print("modifiedCount: " + result.modifiedCount);
+
+var totalAfter = coll.countDocuments({});
+var badAfter = coll.countDocuments({
+  $or: [
+    { "modules.dutch_game.subscription_tier": { $ne: TARGET_TIER } },
+    { "modules.dutch_game.coins": { $ne: TARGET_COINS } },
+  ],
+});
+print("Verification: total users=" + totalAfter + ", not matching tier/coins=" + badAfter);
+if (badAfter > 0) {
+  print("ERROR: " + badAfter + " user(s) still not matching target tier/coins.");
+  quit(1);
+}
+print("OK: all users have modules.dutch_game.subscription_tier='" + TARGET_TIER + "' and coins=" + TARGET_COINS + ".");
+quit(0);

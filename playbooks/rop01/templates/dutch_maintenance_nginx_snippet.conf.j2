@@ -1,11 +1,16 @@
 # Managed by Ansible playbooks/rop01/16_dutch_maintenance.yml — do not edit by hand.
-# 1) When .maintenance exists: 302 every URI except /maintenance.html to that path.
-# 2) /maintenance.html: serve static page only while in maintenance; otherwise 302 to site root.
+# When .maintenance exists: 302 all requests to /maintenance.html except:
+#   - /maintenance.html (the page itself)
+#   - /downloads* (APK binaries)
+# When .maintenance is absent, GET /maintenance.html redirects (302) to /.
 set $dutch_maint_block 0;
 if (-f {{ dutch_site_root }}/.maintenance) {
     set $dutch_maint_block 1;
 }
 if ($request_uri ~ "^/maintenance\.html") {
+    set $dutch_maint_block 0;
+}
+if ($request_uri ~ "^/downloads") {
     set $dutch_maint_block 0;
 }
 if ($dutch_maint_block = 1) {

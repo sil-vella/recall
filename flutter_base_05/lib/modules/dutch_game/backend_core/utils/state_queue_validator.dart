@@ -384,6 +384,12 @@ class StateQueueValidator {
       required: false,
       description: 'Game mode flag for random join: false = clear mode (no collection), true = collection mode',
     ),
+    'pending_start_match_source': DutchStateFieldSpec(
+      type: String,
+      required: false,
+      description:
+          'Analytics routing for start_match: random_join | create_room | join_room (cleared after log)',
+    ),
     'lastError': DutchStateFieldSpec(
       type: String,
       required: false,

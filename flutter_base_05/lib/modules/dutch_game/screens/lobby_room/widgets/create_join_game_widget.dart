@@ -1275,7 +1275,8 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     );
   }
 
-  static const double _kTableLevelDropdownItemHeight = 52;
+  /// Tall enough for two lines on locked tiers (label + “Locked — …”).
+  static const double _kTableLevelDropdownItemHeight = 58;
 
   static const List<Shadow> _kFeltLabelShadows = [
     Shadow(color: Color(0x88000000), blurRadius: 4, offset: Offset(0, 1)),
@@ -1285,7 +1286,8 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
   DropdownMenuItem<int> _buildTableLevelDropdownMenuItem({
     required int level,
     required bool isLocked,
-    required String label,
+    required String titleLine,
+    String? lockedSubtitle,
   }) {
     return DropdownMenuItem<int>(
       value: level,
@@ -1318,18 +1320,57 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: AppPadding.defaultPadding.left,
+                      vertical: 4,
                     ),
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Text(
-                        label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.bodyMedium().copyWith(
-                          color: isLocked ? AppColors.textSecondary : AppColors.white,
-                          shadows: isLocked ? null : _kFeltLabelShadows,
-                        ),
-                      ),
+                      child: isLocked && lockedSubtitle != null
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.lock_outline,
+                                      size: 16,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        titleLine,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTextStyles.bodyMedium().copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  lockedSubtitle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.caption().copyWith(
+                                    color: AppColors.warningColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              titleLine,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.bodyMedium().copyWith(
+                                color: AppColors.white,
+                                shadows: _kFeltLabelShadows,
+                              ),
+                            ),
                     ),
                   ),
                 ],
@@ -1482,6 +1523,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                         'Table level',
                         style: AppTextStyles.label().copyWith(color: AppColors.white),
                       ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Grayed tiers are locked until your player level matches the requirement.',
+                        style: AppTextStyles.caption().copyWith(color: AppColors.textSecondary),
+                      ),
                       SizedBox(height: AppPadding.smallPadding.top),
                       Semantics(
                         label: 'create_room_dropdown_table_level',
@@ -1521,13 +1567,14 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                               defaultLevel: level,
                             );
                             final isLocked = _currentUserLevel() < requiredLevel;
-                            final label = isLocked
-                                ? '$level — $title (Level $requiredLevel)'
-                                : '$level — $title';
+                            final titleLine = '$level — $title';
                             return _buildTableLevelDropdownMenuItem(
                               level: level,
                               isLocked: isLocked,
-                              label: label,
+                              titleLine: titleLine,
+                              lockedSubtitle: isLocked
+                                  ? 'Locked — player level $requiredLevel+ required'
+                                  : null,
                             );
                           }).toList(),
                           onChanged: (value) {

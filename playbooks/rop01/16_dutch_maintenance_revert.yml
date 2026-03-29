@@ -1,5 +1,5 @@
 ---
-# One-time: remove dutch-mt maintenance snippet + include lines from nginx (undo 16_dutch_maintenance.yml).
+# Remove dutch-mt maintenance snippet + include lines (same as 16_dutch_maintenance.yml -e maintenance=off).
 #
 #   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/16_dutch_maintenance_revert.yml -e vm_name=rop01
 

@@ -5,6 +5,7 @@ import '../../../managers/feature_contracts.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../../../utils/analytics_service.dart';
 
 /// Scope and slot constants for the home screen
 class HomeScreenFeatureSlots {
@@ -34,6 +35,7 @@ class HomeScreenFeatureRegistrar {
         if (LOGGING_SWITCH) {
           _logger.info('HomeScreen: Dutch game play button pressed');
         }
+        AnalyticsService.logEvent(name: 'home_play_dutch_tap');
         try {
           final navigationManager = Provider.of<NavigationManager>(context, listen: false);
           if (LOGGING_SWITCH) {
@@ -84,6 +86,7 @@ class HomeScreenFeatureRegistrar {
         if (LOGGING_SWITCH) {
           _logger.info('HomeScreen: Dutch game demo button pressed');
         }
+        AnalyticsService.logEvent(name: 'home_demo_tap');
         try {
           final navigationManager = Provider.of<NavigationManager>(context, listen: false);
           if (LOGGING_SWITCH) {

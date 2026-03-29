@@ -7,6 +7,7 @@ import '../../core/managers/state_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../tools/logging/logger.dart';
+import '../../utils/analytics_service.dart';
 import '../../utils/consts/theme_consts.dart';
 
 const bool LOGGING_SWITCH = false; // Coin purchase flow debugging (enable-logging-switch.mdc)
@@ -90,6 +91,10 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     if (result == 'none') return;
     if (result == 'cancel') {
       _handledStripeReturn = true;
+      await AnalyticsService.logEvent(
+        name: 'coin_checkout_return',
+        parameters: {'result': 'cancel'},
+      );
       if (LOGGING_SWITCH) {
         _logger.warning('CoinPurchaseScreen: stripe return indicates cancel');
       }
@@ -108,6 +113,10 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     if (LOGGING_SWITCH) {
       _logger.info('CoinPurchaseScreen: stripe success detected in return URL');
     }
+    await AnalyticsService.logEvent(
+      name: 'coin_checkout_return',
+      parameters: {'result': 'success'},
+    );
     _handledStripeReturn = true;
     final sessionId = _sessionIdInUri(uri);
     if (LOGGING_SWITCH) {
@@ -206,6 +215,13 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       if (LOGGING_SWITCH) {
         _logger.info('CoinPurchaseScreen: launching checkout URL');
       }
+      await AnalyticsService.logEvent(
+        name: 'coin_checkout_started',
+        parameters: {
+          'package_key': pack.key,
+          'coins': pack.coins,
+        },
+      );
       final launched = await ConnectionsApiModule.launchUrl(url);
       if (!launched && mounted) {
         if (LOGGING_SWITCH) {

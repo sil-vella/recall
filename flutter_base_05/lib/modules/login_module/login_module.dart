@@ -17,6 +17,7 @@ import '../../core/managers/navigation_manager.dart';
 import '../../core/managers/websockets/websocket_manager.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/config.dart';
+import '../../utils/analytics_service.dart';
 import 'utils/ws_jwt_access_expiry.dart';
 
 class LoginModule extends ModuleBase {
@@ -514,6 +515,7 @@ class LoginModule extends ModuleBase {
         if (response["success"] == true || response["message"] == "User created successfully") {
           // Log successful registration
           if (guestEmail != null && guestPassword != null) {
+            await AnalyticsService.logEvent(name: 'account_guest_converted_email');
             if (LOGGING_SWITCH) {
               Logger().info("LoginModule: Guest account conversion successful - Username: $username, Email: $email, clearing guest keys and updating temp keys");
             }
@@ -527,6 +529,7 @@ class LoginModule extends ModuleBase {
             await _sharedPref!.setString('email', email);
             await _sharedPref!.setString('password', password);
           } else {
+            await AnalyticsService.logEvent(name: 'account_created_regular');
             if (LOGGING_SWITCH) {
               Logger().info("LoginModule: Regular registration successful - Username: $username, Email: $email");
             }
@@ -561,6 +564,8 @@ class LoginModule extends ModuleBase {
 
   Future<Map<String, dynamic>> registerGuestUser({
     required BuildContext context,
+    /// `ui` from Account screen; `auto_websocket` from [DutchGameHelpers.ensureWebSocketReady].
+    String guestProvisionSource = 'ui',
   }) async {
     if (LOGGING_SWITCH) {
       Logger().info("LoginModule: Guest registration request initiated");
@@ -629,6 +634,13 @@ class LoginModule extends ModuleBase {
             );
             
             if (loginResult['success'] != null) {
+              await AnalyticsService.logEvent(
+                name: 'account_created_guest',
+                parameters: {
+                  'provision_source': guestProvisionSource,
+                  'auto_login_ok': 1,
+                },
+              );
               if (LOGGING_SWITCH) {
                 Logger().info("LoginModule: Guest account created and auto-login successful - Username: $username");
               }
@@ -639,6 +651,13 @@ class LoginModule extends ModuleBase {
                 "credentials": credentials,
               };
             } else {
+              await AnalyticsService.logEvent(
+                name: 'account_created_guest',
+                parameters: {
+                  'provision_source': guestProvisionSource,
+                  'auto_login_ok': 0,
+                },
+              );
               if (LOGGING_SWITCH) {
                 Logger().warning("LoginModule: Guest registration succeeded but auto-login failed - Username: $username, Error: ${loginResult['error']}");
               }
@@ -656,6 +675,13 @@ class LoginModule extends ModuleBase {
           if (LOGGING_SWITCH) {
             Logger().warning("LoginModule: Guest registration response missing credentials or user data");
           }
+          await AnalyticsService.logEvent(
+            name: 'account_created_guest',
+            parameters: {
+              'provision_source': guestProvisionSource,
+              'auto_login_ok': 0,
+            },
+          );
           return {"success": "Guest account created successfully"};
         } else if (response["error"] != null) {
           // Handle rate limiting errors
@@ -816,6 +842,14 @@ class LoginModule extends ModuleBase {
         if (LOGGING_SWITCH) {
           Logger().info("LoginModule: Login successful - Username: $username, Email: $email, Account Type: ${isGuestAccount ? 'guest' : 'regular'}");
         }
+
+        await AnalyticsService.setUserId(userId.toString());
+        await AnalyticsService.logEvent(
+          name: 'account_login',
+          parameters: {
+            'method': isGuestAccount ? 'guest' : 'email',
+          },
+        );
         
         // Update state manager
         final stateManager = StateManager();
@@ -1143,6 +1177,15 @@ class LoginModule extends ModuleBase {
             "LoginModule: Google Sign-In successful - Username: $username, Email: $email, account_type: ${userData['account_type']}",
           );
         }
+
+        await AnalyticsService.setUserId(userId.toString());
+        await AnalyticsService.logEvent(
+          name: 'account_login',
+          parameters: {'method': 'google'},
+        );
+        if (isConvertingGuest) {
+          await AnalyticsService.logEvent(name: 'account_guest_converted_google');
+        }
         
         // Update state manager
         final stateManager = StateManager();
@@ -1233,6 +1276,8 @@ class LoginModule extends ModuleBase {
         triggerContext: context,
         keepLoginFormFields: true,
       );
+
+      await AnalyticsService.setUserId(null);
 
       return {"success": "Logout successful"};
     } catch (e) {

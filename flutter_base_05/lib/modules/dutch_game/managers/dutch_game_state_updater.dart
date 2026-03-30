@@ -25,7 +25,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // State after random join → game (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // State after random join → game (enable-logging-switch.mdc)
   
   // Dependencies
   final StateManager _stateManager = StateManager();

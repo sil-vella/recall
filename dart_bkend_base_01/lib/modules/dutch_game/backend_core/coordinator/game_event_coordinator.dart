@@ -8,7 +8,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Per-room event queue + WS trace (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // Per-room event queue + WS trace (enable-logging-switch.mdc; set false after test)
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {

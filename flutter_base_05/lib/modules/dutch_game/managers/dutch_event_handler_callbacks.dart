@@ -16,7 +16,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Random join: room_joined, game_state_updated (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Random join: room_joined, game_state_updated (enable-logging-switch.mdc)
   /// When true, log game_state_updated payload size, receive frequency, and UI rebuild triggers for performance measurement.
   static const bool LOGGING_STATE_SIZE_SWITCH = true;
   static final Logger _logger = Logger();

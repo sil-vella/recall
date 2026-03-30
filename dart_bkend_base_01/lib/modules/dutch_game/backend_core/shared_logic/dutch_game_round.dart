@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -4544,23 +4544,6 @@ class DutchGameRound {
         _logger.info('Dutch: No same rank plays recorded (simplified dutch mode)');
       };
       
-      // Update all players' status to WAITING
-      _updatePlayerStatusInGamesMap('waiting', playerId: null);
-      
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Successfully reset all players to waiting status');
-      };
-      
-      // CRITICAL: Reset gamePhase back to player_turn to match backend behavior
-      // Backend transitions to ENDING_TURN phase (game_round.py line 634)
-      // For dutch game, we use player_turn as the main gameplay phase
-      _stateCallback.onGameStateChanged({
-        'gamePhase': 'player_turn',
-      });
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Reset gamePhase to player_turn');
-      };
-      
       // CRITICAL: AWAIT computer same rank plays to complete BEFORE processing special cards
       // This ensures all queens played during same rank window are added to _specialCardData
       // before we start the special cards window
@@ -4580,6 +4563,21 @@ class DutchGameRound {
         _checkGameEnding();
         return;
       }
+
+      // Close same-rank window only after CPU same-rank attempts complete successfully.
+      // This prevents late CPU same-rank actions from being rejected by phase/status guards.
+      _updatePlayerStatusInGamesMap('waiting', playerId: null);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Successfully reset all players to waiting status');
+      };
+
+      // Reset gamePhase back to normal turn flow.
+      _stateCallback.onGameStateChanged({
+        'gamePhase': 'player_turn',
+      });
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Reset gamePhase to player_turn');
+      };
       
       if (initiatorForFinalRound != null) {
         final gs = _getCurrentGameState();

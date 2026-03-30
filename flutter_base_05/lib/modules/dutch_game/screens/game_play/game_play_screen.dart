@@ -19,7 +19,7 @@ import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
-const bool LOGGING_SWITCH = true; // End of random join → play screen (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // End of random join → play screen (enable-logging-switch.mdc)
 /// When true, log build count and rebuild duration for performance measurement.
 const bool LOGGING_REBUILD_SWITCH = true;
 

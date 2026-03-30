@@ -25,7 +25,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // State after random join → game (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // State after random join → game (enable-logging-switch.mdc)
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -794,7 +794,9 @@ class DutchGameStateUpdater {
     final gamePhase = state['gamePhase']?.toString() ?? 'waiting';
     final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
     final isRoomOwner = (currentGame['isRoomOwner'] == true) || (state['isRoomOwner'] == true);
-    final isInGame = currentGame['isInGame'] ?? false;
+    // If there is a valid currentGameId and an entry in games, treat as in-game
+    // even when transitional updates omit/flip the flag.
+    final isInGame = currentGame['isInGame'] ?? true;
     final isPractice = currentGame['isPractice'] as bool? ?? currentGameId.startsWith('practice_room_');
     final multiplayerType = currentGame['multiplayerType'] as Map<String, dynamic>?;
     

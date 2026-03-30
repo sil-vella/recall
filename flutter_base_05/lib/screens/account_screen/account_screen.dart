@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
@@ -580,10 +579,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _isLoading = false;
         });
         
-        // Navigate to main screen after successful login
-        Future.delayed(const Duration(seconds: 2), () {
-          context.go('/');
-        });
+        // Stay on account screen after successful login.
       } else {
         if (LOGGING_SWITCH) {
           _logger.warning('AccountScreen: Login failed - result: $result');
@@ -785,10 +781,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _isLoading = false;
         });
         
-        // Navigate to main screen after successful login
-        Future.delayed(const Duration(seconds: 2), () {
-          context.go('/');
-        });
+        // Stay on account screen after successful login.
       } else {
         if (LOGGING_SWITCH) {
           _logger.error("AccountScreen: Guest login failed - Error: ${result['error']}");
@@ -837,14 +830,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _isLoading = false;
         });
         
-        // If auto-login was successful, navigate to main screen
+        // If auto-login was successful, remain on account screen.
         if (result['success'].toString().contains('logged in')) {
           if (LOGGING_SWITCH) {
-            _logger.info("AccountScreen: Auto-login successful, navigating to main screen");
+            _logger.info("AccountScreen: Auto-login successful, staying on account screen");
           }
-          Future.delayed(const Duration(seconds: 3), () {
-            context.go('/');
-          });
         } else {
           if (LOGGING_SWITCH) {
             _logger.info("AccountScreen: Auto-login not successful, switching to login mode");
@@ -893,10 +883,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _isLoading = false;
         });
         
-        // Navigate to main screen after successful logout
-        Future.delayed(const Duration(seconds: 2), () {
-          context.go('/');
-        });
+        // Stay on account screen after successful logout.
       } else {
         setState(() {
           _errorMessage = result['error'];

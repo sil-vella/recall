@@ -7,7 +7,7 @@ import '../../../backend_core/utils/level_matcher.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
 
 // Enable for random game join debugging (logs to console / server.log)
-const bool LOGGING_SWITCH = true; // Lobby random join UI → WS (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Lobby random join UI → WS (enable-logging-switch.mdc)
 
 /// Cover graphic over table-tier felt on the Quick Join panel.
 const String _kJoinRandomTableBackGraphicAsset =
@@ -367,34 +367,36 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     return userLevel < required;
   }
 
-  void _setupWebSocketListeners() {
-    // Listen for join room errors from backend
-    final wsManager = WebSocketManager.instance;
-    wsManager.socket?.on('join_room_error', (data) {
-      if (mounted) {
-        final error = data['message'] ?? data['error'] ?? 'Unknown error';
-        final errStr = error.toString().toLowerCase();
-        final skipSnack = errStr.contains('insufficient coins');
-        if (!skipSnack) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Join random game failed: $error'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-        }
-        setState(() {
-          _isLoading = false;
-        });
+  void _onJoinRoomError(dynamic data) {
+    if (mounted) {
+      final map =
+          data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      final error = map['message'] ?? map['error'] ?? 'Unknown error';
+      final errStr = error.toString().toLowerCase();
+      final skipSnack = errStr.contains('insufficient coins');
+      if (!skipSnack) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Join random game failed: $error'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
       }
-    });
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _setupWebSocketListeners() {
+    final wsManager = WebSocketManager.instance;
+    wsManager.socket?.on('join_room_error', _onJoinRoomError);
   }
 
   @override
   void dispose() {
-    // Remove WebSocket listeners
     final wsManager = WebSocketManager.instance;
-    wsManager.socket?.off('join_room_error');
+    wsManager.socket?.off('join_room_error', _onJoinRoomError);
     super.dispose();
   }
 

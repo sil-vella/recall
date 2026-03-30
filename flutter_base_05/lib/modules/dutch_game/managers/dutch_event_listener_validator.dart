@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/websockets/websocket_events.dart';
+import '../../../core/managers/hooks_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
@@ -17,7 +18,7 @@ class EventConfig {
 /// Dutch Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class DutchGameEventListenerValidator {
-  static const bool LOGGING_SWITCH = true; // Random join event validation (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Random join event validation (enable-logging-switch.mdc)
   static DutchGameEventListenerValidator? _instance;
   
   static DutchGameEventListenerValidator get instance {
@@ -32,6 +33,8 @@ class DutchGameEventListenerValidator {
 
   bool _isListenerRegistered = false;
   bool _socketIOListenerRegistered = false;
+  int? _registeredListenerIdentity;
+  bool _hooksRegistered = false;
   
   /// Centralized event configuration: schema + handler mapping
   static const Map<String, EventConfig> _eventConfigs = {
@@ -147,10 +150,23 @@ class DutchGameEventListenerValidator {
   void initialize() {
     // Register the main listener only once
     if (!_isListenerRegistered) {
+      _registerReconnectHooks();
       // Register the Socket.IO listener when WebSocket is connected
       _registerSocketIOListener();
       _isListenerRegistered = true;
     }
+  }
+
+  void _registerReconnectHooks() {
+    if (_hooksRegistered) return;
+    _hooksRegistered = true;
+
+    HooksManager().registerHookWithData('websocket_event_listeners_ready', (_) {
+      _registerListenerNow();
+    });
+    HooksManager().registerHookWithData('websocket_connected', (_) {
+      _registerListenerNow();
+    });
   }
   
   /// Register the Socket.IO listener when WebSocket is connected
@@ -163,7 +179,7 @@ class DutchGameEventListenerValidator {
     } else {
       // Use the core WebSocket system's connection status stream - same as connection widget
       wsManager.connectionStatus.listen((event) {
-        if (event.status == ConnectionStatus.connected && !_socketIOListenerRegistered) {
+        if (event.status == ConnectionStatus.connected) {
           _registerListenerNow();
         }
       });
@@ -176,7 +192,8 @@ class DutchGameEventListenerValidator {
   /// Setup periodic connection check as fallback
   void _setupPeriodicConnectionCheck() {
     Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (_socketIOListenerRegistered) {
+      if (_socketIOListenerRegistered &&
+          _registeredListenerIdentity == _currentListenerIdentity()) {
         timer.cancel();
         return;
       }
@@ -191,23 +208,35 @@ class DutchGameEventListenerValidator {
   
   /// Register the actual Socket.IO listeners for direct events
   void _registerListenerNow() {
-    if (_socketIOListenerRegistered) return;
-    
     final wsManager = WebSocketManager.instance;
+    final listener = wsManager.eventListener;
+    if (listener == null) return;
+    final currentIdentity = identityHashCode(listener);
+
+    // Already registered on current listener instance.
+    if (_socketIOListenerRegistered &&
+        _registeredListenerIdentity == currentIdentity) {
+      return;
+    }
     
     // Use the core WebSocket system's event listener to register for direct events
-    if (wsManager.eventListener != null) {
-      // Register listeners for all configured events
-      final eventNames = _eventConfigs.keys.toList();
-      
-      for (final eventName in eventNames) {
-        wsManager.eventListener!.registerCustomListener(eventName, (data) {
-          _handleDirectEvent(eventName, data);
-        });
-      }
-      
-      _socketIOListenerRegistered = true;
+    // Register listeners for all configured events
+    final eventNames = _eventConfigs.keys.toList();
+
+    for (final eventName in eventNames) {
+      listener.registerCustomListener(eventName, (data) {
+        _handleDirectEvent(eventName, data);
+      });
     }
+
+    _socketIOListenerRegistered = true;
+    _registeredListenerIdentity = currentIdentity;
+  }
+
+  int? _currentListenerIdentity() {
+    final listener = WebSocketManager.instance.eventListener;
+    if (listener == null) return null;
+    return identityHashCode(listener);
   }
   
   /// Handle direct game events and route to DutchEventManager

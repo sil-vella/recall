@@ -10,7 +10,7 @@ import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // WS connect + sessions (enable-logging-switch.mdc); inbox HTTP trace → http_notify_handler.dart
+const bool LOGGING_SWITCH = false; // WS connect + sessions (enable-logging-switch.mdc); inbox HTTP trace → http_notify_handler.dart
 
 /// Core WebSocket event name for instant notifications pushed by the backend to a session.
 const String kWsInstantNotificationEvent = 'ws_instant_notification';
@@ -199,14 +199,8 @@ class WebSocketServer {
         throw FormatException('Expected JSON object, got ${decoded.runtimeType}');
       }
 
-      // JWT hardening: only validate token when client explicitly sends "authenticate" event.
-      // Re-authentication (e.g. account conversion) still works by sending event: "authenticate" with token.
-      final event = data['event'] as String?;
-      if (event == 'authenticate' && data.containsKey('token')) {
-        validateAndAuthenticate(sessionId, data['token'] as String);
-      }
-
-      // Route to unified message handler
+      // Route to unified message handler.
+      // Authentication is handled there to avoid duplicate validation/emission.
       _messageHandler.handleMessage(sessionId, data);
     } catch (e) {
       if (LOGGING_SWITCH) {

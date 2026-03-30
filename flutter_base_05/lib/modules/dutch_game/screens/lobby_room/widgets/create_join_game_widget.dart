@@ -61,26 +61,30 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     HooksManager().registerHookWithData('room_creation', _onRoomCreation);
   }
 
-  void _setupWebSocketListeners() {
-    final wsManager = WebSocketManager.instance;
-    wsManager.socket?.on('join_room_error', (data) {
-      if (mounted) {
-        final error = data['message'] ?? data['error'] ?? 'Unknown error';
-        final errStr = error.toString().toLowerCase();
-        final skipSnack = errStr.contains('insufficient coins');
-        if (!skipSnack) {
+  void _onJoinRoomError(dynamic data) {
+    if (mounted) {
+      final map =
+          data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      final error = map['message'] ?? map['error'] ?? 'Unknown error';
+      final errStr = error.toString().toLowerCase();
+      final skipSnack = errStr.contains('insufficient coins');
+      if (!skipSnack) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Join game failed: $error'),
             backgroundColor: AppColors.errorColor,
           ),
         );
-        }
-        setState(() {
-          _isLoading = false;
-        });
       }
-    });
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _setupWebSocketListeners() {
+    final wsManager = WebSocketManager.instance;
+    wsManager.socket?.on('join_room_error', _onJoinRoomError);
   }
 
   @override
@@ -88,7 +92,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
     HooksManager().deregisterCallbackWithData('room_creation', _onRoomCreation);
     _roomIdController.dispose();
     final wsManager = WebSocketManager.instance;
-    wsManager.socket?.off('join_room_error');
+    wsManager.socket?.off('join_room_error', _onJoinRoomError);
     super.dispose();
   }
 

@@ -16,7 +16,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = true; // Random join: room_joined, game_state_updated (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Random join: room_joined, game_state_updated (enable-logging-switch.mdc)
   /// When true, log game_state_updated payload size, receive frequency, and UI rebuild triggers for performance measurement.
   static const bool LOGGING_STATE_SIZE_SWITCH = true;
   static final Logger _logger = Logger();
@@ -300,6 +300,12 @@ class DutchEventHandlerCallbacks {
     }
     return loginUserId;
   }
+
+  /// Get current logged-in user id (not session id).
+  static String getCurrentLoginUserId() {
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    return loginState['userId']?.toString() ?? '';
+  }
   
   /// Check if current user is room owner for a specific game
   static bool _isCurrentUserRoomOwner(Map<String, dynamic> gameData) {
@@ -308,11 +314,17 @@ class DutchEventHandlerCallbacks {
       return false;
     }
     
-    // Get current user ID (this returns sessionId in practice mode, sessionId in multiplayer)
+    // Current identity can be either session id (player id) or logged-in user id.
     final currentUserId = getCurrentUserId();
+    final currentLoginUserId = getCurrentLoginUserId();
     
     // Direct match (works for multiplayer where owner_id is sessionId)
     if (ownerId == currentUserId) {
+      return true;
+    }
+
+    // Common backend payloads use owner_id as login user id.
+    if (currentLoginUserId.isNotEmpty && ownerId == currentLoginUserId) {
       return true;
     }
     
@@ -328,12 +340,14 @@ class DutchEventHandlerCallbacks {
       }
     }
     
-    // Also check if ownerId is a practice sessionId and currentUserId is the userId
+    // Also check if ownerId is a practice sessionId and currentUserId/currentLoginUserId is the userId
     if (ownerId.startsWith('practice_session_')) {
       final extractedOwnerUserId = ownerId.replaceFirst('practice_session_', '');
       // Check if currentUserId matches the extracted userId
       // This handles the case where owner_id might be set to sessionId
-      if (currentUserId == extractedOwnerUserId || currentUserId == ownerId) {
+      if (currentUserId == extractedOwnerUserId ||
+          currentUserId == ownerId ||
+          (currentLoginUserId.isNotEmpty && currentLoginUserId == extractedOwnerUserId)) {
         return true;
       }
     }

@@ -4,7 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../tools/logging/logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // WS connect + authenticate emit (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // WS connect + authenticate emit (enable-logging-switch.mdc; set false after test)
 
 class NativeWebSocketAdapter {
   static final Logger _logger = Logger();

@@ -12,7 +12,7 @@ import 'websocket_events.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 
-const bool LOGGING_SWITCH = false; // Lobby → random join WS connect/auth (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Lobby → random join WS connect/auth (enable-logging-switch.mdc; set false after test)
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();

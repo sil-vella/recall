@@ -25,7 +25,7 @@ typedef _NotificationSuccessHandler = Future<void> Function(
 );
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = false; // Insufficient coins → stash / coin-purchase (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Random join nav + room events; coin-purchase paths (enable-logging-switch.mdc; set false after test)
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();
@@ -194,6 +194,7 @@ class DutchEventManager {
             'currentRoomId': roomId,
             'isRoomOwner': isOwner,
             'isInRoom': true,
+            'is_random_join': isRandomJoin,
             'gamePhase': 'waiting',
             'gameStatus': 'inactive',
             'isGameActive': false,
@@ -372,6 +373,20 @@ class DutchEventManager {
               'currentRoomId': roomId,
               'isInRoom': true,
             });
+          }
+
+          final currentRoute = NavigationManager().getCurrentRoute();
+          if (currentRoute != '/dutch/game-play') {
+            if (LOGGING_SWITCH) {
+              _logger.info('🎮 websocket_join_room: Navigating to /dutch/game-play from $currentRoute');
+            }
+            Future.delayed(const Duration(milliseconds: 250), () {
+              NavigationManager().navigateTo('/dutch/game-play');
+            });
+          } else {
+            if (LOGGING_SWITCH) {
+              _logger.info('🎮 websocket_join_room: Already on /dutch/game-play, skipping navigation');
+            }
           }
         }
         

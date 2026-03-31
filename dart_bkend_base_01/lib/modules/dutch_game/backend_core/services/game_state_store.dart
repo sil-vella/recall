@@ -18,6 +18,7 @@ class GameStateStore {
       'game_id': roomId,
       'game_state': {
         'gameId': roomId,
+        'phase': 'waiting_for_players',
         'players': <Map<String, dynamic>>[],
         'discardPile': <Map<String, dynamic>>[],
         'drawPile': <Map<String, dynamic>>[],

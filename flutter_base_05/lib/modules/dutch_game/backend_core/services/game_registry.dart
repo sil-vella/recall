@@ -61,13 +61,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     return {
       'initial_peek': 10,
       'drawing_card': 5,
-      'playing_card': 15,
-      'same_rank_window': 7,
-      'queen_peek': 10,
-      'jack_swap': 10,
-      'peeking': 7,
+      'playing_card': 13,
+      'same_rank_window': 5,
+      'queen_peek': 7,
+      'jack_swap': 7,
+      'peeking': 5,
       'waiting': 0,
-      'default': 30,
+      'default': 15,
     };
   }
 

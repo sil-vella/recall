@@ -14,7 +14,7 @@ import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // create_room WS → RoomManager (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // create_room/get_public_rooms/join_room WS → RoomManager (enable-logging-switch.mdc; set false after test)
 
 /// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
 /// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.
@@ -1252,6 +1252,7 @@ class MessageHandler {
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'difficulty': room.difficulty, // Room difficulty (rank-based)
+        'is_random_join': room.isRandomJoin,
         'game_level': gameLevel,
         'timestamp': DateTime.now().toIso8601String(),
       };
@@ -1271,6 +1272,7 @@ class MessageHandler {
         'owner_id': room.ownerId,
         'current_size': room.currentSize,
         'max_size': room.maxSize,
+        'is_random_join': room.isRandomJoin,
         'game_level': joinLevel,
         'timestamp': DateTime.now().toIso8601String(),
       };
@@ -1287,6 +1289,7 @@ class MessageHandler {
         'owner_id': room.ownerId,
         'current_size': room.currentSize,
         'max_size': room.maxSize,
+        'is_random_join': room.isRandomJoin,
         'game_level': joinLevel,
         'joined_at': DateTime.now().toIso8601String(),
       };
@@ -1666,6 +1669,7 @@ class MessageHandler {
         'owner_id': room.ownerId,
         'current_size': room.currentSize,
         'max_size': room.maxSize,
+        'is_random_join': true,
         'game_level': level,
         'timestamp': DateTime.now().toIso8601String(),
       });
@@ -1679,6 +1683,7 @@ class MessageHandler {
         'owner_id': room.ownerId,
         'current_size': room.currentSize,
         'max_size': room.maxSize,
+        'is_random_join': true,
         'game_level': level,
         'joined_at': DateTime.now().toIso8601String(),
       });

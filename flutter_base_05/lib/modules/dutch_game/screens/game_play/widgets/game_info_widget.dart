@@ -21,7 +21,7 @@ class GameInfoWidget extends StatefulWidget {
 }
 
 class _GameInfoWidgetState extends State<GameInfoWidget> {
-  static const bool LOGGING_SWITCH = false; // Start / roster / effective size → server.log via Logger (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Start / roster / effective size → server.log via Logger (enable-logging-switch.mdc; set false after test)
   static final Logger _logger = Logger();
   bool _isStartingMatch = false;
 
@@ -130,6 +130,17 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
     
     return _normalizePhase(rawPhase);
   }
+
+  String? _getRawPhaseFromGamesMap(Map<String, dynamic> games, String gameId) {
+    if (gameId.isEmpty || !games.containsKey(gameId)) {
+      return null;
+    }
+
+    final gameEntry = games[gameId] as Map<String, dynamic>? ?? {};
+    final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    return gameState['phase']?.toString();
+  }
   
   String? _normalizePhase(String? rawPhase) {
     if (rawPhase == null || rawPhase.isEmpty) {
@@ -173,8 +184,12 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final baseSize = rawSize is num ? rawSize.toInt() : int.tryParse('$rawSize') ?? 0;
         
         // Derive phase from SSOT (games map) with fallback to gameInfo slice
+        final rawSsotPhase = _getRawPhaseFromGamesMap(games, currentGameId);
         final ssotPhase = _getPhaseFromGamesMap(games, currentGameId);
         final gamePhase = ssotPhase ?? gameInfo['gamePhase']?.toString() ?? 'waiting';
+        final showWaitingForPlayersSpinner =
+            rawSsotPhase == 'waiting_for_players' ||
+            gameInfo['gamePhase']?.toString() == 'waiting_for_players';
         
         // Reset loading state if match has started
         if (_isStartingMatch && gamePhase != 'waiting' && gamePhase != 'setup') {
@@ -191,12 +206,17 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final isInGame = gameInfo['isInGame'] ?? false;
         final isPracticeGame = gameInfo['isPractice'] as bool? ?? currentGameId.startsWith('practice_room_');
         final multiplayerType = gameInfo['multiplayerType'] as Map<String, dynamic>?;
-        final isRandomJoin = multiplayerType?['isRandom'] == true;
 
         // Game level and tournament info from current game's game_state (SSOT)
         final gameEntry = games[currentGameId] as Map<String, dynamic>? ?? {};
         final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? {};
         final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+        final isRandomJoin =
+            multiplayerType?['isRandom'] == true ||
+            gameInfo['is_random_join'] == true ||
+            gameData['is_random_join'] == true ||
+            gameState['is_random_join'] == true ||
+            currentRoomInfo?['is_random_join'] == true;
         final gameLevel = gameState['gameLevel']; // int or null
         final minPlayers = (gameState['minPlayers'] as num?)?.toInt() ?? 2;
         final isTournament = gameState['is_tournament'] == true;
@@ -235,7 +255,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         
         if (LOGGING_SWITCH) {
           _logger.info(
-            '🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, baseSize: $baseSize, rosterCompBonus: $rosterCompBonus, effectiveSize: $effectiveSize, minPlayers: $minPlayers, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, isRandomJoin: $isRandomJoin, multiplayerType: $multiplayerType, showStartButton: $showStartButton',
+            '🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, baseSize: $baseSize, rosterCompBonus: $rosterCompBonus, effectiveSize: $effectiveSize, minPlayers: $minPlayers, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, isRandomJoin: $isRandomJoin, multiplayerType: $multiplayerType, gameInfo.is_random_join=${gameInfo['is_random_join']}, gameData.is_random_join=${gameData['is_random_join']}, gameState.is_random_join=${gameState['is_random_join']}, currentRoomInfo.is_random_join=${currentRoomInfo?['is_random_join']}, showStartButton: $showStartButton',
           );
         }
         
@@ -269,6 +289,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
           isMyTurn: isMyTurn,
           playerStatus: playerStatus,
           showStartButton: showStartButton,
+          showWaitingForPlayersSpinner: showWaitingForPlayersSpinner,
           gameLevel: gameLevel,
           isTournament: isTournament,
           tournamentId: tournamentId,
@@ -327,6 +348,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
     required bool isMyTurn,
     required String playerStatus,
     required bool showStartButton,
+    required bool showWaitingForPlayersSpinner,
     Object? gameLevel,
     bool isTournament = false,
     String? tournamentId,
@@ -430,6 +452,21 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
                   ),
                 ],
               ),
+              if (showWaitingForPlayersSpinner) ...[
+                const SizedBox(height: 8),
+                Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.accentColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
             
             const SizedBox(height: 12),

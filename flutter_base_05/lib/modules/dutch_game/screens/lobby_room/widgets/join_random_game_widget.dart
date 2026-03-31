@@ -7,7 +7,7 @@ import '../../../backend_core/utils/level_matcher.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
 
 // Enable for random game join debugging (logs to console / server.log)
-const bool LOGGING_SWITCH = false; // Lobby random join UI → WS (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Lobby random join UI → WS (enable-logging-switch.mdc; set false after test)
 
 /// Cover graphic over table-tier felt on the Quick Join panel.
 const String _kJoinRandomTableBackGraphicAsset =

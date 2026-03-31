@@ -16,7 +16,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Random join: room_joined, game_state_updated (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = false; // Random join: room_joined, game_state_updated (enable-logging-switch.mdc; set false after test)
   /// When true, log game_state_updated payload size, receive frequency, and UI rebuild triggers for performance measurement.
   static const bool LOGGING_STATE_SIZE_SWITCH = true;
   static final Logger _logger = Logger();
@@ -1651,7 +1651,21 @@ When anyone has played a card with the **same rank** as your **collection card**
         final updateData = <String, dynamic>{'game_type': gameType};
         if (gameLevel != null) updateData['game_level'] = gameLevel;
         _updateGameData(gameId, updateData);
-        final isRandom = data['is_random_join'] == true || DutchGameHelpers.isRandomJoinInProgress;
+        final existingGame = currentGamesForCheck[gameId] as Map<String, dynamic>? ?? {};
+        final existingMultiplayerType =
+            existingGame['multiplayerType'] as Map<String, dynamic>? ?? {};
+        final existingGameData =
+            existingGame['gameData'] as Map<String, dynamic>? ?? {};
+        final existingRandom =
+            existingMultiplayerType['isRandom'] == true ||
+            existingGameData['is_random_join'] == true;
+        final isRandom =
+            data['is_random_join'] == true ||
+            DutchGameHelpers.isRandomJoinInProgress ||
+            existingRandom;
+        if (isRandom) {
+          _updateGameData(gameId, {'is_random_join': true});
+        }
         _updateGameInMap(gameId, {
           'multiplayerType': {
             'type': gameType == 'tournament' ? 'tournament' : 'classic',

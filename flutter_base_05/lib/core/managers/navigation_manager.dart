@@ -357,8 +357,18 @@ class NavigationManager extends ChangeNotifier {
 
   /// ✅ Get current route
   String getCurrentRoute() {
-    // TODO: Implement route tracking
-    return '/';
+    try {
+      if (_routerInstance != null) {
+        final uri = _routerInstance!.routeInformationProvider.value.uri;
+        final path = uri.path;
+        if (path.isNotEmpty) {
+          return path;
+        }
+      }
+    } catch (_) {
+      // Fall through to best-effort fallback.
+    }
+    return _lastNavigationRoute ?? '/';
   }
 
   /// ✅ Check if route exists

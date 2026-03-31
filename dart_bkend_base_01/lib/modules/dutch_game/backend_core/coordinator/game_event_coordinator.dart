@@ -8,7 +8,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = true; // Per-room event queue + random-join WS trace (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // Per-room event queue + random-join WS trace (enable-logging-switch.mdc; set false after test)
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -1505,6 +1505,26 @@ class GameEventCoordinator {
           'event': 'completed_initial_peek_error',
           'room_id': roomId,
           'message': 'Human player not found',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        return;
+      }
+
+      // Guard: only accept completed_initial_peek while game/player are in initial_peek state.
+      final currentPhase = gameState['phase']?.toString() ?? '';
+      final playerStatus = humanPlayer['status']?.toString() ?? '';
+      if (currentPhase != 'initial_peek' || playerStatus != 'initial_peek') {
+        if (LOGGING_SWITCH) {
+          _logger.warning(
+            'GameEventCoordinator: Rejecting completed_initial_peek for session=$sessionId '
+            '(phase=$currentPhase, playerStatus=$playerStatus)',
+          );
+        }
+        server.sendToSession(sessionId, {
+          'event': 'completed_initial_peek_error',
+          'room_id': roomId,
+          'message':
+              'Initial peek not active for this player (phase=$currentPhase, status=$playerStatus)',
           'timestamp': DateTime.now().toIso8601String(),
         });
         return;

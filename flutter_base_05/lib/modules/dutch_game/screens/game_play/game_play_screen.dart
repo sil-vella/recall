@@ -14,7 +14,6 @@ import '../../widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
 import 'widgets/action_text_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
-import '../../managers/feature_registry_manager.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
@@ -405,7 +404,10 @@ class GamePlayScreen extends BaseScreen {
 
   @override
   Decoration? getBackground(BuildContext context) {
-    return const BoxDecoration(color: DutchGamePlayTableStyles.playScreenBackdropColor);
+    final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final level = resolveDutchGamePlayTableLevel(dutch);
+    final felt = DutchGamePlayTableStyles.forLevel(level).feltBackground;
+    return BoxDecoration(color: felt);
   }
 
   @override
@@ -660,11 +662,29 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     final playTableLevel = resolveDutchGamePlayTableLevel(dutchSnapshot);
     final tableStyle = DutchGamePlayTableStyles.forLevel(playTableLevel);
 
-    final content = Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1000),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
+    // Tier PNG + opacity on the screen backdrop only ([getBackground] green shows through); table card sits above.
+    final content = Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: AppOpacity.shadow,
+              child: Image.asset(
+                DutchGamePlayTableStyles.tableBackGraphicAssetPath(playTableLevel),
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                errorBuilder: (context, error, stackTrace) =>
+                    const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
         if (LOGGING_SWITCH) {
           _logger.info(
             'GamePlayScreen: LayoutBuilder - maxHeight=${constraints.maxHeight}, '
@@ -889,9 +909,11 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
             ),
           ],
         );
-      },
-      ),
-    ),
+              },
+            ),
+          ),
+        ),
+      ],
     );
     if (LOGGING_REBUILD_SWITCH && stopwatch != null) {
       stopwatch.stop();

@@ -190,20 +190,31 @@ if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/index.html" ]; then
     exit 1
   fi
 
-  # Cache-bust: add version query string so browsers load fresh script/manifest instead of cache.
-  # Nginx (04_setup_nginx) serves index.html with Cache-Control: no-cache so the shell is always revalidated.
+  # Cache-bust: add ?v=$APP_VERSION so entry shell + bootstrap + linked shell assets get new URLs each release.
+  # (Flutter's service worker still hashes main.dart.js/canvaskit/assets; this fixes stale index.html/bootstrap.)
+  # Nginx (04_setup_nginx) should serve index.html with Cache-Control: no-cache so the HTML revalidates.
   if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s|src=\"flutter_bootstrap.js\"|src=\"flutter_bootstrap.js?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i '' "s|href=\"site.webmanifest\"|href=\"site.webmanifest?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i '' "s|href=\"manifest.json\"|href=\"manifest.json?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i '' "s|href=\"favicon.png\"|href=\"favicon.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i '' "s|href=\"favicon-96x96.png\"|href=\"favicon-96x96.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i '' "s|href=\"favicon.svg\"|href=\"favicon.svg?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i '' "s|href=\"favicon.ico\"|href=\"favicon.ico?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i '' "s|href=\"apple-touch-icon.png\"|href=\"apple-touch-icon.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i '' "s|href=\"icons/Icon-192.png\"|href=\"icons/Icon-192.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
   else
     sed -i "s|src=\"flutter_bootstrap.js\"|src=\"flutter_bootstrap.js?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i "s|href=\"site.webmanifest\"|href=\"site.webmanifest?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i "s|href=\"manifest.json\"|href=\"manifest.json?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i "s|href=\"favicon.png\"|href=\"favicon.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i "s|href=\"favicon-96x96.png\"|href=\"favicon-96x96.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i "s|href=\"favicon.svg\"|href=\"favicon.svg?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i "s|href=\"favicon.ico\"|href=\"favicon.ico?v=$APP_VERSION\"|g" "$INDEX_HTML"
+    sed -i "s|href=\"apple-touch-icon.png\"|href=\"apple-touch-icon.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i "s|href=\"icons/Icon-192.png\"|href=\"icons/Icon-192.png?v=$APP_VERSION\"|g" "$INDEX_HTML"
   fi
-  echo "🔖 Cache-bust: added ?v=$APP_VERSION to index.html script and manifest URLs"
+  echo "🔖 Cache-bust: added ?v=$APP_VERSION to index.html (bootstrap, site.webmanifest, favicons, icons)"
 
   # Mandatory reload: inject no-cache meta tags so browsers and proxies don't serve a cached index.html.
   # Together with Nginx sending Cache-Control: no-cache for index.html, this encourages a fresh load on each visit.

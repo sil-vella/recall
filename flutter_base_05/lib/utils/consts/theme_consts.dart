@@ -288,11 +288,17 @@ class AppColors {
     0.05,
   ) ?? scaffoldBackgroundColor;
   
-  // Poker table green for game screens
-  static const Color pokerTableGreen = Color.fromARGB(255, 18, 109, 79); // Dark green similar to poker table felt
+  /// Home table (tier 1) felt — #4E8065.
+  static const Color pokerTableGreen = Color(0xFF4E8065);
 
-  /// Blue felt variant for higher-tier game tables (table level 2+ styling).
-  static const Color pokerTableBlue = Color.fromARGB(255, 22, 78, 132);
+  /// Local table (tier 2) felt — #514E80.
+  static const Color pokerTableBlue = Color(0xFF514E80);
+
+  /// Town table (tier 3) felt — #994C59.
+  static const Color pokerTableTown = Color(0xFF994C59);
+
+  /// City table (tier 4) felt — #734E80.
+  static const Color pokerTableCity = Color(0xFF734E80);
 
   // Casino border colors - for layered casino table borders
   static Color get casinoBorderColor => ThemeConfig.casinoBorderColor;

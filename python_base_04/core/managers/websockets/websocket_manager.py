@@ -18,7 +18,7 @@ from datetime import datetime
 from functools import wraps
 import json
 
-LOGGING_SWITCH = True  # WS room create/search/join flow debugging (enable-logging-switch.mdc; set False after verify)
+LOGGING_SWITCH = False  # WS room create/search/join flow debugging (enable-logging-switch.mdc; set False after verify)
 
 class WebSocketManager:
     def __init__(self):

@@ -4,14 +4,11 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../backend_core/utils/level_matcher.dart';
+import '../../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
 
 // Enable for random game join debugging (logs to console / server.log)
 const bool LOGGING_SWITCH = false; // Lobby random join UI → WS (enable-logging-switch.mdc; set false after test)
-
-/// Cover graphic over table-tier felt on the Quick Join panel.
-const String _kJoinRandomTableBackGraphicAsset =
-    'assets/images/backgrounds/home-table-backgraphic.png';
 
 /// First unlocked table tier for the current user (join default).
 int joinRandomDefaultTableLevel() {
@@ -129,9 +126,7 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
   }
 
   void _prev() {
-    final levels = LevelMatcher.levelOrder;
     if (_pageIndex <= 0) return;
-    if (_isLevelLocked(levels[_pageIndex - 1])) return;
     _pageController.previousPage(
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOutCubic,
@@ -141,7 +136,6 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
   void _next() {
     final levels = LevelMatcher.levelOrder;
     if (_pageIndex >= levels.length - 1) return;
-    if (_isLevelLocked(levels[_pageIndex + 1])) return;
     _pageController.nextPage(
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOutCubic,
@@ -153,13 +147,11 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
     final levels = LevelMatcher.levelOrder;
     if (levels.isEmpty) return const SizedBox.shrink();
 
-    const carouselHeight = 120.0;
+    /// Room for centered lock + two text lines in carousel when tier is locked.
+    const carouselHeight = 140.0;
+    const lockedTierIconSize = 48.0;
     final hasPrevPage = _pageIndex > 0;
     final hasNextPage = _pageIndex < levels.length - 1;
-    final arrowPrevEnabled =
-        hasPrevPage && !_isLevelLocked(levels[_pageIndex - 1]);
-    final arrowNextEnabled =
-        hasNextPage && !_isLevelLocked(levels[_pageIndex + 1]);
 
     return Semantics(
       label: 'join_random_table_carousel',
@@ -205,37 +197,51 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Wrap(
-                              alignment: WrapAlignment.center,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              spacing: 6,
-                              children: [
-                                Text(
-                                  title,
-                                  style: AppTextStyles.bodyMedium().copyWith(
-                                    color: AppColors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (locked)
-                                  Icon(
-                                    Icons.lock_outline,
-                                    size: 18,
-                                    color: AppColors.textSecondary,
-                                  ),
-                              ],
-                            ),
-                            SizedBox(height: AppPadding.smallPadding.top * 0.5),
-                            Text(
-                              '${fee}c',
-                              style: AppTextStyles.label().copyWith(
+                            if (locked) ...[
+                              Icon(
+                                Icons.lock_outline,
+                                size: lockedTierIconSize,
                                 color: AppColors.textSecondary,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
+                              SizedBox(height: AppPadding.smallPadding.top * 0.75),
+                              Text(
+                                title,
+                                style: AppTextStyles.bodyMedium().copyWith(
+                                  color: AppColors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: AppPadding.smallPadding.top * 0.5),
+                              Text(
+                                '${fee}c',
+                                style: AppTextStyles.label().copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ] else ...[
+                              Text(
+                                title,
+                                style: AppTextStyles.bodyMedium().copyWith(
+                                  color: AppColors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: AppPadding.smallPadding.top * 0.5),
+                              Text(
+                                '${fee}c',
+                                style: AppTextStyles.label().copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -251,11 +257,11 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
                 bottom: 0,
                 child: Center(
                   child: Opacity(
-                    opacity: arrowPrevEnabled ? 1.0 : 0.4,
+                    opacity: hasPrevPage ? 1.0 : 0.4,
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: arrowPrevEnabled ? _prev : null,
+                        onTap: hasPrevPage ? _prev : null,
                         borderRadius: BorderRadius.circular(24),
                         child: Container(
                           width: 36,
@@ -286,11 +292,11 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
                 bottom: 0,
                 child: Center(
                   child: Opacity(
-                    opacity: arrowNextEnabled ? 1.0 : 0.4,
+                    opacity: hasNextPage ? 1.0 : 0.4,
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: arrowNextEnabled ? _next : null,
+                        onTap: hasNextPage ? _next : null,
                         borderRadius: BorderRadius.circular(24),
                         child: Container(
                           width: 36,
@@ -502,9 +508,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
             Positioned.fill(
               child: IgnorePointer(
                 child: Opacity(
-                  opacity: 0.3,
+                  opacity: AppOpacity.shadow,
                   child: Image.asset(
-                    _kJoinRandomTableBackGraphicAsset,
+                    DutchGamePlayTableStyles.tableBackGraphicAssetPath(_displayTableLevel),
                     fit: BoxFit.cover,
                     alignment: Alignment.center,
                     errorBuilder: (context, error, stackTrace) =>
@@ -549,28 +555,16 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
               Semantics(
                 label: 'join_random_table_locked_notice',
                 identifier: 'join_random_table_locked_notice',
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Icon(
-                        Icons.lock_outline,
-                        size: 18,
-                        color: AppColors.warningColor,
-                      ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    'This table is locked for your account. Reach player level $requiredPlayerLevel to play here, or swipe to an unlocked table.',
+                    style: AppTextStyles.caption().copyWith(
+                      color: AppColors.warningColor,
+                      height: 1.35,
                     ),
-                    SizedBox(width: AppPadding.smallPadding.left),
-                    Expanded(
-                      child: Text(
-                        'This table is locked for your account. Reach player level $requiredPlayerLevel to play here, or swipe to an unlocked table.',
-                        style: AppTextStyles.caption().copyWith(
-                          color: AppColors.warningColor,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                  ],
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
             ],

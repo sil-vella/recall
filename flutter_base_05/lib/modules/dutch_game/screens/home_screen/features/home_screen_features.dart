@@ -51,7 +51,7 @@ class HomeScreenFeatureRegistrar {
           }
         }
       },
-      imagePath: 'assets/images/backgrounds/play-dutch-home-item-background_002.jpg',
+      imagePath: 'assets/images/backgrounds/play-dutch-home-item-background_003.jpg',
       heightPercentage: 0.5, // 50% of available height
       priority: 100, // Default priority
       textStyle: AppTextStyles.headingMedium().copyWith(

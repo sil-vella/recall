@@ -5,9 +5,8 @@ import '../../../../utils/consts/theme_consts.dart';
 /// Per–table-tier styling for the **inset game table** (felt + spotlights), keyed by room **table**
 /// tier (`game_level` / `gameLevel` 1–4), not the user's progression level.
 ///
-/// The **full play screen** body (margins around the table) uses
-/// [DutchGamePlayTableStyles.playScreenBackdropColor] only — always green so higher tiers can use
-/// a different felt on the table without recoloring the whole screen.
+/// The game play screen body backdrop uses the same tier [feltBackground] as the table.
+/// [playScreenBackdropColor] remains available as a neutral default where a fixed backdrop is needed.
 ///
 /// Non-felt UI (chips, borders, cards) continues to use [AppColors] directly until extended here.
 class DutchGamePlayTableStyle {
@@ -23,13 +22,40 @@ class DutchGamePlayTableStyle {
   final Color spotlightColor;
 }
 
-/// Maps table tier numbers to [DutchGamePlayTableStyle].
+/// Maps table tier numbers to [DutchGamePlayTableStyle] and optional **decorative overlay** assets.
 ///
-/// - Level **1** (Home): green felt on the table, warm spotlights.
-/// - Level **2** (Local): **blue** felt on the table only; [playScreenBackdropColor] stays green.
-/// - Levels **3** and **4**: same as level 1 until distinct art is defined.
+/// - Level **1** (Home): [AppColors.pokerTableGreen], warm spotlights.
+/// - Level **2** (Local): [AppColors.pokerTableBlue], warm spotlights.
+/// - Level **3** (Town): [AppColors.pokerTableTown], warm spotlights.
+/// - Level **4** (City): [AppColors.pokerTableCity] and city overlay asset.
+///
+/// [tableBackGraphicAssetPath] returns the PNG used e.g. on Quick Join over the tier felt (same keys as [forLevel]).
 class DutchGamePlayTableStyles {
   DutchGamePlayTableStyles._();
+
+  static const String _kHomeTableBackGraphic =
+      'assets/images/backgrounds/home-table-backgraphic_002.png';
+  static const String _kLocalTableBackGraphic =
+      'assets/images/backgrounds/local-table-backgraphic.png';
+  static const String _kTownTableBackGraphic =
+      'assets/images/backgrounds/town-table-backgraphic.png';
+  static const String _kCityTableBackGraphic =
+      'assets/images/backgrounds/city-table-backgraphic.png';
+
+  /// Decorative full-bleed overlay image for lobby/quick-join panels (paired with [forLevel]).
+  static String tableBackGraphicAssetPath(int tableLevel) {
+    switch (tableLevel) {
+      case 2:
+        return _kLocalTableBackGraphic;
+      case 3:
+        return _kTownTableBackGraphic;
+      case 4:
+        return _kCityTableBackGraphic;
+      case 1:
+      default:
+        return _kHomeTableBackGraphic;
+    }
+  }
 
   /// Solid fill for the entire play [BaseScreen] body (behind header slot, letterbox, etc.).
   /// Intentionally **not** tier-specific so e.g. table 2 can use blue felt on the table only.
@@ -45,14 +71,26 @@ class DutchGamePlayTableStyles {
     spotlightColor: AppColors.warmSpotlightColor,
   );
 
+  static const DutchGamePlayTableStyle _table3Town = DutchGamePlayTableStyle(
+    feltBackground: AppColors.pokerTableTown,
+    spotlightColor: AppColors.warmSpotlightColor,
+  );
+
+  static const DutchGamePlayTableStyle _table4City = DutchGamePlayTableStyle(
+    feltBackground: AppColors.pokerTableCity,
+    spotlightColor: AppColors.warmSpotlightColor,
+  );
+
   /// Resolved style for a room table tier. Unknown or out-of-range values use table 1.
   static DutchGamePlayTableStyle forLevel(int level) {
     switch (level) {
       case 2:
         return _table2Local;
-      case 1:
       case 3:
+        return _table3Town;
       case 4:
+        return _table4City;
+      case 1:
       default:
         return _table1Home;
     }

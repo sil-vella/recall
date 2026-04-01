@@ -21,6 +21,8 @@ const String kWsInboxChangedEvent = 'inbox_changed';
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};
   final Map<String, String> _connectionHashes = {}; // Track connection object identity
+  /// Ensures each session processes one message at a time (authenticate awaits Python; later events must wait).
+  final Map<String, Future<void>> _sessionMessageChain = {};
   final Map<String, String> _sessionToUser = {};
   final Map<String, bool> _authenticatedSessions = {};
   final Map<String, String?> _sessionToRank = {}; // Track user rank per session
@@ -187,9 +189,21 @@ class WebSocketServer {
   }
   
   void _onMessage(String sessionId, dynamic message) {
+    final prev = _sessionMessageChain[sessionId] ?? Future.value();
+    // Recover from prior failures so one bad message does not stall the session forever.
+    _sessionMessageChain[sessionId] = prev
+        .catchError((Object e, StackTrace st) {
+          if (LOGGING_SWITCH) {
+            _logger.error('❌ Prior session message failed (continuing chain): $e\n$st');
+          }
+        })
+        .then((_) => _processMessage(sessionId, message));
+  }
+
+  Future<void> _processMessage(String sessionId, dynamic message) async {
     try {
       final decoded = jsonDecode(message as String);
-      
+
       // Convert LinkedMap<dynamic, dynamic> to Map<String, dynamic>
       // jsonDecode can return LinkedMap which is not compatible with Map<String, dynamic>
       final Map<String, dynamic> data;
@@ -199,9 +213,8 @@ class WebSocketServer {
         throw FormatException('Expected JSON object, got ${decoded.runtimeType}');
       }
 
-      // Route to unified message handler.
-      // Authentication is handled there to avoid duplicate validation/emission.
-      _messageHandler.handleMessage(sessionId, data);
+      // Route to unified message handler (await so authenticate finishes before next message).
+      await _messageHandler.handleMessage(sessionId, data);
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('❌ Message parse error: $e');
@@ -287,6 +300,7 @@ class WebSocketServer {
     // Clean up connections and authentication
     _connections.remove(sessionId);
     _connectionHashes.remove(sessionId);
+    _sessionMessageChain.remove(sessionId);
     _sessionToUser.remove(sessionId);
     _authenticatedSessions.remove(sessionId);
     _sessionToRank.remove(sessionId);

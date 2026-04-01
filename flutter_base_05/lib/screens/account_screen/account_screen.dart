@@ -34,6 +34,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _registerEmailController = TextEditingController();
+  final TextEditingController _registerPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
   
   // Form keys
@@ -314,6 +316,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _registerEmailController.dispose();
+    _registerPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
@@ -383,8 +387,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   void _clearForms() {
     _usernameController.clear();
-    _emailController.clear();
-    _passwordController.clear();
+    _registerEmailController.clear();
+    _registerPasswordController.clear();
     _confirmPasswordController.clear();
   }
   
@@ -617,8 +621,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       final result = await _loginModule!.registerUser(
         context: context,
         username: _usernameController.text.trim(),
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: _registerEmailController.text.trim(),
+        password: _registerPasswordController.text,
         guestEmail: _isConvertingGuest ? _guestEmail : null,
         guestPassword: _isConvertingGuest ? _guestPassword : null,
       );
@@ -1402,6 +1406,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                               setState(() {
                                 _isLoginMode = false; // Switch to registration mode
                                 _showRegistrationForm = true; // Show registration form even when logged in
+                                _clearForms(); // Keep new account fields empty during guest conversion
                               });
                               if (LOGGING_SWITCH) {
                                 _logger.info('AccountScreen: Switched to registration mode, showRegistrationForm: $_showRegistrationForm');
@@ -2251,7 +2256,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
-            controller: _emailController,
+            controller: _registerEmailController,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
               hintText: 'Enter your email',
@@ -2291,7 +2296,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
-            controller: _passwordController,
+            controller: _registerPasswordController,
             obscureText: _obscurePassword,
             decoration: InputDecoration(
               hintText: 'Create a password',
@@ -2367,7 +2372,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               if (value == null || value.isEmpty) {
                 return 'Please confirm your password';
               }
-              if (value != _passwordController.text) {
+              if (value != _registerPasswordController.text) {
                 return 'Passwords do not match';
               }
               return null;

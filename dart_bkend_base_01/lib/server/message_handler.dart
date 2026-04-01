@@ -165,7 +165,7 @@ class MessageHandler {
   }
 
   /// Unified event handler - ALL events come through here
-  void handleMessage(String sessionId, Map<String, dynamic> data) {
+  Future<void> handleMessage(String sessionId, Map<String, dynamic> data) async {
     final event = data['event'] as String?;
 
     if (event == null) {
@@ -217,7 +217,7 @@ class MessageHandler {
         _handlePing(sessionId);
         break;
       case 'authenticate':
-        _handleAuthenticate(sessionId, data);
+        await _handleAuthenticate(sessionId, data);
         break;
 
       // Room management events
@@ -2016,7 +2016,7 @@ class MessageHandler {
   }
 
   /// Handle authenticate event
-  void _handleAuthenticate(String sessionId, Map<String, dynamic> data) {
+  Future<void> _handleAuthenticate(String sessionId, Map<String, dynamic> data) async {
     final token = data['token'] as String?;
     
     if (token == null) {
@@ -2028,8 +2028,8 @@ class MessageHandler {
       _logger.auth('🔐 Authenticate event received for session: $sessionId');
     }
     
-    // Trigger authentication validation
-    _server.validateAndAuthenticate(sessionId, token);
+    // Await so the next WS message (e.g. join_random_game) runs only after session is marked authenticated.
+    await _server.validateAndAuthenticate(sessionId, token);
   }
   
   // ========= UTILITY METHODS =========

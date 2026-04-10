@@ -60,7 +60,7 @@ Values the **PHP dashboard** needs for `PYTHON_API_BASE_URL`, `DUTCH_MT_DASHBOAR
 | Local (Flask on LAN) | `http://192.168.178.81:5001` (from playbooks) |
 | Production (from playbooks) | `https://dutch.mt` |
 
-Use the URL where your **Python/Flask API** is actually reachable. Flask default port in config is 5000; playbooks often use 5001.
+Use the URL where your **Python/Flask API** is actually reachable. Local defaults align on port **5001** (`app.debug.py`, `Config`, playbooks, Docker).
 
 ---
 

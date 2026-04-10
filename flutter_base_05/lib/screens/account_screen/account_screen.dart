@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../core/00_base/screen_base.dart';
@@ -15,6 +16,8 @@ import '../../core/services/shared_preferences.dart';
 import '../../core/services/version_check_service.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
+import '../../utils/profile_photo_helper.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AccountScreen extends BaseScreen {
   const AccountScreen({Key? key}) : super(key: key);
@@ -27,7 +30,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Registration + login/account + profile (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Profile photo pick/upload trace (enable-logging-switch.mdc) — set false after debugging
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -60,6 +63,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   /// Timer for delayed profile refetch (2s after entry); cancelled in dispose.
   Timer? _profileRefetchTimer;
+
+  bool _uploadingProfilePhoto = false;
   
   // Module manager
   final ModuleManager _moduleManager = ModuleManager();
@@ -964,6 +969,146 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     );
   }
   
+  Future<void> _pickAndUploadProfilePhoto() async {
+    if (_loginModule == null || !mounted) return;
+    if (LOGGING_SWITCH) {
+      _logger.info('AccountScreen: _pickAndUploadProfilePhoto started');
+    }
+    setState(() => _uploadingProfilePhoto = true);
+    try {
+      final picker = ImagePicker();
+      final XFile? picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
+      );
+      if (picked == null || !mounted) {
+        if (LOGGING_SWITCH) {
+          _logger.info('AccountScreen: _pickAndUploadProfilePhoto cancelled (no image picked)');
+        }
+        return;
+      }
+
+      final raw = await picked.readAsBytes();
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          'AccountScreen: picked image path=${picked.path} raw_bytes=${raw.length}',
+        );
+      }
+      if (raw.length > kProfileAvatarMaxUploadBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Photo must be 5 MB or smaller.',
+                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+              ),
+              backgroundColor: AppColors.errorColor,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final prepared = prepareProfilePhotoForUpload(Uint8List.fromList(raw));
+      if (LOGGING_SWITCH && prepared != null) {
+        _logger.info('AccountScreen: prepared JPEG for upload bytes=${prepared.length}');
+      }
+      if (prepared == null) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('AccountScreen: prepareProfilePhotoForUpload returned null');
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not read that image. Try JPG or PNG.',
+                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+              ),
+              backgroundColor: AppColors.errorColor,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (prepared.length > kProfileAvatarMaxUploadBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Compressed image is still too large. Try a smaller photo.',
+                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+              ),
+              backgroundColor: AppColors.errorColor,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final result = await _loginModule!.uploadProfileAvatar(
+        bytes: prepared,
+        filename: 'profile.jpg',
+        mimeType: 'image/jpeg',
+      );
+      if (!mounted) return;
+
+      if (LOGGING_SWITCH) {
+        _logger.info('AccountScreen: upload result success=${result['success']} keys=${result.keys.toList()}');
+      }
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Profile photo updated',
+              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+            ),
+            backgroundColor: AppColors.successColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() {});
+      } else {
+        final msg = (result['message'] ?? result['error'] ?? 'Upload failed').toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              msg,
+              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+            ),
+            backgroundColor: AppColors.errorColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('AccountScreen: _pickAndUploadProfilePhoto error: $e', error: e);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not update photo: $e',
+              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+            ),
+            backgroundColor: AppColors.errorColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingProfilePhoto = false);
+      }
+    }
+  }
+
   /// Build profile picture widget with fallback to icon
   /// Reads profile picture from StateManager
   Widget _buildProfilePicture() {
@@ -1277,6 +1422,29 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       children: [
                         // Profile Picture or Icon
                         _buildProfilePicture(),
+                        const SizedBox(height: 12),
+                        Semantics(
+                          label: 'Change profile photo',
+                          identifier: 'profile_photo_change',
+                          button: true,
+                          child: TextButton.icon(
+                            onPressed: _uploadingProfilePhoto ? null : _pickAndUploadProfilePhoto,
+                            icon: _uploadingProfilePhoto
+                                ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primaryColor,
+                                    ),
+                                  )
+                                : Icon(Icons.photo_camera_outlined, color: AppColors.primaryColor),
+                            label: Text(
+                              'Change photo',
+                              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.primaryColor),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Welcome Back!',

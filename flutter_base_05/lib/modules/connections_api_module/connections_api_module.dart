@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http_interceptor/http_interceptor.dart';
+import 'package:http_parser/http_parser.dart';
 
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
@@ -13,7 +14,7 @@ import '../../utils/consts/config.dart';
 import 'interceptor.dart';
 
 class ConnectionsApiModule extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Registration/public POST + login/refresh API (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Profile avatar multipart + API trace (enable-logging-switch.mdc) — set false after debugging
 
   /// Retry once after this delay when a request fails with a transient error (e.g. public WiFi).
   static const Duration _retryDelay = Duration(milliseconds: 1500);
@@ -95,6 +96,52 @@ class ConnectionsApiModule extends ModuleBase {
       return _processResponse(response, route: route);
     } catch (e) {
       return _handleError('GET', url, e);
+    }
+  }
+
+  /// Multipart POST (e.g. profile avatar). [mimeType] examples: `image/jpeg`, `image/png`.
+  Future<dynamic> sendMultipartPostRequest(
+    String route, {
+    required String fieldName,
+    required List<int> fileBytes,
+    required String filename,
+    String mimeType = 'application/octet-stream',
+  }) async {
+    final url = Uri.parse('$baseUrl$route');
+    if (LOGGING_SWITCH) _logger.info('ConnectionsApi: MULTIPART POST $route');
+
+    try {
+      MediaType? contentType;
+      try {
+        contentType = MediaType.parse(mimeType);
+      } catch (_) {
+        contentType = null;
+      }
+
+      // New MultipartRequest + MultipartFile per attempt — body streams finalize on first send.
+      Future<http.StreamedResponse> doSend() {
+        final request = http.MultipartRequest('POST', url);
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            fieldName,
+            fileBytes,
+            filename: filename,
+            contentType: contentType,
+          ),
+        );
+        return client.send(request);
+      }
+
+      final streamed = await _withRetry(doSend);
+      final response = await http.Response.fromStream(streamed);
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          'ConnectionsApi: MULTIPART done $route → ${response.statusCode} (${fileBytes.length} bytes)',
+        );
+      }
+      return _processResponse(response, route: route);
+    } catch (e) {
+      return _handleError('POST(multipart)', url, e);
     }
   }
 

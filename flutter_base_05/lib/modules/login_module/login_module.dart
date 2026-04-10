@@ -22,7 +22,7 @@ import 'utils/ws_jwt_access_expiry.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = false; // Registration + login + WS token (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // Profile avatar upload + auth trace (enable-logging-switch.mdc) — set false after debugging
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -1362,6 +1362,57 @@ class LoginModule extends ModuleBase {
         Logger().error('LoginModule: Error fetching user profile: $e');
       }
       return false;
+    }
+  }
+
+  /// Upload profile photo (multipart `file`). Server normalizes to WebP; client sends JPEG after resize.
+  /// On success, refreshes login state via [fetchAndUpdateUserProfile].
+  Future<Map<String, dynamic>> uploadProfileAvatar({
+    required List<int> bytes,
+    String filename = 'profile.jpg',
+    String mimeType = 'image/jpeg',
+  }) async {
+    if (_connectionModule == null) {
+      if (LOGGING_SWITCH) {
+        Logger().warning('LoginModule: uploadProfileAvatar — ConnectionsApiModule not available');
+      }
+      return {'success': false, 'message': 'API not available'};
+    }
+    try {
+      if (LOGGING_SWITCH) {
+        Logger().info(
+          'LoginModule: uploadProfileAvatar POST /userauth/users/profile/avatar '
+          'bytes=${bytes.length} filename=$filename mime=$mimeType',
+        );
+      }
+      final res = await _connectionModule!.sendMultipartPostRequest(
+        '/userauth/users/profile/avatar',
+        fieldName: 'file',
+        fileBytes: bytes,
+        filename: filename,
+        mimeType: mimeType,
+      );
+      if (LOGGING_SWITCH) {
+        Logger().info('LoginModule: uploadProfileAvatar response: $res');
+      }
+      if (res is Map && res['success'] == true) {
+        await fetchAndUpdateUserProfile();
+        if (LOGGING_SWITCH) {
+          Logger().info('LoginModule: uploadProfileAvatar success — profile refreshed');
+        }
+      }
+      if (res is Map<String, dynamic>) {
+        return res;
+      }
+      if (res is Map) {
+        return Map<String, dynamic>.from(res);
+      }
+      return {'success': false, 'message': 'Unexpected response'};
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        Logger().error('LoginModule: uploadProfileAvatar failed: $e');
+      }
+      return {'success': false, 'message': e.toString()};
     }
   }
 

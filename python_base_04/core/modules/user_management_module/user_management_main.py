@@ -5,11 +5,13 @@ from core.managers.jwt_manager import JWTManager, TokenType
 from core.managers.redis_manager import RedisManager
 from tools.logger.custom_logging import custom_log
 from utils.config.config import Config
-from flask import request, jsonify
+from flask import request, jsonify, send_file, abort
 from datetime import datetime
 from typing import Dict, Any, Optional, Tuple
 from bson import ObjectId
 import bcrypt
+import os
+import uuid
 import re
 import secrets
 import smtplib
@@ -82,6 +84,8 @@ class UserManagementModule(BaseModule):
         # JWT authenticated routes (user authentication)
         self._register_auth_route_helper("/userauth/users/profile", self.get_user_profile, methods=["GET"])
         self._register_auth_route_helper("/userauth/users/profile", self.update_user_profile, methods=["PUT"])
+        self._register_auth_route_helper("/userauth/users/profile/avatar", self.upload_profile_avatar, methods=["POST"])
+        self._register_auth_route_helper("/public/avatar-media/<filename>", self.serve_profile_avatar, methods=["GET"])
         self._register_auth_route_helper("/userauth/users/search", self.search_users, methods=["POST"])
         # Public route for fetching user profile by userId (for Dart backend)
         self._register_auth_route_helper("/public/users/profile", self.get_user_profile_by_id, methods=["POST"])
@@ -694,7 +698,7 @@ class UserManagementModule(BaseModule):
                     update_data[field] = data[field]
             
             # Update user using queue system
-            modified_count = self.db_manager.update("users", {"_id": user_id}, {"$set": update_data})
+            modified_count = self.db_manager.update("users", {"_id": user_id}, update_data)
             
             if modified_count > 0:
                 return jsonify({
@@ -2026,6 +2030,232 @@ class UserManagementModule(BaseModule):
                 'message': str(e)
             }), 500
 
+    def upload_profile_avatar(self):
+        """Upload profile picture (JWT). Expect multipart field ``file`` (.jpg/.jpeg/.png/.webp)."""
+        from core.modules.user_management_module import avatar_upload_utils as avu
+        try:
+            user_id = request.user_id
+            if not user_id:
+                return jsonify({"success": False, "error": "User not authenticated"}), 401
+
+            max_b = Config.AVATAR_MAX_UPLOAD_BYTES
+            cl = request.content_length
+            if cl is not None and cl > max_b:
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: upload_profile_avatar user_id={user_id} rejected content_length={cl} > max={max_b}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({
+                    "success": False,
+                    "error": "file_too_large",
+                    "message": f"File must be at most {max_b} bytes",
+                }), 413
+
+            if "file" not in request.files:
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: upload_profile_avatar user_id={user_id} missing multipart file",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({
+                    "success": False,
+                    "error": "missing_file",
+                    "message": "Multipart field 'file' is required",
+                }), 400
+
+            f = request.files["file"]
+            if not f or not f.filename:
+                return jsonify({"success": False, "error": "empty_file", "message": "No file selected"}), 400
+
+            if avu.LOGGING_SWITCH:
+                custom_log(
+                    f"UserManagement: upload_profile_avatar user_id={user_id} filename={f.filename!r} "
+                    f"content_type={f.content_type!r} content_length={cl}",
+                    level="INFO",
+                    isOn=avu.LOGGING_SWITCH,
+                )
+
+            if not avu.allowed_upload_extension(f.filename):
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: upload_profile_avatar invalid_extension filename={f.filename!r}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({
+                    "success": False,
+                    "error": "invalid_extension",
+                    "message": "Allowed extensions: .jpg, .jpeg, .png, .webp",
+                }), 400
+
+            if not avu.declared_mime_allowed(f.content_type):
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: upload_profile_avatar invalid_content_type={f.content_type!r}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({
+                    "success": False,
+                    "error": "invalid_content_type",
+                    "message": "Allowed types: image/jpeg, image/png, image/webp",
+                }), 400
+
+            raw, err = avu.read_upload_bytes(f.stream, max_b)
+            if err == "file_too_large":
+                return jsonify({
+                    "success": False,
+                    "error": "file_too_large",
+                    "message": f"File must be at most {max_b} bytes",
+                }), 413
+            if err:
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: upload_profile_avatar read error={err}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({"success": False, "error": err, "message": "Invalid upload"}), 400
+
+            magic_fmt = avu.detect_format_from_magic(raw)
+            if not magic_fmt or not avu.mime_matches_magic(f.content_type, magic_fmt):
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: upload_profile_avatar mime_mismatch magic={magic_fmt!r} declared={f.content_type!r}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({
+                    "success": False,
+                    "error": "mime_mismatch",
+                    "message": "File content does not match declared type",
+                }), 400
+
+            webp_bytes, perr = avu.process_avatar_image(
+                raw,
+                max_edge_px=Config.AVATAR_MAX_EDGE_PX,
+                max_dimension_px=Config.AVATAR_MAX_DIMENSION_PX,
+                max_image_pixels=Config.AVATAR_MAX_IMAGE_PIXELS,
+            )
+            if perr:
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: upload_profile_avatar process failed perr={perr}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({
+                    "success": False,
+                    "error": perr,
+                    "message": "Could not process image",
+                }), 400
+
+            storage_root = os.path.abspath(os.path.expanduser(Config.AVATAR_STORAGE_DIR))
+            os.makedirs(storage_root, exist_ok=True)
+
+            fname = f"{uuid.uuid4().hex}.webp"
+            dest = os.path.join(storage_root, fname)
+            with open(dest, "wb") as out:
+                out.write(webp_bytes)
+
+            base = (Config.AVATAR_PUBLIC_BASE_URL or Config.APP_URL or "").rstrip("/")
+            if not base:
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        "UserManagement: upload_profile_avatar server_misconfigured (no APP_URL / AVATAR_PUBLIC_BASE_URL)",
+                        level="ERROR",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({
+                    "success": False,
+                    "error": "server_misconfigured",
+                    "message": "Set AVATAR_PUBLIC_BASE_URL or APP_URL",
+                }), 503
+
+            public_url = f"{base}/public/avatar-media/{fname}"
+
+            try:
+                oid = ObjectId(user_id)
+            except Exception:
+                return jsonify({"success": False, "error": "invalid_user_id", "message": "Invalid user id"}), 400
+
+            now = datetime.utcnow().isoformat()
+            update_data = {
+                "profile.picture": public_url,
+                "updated_at": now,
+                "profile_updated_at": now,
+            }
+            modified_count = self.db_manager.update("users", {"_id": oid}, update_data)
+
+            if modified_count > 0:
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: upload_profile_avatar ok user_id={user_id} url={public_url} "
+                        f"storage={dest} webp_bytes={len(webp_bytes)}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                return jsonify({
+                    "success": True,
+                    "message": "Avatar updated",
+                    "profile_picture": public_url,
+                }), 200
+            if avu.LOGGING_SWITCH:
+                custom_log(
+                    f"UserManagement: upload_profile_avatar update_failed user_id={user_id}",
+                    level="WARNING",
+                    isOn=avu.LOGGING_SWITCH,
+                )
+            return jsonify({
+                "success": False,
+                "error": "update_failed",
+                "message": "User not found or not updated",
+            }), 500
+
+        except Exception as e:
+            custom_log(
+                f"UserManagement: upload_profile_avatar error: {e}",
+                level="ERROR",
+                isOn=avu.LOGGING_SWITCH,
+            )
+            return jsonify({"success": False, "error": "server_error", "message": "Upload failed"}), 500
+
+    def serve_profile_avatar(self, filename):
+        """Public GET for normalized WebP avatars (opaque filename)."""
+        from core.modules.user_management_module import avatar_upload_utils as avu
+        from core.modules.user_management_module.avatar_upload_utils import STORED_NAME_RE, safe_join_under_root
+        try:
+            if not filename or not STORED_NAME_RE.match(filename):
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: serve_profile_avatar 404 bad_filename={filename!r}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                abort(404)
+            storage_root = os.path.abspath(os.path.expanduser(Config.AVATAR_STORAGE_DIR))
+            path = safe_join_under_root(storage_root, filename)
+            if not path or not os.path.isfile(path):
+                if avu.LOGGING_SWITCH:
+                    custom_log(
+                        f"UserManagement: serve_profile_avatar 404 missing path={path!r} root={storage_root!r}",
+                        level="INFO",
+                        isOn=avu.LOGGING_SWITCH,
+                    )
+                abort(404)
+            if avu.LOGGING_SWITCH:
+                custom_log(
+                    f"UserManagement: serve_profile_avatar 200 filename={filename}",
+                    level="INFO",
+                    isOn=avu.LOGGING_SWITCH,
+                )
+            return send_file(path, mimetype="image/webp", max_age=86400)
+        except Exception:
+            abort(404)
+
     def update_user_profile(self):
         """Update user profile (JWT auth required)."""
         try:
@@ -2043,7 +2273,7 @@ class UserManagementModule(BaseModule):
                     update_data[f'profile.{field}'] = data[field]
             
             # Update user profile
-            modified_count = self.db_manager.update("users", {"_id": user_id}, {"$set": update_data})
+            modified_count = self.db_manager.update("users", {"_id": user_id}, update_data)
             
             if modified_count > 0:
                 return jsonify({
@@ -2093,7 +2323,7 @@ class UserManagementModule(BaseModule):
                 update_data['preferences'] = data['preferences']
             
             # Update user settings
-            modified_count = self.db_manager.update("users", {"_id": user_id}, {"$set": update_data})
+            modified_count = self.db_manager.update("users", {"_id": user_id}, update_data)
             
             if modified_count > 0:
                 return jsonify({

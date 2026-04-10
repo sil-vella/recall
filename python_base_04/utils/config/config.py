@@ -307,6 +307,17 @@ def get_security_status(mongodb_password=None, jwt_secret=None, redis_password=N
     
     return security_info
 
+
+def _resolve_avatar_max_upload_bytes() -> int:
+    """Clamp AVATAR_MAX_UPLOAD_BYTES to [1 KiB, 10 MiB]; default 5 MiB."""
+    try:
+        raw = int(get_file_first_config_value("avatar_max_upload_bytes", "AVATAR_MAX_UPLOAD_BYTES", "5242880"))
+    except (TypeError, ValueError):
+        raw = 5242880
+    ceiling = 10 * 1024 * 1024
+    return max(1024, min(raw, ceiling))
+
+
 class Config:
      # Debug mode
     DEBUG = get_config_value("flask-app/app", "debug", None, "FLASK_DEBUG", "False").lower() in ("true", "1")
@@ -317,12 +328,12 @@ class Config:
     APP_VERSION = get_file_first_config_value("app_version", "APP_VERSION", "2.0.0")
     APP_DOWNLOAD_BASE_URL = get_file_first_config_value("app_download_base_url", "APP_DOWNLOAD_BASE_URL", "https://download.example.com")
 
-    # App URL Configuration
-    APP_URL = get_file_first_config_value("app_url", "APP_URL", "http://localhost:5000")
-    
+    # App URL Configuration (must match where Flask listens: app.debug.py defaults FLASK_PORT=5001; Dockerfile gunicorn 5001)
+    APP_URL = get_file_first_config_value("app_url", "APP_URL", "http://localhost:5001")
+
     # Flask Configuration
     FLASK_SERVICE_NAME = get_config_value("flask-app/app", "service_name", "flask_service_name", "FLASK_SERVICE_NAME", "flask")
-    FLASK_PORT = int(get_config_value("flask-app/app", "port", "flask_port", "FLASK_PORT", "5000"))
+    FLASK_PORT = int(get_config_value("flask-app/app", "port", "flask_port", "FLASK_PORT", "5001"))
     PYTHONPATH = get_config_value(None, None, "pythonpath", "PYTHONPATH", "/app")
     FLASK_ENV = get_config_value("flask-app/app", "environment", None, "FLASK_ENV", "development")
     
@@ -568,6 +579,14 @@ class Config:
     # Dutch Game Configuration
     DUTCH_PLAYER_ACTION_TIMEOUT = int(get_file_first_config_value("dutch_player_action_timeout", "DUTCH_PLAYER_ACTION_TIMEOUT", "10"))  # Player action timeout in seconds
     REGISTRATION_COIN_BONUS = int(get_file_first_config_value("registration_coin_bonus", "REGISTRATION_COIN_BONUS", "500"))  # Starting coins assigned on account registration
+
+    # Profile avatar uploads (JWT POST /userauth/users/profile/avatar; served at GET /public/avatar-media/<file>)
+    AVATAR_MAX_UPLOAD_BYTES = _resolve_avatar_max_upload_bytes()
+    AVATAR_MAX_EDGE_PX = int(get_file_first_config_value("avatar_max_edge_px", "AVATAR_MAX_EDGE_PX", "100"))
+    AVATAR_MAX_DIMENSION_PX = int(get_file_first_config_value("avatar_max_dimension_px", "AVATAR_MAX_DIMENSION_PX", "4096"))
+    AVATAR_MAX_IMAGE_PIXELS = int(get_file_first_config_value("avatar_max_image_pixels", "AVATAR_MAX_IMAGE_PIXELS", "20000000"))
+    AVATAR_STORAGE_DIR = get_file_first_config_value("avatar_storage_dir", "AVATAR_STORAGE_DIR", "/tmp/avatar_uploads")
+    AVATAR_PUBLIC_BASE_URL = get_file_first_config_value("avatar_public_base_url", "AVATAR_PUBLIC_BASE_URL", "").rstrip("/")
 
     @classmethod
     def refresh_from_vault(cls):

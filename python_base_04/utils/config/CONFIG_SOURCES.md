@@ -21,13 +21,13 @@ These `Config` attributes read from the **secrets directory** first (or Vault fo
 | APP_NAME | app_name | APP_NAME | External Application |
 | APP_VERSION | app_version | APP_VERSION | 2.0.0 |
 | APP_DOWNLOAD_BASE_URL | app_download_base_url | APP_DOWNLOAD_BASE_URL | https://dutch.mt/downloads |
-| APP_URL | app_url | APP_URL | http://localhost:5000 |
+| APP_URL | app_url | APP_URL | http://localhost:5001 |
 
 ### Flask & service
 | Config | Secret file | Env | Default |
 |--------|-------------|-----|---------|
 | FLASK_SERVICE_NAME | flask_service_name | FLASK_SERVICE_NAME | flask |
-| FLASK_PORT | flask_port | FLASK_PORT | 5000 |
+| FLASK_PORT | flask_port | FLASK_PORT | 5001 |
 | PYTHONPATH | pythonpath | PYTHONPATH | /app |
 | FLASK_ENV | (none) | FLASK_ENV | development |
 

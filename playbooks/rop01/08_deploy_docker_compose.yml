@@ -197,6 +197,14 @@
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
 
+    - name: Ensure profile avatars dir is owned by VPS app user (Flask bind mount; same user as dutch_flask-external)
+      file:
+        path: "{{ data_dir }}/avatars"
+        state: directory
+        mode: '0755'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+
     - name: Ensure MongoDB data dir is owned by UID 1001 (Bitnami MongoDB default user)
       file:
         path: "{{ data_dir }}/mongodb"

@@ -28,12 +28,17 @@ class ModalTemplateWidget extends StatelessWidget {
   final Color? backgroundColor;
   final Color? textColor;
   final Color? headerColor; // Color for header title and border
+  /// When set, title / header icon / header close use this color (e.g. white on dark bar).
+  final Color? headerForegroundColor;
   final EdgeInsets? padding;
   final double? maxWidth;
   final double? maxHeight;
   final bool scrollable;
   final Widget? customContent;
   final bool fullScreen; // If true, modal takes full screen space
+  /// When true, the route-sized [Material] behind the card is transparent so
+  /// [showDialog]'s [barrierColor] is the only dimmer (avoids double dark scrim).
+  final bool transparentRouteBackground;
 
   const ModalTemplateWidget({
     Key? key,
@@ -48,12 +53,14 @@ class ModalTemplateWidget extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
     this.headerColor, // Optional: if provided, used for title and border
+    this.headerForegroundColor,
     this.padding,
     this.maxWidth,
     this.maxHeight,
     this.scrollable = true,
     this.customContent,
     this.fullScreen = false, // Default to false for backward compatibility
+    this.transparentRouteBackground = false,
   }) : super(key: key);
 
   /// Show the modal using Flutter's official showDialog method
@@ -70,6 +77,7 @@ class ModalTemplateWidget extends StatelessWidget {
     Color? backgroundColor,
     Color? textColor,
     Color? headerColor, // Optional: color for header title and border
+    Color? headerForegroundColor,
     EdgeInsets? padding,
     double? maxWidth,
     double? maxHeight,
@@ -77,6 +85,7 @@ class ModalTemplateWidget extends StatelessWidget {
     Widget? customContent,
     bool barrierDismissible = true,
     bool fullScreen = false,
+    bool transparentRouteBackground = false,
     bool useRootNavigator = false,
   }) {
     return showDialog<T>(
@@ -96,12 +105,14 @@ class ModalTemplateWidget extends StatelessWidget {
           backgroundColor: backgroundColor,
           textColor: textColor,
           headerColor: headerColor,
+          headerForegroundColor: headerForegroundColor,
           padding: padding,
           maxWidth: maxWidth,
           maxHeight: maxHeight,
           scrollable: scrollable,
           customContent: customContent,
           fullScreen: fullScreen,
+          transparentRouteBackground: transparentRouteBackground,
         );
       },
     );
@@ -121,8 +132,12 @@ class ModalTemplateWidget extends StatelessWidget {
         ? screenSize.height - 16.0  // Full height minus small margins
         : (maxHeight ?? screenSize.height * AppSizes.modalMaxHeightPercent);
     
+    final routeBg = transparentRouteBackground
+        ? Colors.transparent
+        : AppColors.black.withOpacity(AppOpacity.barrier);
+
     return Material(
-      color: AppColors.black.withOpacity(AppOpacity.barrier), // Semi-transparent background
+      color: routeBg,
       child: Center(
         child: Material(
           color: Colors.transparent, // Transparent Material to avoid theme interference
@@ -170,12 +185,12 @@ class ModalTemplateWidget extends StatelessWidget {
     // Use headerColor if provided, otherwise fall back to accentColor
     final backgroundColor = headerColor ?? AppColors.accentColor;
     
-    // Determine text color based on background brightness
-    // Use white text for dark backgrounds, dark text for light backgrounds
+    // Determine text color based on background brightness, unless overridden
     final backgroundColorBrightness = ThemeData.estimateBrightnessForColor(backgroundColor);
-    final textColor = backgroundColorBrightness == Brightness.dark 
-        ? AppColors.textOnAccent // White/light text for dark backgrounds
-        : AppColors.textPrimary; // Dark text for light backgrounds
+    final textColor = headerForegroundColor ??
+        (backgroundColorBrightness == Brightness.dark
+            ? AppColors.textOnAccent
+            : AppColors.textPrimary);
     
     return Container(
       padding: AppPadding.defaultPadding,

@@ -5,6 +5,7 @@ import '../../../../core/managers/navigation_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../../tools/logging/logger.dart';
 import '../../widgets/instructions_widget.dart';
+import '../practice_room/widgets/rules_modal_widget.dart';
 import 'demo_action_handler.dart';
 
 class DemoScreen extends BaseScreen {
@@ -116,7 +117,7 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
               title: 'Rules',
               icon: '📜',
               onTap: () {
-                NavigationManager().navigateTo('/dutch/game-rules');
+                DutchGameRulesDialog.show(context);
               },
             ),
           ),

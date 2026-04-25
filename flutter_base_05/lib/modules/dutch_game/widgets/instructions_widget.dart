@@ -150,9 +150,11 @@ class InstructionsWidget extends StatelessWidget {
       context: dialogContext,
       barrierDismissible: true,
       useRootNavigator: true, // Always use root navigator for independence
-      barrierColor: AppColors.black.withOpacity(AppOpacity.barrier), // Ensure barrier is visible
+      barrierColor:
+          AppColors.black.withOpacity(AppOpacity.instructionsModalBarrier),
       builder: (BuildContext builderContext) {
-            return ModalTemplateWidget(
+        final sz = MediaQuery.sizeOf(builderContext);
+        return ModalTemplateWidget(
               title: title,
               content: content,
               icon: Icons.help_outline,
@@ -161,7 +163,10 @@ class InstructionsWidget extends StatelessWidget {
               backgroundColor: AppColors.card, // Use white card background for better text visibility
               textColor: AppColors.textOnCard, // Use text color for card backgrounds
               headerColor: headerColor, // Use status color for header title and border
-              fullScreen: true, // Use full screen for independence from screen constraints
+              fullScreen: false,
+              transparentRouteBackground: true,
+              maxWidth: sz.width * AppSizes.instructionsModalMaxWidthPercent,
+              maxHeight: sz.height * AppSizes.instructionsModalMaxHeightPercent,
               customContent: Column(
                 mainAxisSize: MainAxisSize.max, // Use max to fill available space
                 children: [

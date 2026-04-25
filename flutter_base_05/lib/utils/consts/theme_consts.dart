@@ -485,10 +485,16 @@ class AppSizes {
   static const double modalMargin = 20.0;
   static const double modalMaxWidthPercent = 0.9;
   static const double modalMaxHeightPercent = 0.9;
+
+  /// Learn-how / phase instructions: centered panel, not edge-to-edge
+  static const double instructionsModalMaxWidthPercent = 0.88;
+  static const double instructionsModalMaxHeightPercent = 0.72;
 }
 
 class AppOpacity {
   static const double barrier = 0.54;
+  /// Softer dim behind instruction modals so the game table stays visible
+  static const double instructionsModalBarrier = 0.38;
   static const double shadow = 0.3;
   static const double subtle = 0.1;
   static const double selection = 0.5;

@@ -56,4 +56,15 @@ class AdRegistry {
     _roundRobinIndex[typeId] = i + 1;
     return ad;
   }
+
+  /// Randomize the ad order for each type once per app load.
+  ///
+  /// This keeps runtime selection as round-robin, but starts from a randomized
+  /// order so users do not always see the same first ad after app restart.
+  void shuffleAdsPerType() {
+    for (final entry in _adsByTypeId.entries) {
+      entry.value.shuffle();
+      _roundRobinIndex[entry.key] = 0;
+    }
+  }
 }

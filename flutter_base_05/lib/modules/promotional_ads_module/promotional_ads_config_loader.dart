@@ -65,6 +65,7 @@ class PromotionalAdsConfigLoader {
       final map = Map<dynamic, dynamic>.from(root);
       final remoteBase = '$base/sponsors/adverts';
       final counts = _applyRootMap(map, remoteMediaBaseUrl: remoteBase);
+      AdRegistry.instance.shuffleAdsPerType();
       if (LOGGING_SWITCH) {
         _logger.info(
           'PromotionalAdsConfigLoader: registered types=${counts.$1} ads=${counts.$2} '

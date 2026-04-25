@@ -14,7 +14,7 @@ import '../../utils/consts/config.dart';
 import 'interceptor.dart';
 
 class ConnectionsApiModule extends ModuleBase {
-  static const bool LOGGING_SWITCH = true; // Profile avatar multipart + API trace (enable-logging-switch.mdc) — set false after debugging
+  static const bool LOGGING_SWITCH = false; // Profile avatar multipart + API trace (enable-logging-switch.mdc) — set false after debugging
 
   /// Retry once after this delay when a request fails with a transient error (e.g. public WiFi).
   static const Duration _retryDelay = Duration(milliseconds: 1500);

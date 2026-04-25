@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../constant.dart';
+import '../../../../../utils/consts/config.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 /// Generic Paywall Widget for RevenueCat
@@ -76,18 +77,12 @@ class _PaywallState extends State<Paywall> {
                         );
                         
                         // In v9, purchasePackage returns PurchaseResult
-                        // We need to check if the purchase was successful
-                        if (purchaseResult.customerInfo != null) {
-                          final customerInfo = purchaseResult.customerInfo!;
-                          EntitlementInfo? entitlement = customerInfo
-                              .entitlements.all[entitlementID];
-                          bool isActive = entitlement?.isActive ?? false;
-                          
-                          widget.onPurchaseComplete?.call(isActive);
-                        } else {
-                          // Handle failed purchase
-                          widget.onPurchaseComplete?.call(false);
-                        }
+                        final customerInfo = purchaseResult.customerInfo;
+                        EntitlementInfo? entitlement = customerInfo
+                            .entitlements.all[Config.revenueCatEntitlementId];
+                        bool isActive = entitlement?.isActive ?? false;
+                        
+                        widget.onPurchaseComplete?.call(isActive);
                       } catch (e) {
                         // Purchase error
                       }

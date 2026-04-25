@@ -35,7 +35,7 @@ class StateAwareFeatureRegistry {
       context: context,
     );
 
-    // Notifications (envelope) icon – navigates to /notifications
+    // Notifications (bell) icon – navigates to /notifications
     final notificationsFeature = FeatureDescriptor(
       featureId: 'global_notifications',
       slotId: 'app_bar_actions',

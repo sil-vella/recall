@@ -1,8 +1,17 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Internet permission required for Google Sign-In and API calls -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <!-- Google Play Billing permission required for in-app products/subscriptions -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+    <!--
+      Profile photo: use system photo picker (image_picker + image_picker_android backport via Play services).
+      Do not declare READ_MEDIA_* — Play Photo/Video Permissions policy for infrequent access.
+      Legacy gallery read only on API ≤32; API 33+ picker needs no broad media read.
+    -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
     
     <application
         android:label="DutchMT"

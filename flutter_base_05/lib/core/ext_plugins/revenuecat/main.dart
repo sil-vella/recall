@@ -1,10 +1,9 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-import 'src/constant.dart';
+import '../../../utils/consts/config.dart';
 import 'store_config.dart';
 
 /// RevenueCat SDK Configuration
@@ -16,19 +15,21 @@ Future<void> configureRevenueCatSDK() async {
   if (kIsWeb) {
     StoreConfig(
       store: Store.rcBilling,
-      apiKey: webApiKey,
+      apiKey: Config.revenueCatWebApiKey,
     );
   } else if (Platform.isIOS || Platform.isMacOS) {
     StoreConfig(
       store: Store.appStore,
-      apiKey: appleApiKey,
+      apiKey: Config.revenueCatAppleApiKey,
     );
   } else if (Platform.isAndroid) {
     // Run the app passing --dart-define=AMAZON=true
     const useAmazon = bool.fromEnvironment("amazon");
     StoreConfig(
       store: useAmazon ? Store.amazon : Store.playStore,
-      apiKey: useAmazon ? amazonApiKey : googleApiKey,
+      apiKey: useAmazon
+          ? Config.revenueCatAmazonApiKey
+          : Config.revenueCatGoogleApiKey,
     );
   }
 

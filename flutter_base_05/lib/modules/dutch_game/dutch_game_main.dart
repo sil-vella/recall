@@ -5,7 +5,6 @@ import 'package:dutch/modules/dutch_game/screens/game_play/game_play_screen.dart
 import 'package:dutch/modules/dutch_game/screens/lobby_room/lobby_screen.dart';
 import 'package:dutch/modules/dutch_game/screens/demo/demo_screen.dart';
 import 'package:dutch/modules/dutch_game/screens/demo/video_tutorial_screen.dart';
-import 'package:dutch/modules/dutch_game/screens/game_rules/game_rules_screen.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/hooks_manager.dart';
@@ -316,15 +315,6 @@ class DutchGameMain extends ModuleBase {
       drawerTitle: 'Learn How',
       drawerIcon: Icons.school,
       drawerPosition: 30,
-    );
-
-    // Register Game Rules Screen
-    navigationManager.registerRoute(
-      path: '/dutch/game-rules',
-      screen: (BuildContext context) => const GameRulesScreen(),
-      drawerTitle: 'Game Rules',
-      drawerIcon: Icons.rule,
-      drawerPosition: 20,
     );
 
     // Register Video Tutorial Screen (from Demo screen)

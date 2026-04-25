@@ -38,11 +38,28 @@
         'backend_port': 5001,
         'backend_ws_port': 8080,
         'serve_flutter_web': true
+      },
+      {
+        'domain': 'guesswho.mixta.mt',
+        'root_dir': '/var/www/guesswho.mixta.mt',
+        'backend_port': 5002
       }
     ]) }}"
     nginx_user: "www-data"
 
   tasks:
+    - name: Ensure website root directories exist for each domain
+      file:
+        path: "{{ item.root_dir | default('/var/www/' + item.domain) }}"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0755'
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+
     - name: Check existing site files for Certbot markers
       shell: |
         set -e

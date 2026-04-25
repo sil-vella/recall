@@ -121,6 +121,28 @@ class Config {
     defaultValue: '907176907209-u7cjeiousj1dd460730rgspf05u0fhic.apps.googleusercontent.com',
   );
 
+  // RevenueCat configuration
+  static const String revenueCatEntitlementId = String.fromEnvironment(
+    'REVENUECAT_ENTITLEMENT_ID',
+    defaultValue: 'premium',
+  );
+  static const String revenueCatAppleApiKey = String.fromEnvironment(
+    'REVENUECAT_APPLE_API_KEY',
+    defaultValue: '',
+  );
+  static const String revenueCatGoogleApiKey = String.fromEnvironment(
+    'REVENUECAT_GOOGLE_API_KEY',
+    defaultValue: '',
+  );
+  static const String revenueCatAmazonApiKey = String.fromEnvironment(
+    'REVENUECAT_AMAZON_API_KEY',
+    defaultValue: '',
+  );
+  static const String revenueCatWebApiKey = String.fromEnvironment(
+    'REVENUECAT_WEB_API_KEY',
+    defaultValue: '',
+  );
+
   // Diagnostics
   static const String platform = String.fromEnvironment('APP_PLATFORM', defaultValue: 'flutter');
   static const String buildMode = String.fromEnvironment('BUILD_MODE', defaultValue: 'debug');

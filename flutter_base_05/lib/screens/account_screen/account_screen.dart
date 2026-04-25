@@ -30,7 +30,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = true; // Profile photo pick/upload trace (enable-logging-switch.mdc) — set false after debugging
+  static const bool LOGGING_SWITCH = false; // Profile photo pick/upload trace (enable-logging-switch.mdc) — set false after debugging
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -982,6 +982,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         maxWidth: 2048,
         maxHeight: 2048,
         imageQuality: 90,
+        // Avoid extra metadata queries that can pull in stricter permission paths (Play photo policy).
+        requestFullMetadata: false,
       );
       if (picked == null || !mounted) {
         if (LOGGING_SWITCH) {

@@ -25,6 +25,11 @@
         'backend_port': 5001,
         'backend_ws_port': 8080,
         'serve_flutter_web': true
+      },
+      {
+        'domain': 'guesswho.mixta.mt',
+        'root_dir': '/var/www/guesswho.mixta.mt',
+        'backend_port': 5002
       }
     ]) }}"
     # Email for Let's Encrypt notifications

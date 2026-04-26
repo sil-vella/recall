@@ -26,6 +26,7 @@ get_device_label() {
         84fbcf31) echo "OnePlus device" ;;
         R3CWB0CS63D) echo "Samsung Galaxy S23 Ultra" ;;
         5dad288e7d91) echo "Xiaomi Redmi tablet" ;;
+        NOTE58000000021664) echo "DOOGEE" ;;
         *) echo "Android device" ;;
     esac
 }
@@ -36,6 +37,7 @@ resolve_device_id() {
         1|oneplus|OnePlus|ONEPLUS) echo "84fbcf31" ;;
         2|samsung|Samsung|SAMSUNG|s23|S23) echo "R3CWB0CS63D" ;;
         3|xiaomi|Xiaomi|XIAOMI|redmi|Redmi|REDMI) echo "5dad288e7d91" ;;
+        4|doogee|Doogee|DOOGEE) echo "NOTE58000000021664" ;;
         *) echo "$1" ;;
     esac
 }
@@ -45,10 +47,11 @@ prompt_for_device_selection() {
     echo "   1) OnePlus (84fbcf31)" >&2
     echo "   2) Samsung Galaxy S23 Ultra (R3CWB0CS63D)" >&2
     echo "   3) Xiaomi Redmi tablet (5dad288e7d91)" >&2
+    echo "   4) DOOGEE (NOTE58000000021664)" >&2
     # Read from controlling terminal when stdin is not a TTY (e.g. piped launch).
     local _tty=/dev/tty
     [ -r "$_tty" ] || _tty=/dev/stdin
-    if ! read -r -t 10 -p "Enter choice [1/2/3] (default: 1, auto after 10s): " device_choice < "$_tty"; then
+    if ! read -r -t 10 -p "Enter choice [1/2/3/4] (default: 1, auto after 10s): " device_choice < "$_tty"; then
         echo "" >&2
         echo "⏱️  No selection within 10s — using 1 (OnePlus)." >&2
         device_choice="1"
@@ -57,6 +60,7 @@ prompt_for_device_selection() {
         1) echo "84fbcf31" ;;
         2) echo "R3CWB0CS63D" ;;
         3) echo "5dad288e7d91" ;;
+        4) echo "NOTE58000000021664" ;;
         *)
             echo "⚠️  Invalid choice '${device_choice}', using default: 1 (OnePlus)" >&2
             echo "84fbcf31"
@@ -67,7 +71,7 @@ prompt_for_device_selection() {
 # Args:
 #   $1 = backend target: local (default) or vps
 #   $2 = Android device id/serial/shortcut (optional)
-#        Shortcuts: 1=OnePlus, 2=Samsung, 3=Xiaomi Redmi tablet
+#        Shortcuts: 1=OnePlus, 2=Samsung, 3=Xiaomi Redmi tablet, 4=DOOGEE (doogee/DOOGEE)
 # You can also set ANDROID_DEVICE_ID env var to override.
 # Interactive prompt: if neither is set, choose within 10s or default to 1 (OnePlus).
 RAW_DEVICE_INPUT="${ANDROID_DEVICE_ID:-$2}"

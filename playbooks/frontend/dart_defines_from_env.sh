@@ -20,6 +20,10 @@ build_dart_defines_from_env() {
       if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
         key="${BASH_REMATCH[1]}"
         value="${BASH_REMATCH[2]}"
+        # Server-only secrets: .env.prod is sourced for Flutter builds, but these must not become --dart-define.
+        case "$key" in
+          REVENUECAT_SECRET_API_KEY) continue ;;
+        esac
         # Strip optional surrounding single/double quotes from value
         value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
         # Escape double quotes in value for safe shell use

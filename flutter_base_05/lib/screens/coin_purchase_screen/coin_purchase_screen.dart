@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/services.dart' show PlatformException;
+import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../../core/00_base/screen_base.dart';
+import '../../core/managers/auth_manager.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
@@ -13,6 +16,7 @@ import '../../utils/consts/theme_consts.dart';
 const bool LOGGING_SWITCH = false; // Coin purchase flow debugging (enable-logging-switch.mdc)
 
 /// Coin purchases on **web**: Stripe Checkout via Python `/userauth/stripe/create-coin-checkout-session`.
+/// On **iOS/Android**: RevenueCat store packages + `/userauth/revenuecat/verify-coin-purchase` to credit coins.
 /// Also shows [lastCoinPurchaseJoinContext] when the user was sent here after a failed join.
 class CoinPurchaseScreen extends BaseScreen {
   const CoinPurchaseScreen({Key? key}) : super(key: key);
@@ -28,6 +32,17 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   static const String _contextKey = 'lastCoinPurchaseJoinContext';
   final Logger _logger = Logger();
 
+  /// Store product id → coin amount (must stay aligned with Python `REVENUECAT_COIN_PRODUCT_COINS`).
+  static const Map<String, int> _nativeStoreProductCoins = {
+    'starter_pack_100_coin': 100,
+    'coins_100': 100,
+    'coins_500': 500,
+    'coins_1000': 1000,
+    'coins_2500': 2500,
+    'coins_5000': 5000,
+    'coins_10000': 10000,
+  };
+
   static const List<_CoinPackage> _recommendedPackages = [
     _CoinPackage(key: 'starter', label: 'Starter', coins: 100, priceLabel: '\$0.99'),
     _CoinPackage(key: 'casual', label: 'Casual', coins: 300, priceLabel: '\$2.49'),
@@ -39,15 +54,232 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   String? _loadingPackageKey;
   bool _handledStripeReturn = false;
 
+  List<Package>? _nativePackages;
+  String? _nativeLoadError;
+  String? _loadingNativeProductId;
+
+  bool get _nativeIapSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+
+  static int? _coinsForNativeProduct(String storeProductId) => _nativeStoreProductCoins[storeProductId];
+
   @override
   void initState() {
     super.initState();
     if (LOGGING_SWITCH) {
-      _logger.info('CoinPurchaseScreen: initState (kIsWeb=$kIsWeb)');
+      _logger.info(
+        'CoinPurchaseScreen: initState (kIsWeb=$kIsWeb nativeIap=$_nativeIapSupported)',
+      );
     }
     if (kIsWeb) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _maybeHandleStripeReturn());
+    } else if (_nativeIapSupported) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadNativeOfferings());
     }
+  }
+
+  Future<void> _loadNativeOfferings() async {
+    if (!_nativeIapSupported || !mounted) return;
+    setState(() {
+      _nativeLoadError = null;
+      _nativePackages = null;
+    });
+    try {
+      final offerings = await Purchases.getOfferings();
+      final current = offerings.current;
+      final raw = current?.availablePackages ?? <Package>[];
+      final filtered = raw.where((p) => _coinsForNativeProduct(p.storeProduct.identifier) != null).toList();
+      if (!mounted) return;
+      setState(() {
+        _nativePackages = filtered;
+        if (filtered.isEmpty) {
+          _nativeLoadError = current == null
+              ? 'No store offering is set as current in RevenueCat.'
+              : 'No coin products in this offering match the app catalog. Check RevenueCat and product IDs.';
+        }
+      });
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('CoinPurchaseScreen: load native offerings failed: $e');
+      }
+      if (!mounted) return;
+      setState(() {
+        _nativePackages = [];
+        _nativeLoadError = 'Could not load store packages. Pull to refresh or try again later.';
+      });
+    }
+  }
+
+  Future<void> _purchaseNativePackage(Package package) async {
+    if (!_nativeIapSupported || !mounted) return;
+    final auth = AuthManager();
+    final userData = auth.getCurrentUserData();
+    final loggedIn = userData['isLoggedIn'] == true && (userData['userId']?.toString().isNotEmpty ?? false);
+    if (!loggedIn) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sign in to buy coins.', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+    if (api == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cannot reach payment service.', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    final productId = package.storeProduct.identifier;
+    final coins = _coinsForNativeProduct(productId);
+    if (coins == null) return;
+
+    setState(() => _loadingNativeProductId = productId);
+    try {
+      final userId = userData['userId']!.toString();
+      try {
+        await Purchases.logIn(userId);
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('CoinPurchaseScreen: Purchases.logIn failed (continuing): $e');
+        }
+      }
+
+      final purchaseResult = await Purchases.purchasePackage(package);
+      var storeTxnId = purchaseResult.storeTransaction.transactionIdentifier.trim();
+      if (storeTxnId.isEmpty) {
+        final txs = purchaseResult.customerInfo.nonSubscriptionTransactions
+            .where((t) => t.productIdentifier == productId)
+            .toList();
+        if (txs.isNotEmpty) {
+          storeTxnId = txs.last.transactionIdentifier.trim();
+        }
+      }
+      if (storeTxnId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Purchase completed but receipt id was missing. Contact support with your Play/App receipt.',
+                style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+              ),
+              backgroundColor: AppColors.primaryColor,
+            ),
+          );
+        }
+        return;
+      }
+
+      final verified = await _verifyRevenueCatPurchaseWithRetry(
+        api: api,
+        productIdentifier: productId,
+        storeTransactionId: storeTxnId,
+      );
+      if (!mounted) return;
+      if (!verified) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Purchase succeeded but crediting coins is still pending. Tap Buy again in a moment or restart the app.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+        return;
+      }
+
+      await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+      if (!mounted) return;
+      await AnalyticsService.logEvent(
+        name: 'coin_native_purchase_completed',
+        parameters: {'product_id': productId, 'coins': coins},
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added $coins coins.', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+          backgroundColor: AppColors.primaryColor,
+        ),
+      );
+    } on PlatformException catch (e) {
+      final code = PurchasesErrorHelper.getErrorCode(e);
+      if (code == PurchasesErrorCode.purchaseCancelledError) {
+        return;
+      }
+      if (LOGGING_SWITCH) {
+        _logger.warning('CoinPurchaseScreen: native purchase failed: $e');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.message ?? 'Purchase failed.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('CoinPurchaseScreen: native purchase error: $e', error: e);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Purchase failed. Try again.', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingNativeProductId = null);
+    }
+  }
+
+  /// RevenueCat can lag behind the device; retry verify while the API returns RC_NOT_FOUND / RC_TXN_PENDING / 404.
+  Future<bool> _verifyRevenueCatPurchaseWithRetry({
+    required ConnectionsApiModule api,
+    required String productIdentifier,
+    required String storeTransactionId,
+  }) async {
+    const betweenAttemptsMs = <int>[400, 800, 1200, 2000];
+    for (var attempt = 0; attempt < 5; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(Duration(milliseconds: betweenAttemptsMs[attempt - 1]));
+      }
+      final raw = await api.sendPostRequest('/userauth/revenuecat/verify-coin-purchase', {
+        'product_identifier': productIdentifier,
+        'store_transaction_id': storeTransactionId,
+      });
+      if (raw is! Map) continue;
+      final map = Map<String, dynamic>.from(raw);
+      if (map['success'] == true) {
+        return true;
+      }
+      final code = map['code']?.toString();
+      final status = map['status'];
+      final retryable = status == 404 && (code == 'RC_NOT_FOUND' || code == 'RC_TXN_PENDING');
+      if (!retryable && LOGGING_SWITCH) {
+        _logger.warning('CoinPurchaseScreen: verify-coin-purchase stop: $map');
+      }
+      if (!retryable) {
+        return false;
+      }
+    }
+    return false;
   }
 
   /// Return `success` / `cancel` / `none` by parsing top-level query and hash-query.
@@ -281,10 +513,41 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                 ..._recommendedPackages.map(_buildPackageCard),
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
+              if (_nativeIapSupported) ...[
+                Text('Coin packages', style: AppTextStyles.headingSmall()),
+                const SizedBox(height: 8),
+                Text(
+                  'Purchases are processed by Google Play or the App Store via RevenueCat.',
+                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                ),
+                SizedBox(height: AppPadding.defaultPadding.top),
+                if (_nativePackages == null)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (_nativeLoadError != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(_nativeLoadError!, style: AppTextStyles.bodyMedium(color: AppColors.textSecondary)),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: _loadNativeOfferings,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  )
+                else
+                  ..._nativePackages!.map(_buildNativePackageCard),
+                SizedBox(height: AppPadding.defaultPadding.top),
+              ],
               Text(
-                kIsWeb
+                kIsWeb || _nativeIapSupported
                     ? 'Join attempt details (debug / support):'
-                    : 'Coin purchases are not available yet. Below is the join attempt data from the server (for debugging / future checkout).',
+                    : 'Coin purchases on this platform are not set up yet. Join attempt data:',
                 style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
               ),
               SizedBox(height: AppPadding.defaultPadding.top),
@@ -322,6 +585,54 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       buf.writeln('${e.key}: ${e.value}');
     }
     return buf.toString().trim();
+  }
+
+  Widget _buildNativePackageCard(Package package) {
+    final id = package.storeProduct.identifier;
+    final coins = _coinsForNativeProduct(id)!;
+    final busy = _loadingNativeProductId == id;
+    final title = package.storeProduct.title.trim().isEmpty ? id : package.storeProduct.title;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: AppPadding.cardPadding,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppBorderRadius.smallRadius,
+        border: Border.all(color: AppColors.borderDefault),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTextStyles.bodyLarge(color: AppColors.textPrimary)),
+                const SizedBox(height: 4),
+                Text('$coins coins', style: AppTextStyles.bodyMedium(color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(package.storeProduct.priceString, style: AppTextStyles.headingSmall()),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: busy ? null : () => _purchaseNativePackage(package),
+            child: busy
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.textOnPrimary,
+                    ),
+                  )
+                : const Text('Buy'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildPackageCard(_CoinPackage pack) {

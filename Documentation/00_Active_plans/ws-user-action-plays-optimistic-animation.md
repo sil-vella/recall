@@ -49,4 +49,4 @@ This is specifically about **user-initiated** plays in WS mode; other players’
 - **Authoritative source** remains server state over WS; optimistic updates are **UX only** until verified.
 - Consider **sequence numbers** or monotonic `state_version` from the backend if available to detect stale or duplicate updates.
 - If server can **reject** an action, the UI must revert optimistic changes cleanly (snackbar / animation rollback per existing patterns).
-- Reference: `Documentation/Dutch_game/ANIMATION_SYSTEM.md` and WS game-state handling in the Dutch module — align with documented animation ordering where possible.
+- Reference: WS game-state handling in the Dutch module for ordering and consistency with live state.

@@ -15,9 +15,8 @@ import '../../demo/demo_functionality.dart';
 import '../functionality/playscreenfunctions.dart';
 import '../functionality/animations.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
-/// When true, log build count and rebuild duration for performance measurement.
-const bool LOGGING_REBUILD_SWITCH = true;
+/// When true, logs layout overflow traces, pile debug, animation traces, and rebuild timing for this widget.
+const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -31,7 +30,7 @@ class UnifiedGameBoardWidget extends StatefulWidget {
 class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with TickerProviderStateMixin {
   final Logger _logger = Logger();
 
-  /// Rebuild count for LOGGING_REBUILD_SWITCH.
+  /// Rebuild count when this file's LOGGING_SWITCH is enabled.
   static int _unifiedWidgetRebuildCount = 0;
   
   // ========== Opponents Panel State ==========
@@ -66,6 +65,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   /// Timer to clear selected-card overlays (opponent highlight + my hand selection) after 3 seconds.
   Timer? _selectedCardOverlayTimer;
+  Timer? _boundsChangedRebuildDebounceTimer;
+  bool _gameBoardHeightUpdateScheduled = false;
+  double? _lastPublishedGameBoardHeight;
   
   // ========== Card Keys (for widget identification) ==========
   /// Map of cardId -> GlobalKey for all cards (reused across rebuilds)
@@ -89,11 +91,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     discardPileKey: _discardPileKey,
     gameBoardKey: _gameBoardKey,
   )..onCardBoundsChanged = () {
-      // Trigger rebuild when card bounds change
-      if (mounted) {
-        setState(() {});
-      }
+      _scheduleBoundsChangedRebuild();
     };
+
+  void _scheduleBoundsChangedRebuild() {
+    if (!mounted) return;
+    if (_boundsChangedRebuildDebounceTimer?.isActive == true) {
+      return;
+    }
+    _boundsChangedRebuildDebounceTimer = Timer(const Duration(milliseconds: 60), () {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
   
   // ========== State Interception (prev_state_* slices) ==========
   /// Local cache of state slices with prev_state_* prefix for animation timing
@@ -244,6 +254,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Get current state
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final gameplayDigest = _buildGameplayStateDigest(currentState);
+    if (gameplayDigest == _lastGameplayStateDigest) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 _onStateChanged: Skipping non-gameplay state change');
+      }
+      return;
+    }
     
     // If already processing, cache this state update (replacing any previous cached state)
     if (_isProcessingStateChange) {
@@ -256,6 +273,46 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Process this state update
     await _processStateUpdate(currentState);
+  }
+
+  String _buildGameplayStateDigest(Map<String, dynamic> state) {
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final games = state['games'] as Map<String, dynamic>? ?? const {};
+    final gameEntry = games[currentGameId] as Map<String, dynamic>? ?? const {};
+    final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? const {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? const {};
+    final players = gameState['players'] as List<dynamic>? ?? const [];
+    final turnEvents = (gameEntry['turn_events'] as List<dynamic>?) ??
+        (state['turn_events'] as List<dynamic>?) ??
+        const [];
+    final stateVersion = state['state_version']?.toString() ??
+        gameState['state_version']?.toString() ??
+        '';
+
+    final actionSignatures = <String>[];
+    for (final player in players) {
+      if (player is! Map<String, dynamic>) continue;
+      final playerId = player['id']?.toString() ?? '';
+      final actionRaw = player['action'];
+      if (actionRaw is List) {
+        final names = actionRaw
+            .whereType<Map<String, dynamic>>()
+            .map((e) => e['name']?.toString() ?? '')
+            .where((e) => e.isNotEmpty)
+            .join('|');
+        if (names.isNotEmpty) {
+          actionSignatures.add('$playerId:$names');
+        }
+      } else if (actionRaw != null) {
+        final actionName = actionRaw.toString();
+        if (actionName.isNotEmpty) {
+          actionSignatures.add('$playerId:$actionName');
+        }
+      }
+    }
+    actionSignatures.sort();
+
+    return '$currentGameId|$stateVersion|te:${turnEvents.length}|a:${actionSignatures.join(';')}';
   }
   
   /// Process a state update - handle animations and update prev_state
@@ -511,6 +568,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       }
       
       // Complete state update
+      _lastGameplayStateDigest = _buildGameplayStateDigest(currentState);
       _completeStateUpdate();
     } finally {
       _isProcessingStateChange = false;
@@ -552,6 +610,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _myHandCardsToPeekProtectionTimer?.cancel();
     _myHandResizeDelayTimer?.cancel();
     _selectedCardOverlayTimer?.cancel();
+    _boundsChangedRebuildDebounceTimer?.cancel();
     _glowAnimationController?.dispose();
     _animationTimeoutTimer?.cancel();
     
@@ -568,7 +627,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   @override
   Widget build(BuildContext context) {
-    final stopwatch = LOGGING_REBUILD_SWITCH ? (Stopwatch()..start()) : null;
+    final stopwatch = LOGGING_SWITCH ? (Stopwatch()..start()) : null;
     // Schedule position update (rate-limited and uses postFrameCallback)
     _playScreenFunctions.updatePilePositions(
       onUpdate: (message) {
@@ -577,10 +636,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         }
       },
       onBoundsChanged: () {
-        // Trigger rebuild when bounds change to update the overlay borders
-        if (mounted) {
-          setState(() {});
-        }
+        // Coalesce rapid bounds updates to reduce rebuild churn.
+        _scheduleBoundsChangedRebuild();
       },
     );
     
@@ -618,7 +675,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         );
       },
     );
-    if (LOGGING_REBUILD_SWITCH && stopwatch != null) {
+    if (LOGGING_SWITCH && stopwatch != null) {
       stopwatch.stop();
       _unifiedWidgetRebuildCount++;
       _logger.info('📊 UnifiedGameBoardWidget REBUILD #$_unifiedWidgetRebuildCount duration=${stopwatch.elapsedMilliseconds} ms');
@@ -716,6 +773,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   
   /// Cached state update - stores the latest state update attempt while processing
   Map<String, dynamic>? _cachedStateUpdate;
+  String? _lastGameplayStateDigest;
   
   /// Timer for animation timeout (4 seconds)
   Timer? _animationTimeoutTimer;
@@ -2849,10 +2907,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   Widget _buildGameBoard() {
-    // Update game board height in state after build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updateGameBoardHeight();
-    });
+    // Update game board height in state after build, but schedule only once per frame.
+    if (!_gameBoardHeightUpdateScheduled) {
+      _gameBoardHeightUpdateScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _gameBoardHeightUpdateScheduled = false;
+        _updateGameBoardHeight();
+      });
+    }
     
     return Container(
       key: _gameBoardKey,
@@ -2902,10 +2964,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     if (_gameBoardKey.currentContext != null) {
       final RenderBox renderBox = _gameBoardKey.currentContext!.findRenderObject() as RenderBox;
       final height = renderBox.size.height;
+      if (_lastPublishedGameBoardHeight != null &&
+          (height - _lastPublishedGameBoardHeight!).abs() < 0.5) {
+        return;
+      }
       final stateManager = StateManager();
       final currentGameBoardHeight = stateManager.getModuleState<Map<String, dynamic>>('dutch_game')?['gameBoardHeight'] as double?;
       
-      if (currentGameBoardHeight == null || currentGameBoardHeight != height) {
+      if (currentGameBoardHeight == null || (currentGameBoardHeight - height).abs() >= 0.5) {
+        _lastPublishedGameBoardHeight = height;
         stateManager.updateModuleState('dutch_game', {
           'gameBoardHeight': height,
         });

@@ -29,7 +29,7 @@ Determine why **coin IAP packages** do not appear on the **Buy coins** screen wh
 
 ## Implementation / investigation steps
 
-- [ ] Reproduce on device/simulator with `LOGGING_SWITCH = true` (local only); log `offerings.current`, package count, raw `storeProduct.identifier` values before filter.
+- [ ] Reproduce on device/simulator with `LOGGING_SWITCH = false` (local only); log `offerings.current`, package count, raw `storeProduct.identifier` values before filter.
 - [ ] Compare logged identifiers to `_nativeStoreProductCoins` keys and to RevenueCat + store console.
 - [ ] In RevenueCat dashboard, confirm **current offering**, package order, and linked store products.
 - [ ] Confirm `Purchases` configuration (key, user) matches the RC project that has the offerings.

@@ -70,6 +70,7 @@ class DutchGameEventListenerValidator {
         'winners',
         // Dart backend extras (must be listed or _validateEventData drops them)
         'turn_events',
+        'state_version',
         'myCardsToPeek',
         'cards_to_peek',
         'is_random_join',

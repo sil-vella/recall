@@ -16,13 +16,18 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Random join: room_joined, game_state_updated (enable-logging-switch.mdc; set false after test)
-  /// When true, log game_state_updated payload size, receive frequency, and UI rebuild triggers for performance measurement.
-  static const bool LOGGING_STATE_SIZE_SWITCH = true;
+  /// When true, logs verbose Dutch WS/state paths including payload-size lines for `game_state_updated`.
+  static const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
   static final Logger _logger = Logger();
 
-  /// Counter for game_state_updated receives (for LOGGING_STATE_SIZE_SWITCH frequency measurement).
+  /// Counter for `game_state_updated` receives (only incremented when LOGGING_SWITCH is true).
   static int _gameStateReceiveCount = 0;
+  static final Map<String, int> _lastStateVersionByGameId = <String, int>{};
+  static final Map<String, String> _lastEventSignatureByGameId = <String, String>{};
+  static String? _cachedCurrentUserId;
+  static DateTime? _cachedCurrentUserIdAt;
+  static bool _isBatchingGamesMapUpdates = false;
+  static Map<String, dynamic>? _batchedGamesMap;
   
   // Analytics module cache
   static AnalyticsModule? _analyticsModule;
@@ -149,16 +154,95 @@ class DutchEventHandlerCallbacks {
       }
     }
   }
+
+  static int? _extractStateVersion(Map<String, dynamic> data, Map<String, dynamic> gameState) {
+    final rootVersion = data['state_version'];
+    if (rootVersion is int) return rootVersion;
+    if (rootVersion is num) return rootVersion.toInt();
+    final gameVersion = gameState['state_version'];
+    if (gameVersion is int) return gameVersion;
+    if (gameVersion is num) return gameVersion.toInt();
+    return null;
+  }
+
+  static String _buildEventSignature(
+    String eventType,
+    String gameId,
+    int? stateVersion,
+    Map<String, dynamic> gameState,
+    List<dynamic>? turnEvents,
+    Map<String, dynamic>? partialState,
+    List<dynamic>? changedProperties,
+  ) {
+    if (stateVersion != null) {
+      return '$eventType|$gameId|v$stateVersion';
+    }
+    final phase = gameState['phase']?.toString() ?? '';
+    final players = gameState['players'] as List<dynamic>? ?? const [];
+    final currentPlayer = gameState['currentPlayer']?.toString() ?? '';
+    final turnCount = turnEvents?.length ?? 0;
+    final changed = changedProperties?.join(',') ?? '';
+    final partialKeys = partialState?.keys.toList() ?? <String>[];
+    partialKeys.sort();
+    final keysStr = partialKeys.join(',');
+    return '$eventType|$gameId|$phase|$currentPlayer|${players.length}|$turnCount|$changed|$keysStr';
+  }
+
+  static bool _shouldDropDuplicateOrStaleEvent({
+    required String eventType,
+    required String gameId,
+    required int? stateVersion,
+    required String signature,
+  }) {
+    final lastVersion = _lastStateVersionByGameId[gameId];
+    if (stateVersion != null && lastVersion != null && stateVersion <= lastVersion) {
+      if (LOGGING_SWITCH) {
+        _logger.info('⏭️ $eventType: dropping stale state_version=$stateVersion (last=$lastVersion) for $gameId');
+      }
+      return true;
+    }
+    final lastSignature = _lastEventSignatureByGameId[gameId];
+    if (lastSignature == signature) {
+      if (LOGGING_SWITCH) {
+        _logger.info('⏭️ $eventType: dropping duplicate signature for $gameId');
+      }
+      return true;
+    }
+    if (stateVersion != null) {
+      _lastStateVersionByGameId[gameId] = stateVersion;
+    }
+    _lastEventSignatureByGameId[gameId] = signature;
+    return false;
+  }
   
   /// Get current games map from state manager
   static Map<String, dynamic> _getCurrentGamesMap() {
+    if (_isBatchingGamesMapUpdates && _batchedGamesMap != null) {
+      return Map<String, dynamic>.from(_batchedGamesMap!);
+    }
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     return Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+  }
+
+  static void _beginGamesMapBatch(Map<String, dynamic> seedGames) {
+    _isBatchingGamesMapUpdates = true;
+    _batchedGamesMap = Map<String, dynamic>.from(seedGames);
+  }
+
+  static void _endGamesMapBatch({required bool commit}) {
+    final gamesToCommit = _batchedGamesMap;
+    _isBatchingGamesMapUpdates = false;
+    _batchedGamesMap = null;
+    if (commit && gamesToCommit != null) {
+      DutchGameHelpers.updateUIState({'games': gamesToCommit});
+    }
   }
   
   /// Update a specific game in the games map and sync to global state
   static void _updateGameInMap(String gameId, Map<String, dynamic> updates) {
-    final currentGames = _getCurrentGamesMap();
+    final currentGames = _isBatchingGamesMapUpdates && _batchedGamesMap != null
+        ? _batchedGamesMap!
+        : _getCurrentGamesMap();
     
     if (currentGames.containsKey(gameId)) {
       final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
@@ -198,13 +282,17 @@ class DutchEventHandlerCallbacks {
       
       currentGames[gameId] = mergedGame;
       
-      if (LOGGING_STATE_SIZE_SWITCH) {
-        _logger.info('📊 game_state REBUILD triggered for gameId=$gameId (updateUIState with games)');
+      if (_isBatchingGamesMapUpdates) {
+        _batchedGamesMap = currentGames;
+      } else {
+        if (LOGGING_SWITCH) {
+          _logger.info('📊 game_state REBUILD triggered for gameId=$gameId (updateUIState with games)');
+        }
+        // Update global state
+        DutchGameHelpers.updateUIState({
+          'games': currentGames,
+        });
       }
-      // Update global state
-      DutchGameHelpers.updateUIState({
-        'games': currentGames,
-      });
     } else {
       if (LOGGING_SWITCH) {
         _logger.warning('⚠️  _updateGameInMap: Game $gameId not found in games map - cannot update');
@@ -235,6 +323,14 @@ class DutchEventHandlerCallbacks {
   /// Practice mode stores user data in dutch_game state, multiplayer uses login state
   /// In multiplayer mode, returns sessionId (which is the player ID), not userId
   static String getCurrentUserId() {
+    final cachedUserId = _cachedCurrentUserId;
+    final cachedAt = _cachedCurrentUserIdAt;
+    if (cachedUserId != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt).inMilliseconds < 75) {
+      return cachedUserId;
+    }
+
     // First check for practice user data (practice mode)
     final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final practiceUser = dutchGameState['practiceUser'] as Map<String, dynamic>?;
@@ -250,6 +346,8 @@ class DutchEventHandlerCallbacks {
         if (LOGGING_SWITCH) {
           _logger.debug('🔍 getCurrentUserId: Returning practice session ID: $practiceSessionId');
         }
+        _cachedCurrentUserId = practiceSessionId;
+        _cachedCurrentUserIdAt = DateTime.now();
         return practiceSessionId;
       }
     }
@@ -261,14 +359,19 @@ class DutchEventHandlerCallbacks {
     final sessionData = websocketState['sessionData'] as Map<String, dynamic>?;
     final sessionId = sessionData?['session_id']?.toString() ?? 
                       sessionData?['sessionId']?.toString();
+    final normalizedSessionId = sessionId?.trim();
     if (LOGGING_SWITCH) {
       _logger.debug('🔍 getCurrentUserId: Checking sessionId from websocket state (sessionData keys: ${sessionData?.keys.toList()}): $sessionId');
     }
-    if (sessionId != null && sessionId.isNotEmpty) {
+    if (normalizedSessionId != null &&
+        normalizedSessionId.isNotEmpty &&
+        normalizedSessionId.toLowerCase() != 'unknown') {
       if (LOGGING_SWITCH) {
-        _logger.debug('🔍 getCurrentUserId: Found sessionId in state: $sessionId');
+        _logger.debug('🔍 getCurrentUserId: Found sessionId in state: $normalizedSessionId');
       }
-      return sessionId;
+      _cachedCurrentUserId = normalizedSessionId;
+      _cachedCurrentUserIdAt = DateTime.now();
+      return normalizedSessionId;
     }
     
     // Try to get sessionId directly from WebSocketManager socket
@@ -278,11 +381,16 @@ class DutchEventHandlerCallbacks {
       if (LOGGING_SWITCH) {
         _logger.debug('🔍 getCurrentUserId: Checking direct socket ID: $directSessionId');
       }
-      if (directSessionId != null && directSessionId.isNotEmpty) {
+      final normalizedSocketId = directSessionId?.trim();
+      if (normalizedSocketId != null &&
+          normalizedSocketId.isNotEmpty &&
+          normalizedSocketId.toLowerCase() != 'unknown') {
         if (LOGGING_SWITCH) {
-          _logger.debug('🔍 getCurrentUserId: Using direct socket ID: $directSessionId');
+          _logger.debug('🔍 getCurrentUserId: Using direct socket ID: $normalizedSocketId');
         }
-        return directSessionId;
+        _cachedCurrentUserId = normalizedSocketId;
+        _cachedCurrentUserIdAt = DateTime.now();
+        return normalizedSocketId;
       }
     } catch (e) {
       // WebSocketManager might not be initialized, continue to fallback
@@ -298,6 +406,8 @@ class DutchEventHandlerCallbacks {
     if (LOGGING_SWITCH) {
       _logger.warning('⚠️  getCurrentUserId: Falling back to login user ID (this may cause issues in multiplayer): $loginUserId');
     }
+    _cachedCurrentUserId = loginUserId;
+    _cachedCurrentUserIdAt = DateTime.now();
     return loginUserId;
   }
 
@@ -357,7 +467,9 @@ class DutchEventHandlerCallbacks {
   
   /// Add a game to the games map with standard structure
   static void _addGameToMap(String gameId, Map<String, dynamic> gameData, {String? gameStatus}) {
-    final currentGames = _getCurrentGamesMap();
+    final currentGames = _isBatchingGamesMapUpdates && _batchedGamesMap != null
+        ? _batchedGamesMap!
+        : _getCurrentGamesMap();
     
     // CRITICAL: Validate gameData has required fields before adding
     if (gameData.isEmpty) {
@@ -413,10 +525,14 @@ class DutchEventHandlerCallbacks {
       _logger.info('✅ _addGameToMap: Added game $gameId with gameData.game_id=${gameData['game_id']}');
     }
     
-    // Update global state
-    DutchGameHelpers.updateUIState({
-      'games': currentGames,
-    });
+    if (_isBatchingGamesMapUpdates) {
+      _batchedGamesMap = currentGames;
+    } else {
+      // Update global state
+      DutchGameHelpers.updateUIState({
+        'games': currentGames,
+      });
+    }
   }
   
   /// Update main game state (non-game-specific fields)
@@ -1377,7 +1493,7 @@ When anyone has played a card with the **same rank** as your **collection card**
   /// Handle game_state_updated event
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';
-    if (LOGGING_STATE_SIZE_SWITCH) {
+    if (LOGGING_SWITCH) {
       _gameStateReceiveCount++;
       final sizeBytes = utf8.encode(jsonEncode(data)).length;
       _logger.info('📊 game_state_updated RECV #$_gameStateReceiveCount size=$sizeBytes bytes gameId=$gameId');
@@ -1399,6 +1515,24 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
     final turnEvents = data['turn_events'] as List<dynamic>? ?? []; // Extract turn_events for animations
+    final stateVersion = _extractStateVersion(data, gameState);
+    final signature = _buildEventSignature(
+      'game_state_updated',
+      gameId,
+      stateVersion,
+      gameState,
+      turnEvents,
+      null,
+      null,
+    );
+    if (_shouldDropDuplicateOrStaleEvent(
+      eventType: 'game_state_updated',
+      gameId: gameId,
+      stateVersion: stateVersion,
+      signature: signature,
+    )) {
+      return;
+    }
     final myCardsToPeekFromEvent = data['myCardsToPeek'] as List<dynamic>?; // Extract root-level myCardsToPeek if present
     
     // 🔍 DEBUG: Check drawnCard data in received game_state
@@ -1472,6 +1606,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
       return;
     }
+    _beginGamesMapBatch(currentGames);
     
     final wasNewGame = !currentGames.containsKey(gameId);
     
@@ -1570,6 +1705,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         if (LOGGING_SWITCH) {
           _logger.warning('⚠️  handleGameStateUpdated: Game $gameId not found in games map - user may have left. Skipping game state update.');
         }
+        _endGamesMapBatch(commit: false);
         return;
       }
       
@@ -1596,6 +1732,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         DutchGameHelpers.updateUIState({
           'games': gamesToUpdate,
         });
+        _endGamesMapBatch(commit: false);
         return; // Don't update stale games
       }
       
@@ -1799,6 +1936,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       'roundStatus': roundStatus,
       'discardPile': discardPile, // Updated discard pile for centerBoard slice
       'turn_events': turnEvents, // Include turn_events for animations (critical for widget slice recomputation)
+      if (stateVersion != null) 'state_version': stateVersion,
     });
     if (LOGGING_SWITCH) {
       _logger.info('🔍 handleGameStateUpdated: Updated main state with gamePhase=$uiPhase');
@@ -1945,22 +2083,10 @@ When anyone has played a card with the **same rank** as your **collection card**
         }
       }
       
-      // Normal game state update (currentPlayer can be null from backend)
-      final currentPlayerDisplay = currentPlayer?.toString() ?? '—';
-      _addSessionMessage(
-        level: 'info',
-        title: 'Game State Updated',
-        message: 'Round $roundNumber - $currentPlayerDisplay is $currentPlayerStatus',
-        data: {
-          'game_id': gameId,
-          'round_number': roundNumber,
-          'current_player': currentPlayer,
-          'current_player_status': currentPlayerStatus,
-          'round_status': roundStatus,
-        },
-        showModal: false, // Don't show modal for normal updates
-      );
+      // Intentionally skip per-tick info message updates.
+      // They create extra state writes and trigger avoidable rebuild churn.
     }
+    _endGamesMapBatch(commit: true);
   }
 
   /// Handle game_state_partial_update event
@@ -1986,6 +2112,24 @@ When anyone has played a card with the **same rank** as your **collection card**
     // Merge partial updates with current game state
     final updatedGameState = Map<String, dynamic>.from(currentGameState);
     updatedGameState.addAll(partialGameState);
+    final stateVersion = _extractStateVersion(data, updatedGameState);
+    final signature = _buildEventSignature(
+      'game_state_partial_update',
+      gameId,
+      stateVersion,
+      updatedGameState,
+      null,
+      partialGameState,
+      changedProperties,
+    );
+    if (_shouldDropDuplicateOrStaleEvent(
+      eventType: 'game_state_partial_update',
+      gameId: gameId,
+      stateVersion: stateVersion,
+      signature: signature,
+    )) {
+      return;
+    }
     if (data['winners'] != null) {
       updatedGameState['winners'] = data['winners'];
     }
@@ -2057,6 +2201,9 @@ When anyone has played a card with the **same rank** as your **collection card**
     // Apply UI updates if any
     if (updates.isNotEmpty) {
       _updateGameInMap(gameId, updates);
+    }
+    if (stateVersion != null) {
+      _updateMainGameState({'state_version': stateVersion});
     }
     
     // 🎯 CRITICAL: Sync widget states if players or currentPlayer changed
@@ -2170,18 +2317,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         }
       }
       
-      // Normal partial update
-      _addSessionMessage(
-        level: 'info',
-        title: 'Game State Updated',
-        message: 'Updated: ${changedProperties.join(', ')}',
-        data: {
-          'game_id': gameId,
-          'changed_properties': changedProperties,
-          'partial_updates': partialGameState,
-        },
-        showModal: false, // Don't show modal for normal updates
-      );
+      // Intentionally skip per-tick info message updates to reduce write/rebuild churn.
     }
   }
 

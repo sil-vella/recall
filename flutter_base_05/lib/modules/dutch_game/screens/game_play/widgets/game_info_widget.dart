@@ -177,7 +177,13 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final currentRoomInfo = wsState['currentRoomInfo'] as Map<String, dynamic>?;
         final gameInfo = dutchGameState['gameInfo'] as Map<String, dynamic>? ?? {};
         final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-        final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
+        var currentGameId = gameInfo['currentGameId']?.toString() ?? '';
+        if (currentGameId.isEmpty) {
+          currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+        }
+        if (currentGameId.isEmpty && games.length == 1) {
+          currentGameId = games.keys.first;
+        }
         _syncRosterRetryGameId(currentGameId);
         final roomName = 'Game $currentGameId';
         final rawSize = gameInfo['currentSize'];
@@ -203,7 +209,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         }
         final gameStatus = gameInfo['gameStatus']?.toString() ?? 'inactive';
         final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
-        final isInGame = gameInfo['isInGame'] ?? false;
+        final isInGame = (gameInfo['isInGame'] ?? false) || currentGameId.isNotEmpty;
         final isPracticeGame = gameInfo['isPractice'] as bool? ?? currentGameId.startsWith('practice_room_');
         final multiplayerType = gameInfo['multiplayerType'] as Map<String, dynamic>?;
 

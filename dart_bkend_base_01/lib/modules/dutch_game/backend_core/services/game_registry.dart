@@ -6,9 +6,8 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Lobby create_room → registry (enable-logging-switch.mdc)
-/// When true, log game_state_updated payload size (bytes) and emit frequency for performance measurement.
-const bool LOGGING_STATE_SIZE_SWITCH = true;
+/// When true, logs registry lifecycle, WS emit paths, and payload-size lines for `game_state_updated`.
+const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -58,8 +57,35 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   final Logger _logger = Logger();
   final StateQueueValidator _validator = StateQueueValidator.instance;
 
-  /// Counter for game_state_updated emits (for LOGGING_STATE_SIZE_SWITCH frequency measurement).
+  /// Counter for `game_state_updated` emits (only incremented when LOGGING_SWITCH is true).
   static int _gameStateEmitCount = 0;
+  static final Map<String, int> _stateVersionByRoom = <String, int>{};
+  static final Map<String, String> _lastBroadcastSignatureByRoom = <String, String>{};
+
+  int _nextStateVersion() {
+    final next = (_stateVersionByRoom[roomId] ?? 0) + 1;
+    _stateVersionByRoom[roomId] = next;
+    return next;
+  }
+
+  String _buildBroadcastSignature({
+    required Map<String, dynamic> filteredGameState,
+    required List<dynamic> turnEvents,
+    required String? ownerId,
+    required List<dynamic>? myCardsToPeekFromState,
+    required List<dynamic>? cardsToPeekFromState,
+    required List<dynamic>? winners,
+  }) {
+    return jsonEncode(<String, dynamic>{
+      'game_state': filteredGameState,
+      'turn_events': turnEvents,
+      'owner_id': ownerId,
+      'myCardsToPeek': myCardsToPeekFromState,
+      'cards_to_peek': cardsToPeekFromState,
+      'winners': winners,
+      'is_random_join': server.getRoomInfo(roomId)?.isRandomJoin == true,
+    });
+  }
 
   /// Get all timer values as a map (for UI consumption)
   /// This is the single source of truth for all timer durations
@@ -179,12 +205,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final payload = _gameStateUpdatedPayloadBase(
         filteredGameState: filteredGameState,
         turnEvents: turnEvents,
+        stateVersion: _nextStateVersion(),
         ownerId: ownerId,
         myCardsToPeekFromState: myCardsToPeekFromState,
         cardsToPeekFromState: cardsToPeekFromState,
         winners: null,
       );
-      if (LOGGING_STATE_SIZE_SWITCH) {
+      if (LOGGING_SWITCH) {
         _gameStateEmitCount++;
         final sizeBytes = utf8.encode(jsonEncode(payload)).length;
         _logger.info('📊 game_state_updated EMIT #$_gameStateEmitCount (sendToPlayer $playerId) size=$sizeBytes bytes roomId=$roomId');
@@ -263,12 +290,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final payload = _gameStateUpdatedPayloadBase(
         filteredGameState: filteredGameState,
         turnEvents: turnEvents,
+        stateVersion: _nextStateVersion(),
         ownerId: ownerId,
         myCardsToPeekFromState: myCardsToPeekFromState,
         cardsToPeekFromState: cardsToPeekFromState,
         winners: winners,
       );
-      if (LOGGING_STATE_SIZE_SWITCH) {
+      if (LOGGING_SWITCH) {
         _gameStateEmitCount++;
         final sizeBytes = utf8.encode(jsonEncode(payload)).length;
         _logger.info('📊 game_state_updated EMIT #$_gameStateEmitCount (broadcastExcept $excludePlayerId) size=$sizeBytes bytes roomId=$roomId');
@@ -300,6 +328,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   Map<String, dynamic> _gameStateUpdatedPayloadBase({
     required Map<String, dynamic> filteredGameState,
     required List<dynamic> turnEvents,
+    required int stateVersion,
     String? ownerId,
     List<dynamic>? myCardsToPeekFromState,
     List<dynamic>? cardsToPeekFromState,
@@ -310,6 +339,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'game_id': roomId,
       'game_state': filteredGameState,
       'turn_events': turnEvents,
+      'state_version': stateVersion,
       if (winners != null) 'winners': winners,
       if (ownerId != null) 'owner_id': ownerId,
       if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
@@ -333,6 +363,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final payload = _gameStateUpdatedPayloadBase(
       filteredGameState: filteredGameState,
       turnEvents: turnEvents,
+      stateVersion: _nextStateVersion(),
       ownerId: ownerId,
       myCardsToPeekFromState: myCardsToPeekFromState,
       cardsToPeekFromState: cardsToPeekFromState,
@@ -344,6 +375,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   /// Apply validated updates to GameStateStore and broadcast
   /// This is called by StateQueueValidator after validation
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
+    final updateKeys = validatedUpdates.keys.toSet();
+    final isGamesOnlyUpdate =
+        updateKeys.isNotEmpty && updateKeys.every((k) => k == 'games');
+
     // Log turn_events if present in validated updates
     if (validatedUpdates.containsKey('turn_events')) {
       final turnEventsInUpdates = validatedUpdates['turn_events'] as List<dynamic>? ?? [];
@@ -428,7 +463,16 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
     }
     
-    final payload = _gameStateUpdatedPayloadBase(
+    if (isGamesOnlyUpdate) {
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '🔁 GameStateCallback: Skipping broadcast for games-only update; waiting for richer state update.',
+        );
+      }
+      return;
+    }
+
+    final broadcastSignature = _buildBroadcastSignature(
       filteredGameState: filteredGameState,
       turnEvents: turnEvents,
       ownerId: ownerId,
@@ -436,7 +480,25 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       cardsToPeekFromState: cardsToPeekFromState,
       winners: winners,
     );
-    if (LOGGING_STATE_SIZE_SWITCH) {
+    final lastSignature = _lastBroadcastSignatureByRoom[roomId];
+    if (lastSignature == broadcastSignature) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🔁 GameStateCallback: Skipping duplicate game_state_updated payload for room=$roomId');
+      }
+      return;
+    }
+    _lastBroadcastSignatureByRoom[roomId] = broadcastSignature;
+
+    final payload = _gameStateUpdatedPayloadBase(
+      filteredGameState: filteredGameState,
+      turnEvents: turnEvents,
+      stateVersion: _nextStateVersion(),
+      ownerId: ownerId,
+      myCardsToPeekFromState: myCardsToPeekFromState,
+      cardsToPeekFromState: cardsToPeekFromState,
+      winners: winners,
+    );
+    if (LOGGING_SWITCH) {
       _gameStateEmitCount++;
       final sizeBytes = utf8.encode(jsonEncode(payload)).length;
       _logger.info('📊 game_state_updated EMIT #$_gameStateEmitCount (broadcast) size=$sizeBytes bytes roomId=$roomId');

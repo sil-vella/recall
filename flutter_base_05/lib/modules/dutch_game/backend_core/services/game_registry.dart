@@ -283,6 +283,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   /// Apply validated updates to GameStateStore and broadcast
   /// This is called by StateQueueValidator after validation
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
+    final updateKeys = validatedUpdates.keys.toSet();
+    final isGamesOnlyUpdate =
+        updateKeys.isNotEmpty && updateKeys.every((k) => k == 'games');
+
     // Log turn_events if present in validated updates
     if (validatedUpdates.containsKey('turn_events')) {
       final turnEventsInUpdates = validatedUpdates['turn_events'] as List<dynamic>? ?? [];
@@ -367,6 +371,15 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
     }
     
+    if (isGamesOnlyUpdate) {
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '🔁 GameStateCallback: Skipping broadcast for games-only update; waiting for richer state update.',
+        );
+      }
+      return;
+    }
+
     server.broadcastToRoom(roomId, {
       'event': 'game_state_updated',
       'game_id': roomId,

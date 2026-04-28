@@ -21,8 +21,15 @@ class GameEventCoordinator {
 
   /// Serialize game events per room so async handlers never interleave (race on shared state).
   final Map<String, Future<void>> _roomEventTail = {};
+  final Map<String, int> _stateVersionByRoom = <String, int>{};
 
   GameEventCoordinator(this.roomManager, this.server);
+
+  int _nextStateVersion(String roomId) {
+    final next = (_stateVersionByRoom[roomId] ?? 0) + 1;
+    _stateVersionByRoom[roomId] = next;
+    return next;
+  }
 
   /// Get current games map in Flutter format: {roomId: {'gameData': {'game_state': ...}}}
   /// This matches the format expected by shared logic methods
@@ -1088,6 +1095,9 @@ class GameEventCoordinator {
       'event': 'game_state_updated',
       'game_id': roomId,
       'game_state': gameState,
+      'turn_events': stateRoot['turn_events'] as List<dynamic>? ?? [],
+      'state_version': _nextStateVersion(roomId),
+      if (server.getRoomInfo(roomId)?.isRandomJoin == true) 'is_random_join': true,
       'owner_id': server.getRoomOwner(roomId),
       'timestamp': DateTime.now().toIso8601String(),
     });
@@ -1815,6 +1825,9 @@ class GameEventCoordinator {
         'event': 'game_state_updated',
         'game_id': roomId,
         'game_state': gameState,
+        'turn_events': _store.getState(roomId)['turn_events'] as List<dynamic>? ?? [],
+        'state_version': _nextStateVersion(roomId),
+        if (server.getRoomInfo(roomId)?.isRandomJoin == true) 'is_random_join': true,
         'owner_id': server.getRoomOwner(roomId),
         'timestamp': DateTime.now().toIso8601String(),
       });

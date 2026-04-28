@@ -1,0 +1,155 @@
+---
+# One-off: set a single user's modules.dutch_game.coins on VPS MongoDB.
+#
+# Default behavior sets coins to 500.
+# Required extra var:
+#   -e target_user_id=<24-char Mongo ObjectId hex>
+#
+# Optional:
+#   -e target_coins=<whole number >= 0>   # defaults to 500
+#
+# Usage:
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_coins.yml -e vm_name=rop01 -e target_user_id=69ad608e5cfa3eb1703c134a
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_coins.yml -e vm_name=rop01 -e target_user_id=69ad608e5cfa3eb1703c134a -e target_coins=500
+
+- name: Load app_dev/.env.prod for MongoDB password (optional)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env.prod"
+  tasks:
+    - name: Check if app_dev/.env.prod exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env.prod into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'): continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        result = { 'mongodb_password': out.get('MONGODB_PASSWORD', '') }
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env.prod
+      set_fact:
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
+- name: Set a single user's Dutch coins (VPS Docker)
+  hosts: "{{ vm_name | default('rop01') }}_user"
+  become: true
+  gather_facts: false
+  vars:
+    mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
+    mongodb_container_name: "dutch_external_app_mongodb"
+    target_coins: 500
+  tasks:
+    - name: Validate target_user_id
+      assert:
+        that:
+          - target_user_id is defined
+          - target_user_id | string is match('^[0-9a-fA-F]{24}$')
+        fail_msg: "Pass -e target_user_id=<24-char Mongo ObjectId hex>."
+
+    - name: Validate target coin amount
+      assert:
+        that:
+          - target_coins | string is match('^[0-9]+$')
+        fail_msg: "Pass -e target_coins=<whole number >= 0>."
+
+    - name: Resolve target coin amount
+      set_fact:
+        target_coins_int: "{{ target_coins | int }}"
+
+    - name: Create Mongo script to update one user coins
+      copy:
+        dest: "/tmp/set_user_coins.js"
+        mode: "0644"
+        content: |
+          print("VPS set_user_coins: target user {{ target_user_id }}, target coins {{ target_coins_int }}");
+          var d = db.getSiblingDB("external_system");
+          var userId = "{{ target_user_id }}";
+          var coins = {{ target_coins_int }};
+          var userBefore = d.users.findOne(
+            { _id: ObjectId(userId) },
+            { _id: 1, email: 1, username: 1, "modules.dutch_game.coins": 1 }
+          );
+          if (!userBefore) {
+            print("ERROR: User with _id " + userId + " not found");
+            quit(1);
+          }
+          var beforeCoins = null;
+          if (userBefore.modules && userBefore.modules.dutch_game && typeof userBefore.modules.dutch_game.coins !== "undefined") {
+            beforeCoins = userBefore.modules.dutch_game.coins;
+          }
+          var result = d.users.updateOne(
+            { _id: ObjectId(userId) },
+            { $set: { "modules.dutch_game.coins": coins, updated_at: new Date().toISOString() } }
+          );
+          if (result.matchedCount === 0) {
+            print("ERROR: User with _id " + userId + " not found during update");
+            quit(1);
+          }
+          var userAfter = d.users.findOne(
+            { _id: ObjectId(userId) },
+            { _id: 1, email: 1, username: 1, "modules.dutch_game.coins": 1 }
+          );
+          var afterCoins = null;
+          if (userAfter.modules && userAfter.modules.dutch_game && typeof userAfter.modules.dutch_game.coins !== "undefined") {
+            afterCoins = userAfter.modules.dutch_game.coins;
+          }
+          print("OK: Updated modules.dutch_game.coins");
+          print("User ID: " + userId);
+          print("Email: " + (userAfter.email || ""));
+          print("Username: " + (userAfter.username || ""));
+          print("Coins before: " + beforeCoins);
+          print("Coins after: " + afterCoins);
+          quit(0);
+
+    - name: Copy script into MongoDB container
+      shell: sg docker -c 'docker cp /tmp/set_user_coins.js {{ mongodb_container_name }}:/tmp/set_user_coins.js'
+      register: copy_out
+      changed_when: copy_out.rc == 0
+
+    - name: Run script in MongoDB container
+      shell: |
+        sg docker -c 'docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/set_user_coins.js'
+      register: script_out
+      changed_when: true
+
+    - name: Show script stdout
+      debug:
+        msg: "{{ script_out.stdout_lines | default([]) }}"
+
+    - name: Show script stderr if any
+      debug:
+        msg: "{{ script_out.stderr_lines | default([]) }}"
+      when: script_out.stderr_lines | default([]) | length > 0
+
+    - name: Remove script from host
+      file:
+        path: /tmp/set_user_coins.js
+        state: absent
+
+    - name: Fail if script failed
+      fail:
+        msg: "MongoDB script failed: rc={{ script_out.rc }}, stderr={{ script_out.stderr | default('') }}"
+      when: script_out.rc != 0

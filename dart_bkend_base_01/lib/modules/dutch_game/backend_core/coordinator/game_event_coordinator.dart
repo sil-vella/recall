@@ -8,7 +8,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Per-room event queue + random-join WS trace (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // Per-room event queue + random-join WS trace (enable-logging-switch.mdc; set false after test)
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -21,15 +21,8 @@ class GameEventCoordinator {
 
   /// Serialize game events per room so async handlers never interleave (race on shared state).
   final Map<String, Future<void>> _roomEventTail = {};
-  final Map<String, int> _stateVersionByRoom = <String, int>{};
 
   GameEventCoordinator(this.roomManager, this.server);
-
-  int _nextStateVersion(String roomId) {
-    final next = (_stateVersionByRoom[roomId] ?? 0) + 1;
-    _stateVersionByRoom[roomId] = next;
-    return next;
-  }
 
   /// Get current games map in Flutter format: {roomId: {'gameData': {'game_state': ...}}}
   /// This matches the format expected by shared logic methods
@@ -1090,16 +1083,10 @@ class GameEventCoordinator {
     stateRoot['game_state'] = gameState;
     _store.mergeRoot(roomId, stateRoot);
 
-    // Broadcast initial_peek phase snapshot (AI peeks run at end of window when timer expires)
-    server.broadcastToRoom(roomId, {
-      'event': 'game_state_updated',
-      'game_id': roomId,
-      'game_state': gameState,
-      'turn_events': stateRoot['turn_events'] as List<dynamic>? ?? [],
-      'state_version': _nextStateVersion(roomId),
-      if (server.getRoomInfo(roomId)?.isRandomJoin == true) 'is_random_join': true,
-      'owner_id': server.getRoomOwner(roomId),
-      'timestamp': DateTime.now().toIso8601String(),
+    // Canonical emit path: callback handles validation + broadcast + versioning.
+    final callback = ServerGameStateCallbackImpl(roomId, server);
+    callback.onGameStateChanged({
+      'games': _getCurrentGamesMap(roomId),
     });
 
     // Start phase-based timer for initial peek phase (only if instructions are not shown)
@@ -1229,26 +1216,55 @@ class GameEventCoordinator {
   /// Select and store AI peek cards for a computer player
   void _selectAndStoreAIPeekCards(Map<String, dynamic> computerPlayer, Map<String, dynamic> gameState, Random random) {
     final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
-    if (hand.length < 2) {
+    final validHandEntries = <Map<String, dynamic>>[];
+    for (var i = 0; i < hand.length; i++) {
+      final rawCard = hand[i];
+      if (rawCard is! Map<String, dynamic>) {
+        continue;
+      }
+      final cardId = rawCard['cardId']?.toString() ?? '';
+      if (cardId.isEmpty) {
+        continue;
+      }
+      validHandEntries.add({
+        'handIndex': i,
+        'card': rawCard,
+      });
+    }
+
+    if (validHandEntries.length < 2) {
       if (LOGGING_SWITCH) {
-        _logger.warning('GameEventCoordinator: Computer player ${computerPlayer['name']} has less than 2 cards, skipping peek');
+        _logger.warning('GameEventCoordinator: Player ${computerPlayer['name']} has less than 2 valid cards, skipping peek');
       }
       return;
     }
 
     // Select 2 random cards
-    final indices = <int>[];
-    while (indices.length < 2) {
-      final idx = random.nextInt(hand.length);
-      if (!indices.contains(idx)) indices.add(idx);
+    final selectedEntries = <Map<String, dynamic>>[];
+    while (selectedEntries.length < 2) {
+      final idx = random.nextInt(validHandEntries.length);
+      final picked = validHandEntries[idx];
+      if (!selectedEntries.contains(picked)) {
+        selectedEntries.add(picked);
+      }
     }
 
-    final playerId = computerPlayer['id'] as String;
+    final indices = <int>[
+      selectedEntries[0]['handIndex'] as int,
+      selectedEntries[1]['handIndex'] as int,
+    ];
+    final playerId = computerPlayer['id']?.toString() ?? '';
+    if (playerId.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('GameEventCoordinator: Player missing id during auto peek, skipping');
+      }
+      return;
+    }
 
     // Get full card data for both cards from originalDeck
     final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
-    final card1IdOnly = hand[indices[0]] as Map<String, dynamic>;
-    final card2IdOnly = hand[indices[1]] as Map<String, dynamic>;
+    final card1IdOnly = selectedEntries[0]['card'] as Map<String, dynamic>;
+    final card2IdOnly = selectedEntries[1]['card'] as Map<String, dynamic>;
 
     final card1Id = card1IdOnly['cardId'] as String;
     final card2Id = card2IdOnly['cardId'] as String;
@@ -1601,8 +1617,7 @@ class GameEventCoordinator {
       // Create callback instance for this room (matching GameRegistry pattern)
       final callback = ServerGameStateCallbackImpl(roomId, server);
 
-      // STEP 1: Set cardsToPeek to ID-only format in games map and broadcast to all except peeking player
-      // This matches the draw card pattern exactly
+      // Shared/public view in store: ID-only cards for everyone.
       final idOnlyCardsToPeek = cardIds.map((cardId) => {
         'cardId': cardId,
         'suit': '?',
@@ -1610,28 +1625,17 @@ class GameEventCoordinator {
         'points': 0,
       }).toList();
       playerInGamesMap['cardsToPeek'] = idOnlyCardsToPeek;
-      
-      // Use callback method to broadcast (matches draw card pattern)
-      callback.broadcastGameStateExcept(playerId, {
-        'games': currentGames, // Games map with ID-only cardsToPeek
-      });
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: STEP 1 - Broadcast ID-only cardsToPeek to all except player $playerId');
-      }
 
-      // STEP 2: Set cardsToPeek to full card data in games map and send only to peeking player
-      // This matches the draw card pattern exactly
-      playerInGamesMap['cardsToPeek'] = cardsToPeek;
-      
-      // Action declaration removed - will be handled elsewhere if needed
-      
-      // Use callback method to send to player (matches draw card pattern)
-      callback.sendGameStateToPlayer(playerId, {
-        'games': currentGames, // Games map with full cardsToPeek
-      });
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: STEP 2 - Sent full cardsToPeek data to player $playerId only');
-      }
+      // Single-pass emit: one room send loop with recipient-scoped private overlay.
+      callback.emitGameStateScoped(
+        sharedUpdates: {
+          'games': currentGames,
+        },
+        privatePlayerId: playerId,
+        privateOverlay: {
+          'myCardsToPeek': cardsToPeek,
+        },
+      );
       
       // Also update the humanPlayer reference for subsequent logic (known_cards, collection_rank, etc.)
       humanPlayer['cardsToPeek'] = cardsToPeek;
@@ -1745,15 +1749,13 @@ class GameEventCoordinator {
       // the store with the known_cards, collection_rank, and status changes
       _store.setGameState(roomId, gameState);
 
-      // Broadcast status update to all players (status change after peek completion)
+      // Single-pass status update after peek completion.
       final updatedGames = _getCurrentGamesMap(roomId);
-      callback.broadcastGameStateExcept(playerId, {
-        'games': updatedGames, // Games map with updated status
-      });
-      // Also send to the player to ensure they have the latest state
-      callback.sendGameStateToPlayer(playerId, {
-        'games': updatedGames, // Games map with updated status
-      });
+      callback.emitGameStateScoped(
+        sharedUpdates: {
+          'games': updatedGames,
+        },
+      );
 
       if (LOGGING_SWITCH) {
         _logger.info('GameEventCoordinator: Completed initial peek - human player set to WAITING status');
@@ -1820,16 +1822,10 @@ class GameEventCoordinator {
       // Update store with modified game state
       _store.setGameState(roomId, gameState);
       
-      // Broadcast updated state to all players
-      server.broadcastToRoom(roomId, {
-        'event': 'game_state_updated',
-        'game_id': roomId,
-        'game_state': gameState,
-        'turn_events': _store.getState(roomId)['turn_events'] as List<dynamic>? ?? [],
-        'state_version': _nextStateVersion(roomId),
-        if (server.getRoomInfo(roomId)?.isRandomJoin == true) 'is_random_join': true,
-        'owner_id': server.getRoomOwner(roomId),
-        'timestamp': DateTime.now().toIso8601String(),
+      // Canonical emit path: callback handles validation + broadcast + versioning.
+      final callback = ServerGameStateCallbackImpl(roomId, server);
+      callback.onGameStateChanged({
+        'games': _getCurrentGamesMap(roomId),
       });
       
       if (LOGGING_SWITCH) {

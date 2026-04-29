@@ -194,7 +194,6 @@ class DutchEventManager {
             'currentRoomId': roomId,
             'isRoomOwner': isOwner,
             'isInRoom': true,
-            'is_random_join': isRandomJoin,
             'gamePhase': 'waiting',
             'gameStatus': 'inactive',
             'isGameActive': false,

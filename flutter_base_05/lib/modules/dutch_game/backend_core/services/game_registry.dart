@@ -1,10 +1,10 @@
 import '../../utils/platform/shared_imports.dart';
+import 'dart:async';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
-import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Game init / match start (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Game init / match start (enable-logging-switch.mdc)
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -52,7 +52,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   final WebSocketServer server;
   final _store = GameStateStore.instance;
   final Logger _logger = Logger();
-  final StateQueueValidator _validator = StateQueueValidator.instance;
+  final Map<String, dynamic> _pendingOnChangeUpdates = <String, dynamic>{};
+  bool _onChangeFlushScheduled = false;
 
   /// Get all timer values as a map (for UI consumption)
   /// This is the single source of truth for all timer durations
@@ -72,23 +73,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   }
 
   ServerGameStateCallbackImpl(this.roomId, this.server) {
-    // Initialize state queue validator with logger callback
-    _validator.setLogCallback((String message, {bool isError = false}) {
-      if (isError) {
-        if (LOGGING_SWITCH) {
-          _logger.error(message);
-        }
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.info(message);
-        }
-      }
-    });
-    
-    // Set update handler to apply validated updates to GameStateStore
-    _validator.setUpdateHandler((Map<String, dynamic> validatedUpdates) {
-      _applyValidatedUpdates(validatedUpdates);
-    });
+    // No-op: state updates are applied directly without queue validation.
   }
 
   @override
@@ -108,9 +93,23 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       }
     }
     
-    // Use StateQueueValidator to validate and queue the update
-    // The validator will call our update handler with validated updates
-    _validator.enqueueUpdate(updates);
+    _queueMergedOnGameStateChanged(updates);
+  }
+
+  void _queueMergedOnGameStateChanged(Map<String, dynamic> updates) {
+    _pendingOnChangeUpdates.addAll(updates);
+    if (_onChangeFlushScheduled) return;
+    _onChangeFlushScheduled = true;
+
+    scheduleMicrotask(() {
+      _onChangeFlushScheduled = false;
+      if (_pendingOnChangeUpdates.isEmpty) {
+        return;
+      }
+      final mergedUpdates = Map<String, dynamic>.from(_pendingOnChangeUpdates);
+      _pendingOnChangeUpdates.clear();
+      _applyValidatedUpdates(mergedUpdates);
+    });
   }
 
   @override
@@ -122,11 +121,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     }
     
     try {
-      // Validate updates using the same validator (direct validation, not queued)
-      final validatedUpdates = _validator.validateUpdate(updates);
-      
-      // Apply validated updates to state store
-      _store.mergeRoot(roomId, validatedUpdates);
+      _store.mergeRoot(roomId, updates);
       
       // Read the full state after merge
       final state = _store.getState(roomId);
@@ -136,8 +131,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
       
       // Handle phase normalization (same as _applyValidatedUpdates)
-      if (validatedUpdates.containsKey('gamePhase')) {
-        final phase = validatedUpdates['gamePhase']?.toString();
+      if (updates.containsKey('gamePhase')) {
+        final phase = updates['gamePhase']?.toString();
         if (phase != null) {
           String normalizedPhase = phase;
           if (phase == 'special_play_window') {
@@ -199,11 +194,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     }
     
     try {
-      // Validate updates using the same validator (direct validation, not queued)
-      final validatedUpdates = _validator.validateUpdate(updates);
-      
-      // Apply validated updates to state store
-      _store.mergeRoot(roomId, validatedUpdates);
+      _store.mergeRoot(roomId, updates);
       
       // Read the full state after merge
       final state = _store.getState(roomId);
@@ -213,8 +204,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
       
       // Handle phase normalization (same as _applyValidatedUpdates)
-      if (validatedUpdates.containsKey('gamePhase')) {
-        final phase = validatedUpdates['gamePhase']?.toString();
+      if (updates.containsKey('gamePhase')) {
+        final phase = updates['gamePhase']?.toString();
         if (phase != null) {
           String normalizedPhase = phase;
           if (phase == 'special_play_window') {
@@ -242,7 +233,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final filteredGameState = _filterGameStateForFrontend(gameState);
       
       // Extract winners from validatedUpdates (if present) - needed for game end notification
-      final winners = validatedUpdates['winners'] as List<dynamic>?;
+      final winners = updates['winners'] as List<dynamic>?;
       final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
       final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
 
@@ -280,16 +271,15 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     return filtered;
   }
 
-  /// Apply validated updates to GameStateStore and broadcast
-  /// This is called by StateQueueValidator after validation
-  void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
-    final updateKeys = validatedUpdates.keys.toSet();
+  /// Apply updates to GameStateStore and broadcast.
+  void _applyValidatedUpdates(Map<String, dynamic> updates) {
+    final updateKeys = updates.keys.toSet();
     final isGamesOnlyUpdate =
         updateKeys.isNotEmpty && updateKeys.every((k) => k == 'games');
 
     // Log turn_events if present in validated updates
-    if (validatedUpdates.containsKey('turn_events')) {
-      final turnEventsInUpdates = validatedUpdates['turn_events'] as List<dynamic>? ?? [];
+    if (updates.containsKey('turn_events')) {
+      final turnEventsInUpdates = updates['turn_events'] as List<dynamic>? ?? [];
       if (LOGGING_SWITCH) {
         _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received turn_events in validatedUpdates: ${turnEventsInUpdates.length} events');
       }
@@ -298,12 +288,12 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       }
     } else {
       if (LOGGING_SWITCH) {
-        _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received NO turn_events in validatedUpdates. Keys: ${validatedUpdates.keys.toList()}');
+        _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received NO turn_events in updates. Keys: ${updates.keys.toList()}');
       }
     }
     
     // Merge into state root
-    _store.mergeRoot(roomId, validatedUpdates);
+    _store.mergeRoot(roomId, updates);
     // Read the full state after merge
     final state = _store.getState(roomId);
     final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
@@ -319,8 +309,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     
     // CRITICAL: If gamePhase is in updates, copy it to game_state['phase'] for client broadcast
     // Frontend expects gamePhase in game_state['phase'], not at root level
-    if (validatedUpdates.containsKey('gamePhase')) {
-      final phase = validatedUpdates['gamePhase']?.toString();
+    if (updates.containsKey('gamePhase')) {
+      final phase = updates['gamePhase']?.toString();
       if (phase != null) {
         // Normalize phase names to match frontend expectations
         // Map Dart dutch mode phase names to multiplayer backend phase names
@@ -352,7 +342,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final filteredGameState = _filterGameStateForFrontend(gameState);
     
     // Extract winners from validatedUpdates (if present) - needed for game end notification
-    final winners = validatedUpdates['winners'] as List<dynamic>?;
+    final winners = updates['winners'] as List<dynamic>?;
     if (winners != null) {
       if (LOGGING_SWITCH) {
         _logger.info('GameStateCallback: Including winners list in broadcast: ${winners.length} winner(s)');

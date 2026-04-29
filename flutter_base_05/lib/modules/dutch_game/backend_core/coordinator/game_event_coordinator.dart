@@ -1131,26 +1131,55 @@ class GameEventCoordinator {
   /// Select and store AI peek cards for a computer player
   void _selectAndStoreAIPeekCards(Map<String, dynamic> computerPlayer, Map<String, dynamic> gameState, Random random) {
     final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
-    if (hand.length < 2) {
+    final validHandEntries = <Map<String, dynamic>>[];
+    for (var i = 0; i < hand.length; i++) {
+      final rawCard = hand[i];
+      if (rawCard is! Map<String, dynamic>) {
+        continue;
+      }
+      final cardId = rawCard['cardId']?.toString() ?? '';
+      if (cardId.isEmpty) {
+        continue;
+      }
+      validHandEntries.add({
+        'handIndex': i,
+        'card': rawCard,
+      });
+    }
+
+    if (validHandEntries.length < 2) {
       if (LOGGING_SWITCH) {
-        _logger.warning('GameEventCoordinator: Computer player ${computerPlayer['name']} has less than 2 cards, skipping peek');
+        _logger.warning('GameEventCoordinator: Player ${computerPlayer['name']} has less than 2 valid cards, skipping peek');
       }
       return;
     }
 
     // Select 2 random cards
-    final indices = <int>[];
-    while (indices.length < 2) {
-      final idx = random.nextInt(hand.length);
-      if (!indices.contains(idx)) indices.add(idx);
+    final selectedEntries = <Map<String, dynamic>>[];
+    while (selectedEntries.length < 2) {
+      final idx = random.nextInt(validHandEntries.length);
+      final picked = validHandEntries[idx];
+      if (!selectedEntries.contains(picked)) {
+        selectedEntries.add(picked);
+      }
     }
 
-    final playerId = computerPlayer['id'] as String;
+    final indices = <int>[
+      selectedEntries[0]['handIndex'] as int,
+      selectedEntries[1]['handIndex'] as int,
+    ];
+    final playerId = computerPlayer['id']?.toString() ?? '';
+    if (playerId.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('GameEventCoordinator: Player missing id during auto peek, skipping');
+      }
+      return;
+    }
 
     // Get full card data for both cards from originalDeck
     final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
-    final card1IdOnly = hand[indices[0]] as Map<String, dynamic>;
-    final card2IdOnly = hand[indices[1]] as Map<String, dynamic>;
+    final card1IdOnly = selectedEntries[0]['card'] as Map<String, dynamic>;
+    final card2IdOnly = selectedEntries[1]['card'] as Map<String, dynamic>;
 
     final card1Id = card1IdOnly['cardId'] as String;
     final card2Id = card2IdOnly['cardId'] as String;

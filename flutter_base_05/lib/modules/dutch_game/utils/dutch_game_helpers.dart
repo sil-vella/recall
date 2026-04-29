@@ -14,8 +14,6 @@ import '../backend_core/services/game_state_store.dart';
 import '../backend_core/services/game_registry.dart';
 import '../practice/practice_mode_bridge.dart';
 import '../managers/game_coordinator.dart';
-import 'state_queue_validator.dart';
-import '../backend_core/utils/state_queue_validator.dart' as backend_validator;
 import '../backend_core/utils/level_matcher.dart';
 
 /// Convenient helper methods for dutch game operations
@@ -575,7 +573,6 @@ class DutchGameHelpers {
       // Set flag to indicate we're in a random join flow (for navigation)
       // Store isClearAndCollect in state so it can be read when start_match is called
       // IMPORTANT: Use updateStateSync to ensure synchronous update before emitting event
-      // Using updateUIState goes through StateQueueValidator which is async and can cause race conditions
       _stateUpdater.updateStateSync({
         'isRandomJoinInProgress': true,
         'randomJoinIsClearAndCollect': isClearAndCollect, // Store for use in start_match
@@ -1352,8 +1349,7 @@ class DutchGameHelpers {
         _logger.info('🧹 DutchGameHelpers: Clearing ALL game state before starting new game (reset to init)');
       }
       
-      // 1. Reset all game-related components to init state (coordinator, emitter, validator queue, store)
-      // Order matches init: coordinator and emitter first, then validator queue so no stale updates re-apply.
+      // 1. Reset all game-related components to init state (coordinator, emitter, store)
       try {
         GameCoordinator().resetToInit();
         if (LOGGING_SWITCH) {
@@ -1375,27 +1371,6 @@ class DutchGameHelpers {
           _logger.warning('⚠️ DutchGameHelpers: Error setting transport: $e');
         }
       }
-      try {
-        StateQueueValidator.instance.clearQueue();
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Flutter StateQueueValidator queue cleared');
-        }
-      } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error clearing Flutter validator queue: $e');
-        }
-      }
-      try {
-        backend_validator.StateQueueValidator.instance.clearQueue();
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Backend StateQueueValidator queue cleared');
-        }
-      } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error clearing backend validator queue: $e');
-        }
-      }
-      
       // 2. SSOT: Leave all games and clear state (before any new match init / WS to backend)
       await leaveAllGamesAndClearState();
       
@@ -1489,27 +1464,6 @@ class DutchGameHelpers {
         'randomJoinIsClearAndCollect': null,
         'pending_start_match_source': null,
       });
-      
-      // 7. CRITICAL (WS → Practice): Clear state queue again so any updates enqueued by
-      // leaveAllGamesAndClearState (removePlayerFromGame → updateState) cannot be processed
-      // later and overwrite practice state when _startPracticeMatch sets currentGameId/games.
-      try {
-        StateQueueValidator.instance.clearQueue();
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Flush queue after clear (prevent stale updates overwriting practice)');
-        }
-      } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error flushing queue: $e');
-        }
-      }
-      try {
-        backend_validator.StateQueueValidator.instance.clearQueue();
-      } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error flushing backend queue: $e');
-        }
-      }
       
       if (LOGGING_SWITCH) {
         _logger.info('✅ DutchGameHelpers: All game state cleared successfully before new game');

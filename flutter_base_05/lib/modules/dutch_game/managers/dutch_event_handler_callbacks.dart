@@ -962,7 +962,12 @@ When anyone has played a card with the **same rank** as your **collection card**
   /// Extracts current user's player data and updates widget state slices
   /// This ensures computed slices (like myHand.cards) stay in sync with game_state
   /// [turnEvents] Optional turn_events list to include in games map update for widget slices
-  static void _syncWidgetStatesFromGameState(String gameId, Map<String, dynamic> gameState, {List<dynamic>? turnEvents}) {
+  static void _syncWidgetStatesFromGameState(
+    String gameId,
+    Map<String, dynamic> gameState, {
+    List<dynamic>? turnEvents,
+    Map<String, dynamic>? mainStatePatch,
+  }) {
     try {
       // 🎯 CRITICAL: Verify game exists in games map before updating
       // This prevents stale state updates when user has left the game
@@ -1039,19 +1044,27 @@ When anyone has played a card with the **same rank** as your **collection card**
         // Store protected data in main state so widgets can access it
         // This persists even when cardsToPeek is cleared
         // Use widget-level timer instead of timestamp in state
-        _updateMainGameState({
-          'protectedCardsToPeek': cardsToPeek, // Store protected data
-          // Removed protectedCardsToPeekTimestamp - widget will use internal timer
-        });
+        if (mainStatePatch != null) {
+          mainStatePatch['protectedCardsToPeek'] = cardsToPeek;
+        } else {
+          _updateMainGameState({
+            'protectedCardsToPeek': cardsToPeek, // Store protected data
+            // Removed protectedCardsToPeekTimestamp - widget will use internal timer
+          });
+        }
       } else if (cardsToPeek.isEmpty) {
         // CRITICAL: Clear protectedCardsToPeek when cardsToPeek is empty
         // This ensures the widget doesn't show stale protected data
         if (LOGGING_SWITCH) {
           _logger.info('🔍 _syncWidgetStatesFromGameState: cardsToPeek is empty - clearing protectedCardsToPeek');
         }
-        _updateMainGameState({
-          'protectedCardsToPeek': null, // Clear protected data
-        });
+        if (mainStatePatch != null) {
+          mainStatePatch['protectedCardsToPeek'] = null;
+        } else {
+          _updateMainGameState({
+            'protectedCardsToPeek': null, // Clear protected data
+          });
+        }
       }
       
       // Extract score (can be 'points' or 'score' field)
@@ -1086,13 +1099,23 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
       
       // Update main game state with player information
-      _updateMainGameState({
-        'playerStatus': status,
-        'myScore': score,
-        'isMyTurn': isCurrentPlayer,
-        'myDrawnCard': drawnCard,
-        'myCardsToPeek': cardsToPeek,
-      });
+      if (mainStatePatch != null) {
+        mainStatePatch.addAll({
+          'playerStatus': status,
+          'myScore': score,
+          'isMyTurn': isCurrentPlayer,
+          'myDrawnCard': drawnCard,
+          'myCardsToPeek': cardsToPeek,
+        });
+      } else {
+        _updateMainGameState({
+          'playerStatus': status,
+          'myScore': score,
+          'isMyTurn': isCurrentPlayer,
+          'myDrawnCard': drawnCard,
+          'myCardsToPeek': cardsToPeek,
+        });
+      }
       
       // Apply widget updates to games map
       _updateGameInMap(gameId, widgetUpdates);
@@ -1607,6 +1630,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       return;
     }
     _beginGamesMapBatch(currentGames);
+    final consolidatedMainStatePatch = <String, dynamic>{};
     
     final wasNewGame = !currentGames.containsKey(gameId);
     
@@ -1658,45 +1682,8 @@ When anyone has played a card with the **same rank** as your **collection card**
         _updateGameInMap(gameId, updateData);
       }
       
-      // 🎯 CRITICAL: Get fresh games map after adding and updating (ensures it's in state)
-      final updatedGamesAfterAdd = _getCurrentGamesMap();
-      
-      // 🎯 CRITICAL: Set currentGameId and ensure games map is in main state (important for player 2 joining after match start)
-      // Note: currentState and currentGameId are already defined above
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 handleGameStateUpdated: currentGameId check - existing: $currentGameId, new gameId: $gameId');
-      }
-      
-      // 🎯 CRITICAL: Set currentGameId and ensure games map is in main state
-      // Since we cleared all other games above, this is the only game in the map
-      // Note: currentGameId is a String (never null due to ?? ''), so only check isEmpty
-      DutchGameHelpers.clearRecentlyLeftGameId(gameId); // No longer "recently left" once we add it
-      if (currentGameId.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 handleGameStateUpdated: Setting currentGameId to $gameId (was null or empty)');
-        }
-        _updateMainGameState({
-          'currentGameId': gameId,
-          'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
-        });
-      } else if (currentGameId != gameId) {
-        // If currentGameId is different, update it to the new game
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 handleGameStateUpdated: Updating currentGameId from $currentGameId to $gameId');
-        }
-        _updateMainGameState({
-          'currentGameId': gameId,
-          'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
-        });
-      } else {
-        // Even if currentGameId matches, ensure games map is updated in main state
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 handleGameStateUpdated: currentGameId already set to $currentGameId, updating games map only');
-        }
-        _updateMainGameState({
-          'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
-        });
-      }
+      // Keep the games map in batch and apply once in the final consolidated state patch.
+      DutchGameHelpers.clearRecentlyLeftGameId(gameId);
     } else {
       // 🎯 CRITICAL: Verify game still exists in games map before updating
       // This prevents stale state updates when user has left the game
@@ -1777,7 +1764,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         // Preserve main state's isRoomOwner when ownerId is missing
         final currentMain = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final prevIsOwner = currentMain['isRoomOwner'] as bool? ?? false;
-        _updateMainGameState({'isRoomOwner': prevIsOwner});
+        consolidatedMainStatePatch['isRoomOwner'] = prevIsOwner;
       }
       
       // Set game_type, game_level and multiplayerType on existing entry when event provides them
@@ -1828,23 +1815,15 @@ When anyone has played a card with the **same rank** as your **collection card**
       _updateGameInMap(gameId, updateData);
     }
     
-    // 🎯 CRITICAL: If root-level myCardsToPeek is provided in event, use it directly
-    // This ensures we clear myCardsToPeek immediately when backend sends explicit clear
-    if (myCardsToPeekFromEvent != null) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 handleGameStateUpdated: Root-level myCardsToPeek provided in event: ${myCardsToPeekFromEvent.length} items');
-      }
-      _updateMainGameState({
-        'myCardsToPeek': myCardsToPeekFromEvent,
-        // Clear protectedCardsToPeek if myCardsToPeek is empty
-        if (myCardsToPeekFromEvent.isEmpty) 'protectedCardsToPeek': null,
-      });
-    }
-    
     // 🎯 CRITICAL: Sync widget states from game state FIRST (matches practice mode pattern)
     // This ensures myHandCards, myDrawnCard, playerStatus, etc. are synced from game state
     // Must happen before main state update so widget slices recompute with turn_events
-    _syncWidgetStatesFromGameState(gameId, gameState, turnEvents: turnEvents);
+    _syncWidgetStatesFromGameState(
+      gameId,
+      gameState,
+      turnEvents: turnEvents,
+      mainStatePatch: consolidatedMainStatePatch,
+    );
     
     // Get fresh games map after widget sync (it may have been updated)
     final currentGamesAfterSync = _getCurrentGamesMap();
@@ -1906,26 +1885,9 @@ When anyone has played a card with the **same rank** as your **collection card**
 
     // Entry-fee deduction is server-side (Dart WS → Python) on start_match; do not deduct from the client.
 
-    final previousPhase = currentStateForGameId['gamePhase']?.toString();
-    
-    // Track same rank window triggers BEFORE updating state
-    // Check if we're transitioning INTO same_rank_window (not already in it)
-    if (uiPhase == 'same_rank_window' && previousPhase != 'same_rank_window') {
-      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      int sameRankTriggerCount = currentState['sameRankTriggerCount'] as int? ?? 0;
-      sameRankTriggerCount++;
-      if (LOGGING_SWITCH) {
-        _logger.info('📚 handleGameStateUpdated: Transitioning INTO same_rank_window - incrementing counter to $sameRankTriggerCount');
-      }
-      // Update counter in state (will be included in the main state update below)
-      StateManager().updateModuleState('dutch_game', {
-        'sameRankTriggerCount': sameRankTriggerCount,
-      });
-    }
-    
     // Then update main state with games map, discardPile, currentPlayer, turn_events (matches practice mode pattern)
     // 🎯 CRITICAL: Update gamePhase FIRST so MessagesWidget can check it
-    _updateMainGameState({
+    consolidatedMainStatePatch.addAll({
       'currentGameId': gameId,  // Always set currentGameId (CRITICAL for game play screen to update)
       'games': currentGamesAfterSync, // Updated games map with widget data synced
       'gamePhase': uiPhase, // 🎯 CRITICAL: Set gamePhase before checking for winners modal
@@ -1936,11 +1898,10 @@ When anyone has played a card with the **same rank** as your **collection card**
       'roundStatus': roundStatus,
       'discardPile': discardPile, // Updated discard pile for centerBoard slice
       'turn_events': turnEvents, // Include turn_events for animations (critical for widget slice recomputation)
-      if (stateVersion != null) 'state_version': stateVersion,
+      if (myCardsToPeekFromEvent != null) 'myCardsToPeek': myCardsToPeekFromEvent,
+      if (myCardsToPeekFromEvent != null && myCardsToPeekFromEvent.isEmpty)
+        'protectedCardsToPeek': null,
     });
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 handleGameStateUpdated: Updated main state with gamePhase=$uiPhase');
-    }
     
     // Trigger instructions if showInstructions is enabled
     final isMyTurn = currentPlayerFromState?['id']?.toString() == currentUserId ||
@@ -1980,13 +1941,17 @@ When anyone has played a card with the **same rank** as your **collection card**
           currentJoinedGames.add(gameData);
           
           // Update joinedGames state
-          _updateMainGameState({
+          consolidatedMainStatePatch.addAll({
             'joinedGames': currentJoinedGames,
             'totalJoinedGames': currentJoinedGames.length,
           });
         }
         // If game already exists in joinedGames, don't update it (prevents duplicates)
       }
+    }
+    _updateMainGameState(consolidatedMainStatePatch);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔍 handleGameStateUpdated: Applied consolidated main state patch with keys=${consolidatedMainStatePatch.keys.toList()}');
     }
     
     // Check for demo action completion
@@ -2086,7 +2051,9 @@ When anyone has played a card with the **same rank** as your **collection card**
       // Intentionally skip per-tick info message updates.
       // They create extra state writes and trigger avoidable rebuild churn.
     }
-    _endGamesMapBatch(commit: true);
+    // `games` is already included in consolidatedMainStatePatch.
+    // Avoid committing a second games-only update that causes extra no-op updater passes.
+    _endGamesMapBatch(commit: false);
   }
 
   /// Handle game_state_partial_update event
@@ -2202,10 +2169,6 @@ When anyone has played a card with the **same rank** as your **collection card**
     if (updates.isNotEmpty) {
       _updateGameInMap(gameId, updates);
     }
-    if (stateVersion != null) {
-      _updateMainGameState({'state_version': stateVersion});
-    }
-    
     // 🎯 CRITICAL: Sync widget states if players or currentPlayer changed
     // This ensures computed slices (myHand.cards, etc.) stay in sync
     if (shouldSyncWidgetStates) {

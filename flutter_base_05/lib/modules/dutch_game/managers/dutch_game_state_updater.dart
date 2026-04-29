@@ -3,9 +3,7 @@ import 'dart:convert';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/state/immutable_state.dart';
 import '../../../tools/logging/logger.dart';
-import '../utils/state_queue_validator.dart';
 import '../../dutch_game/models/state/dutch_game_state.dart';
-import '../models/state/games_map.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 // ignore: unused_import
 import '../models/state/my_hand_state.dart'; // For future migration
@@ -25,47 +23,22 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // State after random join → game (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // State after random join → game (enable-logging-switch.mdc; set false after test)
   
   // Dependencies
   final StateManager _stateManager = StateManager();
-  final StateQueueValidator _validator = StateQueueValidator.instance;
   
   DutchGameStateUpdater._internal() {
     if (LOGGING_SWITCH) {
       _logger.info('🎬 DutchGameStateUpdater: Instance created (singleton initialization)');
     }
     
-    // Set update handler to apply validated updates
-    final validator = StateQueueValidator.instance;
     if (LOGGING_SWITCH) {
-      _logger.info('🎬 DutchGameStateUpdater: Setting update handler on StateQueueValidator');
-    }
-    
-    validator.setUpdateHandler((Map<String, dynamic> validatedUpdates) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: Handler callback invoked with keys: ${validatedUpdates.keys.toList()}');
-      }
-      try {
-        _applyValidatedUpdates(validatedUpdates);
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 DutchGameStateUpdater: Handler callback completed successfully');
-        }
-      } catch (e, stackTrace) {
-        if (LOGGING_SWITCH) {
-          _logger.error('🎬 DutchGameStateUpdater: Exception in handler callback: $e', error: e, stackTrace: stackTrace);
-        }
-        rethrow;
-      }
-    });
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('🎬 DutchGameStateUpdater: Initialization complete - handler set and ready');
+      _logger.info('🎬 DutchGameStateUpdater: Initialization complete');
     }
   }
   
-  // Note: State schema validation has been moved to StateQueueValidator
-  // See state_queue_validator.dart for the complete schema
+  // State updates are applied directly (no validator queue).
   
   /// Widget slice dependencies - only rebuild when these fields change
   /// Note: playerStatus and currentPlayerStatus are now computed from SSOT (games[gameId].gameData.game_state.players[])
@@ -80,16 +53,13 @@ class DutchGameStateUpdater {
     'joinedGamesSlice': {'games'}, // SIMPLIFIED: Compute from games map (SSOT) instead of joinedGames list
   };
   
-  /// Update state with validation
-  /// Uses StateQueueValidator for validation, then applies widget slice computation
+  /// Update state directly and apply widget slice computation
   /// 
   /// MIGRATION NOTE: This method accepts Map<String, dynamic> for backward compatibility.
   /// For immutable state updates, use updateStateImmutable() instead.
   void updateState(Map<String, dynamic> updates) {
     try {
-      // Use StateQueueValidator to validate and queue the update
-      // The validator will call our update handler with validated updates
-      _validator.enqueueUpdate(updates);
+      _applyValidatedUpdates(updates);
       
     } catch (e) {
       if (LOGGING_SWITCH) {
@@ -99,8 +69,8 @@ class DutchGameStateUpdater {
     }
   }
   
-  /// Update state synchronously (bypasses async queue)
-  /// Validates the update and applies it immediately to StateManager
+  /// Update state synchronously
+  /// Applies the update immediately to StateManager
   /// Use this for critical flags that need to be set before async operations complete
   /// (e.g., isRandomJoinInProgress before emitting WebSocket events)
   void updateStateSync(Map<String, dynamic> updates) {
@@ -109,17 +79,11 @@ class DutchGameStateUpdater {
         _logger.info('🎬 DutchGameStateUpdater: Synchronous state update with keys: ${updates.keys.toList()}');
       }
       
-      // Validate the update using the validator (but don't queue it)
-      final validatedUpdates = _validator.validateUpdate(updates);
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: Validation passed, applying updates synchronously');
-      }
-      
       // Apply validated updates directly to StateManager (synchronous)
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final newState = {
         ...currentState,
-        ...validatedUpdates,
+        ...updates,
       };
       
       _stateManager.updateModuleState('dutch_game', newState);
@@ -151,29 +115,7 @@ class DutchGameStateUpdater {
     }
   }
   
-  /// Helper: Convert legacy map-based games to GamesMap (for migration)
-  GamesMap _convertLegacyGamesToImmutable(Map<String, dynamic> gamesMap) {
-    try {
-      return GamesMap.fromJson(gamesMap);
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameStateUpdater: Failed to convert legacy games to immutable: $e', error: e);
-      }
-      return const GamesMap.empty();
-    }
-  }
-  
-  /// Helper: Get immutable DutchGameState from current state (for gradual migration)
-  DutchGameState? _tryGetImmutableState() {
-    try {
-      return _stateManager.getModuleState<DutchGameState>('dutch_game');
-    } catch (e) {
-      return null;
-    }
-  }
-  
-  /// Apply validated updates with widget slice computation
-  /// This is called by StateQueueValidator after validation
+  /// Apply updates with widget slice computation
   /// Supports both legacy map-based updates and immutable state updates
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
     if (LOGGING_SWITCH) {
@@ -862,22 +804,12 @@ class DutchGameStateUpdater {
       }
     }
     
-    // CRITICAL: Remove invalid game entries from games map to prevent stale data
-    // This ensures the games map only contains valid games
-    if (invalidGameIds.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: Removing ${invalidGameIds.length} invalid game(s) from games map: ${invalidGameIds.join(", ")}');
-      }
-      // Trigger state update to remove invalid games using the state updater
-      // This ensures proper validation and widget slice recomputation
-      final updatedGames = Map<String, dynamic>.from(games);
-      for (final invalidId in invalidGameIds) {
-        updatedGames.remove(invalidId);
-      }
-      // Use state updater to remove invalid games (this will trigger proper recomputation)
-      updateState({
-        'games': updatedGames,
-      });
+    // NOTE: Do not trigger nested updateState() from slice computation.
+    // Nested writes create re-entrant update cycles for a single WS event.
+    if (invalidGameIds.isNotEmpty && LOGGING_SWITCH) {
+      _logger.warning(
+        '🎬 DutchGameStateUpdater: Found ${invalidGameIds.length} invalid game(s) while computing joinedGamesSlice: ${invalidGameIds.join(", ")} (deferred prune)',
+      );
     }
     
     if (LOGGING_SWITCH) {
@@ -907,7 +839,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Game state accessor after join (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // Game state accessor after join (enable-logging-switch.mdc; set false after test)
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

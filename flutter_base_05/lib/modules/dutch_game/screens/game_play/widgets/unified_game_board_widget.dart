@@ -15,7 +15,7 @@ import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file — set false after test
 
 /// View model for [UnifiedGameBoardWidget]: no full [games] map so unrelated room/game
 /// entries do not invalidate the subtree. Piles and [boardGameState] come from the current game only.

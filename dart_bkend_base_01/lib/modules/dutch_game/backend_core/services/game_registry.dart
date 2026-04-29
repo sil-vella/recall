@@ -7,7 +7,7 @@ import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
 
 /// When true, logs registry lifecycle, WS emit paths, and payload-size lines for `game_state_updated`.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file — set false after coordination/peek testing
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -393,13 +393,24 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
     }
     
+    // Games-only updates usually follow a richer merge; start_match writes `game_state` to the
+    // store first then emits only `games` — skipping here left clients on waiting_for_players
+    // until a later event (e.g. first draw). Always broadcast when the live phase is initial_peek.
     if (isGamesOnlyUpdate) {
+      final phaseForBroadcast = gameState['phase']?.toString() ?? '';
+      if (phaseForBroadcast != 'initial_peek') {
+        if (LOGGING_SWITCH) {
+          _logger.info(
+            '🔁 GameStateCallback: Skipping broadcast for games-only update; waiting for richer state update.',
+          );
+        }
+        return;
+      }
       if (LOGGING_SWITCH) {
         _logger.info(
-          '🔁 GameStateCallback: Skipping broadcast for games-only update; waiting for richer state update.',
+          '🔁 GameStateCallback: games-only update but phase=initial_peek — broadcasting (start_match path).',
         );
       }
-      return;
     }
 
     final broadcastSignature = _buildBroadcastSignature(

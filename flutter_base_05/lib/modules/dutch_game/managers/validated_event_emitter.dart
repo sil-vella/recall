@@ -33,7 +33,7 @@ class DutchGameEventEmitter {
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final DemoModeBridge _demoBridge = DemoModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // create_room / WS emit trace (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // create_room / WS emit trace (enable-logging-switch.mdc; set false after test)
   
   // Current transport mode (defaults to WebSocket for backward compatibility; unset after clear so practice/WS re-apply)
   EventTransportMode _transportMode = EventTransportMode.websocket;

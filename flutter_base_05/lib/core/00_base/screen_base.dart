@@ -23,7 +23,7 @@ import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../tools/logging/logger.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
 
-const bool LOGGING_SWITCH = false; // BaseScreen + promotional strip debug — enable-logging-switch.mdc
+const bool LOGGING_SWITCH = true; // BaseScreen + promotional strip debug — enable-logging-switch.mdc; set false after test
 
 abstract class BaseScreen extends StatefulWidget {
   const BaseScreen({Key? key}) : super(key: key);

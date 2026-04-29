@@ -1,6 +1,10 @@
 import 'package:flutter/widgets.dart';
 
 import '../../../core/managers/state_manager.dart';
+import '../../../tools/logging/logger.dart';
+
+/// When true, logs each time a [DutchSliceBuilder] subtree rebuilds because the selected slice changed.
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; set false after test
 
 typedef DutchSliceSelector<T> = T Function(Map<String, dynamic> dutchGameState);
 typedef DutchSliceEquals<T> = bool Function(T previous, T current);
@@ -34,7 +38,9 @@ class DutchSliceBuilder<T> extends StatefulWidget {
 
 class _DutchSliceBuilderState<T> extends State<DutchSliceBuilder<T>> {
   final StateManager _stateManager = StateManager();
+  final Logger _logger = Logger();
   late T _selected;
+  int _sliceChangeCount = 0;
 
   @override
   void initState() {
@@ -67,6 +73,13 @@ class _DutchSliceBuilderState<T> extends State<DutchSliceBuilder<T>> {
     final next = _computeSelected();
     final areEqual = widget.equals ?? _defaultEquals;
     if (areEqual(_selected, next)) return;
+    if (LOGGING_SWITCH) {
+      _sliceChangeCount++;
+      _logger.info(
+        'DutchSliceBuilder: slice changed → setState #$_sliceChangeCount '
+        'widget=${widget.runtimeType} key=${widget.key}',
+      );
+    }
     setState(() {
       _selected = next;
     });

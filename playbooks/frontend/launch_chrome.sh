@@ -147,22 +147,31 @@ if [ "$GOOGLE_IN_DEFINES" = false ]; then
 fi
 echo "   Total dart-defines: ${#DART_DEFINE_ARGS[@]}"
 
-# Quit Chrome completely so profile lock / blank-screen issues don't happen, then wait.
-echo "🛑 Quitting Google Chrome (all windows)..."
-osascript -e 'quit app "Google Chrome"' 2>/dev/null || true
-for _ in $(seq 1 20); do
-  if ! pgrep -qf "/Applications/Google Chrome.app" 2>/dev/null; then
-    break
+# Default: do NOT quit your normal Chrome — Flutter uses a separate user-data-dir
+# (~/.flutter_chrome_profile by default), so profile lock / second-instance issues
+# should not affect everyday Chrome windows.
+# If you point CHROME_USER_DATA_DIR at your main Chrome profile while Chrome is
+# already open, you may get a blank page; set LAUNCH_CHROME_QUIT_CHROME_FIRST=1
+# to restore the old "quit all Chrome, wait, then launch" behavior.
+if [ "${LAUNCH_CHROME_QUIT_CHROME_FIRST:-0}" = "1" ]; then
+  echo "🛑 Quitting Google Chrome (all windows) (LAUNCH_CHROME_QUIT_CHROME_FIRST=1)..."
+  osascript -e 'quit app "Google Chrome"' 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    if ! pgrep -qf "/Applications/Google Chrome.app" 2>/dev/null; then
+      break
+    fi
+    sleep 0.5
+  done
+  if pgrep -qf "/Applications/Google Chrome.app" 2>/dev/null; then
+    echo "⚠️  Chrome still running — force closing..."
+    pkill -9 -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" 2>/dev/null || true
+    sleep 1
   fi
-  sleep 0.5
-done
-if pgrep -qf "/Applications/Google Chrome.app" 2>/dev/null; then
-  echo "⚠️  Chrome still running — force closing..."
-  pkill -9 -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" 2>/dev/null || true
-  sleep 1
+  echo "⏳ Waiting 5s before launch..."
+  sleep 5
+else
+  echo "ℹ️  Leaving existing Chrome windows open (dedicated Flutter profile). Set LAUNCH_CHROME_QUIT_CHROME_FIRST=1 if you need the old quit-all-Chrome step."
 fi
-echo "⏳ Waiting 5s before launch..."
-sleep 5
 
 # Use a wrapper so Flutter's default --disable-extensions is removed (extensions work).
 export CHROME_EXECUTABLE="$SCRIPT_DIR/chrome_no_disable_extensions.sh"
@@ -173,8 +182,9 @@ export CHROME_EXECUTABLE="$SCRIPT_DIR/chrome_no_disable_extensions.sh"
 #   already open often yields a blank white page (profile lock / second instance).
 # - Install extensions (e.g. GA Debugger) once in the window Flutter opens; they persist
 #   in that folder.
-# - To use your main Chrome profile instead: quit Chrome completely first, then e.g.
-#   CHROME_USER_DATA_DIR="$HOME/Library/Application Support/Google/Chrome" CHROME_PROFILE_DIR=Default ./launch_chrome.sh
+# - To use your main Chrome profile: quit other Chrome first, or use
+#   LAUNCH_CHROME_QUIT_CHROME_FIRST=1, e.g.
+#   CHROME_USER_DATA_DIR="$HOME/Library/Application Support/Google/Chrome" CHROME_PROFILE_DIR=Default LAUNCH_CHROME_QUIT_CHROME_FIRST=1 ./launch_chrome.sh
 CHROME_USER_DATA_DIR="${CHROME_USER_DATA_DIR:-$HOME/.flutter_chrome_profile}"
 CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-Default}"
 echo "🌐 Chrome user-data-dir: $CHROME_USER_DATA_DIR (profile: $CHROME_PROFILE_DIR)"

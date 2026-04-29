@@ -17,7 +17,8 @@ import '../screens/demo/demo_action_handler.dart';
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
   /// When true, logs verbose Dutch WS/state paths including payload-size lines for `game_state_updated`.
-  static const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+  /// Enable while tracing initial-peek vs visible table (`[peek-ui-trace]`); set false after.
+  static const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
   static final Logger _logger = Logger();
 
   /// Counter for `game_state_updated` receives (only incremented when LOGGING_SWITCH is true).
@@ -213,6 +214,43 @@ class DutchEventHandlerCallbacks {
     }
     _lastEventSignatureByGameId[gameId] = signature;
     return false;
+  }
+
+  /// One-line snapshot after `game_state_updated` is merged (grep `[peek-ui-trace]` in Flutter console).
+  static void _logPeekUiTraceAfterPatch({
+    required String gameId,
+    String? eventPhase,
+    required String uiPhase,
+    int? stateVersion,
+  }) {
+    if (!LOGGING_SWITCH) return;
+    try {
+      final post = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final cid = post['currentGameId']?.toString() ?? '';
+      final mainPhase = post['gamePhase']?.toString() ?? '';
+      final games = post['games'] as Map<String, dynamic>? ?? {};
+      final lookupId = cid.isNotEmpty ? cid : gameId;
+      final g = games[lookupId] as Map<String, dynamic>?;
+      final gd = g?['gameData'] as Map<String, dynamic>?;
+      final gs = gd?['game_state'] as Map<String, dynamic>?;
+      final ssotPhase = gs?['phase']?.toString();
+      final showInstr = gs?['showInstructions'] == true;
+      final instr = post['instructions'] as Map<String, dynamic>? ?? {};
+      final myHand = post['myHand'] as Map<String, dynamic>? ?? {};
+      final handLen = (myHand['cards'] as List?)?.length ?? 0;
+      final opp = post['opponentsPanel'] as Map<String, dynamic>? ?? {};
+      final oppCount = (opp['opponents'] as List?)?.length ?? 0;
+      final peekRoot = (post['myCardsToPeek'] as List?)?.length ?? 0;
+      _logger.info(
+        '[peek-ui-trace] PATCH_APPLIED gameId=$gameId state_version=$stateVersion '
+        'event.phase=$eventPhase uiPhase=$uiPhase post.currentGameId=$lookupId main.gamePhase=$mainPhase '
+        'ssot.phase=$ssotPhase showInstructions=$showInstr '
+        'instructions.visible=${instr['isVisible'] == true} instructions.key=${instr['key']} '
+        'myHand.cards=$handLen myCardsToPeek(root)=$peekRoot opponents=$oppCount playerStatus=${post['playerStatus']}',
+      );
+    } catch (e, st) {
+      _logger.error('[peek-ui-trace] PATCH_APPLIED log failed: $e', error: e, stackTrace: st);
+    }
   }
   
   /// Get current games map from state manager
@@ -1554,6 +1592,12 @@ When anyone has played a card with the **same rank** as your **collection card**
       stateVersion: stateVersion,
       signature: signature,
     )) {
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '[peek-ui-trace] game_state_updated DROPPED gameId=$gameId state_version=$stateVersion '
+          'event.phase=${gameState['phase']} signature=$signature',
+        );
+      }
       return;
     }
     final myCardsToPeekFromEvent = data['myCardsToPeek'] as List<dynamic>?; // Extract root-level myCardsToPeek if present
@@ -1952,6 +1996,12 @@ When anyone has played a card with the **same rank** as your **collection card**
     _updateMainGameState(consolidatedMainStatePatch);
     if (LOGGING_SWITCH) {
       _logger.info('🔍 handleGameStateUpdated: Applied consolidated main state patch with keys=${consolidatedMainStatePatch.keys.toList()}');
+      _logPeekUiTraceAfterPatch(
+        gameId: gameId,
+        eventPhase: gameState['phase']?.toString(),
+        uiPhase: uiPhase,
+        stateVersion: stateVersion,
+      );
     }
     
     // Check for demo action completion

@@ -11,6 +11,7 @@ import '../../../../tools/logging/logger.dart';
 import 'widgets/game_info_widget.dart';
 import 'widgets/unified_game_board_widget.dart';
 import '../../widgets/instructions_widget.dart';
+import '../../widgets/dutch_slice_builder.dart';
 import 'widgets/messages_widget.dart';
 import 'widgets/action_text_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
@@ -19,7 +20,7 @@ import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
 /// When true, logs screen build and rebuild timing for this screen.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -842,19 +843,18 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                               ),
                               // Final round: pulsing glow on inner felt edge (matches call-final-round chip color)
                               Positioned.fill(
-                                child: ListenableBuilder(
-                                  listenable: StateManager(),
-                                  builder: (context, _) {
-                                    final dutch =
-                                        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+                                child: DutchSliceBuilder<bool>(
+                                  selector: (dutch) {
                                     final gameId = dutch['currentGameId']?.toString() ?? '';
                                     final games = dutch['games'] as Map<String, dynamic>? ?? {};
                                     final game = games[gameId] as Map<String, dynamic>?;
                                     final gs = game?['gameData'] as Map<String, dynamic>?;
                                     final gameState = gs?['game_state'] as Map<String, dynamic>?;
-                                    final finalRoundActive = gameState?['finalRoundActive'] as bool? ?? false;
+                                    return gameState?['finalRoundActive'] as bool? ?? false;
+                                  },
+                                  builder: (context, finalRoundActive, _) {
                                     if (!finalRoundActive) return const SizedBox.shrink();
-                                    return IgnorePointer(
+                                    return const IgnorePointer(
                                       child: _FinalRoundInnerGlowPulse(borderRadius: 8.0),
                                     );
                                   },
@@ -878,16 +878,23 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
             // Messages Modal Widget - handles its own state subscription
             const MessagesWidget(),
             // Coin stream overlay when user wins (non-practice, non-promotional)
-            ListenableBuilder(
-              listenable: StateManager(),
-              builder: (context, _) {
-                final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-                final gamePhase = dutchState['gamePhase']?.toString();
-                final messages = dutchState['messages'] as Map<String, dynamic>? ?? {};
+            DutchSliceBuilder<Map<String, dynamic>>(
+              selector: (dutchState) => {
+                'gamePhase': dutchState['gamePhase']?.toString() ?? '',
+                'messages': Map<String, dynamic>.from(
+                  dutchState['messages'] as Map<String, dynamic>? ?? {},
+                ),
+                'currentGameId': dutchState['currentGameId']?.toString() ?? '',
+                'subscriptionTier': (dutchState['userStats'] as Map<String, dynamic>?)?['subscription_tier']
+                        ?.toString() ??
+                    'promotional',
+              },
+              builder: (context, slice, _) {
+                final gamePhase = slice['gamePhase']?.toString() ?? '';
+                final messages = slice['messages'] as Map<String, dynamic>? ?? {};
                 final isCurrentUserWinner = messages['isCurrentUserWinner'] == true;
-                final currentGameId = dutchState['currentGameId']?.toString() ?? '';
-                final userStats = dutchState['userStats'] as Map<String, dynamic>?;
-                final subscriptionTier = userStats?['subscription_tier']?.toString() ?? 'promotional';
+                final currentGameId = slice['currentGameId']?.toString() ?? '';
+                final subscriptionTier = slice['subscriptionTier']?.toString() ?? 'promotional';
                 final showCoinStream = gamePhase == 'game_ended' &&
                     isCurrentUserWinner &&
                     !currentGameId.startsWith('practice_room_') &&

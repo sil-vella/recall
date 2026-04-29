@@ -9,7 +9,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // inbox_changed + create_room_success / is_random_join (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // inbox_changed + create_room_success / is_random_join (enable-logging-switch.mdc; set false after test)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events

@@ -50,6 +50,10 @@ class DutchGameStateUpdater {
     'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
     'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'turn_events'},
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'isRoomOwner'},
+    'messagesSlice': {'messages', 'gamePhase', 'currentGameId', 'games', 'rematch_waiting_game_id'},
+    'instructionsSlice': {'instructions'},
+    'actionTextSlice': {'actionText', 'currentGameId', 'games'},
+    'matchLifecycle': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
     'joinedGamesSlice': {'games'}, // SIMPLIFIED: Compute from games map (SSOT) instead of joinedGames list
   };
   
@@ -393,6 +397,18 @@ class DutchGameStateUpdater {
             if (LOGGING_SWITCH) {
               _logger.info('🎬 DutchGameStateUpdater: gameInfo slice recomputed - gamePhase: ${gameInfoSlice['gamePhase']}, currentGameId: ${gameInfoSlice['currentGameId']}');
             }
+            break;
+          case 'messagesSlice':
+            updatedState['messagesSlice'] = _computeMessagesSlice(newState);
+            break;
+          case 'instructionsSlice':
+            updatedState['instructionsSlice'] = _computeInstructionsSlice(newState);
+            break;
+          case 'actionTextSlice':
+            updatedState['actionTextSlice'] = _computeActionTextSlice(newState);
+            break;
+          case 'matchLifecycle':
+            updatedState['matchLifecycle'] = _computeMatchLifecycleSlice(newState);
             break;
           case 'joinedGamesSlice':
             updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
@@ -820,6 +836,48 @@ class DutchGameStateUpdater {
       'games': joinedGamesList,
       'totalGames': joinedGamesList.length,
       'isLoadingGames': false,
+    };
+  }
+
+  Map<String, dynamic> _computeMessagesSlice(Map<String, dynamic> state) {
+    return {
+      'messages': Map<String, dynamic>.from(state['messages'] as Map<String, dynamic>? ?? {}),
+      'gamePhase': state['gamePhase']?.toString() ?? '',
+      'currentGameId': state['currentGameId']?.toString() ?? '',
+      'rematch_waiting_game_id': state['rematch_waiting_game_id']?.toString() ?? '',
+      'games': Map<String, dynamic>.from(state['games'] as Map<String, dynamic>? ?? {}),
+    };
+  }
+
+  Map<String, dynamic> _computeInstructionsSlice(Map<String, dynamic> state) {
+    return {
+      'instructions': Map<String, dynamic>.from(state['instructions'] as Map<String, dynamic>? ?? {}),
+    };
+  }
+
+  Map<String, dynamic> _computeActionTextSlice(Map<String, dynamic> state) {
+    return {
+      'actionText': Map<String, dynamic>.from(state['actionText'] as Map<String, dynamic>? ?? {}),
+      'currentGameId': state['currentGameId']?.toString() ?? '',
+      'games': Map<String, dynamic>.from(state['games'] as Map<String, dynamic>? ?? {}),
+    };
+  }
+
+  Map<String, dynamic> _computeMatchLifecycleSlice(Map<String, dynamic> state) {
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = currentGameId.isNotEmpty ? games[currentGameId] as Map<String, dynamic>? : null;
+    final gameData = currentGame?['gameData'] as Map<String, dynamic>?;
+    final gameState = gameData?['game_state'] as Map<String, dynamic>?;
+    final gameLevelRaw = gameState?['gameLevel'];
+    final gameLevel = gameLevelRaw is int
+        ? gameLevelRaw
+        : (gameLevelRaw is num ? gameLevelRaw.toInt() : int.tryParse('${gameLevelRaw ?? ''}') ?? 1);
+    return {
+      'currentGameId': currentGameId,
+      'isGameActive': state['isGameActive'] == true,
+      'gamePhase': state['gamePhase']?.toString() ?? 'waiting',
+      'playTableLevel': gameLevel,
     };
   }
   

@@ -1,4 +1,5 @@
 import 'package:dutch/modules/admobs/banner/banner_ad.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
@@ -76,6 +77,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   final ModuleManager _moduleManager = ModuleManager();
   BannerAdModule? bannerAdModule;
   final Logger _logger = Logger();
+  Map<String, dynamic>? _cachedBottomPromo;
+  String _cachedBottomSource = 'sponsors';
 
   /// Drains pending `instant_ws` rows (same modal path as periodic check) when [NotificationsModule] signals new items.
   void _onPendingWsInstantQueued() {
@@ -427,6 +430,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   @override
   void dispose() {
+    StateManager().removeListener(_onStateManagerForPromotionalStrip);
     _moduleManager.getModuleByType<NotificationsModule>()?.removePendingWsInstantListener(_onPendingWsInstantQueued);
     _moduleManager.getModuleByType<NotificationsModule>()?.removeInboxRefreshListener(_onInboxRefreshFromWs);
     // Note: State-aware features are automatically managed by StateManager
@@ -439,6 +443,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     super.initState();
     appManager = Provider.of<AppManager>(context, listen: false);
     bannerAdModule = _moduleManager.getModuleByType<BannerAdModule>();
+    _syncPromotionalStripFromState();
+    StateManager().addListener(_onStateManagerForPromotionalStrip);
 
     // Trigger hooks after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -457,6 +463,34 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       notifMod?.addInboxRefreshListener(_onInboxRefreshFromWs);
       _checkAndShowInstantMessages();
     });
+  }
+
+  void _onStateManagerForPromotionalStrip() {
+    if (!mounted) return;
+    final previousPromo = _cachedBottomPromo;
+    final previousSource = _cachedBottomSource;
+    _syncPromotionalStripFromState();
+    final sourceChanged = previousSource != _cachedBottomSource;
+    final promoChanged = !_jsonDeepEquals(previousPromo, _cachedBottomPromo);
+    if (sourceChanged || promoChanged) {
+      setState(() {});
+    }
+  }
+
+  void _syncPromotionalStripFromState() {
+    final promoRaw = StateManager().getModuleState<Map<String, dynamic>>('promotional_ads');
+    final b = promoRaw?['bottom'];
+    _cachedBottomPromo = b is Map ? Map<String, dynamic>.from(b) : null;
+    final bottomCfg = AdRegistry.instance.typeById('bottom_banner_promo');
+    _cachedBottomSource = (bottomCfg?.bannerSwitch ?? 'sponsors').trim().toLowerCase();
+  }
+
+  bool _jsonDeepEquals(dynamic a, dynamic b) {
+    try {
+      return jsonEncode(a) == jsonEncode(b);
+    } catch (_) {
+      return a == b;
+    }
   }
 
   void _onInboxRefreshFromWs() {
@@ -664,36 +698,25 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                 );
               }
               
-              return ListenableBuilder(
-                listenable: StateManager(),
-                builder: (context, __) {
-                  final promoRaw =
-                      StateManager().getModuleState<Map<String, dynamic>>('promotional_ads');
-                  Map<String, dynamic>? bottomPromo;
-                  final b = promoRaw?['bottom'];
-                  if (b is Map) {
-                    bottomPromo = Map<String, dynamic>.from(b);
-                  }
-                  final bottomCfg = AdRegistry.instance.typeById('bottom_banner_promo');
-                  final bottomSource =
-                      (bottomCfg?.bannerSwitch ?? 'sponsors').trim().toLowerCase();
-                  final useAdmobBottom =
-                      bottomSource == 'admob' || bottomSource == 'admobs';
-                  final promoHeight =
-                      !useAdmobBottom && bottomPromo != null ? 44.0 : 0.0;
-                  if (LOGGING_SWITCH) {
-                    _logger.info(
-                      'BaseScreen promo strip: bottomSource=$bottomSource useAdmobBottom=$useAdmobBottom '
-                      'bottomPromo=${bottomPromo != null} promoHeight=$promoHeight',
-                    );
-                  }
-                  final bottomBannerHeight = useAdmobBottom
-                      ? (kIsWeb
-                          ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
-                          : (bannerAdModule != null ? 50.0 : 0.0))
-                      : 0.0;
+              final bottomPromo = _cachedBottomPromo;
+              final bottomSource = _cachedBottomSource;
+              final useAdmobBottom =
+                  bottomSource == 'admob' || bottomSource == 'admobs';
+              final promoHeight =
+                  !useAdmobBottom && bottomPromo != null ? 44.0 : 0.0;
+              if (LOGGING_SWITCH) {
+                _logger.info(
+                  'BaseScreen promo strip: bottomSource=$bottomSource useAdmobBottom=$useAdmobBottom '
+                  'bottomPromo=${bottomPromo != null} promoHeight=$promoHeight',
+                );
+              }
+              final bottomBannerHeight = useAdmobBottom
+                  ? (kIsWeb
+                      ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
+                      : (bannerAdModule != null ? 50.0 : 0.0))
+                  : 0.0;
 
-                  return Column(
+              return Column(
                     mainAxisSize: MainAxisSize.max,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -762,8 +785,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                       // TEMP: disabled — pair with [totalBottomSpace] locals above when re-enabling.
                       // SizedBox(height: totalBottomSpace),
                     ],
-                  );
-                },
               );
             },
           ),

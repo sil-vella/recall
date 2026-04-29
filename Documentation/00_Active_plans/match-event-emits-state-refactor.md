@@ -50,14 +50,17 @@ Refactor how **match-scoped events** are emitted (client → server) and how **g
 - Confirmed from latest logs:
   - Prior hard crashes are no longer present.
   - `null` hand entries are intentional placeholders for index preservation and are treated as valid behavior.
+- Implemented gameplay rebuild isolation groundwork on Flutter:
+  - Added `DutchSliceBuilder` selector widget to rebuild only on slice deltas.
+  - Switched major gameplay overlays and board/screen listeners from broad `StateManager` listeners to selector-based subscriptions.
+  - Removed several whole-state spread writes in `UnifiedGameBoardWidget` (`{...currentState, ...}`) in favor of minimal patch updates.
+  - Added explicit slice outputs/dependencies in `DutchGameStateUpdater` (`messagesSlice`, `instructionsSlice`, `actionTextSlice`, `matchLifecycle`) to support widget-owned subscriptions.
 
 ## Next steps
 
-1. **TODO (next): cleanup play screen / widgets state update rebuilds**  
-   Reduce avoidable rebuild churn in play screen widgets/slices by tightening changed-field triggers and removing redundant recomputations.
+1. Continue narrowing `UnifiedGameBoardWidget` selectors to smaller section-specific payloads and remove remaining root-state reads in build paths.
 2. Audit `*_acknowledged` event handling and keep only ack flows that impact UX/control-state.
-3. Add temporary counters/markers for verification (server emits per transition, client updater calls per inbound `game_state_updated`).
-4. Re-run validation scenarios and compare before/after event volume + state apply counts.
+3. Re-run validation scenarios and compare before/after event volume + state apply counts.
 
 ## Files modified
 
@@ -66,6 +69,13 @@ Refactor how **match-scoped events** are emitted (client → server) and how **g
 - `dart_bkend_base_01/lib/server/websocket_server.dart`
 - `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_handler_callbacks.dart`
 - `flutter_base_05/lib/modules/dutch_game/managers/dutch_game_state_updater.dart`
+- `flutter_base_05/lib/modules/dutch_game/widgets/dutch_slice_builder.dart`
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/game_play_screen.dart`
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/unified_game_board_widget.dart`
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/game_info_widget.dart`
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/messages_widget.dart`
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/action_text_widget.dart`
+- `flutter_base_05/lib/modules/dutch_game/widgets/instructions_widget.dart`
 - `flutter_base_05/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart`
 - `flutter_base_05/lib/modules/dutch_game/backend_core/services/game_registry.dart`
 - `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart`

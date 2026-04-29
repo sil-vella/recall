@@ -12,6 +12,7 @@ import '../../../backend_core/utils/level_matcher.dart';
 import '../../../managers/dutch_event_handler_callbacks.dart';
 import '../../../managers/validated_event_emitter.dart';
 import '../../../utils/dutch_game_helpers.dart';
+import '../../../widgets/dutch_slice_builder.dart';
 
 /// Decoder for .lottie (dotlottie zip) assets: picks the first .json animation.
 Future<LottieComposition?> _decodeDotLottie(List<int> bytes) {
@@ -798,13 +799,10 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       if (d.showPlayAgain)
-                        ListenableBuilder(
-                          listenable: StateManager(),
-                          builder: (context, _) {
-                            final dg = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-                            final waitingId = dg['rematch_waiting_game_id']?.toString() ?? '';
-                            final waiting =
-                                waitingId.isNotEmpty && waitingId == d.gameId;
+                        DutchSliceBuilder<String>(
+                          selector: (dg) => dg['rematch_waiting_game_id']?.toString() ?? '',
+                          builder: (context, waitingId, _) {
+                            final waiting = waitingId.isNotEmpty && waitingId == d.gameId;
                             return Semantics(
                               label: waiting ? 'Waiting Rematch' : 'Play Again',
                               identifier: 'game_ended_play_again',
@@ -1042,7 +1040,7 @@ class MessagesWidget extends StatefulWidget {
 }
 
 class _MessagesWidgetState extends State<MessagesWidget> {
-  static const bool LOGGING_SWITCH = false; // Enabled for winner modal debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for winner modal debugging
   static final Logger _logger = Logger();
 
   /// Immutable snapshot — modal UI reads only this, never live state.
@@ -1051,13 +1049,21 @@ class _MessagesWidgetState extends State<MessagesWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-        final messagesData = dutchGameState['messages'] as Map<String, dynamic>? ?? {};
+    return DutchSliceBuilder<Map<String, dynamic>>(
+      selector: (dutchGameState) => {
+        'messages': Map<String, dynamic>.from(
+          dutchGameState['messages'] as Map<String, dynamic>? ?? {},
+        ),
+        'gamePhase': dutchGameState['gamePhase']?.toString() ?? '',
+        'currentGameId': dutchGameState['currentGameId']?.toString() ?? '',
+        'games': Map<String, dynamic>.from(
+          dutchGameState['games'] as Map<String, dynamic>? ?? {},
+        ),
+      },
+      builder: (context, slice, child) {
+        final messagesData = slice['messages'] as Map<String, dynamic>? ?? {};
         final isVisible = messagesData['isVisible'] == true;
-        final gamePhase = dutchGameState['gamePhase']?.toString() ?? '';
+        final gamePhase = slice['gamePhase']?.toString() ?? '';
 
         if (_gameEndedData != null) {
           if (gamePhase != 'game_ended' || !isVisible) {
@@ -1081,8 +1087,8 @@ class _MessagesWidgetState extends State<MessagesWidget> {
 
         if (isVisible && gamePhase == 'game_ended') {
           final content = messagesData['content']?.toString() ?? '';
-          final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-          final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+          final currentGameId = slice['currentGameId']?.toString() ?? '';
+          final games = slice['games'] as Map<String, dynamic>? ?? {};
           final currentGame = games[currentGameId] as Map<String, dynamic>?;
           final gameData = currentGame?['gameData'] as Map<String, dynamic>?;
           final gameState = gameData?['game_state'] as Map<String, dynamic>?;

@@ -4,6 +4,7 @@ import '../../../core/managers/navigation_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../utils/modal_template_widget.dart';
 import '../../../utils/consts/theme_consts.dart';
+import 'dutch_slice_builder.dart';
 import 'initial_peek_demonstration_widget.dart';
 import 'drawing_card_demonstration_widget.dart';
 import 'playing_card_demonstration_widget.dart';
@@ -20,7 +21,7 @@ import 'collection_card_demonstration_widget.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class InstructionsWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   static final Logger _logger = Logger();
   
   // Track currently showing instruction key to prevent duplicate modals
@@ -30,13 +31,16 @@ class InstructionsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    return DutchSliceBuilder<Map<String, dynamic>>(
+      selector: (dutchGameState) => {
+        'instructions': Map<String, dynamic>.from(
+          dutchGameState['instructions'] as Map<String, dynamic>? ?? {},
+        ),
+      },
+      builder: (context, slice, child) {
+        final instructionsData = slice['instructions'] as Map<String, dynamic>? ?? {};
         
         // Get instructions state slice
-        final instructionsData = dutchGameState['instructions'] as Map<String, dynamic>? ?? {};
         final isVisible = instructionsData['isVisible'] ?? false;
         final title = instructionsData['title']?.toString() ?? 'Game Instructions';
         final content = instructionsData['content']?.toString() ?? '';

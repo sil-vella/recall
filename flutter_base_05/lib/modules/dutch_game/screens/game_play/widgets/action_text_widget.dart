@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../widgets/dutch_slice_builder.dart';
 
 /// Action Text Widget
 /// 
@@ -9,26 +9,33 @@ import '../../../../../utils/consts/theme_consts.dart';
 /// as an overlay at the bottom of the screen.
 /// Only visible when showInstructions is true and actionText is set in state.
 class ActionTextWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   static final Logger _logger = Logger();
   
   const ActionTextWidget({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    return DutchSliceBuilder<Map<String, dynamic>>(
+      selector: (dutchGameState) => {
+        'actionText': Map<String, dynamic>.from(
+          dutchGameState['actionText'] as Map<String, dynamic>? ?? {},
+        ),
+        'currentGameId': dutchGameState['currentGameId']?.toString() ?? '',
+        'games': Map<String, dynamic>.from(
+          dutchGameState['games'] as Map<String, dynamic>? ?? {},
+        ),
+      },
+      builder: (context, slice, child) {
         
         // Get action text state
-        final actionTextData = dutchGameState['actionText'] as Map<String, dynamic>? ?? {};
+        final actionTextData = slice['actionText'] as Map<String, dynamic>? ?? {};
         final isVisible = actionTextData['isVisible'] as bool? ?? false;
         final text = actionTextData['text']?.toString() ?? '';
         
         // Check if instructions are enabled (only show when instructions are enabled)
-        final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-        final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+        final games = slice['games'] as Map<String, dynamic>? ?? {};
+        final currentGameId = slice['currentGameId']?.toString() ?? '';
         final game = currentGameId.isNotEmpty ? games[currentGameId] as Map<String, dynamic>? : null;
         final gameData = game?['gameData'] as Map<String, dynamic>?;
         final gameState = gameData?['game_state'] as Map<String, dynamic>?;

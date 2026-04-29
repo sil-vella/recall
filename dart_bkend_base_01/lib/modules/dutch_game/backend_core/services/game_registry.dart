@@ -7,7 +7,7 @@ import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
 
 /// When true, logs registry lifecycle, WS emit paths, and payload-size lines for `game_state_updated`.
-const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.

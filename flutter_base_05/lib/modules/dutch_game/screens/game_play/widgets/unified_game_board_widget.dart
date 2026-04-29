@@ -5,6 +5,7 @@ import '../../../models/card_model.dart';
 import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
+import '../../../widgets/dutch_slice_builder.dart';
 import 'player_status_chip_widget.dart';
 import 'circular_timer_widget.dart';
 import '../../../managers/player_action.dart';
@@ -15,6 +16,58 @@ import '../../demo/demo_functionality.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
 const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+
+/// View model for [UnifiedGameBoardWidget]: no full [games] map so unrelated room/game
+/// entries do not invalidate the subtree. Piles and [boardGameState] come from the current game only.
+Map<String, dynamic> _unifiedBoardViewSlice(Map<String, dynamic> d) {
+  final currentGameId = d['currentGameId']?.toString() ?? '';
+  final games = d['games'] as Map<String, dynamic>? ?? {};
+  final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+  final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+  final gs = gameData['game_state'] as Map<String, dynamic>? ?? {};
+  final myHand = Map<String, dynamic>.from(d['myHand'] as Map? ?? {});
+
+  Map<String, dynamic> currentPlayerMap = <String, dynamic>{};
+  final cpRaw = d['currentPlayer'];
+  if (cpRaw is Map<String, dynamic>) {
+    currentPlayerMap = Map<String, dynamic>.from(cpRaw);
+  }
+
+  final timerConfigRaw = gs['timerConfig'] as Map<String, dynamic>?;
+  final timerConfigForSlice = timerConfigRaw == null
+      ? <String, dynamic>{}
+      : Map<String, dynamic>.from(timerConfigRaw);
+
+  return {
+    'currentGameId': currentGameId,
+    'gamePhase': d['gamePhase']?.toString() ?? '',
+    'isGameActive': d['isGameActive'] ?? false,
+    'isMyTurn': d['isMyTurn'] ?? false,
+    'myCardsToPeek': List<dynamic>.from(d['myCardsToPeek'] as List? ?? []),
+    'protectedCardsToPeek': d['protectedCardsToPeek'] is List
+        ? List<dynamic>.from(d['protectedCardsToPeek'] as List)
+        : null,
+    'myDrawnCard': Map<String, dynamic>.from(d['myDrawnCard'] as Map? ?? {}),
+    'myHand': myHand,
+    'centerBoard': Map<String, dynamic>.from(d['centerBoard'] as Map? ?? {}),
+    'opponentsPanel': Map<String, dynamic>.from(d['opponentsPanel'] as Map? ?? {}),
+    'drawPile': List<dynamic>.from(gs['drawPile'] as List? ?? []),
+    'discardPile': List<dynamic>.from(gs['discardPile'] as List? ?? []),
+    'boardGameState': <String, dynamic>{
+      'phase': gs['phase'],
+      'timerConfig': timerConfigForSlice,
+      'finalRoundActive': gs['finalRoundActive'] ?? false,
+      'finalRoundCalledBy': gs['finalRoundCalledBy']?.toString(),
+      'players': List<dynamic>.from(gs['players'] as List? ?? []),
+    },
+    'userStats': Map<String, dynamic>.from(d['userStats'] as Map? ?? {}),
+    'currentPlayer': currentPlayerMap,
+    'playerStatus': d['playerStatus']?.toString() ?? myHand['playerStatus']?.toString() ?? 'unknown',
+    'actionError': d['actionError'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(d['actionError'] as Map)
+        : null,
+  };
+}
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -114,10 +167,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   Widget build(BuildContext context) {
     final stopwatch = LOGGING_SWITCH ? (Stopwatch()..start()) : null;
 
-    final result = ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        _maybeResetLocalPlayFlagsForPhaseEntry();
+    final result = DutchSliceBuilder<Map<String, dynamic>>(
+      selector: _unifiedBoardViewSlice,
+      builder: (context, board, child) {
+        _maybeResetLocalPlayFlagsForPhaseEntry(board);
         return Stack(
           clipBehavior: Clip.none,
           children: [
@@ -130,10 +183,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 return Column(
                   children: [
                     Expanded(
-                      child: _buildOpponentsPanel(),
+                      child: _buildOpponentsPanel(board),
                     ),
                     const SizedBox(height: 16),
-                    _buildMyHand(),
+                    _buildMyHand(board),
                   ],
                 );
               },
@@ -151,13 +204,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   /// Resets play-surface local flags when entering `initial_peek`: first build already in peek, or any phase → `initial_peek`.
-  void _maybeResetLocalPlayFlagsForPhaseEntry() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+  void _maybeResetLocalPlayFlagsForPhaseEntry(Map<String, dynamic> board) {
+    final gameState = board['boardGameState'] as Map<String, dynamic>? ?? {};
     final phase = gameState['phase'] as String?;
 
     if (phase != 'initial_peek') {
@@ -234,12 +282,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   /// Build the opponents panel widget
-  Widget _buildOpponentsPanel() {
-    final dutchGameState = _dutchGameState();
-    final opponentsPanel = dutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
+  Widget _buildOpponentsPanel(Map<String, dynamic> board) {
+    final opponentsPanel = board['opponentsPanel'] as Map<String, dynamic>? ?? {};
     final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
     final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
-    final cardsToPeekFromState = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+    final cardsToPeekFromState = board['myCardsToPeek'] as List<dynamic>? ?? [];
     
     // Check if we need to protect cardsToPeek
     if (cardsToPeekFromState.isNotEmpty && !_isCardsToPeekProtected) {
@@ -259,8 +306,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         : cardsToPeekFromState;
     
     final otherPlayers = opponents;
-    final isGameActive = dutchGameState['isGameActive'] ?? false;
-    final playerStatus = dutchGameState['playerStatus']?.toString() ?? 'unknown';
+    final isGameActive = board['isGameActive'] ?? false;
+    final playerStatus = board['playerStatus']?.toString() ?? 'unknown';
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,7 +317,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         else
           // Spread opponents evenly vertically using Expanded and Spacers
           Expanded(
-            child: _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
+            child: _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus, board),
           ),
       ],
     );
@@ -307,35 +354,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildOpponentsGrid(List<dynamic> opponents, List<dynamic> cardsToPeek, int currentTurnIndex, bool isGameActive, String playerStatus) {
-    return ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        final dutchGameState = _dutchGameState();
-        final currentPlayerRaw = dutchGameState['currentPlayer'];
-        Map<String, dynamic>? currentPlayerData;
-        if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
-          currentPlayerData = null;
-        } else if (currentPlayerRaw is Map<String, dynamic>) {
-          currentPlayerData = currentPlayerRaw;
-        } else {
-          currentPlayerData = null;
-        }
-        final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
+  Widget _buildOpponentsGrid(
+    List<dynamic> opponents,
+    List<dynamic> cardsToPeek,
+    int currentTurnIndex,
+    bool isGameActive,
+    String playerStatus,
+    Map<String, dynamic> board,
+  ) {
+        final currentPlayerMap = board['currentPlayer'] as Map<String, dynamic>? ?? {};
+        final currentPlayerId = currentPlayerMap['id']?.toString() ?? '';
         // Use current user's status for card glow (same source as status chip)
         final currentPlayerStatus = _getCurrentUserStatus();
-        final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'waiting';
+        final gamePhase = board['gamePhase']?.toString() ?? 'waiting';
         final isInitialPeekPhase = gamePhase == 'initial_peek';
         
-        // Get game state for timer configuration
-        final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-        final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-        final gameData = games[currentGameId] as Map<String, dynamic>?;
-        final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
-        final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
-        final phase = gameState?['phase'] as String?;
+        final bgs = board['boardGameState'] as Map<String, dynamic>? ?? {};
+        final phase = bgs['phase'] as String?;
         // Safely convert Map<String, dynamic> to Map<String, int>
-        final timerConfigRaw = gameState?['timerConfig'] as Map<String, dynamic>?;
+        final timerConfigRaw = bgs['timerConfig'] as Map<String, dynamic>?;
         final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
 
         // Create a map to find original index from player ID for currentTurnIndex calculation
@@ -387,7 +424,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(child: slot),
-                    _buildGameBoard(),
+                    _buildGameBoard(board),
                   ],
                 ),
               ),
@@ -409,7 +446,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const Expanded(child: SizedBox.shrink()),
-                    _buildGameBoard(),
+                    _buildGameBoard(board),
                   ],
                 ),
               ),
@@ -438,7 +475,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(child: opponentContent),
-                    _buildGameBoard(),
+                    _buildGameBoard(board),
                   ],
                 ),
               ),
@@ -452,26 +489,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           }
         }
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: opponentWidgets,
-        );
-      },
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: opponentWidgets,
     );
   }
 
   Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, String? phase, Map<String, int>? timerConfig, {required int opponentIndex}) {
     // Get player name - prefer full_name, fallback to name, then username, then default
-    final fullName = player['full_name']?.toString();
     final playerNameRaw = player['name']?.toString();
     final username = player['username']?.toString();
-    final playerName = (fullName != null && fullName.isNotEmpty) 
-        ? fullName 
-        : (playerNameRaw != null && playerNameRaw.isNotEmpty) 
-            ? playerNameRaw 
-            : (username != null && username.isNotEmpty) 
-                ? username 
-                : 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
     final hasCalledDutch = player['hasCalledDutch'] ?? false;
@@ -486,7 +513,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     int? effectiveTimer;
     
     // Check status first (more specific than phase for player actions)
-    if (statusForTimer != null && statusForTimer.isNotEmpty) {
+    if (statusForTimer.isNotEmpty) {
       switch (statusForTimer) {
         case 'initial_peek':
           effectiveTimer = timerConfig?['initial_peek'] ?? 15;
@@ -568,10 +595,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // For timer color, always get the status chip color (including same_rank_window)
     final timerColor = _getStatusChipColor(playerStatus);
-    
-    // Background highlight logic (includes same_rank_window for current player)
-    final shouldHighlightBackground = _shouldHighlightCurrentPlayer(playerStatus) 
-        || (isCurrentPlayer && playerStatus == 'same_rank_window');
     
     // All opponents align left and wrap
     final Alignment cardAlignment = Alignment.centerLeft;
@@ -1024,7 +1047,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         updatedMyHand['selectedIndex'] = -1;
         updatedMyHand['selectedCard'] = null;
         StateManager().updateModuleState('dutch_game', {
-          ...currentState,
           'games': updatedGames,
           'myHand': updatedMyHand,
         });
@@ -1033,7 +1055,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         updatedMyHand['selectedIndex'] = -1;
         updatedMyHand['selectedCard'] = null;
         StateManager().updateModuleState('dutch_game', {
-          ...currentState,
           'myHand': updatedMyHand,
         });
       }
@@ -1202,7 +1223,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return Size(cardWidth, cardHeight);
   }
 
-  Widget _buildGameBoard() {
+  Widget _buildGameBoard(Map<String, dynamic> board) {
     // Update game board height in state after build, but schedule only once per frame.
     if (!_gameBoardHeightUpdateScheduled) {
       _gameBoardHeightUpdateScheduled = true;
@@ -1228,7 +1249,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Top: winning pot row (same conditions: practice hidden, tier/phase)
-              _buildMatchPotRow(gameboardRowWidth),
+              _buildMatchPotRow(gameboardRowWidth, board),
               const SizedBox(height: 8),
               // Bottom: 2 columns — draw pile (left), discard pile (right)
               Row(
@@ -1238,12 +1259,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 children: [
                   Expanded(
                     child: LayoutBuilder(
-                      builder: (context, c) => _buildDrawPile(availableWidth: c.maxWidth),
+                      builder: (context, c) => _buildDrawPile(availableWidth: c.maxWidth, board: board),
                     ),
                   ),
                   Expanded(
                     child: LayoutBuilder(
-                      builder: (context, c) => _buildDiscardPile(availableWidth: c.maxWidth),
+                      builder: (context, c) => _buildDiscardPile(availableWidth: c.maxWidth, board: board),
                     ),
                   ),
                 ],
@@ -1279,22 +1300,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   // ========== Draw Pile Methods ==========
 
   /// Draw pile card size: scales with [availableWidth] (like opponent hand cards), clamped to [CardDimensions.MAX_CARD_WIDTH].
-  Widget _buildDrawPile({double? availableWidth}) {
+  Widget _buildDrawPile({double? availableWidth, required Map<String, dynamic> board}) {
     if (LOGGING_SWITCH) {
       _logger.info('[GameBoard overflow] _buildDrawPile: availableWidth=$availableWidth');
     }
-    final dutchGameState = _dutchGameState();
-    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    
-    // Get full draw pile list
-    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+    final drawPile = board['drawPile'] as List<dynamic>? ?? [];
     
     // Check if player is in drawing status (similar to myHand logic)
-    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    final myHand = board['myHand'] as Map<String, dynamic>? ?? {};
     final playerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
     final isDrawingStatus = playerStatus == 'drawing_card';
     final statusChipColor = isDrawingStatus ? _getStatusChipColor(playerStatus) : null;
@@ -1504,19 +1517,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   // ========== Discard Pile Methods ==========
 
   /// Discard pile card size: scales with [availableWidth] (like opponent hand cards), clamped to [CardDimensions.MAX_CARD_WIDTH].
-  Widget _buildDiscardPile({double? availableWidth}) {
+  Widget _buildDiscardPile({double? availableWidth, required Map<String, dynamic> board}) {
     if (LOGGING_SWITCH) {
       _logger.info('[GameBoard overflow] _buildDiscardPile: availableWidth=$availableWidth');
     }
-    final dutchGameState = _dutchGameState();
-    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    
-    // Get full discard pile list
-    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    final discardPile = board['discardPile'] as List<dynamic>? ?? [];
     final hasCards = discardPile.isNotEmpty;
     
     return Container(
@@ -1697,13 +1702,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Shown only when: not a practice game and user is not promotional tier.
   /// Amount vs '—' by isGameActive and gamePhase when shown.
   /// [rowWidth] is the full game board width (used to scale font/icon).
-  Widget _buildMatchPotRow(double rowWidth) {
-    final dutchGameState = _dutchGameState();
-    final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+  Widget _buildMatchPotRow(double rowWidth, Map<String, dynamic> board) {
+    final centerBoard = board['centerBoard'] as Map<String, dynamic>? ?? {};
     final matchPot = centerBoard['matchPot'] as int? ?? 0;
-    final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'waiting';
-    final isGameActive = dutchGameState['isGameActive'] ?? false;
-    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    final gamePhase = board['gamePhase']?.toString() ?? 'waiting';
+    final isGameActive = board['isGameActive'] ?? false;
+    final currentGameId = board['currentGameId']?.toString() ?? '';
 
     // Only show match pot if not a practice game
     final isPracticeGame = currentGameId.startsWith('practice_room_');
@@ -1712,7 +1716,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
 
     // Hide match pot row for promotional tier (free play - no coins involved)
-    final userStats = dutchGameState['userStats'] as Map<String, dynamic>?;
+    final userStats = board['userStats'] as Map<String, dynamic>?;
     final subscriptionTier = userStats?['subscription_tier']?.toString() ?? 'promotional';
     if (subscriptionTier == 'promotional') {
       return const SizedBox.shrink();
@@ -1795,21 +1799,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
-  Widget _buildMyHand() {
-    final dutchGameState = _dutchGameState();
-    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+  Widget _buildMyHand(Map<String, dynamic> board) {
+    final myHand = board['myHand'] as Map<String, dynamic>? ?? {};
     final cards = myHand['cards'] as List<dynamic>? ?? [];
     final selectedIndex = myHand['selectedIndex'] ?? -1;
-    final cardsToPeekFromState = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
-    final protectedCardsToPeek = dutchGameState['protectedCardsToPeek'] as List<dynamic>?;
+    final cardsToPeekFromState = board['myCardsToPeek'] as List<dynamic>? ?? [];
+    final protectedCardsToPeek = board['protectedCardsToPeek'] as List<dynamic>?;
     
-    // CRITICAL: Also check games map directly (SSOT) for cardsToPeek
-    // This ensures we catch the cleared state even if myCardsToPeek hasn't updated yet
-    final currentGameIdForPeek = dutchGameState['currentGameId']?.toString() ?? '';
-    final gamesForPeek = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-    final currentGameForPeek = gamesForPeek[currentGameIdForPeek] as Map<String, dynamic>? ?? {};
-    final gameDataForPeek = currentGameForPeek['gameData'] as Map<String, dynamic>? ?? {};
-    final gameStateForPeek = gameDataForPeek['game_state'] as Map<String, dynamic>? ?? {};
+    // CRITICAL: Also check game_state.players (SSOT) for cardsToPeek — same data as full games tree, scoped in [board].
+    final gameStateForPeek = board['boardGameState'] as Map<String, dynamic>? ?? {};
     final playersForPeek = gameStateForPeek['players'] as List<dynamic>? ?? [];
     
     // Get current user ID
@@ -1866,14 +1864,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         ? _protectedMyHandCardsToPeek!
         : (cardsToPeekFromState.isNotEmpty ? cardsToPeekFromState : cardsToPeekFromGameState);
     
-    final isGameActive = dutchGameState['isGameActive'] ?? false;
-    final isMyTurn = dutchGameState['isMyTurn'] ?? false;
+    final isGameActive = board['isGameActive'] ?? false;
+    final isMyTurn = board['isMyTurn'] ?? false;
     final playerStatus = _getCurrentUserStatus(); // Use same source as status chip
-    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final currentGameId = board['currentGameId']?.toString() ?? '';
+    final gameState = board['boardGameState'] as Map<String, dynamic>? ?? {};
     final finalRoundActive = gameState['finalRoundActive'] as bool? ?? false;
     final finalRoundCalledBy = gameState['finalRoundCalledBy']?.toString();
     // Get timer from game_state timerConfig (added during game initialization)
@@ -1886,7 +1881,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     int? turnTimeLimit;
     
     // Check status first (more specific than phase for player actions)
-    if (playerStatus != null && playerStatus.isNotEmpty) {
+    if (playerStatus.isNotEmpty) {
       switch (playerStatus) {
         case 'initial_peek':
           turnTimeLimit = timerConfig['initial_peek'] ?? 15;
@@ -1977,12 +1972,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 p['hasCalledFinalRound'] == true) ?? false
         : false;
     
-    final actionError = dutchGameState['actionError'] as Map<String, dynamic>?;
+    final actionError = board['actionError'] as Map<String, dynamic>?;
     if (actionError != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         StateManager().updateModuleState('dutch_game', {
-          ...currentState,
           'actionError': null,
         });
       });
@@ -2006,7 +1999,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         myHand['selectedIndex'] = -1;
         // Update both in a single state update
         StateManager().updateModuleState('dutch_game', {
-          ...currentState,
           'games': currentGames,
           'myHand': myHand,
         });
@@ -2142,7 +2134,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             else
               SizedBox(
                 width: double.infinity,
-                child: _buildMyHandCardsGrid(cards, cardsToPeek, selectedIndex),
+                child: _buildMyHandCardsGrid(cards, cardsToPeek, selectedIndex, board),
               ),
           ],
         ),
@@ -2180,11 +2172,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildMyHandCardsGrid(List<dynamic> cards, List<dynamic> cardsToPeek, int selectedIndex) {
-    return ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        return LayoutBuilder(
+  Widget _buildMyHandCardsGrid(
+    List<dynamic> cards,
+    List<dynamic> cardsToPeek,
+    int selectedIndex,
+    Map<String, dynamic> board,
+  ) {
+    return LayoutBuilder(
           builder: (context, constraints) {
             final containerWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
                 ? constraints.maxWidth
@@ -2214,16 +2208,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               });
             }
             
-            final dutchGameState = _dutchGameState();
             final currentPlayerStatus = _getCurrentUserStatus();
-            final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
+            final drawnCard = board['myDrawnCard'] as Map<String, dynamic>?;
             final drawnCardId = drawnCard?['cardId']?.toString();
-            final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-            final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-            final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-            final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-            final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-            final players = gameState['players'] as List<dynamic>? ?? [];
+            final bgsInner = board['boardGameState'] as Map<String, dynamic>? ?? {};
+            final players = bgsInner['players'] as List<dynamic>? ?? [];
             final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
             
             List<dynamic> myCollectionRankCards = [];
@@ -2286,7 +2275,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 // Use calculated dimensions from LayoutBuilder
                 final playerId = _getCurrentUserId();
                 final cardKey = _getOrCreateCardKey('${playerId}_$i', 'my_hand');
-                final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey, cardDimensions, currentPlayerStatus: currentPlayerStatus);
+                final cardWidget = _buildMyHandCardWidget(
+                  cardDataToUse,
+                  isSelected,
+                  isDrawnCard,
+                  false,
+                  i,
+                  cardMap,
+                  cardKey,
+                  cardDimensions,
+                  currentPlayerStatus: currentPlayerStatus,
+                  myDrawnCardFromBoard: drawnCard,
+                );
                 collectionRankWidgets[cardId] = cardWidget;
               }
             }
@@ -2461,6 +2461,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               cardKey,
               cardDimensions,
               currentPlayerStatus: currentPlayerStatusForGlow,
+              myDrawnCardFromBoard: drawnCard,
             );
             
               cardWidgets.add(
@@ -2495,10 +2496,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             ),
           );
 
-          return rowWidget;
-        },
-      );
-      },
+            return rowWidget;
+          },
     );
   }
 
@@ -2606,7 +2605,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         'selectedCard': card,
       };
       StateManager().updateModuleState('dutch_game', {
-        ...currentState,
         'myHand': updatedMyHand,
       });
       _startSelectedOverlayClearTimer();
@@ -2783,7 +2781,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
 
-  Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey? cardKey, Size cardDimensions, {String? currentPlayerStatus}) {
+  Widget _buildMyHandCardWidget(
+    Map<String, dynamic> card,
+    bool isSelected,
+    bool isDrawnCard,
+    bool isCollectionRankCard,
+    int index,
+    Map<String, dynamic> cardMap,
+    GlobalKey? cardKey,
+    Size cardDimensions, {
+    String? currentPlayerStatus,
+    Map<String, dynamic>? myDrawnCardFromBoard,
+  }) {
     // For drawn cards in user's hand, always show face up
     // Ensure card has full data - if not, try to get it from the cardMap or myDrawnCard in state
     Map<String, dynamic> cardDataToUse = card;
@@ -2807,9 +2816,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             cardMap['suit'] != '?') {
           cardDataToUse = cardMap;
         } else {
-          // Last resort: try to get from myDrawnCard in state
-          final dutchGameState = _dutchGameState();
-          final myDrawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
+          // Last resort: drawn card from board snapshot, then live dutch_game state
+          final myDrawnCard = myDrawnCardFromBoard ??
+              (_dutchGameState()['myDrawnCard'] as Map<String, dynamic>?);
           if (myDrawnCard != null && 
               myDrawnCard.containsKey('rank') && 
               myDrawnCard['rank'] != null && 
@@ -2867,13 +2876,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
     
     return cardWidget;
-  }
-
-  bool _shouldHighlightStatus(String status) {
-    if (status == 'waiting' || status == 'same_rank_window') {
-      return false;
-    }
-    return true;
   }
 
   /// Build circular profile picture widget

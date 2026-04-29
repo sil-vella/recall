@@ -4,6 +4,7 @@ import '../../../managers/game_coordinator.dart';
 import '../../../managers/validated_event_emitter.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../widgets/dutch_slice_builder.dart';
 
 /// Widget to display current game information
 /// 
@@ -21,7 +22,7 @@ class GameInfoWidget extends StatefulWidget {
 }
 
 class _GameInfoWidgetState extends State<GameInfoWidget> {
-  static const bool LOGGING_SWITCH = false; // Start / roster / effective size → server.log via Logger (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // Start / roster / effective size → server.log via Logger (enable-logging-switch.mdc; set false after test)
   static final Logger _logger = Logger();
   bool _isStartingMatch = false;
 
@@ -168,11 +169,21 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        // Get gameInfo state slice
-        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    return DutchSliceBuilder<Map<String, dynamic>>(
+      selector: (dutchGameState) => {
+        'gameInfo': Map<String, dynamic>.from(
+          dutchGameState['gameInfo'] as Map<String, dynamic>? ?? {},
+        ),
+        'games': Map<String, dynamic>.from(
+          dutchGameState['games'] as Map<String, dynamic>? ?? {},
+        ),
+        'isGameActive': dutchGameState['isGameActive'] ?? false,
+        'isMyTurn': dutchGameState['isMyTurn'] ?? false,
+        'myHand': Map<String, dynamic>.from(
+          dutchGameState['myHand'] as Map<String, dynamic>? ?? {},
+        ),
+      },
+      builder: (context, dutchGameState, child) {
         final wsState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
         final currentRoomInfo = wsState['currentRoomInfo'] as Map<String, dynamic>?;
         final gameInfo = dutchGameState['gameInfo'] as Map<String, dynamic>? ?? {};

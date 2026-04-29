@@ -4,7 +4,7 @@ import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = true; // Game init / match start (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Game init / match start (enable-logging-switch.mdc)
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.

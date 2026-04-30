@@ -16,7 +16,7 @@
 
 ## Implementation steps
 
-- [ ] **Initial peek / game state**: Fix ordering so **state does not transition past “awaiting initial peek”** until peek is complete (client + server if applicable). Verify spinner → peek UI → only then allow draw / current-player turn. Trace: game info widget, Dutch game state machine / WebSocket payloads, and any optimistic UI that assumes “playing” too early.
+- [x] **Initial peek / game state**: Fix ordering so **state does not transition past “awaiting initial peek”** until peek is complete (client + server if applicable). Verify spinner → peek UI → only then allow draw / current-player turn. Trace: game info widget, Dutch game state machine / WebSocket payloads, and any optimistic UI that assumes “playing” too early. ✅ **Done**
 - [ ] **Animation architecture (generic)**:
   - [ ] Define **player-area** anchors (layout-global or `GlobalKey`-backed rects) and animate cards **to/from those regions** for typical moves (hand, play from hand, etc.).
   - [ ] **Draw** and **discard**: register **predefined targets** once **on game init** (or first layout after init), not per-card slot discovery except where required.
@@ -24,16 +24,16 @@
 
 ## Current progress
 
-- Plan created; implementation not started.
+- **Initial peek / game state**: Completed — players get init peek before normal turn flow; ordering / WS / UI issues addressed.
+- **Animation architecture**: Not started.
 
 ## Next steps
 
-- Reproduce the init-peek skip (note exact state flags / events in logs).
-- Map current animation code paths (if removed or stubbed) and list touchpoints: unified board, slice builder, game play screen.
+- Implement generic player-area card motion, draw/discard anchors at game init, and jack-swap id-based targeting (per unchecked items above).
 
 ## Files modified
 
-- _(none yet — update as work proceeds; likely under `flutter_base_05/lib/modules/dutch_game/` and related backend state if server-driven.)_
+- Init peek fix: see git history / touched files under `flutter_base_05/lib/modules/dutch_game/` and `dart_bkend_base_01/` as applicable (not enumerated here).
 
 ## Notes
 

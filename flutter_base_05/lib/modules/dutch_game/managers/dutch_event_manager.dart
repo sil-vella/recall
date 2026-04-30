@@ -109,6 +109,11 @@ class DutchEventManager {
     DutchEventHandlerCallbacks.handleGameStateUpdated(data);
   }
 
+  /// Handle game_animation event (server hint before game_state_updated; no state merge here).
+  void handleGameAnimation(Map<String, dynamic> data) {
+    DutchEventHandlerCallbacks.handleGameAnimation(data);
+  }
+
   /// Handle game_state_partial_update event
   void handleGameStatePartialUpdate(Map<String, dynamic> data) {
     if (LOGGING_SWITCH) {

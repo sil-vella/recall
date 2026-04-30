@@ -2251,7 +2251,25 @@ class DutchGameRound {
       // Opponents must see playing_card in STEP 1 (broadcastExcept). If we only set status in
       // STEP 2 (sendToPlayer), other clients keep drawing_card until the next unrelated broadcast.
       player['status'] = 'playing_card';
-      
+
+      final drawAnimCard = <String, dynamic>{
+        'owner_id': actualPlayerId,
+        'card_id': drawnCardId,
+      };
+      if (source == 'discard') {
+        drawAnimCard['card'] = Map<String, dynamic>.from(drawnCard);
+      }
+      _stateCallback.emitGameAnimation(<String, dynamic>{
+        'action_type': 'draw',
+        'source': source,
+        'cards': [drawAnimCard],
+      });
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          'Dutch: emitGameAnimation draw source=$source cardId=$drawnCardId owner=$actualPlayerId',
+        );
+      }
+
       // STEP 1: Broadcast ID-only drawnCard to all players EXCEPT the drawing player
       // This shows other players that a card was drawn without revealing sensitive details
       // The drawing player will receive the complete update in STEP 2

@@ -166,7 +166,29 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       excludePlayerId: excludePlayerId,
     );
   }
-  
+
+  @override
+  void emitGameAnimation(Map<String, dynamic> payload) {
+    try {
+      final message = <String, dynamic>{
+        'event': 'game_animation',
+        'game_id': roomId,
+        'timestamp': DateTime.now().toIso8601String(),
+        ...payload,
+      };
+      server.broadcastToRoom(roomId, message);
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '🎬 emitGameAnimation room=$roomId action=${payload['action_type']} source=${payload['source']} cards=${payload['cards']}',
+        );
+      }
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('emitGameAnimation failed: $e');
+      }
+    }
+  }
+
   /// Filter gameState to remove fields that shouldn't be sent to frontend
   /// Currently removes originalDeck to reduce payload size
   Map<String, dynamic> _filterGameStateForFrontend(Map<String, dynamic> gameState) {

@@ -24,6 +24,16 @@ abstract class GameStateCallback {
   /// [updates] Map of state updates to apply and broadcast
   void broadcastGameStateExcept(String excludePlayerId, Map<String, dynamic> updates);
 
+  /// Emit a dedicated animation hint to all sessions in the room (WebSocket only).
+  ///
+  /// Must **not** merge [payload] into the game state store. Send before
+  /// [broadcastGameStateExcept] / [sendGameStateToPlayer] so clients receive
+  /// `game_animation` before the matching `game_state_updated`.
+  ///
+  /// [payload] should include at least `action_type`, `source`, and `cards`
+  /// (see Dutch game round draw path).
+  void emitGameAnimation(Map<String, dynamic> payload);
+
   /// Notify that discard pile has been updated
   void onDiscardPileChanged();
 

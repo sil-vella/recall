@@ -241,6 +241,9 @@ class PracticeModeBridge {
       case 'game_state_updated':
         _eventManager.handleGameStateUpdated(message);
         break;
+      case 'game_animation':
+        _eventManager.handleGameAnimation(message);
+        break;
       case 'player_status_updated':
         _eventManager.handlePlayerStateUpdated(message);
         break;

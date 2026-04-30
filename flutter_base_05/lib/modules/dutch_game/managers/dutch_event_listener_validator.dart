@@ -77,6 +77,10 @@ class DutchGameEventListenerValidator {
       },
       handlerMethod: 'handleGameStateUpdated',
     ),
+    'game_animation': EventConfig(
+      schema: {'game_id', 'timestamp', 'action_type', 'source', 'cards'},
+      handlerMethod: 'handleGameAnimation',
+    ),
     'game_state_partial_update': EventConfig(
       schema: {'game_id', 'changed_properties', 'partial_game_state', 'timestamp', 'winners'},
       handlerMethod: 'handleGameStatePartialUpdate',
@@ -326,6 +330,9 @@ class DutchGameEventListenerValidator {
           break;
         case 'handleGameStateUpdated':
           DutchEventHandlerCallbacks.handleGameStateUpdated(eventPayload);
+          break;
+        case 'handleGameAnimation':
+          DutchEventHandlerCallbacks.handleGameAnimation(eventPayload);
           break;
         case 'handleGameStatePartialUpdate':
           DutchEventHandlerCallbacks.handleGameStatePartialUpdate(eventPayload);

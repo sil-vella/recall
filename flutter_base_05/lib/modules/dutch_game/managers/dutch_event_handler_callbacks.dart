@@ -1551,6 +1551,18 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
   }
 
+  /// Handle [game_animation] from Dart backend (draw/play hints; arrives before matching state).
+  static void handleGameAnimation(Map<String, dynamic> data) {
+    final gameId = data['game_id']?.toString() ?? '';
+    final actionType = data['action_type']?.toString() ?? '';
+    final source = data['source']?.toString() ?? '';
+    final cards = data['cards'];
+    final n = cards is List ? cards.length : 0;
+    _logger.info(
+      '🎬 game_animation RECV gameId=$gameId action_type=$actionType source=$source cards=$n',
+    );
+  }
+
   /// Handle game_state_updated event
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';

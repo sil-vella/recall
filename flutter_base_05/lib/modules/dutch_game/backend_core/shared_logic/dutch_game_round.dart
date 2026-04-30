@@ -648,6 +648,36 @@ class DutchGameRound {
     };
   }
 
+  /// Room-wide animation hint before state updates. Does not merge the game state store.
+  ///
+  /// [actionType]: e.g. draw, play_card, same_rank_play, collect_from_discard, jack_swap,
+  /// queen_peek, reposition.
+  /// [cards]: maps with owner_id, card_id, optional card (full map when visibility allows).
+  /// [context]: optional JSON-safe map (e.g. peeking_player_id for queen_peek).
+  void _emitActionAnimation({
+    required String actionType,
+    String? source,
+    required List<Map<String, dynamic>> cards,
+    Map<String, dynamic>? context,
+  }) {
+    final payload = <String, dynamic>{
+      'action_type': actionType,
+      'cards': cards,
+    };
+    if (source != null && source.isNotEmpty) {
+      payload['source'] = source;
+    }
+    if (context != null && context.isNotEmpty) {
+      payload['context'] = context;
+    }
+    _stateCallback.emitGameAnimation(payload);
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'Dutch: emitGameAnimation action=$actionType cards=${cards.length}${source != null && source.isNotEmpty ? ' source=$source' : ''}',
+      );
+    }
+  }
+
   /// Add a card to the discard pile
   /// 
   /// NOTE: This method does NOT trigger a state update. The caller is responsible
@@ -2259,16 +2289,11 @@ class DutchGameRound {
       if (source == 'discard') {
         drawAnimCard['card'] = Map<String, dynamic>.from(drawnCard);
       }
-      _stateCallback.emitGameAnimation(<String, dynamic>{
-        'action_type': 'draw',
-        'source': source,
-        'cards': [drawAnimCard],
-      });
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'Dutch: emitGameAnimation draw source=$source cardId=$drawnCardId owner=$actualPlayerId',
-        );
-      }
+      _emitActionAnimation(
+        actionType: 'draw',
+        source: source,
+        cards: [drawAnimCard],
+      );
 
       // STEP 1: Broadcast ID-only drawnCard to all players EXCEPT the drawing player
       // This shows other players that a card was drawn without revealing sensitive details
@@ -2800,7 +2825,18 @@ class DutchGameRound {
       
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       _sanitizeDrawnCardsInGamesMap(currentGames, context: 'collect_from_discard');
-      
+
+      _emitActionAnimation(
+        actionType: 'collect_from_discard',
+        cards: [
+          {
+            'owner_id': playerId,
+            'card_id': collectedCardId,
+            'card': Map<String, dynamic>.from(collectedCard),
+          },
+        ],
+      );
+
       _stateCallback.onGameStateChanged({
         'games': currentGames, // Includes updated player hand (card added, drawnCard sanitized)
         'discardPile': updatedDiscardPile,  // Updated discard pile (card removed)
@@ -3109,6 +3145,24 @@ class DutchGameRound {
         _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
       }
 
+      final playAnimCards = <Map<String, dynamic>>[
+        {
+          'owner_id': actualPlayerId,
+          'card_id': cardId,
+          'card': Map<String, dynamic>.from(cardToPlayFullData),
+        },
+      ];
+      if (drawnCard != null && drawnCard['cardId'] != cardId) {
+        final rid = drawnCard['cardId']?.toString() ?? '';
+        if (rid.isNotEmpty) {
+          playAnimCards.add(<String, dynamic>{
+            'owner_id': actualPlayerId,
+            'card_id': rid,
+          });
+        }
+      }
+      _emitActionAnimation(actionType: 'play_card', cards: playAnimCards);
+
       _stateCallback.onGameStateChanged({
         'games': currentGamesForPlay, // Games map with modifications (drawnCard sanitized)
         'discardPile': updatedDiscardPile, // Updated discard pile
@@ -3322,7 +3376,20 @@ class DutchGameRound {
         // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting reposition update
         // Even though drawnCard should be cleared at line 1752, defensive sanitization ensures no leaks
         _sanitizeDrawnCardsInGamesMap(currentGames, context: 'reposition');
-        
+
+        final repositionCardId = drawnCardIdOnly['cardId']?.toString() ?? '';
+        if (repositionCardId.isNotEmpty) {
+          _emitActionAnimation(
+            actionType: 'reposition',
+            cards: [
+              <String, dynamic>{
+                'owner_id': actualPlayerId,
+                'card_id': repositionCardId,
+              },
+            ],
+          );
+        }
+
         _stateCallback.onGameStateChanged({
           'games': currentGames, // Games map with repositioned hand (drawnCard sanitized)
           'turn_events': currentTurnEventsForReposition, // Preserve turn_events for reposition animation
@@ -3714,7 +3781,18 @@ class DutchGameRound {
       
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       _sanitizeDrawnCardsInGamesMap(currentGamesForSameRank, context: 'same_rank_play');
-      
+
+      _emitActionAnimation(
+        actionType: 'same_rank_play',
+        cards: [
+          {
+            'owner_id': playerId,
+            'card_id': cardIdForRest,
+            'card': Map<String, dynamic>.from(playedCardFullData),
+          },
+        ],
+      );
+
       _stateCallback.onGameStateChanged({
         'games': currentGamesForSameRank, // Games map with modifications (drawnCard sanitized)
         'discardPile': updatedDiscardPile, // Updated discard pile
@@ -4029,7 +4107,26 @@ class DutchGameRound {
       
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       _sanitizeDrawnCardsInGamesMap(currentGames, context: 'jack_swap');
-      
+
+      _emitActionAnimation(
+        actionType: 'jack_swap',
+        cards: [
+          {
+            'owner_id': firstPlayerId,
+            'card_id': firstCardId,
+            'card': Map<String, dynamic>.from(firstCardFullData),
+          },
+          {
+            'owner_id': secondPlayerId,
+            'card_id': secondCardId,
+            'card': Map<String, dynamic>.from(secondCardFullData),
+          },
+        ],
+        context: {
+          'acting_player_id': actingPlayerId,
+        },
+      );
+
       _stateCallback.onGameStateChanged({
         'games': currentGames, // Games map with modifications (drawnCard sanitized)
         'turn_events': turnEvents, // Add turn events for animations
@@ -4286,7 +4383,21 @@ class DutchGameRound {
         'points': 0,
       }];
       peekingPlayer['cardsToPeek'] = idOnlyCardToPeek;
-      
+
+      _emitActionAnimation(
+        actionType: 'queen_peek',
+        cards: [
+          <String, dynamic>{
+            'owner_id': targetPlayerId,
+            'card_id': targetCardId,
+          },
+        ],
+        context: {
+          'peeking_player_id': peekingPlayerId,
+          'target_player_id': targetPlayerId,
+        },
+      );
+
       _stateCallback.broadcastGameStateExcept(peekingPlayerId, {
         'games': currentGames,
       });

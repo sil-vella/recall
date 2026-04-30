@@ -78,7 +78,14 @@ class DutchGameEventListenerValidator {
       handlerMethod: 'handleGameStateUpdated',
     ),
     'game_animation': EventConfig(
-      schema: {'game_id', 'timestamp', 'action_type', 'source', 'cards'},
+      schema: {
+        'game_id',
+        'timestamp',
+        'action_type',
+        'source',
+        'cards',
+        'context',
+      },
       handlerMethod: 'handleGameAnimation',
     ),
     'game_state_partial_update': EventConfig(

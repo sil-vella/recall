@@ -1558,8 +1558,14 @@ When anyone has played a card with the **same rank** as your **collection card**
     final source = data['source']?.toString() ?? '';
     final cards = data['cards'];
     final n = cards is List ? cards.length : 0;
+    final ctx = data['context'];
+    String ctxBrief = '';
+    if (ctx is Map) {
+      final keys = ctx.keys.map((k) => k.toString()).join(',');
+      ctxBrief = keys.isEmpty ? '' : ' context_keys=$keys';
+    }
     _logger.info(
-      '🎬 game_animation RECV gameId=$gameId action_type=$actionType source=$source cards=$n',
+      '🎬 game_animation RECV gameId=$gameId action_type=$actionType${source.isNotEmpty ? ' source=$source' : ''} cards=$n$ctxBrief',
     );
   }
 

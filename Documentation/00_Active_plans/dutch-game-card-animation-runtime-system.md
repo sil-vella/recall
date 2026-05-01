@@ -125,7 +125,7 @@ Uses `RenderBox.localToGlobal` for slot and anchor, subtracts origins, reads `si
 
 Historically, merging `_runtime` into `Listenable.merge([_controller, _runtime])` caused **every `mergeLayout` notify** to rebuild the flight subtree **during** a tween and made motion look **stepped**. **Later**, `AnimatedBuilder(animation: _controller)` alone was sufficient in theory, but in practice the overlay often sits under **`DutchSliceBuilder`**, which **does not rebuild** when `dutch_game` is unchanged—so relying only on **`AnimatedBuilder`** could yield **sparse** rebuilds and a **flash** or **one-frame** ghost instead of a continuous flight.
 
-**Current behavior**: **`_controller.addListener(_onAnimTick)`** with **`setState`** when **`_shouldPaintFlightGhost()`** is true guarantees the overlay **`State`’s `build`** runs **every vsync** for the duration of the tween. **`setState`** is also invoked **once** immediately after freezing rects and **before** **`forward(from: 0.0)`** so the first frame at **`t = 0`** is scheduled reliably. The painted stack uses **`TickerMode(enabled: true)`** (belt-and-suspenders with the board’s outer **`TickerMode`** around the overlay) and **`RepaintBoundary`** around the flight to confine repaints.
+**Current behavior**: **`_controller.addListener(_onAnimTick)`** with **`setState`** when **`_shouldPaintAnim()`** is true guarantees the overlay **`State`’s `build`** runs **every vsync** for the duration of the tween. **`setState`** is also invoked **once** immediately after freezing rects and **before** **`forward(from: 0.0)`** so the first frame at **`t = 0`** is scheduled reliably. The painted stack uses **`TickerMode(enabled: true)`** (belt-and-suspenders with the board’s outer **`TickerMode`** around the overlay) and **`RepaintBoundary`** around the flight to confine repaints.
 
 If profiling shows cost from rebuilding **`CardWidget`** every frame, a follow-up is to **`AnimatedBuilder` wrapping only the positioned `CardWidget`** (still controller-only listenable) or a lighter flight proxy—same tick cadence, smaller **`build`** subtree.
 
@@ -135,34 +135,40 @@ If profiling shows cost from rebuilding **`CardWidget`** every frame, a follow-u
 2. If queue **empty** → clear `_runningSeq`, return.
 3. If head is **not a Map** → dequeue, return.
 4. If head’s `_seq` equals `_runningSeq` → return (guard against double-start).
-5. Resolve **`from` / `to` / `CardModel`** via `_resolveFromTo` for supported actions.
+5. Resolve geometry via **`_resolveAnimPlan`** into a small plan: **linear** (one card), **`jack_swap`** (two cards cross-lerp), or **`queen_peek`** (target rect only for a glow pulse).
 6. If resolution **null**:
    - **Unsupported** action → dequeue immediately.
    - **`reposition`** with bad indices or rects → dequeue immediately (log `skip reposition` with `missing_from_index` vs `unresolved_rects`).
-   - **`draw` / `play_card`** → **stall**: increment `_stallFrames`, `setState` up to **`_maxStallFrames` (24)** then **stall skip** (dequeue + log warning).
-7. On success: store **`_flightFromRect`, `_flightToRect`, `_flightModel`** (frozen for this flight), set **`_runningSeq`**, **`setState`** (schedule frame with frozen geometry), then **`_controller.forward(from: 0.0)`** (avoids `reset()` inserting a blank frame).
+   - **`jack_swap`** with fewer than two **`cards`** entries → dequeue immediately.
+   - Otherwise (rects not ready yet) → **stall**: increment `_stallFrames`, `setState` up to **`_maxStallFrames` (24)** then **stall skip** (dequeue + log warning).
+7. On success: copy frozen rects/models from the plan into **`State`**, set **`_runningSeq`**, **`setState`**, then **`_controller.forward(from: 0.0)`** (avoids `reset()` inserting a blank frame).
 
 ### `build()` painting rules
 
-- If **`_shouldPaintFlightGhost()`** is false → **`SizedBox.shrink()`**.
-- **Paint** while frozen rects/model exist and **`_runningSeq`** is set, and either **`status`** is **`forward` / `reverse`**, or **`status == completed`** with **`value ≈ 1`** (one frame at end before post-frame clears frozen state and dequeues — avoids flashing or hiding **`t = 1`** early).
-- **`build`** reads **`_controller!.value`** as **`t`** and positions **`CardWidget`** in a **`Stack`**; subtree: **`TickerMode` → `RepaintBoundary` → `IgnorePointer` → `Positioned`**.
+- If **`_shouldPaintAnim()`** is false → **`SizedBox.shrink()`**.
+- **Paint** while **`_runningSeq`** matches the queue head and the active plan has the needed rects, and either **`status`** is **`forward` / `reverse`**, or **`status == completed`** with **`value ≈ 1`** (one frame at end before post-frame clears and dequeues).
+- **Linear / jack**: **`build`** reads **`_controller!.value`** as **`t`** and positions one or two **`CardWidget`**s. **`queen_peek`**: **`DecoratedBox`** border + **`BoxShadow`** on the target slot using **`AppColors.statusQueenPeek`** / **`AppColors.accentColor`** with **`sin(π·t)`** pulse (theme-compliant, no raw hex).
+- Subtree: **`TickerMode` → `RepaintBoundary` → `IgnorePointer` → `Stack`**.
 - Lerp uses **frozen** `from` / `to`; head **`_seq`** must still match **`_runningSeq`** so a new queue head never paints with stale frozen geometry.
-
-### Interpolation
-
-- **Linear** in `left` and `top`: `from + (to - from) * t`.
-- **Width/height** are taken from **`from`** only (no lerp to pile/hand size). If endpoints differ in size, the ghost keeps hand dimensions for the whole flight (minor visual difference vs a scaled card).
 
 ### Supported `action_type` values (overlay)
 
 | Action | From | To | Notes |
 |--------|------|-----|------|
 | **`draw`** | `pileRects['draw']` or `['discard']` if `source == 'discard'` | Hand slot `rectFor(owner, hand_index)` | Face placeholder unless `card` map present. |
-| **`play_card`** | Hand slot for played entry | `pileRects['discard']` | Picks the **`cards`** element that contains a **`card`** map when multiple entries exist (played vs auxiliary index). |
+| **`collect_from_discard`** | `pileRects['discard']` | Hand slot | Same geometry idea as draw-from-discard; dedicated **`action_type`** from the server. |
+| **`play_card`** | Hand slot for played entry | `pileRects['discard']` | Picks the **`cards`** element that contains a **`card`** map when multiple entries exist. |
+| **`same_rank_play`** | Same as **`play_card`** | `pileRects['discard']` | Same resolver branch as **`play_card`**. |
 | **`reposition`** | `rectFor(owner, from_hand_index)` (also **`fromHandIndex`**) | `rectFor(owner, hand_index)` | Needs carry-forward **`"4"`** in runtime when hand UI has four slots. |
+| **`jack_swap`** | Two **`cards`** entries: each **`owner_id` + `hand_index`** | Cross: card A’s slot → B’s slot, B’s slot → A’s slot | Two ghosts, same **`t`**, one controller run. |
+| **`queen_peek`** | — | — | No card flight: **glow** on **`rectFor(owner, hand_index)`** for the peek target (`cards[0]`). |
 
-**Not yet driven by this overlay** (payloads may still be emitted): `same_rank_play`, `collect_from_discard`, `jack_swap`, `queen_peek`, etc. — those remain for a later pass aligned with `dutch-game-initial-peek-state-and-card-animations.md`.
+Other **`action_type`** values are still **unsupported** until added to the overlay’s allowlist and resolver.
+
+### Interpolation
+
+- **Linear** in `left` and `top`: `from + (to - from) * t`.
+- **Width/height** are taken from **`from`** only (no lerp to pile/hand size). If endpoints differ in size, the ghost keeps hand dimensions for the whole flight (minor visual difference vs a scaled card).
 
 ---
 
@@ -200,7 +206,7 @@ Server-side Dart logs (routed into `python_base_04/tools/logger/server.log` in d
 
 ## Known limitations and follow-ups
 
-1. **Action coverage**: Only **draw / play_card / reposition** are implemented in the overlay; other `action_type`s need presets and rects (jack = id-based slots, queen peek, etc.).
+1. **Action coverage**: **draw**, **collect_from_discard**, **play_card**, **same_rank_play**, **reposition**, **jack_swap**, and **queen_peek** are implemented; any new **`action_type`** from the server still needs an overlay branch and allowlist entry.
 2. **Stall skip**: If keys are missing for **> ~24 post-frame retries**, the head job is dropped — can still happen on very slow layout or wrong `owner_id` / index.
 3. **String indices**: `_parseHandIndex` accepts `int`, `num`, and **`String`** (via `int.tryParse`) for robustness.
 4. **Performance**: Ghost uses **`CardWidget`** rebuilt each tick via **`setState`**; a **`RepaintBoundary`** already wraps the flight subtree. If profiles show jank, narrow rebuilds (e.g. **`AnimatedBuilder`** around only the card) or use a lighter flight proxy (`CustomPainter` / simplified decoration).
@@ -219,20 +225,21 @@ Server-side Dart logs (routed into `python_base_04/tools/logger/server.log` in d
 | `flutter_base_05/.../managers/dutch_event_handler_callbacks.dart` | `handleGameAnimation`, `handleGameStateUpdated` game-switch reset guard |
 | `flutter_base_05/.../dutch_game_main.dart` | `animRuntime` reference in default state |
 | `flutter_base_05/.../managers/dutch_event_listener_validator.dart` | `game_animation` schema |
-| `dart_bkend_base_01/.../dutch_game_round.dart` (and related) | **`emitGameAnimation`** payloads for draw / play / reposition |
+| `dart_bkend_base_01/.../dutch_game_round.dart` (and related) | **`emitGameAnimation`** payloads (incl. collect / same_rank / jack / queen) |
 
 ---
 
 ## Next steps (optional product work)
 
-1. Implement overlay branches (or a small strategy map) for **`same_rank_play`**, **`jack_swap`**, **`queen_peek`**, **`collect_from_discard`**, using **`context`** and id-based lookup where required.
-2. Align **`dutch-game-initial-peek-state-and-card-animations.md`** “Animation architecture” checkboxes once those are done.
+1. Further **`action_type`** presets if the server adds more (id-based jack paths, multi-card payloads, etc.).
+2. Align **`dutch-game-initial-peek-state-and-card-animations.md`** “Animation architecture” checkboxes with this overlay.
 3. Add widget/integration tests: enqueue with fake rects, assert dequeue order and no reset on empty→same `gameId` bind.
 
 ---
 
 ## Changelog (this subsystem)
 
+- **Overlay `action_type`**: **`collect_from_discard`** (discard → hand), **`same_rank_play`** (same as play to discard), **`jack_swap`** (two simultaneous card flights), **`queen_peek`** (theme **`AppColors`** glow pulse on target slot, no flight).
 - **Overlay driver**: single **`AnimationController`** + **`addListener` → `setState`** on each tick while the ghost paints + **`AnimationStatus.completed`** post-frame dequeue (replaced prior manual **`Ticker` / `Stopwatch` / flight session** driver that could desync and stall the queue; replaced **`AnimatedBuilder`-only** repaint path that could miss frames under a static **`DutchSliceBuilder`** parent).
 - **Frozen `from`/`to`/model** at flight start so `mergeLayout` during a tween does not bend the path.
 - **Carry-forward hand slot `"4"`** in `mergeLayout` for post-play **`reposition`**.

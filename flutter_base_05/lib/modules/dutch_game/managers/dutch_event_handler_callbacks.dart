@@ -19,7 +19,7 @@ import '../screens/game_play/utils/dutch_anim_runtime.dart';
 class DutchEventHandlerCallbacks {
   /// When true, logs verbose Dutch WS/state paths including payload-size lines for `game_state_updated`.
   /// Enable while tracing initial-peek vs visible table (`[peek-ui-trace]`); set false after.
-  static const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
+  static const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
   static final Logger _logger = Logger();
 
   /// Counter for `game_state_updated` receives (only incremented when LOGGING_SWITCH is true).
@@ -1955,12 +1955,16 @@ When anyone has played a card with the **same rank** as your **collection card**
     // 🎯 CRITICAL: Always ensure currentGameId is set (even for existing games)
     // This is essential for the game play screen to update correctly when match starts
     final currentStateForGameId = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    final existingCurrentGameId = currentStateForGameId['currentGameId']?.toString();
-    if (existingCurrentGameId != gameId) {
+    final existingCurrentGameId = currentStateForGameId['currentGameId']?.toString() ?? '';
+    // Only reset anim queue when switching to a *different* game. If currentGameId is still empty,
+    // `game_animation` may have already enqueued — resetting here would drop those flights (intermittent "no anim").
+    if (existingCurrentGameId.isNotEmpty && existingCurrentGameId != gameId) {
       if (LOGGING_SWITCH) {
-        _logger.info('🔍 handleGameStateUpdated: Updating currentGameId from $existingCurrentGameId to $gameId');
+        _logger.info('🔍 handleGameStateUpdated: Switching game $existingCurrentGameId → $gameId (anim queue reset)');
       }
       DutchAnimRuntime.instance.reset();
+    } else if (LOGGING_SWITCH && existingCurrentGameId != gameId) {
+      _logger.info('🔍 handleGameStateUpdated: Setting currentGameId to $gameId (was empty, anim queue preserved)');
     }
 
     // Entry-fee deduction is server-side (Dart WS → Python) on start_match; do not deduct from the client.

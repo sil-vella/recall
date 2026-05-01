@@ -19,7 +19,7 @@ import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file — set false after test
+const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
 
 /// View model for [UnifiedGameBoardWidget]: no full [games] map so unrelated room/game
 /// entries do not invalidate the subtree. Piles and [boardGameState] come from the current game only.
@@ -214,8 +214,21 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       discardPileKey: _discardPileKey,
     );
     final sig = '${jsonEncode(hands)}|${jsonEncode(piles)}';
-    if (sig == _lastAnimLayoutSignature) return;
+    if (sig == _lastAnimLayoutSignature) {
+      if (LOGGING_SWITCH) {
+        _logger.debug(
+          'DutchAnimLayout: flush skipped (signature unchanged) slotKeys=${slotPathToKey.length}',
+        );
+      }
+      return;
+    }
     _lastAnimLayoutSignature = sig;
+    if (LOGGING_SWITCH) {
+      final sample = slotPathToKey.keys.take(12).join(',');
+      _logger.info(
+        'DutchAnimLayout: flush mergeLayout slotKeys=${slotPathToKey.length} sample=[$sample]',
+      );
+    }
     DutchAnimRuntime.instance.mergeLayout(
       cardPositions: hands,
       pileRects: piles,
@@ -263,8 +276,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               },
             ),
             Positioned.fill(
-              child: DutchCardAnimOverlay(
-                tickerProvider: this,
+              // Opponents / board ancestors may disable tickers; flight overlay has its own [Ticker].
+              child: TickerMode(
+                enabled: true,
+                child: const DutchCardAnimOverlay(),
               ),
             ),
           ],

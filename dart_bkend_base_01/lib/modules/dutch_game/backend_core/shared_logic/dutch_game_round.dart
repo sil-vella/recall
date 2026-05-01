@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -653,7 +653,8 @@ class DutchGameRound {
   /// [actionType]: e.g. draw, play_card, same_rank_play, collect_from_discard, jack_swap,
   /// queen_peek, reposition.
   /// [cards]: maps with owner_id, hand_index (slot in that owner's hand; -1 = drawn area for queen_peek),
-  /// optional card (full map when visibility allows).
+  /// optional card (full map when visibility allows). For `reposition`, include `from_hand_index` (source slot)
+  /// and `hand_index` (destination); optional `card` for the ghost tile.
   /// [context]: optional JSON-safe map (e.g. peeking_player_id for queen_peek).
   void _emitActionAnimation({
     required String actionType,
@@ -3387,14 +3388,15 @@ class DutchGameRound {
         // Even though drawnCard should be cleared at line 1752, defensive sanitization ensures no leaks
         _sanitizeDrawnCardsInGamesMap(currentGames, context: 'reposition');
 
+        final repositionAnimCard = <String, dynamic>{
+          'owner_id': actualPlayerId,
+          'hand_index': cardIndex, // destination slot (played card's index)
+          if (originalIndex != null) 'from_hand_index': originalIndex, // drawn card slot before move (Flutter flight)
+          'card': Map<String, dynamic>.from(drawnCard),
+        };
         _emitActionAnimation(
           actionType: 'reposition',
-          cards: [
-            <String, dynamic>{
-              'owner_id': actualPlayerId,
-              'hand_index': cardIndex,
-            },
-          ],
+          cards: [repositionAnimCard],
         );
 
         _stateCallback.onGameStateChanged({

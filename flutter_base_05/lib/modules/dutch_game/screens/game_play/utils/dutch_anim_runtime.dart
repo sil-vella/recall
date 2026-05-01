@@ -15,7 +15,7 @@ class DutchAnimRuntime extends ChangeNotifier {
   static final DutchAnimRuntime instance = DutchAnimRuntime._();
 
   /// enable-logging-switch.mdc — trace queue / layout / dequeue without StateManager.
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
 
   static const String eventDataKey = 'eventData';
@@ -90,10 +90,32 @@ class DutchAnimRuntime extends ChangeNotifier {
     required Map<String, dynamic> cardPositions,
     Map<String, dynamic>? pileRects,
   }) {
-    final sig = '${jsonEncode(cardPositions)}|${jsonEncode(pileRects ?? _pileRects)}';
-    if (sig == _lastLayoutSignature) return;
+    // After play+draw shrink to 4 visible slots, layout no longer reports index `4`, but
+    // `reposition` anim needs the last rect for the 5th (drawn) slot — carry it forward per player.
+    final mergedPlayers = <String, dynamic>{};
+    for (final e in cardPositions.entries) {
+      final pid = e.key;
+      final incoming = Map<String, dynamic>.from(e.value as Map? ?? {});
+      final prevPm = _cardPositions[pid];
+      if (prevPm is Map<String, dynamic>) {
+        final prev4 = prevPm['4'];
+        if (prev4 != null && !incoming.containsKey('4')) {
+          incoming['4'] = prev4;
+        }
+      }
+      mergedPlayers[pid] = incoming;
+    }
+    final sig = '${jsonEncode(mergedPlayers)}|${jsonEncode(pileRects ?? _pileRects)}';
+    if (sig == _lastLayoutSignature) {
+      if (LOGGING_SWITCH && _eventData.isNotEmpty) {
+        _logger.debug(
+          'DutchAnimRuntime: mergeLayout skipped (unchanged sig) queueLen=${_eventData.length}',
+        );
+      }
+      return;
+    }
     _lastLayoutSignature = sig;
-    _cardPositions = Map<String, dynamic>.from(cardPositions);
+    _cardPositions = mergedPlayers;
     if (pileRects != null) {
       _pileRects = Map<String, dynamic>.from(pileRects);
     }

@@ -9,7 +9,7 @@ import '../../../widgets/dutch_slice_builder.dart';
 /// as an overlay at the bottom of the screen.
 /// Only visible when showInstructions is true and actionText is set in state.
 class ActionTextWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
   
   const ActionTextWidget({Key? key}) : super(key: key);

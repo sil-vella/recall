@@ -1040,7 +1040,7 @@ class MessagesWidget extends StatefulWidget {
 }
 
 class _MessagesWidgetState extends State<MessagesWidget> {
-  static const bool LOGGING_SWITCH = true; // Enabled for winner modal debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for winner modal debugging
   static final Logger _logger = Logger();
 
   /// Immutable snapshot — modal UI reads only this, never live state.

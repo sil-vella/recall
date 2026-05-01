@@ -148,6 +148,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
   }
 
   void _clearAnimGeometry() {
+    _runtime.clearAnimMaskedHandSlots();
     _activePlan = _PlanTag.none;
     _flightFromRect = null;
     _flightToRect = null;
@@ -251,7 +252,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     }
     _stallFrames = 0;
     _runningSeq = seq;
-    _applyPlan(plan);
+    _applyPlan(plan, head as Map<String, dynamic>);
     if (LOGGING_SWITCH) {
       _logger.info('DutchCardAnimOverlay: start flight action=$action seq=$seq plan=${plan.tag}');
     }
@@ -259,7 +260,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     _controller!.forward(from: 0.0);
   }
 
-  void _applyPlan(_AnimPlan plan) {
+  void _applyPlan(_AnimPlan plan, Map<String, dynamic> head) {
     _clearAnimGeometry();
     _activePlan = plan.tag;
     switch (plan.tag) {
@@ -284,6 +285,60 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         break;
       case _PlanTag.none:
         break;
+    }
+    _runtime.setAnimMaskedHandSlots(_handMaskKeysForHead(head, plan));
+  }
+
+  /// Hand slots where the real board card should stay hidden until this tween completes.
+  Set<String> _handMaskKeysForHead(Map<String, dynamic> head, _AnimPlan plan) {
+    final keys = <String>{};
+    final action = head['action_type']?.toString() ?? '';
+    final cards = head['cards'] as List? ?? [];
+
+    switch (plan.tag) {
+      case _PlanTag.linear:
+        if (action == 'play_card' || action == 'same_rank_play') return keys;
+        if (cards.isEmpty) return keys;
+        final c0 = cards.first;
+        if (c0 is! Map) return keys;
+        if (action == 'draw' || action == 'collect_from_discard') {
+          final owner = c0['owner_id']?.toString() ?? '';
+          final hi = _parseHandIndex(c0['hand_index']);
+          if (owner.isNotEmpty && hi != null) {
+            keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
+          }
+        } else if (action == 'reposition') {
+          final owner = c0['owner_id']?.toString() ?? '';
+          final hi = _parseHandIndex(c0['hand_index']);
+          if (owner.isNotEmpty && hi != null) {
+            keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
+          }
+        }
+        return keys;
+      case _PlanTag.jackSwap:
+        if (cards.length < 2) return keys;
+        final c0 = cards[0];
+        final c1 = cards[1];
+        if (c0 is! Map || c1 is! Map) return keys;
+        final o0 = c0['owner_id']?.toString() ?? '';
+        final i0 = _parseHandIndex(c0['hand_index']);
+        final o1 = c1['owner_id']?.toString() ?? '';
+        final i1 = _parseHandIndex(c1['hand_index']);
+        if (o1.isNotEmpty && i1 != null) keys.add(DutchAnimRuntime.handSlotMaskKey(o1, i1));
+        if (o0.isNotEmpty && i0 != null) keys.add(DutchAnimRuntime.handSlotMaskKey(o0, i0));
+        return keys;
+      case _PlanTag.queenPeek:
+        if (cards.isEmpty) return keys;
+        final c0 = cards.first;
+        if (c0 is! Map) return keys;
+        final owner = c0['owner_id']?.toString() ?? '';
+        final hi = _parseHandIndex(c0['hand_index']);
+        if (owner.isNotEmpty && hi != null) {
+          keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
+        }
+        return keys;
+      case _PlanTag.none:
+        return keys;
     }
   }
 
@@ -444,9 +499,10 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final r0 = rectFor(o0, i0);
       final r1 = rectFor(o1, i1);
       if (r0 == null || r1 == null) return null;
+      // Jack swap: always face-down ghosts (no rank/suit from server payload on the flight tiles).
       return _AnimPlan.jackSwap(
-        _CardFlightData(from: r0, to: r1, model: modelFromCardMap(c0)),
-        _CardFlightData(from: r1, to: r0, model: modelFromCardMap(c1)),
+        _CardFlightData(from: r0, to: r1, model: _placeholderFaceDown),
+        _CardFlightData(from: r1, to: r0, model: _placeholderFaceDown),
       );
     }
 
@@ -541,7 +597,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
           card: model,
           dimensions: dims,
           config: CardDisplayConfig.forMyHand(),
-          showBack: !model.hasFullData,
+          showBack: _activePlan == _PlanTag.jackSwap || !model.hasFullData,
           isSelected: false,
         ),
       );

@@ -117,7 +117,7 @@ Uses `RenderBox.localToGlobal` for slot and anchor, subtracts origins, reads `si
 ### Listeners
 
 - **`DutchAnimRuntime.instance.addListener(_onRuntime)`** — on enqueue, dequeue, layout merge, or reset, schedules **`_kick()`** on the next frame (does not assume sync layout).
-- **`AnimationController.addListener(_onAnimTick)`** — on each tick, if **`_shouldPaintFlightGhost()`**, calls **`setState(() {})`** so **`build`** runs with an updated **`controller.value`** (smooth **0 → 1** lerp). Runtime changes still reach **`_kick`** only via **`_onRuntime`**; the controller is **not** merged with `_runtime` in one listenable (see history below).
+- **`AnimationController.addListener(_onAnimTick)`** — on each tick, if **`_shouldPaintAnim()`**, calls **`setState(() {})`** so **`build`** runs with an updated **`controller.value`** (smooth **0 → 1** lerp). Runtime changes still reach **`_kick`** only via **`_onRuntime`**; the controller is **not** merged with `_runtime` in one listenable (see history below).
 - **`AnimationController.addStatusListener`** — on **`AnimationStatus.completed`**, schedules a **post-frame** callback that clears frozen flight rects, calls **`dequeueHead()`**, clears **`_runningSeq`**, **`setState`**, then post-frame **`_kick()`** for the next head (so the last **`t = 1`** frame can paint before cleanup).
 - **`AnimationController`** — duration **420 ms**, **`AnimationBehavior.preserve`**; linear lerp on **`controller.value`** 0→1.
 
@@ -128,6 +128,14 @@ Historically, merging `_runtime` into `Listenable.merge([_controller, _runtime])
 **Current behavior**: **`_controller.addListener(_onAnimTick)`** with **`setState`** when **`_shouldPaintAnim()`** is true guarantees the overlay **`State`’s `build`** runs **every vsync** for the duration of the tween. **`setState`** is also invoked **once** immediately after freezing rects and **before** **`forward(from: 0.0)`** so the first frame at **`t = 0`** is scheduled reliably. The painted stack uses **`TickerMode(enabled: true)`** (belt-and-suspenders with the board’s outer **`TickerMode`** around the overlay) and **`RepaintBoundary`** around the flight to confine repaints.
 
 If profiling shows cost from rebuilding **`CardWidget`** every frame, a follow-up is to **`AnimatedBuilder` wrapping only the positioned `CardWidget`** (still controller-only listenable) or a lighter flight proxy—same tick cadence, smaller **`build`** subtree.
+
+### Hand slot mask (avoid double card before tween ends)
+
+When **`game_state_updated`** lands before a flight completes, the real hand can already show the card at the **destination** slot while the ghost still animates there.
+
+- **`DutchAnimRuntime`** holds **`_animMaskedHandSlots`** (`playerId|handIndex`, same identity as layout slot paths). API: **`handSlotMaskKey`**, **`isAnimMaskedHandSlot`**, **`setAnimMaskedHandSlots`**, **`clearAnimMaskedHandSlots`**, **`handAnimMaskSignature`** (sorted join for cheap equality).
+- **`DutchCardAnimOverlay`** sets slots from the queue head when a plan starts (**destination** hand for draw / collect / reposition; both **to** slots for jack; peek **target**), and clears via **`_clearAnimGeometry`** / completion / **`reset()`**.
+- **`UnifiedGameBoardWidget`** listens to **`DutchAnimRuntime`** but **`setState` only when `handAnimMaskSignature` changes**, so normal **`mergeLayout`** notifies do **not** rebuild the whole board. Masked slots wrap the existing **`CardWidget`** (or collection stack) in **`IgnorePointer` + `Opacity(0)`** so **`GlobalKey`**s and layout are preserved.
 
 ### `_kick()` state machine (simplified)
 
@@ -160,7 +168,7 @@ If profiling shows cost from rebuilding **`CardWidget`** every frame, a follow-u
 | **`play_card`** | Hand slot for played entry | `pileRects['discard']` | Picks the **`cards`** element that contains a **`card`** map when multiple entries exist. |
 | **`same_rank_play`** | Same as **`play_card`** | `pileRects['discard']` | Same resolver branch as **`play_card`**. |
 | **`reposition`** | `rectFor(owner, from_hand_index)` (also **`fromHandIndex`**) | `rectFor(owner, hand_index)` | Needs carry-forward **`"4"`** in runtime when hand UI has four slots. |
-| **`jack_swap`** | Two **`cards`** entries: each **`owner_id` + `hand_index`** | Cross: card A’s slot → B’s slot, B’s slot → A’s slot | Two ghosts, same **`t`**, one controller run. |
+| **`jack_swap`** | Two **`cards`** entries: each **`owner_id` + `hand_index`** | Cross: card A’s slot → B’s slot, B’s slot → A’s slot | Two **face-down** placeholder ghosts (server **`card`** maps are ignored for the flight), same **`t`**, one controller run. |
 | **`queen_peek`** | — | — | No card flight: **glow** on **`rectFor(owner, hand_index)`** for the peek target (`cards[0]`). |
 
 Other **`action_type`** values are still **unsupported** until added to the overlay’s allowlist and resolver.
@@ -239,6 +247,7 @@ Server-side Dart logs (routed into `python_base_04/tools/logger/server.log` in d
 
 ## Changelog (this subsystem)
 
+- **Hand slot mask**: **`DutchAnimRuntime`** + **`UnifiedGameBoardWidget`** hide destination hand **`CardWidget`**s while an overlay tween is active so early **`game_state_updated`** does not double-paint with the ghost.
 - **Overlay `action_type`**: **`collect_from_discard`** (discard → hand), **`same_rank_play`** (same as play to discard), **`jack_swap`** (two simultaneous card flights), **`queen_peek`** (theme **`AppColors`** glow pulse on target slot, no flight).
 - **Overlay driver**: single **`AnimationController`** + **`addListener` → `setState`** on each tick while the ghost paints + **`AnimationStatus.completed`** post-frame dequeue (replaced prior manual **`Ticker` / `Stopwatch` / flight session** driver that could desync and stall the queue; replaced **`AnimatedBuilder`-only** repaint path that could miss frames under a static **`DutchSliceBuilder`** parent).
 - **Frozen `from`/`to`/model** at flight start so `mergeLayout` during a tween does not bend the path.

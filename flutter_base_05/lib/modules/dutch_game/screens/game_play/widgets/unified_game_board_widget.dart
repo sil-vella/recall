@@ -144,6 +144,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Avoid mergeLayout loops when layout post-frame runs repeatedly with same geometry.
   String? _lastAnimLayoutSignature;
 
+  /// Dedupe [DutchAnimRuntime] notifies: only [setState] when [DutchAnimRuntime.handAnimMaskSignature] changes.
+  String _lastAnimHandMaskSig = '';
+
   Map<String, dynamic> _dutchGameState() =>
       StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? const {};
 
@@ -163,6 +166,30 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       parent: _glowAnimationController!,
       curve: Curves.easeInOut,
     ));
+
+    DutchAnimRuntime.instance.addListener(_onAnimRuntimeForHandMask);
+    _lastAnimHandMaskSig = DutchAnimRuntime.instance.handAnimMaskSignature;
+  }
+
+  void _onAnimRuntimeForHandMask() {
+    if (!mounted) return;
+    final sig = DutchAnimRuntime.instance.handAnimMaskSignature;
+    if (sig == _lastAnimHandMaskSig) return;
+    _lastAnimHandMaskSig = sig;
+    setState(() {});
+  }
+
+  /// Hides the real hand card at [playerId]/[handIndex] while [DutchCardAnimOverlay] masks that slot.
+  Widget _wrapHandSlotAnimMask(String playerId, int handIndex, Widget child) {
+    if (DutchAnimRuntime.instance.isAnimMaskedHandSlot(playerId, handIndex)) {
+      return IgnorePointer(
+        child: Opacity(
+          opacity: 0,
+          child: child,
+        ),
+      );
+    }
+    return child;
   }
 
   void _scheduleAnimLayoutReport() {
@@ -237,6 +264,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   @override
   void dispose() {
+    DutchAnimRuntime.instance.removeListener(_onAnimRuntimeForHandMask);
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
     _myHandResizeDelayTimer?.cancel();
@@ -971,7 +999,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               cardWidgets.add(
                 Padding(
                   padding: EdgeInsets.only(right: cardPadding),
-                  child: stackWidget,
+                  child: _wrapHandSlotAnimMask(playerId, index, stackWidget),
                 ),
               );
             }
@@ -988,7 +1016,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               padding: EdgeInsets.only(
                 right: cardPadding,
               ),
-              child: cardWidget,
+              child: _wrapHandSlotAnimMask(playerId, index, cardWidget),
             ),
           );
         }
@@ -2530,7 +2558,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   padding: EdgeInsets.only(
                     right: cardPadding,
                   ),
-                  child: stackWidget,
+                  child: _wrapHandSlotAnimMask(_getCurrentUserId(), index, stackWidget),
                 ),
               );
             }
@@ -2560,7 +2588,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   padding: EdgeInsets.only(
                     right: cardPadding,
                   ),
-                  child: cardWidget,
+                  child: _wrapHandSlotAnimMask(playerId, index, cardWidget),
                 ),
               );
             }

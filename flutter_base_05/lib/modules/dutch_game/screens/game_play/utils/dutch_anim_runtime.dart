@@ -9,7 +9,8 @@ import '../../../../../tools/logging/logger.dart';
 ///
 /// Registered once on `dutch_game['animRuntime']` for discovery/debug only — **do not** replace
 /// that key in patches. At anim time, read [DutchAnimRuntime.instance] directly (or from module
-/// state reference). Only the anim overlay should [addListener] on this object.
+/// state reference). The anim overlay and [UnifiedGameBoardWidget] may [addListener]; the board
+/// should dedupe using [handAnimMaskSignature] so [mergeLayout] does not cause redundant rebuilds.
 class DutchAnimRuntime extends ChangeNotifier {
   DutchAnimRuntime._();
   static final DutchAnimRuntime instance = DutchAnimRuntime._();
@@ -31,6 +32,40 @@ class DutchAnimRuntime extends ChangeNotifier {
   int _cardPositionsVersion = 0;
   String? _lastLayoutSignature;
 
+  /// Hand slots (`playerId|handIndex`) whose real [CardWidget] should not paint during an
+  /// in-flight overlay tween (see [DutchCardAnimOverlay]). Same keys as layout slot paths.
+  final Set<String> _animMaskedHandSlots = {};
+
+  /// Mask key for [isAnimMaskedHandSlot]; matches layout `'$playerId|$handIndex'`.
+  static String handSlotMaskKey(String playerId, int handIndex) => '$playerId|$handIndex';
+
+  bool isAnimMaskedHandSlot(String playerId, int handIndex) =>
+      _animMaskedHandSlots.contains(handSlotMaskKey(playerId, handIndex));
+
+  /// For listeners that should rebuild only when the mask set changes (not on every [mergeLayout]).
+  String get handAnimMaskSignature {
+    if (_animMaskedHandSlots.isEmpty) return '';
+    final sorted = _animMaskedHandSlots.toList()..sort();
+    return sorted.join(',');
+  }
+
+  void setAnimMaskedHandSlots(Set<String> keys) {
+    final next = Set<String>.from(keys);
+    if (_animMaskedHandSlots.length == next.length && _animMaskedHandSlots.containsAll(next)) {
+      return;
+    }
+    _animMaskedHandSlots
+      ..clear()
+      ..addAll(next);
+    notifyListeners();
+  }
+
+  void clearAnimMaskedHandSlots() {
+    if (_animMaskedHandSlots.isEmpty) return;
+    _animMaskedHandSlots.clear();
+    notifyListeners();
+  }
+
   /// Snapshot compatible with previous [animState] map shape (read-only copy).
   Map<String, dynamic> snapshotForAnim() {
     return <String, dynamic>{
@@ -49,6 +84,7 @@ class DutchAnimRuntime extends ChangeNotifier {
     _eventSeq = 0;
     _cardPositionsVersion = 0;
     _lastLayoutSignature = null;
+    _animMaskedHandSlots.clear();
     if (LOGGING_SWITCH) {
       _logger.info('DutchAnimRuntime: reset (queue + layout cleared)');
     }

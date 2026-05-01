@@ -18,7 +18,7 @@
 
 - [x] **Initial peek / game state**: Fix ordering so **state does not transition past “awaiting initial peek”** until peek is complete (client + server if applicable). Verify spinner → peek UI → only then allow draw / current-player turn. Trace: game info widget, Dutch game state machine / WebSocket payloads, and any optimistic UI that assumes “playing” too early. ✅ **Done**
 - [x] **`game_animation` SSOT (emit only, all actions)**:
-  - [x] Dart backend + mirrored `flutter_base_05` round: **`emitGameAnimation`** before the matching state push; payload: `action_type`, optional `source`, `cards[]` (`owner_id`, `card_id`, optional `card`), optional `context` (e.g. queen/jack).
+  - [x] Dart backend + mirrored `flutter_base_05` round: **`emitGameAnimation`** before the matching state push; payload: `action_type`, optional `source`, `cards[]` (`owner_id`, `hand_index`, optional `card`; queen peek uses `hand_index: -1` when the target is `drawnCard` only), optional `context` (e.g. queen/jack).
   - [x] Actions covered: **`draw`** (deck/discard privacy as before), **`play_card`** + **`reposition`** when drawn card moves), **`same_rank_play`**, **`collect_from_discard`**, **`jack_swap`**, **`queen_peek`** (id-only card on room emit; full card still STEP 2 for peeker).
   - [x] Flutter: `game_animation` in event validator + **`handleGameAnimation`** log (incl. `context` keys). `turn_events` unchanged for backward compatibility.
 - [ ] **Animation architecture (generic)** — *drive from `game_animation` + state, not only `turn_events`*:

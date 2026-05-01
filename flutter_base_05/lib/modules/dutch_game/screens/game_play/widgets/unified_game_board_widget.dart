@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
@@ -6,6 +7,9 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../widgets/dutch_slice_builder.dart';
+import '../utils/dutch_anim_layout_reporter.dart';
+import '../utils/dutch_anim_runtime.dart';
+import 'dutch_card_anim_overlay.dart';
 import 'player_status_chip_widget.dart';
 import 'circular_timer_widget.dart';
 import '../../../managers/player_action.dart';
@@ -132,6 +136,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// GlobalKey for discard pile section
   final GlobalKey _discardPileKey = GlobalKey(debugLabel: 'discard_pile_section');
 
+  /// Anchor for anim rects ([DutchAnimRuntime] card positions / overlay are in this box's coordinates).
+  final GlobalKey _animStackAnchorKey = GlobalKey(debugLabel: 'anim_stack_anchor');
+
+  bool _animLayoutCommitScheduled = false;
+
+  /// Avoid mergeLayout loops when layout post-frame runs repeatedly with same geometry.
+  String? _lastAnimLayoutSignature;
+
   Map<String, dynamic> _dutchGameState() =>
       StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? const {};
 
@@ -153,6 +165,63 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     ));
   }
 
+  void _scheduleAnimLayoutReport() {
+    final d = StateManager().getModuleState<Map<String, dynamic>>('dutch_game');
+    final currentGameId = d?['currentGameId']?.toString() ?? '';
+    if (currentGameId.isEmpty) {
+      _lastAnimLayoutSignature = null;
+      return;
+    }
+    if (_animLayoutCommitScheduled) return;
+    _animLayoutCommitScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _animLayoutCommitScheduled = false;
+      if (!mounted) return;
+      final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game');
+      if (dutch == null) return;
+      final board = _unifiedBoardViewSlice(dutch);
+      _flushAnimLayoutReport(board);
+    });
+  }
+
+  void _flushAnimLayoutReport(Map<String, dynamic> board) {
+    if (_animStackAnchorKey.currentContext == null) return;
+    final uid = _getCurrentUserId();
+    final slotPathToKey = <String, GlobalKey>{};
+    final myHand = board['myHand'] as Map<String, dynamic>? ?? {};
+    final cards = myHand['cards'] as List<dynamic>? ?? [];
+    for (int i = 0; i < cards.length; i++) {
+      final mapKey = 'my_hand_${uid}_$i';
+      final g = _cardKeys[mapKey];
+      if (g != null) slotPathToKey['$uid|$i'] = g;
+    }
+    final players = (board['boardGameState'] as Map<String, dynamic>? ?? {})['players'] as List<dynamic>? ?? [];
+    for (final p in players) {
+      if (p is! Map<String, dynamic>) continue;
+      final pid = p['id']?.toString() ?? '';
+      if (pid.isEmpty || pid == uid) continue;
+      final hand = p['hand'] as List<dynamic>? ?? [];
+      for (int i = 0; i < hand.length; i++) {
+        final mapKey = 'opponent_${pid}_$i';
+        final g = _cardKeys[mapKey];
+        if (g != null) slotPathToKey['$pid|$i'] = g;
+      }
+    }
+    final hands = DutchAnimLayoutReporter.captureHandSlots(_animStackAnchorKey, slotPathToKey);
+    final piles = DutchAnimLayoutReporter.capturePiles(
+      _animStackAnchorKey,
+      drawPileKey: _drawPileKey,
+      discardPileKey: _discardPileKey,
+    );
+    final sig = '${jsonEncode(hands)}|${jsonEncode(piles)}';
+    if (sig == _lastAnimLayoutSignature) return;
+    _lastAnimLayoutSignature = sig;
+    DutchAnimRuntime.instance.mergeLayout(
+      cardPositions: hands,
+      pileRects: piles,
+    );
+  }
+
   @override
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
@@ -171,7 +240,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       selector: _unifiedBoardViewSlice,
       builder: (context, board, child) {
         _maybeResetLocalPlayFlagsForPhaseEntry(board);
+        _scheduleAnimLayoutReport();
         return Stack(
+          key: _animStackAnchorKey,
           clipBehavior: Clip.none,
           children: [
             LayoutBuilder(
@@ -190,6 +261,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   ],
                 );
               },
+            ),
+            Positioned.fill(
+              child: DutchCardAnimOverlay(
+                tickerProvider: this,
+              ),
             ),
           ],
         );
@@ -2501,10 +2577,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  String _getCurrentUserId() {
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    return loginState['userId']?.toString() ?? '';
-  }
+  /// Same identity as [DutchEventHandlerCallbacks.getCurrentUserId]: session/socket id in
+  /// multiplayer (matches `players[].id` and `game_animation` `owner_id`), practice session id
+  /// in practice mode — **not** login Mongo `userId`. Required so anim layout keys match runtime rects.
+  String _getCurrentUserId() => DutchEventHandlerCallbacks.getCurrentUserId();
 
   /// Get current user's status from the same source as PlayerStatusChip
   /// This ensures consistency between status chip and card lighting

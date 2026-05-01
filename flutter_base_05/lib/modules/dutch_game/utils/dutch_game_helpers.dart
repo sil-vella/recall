@@ -15,6 +15,7 @@ import '../backend_core/services/game_registry.dart';
 import '../practice/practice_mode_bridge.dart';
 import '../managers/game_coordinator.dart';
 import '../backend_core/utils/level_matcher.dart';
+import '../screens/game_play/utils/dutch_anim_runtime.dart';
 
 /// Convenient helper methods for dutch game operations
 /// Provides type-safe, validated methods for common game actions
@@ -1229,6 +1230,7 @@ class DutchGameHelpers {
         updates['discardPile'] = <Map<String, dynamic>>[];
         updates['drawPileCount'] = 0;
         updates['turn_events'] = <Map<String, dynamic>>[];
+        DutchAnimRuntime.instance.reset();
         
         // Clear round information
         updates['roundNumber'] = 0;
@@ -1289,7 +1291,7 @@ class DutchGameHelpers {
         'discardPile': <Map<String, dynamic>>[],
         'drawPileCount': 0,
         
-        // Clear turn events and animation data
+        // Clear turn events (animation queue: [DutchAnimRuntime.instance.reset] below)
         'turn_events': <Map<String, dynamic>>[],
         
         // Clear messages state (including modal state)
@@ -1327,7 +1329,8 @@ class DutchGameHelpers {
           'isLoadingGames': false,
         },
       });
-      
+      DutchAnimRuntime.instance.reset();
+
       if (LOGGING_SWITCH) {
         _logger.info('✅ DutchGameHelpers: Game state cleared successfully');
       }
@@ -1381,6 +1384,7 @@ class DutchGameHelpers {
         'joinedGames': <Map<String, dynamic>>[],
         'totalJoinedGames': 0,
       });
+      DutchAnimRuntime.instance.reset();
       if (LOGGING_SWITCH) {
         _logger.info('🧹 DutchGameHelpers: Synchronously cleared currentGameId, games, joinedGames');
       }

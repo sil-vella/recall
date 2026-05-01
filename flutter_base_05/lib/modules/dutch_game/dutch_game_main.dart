@@ -15,6 +15,7 @@ import '../dutch_game/managers/dutch_module_manager.dart';
 import '../dutch_game/managers/dutch_event_manager.dart';
 import '../dutch_game/managers/dutch_game_state_updater.dart';
 import '../dutch_game/utils/dutch_game_helpers.dart';
+import '../dutch_game/screens/game_play/utils/dutch_anim_runtime.dart';
 import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
 import '../../screens/admin_dashboard_screen/admin_dashboard_screen.dart';
 import '../../screens/coin_purchase_screen/coin_purchase_screen.dart';
@@ -178,6 +179,9 @@ class DutchGameMain extends ModuleBase {
           
           // Turn events for animation type hints
           'turn_events': <Map<String, dynamic>>[],
+
+          // Stable ref for discovery/debug only — anim queue/rects live in [DutchAnimRuntime.instance], not StateManager.
+          'animRuntime': DutchAnimRuntime.instance,
           
           // Metadata
           // Removed lastUpdated - causes unnecessary state updates

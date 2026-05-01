@@ -12,6 +12,7 @@ import '../backend_core/utils/dutch_rank_level_change_checker.dart';
 import '../utils/game_instructions_provider.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
 import '../screens/demo/demo_action_handler.dart';
+import '../screens/game_play/utils/dutch_anim_runtime.dart';
 
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
@@ -1564,9 +1565,25 @@ When anyone has played a card with the **same rank** as your **collection card**
       final keys = ctx.keys.map((k) => k.toString()).join(',');
       ctxBrief = keys.isEmpty ? '' : ' context_keys=$keys';
     }
-    _logger.info(
-      '🎬 game_animation RECV gameId=$gameId action_type=$actionType${source.isNotEmpty ? ' source=$source' : ''} cards=$n$ctxBrief',
-    );
+    String handIdxBrief = '';
+    if (cards is List) {
+      final parts = <String>[];
+      for (final e in cards) {
+        if (e is Map) {
+          final hi = e['hand_index'];
+          if (hi != null) parts.add(hi.toString());
+        }
+      }
+      if (parts.isNotEmpty) {
+        handIdxBrief = ' hand_index=[${parts.join(',')}]';
+      }
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '🎬 game_animation RECV gameId=$gameId action_type=$actionType${source.isNotEmpty ? ' source=$source' : ''} cards=$n$handIdxBrief$ctxBrief',
+      );
+    }
+    DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));
   }
 
   /// Handle game_state_updated event
@@ -1695,8 +1712,8 @@ When anyone has played a card with the **same rank** as your **collection card**
     final consolidatedMainStatePatch = <String, dynamic>{};
     
     final wasNewGame = !currentGames.containsKey(gameId);
-    
     if (wasNewGame) {
+      DutchAnimRuntime.instance.reset();
       // 🎯 CRITICAL: Only one game should exist in the games map at a time
       // Remove all other games when adding a new game
       if (currentGames.isNotEmpty) {
@@ -1943,6 +1960,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (LOGGING_SWITCH) {
         _logger.info('🔍 handleGameStateUpdated: Updating currentGameId from $existingCurrentGameId to $gameId');
       }
+      DutchAnimRuntime.instance.reset();
     }
 
     // Entry-fee deduction is server-side (Dart WS → Python) on start_match; do not deduct from the client.

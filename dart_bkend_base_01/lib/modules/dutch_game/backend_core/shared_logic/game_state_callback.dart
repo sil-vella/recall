@@ -30,8 +30,8 @@ abstract class GameStateCallback {
   /// [broadcastGameStateExcept] / [sendGameStateToPlayer] so clients receive
   /// `game_animation` before the matching `game_state_updated`.
   ///
-  /// [payload] should include at least `action_type`, `source`, and `cards`
-  /// (see Dutch game round draw path).
+  /// [payload] should include at least `action_type`, optional `source`, and `cards`
+  /// (each card: `owner_id`, `hand_index`, optional `card`; see Dutch game round).
   void emitGameAnimation(Map<String, dynamic> payload);
 
   /// Notify that discard pile has been updated

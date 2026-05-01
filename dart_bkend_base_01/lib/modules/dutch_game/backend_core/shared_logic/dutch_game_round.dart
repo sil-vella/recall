@@ -652,7 +652,8 @@ class DutchGameRound {
   ///
   /// [actionType]: e.g. draw, play_card, same_rank_play, collect_from_discard, jack_swap,
   /// queen_peek, reposition.
-  /// [cards]: maps with owner_id, card_id, optional card (full map when visibility allows).
+  /// [cards]: maps with owner_id, hand_index (slot in that owner's hand; -1 = drawn area for queen_peek),
+  /// optional card (full map when visibility allows).
   /// [context]: optional JSON-safe map (e.g. peeking_player_id for queen_peek).
   void _emitActionAnimation({
     required String actionType,
@@ -2284,7 +2285,7 @@ class DutchGameRound {
 
       final drawAnimCard = <String, dynamic>{
         'owner_id': actualPlayerId,
-        'card_id': drawnCardId,
+        'hand_index': drawnCardIndex,
       };
       if (source == 'discard') {
         drawAnimCard['card'] = Map<String, dynamic>.from(drawnCard);
@@ -2830,7 +2831,7 @@ class DutchGameRound {
         cards: [
           {
             'owner_id': playerId,
-            'card_id': collectedCardId,
+            'hand_index': firstCollectionIndex,
             'card': Map<String, dynamic>.from(collectedCard),
           },
         ],
@@ -3144,21 +3145,31 @@ class DutchGameRound {
         _logger.info('🎬 ACTION_DATA: Added play_card action to queue for player $actualPlayerId - card1Data: {cardIndex: $cardIndex, playerId: $actualPlayerId}');
       }
 
-      final playAnimCards = <Map<String, dynamic>>[
-        {
-          'owner_id': actualPlayerId,
-          'card_id': cardId,
-          'card': Map<String, dynamic>.from(cardToPlayFullData),
-        },
-      ];
+      int? drawnInHandIndex;
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         final rid = drawnCard['cardId']?.toString() ?? '';
         if (rid.isNotEmpty) {
-          playAnimCards.add(<String, dynamic>{
-            'owner_id': actualPlayerId,
-            'card_id': rid,
-          });
+          for (int i = 0; i < hand.length; i++) {
+            final c = hand[i];
+            if (c is Map && c['cardId']?.toString() == rid) {
+              drawnInHandIndex = i;
+              break;
+            }
+          }
         }
+      }
+      final playAnimCards = <Map<String, dynamic>>[
+        {
+          'owner_id': actualPlayerId,
+          'hand_index': cardIndex,
+          'card': Map<String, dynamic>.from(cardToPlayFullData),
+        },
+      ];
+      if (drawnInHandIndex != null) {
+        playAnimCards.add(<String, dynamic>{
+          'owner_id': actualPlayerId,
+          'hand_index': drawnInHandIndex,
+        });
       }
       _emitActionAnimation(actionType: 'play_card', cards: playAnimCards);
 
@@ -3376,18 +3387,15 @@ class DutchGameRound {
         // Even though drawnCard should be cleared at line 1752, defensive sanitization ensures no leaks
         _sanitizeDrawnCardsInGamesMap(currentGames, context: 'reposition');
 
-        final repositionCardId = drawnCardIdOnly['cardId']?.toString() ?? '';
-        if (repositionCardId.isNotEmpty) {
-          _emitActionAnimation(
-            actionType: 'reposition',
-            cards: [
-              <String, dynamic>{
-                'owner_id': actualPlayerId,
-                'card_id': repositionCardId,
-              },
-            ],
-          );
-        }
+        _emitActionAnimation(
+          actionType: 'reposition',
+          cards: [
+            <String, dynamic>{
+              'owner_id': actualPlayerId,
+              'hand_index': cardIndex,
+            },
+          ],
+        );
 
         _stateCallback.onGameStateChanged({
           'games': currentGames, // Games map with repositioned hand (drawnCard sanitized)
@@ -3786,7 +3794,7 @@ class DutchGameRound {
         cards: [
           {
             'owner_id': playerId,
-            'card_id': cardIdForRest,
+            'hand_index': cardIndexForRest,
             'card': Map<String, dynamic>.from(playedCardFullData),
           },
         ],
@@ -4112,12 +4120,12 @@ class DutchGameRound {
         cards: [
           {
             'owner_id': firstPlayerId,
-            'card_id': firstCardId,
+            'hand_index': firstCardIndex,
             'card': Map<String, dynamic>.from(firstCardFullData),
           },
           {
             'owner_id': secondPlayerId,
-            'card_id': secondCardId,
+            'hand_index': secondCardIndex,
             'card': Map<String, dynamic>.from(secondCardFullData),
           },
         ],
@@ -4388,7 +4396,7 @@ class DutchGameRound {
         cards: [
           <String, dynamic>{
             'owner_id': targetPlayerId,
-            'card_id': targetCardId,
+            'hand_index': targetCardIndex,
           },
         ],
         context: {

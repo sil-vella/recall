@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../../core/managers/state_manager.dart';
 import '../../../../../../utils/consts/theme_consts.dart';
+import '../../../managers/dutch_event_handler_callbacks.dart';
 
 /// Unified Player Status Chip Widget
 /// 
@@ -49,11 +50,16 @@ class PlayerStatusChip extends StatelessWidget {
   String _getPlayerStatusFromState() {
     final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     
-    // Check if this is the current user (the actual user playing the game)
+    // Local player id in game state is session/socket id (MP) or practice session id — same as
+    // [DutchEventHandlerCallbacks.getCurrentUserId]. Login Mongo userId alone does not match
+    // [UnifiedGameBoardWidget] / anim payloads when multiplayer.
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
+    final loginUserId = loginState['userId']?.toString() ?? '';
+    final gamePlayerId = DutchEventHandlerCallbacks.getCurrentUserId();
+    final isLocalPlayer = playerId.isNotEmpty &&
+        (playerId == gamePlayerId || playerId == loginUserId);
     
-    if (playerId == currentUserId) {
+    if (isLocalPlayer) {
       // This is the current user - get status from myHand slice (computed from SSOT)
       final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
       return myHand['playerStatus']?.toString() ?? 'unknown';

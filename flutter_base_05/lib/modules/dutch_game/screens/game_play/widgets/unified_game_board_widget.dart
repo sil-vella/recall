@@ -21,6 +21,11 @@ import '../../demo/demo_functionality.dart';
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
 const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
 
+/// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
+const double _kHudRingOuter = 34.0;
+const double _kHudRingStroke = 3.0;
+const double _kHudAvatarInRing = _kHudRingOuter - 2 * _kHudRingStroke - 2.0;
+
 /// Where profile + timer HUD sits relative to **logical hand index 0** (slightly outside the card).
 enum _HandHudCorner {
   myHandTopLeft,
@@ -581,33 +586,35 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       final ids = ctx.buckets.top.map((e) => e['id']?.toString() ?? '?').join(',');
       _logger.info(
         '[OppWidgets] _buildTopOppStrip building Row n=${ctx.buckets.top.length} topPlayerIds=[$ids] '
-        '(Row crossAxisAlignment.start + Expanded per slot; no IntrinsicHeight — avoids zero-height intrinsic pass)',
+        '(Center + Row mainAxisSize.min; intrinsic width per seat)',
       );
     }
-    // Avoid [IntrinsicHeight] + [Row] + [Expanded]: it can collapse height for descendants that use
-    // [LayoutBuilder] + [Column] (opponent panel). [Row] height = max of children; [start] aligns tops.
+    // Center the top opponent row as a group (intrinsic width per seat; no [Expanded] stretch).
     return SizedBox(
       width: double.infinity,
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: ctx.buckets.top
-              .map(
-                (p) => Expanded(
-                  child: _paddedOpponentSlot(
-                    board,
-                    p,
-                    ctx.cardsToPeek,
-                    ctx.currentTurnIndex,
-                    ctx.isGameActive,
-                    ctx.playerStatus,
-                    ctx.opponents,
-                    CardTableOrientation.portraitDown,
-                  ),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (int i = 0; i < ctx.buckets.top.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                _paddedOpponentSlot(
+                  board,
+                  ctx.buckets.top[i],
+                  ctx.cardsToPeek,
+                  ctx.currentTurnIndex,
+                  ctx.isGameActive,
+                  ctx.playerStatus,
+                  ctx.opponents,
+                  CardTableOrientation.portraitDown,
                 ),
-              )
-              .toList(),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -769,7 +776,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
-      child: sideColumnOpp ? Center(child: panel) : panel,
+      child: sideColumnOpp
+          ? Align(
+              alignment: cardTableOrientation == CardTableOrientation.landscapeFromRight
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
+              child: panel,
+            )
+          : panel,
     );
   }
 
@@ -867,38 +881,65 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // For timer color, always get the status chip color (including same_rank_window)
     final timerColor = _getStatusChipColor(playerStatus);
 
-    final Alignment cardAlignment = Alignment.centerLeft;
-    final MainAxisAlignment nameAlignment = MainAxisAlignment.start;
-    final CrossAxisAlignment columnAlignment = CrossAxisAlignment.start;
+    late final Alignment cardAlignment;
+    late final MainAxisAlignment nameAlignment;
+    late final CrossAxisAlignment columnAlignment;
     final MainAxisAlignment columnMainAlignment = MainAxisAlignment.start;
+    switch (cardTableOrientation) {
+      case CardTableOrientation.portraitDown:
+        cardAlignment = Alignment.center;
+        nameAlignment = MainAxisAlignment.center;
+        columnAlignment = CrossAxisAlignment.center;
+        break;
+      case CardTableOrientation.landscapeFromRight:
+        cardAlignment = Alignment.centerRight;
+        nameAlignment = MainAxisAlignment.end;
+        columnAlignment = CrossAxisAlignment.end;
+        break;
+      case CardTableOrientation.landscapeFromLeft:
+        cardAlignment = Alignment.centerLeft;
+        nameAlignment = MainAxisAlignment.start;
+        columnAlignment = CrossAxisAlignment.start;
+        break;
+      case CardTableOrientation.portraitUp:
+        cardAlignment = Alignment.centerLeft;
+        nameAlignment = MainAxisAlignment.start;
+        columnAlignment = CrossAxisAlignment.start;
+        break;
+    }
 
     final Widget? opponentHandHudBar = hand.isEmpty
         ? null
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildPlayerProfilePicture(
-                player['id']?.toString() ?? '',
-                profilePictureUrl: player['profile_picture']?.toString(),
-              ),
-              const SizedBox(width: 8),
-              if (hasCalledDutch) ...[
-                Icon(Icons.flag, size: 16, color: AppColors.errorColor),
-                const SizedBox(width: 4),
-              ],
-              if (isCurrentTurn && !isCurrentPlayer) ...[
-                Icon(Icons.play_arrow, size: 16, color: AppColors.accentColor2),
-                const SizedBox(width: 4),
-              ],
-              if (shouldShowTimer) ...[
-                const SizedBox(width: 6),
+              if (shouldShowTimer)
                 CircularTimerWidget(
                   key: ValueKey('timer_${player['id']}_${playerStatus}'),
                   durationSeconds: effectiveTimer,
-                  size: 28.0,
+                  size: _kHudRingOuter,
+                  strokeWidth: _kHudRingStroke,
                   color: timerColor,
                   backgroundColor: AppColors.surfaceVariant,
+                  centerChild: _buildPlayerProfilePicture(
+                    player['id']?.toString() ?? '',
+                    profilePictureUrl: player['profile_picture']?.toString(),
+                    diameter: _kHudAvatarInRing,
+                  ),
+                )
+              else
+                _buildPlayerProfilePicture(
+                  player['id']?.toString() ?? '',
+                  profilePictureUrl: player['profile_picture']?.toString(),
                 ),
+              if (hasCalledDutch || (isCurrentTurn && !isCurrentPlayer)) ...[
+                const SizedBox(width: 8),
+                if (hasCalledDutch) ...[
+                  Icon(Icons.flag, size: 16, color: AppColors.errorColor),
+                  if (isCurrentTurn && !isCurrentPlayer) const SizedBox(width: 4),
+                ],
+                if (isCurrentTurn && !isCurrentPlayer)
+                  Icon(Icons.play_arrow, size: 16, color: AppColors.accentColor2),
               ],
             ],
           );
@@ -1209,10 +1250,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           cardWidgets = cardWidgets.reversed.toList();
         }
 
+        // Top strip (portraitDown): same as right column — visual order so index 0 sits toward the center board.
+        if (!sideColumnVerticalHand &&
+            cardTableOrientation == CardTableOrientation.portraitDown) {
+          cardWidgets = cardWidgets.reversed.toList();
+        }
+
         if (sideColumnVerticalHand) {
+          final handCross = cardTableOrientation == CardTableOrientation.landscapeFromRight
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start;
           return Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: handCross,
             children: [
               for (int i = 0; i < cardWidgets.length; i++) ...[
                 if (i > 0) SizedBox(height: slotGap),
@@ -1223,6 +1273,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         }
 
         return Wrap(
+          alignment: cardTableOrientation == CardTableOrientation.portraitDown
+              ? WrapAlignment.center
+              : WrapAlignment.start,
           spacing: 0,
           runSpacing: slotGap,
           children: cardWidgets,
@@ -2331,18 +2384,24 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildPlayerProfilePicture(
-                _getCurrentUserId(),
-                profilePictureUrl: currentUserProfilePicture,
-              ),
-              const SizedBox(width: 8),
               if (playerStatus != 'waiting')
                 CircularTimerWidget(
                   key: ValueKey('timer_myhand_${playerStatus}'),
                   durationSeconds: turnTimeLimit,
-                  size: 28.0,
+                  size: _kHudRingOuter,
+                  strokeWidth: _kHudRingStroke,
                   color: timerColor,
                   backgroundColor: AppColors.surfaceVariant,
+                  centerChild: _buildPlayerProfilePicture(
+                    _getCurrentUserId(),
+                    profilePictureUrl: currentUserProfilePicture,
+                    diameter: _kHudAvatarInRing,
+                  ),
+                )
+              else
+                _buildPlayerProfilePicture(
+                  _getCurrentUserId(),
+                  profilePictureUrl: currentUserProfilePicture,
                 ),
             ],
           );
@@ -2551,7 +2610,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             final cardDimensions = CardDimensions.getUnifiedDimensions();
             final cardHeight = cardDimensions.height;
             final stackOffset = CardDimensions.getUnifiedStackOffset();
-            final int totalSlotCount = cards.length + 1;
             final cardPadding = widthForSizing * 0.02;
 
             Widget applyMyFirstCardHud(int index, Widget slotContent) {
@@ -2806,9 +2864,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             }
           }
 
-          // Leading spacer: one card width + margin (same as each card slot) so it stays in sync with card sizing
-          final leadingSlotWidth = cardDimensions.width + cardPadding;
-          final totalRowWidth = totalSlotCount * (cardDimensions.width + cardPadding);
+          final slotStride = cardDimensions.width + cardPadding;
+          final totalRowWidth =
+              cardWidgets.isEmpty ? 0.0 : cardWidgets.length * slotStride;
           // Use at least container width so Center can center the row when it's narrower (e.g. after resize)
           final rowContainerWidth = totalRowWidth < containerWidth ? containerWidth : totalRowWidth;
           final rowWidget = SingleChildScrollView(
@@ -2818,10 +2876,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               child: Center(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(width: leadingSlotWidth),
-                    ...cardWidgets,
-                  ],
+                  children: cardWidgets,
                 ),
               ),
             ),
@@ -3214,10 +3269,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Shows user's profile picture if available, otherwise shows default icon
   /// [playerId] The player's session ID
   /// [profilePictureUrl] Optional profile picture URL (for opponents from player data)
-  Widget _buildPlayerProfilePicture(String playerId, {String? profilePictureUrl}) {
-    // Status chip small size: padding (2*2=4px) + icon (12px) + text (~10px) ≈ 18-20px
-    // 1.5x = ~27-30px, using 28px for a nice round number
-    const double profilePictureSize = 28.0;
+  /// [diameter] Circle size; use [_kHudAvatarInRing] when nested inside [CircularTimerWidget].
+  Widget _buildPlayerProfilePicture(String playerId, {String? profilePictureUrl, double diameter = 28.0}) {
+    final double profilePictureSize = diameter;
     
     // Get profile picture URL from game_state (SSOT) if not provided
     if (profilePictureUrl == null || profilePictureUrl.isEmpty) {

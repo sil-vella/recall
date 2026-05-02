@@ -1,23 +1,30 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 /// Circular Timer Widget
-/// 
-/// Displays a circular progress indicator that counts down from a specified duration.
+///
+/// Displays a circular progress ring that counts down from a specified duration.
+/// Optionally wraps [centerChild] (e.g. profile avatar) so the ring reads as a border.
 /// The timer automatically starts when the widget is built and resets when the duration changes.
 class CircularTimerWidget extends StatefulWidget {
   final int durationSeconds;
   final double size;
+  final double strokeWidth;
   final Color? color;
   final Color? backgroundColor;
+  /// When set, drawn behind the ring (e.g. avatar). Ring stroke remains visible around it.
+  final Widget? centerChild;
 
   const CircularTimerWidget({
     Key? key,
     required this.durationSeconds,
     this.size = 20.0,
+    this.strokeWidth = 3.0,
     this.color,
     this.backgroundColor,
+    this.centerChild,
   }) : super(key: key);
 
   @override
@@ -89,39 +96,43 @@ class _CircularTimerWidgetState extends State<CircularTimerWidget> {
         : 0.0;
     final color = widget.color ?? AppColors.accentColor2;
     final backgroundColor = widget.backgroundColor ?? AppColors.surfaceVariant;
+    final sw = widget.strokeWidth;
+    final inner = math.max(0.0, widget.size - 2 * sw - 2);
 
     return SizedBox(
       width: widget.size,
       height: widget.size,
       child: Stack(
         alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
-          // Background circle
-          Container(
-            width: widget.size,
-            height: widget.size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: backgroundColor,
+          if (widget.centerChild == null)
+            Container(
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: backgroundColor,
+              ),
             ),
-          ),
-          // Progress indicator
           SizedBox(
             width: widget.size,
             height: widget.size,
             child: CircularProgressIndicator(
               value: progress,
-              strokeWidth: 2.5,
+              strokeWidth: sw,
               backgroundColor: backgroundColor,
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
-          // Timer icon in center
-          Icon(
-            Icons.timer,
-            size: widget.size * 0.5,
-            color: color,
-          ),
+          if (widget.centerChild != null)
+            SizedBox(
+              width: inner,
+              height: inner,
+              child: ClipOval(
+                child: widget.centerChild,
+              ),
+            ),
         ],
       ),
     );

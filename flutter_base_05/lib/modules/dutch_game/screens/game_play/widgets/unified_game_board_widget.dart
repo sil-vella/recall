@@ -19,7 +19,114 @@ import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
+
+/// Where profile + timer HUD sits relative to **logical hand index 0** (slightly outside the card).
+enum _HandHudCorner {
+  myHandTopLeft,
+  oppTopBottomRight,
+  oppLeftTopRight,
+  oppRightBottomLeft,
+}
+
+/// Stacks [hud] on [cardSlot] at the given corner, pushed outward by [outset].
+Widget _stackHandHudOnFirstCardSlot({
+  required Widget cardSlot,
+  required _HandHudCorner corner,
+  required Widget hud,
+  double outset = 8,
+}) {
+  late final Widget positionedHud;
+  switch (corner) {
+    case _HandHudCorner.myHandTopLeft:
+      positionedHud = Positioned(left: -outset, top: -outset, child: hud);
+      break;
+    case _HandHudCorner.oppTopBottomRight:
+      positionedHud = Positioned(right: -outset, bottom: -outset, child: hud);
+      break;
+    case _HandHudCorner.oppLeftTopRight:
+      positionedHud = Positioned(right: -outset, top: -outset, child: hud);
+      break;
+    case _HandHudCorner.oppRightBottomLeft:
+      positionedHud = Positioned(left: -outset, bottom: -outset, child: hud);
+      break;
+  }
+  return Stack(
+    clipBehavior: Clip.none,
+    children: [
+      cardSlot,
+      positionedHud,
+    ],
+  );
+}
+
+_HandHudCorner _handHudCornerForTableOrientation(CardTableOrientation o) {
+  switch (o) {
+    case CardTableOrientation.portraitUp:
+      return _HandHudCorner.myHandTopLeft;
+    case CardTableOrientation.portraitDown:
+      return _HandHudCorner.oppTopBottomRight;
+    case CardTableOrientation.landscapeFromLeft:
+      return _HandHudCorner.oppLeftTopRight;
+    case CardTableOrientation.landscapeFromRight:
+      return _HandHudCorner.oppRightBottomLeft;
+  }
+}
+
+/// Seat order (clockwise list index): 1st → left, 2nd → top, 3rd → right; repeats for 4+.
+/// Special cases: 1 opponent → left only; 2 → 1st left + 2nd top (no right).
+({List<Map<String, dynamic>> top, List<Map<String, dynamic>> left, List<Map<String, dynamic>> right})
+_bucketOpponentsForTable(List<dynamic> opponents) {
+  final list = <Map<String, dynamic>>[];
+  for (final o in opponents) {
+    if (o is Map<String, dynamic>) {
+      list.add(Map<String, dynamic>.from(o));
+    }
+  }
+  if (list.isEmpty) {
+    return (top: <Map<String, dynamic>>[], left: <Map<String, dynamic>>[], right: <Map<String, dynamic>>[]);
+  }
+  if (list.length == 1) {
+    return (top: <Map<String, dynamic>>[], left: list, right: <Map<String, dynamic>>[]);
+  }
+  if (list.length == 2) {
+    return (top: [list[1]], left: [list[0]], right: <Map<String, dynamic>>[]);
+  }
+  final top = <Map<String, dynamic>>[];
+  final left = <Map<String, dynamic>>[];
+  final right = <Map<String, dynamic>>[];
+  for (var i = 0; i < list.length; i++) {
+    switch (i % 3) {
+      case 0:
+        left.add(list[i]);
+        break;
+      case 1:
+        top.add(list[i]);
+        break;
+      default:
+        right.add(list[i]);
+    }
+  }
+  return (top: top, left: left, right: right);
+}
+
+/// Opponent slice + peek protection inputs for the play surface (top strip + middle row).
+class _OppBoardContext {
+  _OppBoardContext._({
+    required this.cardsToPeek,
+    required this.opponents,
+    required this.currentTurnIndex,
+    required this.isGameActive,
+    required this.playerStatus,
+  }) : buckets = _bucketOpponentsForTable(opponents);
+
+  final List<dynamic> cardsToPeek;
+  final List<dynamic> opponents;
+  final int currentTurnIndex;
+  final bool isGameActive;
+  final String playerStatus;
+  final ({List<Map<String, dynamic>> top, List<Map<String, dynamic>> left, List<Map<String, dynamic>> right}) buckets;
+}
 
 /// View model for [UnifiedGameBoardWidget]: no full [games] map so unrelated room/game
 /// entries do not invalidate the subtree. Piles and [boardGameState] come from the current game only.
@@ -73,8 +180,9 @@ Map<String, dynamic> _unifiedBoardViewSlice(Map<String, dynamic> d) {
   };
 }
 
-/// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
-/// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
+/// Unified play surface: top strip (intrinsic height, full width) → [Expanded] middle
+/// row (left/right [Expanded], center board [IntrinsicWidth]) → my hand (intrinsic height).
+/// Opponent bucketing: 1 → left only; 2 → left + top; 3+ indices 0/1/2… → left / top / right.
 class UnifiedGameBoardWidget extends StatefulWidget {
   const UnifiedGameBoardWidget({Key? key}) : super(key: key);
 
@@ -291,11 +399,38 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 if (LOGGING_SWITCH) {
                   _logger.info('[GameBoard overflow] build: root constraints maxW=${constraints.maxWidth} maxH=${constraints.maxHeight} minW=${constraints.minWidth} minH=${constraints.minHeight}');
                 }
-                // Layout: Opponents section takes all space (3 cols); game board in middle col at bottom; My Hand below
+                // Top strip (intrinsic height) → middle (fills) → my hand (intrinsic height)
+                final ctx = _prepareOppBoardContext(board);
+                if (LOGGING_SWITCH) {
+                  final mh = board['myHand'] as Map<String, dynamic>? ?? {};
+                  final myCards = mh['cards'] as List<dynamic>? ?? [];
+                  final bgs = board['boardGameState'] as Map<String, dynamic>? ?? {};
+                  String oppIds(List<Map<String, dynamic>> xs) =>
+                      xs.map((e) => e['id']?.toString() ?? '?').join(',');
+                  final rawPanel = board['opponentsPanel'] as Map<String, dynamic>? ?? {};
+                  final rawList = rawPanel['opponents'] as List<dynamic>? ?? [];
+                  _logger.info(
+                    '[UnifiedGameBoard] slice gameId=${board['currentGameId']} gamePhase=${board['gamePhase']} '
+                    'ssotPhase=${bgs['phase']} opps=${ctx.opponents.length} '
+                    'bucketsTop/Left/Right=${ctx.buckets.top.length}/${ctx.buckets.left.length}/${ctx.buckets.right.length} '
+                    'myHandCards=${myCards.length} isGameActive=${board['isGameActive']}',
+                  );
+                  _logger.info(
+                    '[OppWidgets] opponentsPanel.rawCount=${rawList.length} '
+                    'idsTop=[${oppIds(ctx.buckets.top)}] idsLeft=[${oppIds(ctx.buckets.left)}] idsRight=[${oppIds(ctx.buckets.right)}] '
+                    'clockwiseOrder=[${ctx.opponents.map((e) => e is Map<String, dynamic> ? (e['id']?.toString() ?? '?') : '?').join(',')}]',
+                  );
+                }
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    _buildTopOppStrip(board, ctx),
+                    if (ctx.buckets.top.isNotEmpty) const SizedBox(height: 8),
                     Expanded(
-                      child: _buildOpponentsPanel(board),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: _buildMiddlePlayRow(board, ctx),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _buildMyHand(board),
@@ -400,14 +535,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
-  /// Build the opponents panel widget
-  Widget _buildOpponentsPanel(Map<String, dynamic> board) {
+  _OppBoardContext _prepareOppBoardContext(Map<String, dynamic> board) {
     final opponentsPanel = board['opponentsPanel'] as Map<String, dynamic>? ?? {};
     final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
-    final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
+    final currentTurnIndex = (opponentsPanel['currentTurnIndex'] as num?)?.toInt() ?? -1;
     final cardsToPeekFromState = board['myCardsToPeek'] as List<dynamic>? ?? [];
-    
-    // Check if we need to protect cardsToPeek
+
     if (cardsToPeekFromState.isNotEmpty && !_isCardsToPeekProtected) {
       final hasFullCardData = cardsToPeekFromState.any((card) {
         if (card is Map<String, dynamic>) {
@@ -419,205 +552,228 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         _protectCardsToPeek(cardsToPeekFromState);
       }
     }
-    
+
     final cardsToPeek = _isCardsToPeekProtected && _protectedCardsToPeek != null
         ? _protectedCardsToPeek!
         : cardsToPeekFromState;
-    
-    final otherPlayers = opponents;
+
     final isGameActive = board['isGameActive'] ?? false;
     final playerStatus = board['playerStatus']?.toString() ?? 'unknown';
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (opponents.isEmpty)
-          _buildEmptyOpponents()
-        else
-          // Spread opponents evenly vertically using Expanded and Spacers
-          Expanded(
-            child: _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus, board),
-          ),
-      ],
+
+    return _OppBoardContext._(
+      cardsToPeek: cardsToPeek,
+      opponents: opponents,
+      currentTurnIndex: currentTurnIndex,
+      isGameActive: isGameActive,
+      playerStatus: playerStatus,
     );
   }
 
-  Widget _buildEmptyOpponents() {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderDefault),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.people,
-              size: 24,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'No other players',
-              style: AppTextStyles.bodySmall().copyWith(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+  /// Full width, height from content, aligned to top of the play area.
+  Widget _buildTopOppStrip(Map<String, dynamic> board, _OppBoardContext ctx) {
+    if (ctx.buckets.top.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.info('[OppWidgets] _buildTopOppStrip → SizedBox.shrink (buckets.top empty; oppCount=${ctx.opponents.length})');
+      }
+      return const SizedBox.shrink();
+    }
+    if (LOGGING_SWITCH) {
+      final ids = ctx.buckets.top.map((e) => e['id']?.toString() ?? '?').join(',');
+      _logger.info(
+        '[OppWidgets] _buildTopOppStrip building Row n=${ctx.buckets.top.length} topPlayerIds=[$ids] '
+        '(Row crossAxisAlignment.start + Expanded per slot; no IntrinsicHeight — avoids zero-height intrinsic pass)',
+      );
+    }
+    // Avoid [IntrinsicHeight] + [Row] + [Expanded]: it can collapse height for descendants that use
+    // [LayoutBuilder] + [Column] (opponent panel). [Row] height = max of children; [start] aligns tops.
+    return SizedBox(
+      width: double.infinity,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: ctx.buckets.top
+              .map(
+                (p) => Expanded(
+                  child: _paddedOpponentSlot(
+                    board,
+                    p,
+                    ctx.cardsToPeek,
+                    ctx.currentTurnIndex,
+                    ctx.isGameActive,
+                    ctx.playerStatus,
+                    ctx.opponents,
+                    CardTableOrientation.portraitDown,
+                  ),
+                ),
+              )
+              .toList(),
         ),
       ),
     );
   }
 
-  Widget _buildOpponentsGrid(
-    List<dynamic> opponents,
+  /// Left / center (bounded width) / right; fills all width and remaining height.
+  ///
+  /// Do **not** wrap [_buildGameBoard] in [IntrinsicWidth]: its inner [LayoutBuilder] plus
+  /// intrinsic passes caused `shifted_box.dart` `child!.hasSize` / unbounded layout failures.
+  Widget _buildMiddlePlayRow(Map<String, dynamic> board, _OppBoardContext ctx) {
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '[UnifiedGameBoard] _buildMiddlePlayRow: opponentsEmpty=${ctx.opponents.isEmpty} '
+        'left=${ctx.buckets.left.length} right=${ctx.buckets.right.length}',
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rowW = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final centerMaxW = (rowW * 0.34).clamp(150.0, 280.0);
+        final centerBoard = Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: centerMaxW),
+            child: _buildGameBoard(board),
+          ),
+        );
+
+        if (ctx.opponents.isEmpty) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Expanded(child: SizedBox.shrink()),
+              centerBoard,
+              const Expanded(child: SizedBox.shrink()),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ctx.buckets.left.isEmpty
+                  ? const SizedBox.shrink()
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: ctx.buckets.left
+                          .map(
+                            (p) => Expanded(
+                              child: _paddedOpponentSlot(
+                                board,
+                                p,
+                                ctx.cardsToPeek,
+                                ctx.currentTurnIndex,
+                                ctx.isGameActive,
+                                ctx.playerStatus,
+                                ctx.opponents,
+                                CardTableOrientation.landscapeFromLeft,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+            ),
+            centerBoard,
+            Expanded(
+              child: ctx.buckets.right.isEmpty
+                  ? const SizedBox.shrink()
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: ctx.buckets.right
+                          .map(
+                            (p) => Expanded(
+                              child: _paddedOpponentSlot(
+                                board,
+                                p,
+                                ctx.cardsToPeek,
+                                ctx.currentTurnIndex,
+                                ctx.isGameActive,
+                                ctx.playerStatus,
+                                ctx.opponents,
+                                CardTableOrientation.landscapeFromRight,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _paddedOpponentSlot(
+    Map<String, dynamic> board,
+    Map<String, dynamic> player,
     List<dynamic> cardsToPeek,
     int currentTurnIndex,
     bool isGameActive,
     String playerStatus,
-    Map<String, dynamic> board,
+    List<dynamic> opponentsFull,
+    CardTableOrientation cardTableOrientation,
   ) {
-        final currentPlayerMap = board['currentPlayer'] as Map<String, dynamic>? ?? {};
-        final currentPlayerId = currentPlayerMap['id']?.toString() ?? '';
-        // Use current user's status for card glow (same source as status chip)
-        final currentPlayerStatus = _getCurrentUserStatus();
-        final gamePhase = board['gamePhase']?.toString() ?? 'waiting';
-        final isInitialPeekPhase = gamePhase == 'initial_peek';
-        
-        final bgs = board['boardGameState'] as Map<String, dynamic>? ?? {};
-        final phase = bgs['phase'] as String?;
-        // Safely convert Map<String, dynamic> to Map<String, int>
-        final timerConfigRaw = bgs['timerConfig'] as Map<String, dynamic>?;
-        final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final currentPlayerMap = board['currentPlayer'] as Map<String, dynamic>? ?? {};
+    final currentPlayerId = currentPlayerMap['id']?.toString() ?? '';
+    final originalIndexMap = <String, int>{};
+    for (int i = 0; i < opponentsFull.length; i++) {
+      final pl = opponentsFull[i] as Map<String, dynamic>;
+      final pid = pl['id']?.toString() ?? '';
+      if (pid.isNotEmpty) {
+        originalIndexMap[pid] = i;
+      }
+    }
+    final playerId = player['id']?.toString() ?? '';
+    final originalIndex = originalIndexMap[playerId] ?? 0;
+    final isCurrentTurn = originalIndex == currentTurnIndex;
+    final isCurrentPlayer = playerId == currentPlayerId;
+    final knownCards = player['known_cards'] as Map<String, dynamic>?;
+    final bgs = board['boardGameState'] as Map<String, dynamic>? ?? {};
+    final phase = bgs['phase'] as String?;
+    final timerConfigRaw = bgs['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map(
+          (key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30),
+        ) ??
+        <String, int>{};
+    final gamePhase = board['gamePhase']?.toString() ?? 'waiting';
+    final isInitialPeekPhase = gamePhase == 'initial_peek';
+    final currentPlayerStatus = _getCurrentUserStatus();
 
-        // Create a map to find original index from player ID for currentTurnIndex calculation
-        final originalIndexMap = <String, int>{};
-        for (int i = 0; i < opponents.length; i++) {
-          final player = opponents[i] as Map<String, dynamic>;
-          final playerId = player['id']?.toString() ?? '';
-          if (playerId.isNotEmpty) {
-            originalIndexMap[playerId] = i;
-          }
-        }
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '[OppWidgets] _paddedOpponentSlot build playerId=$playerId orientation=$cardTableOrientation '
+        'isCurrentTurn=$isCurrentTurn handLen=${(player['hand'] as List?)?.length ?? 0}',
+      );
+    }
 
-        Padding paddedOpponentSlot(Map<String, dynamic> player, int displayIndex) {
-          final playerId = player['id']?.toString() ?? '';
-          final originalIndex = originalIndexMap[playerId] ?? displayIndex;
-          final isCurrentTurn = originalIndex == currentTurnIndex;
-          final isCurrentPlayer = playerId == currentPlayerId;
-          final knownCards = player['known_cards'] as Map<String, dynamic>?;
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
-            child: _buildOpponentCard(
-              player,
-              cardsToPeek,
-              player['collection_rank_cards'] as List<dynamic>? ?? [],
-              isCurrentTurn,
-              isGameActive,
-              isCurrentPlayer,
-              currentPlayerStatus,
-              knownCards,
-              isInitialPeekPhase,
-              phase,
-              timerConfig,
-              opponentIndex: displayIndex,
-            ),
-          );
-        }
+    final sideColumnOpp = cardTableOrientation == CardTableOrientation.landscapeFromLeft ||
+        cardTableOrientation == CardTableOrientation.landscapeFromRight;
 
-        // Fixed 3-column layout: 1 opponent → middle column only; 2 → left + right, board in empty middle.
-        if (opponents.length == 1) {
-          final player = opponents[0] as Map<String, dynamic>;
-          final slot = paddedOpponentSlot(player, 1);
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Expanded(child: SizedBox.shrink()),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(child: slot),
-                    _buildGameBoard(board),
-                  ],
-                ),
-              ),
-              const Expanded(child: SizedBox.shrink()),
-            ],
-          );
-        }
+    final panel = _buildOpponentCard(
+      player,
+      cardsToPeek,
+      player['collection_rank_cards'] as List<dynamic>? ?? [],
+      isCurrentTurn,
+      isGameActive,
+      isCurrentPlayer,
+      currentPlayerStatus,
+      knownCards,
+      isInitialPeekPhase,
+      phase,
+      timerConfig,
+      cardTableOrientation: cardTableOrientation,
+      centerVerticallyInSideColumn: sideColumnOpp,
+    );
 
-        if (opponents.length == 2) {
-          final left = opponents[0] as Map<String, dynamic>;
-          final right = opponents[1] as Map<String, dynamic>;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: paddedOpponentSlot(left, 0)),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Expanded(child: SizedBox.shrink()),
-                    _buildGameBoard(board),
-                  ],
-                ),
-              ),
-              Expanded(child: paddedOpponentSlot(right, 2)),
-            ],
-          );
-        }
-
-        // 3+ opponents: left-to-middle-right+ use list order; game board stays under middle column (index 1)
-        final reorderedOpponents = List<dynamic>.from(opponents);
-        final opponentWidgets = <Widget>[];
-        final entries = reorderedOpponents.asMap().entries.toList();
-
-        for (int i = 0; i < entries.length; i++) {
-          final entry = entries[i];
-          final displayIndex = entry.key;
-          final player = entry.value as Map<String, dynamic>;
-          final opponentContent = paddedOpponentSlot(player, displayIndex);
-
-          final bool isColumnWithGameBoard = displayIndex == 1;
-          if (isColumnWithGameBoard) {
-            opponentWidgets.add(
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(child: opponentContent),
-                    _buildGameBoard(board),
-                  ],
-                ),
-              ),
-            );
-          } else {
-            opponentWidgets.add(
-              Expanded(
-                child: opponentContent,
-              ),
-            );
-          }
-        }
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: opponentWidgets,
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
+      child: sideColumnOpp ? Center(child: panel) : panel,
     );
   }
 
-  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, String? phase, Map<String, int>? timerConfig, {required int opponentIndex}) {
-    // Get player name - prefer full_name, fallback to name, then username, then default
-    final playerNameRaw = player['name']?.toString();
-    final username = player['username']?.toString();
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, String? phase, Map<String, int>? timerConfig, {required CardTableOrientation cardTableOrientation, bool centerVerticallyInSideColumn = false}) {
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
     final hasCalledDutch = player['hasCalledDutch'] ?? false;
@@ -708,129 +864,70 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
          playerStatus == 'queen_peek' || 
          playerStatus == 'peeking';
     
-    // Use status chip color logic for glow (excludes 'waiting' and 'same_rank_window')
-    final shouldShowGlow = _shouldHighlightCurrentPlayer(playerStatus);
-    final statusChipColor = shouldShowGlow ? _getStatusChipColor(playerStatus) : null;
-    
     // For timer color, always get the status chip color (including same_rank_window)
     final timerColor = _getStatusChipColor(playerStatus);
-    
-    // All opponents align left and wrap
+
     final Alignment cardAlignment = Alignment.centerLeft;
     final MainAxisAlignment nameAlignment = MainAxisAlignment.start;
     final CrossAxisAlignment columnAlignment = CrossAxisAlignment.start;
-    
-    // Vertical alignment: col 1 (index 0) and col 3+ (index 2+) start at 1/4 from top, col 2 (index 1) top
-    final bool shouldStartAtOneFourth = (opponentIndex == 0 || opponentIndex >= 2);
-    final MainAxisAlignment columnMainAlignment = MainAxisAlignment.start; // All columns align to start
-    
-    if (drawnCard != null) {
-    }
-    
+    final MainAxisAlignment columnMainAlignment = MainAxisAlignment.start;
+
+    final Widget? opponentHandHudBar = hand.isEmpty
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPlayerProfilePicture(
+                player['id']?.toString() ?? '',
+                profilePictureUrl: player['profile_picture']?.toString(),
+              ),
+              const SizedBox(width: 8),
+              if (hasCalledDutch) ...[
+                Icon(Icons.flag, size: 16, color: AppColors.errorColor),
+                const SizedBox(width: 4),
+              ],
+              if (isCurrentTurn && !isCurrentPlayer) ...[
+                Icon(Icons.play_arrow, size: 16, color: AppColors.accentColor2),
+                const SizedBox(width: 4),
+              ],
+              if (shouldShowTimer) ...[
+                const SizedBox(width: 6),
+                CircularTimerWidget(
+                  key: ValueKey('timer_${player['id']}_${playerStatus}'),
+                  durationSeconds: effectiveTimer,
+                  size: 28.0,
+                  color: timerColor,
+                  backgroundColor: AppColors.surfaceVariant,
+                ),
+              ],
+            ],
+          );
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate 1/4 of the opponents section height (from top to game board)
-        final oneFourthHeight = constraints.maxHeight / 4;
-        
         return Column(
           crossAxisAlignment: columnAlignment,
           mainAxisAlignment: columnMainAlignment,
-          mainAxisSize: MainAxisSize.max, // Expand to fill available height
+          mainAxisSize: centerVerticallyInSideColumn ? MainAxisSize.min : MainAxisSize.max,
           children: [
-            // Add spacer at top for columns 1 and 3 to position content at 1/4 from top
-            if (shouldStartAtOneFourth) SizedBox(height: oneFourthHeight),
-            // Top row: Profile pic and timer, aligned left
-            Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Profile picture (circular, 1.5x status chip height)
-                _buildPlayerProfilePicture(
-                  player['id']?.toString() ?? '',
-                  profilePictureUrl: player['profile_picture']?.toString(),
-                ),
-                const SizedBox(width: 8),
-                if (hasCalledDutch) ...[
-                  Icon(
-                    Icons.flag,
-                    size: 16,
-                    color: AppColors.errorColor,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                if (isCurrentTurn && !isCurrentPlayer) ...[
-                  Icon(
-                    Icons.play_arrow,
-                    size: 16,
-                    color: AppColors.accentColor2,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                // Show circular timer when shouldShowTimer is true
-                if (shouldShowTimer) ...[
-                  const SizedBox(width: 6),
-                  CircularTimerWidget(
-                    key: ValueKey('timer_${player['id']}_${playerStatus}'), // Reset timer when player or status changes
-                    durationSeconds: effectiveTimer ?? 30,
-                    size: 28.0, // Match profile picture size
-                    color: timerColor,
-                    backgroundColor: AppColors.surfaceVariant,
-                  ),
-                ],
-              ],
-            ),
-            
-            // Second row: Username
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                // Use username if available, otherwise fallback to name
-                // For comp players, name IS the username
-                // For human players, name might be "Player_<sessionId>" if username not stored
-                (username != null && username.isNotEmpty) 
-                    ? username 
-                    : (playerNameRaw != null && playerNameRaw.isNotEmpty) 
-                        ? playerNameRaw 
-                        : 'Unknown',
-                style: AppTextStyles.label().copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.white,
-                  // Add very prominent glow effect using status chip color logic (excludes 'waiting' and 'same_rank_window')
-                  shadows: statusChipColor != null
-                      ? [
-                          Shadow(
-                            color: statusChipColor,
-                            blurRadius: 16,
-                          ),
-                          Shadow(
-                            color: statusChipColor.withOpacity(0.9),
-                            blurRadius: 24,
-                          ),
-                          Shadow(
-                            color: statusChipColor.withOpacity(0.7),
-                            blurRadius: 32,
-                          ),
-                          Shadow(
-                            color: statusChipColor.withOpacity(0.5),
-                            blurRadius: 40,
-                          ),
-                          Shadow(
-                            color: statusChipColor.withOpacity(0.3),
-                            blurRadius: 48,
-                          ),
-                        ]
-                      : null,
-                ),
-              ),
-            ),
-            
-            // Bottom: Cards aligned left and wrap
-            const SizedBox(height: 8),
             Align(
               alignment: cardAlignment,
               child: hand.isNotEmpty
-                  ? _buildOpponentsCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player, nameAlignment: nameAlignment, currentPlayerStatus: currentPlayerStatus)
+                  ? _buildOpponentsCardsRow(
+                      hand,
+                      cardsToPeek,
+                      playerCollectionRankCards,
+                      drawnCard,
+                      player['id']?.toString() ?? '',
+                      knownCards,
+                      isInitialPeekPhase,
+                      player,
+                      nameAlignment: nameAlignment,
+                      currentPlayerStatus: currentPlayerStatus,
+                      cardTableOrientation: cardTableOrientation,
+                      handHudBar: opponentHandHudBar,
+                      handHudCorner: _handHudCornerForTableOrientation(cardTableOrientation),
+                    )
                   : _buildEmptyHand(),
             ),
           ],
@@ -839,7 +936,36 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildOpponentsCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player, {MainAxisAlignment? nameAlignment, String? currentPlayerStatus}) {
+  /// Matches [CardWidget] / [CardTableOrientation] for non-[CardWidget] slots (blank).
+  Widget _orientOpponentHandChild(Widget portraitSizedChild, Size portraitDimensions, CardTableOrientation orientation) {
+    final core = SizedBox(width: portraitDimensions.width, height: portraitDimensions.height, child: portraitSizedChild);
+    switch (orientation) {
+      case CardTableOrientation.portraitUp:
+        return core;
+      case CardTableOrientation.portraitDown:
+        return RotatedBox(quarterTurns: 2, child: core);
+      case CardTableOrientation.landscapeFromLeft:
+        return RotatedBox(quarterTurns: 1, child: core);
+      case CardTableOrientation.landscapeFromRight:
+        return RotatedBox(quarterTurns: 3, child: core);
+    }
+  }
+
+  Widget _buildOpponentsCardsRow(
+    List<dynamic> cards,
+    List<dynamic> cardsToPeek,
+    List<dynamic> playerCollectionRankCards,
+    Map<String, dynamic>? drawnCard,
+    String playerId,
+    Map<String, dynamic>? knownCards,
+    bool isInitialPeekPhase,
+    Map<String, dynamic> player, {
+    MainAxisAlignment? nameAlignment,
+    String? currentPlayerStatus,
+    required CardTableOrientation cardTableOrientation,
+    Widget? handHudBar,
+    _HandHudCorner? handHudCorner,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Use available width (after column padding) for all calculations
@@ -851,12 +977,40 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (availableWidth <= 0 || !availableWidth.isFinite) {
           return const SizedBox.shrink();
         }
-        // Size so 4 cards fit in one row; 5th item (extra animation slot) wraps. Each child has Padding(right: cardPadding), so 4 cards use 4*cardWidth + 4*cardPadding.
-        final cardPadding = availableWidth * 0.02;
-        final cardWidth = CardDimensions.clampCardWidth((availableWidth - 4 * cardPadding) / 4);
-        final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
-        final cardDimensions = Size(cardWidth, cardHeight);
-        final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
+        // Left/right columns: same SSOT size as draw pile / top opponent; stack one card per row (Column).
+        // Top/bottom: size so 4 cards fit in one row; 5th wraps (Wrap).
+        final sideColumnVerticalHand = cardTableOrientation == CardTableOrientation.landscapeFromLeft ||
+            cardTableOrientation == CardTableOrientation.landscapeFromRight;
+
+        late final double slotGap;
+        late final Size cardDimensions;
+        late final double stackOffset;
+
+        if (sideColumnVerticalHand) {
+          cardDimensions = CardDimensions.getUnifiedDimensions();
+          slotGap = 6.0;
+          stackOffset = CardDimensions.getUnifiedStackOffset();
+        } else {
+          slotGap = availableWidth * 0.02;
+          final cardWidth = CardDimensions.clampCardWidth((availableWidth - 4 * slotGap) / 4);
+          final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
+          cardDimensions = Size(cardWidth, cardHeight);
+          stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
+        }
+
+        final EdgeInsets handSlotPadding =
+            sideColumnVerticalHand ? EdgeInsets.zero : EdgeInsets.only(right: slotGap);
+
+        Widget applyOppHandHudIfFirst(int index, Widget slotContent) {
+          final bar = handHudBar;
+          final corner = handHudCorner;
+          if (index != 0 || bar == null || corner == null) return slotContent;
+          return _stackHandHudOnFirstCardSlot(
+            cardSlot: slotContent,
+            corner: corner,
+            hud: bar,
+          );
+        }
         
         final collectionRankCardIds = playerCollectionRankCards
             .where((c) => c is Map<String, dynamic>)
@@ -897,7 +1051,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 ? drawnCard 
                 : (peekedCardData ?? collectionRankCardData);
             final cardKey = _getOrCreateCardKey('${playerId}_$i', 'opponent');
-            final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
+            final cardWidget = _buildOpponentCardWidget(
+              cardDataToUse,
+              isDrawnCard,
+              playerId,
+              false,
+              cardDimensions,
+              cardKey: cardKey,
+              cardTableOrientation: cardTableOrientation,
+            );
             collectionRankWidgets[cardId] = cardWidget;
           }
         }
@@ -911,10 +1073,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             final blankSlotKey = _getOrCreateCardKey('${playerId}_$index', 'opponent');
             cardWidgets.add(
               Padding(
-                padding: EdgeInsets.only(right: cardPadding),
-                child: Container(
-                  key: blankSlotKey,
-                  child: _buildBlankCardSlot(cardDimensions),
+                padding: handSlotPadding,
+                child: applyOppHandHudIfFirst(
+                  index,
+                  Container(
+                    key: blankSlotKey,
+                    child: _orientOpponentHandChild(
+                      _buildBlankCardSlot(cardDimensions),
+                      cardDimensions,
+                      cardTableOrientation,
+                    ),
+                  ),
                 ),
               ),
             );
@@ -998,8 +1167,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               );
               cardWidgets.add(
                 Padding(
-                  padding: EdgeInsets.only(right: cardPadding),
-                  child: _wrapHandSlotAnimMask(playerId, index, stackWidget),
+                  padding: handSlotPadding,
+                  child: applyOppHandHudIfFirst(
+                    index,
+                    _wrapHandSlotAnimMask(playerId, index, stackWidget),
+                  ),
                 ),
               );
             }
@@ -1010,29 +1182,65 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             continue;
           }
           final cardKey = _getOrCreateCardKey('${playerId}_$index', 'opponent');
-          final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey, currentPlayerStatus: currentPlayerStatus);
+          final cardWidget = _buildOpponentCardWidget(
+            cardDataToUse,
+            isDrawnCard,
+            playerId,
+            false,
+            cardDimensions,
+            cardKey: cardKey,
+            currentPlayerStatus: currentPlayerStatus,
+            cardTableOrientation: cardTableOrientation,
+          );
           cardWidgets.add(
             Padding(
-              padding: EdgeInsets.only(
-                right: cardPadding,
+              padding: handSlotPadding,
+              child: applyOppHandHudIfFirst(
+                index,
+                _wrapHandSlotAnimMask(playerId, index, cardWidget),
               ),
-              child: _wrapHandSlotAnimMask(playerId, index, cardWidget),
             ),
           );
         }
 
-        final wrapWidget = Wrap(
-          spacing: 0, // Spacing is handled by card padding
-          runSpacing: cardPadding, // Vertical spacing between wrapped rows
+        // Right column: hand index 0 is nearest the center board; show top→bottom as high index first.
+        if (sideColumnVerticalHand &&
+            cardTableOrientation == CardTableOrientation.landscapeFromRight) {
+          cardWidgets = cardWidgets.reversed.toList();
+        }
+
+        if (sideColumnVerticalHand) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              for (int i = 0; i < cardWidgets.length; i++) ...[
+                if (i > 0) SizedBox(height: slotGap),
+                cardWidgets[i],
+              ],
+            ],
+          );
+        }
+
+        return Wrap(
+          spacing: 0,
+          runSpacing: slotGap,
           children: cardWidgets,
         );
-
-        return wrapWidget;
       },
     );
   }
 
-  Widget _buildOpponentCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isCollectionRankCard, Size cardDimensions, {GlobalKey? cardKey, String? currentPlayerStatus}) {
+  Widget _buildOpponentCardWidget(
+    Map<String, dynamic> card,
+    bool isDrawnCard,
+    String playerId,
+    bool isCollectionRankCard,
+    Size cardDimensions, {
+    GlobalKey? cardKey,
+    String? currentPlayerStatus,
+    required CardTableOrientation cardTableOrientation,
+  }) {
     final cardModel = CardModel.fromMap(card);
     final cardId = card['cardId']?.toString();
     final isSelected = cardId != null && _clickedCardId == cardId;
@@ -1042,7 +1250,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       key: cardKey,
       card: updatedCardModel,
       dimensions: cardDimensions,
-      config: CardDisplayConfig.forOpponent(),
+      config: CardDisplayConfig.forOpponent().copyWith(tableOrientation: cardTableOrientation),
       isSelected: isSelected,
       onTap: () => _handleOpponentCardClick(card, playerId),
     );
@@ -1323,13 +1531,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
-  bool _shouldHighlightCurrentPlayer(String status) {
-    if (status == 'waiting' || status == 'same_rank_window') {
-      return false;
-    }
-    return true;
-  }
-
   // ========== Game Board Methods ==========
 
   /// Horizontal padding used by draw/discard pile (Padding.all(2) => 2 left + 2 right).
@@ -1357,7 +1558,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       padding: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Top row: match pot (full width). Bottom row: 2 cols — draw (left), discard (right).
+          // Top: match pot. Below: draw pile, then discard pile (stacked vertically in center column).
           final gameboardRowWidth = constraints.maxWidth;
           final gameboardMaxHeight = constraints.maxHeight;
           if (LOGGING_SWITCH) {
@@ -1367,26 +1568,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Top: winning pot row (same conditions: practice hidden, tier/phase)
               _buildMatchPotRow(gameboardRowWidth, board),
               const SizedBox(height: 8),
-              // Bottom: 2 columns — draw pile (left), discard pile (right)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, c) => _buildDrawPile(availableWidth: c.maxWidth, board: board),
-                    ),
-                  ),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, c) => _buildDiscardPile(availableWidth: c.maxWidth, board: board),
-                    ),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, c) => _buildDrawPile(availableWidth: c.maxWidth, board: board),
+              ),
+              const SizedBox(height: 8),
+              LayoutBuilder(
+                builder: (context, c) => _buildDiscardPile(availableWidth: c.maxWidth, board: board),
               ),
             ],
           );
@@ -2136,10 +2325,29 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // For timer color, always get the status chip color (including same_rank_window)
     final timerColor = _getStatusChipColor(playerStatus);
+
+    final Widget? myFirstCardHandHud = cards.isEmpty
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPlayerProfilePicture(
+                _getCurrentUserId(),
+                profilePictureUrl: currentUserProfilePicture,
+              ),
+              const SizedBox(width: 8),
+              if (playerStatus != 'waiting')
+                CircularTimerWidget(
+                  key: ValueKey('timer_myhand_${playerStatus}'),
+                  durationSeconds: turnTimeLimit,
+                  size: 28.0,
+                  color: timerColor,
+                  backgroundColor: AppColors.surfaceVariant,
+                ),
+            ],
+          );
     
-    // Note: My hand height tracking removed - now tracking individual cards
-    
-    // My hand section: column with (1) header row = You + status chip (+ optional timer/buttons), (2) full-width row = cards only
+    // My hand section: column with (1) header row = You + status chip (+ optional Call Final Round), (2) cards with HUD on index 0
     return Container(
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
@@ -2147,16 +2355,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Row 1: You (avatar + label) and status chip (and optional Call Final Round, timer)
+            // Row 1: label + status chip (+ optional Call Final Round). Profile + timer sit on first card.
             Row(
               children: [
-                // Profile picture (circular, 1.5x status chip height)
-                // Get profile picture from game_state player data first, then fallback to StateManager
-                _buildPlayerProfilePicture(
-                  _getCurrentUserId(),
-                  profilePictureUrl: currentUserProfilePicture,
-                ),
-                const SizedBox(width: 8),
                 Text(
                   'You',
                   style: AppTextStyles.headingSmall(),
@@ -2231,19 +2432,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     playerId: _getCurrentUserId(),
                     size: PlayerStatusChipSize.small,
                   ),
-                // Show circular timer next to status chip (right side) when status is not 'waiting'
-                // Note: 'jack_swap' and 'queen_peek' can occur out of turn and should show timer
-                // Also show timer during 'same_rank_window' for my hand section
-                if (playerStatus != 'waiting') ...[
-                  const SizedBox(width: 6),
-                  CircularTimerWidget(
-                    key: ValueKey('timer_myhand_${playerStatus}'), // Reset timer when status changes
-                    durationSeconds: turnTimeLimit,
-                    size: 28.0, // Match profile picture size
-                    color: timerColor,
-                    backgroundColor: AppColors.surfaceVariant,
-                  ),
-                ],
               ],
             ),
             const SizedBox(height: 16),
@@ -2253,7 +2441,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             else
               SizedBox(
                 width: double.infinity,
-                child: _buildMyHandCardsGrid(cards, cardsToPeek, selectedIndex, board),
+                child: _buildMyHandCardsGrid(
+                  cards,
+                  cardsToPeek,
+                  selectedIndex,
+                  board,
+                  firstCardHandHud: myFirstCardHandHud,
+                ),
               ),
           ],
         ),
@@ -2295,8 +2489,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     List<dynamic> cards,
     List<dynamic> cardsToPeek,
     int selectedIndex,
-    Map<String, dynamic> board,
-  ) {
+    Map<String, dynamic> board, {
+    Widget? firstCardHandHud,
+  }) {
     return LayoutBuilder(
           builder: (context, constraints) {
             final containerWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
@@ -2350,16 +2545,24 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             
             Map<String, Widget> collectionRankWidgets = {};
             
-            // Size cards so all slots fit in one row (no wrapping). Total slots = cards + leading spacer.
-            const double kMinCardWidth = 28.0;
+            // Same SSOT as opponent hands / side columns / piles ([CardDimensions.getUnifiedDimensions]).
+            // Previously my hand used (width / (cards+1 slots)) − pad, which ran smaller than opponents'
+            // (width − 4×pad) / 4 top-row sizing when both were below the 55px cap.
+            final cardDimensions = CardDimensions.getUnifiedDimensions();
+            final cardHeight = cardDimensions.height;
+            final stackOffset = CardDimensions.getUnifiedStackOffset();
             final int totalSlotCount = cards.length + 1;
             final cardPadding = widthForSizing * 0.02;
-            final slotWidth = widthForSizing / totalSlotCount;
-            final rawCardWidth = slotWidth - cardPadding;
-            final cardWidth = rawCardWidth.clamp(kMinCardWidth, CardDimensions.MAX_CARD_WIDTH);
-            final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
-            final cardDimensions = Size(cardWidth, cardHeight);
-            final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
+
+            Widget applyMyFirstCardHud(int index, Widget slotContent) {
+              final hud = firstCardHandHud;
+              if (index != 0 || hud == null) return slotContent;
+              return _stackHandHudOnFirstCardSlot(
+                cardSlot: slotContent,
+                corner: _HandHudCorner.myHandTopLeft,
+                hud: hud,
+              );
+            }
             
             for (int i = 0; i < cards.length; i++) {
               final card = cards[i];
@@ -2425,9 +2628,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             cardWidgets.add(
               Padding(
                 padding: EdgeInsets.only(right: cardPadding),
-                child: Container(
-                  key: blankSlotKey,
-                  child: _buildBlankCardSlot(cardDimensions),
+                child: applyMyFirstCardHud(
+                  index,
+                  Container(
+                    key: blankSlotKey,
+                    child: _buildBlankCardSlot(cardDimensions),
+                  ),
                 ),
               ),
             );
@@ -2558,7 +2764,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   padding: EdgeInsets.only(
                     right: cardPadding,
                   ),
-                  child: _wrapHandSlotAnimMask(_getCurrentUserId(), index, stackWidget),
+                  child: applyMyFirstCardHud(
+                    index,
+                    _wrapHandSlotAnimMask(_getCurrentUserId(), index, stackWidget),
+                  ),
                 ),
               );
             }
@@ -2588,7 +2797,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   padding: EdgeInsets.only(
                     right: cardPadding,
                   ),
-                  child: _wrapHandSlotAnimMask(playerId, index, cardWidget),
+                  child: applyMyFirstCardHud(
+                    index,
+                    _wrapHandSlotAnimMask(playerId, index, cardWidget),
+                  ),
                 ),
               );
             }

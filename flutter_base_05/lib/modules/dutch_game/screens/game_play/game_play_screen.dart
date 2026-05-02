@@ -20,7 +20,7 @@ import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
 /// When true, logs screen build and rebuild timing for this screen.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge

@@ -7,7 +7,7 @@ import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../utils/dutch_anim_runtime.dart';
 
-const bool LOGGING_SWITCH = true; // Draw/play/reposition + deck ghost (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; set false after test
 
 enum _PlanTag { none, linear, jackSwap, queenPeek }
 

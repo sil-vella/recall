@@ -12,7 +12,7 @@ import '../../../../tools/logging/logger.dart';
 /// Size is determined at the placement widget level and passed as dimensions.
 /// Config only controls appearance (displayMode, showPoints, etc.)
 class CardWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // Enable logging for errors only
+  static const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; set false after test
   static final Logger _logger = Logger();
   final CardModel card;
   final Size dimensions; // Required - size determined at placement widget level
@@ -61,14 +61,26 @@ class CardWidget extends StatelessWidget {
       cardContent = _buildSelectionWrapper(cardContent, dimensions);
     }
 
-    // Ensure exact dimensions are maintained even when wrapped in external GestureDetectors
-    // cardContent is already wrapped in SizedBox with exact dimensions from _buildCardFront/_buildCardBack
-    // But wrap again to ensure dimensions are maintained when CardWidget is wrapped externally
-    return SizedBox(
+    // Portrait logical size, then rotate for table zone ([CardTableOrientation]).
+    Widget core = SizedBox(
       width: dimensions.width,
       height: dimensions.height,
       child: cardContent,
     );
+    switch (config.tableOrientation) {
+      case CardTableOrientation.portraitUp:
+        break;
+      case CardTableOrientation.portraitDown:
+        core = RotatedBox(quarterTurns: 2, child: core);
+        break;
+      case CardTableOrientation.landscapeFromLeft:
+        core = RotatedBox(quarterTurns: 1, child: core);
+        break;
+      case CardTableOrientation.landscapeFromRight:
+        core = RotatedBox(quarterTurns: 3, child: core);
+        break;
+    }
+    return core;
   }
 
   /// Build the front face of the card

@@ -4,7 +4,7 @@ import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 
 /// When true, logs each time a [DutchSliceBuilder] subtree rebuilds because the selected slice changed.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; set false after test
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; set false after test
 
 typedef DutchSliceSelector<T> = T Function(Map<String, dynamic> dutchGameState);
 typedef DutchSliceEquals<T> = bool Function(T previous, T current);

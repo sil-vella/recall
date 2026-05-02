@@ -1,3 +1,18 @@
+/// How a card is rotated on the table so each seat reads naturally (portrait = narrow side up).
+enum CardTableOrientation {
+  /// Default: portrait, upright (my hand, draw/discard).
+  portraitUp,
+
+  /// Portrait, 180° — top edge of table / across from the user.
+  portraitDown,
+
+  /// Landscape: long edge horizontal, facing toward table center from the left column.
+  landscapeFromLeft,
+
+  /// Landscape: long edge horizontal, facing toward table center from the right column.
+  landscapeFromRight,
+}
+
 /// Card display mode - determines how corners are displayed
 enum CardDisplayMode {
   /// Show both top-left and bottom-right corners (full card display)
@@ -29,6 +44,9 @@ class CardDisplayConfig {
   
   /// Border radius for the card
   final double borderRadius;
+
+  /// Table placement rotation (does not change [CardModel], only painting/layout).
+  final CardTableOrientation tableOrientation;
   
   const CardDisplayConfig({
     this.displayMode = CardDisplayMode.fullCorners,
@@ -36,6 +54,7 @@ class CardDisplayConfig {
     this.showSpecialPower = false,
     this.isSelectable = false,
     this.borderRadius = 8.0,
+    this.tableOrientation = CardTableOrientation.portraitUp,
   });
   
   /// Factory constructor for player's own hand cards
@@ -85,6 +104,7 @@ class CardDisplayConfig {
     bool? showSpecialPower,
     bool? isSelectable,
     double? borderRadius,
+    CardTableOrientation? tableOrientation,
   }) {
     return CardDisplayConfig(
       displayMode: displayMode ?? this.displayMode,
@@ -92,6 +112,7 @@ class CardDisplayConfig {
       showSpecialPower: showSpecialPower ?? this.showSpecialPower,
       isSelectable: isSelectable ?? this.isSelectable,
       borderRadius: borderRadius ?? this.borderRadius,
+      tableOrientation: tableOrientation ?? this.tableOrientation,
     );
   }
 }

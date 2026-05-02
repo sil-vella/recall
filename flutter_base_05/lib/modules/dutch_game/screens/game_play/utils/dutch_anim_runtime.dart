@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 
-import '../../../../../tools/logging/logger.dart';
+import '../../../utils/platform/shared_imports.dart';
 
 /// In-memory animation bus for Dutch: **not** written through [StateManager], so updating
 /// queue or layout rects does **not** notify `dutch_game` listeners or rebuild unrelated widgets.
@@ -15,9 +15,8 @@ class DutchAnimRuntime extends ChangeNotifier {
   DutchAnimRuntime._();
   static final DutchAnimRuntime instance = DutchAnimRuntime._();
 
-  /// enable-logging-switch.mdc — trace queue / layout / dequeue without StateManager.
-  static const bool LOGGING_SWITCH = false;
-  static final Logger _logger = Logger();
+  static const bool LOGGING_SWITCH = true; // Anim queue / layout (enable-logging-switch.mdc; set false after test)
+  final Logger _logger = Logger();
 
   static const String eventDataKey = 'eventData';
   static const String cardPositionsKey = 'cardPositions';

@@ -1,16 +1,13 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
-import '../../../../../tools/logging/logger.dart';
+import '../../../utils/platform/shared_imports.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../models/card_display_config.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../utils/dutch_anim_runtime.dart';
 
-/// enable-logging-switch.mdc — when true: start flight, flight complete, stall skip only.
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Draw/play/reposition + deck ghost (enable-logging-switch.mdc; set false after test)
 
 enum _PlanTag { none, linear, jackSwap, queenPeek }
 
@@ -47,7 +44,8 @@ class _AnimPlan {
 }
 
 /// FIFO card flights from [DutchAnimRuntime]: frozen A→B rects, one [AnimationController] tween
-/// at a time; on [AnimationStatus.completed], post-frame dequeue then [_kick] next head.
+/// at a time; on [AnimationStatus.completed], post-frame dequeue then immediate [_kick] (same
+/// frame) so chained flights stay visually continuous, plus a post-frame [_kick] for stalls.
 class DutchCardAnimOverlay extends StatefulWidget {
   const DutchCardAnimOverlay({super.key});
 
@@ -57,7 +55,7 @@ class DutchCardAnimOverlay extends StatefulWidget {
 
 class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     with SingleTickerProviderStateMixin {
-  static final Logger _logger = Logger();
+  final Logger _logger = Logger();
   final DutchAnimRuntime _runtime = DutchAnimRuntime.instance;
 
   AnimationController? _controller;
@@ -76,6 +74,10 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
   CardModel? _jackModelB;
 
   Map<String, double>? _peekTargetRect;
+
+  /// Static ghost during [play_card] / [same_rank_play]: next [reposition]'s `from` rect, else draw pile.
+  Map<String, double>? _playDeckGhostRect;
+  CardModel? _playDeckGhostModel;
 
   static const CardModel _placeholderFaceDown = CardModel(
     cardId: '_anim',
@@ -103,7 +105,10 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       ..addStatusListener(_onAnimStatus)
       ..addListener(_onAnimTick);
     _runtime.addListener(_onRuntime);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _kick());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncHandMaskFromQueueHead();
+      _kick();
+    });
   }
 
   @override
@@ -117,6 +122,9 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
   void _onRuntime() {
     if (!mounted) return;
+    // Mask destination slots from payload as soon as the queue changes, so a same-frame or
+    // early [game_state_updated] cannot paint the real card before [_kick] resolves rects.
+    _syncHandMaskFromQueueHead();
     WidgetsBinding.instance.addPostFrameCallback((_) => _kick());
   }
 
@@ -138,17 +146,21 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
           'DutchCardAnimOverlay: flight complete seq=$_runningSeq value=${_controller!.value.toStringAsFixed(3)}',
         );
       }
-      _clearAnimGeometry();
+      // Dequeue first; do not clear frozen rects here — [_kick] -> [_applyPlan] replaces them
+      // in the same frame so the draw ghost does not vanish for a frame before play starts.
       _runtime.dequeueHead();
+      _syncHandMaskFromQueueHead();
       _runningSeq = null;
       _stallFrames = 0;
-      if (mounted) setState(() {});
+      if (mounted) {
+        _kick();
+        setState(() {});
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => _kick());
     });
   }
 
-  void _clearAnimGeometry() {
-    _runtime.clearAnimMaskedHandSlots();
+  void _clearFrozenFlightVisuals() {
     _activePlan = _PlanTag.none;
     _flightFromRect = null;
     _flightToRect = null;
@@ -157,6 +169,55 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     _jackToB = null;
     _jackModelB = null;
     _peekTargetRect = null;
+  }
+
+  /// Rect for the static ghost during a play flight: queued [reposition]'s `from`, else draw pile.
+  Map<String, double>? _rectForPlayStaticGhost(Map<String, dynamic> anim) {
+    final events = anim[DutchAnimRuntime.eventDataKey] as List? ?? [];
+    if (events.length >= 2) {
+      final second = events[1];
+      if (second is Map<String, dynamic>) {
+        final nextAction = second['action_type']?.toString() ?? '';
+        if (nextAction == 'reposition') {
+          final p = _resolveAnimPlan(anim, second, 'reposition');
+          if (p?.tag == _PlanTag.linear && p!.a != null) {
+            return Map<String, double>.from(p.a!.from);
+          }
+        }
+      }
+    }
+    final piles = anim[DutchAnimRuntime.pileRectsKey] as Map<String, dynamic>? ?? {};
+    final r = piles['draw'];
+    if (r is! Map) return null;
+    final left = (r['left'] as num?)?.toDouble();
+    final top = (r['top'] as num?)?.toDouble();
+    final w = (r['width'] as num?)?.toDouble();
+    final h = (r['height'] as num?)?.toDouble();
+    if (left == null || top == null || w == null || h == null) return null;
+    return <String, double>{'left': left, 'top': top, 'width': w, 'height': h};
+  }
+
+  /// Updates hand-slot mask from the current queue head (payload only; no layout resolve).
+  void _syncHandMaskFromQueueHead() {
+    if (!mounted) return;
+    final anim = _runtime.snapshotForAnim();
+    final events = anim[DutchAnimRuntime.eventDataKey] as List? ?? [];
+    if (events.isEmpty) {
+      _runtime.clearAnimMaskedHandSlots();
+      return;
+    }
+    final head = events.first;
+    if (head is! Map) {
+      _runtime.clearAnimMaskedHandSlots();
+      return;
+    }
+    final hm = Map<String, dynamic>.from(head);
+    final action = hm['action_type']?.toString() ?? '';
+    if (!_isSupportedAction(action)) {
+      _runtime.setAnimMaskedHandSlots({});
+      return;
+    }
+    _runtime.setAnimMaskedHandSlots(_maskKeysFromHeadPayload(hm));
   }
 
   int? _parseHandIndex(dynamic hi) {
@@ -187,11 +248,16 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     final events = anim[DutchAnimRuntime.eventDataKey] as List? ?? [];
     if (events.isEmpty) {
       _runningSeq = null;
+      _syncHandMaskFromQueueHead();
+      _clearFrozenFlightVisuals();
+      _playDeckGhostRect = null;
+      _playDeckGhostModel = null;
       return;
     }
     final head = events.first;
     if (head is! Map) {
       _runtime.dequeueHead();
+      _syncHandMaskFromQueueHead();
       return;
     }
     final seq = head['_seq'] as int?;
@@ -261,7 +327,11 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
   }
 
   void _applyPlan(_AnimPlan plan, Map<String, dynamic> head) {
-    _clearAnimGeometry();
+    // Do not clear hand mask here — it may already be set from [_onRuntime] on enqueue.
+    final action = head['action_type']?.toString() ?? '';
+    _playDeckGhostRect = null;
+    _playDeckGhostModel = null;
+    _clearFrozenFlightVisuals();
     _activePlan = plan.tag;
     switch (plan.tag) {
       case _PlanTag.linear:
@@ -269,6 +339,32 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         _flightFromRect = Map<String, double>.from(a.from);
         _flightToRect = Map<String, double>.from(a.to);
         _flightModel = a.model;
+        if (action == 'play_card' || action == 'same_rank_play') {
+          final animSnap = _runtime.snapshotForAnim();
+          final ghostRect = _rectForPlayStaticGhost(animSnap);
+          if (ghostRect != null && _flightModel != null) {
+            _playDeckGhostRect = ghostRect;
+            _playDeckGhostModel = _placeholderFaceDown;
+            if (LOGGING_SWITCH) {
+              final events = animSnap[DutchAnimRuntime.eventDataKey] as List? ?? [];
+              final src = events.length >= 2 &&
+                      (events[1] is Map) &&
+                      ((events[1] as Map)['action_type']?.toString() == 'reposition')
+                  ? 'reposition_from'
+                  : 'draw_pile';
+              _logger.info(
+                'DutchCardAnimOverlay: play static ghost src=$src left=${ghostRect['left']} '
+                'top=${ghostRect['top']}',
+              );
+            }
+          }
+        }
+        if (LOGGING_SWITCH && action == 'reposition') {
+          _logger.info(
+            'DutchCardAnimOverlay: reposition linear from=(${_flightFromRect?['left']},${_flightFromRect?['top']}) '
+            'to=(${_flightToRect?['left']},${_flightToRect?['top']})',
+          );
+        }
         break;
       case _PlanTag.jackSwap:
         final a = plan.a!;
@@ -286,60 +382,57 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       case _PlanTag.none:
         break;
     }
-    _runtime.setAnimMaskedHandSlots(_handMaskKeysForHead(head, plan));
+    _runtime.setAnimMaskedHandSlots(_maskKeysFromHeadPayload(head));
   }
 
-  /// Hand slots where the real board card should stay hidden until this tween completes.
-  Set<String> _handMaskKeysForHead(Map<String, dynamic> head, _AnimPlan plan) {
+  /// Hand slots to mask, derived only from [head] (same rules as [_AnimPlan] masking).
+  Set<String> _maskKeysFromHeadPayload(Map<String, dynamic> head) {
     final keys = <String>{};
     final action = head['action_type']?.toString() ?? '';
     final cards = head['cards'] as List? ?? [];
 
-    switch (plan.tag) {
-      case _PlanTag.linear:
-        if (action == 'play_card' || action == 'same_rank_play') return keys;
-        if (cards.isEmpty) return keys;
-        final c0 = cards.first;
-        if (c0 is! Map) return keys;
-        if (action == 'draw' || action == 'collect_from_discard') {
-          final owner = c0['owner_id']?.toString() ?? '';
-          final hi = _parseHandIndex(c0['hand_index']);
-          if (owner.isNotEmpty && hi != null) {
-            keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
-          }
-        } else if (action == 'reposition') {
-          final owner = c0['owner_id']?.toString() ?? '';
-          final hi = _parseHandIndex(c0['hand_index']);
-          if (owner.isNotEmpty && hi != null) {
-            keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
-          }
-        }
-        return keys;
-      case _PlanTag.jackSwap:
-        if (cards.length < 2) return keys;
-        final c0 = cards[0];
-        final c1 = cards[1];
-        if (c0 is! Map || c1 is! Map) return keys;
-        final o0 = c0['owner_id']?.toString() ?? '';
-        final i0 = _parseHandIndex(c0['hand_index']);
-        final o1 = c1['owner_id']?.toString() ?? '';
-        final i1 = _parseHandIndex(c1['hand_index']);
-        if (o1.isNotEmpty && i1 != null) keys.add(DutchAnimRuntime.handSlotMaskKey(o1, i1));
-        if (o0.isNotEmpty && i0 != null) keys.add(DutchAnimRuntime.handSlotMaskKey(o0, i0));
-        return keys;
-      case _PlanTag.queenPeek:
-        if (cards.isEmpty) return keys;
-        final c0 = cards.first;
-        if (c0 is! Map) return keys;
-        final owner = c0['owner_id']?.toString() ?? '';
-        final hi = _parseHandIndex(c0['hand_index']);
-        if (owner.isNotEmpty && hi != null) {
-          keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
-        }
-        return keys;
-      case _PlanTag.none:
-        return keys;
+    if (action == 'jack_swap') {
+      if (cards.length < 2) return keys;
+      final c0 = cards[0];
+      final c1 = cards[1];
+      if (c0 is! Map || c1 is! Map) return keys;
+      final o0 = c0['owner_id']?.toString() ?? '';
+      final i0 = _parseHandIndex(c0['hand_index']);
+      final o1 = c1['owner_id']?.toString() ?? '';
+      final i1 = _parseHandIndex(c1['hand_index']);
+      if (o1.isNotEmpty && i1 != null) keys.add(DutchAnimRuntime.handSlotMaskKey(o1, i1));
+      if (o0.isNotEmpty && i0 != null) keys.add(DutchAnimRuntime.handSlotMaskKey(o0, i0));
+      return keys;
     }
+    if (action == 'queen_peek') {
+      if (cards.isEmpty) return keys;
+      final c0 = cards.first;
+      if (c0 is! Map) return keys;
+      final owner = c0['owner_id']?.toString() ?? '';
+      final hi = _parseHandIndex(c0['hand_index']);
+      if (owner.isNotEmpty && hi != null) {
+        keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
+      }
+      return keys;
+    }
+    if (action == 'play_card' || action == 'same_rank_play') return keys;
+    if (cards.isEmpty) return keys;
+    final c0 = cards.first;
+    if (c0 is! Map) return keys;
+    if (action == 'draw' || action == 'collect_from_discard') {
+      final owner = c0['owner_id']?.toString() ?? '';
+      final hi = _parseHandIndex(c0['hand_index']);
+      if (owner.isNotEmpty && hi != null) {
+        keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
+      }
+    } else if (action == 'reposition') {
+      final owner = c0['owner_id']?.toString() ?? '';
+      final hi = _parseHandIndex(c0['hand_index']);
+      if (owner.isNotEmpty && hi != null) {
+        keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
+      }
+    }
+    return keys;
   }
 
   /// Paint while tweening or for one completed frame at t=1 before post-frame cleanup.
@@ -539,7 +632,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
     if (_activePlan == _PlanTag.queenPeek) {
       final r = _peekTargetRect!;
-      final pulse = math.sin(math.pi * t);
+      final pulse = sin(pi * t);
       final glow = AppColors.statusQueenPeek.withValues(
         alpha: (0.35 + 0.45 * pulse).clamp(0.0, 1.0),
       );
@@ -603,13 +696,37 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       );
     }
 
-    final children = <Widget>[
+    final children = <Widget>[];
+    if (_playDeckGhostRect != null &&
+        _playDeckGhostModel != null &&
+        _activePlan == _PlanTag.linear) {
+      final g = _playDeckGhostRect!;
+      final gm = _playDeckGhostModel!;
+      final gw = g['width']!;
+      final gh = g['height']!;
+      children.add(
+        Positioned(
+          left: g['left']!,
+          top: g['top']!,
+          width: gw,
+          height: gh,
+          child: CardWidget(
+            card: gm,
+            dimensions: Size(gw, gh),
+            config: CardDisplayConfig.forMyHand(),
+            showBack: true,
+            isSelected: false,
+          ),
+        ),
+      );
+    }
+    children.add(
       positionedCard(
         from: _flightFromRect!,
         to: _flightToRect!,
         model: _flightModel!,
       ),
-    ];
+    );
     if (_activePlan == _PlanTag.jackSwap) {
       children.add(
         positionedCard(

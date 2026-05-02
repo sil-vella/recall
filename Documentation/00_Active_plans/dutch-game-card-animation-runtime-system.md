@@ -134,7 +134,7 @@ If profiling shows cost from rebuilding **`CardWidget`** every frame, a follow-u
 When **`game_state_updated`** lands before a flight completes, the real hand can already show the card at the **destination** slot while the ghost still animates there.
 
 - **`DutchAnimRuntime`** holds **`_animMaskedHandSlots`** (`playerId|handIndex`, same identity as layout slot paths). API: **`handSlotMaskKey`**, **`isAnimMaskedHandSlot`**, **`setAnimMaskedHandSlots`**, **`clearAnimMaskedHandSlots`**, **`handAnimMaskSignature`** (sorted join for cheap equality).
-- **`DutchCardAnimOverlay`** sets slots from the queue head when a plan starts (**destination** hand for draw / collect / reposition; both **to** slots for jack; peek **target**), and clears via **`_clearAnimGeometry`** / completion / **`reset()`**.
+- **`DutchCardAnimOverlay`** sets slots from the queue head **payload on every runtime notify** (enqueue / dequeue / etc.) via **`_syncHandMaskFromQueueHead`** so the mask is active **before** the first post-frame **`_kick`** and before a same-tick **`game_state_updated`** can paint the destination card. Re-applies the same keys when **`_applyPlan`** runs (no mask clear in **`_applyPlan`** — only **`_clearAnimGeometry`** on completion / **`reset()`** clears the mask).
 - **`UnifiedGameBoardWidget`** listens to **`DutchAnimRuntime`** but **`setState` only when `handAnimMaskSignature` changes**, so normal **`mergeLayout`** notifies do **not** rebuild the whole board. Masked slots wrap the existing **`CardWidget`** (or collection stack) in **`IgnorePointer` + `Opacity(0)`** so **`GlobalKey`**s and layout are preserved.
 
 ### `_kick()` state machine (simplified)

@@ -173,6 +173,20 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
   /// Rect for the static ghost during a play flight: queued [reposition]'s `from`, else draw pile.
   Map<String, double>? _rectForPlayStaticGhost(Map<String, dynamic> anim) {
+    final positions = anim[DutchAnimRuntime.cardPositionsKey] as Map<String, dynamic>? ?? {};
+    Map<String, double>? slotRect(String playerId, int handIndex) {
+      final pm = positions[playerId];
+      if (pm is! Map) return null;
+      final slot = pm['$handIndex'];
+      if (slot is! Map) return null;
+      final left = (slot['left'] as num?)?.toDouble();
+      final top = (slot['top'] as num?)?.toDouble();
+      final w = (slot['width'] as num?)?.toDouble();
+      final h = (slot['height'] as num?)?.toDouble();
+      if (left == null || top == null || w == null || h == null) return null;
+      return <String, double>{'left': left, 'top': top, 'width': w, 'height': h};
+    }
+
     final events = anim[DutchAnimRuntime.eventDataKey] as List? ?? [];
     if (events.length >= 2) {
       final second = events[1];
@@ -182,6 +196,22 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
           final p = _resolveAnimPlan(anim, second, 'reposition');
           if (p?.tag == _PlanTag.linear && p!.a != null) {
             return Map<String, double>.from(p.a!.from);
+          }
+        }
+      }
+    }
+    if (events.isNotEmpty && events.first is Map<String, dynamic>) {
+      final head = events.first as Map<String, dynamic>;
+      final headAction = head['action_type']?.toString() ?? '';
+      if (headAction == 'play_card' || headAction == 'same_rank_play') {
+        final headCards = head['cards'] as List? ?? [];
+        if (headCards.length >= 2 && headCards[1] is Map<String, dynamic>) {
+          final hint = headCards[1] as Map<String, dynamic>;
+          final o = hint['owner_id']?.toString() ?? '';
+          final hi = _parseHandIndex(hint['hand_index']);
+          if (o.isNotEmpty && hi != null) {
+            final r = slotRect(o, hi);
+            if (r != null) return r;
           }
         }
       }
@@ -234,6 +264,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       'reposition',
       'collect_from_discard',
       'same_rank_play',
+      'same_rank_penalty_rebound',
       'jack_swap',
       'queen_peek',
     };
@@ -419,7 +450,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     if (cards.isEmpty) return keys;
     final c0 = cards.first;
     if (c0 is! Map) return keys;
-    if (action == 'draw' || action == 'collect_from_discard') {
+    if (action == 'draw' || action == 'collect_from_discard' || action == 'same_rank_penalty_rebound') {
       final owner = c0['owner_id']?.toString() ?? '';
       final hi = _parseHandIndex(c0['hand_index']);
       if (owner.isNotEmpty && hi != null) {
@@ -525,6 +556,21 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     }
 
     if (action == 'collect_from_discard') {
+      if (cards.isEmpty) return null;
+      final c0 = cards.first;
+      if (c0 is! Map) return null;
+      final owner = c0['owner_id']?.toString() ?? '';
+      final hi = _parseHandIndex(c0['hand_index']);
+      if (owner.isEmpty || hi == null) return null;
+      final from = pileRect('discard');
+      final to = rectFor(owner, hi);
+      if (from == null || to == null) return null;
+      return _AnimPlan.linear(
+        _CardFlightData(from: from, to: to, model: modelFromCardMap(c0)),
+      );
+    }
+
+    if (action == 'same_rank_penalty_rebound') {
       if (cards.isEmpty) return null;
       final c0 = cards.first;
       if (c0 is! Map) return null;

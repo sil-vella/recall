@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Per-room event queue + WS trace (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // Per-room event queue + WS trace (enable-logging-switch.mdc)
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -1072,6 +1072,7 @@ class GameEventCoordinator {
       'game_id': roomId,
       'game_state': gameState,
       'owner_id': server.getRoomOwner(roomId),
+      'state_version': _store.bumpOutboundStateVersion(roomId),
       'timestamp': DateTime.now().toIso8601String(),
     });
 
@@ -1737,6 +1738,7 @@ class GameEventCoordinator {
         'game_id': roomId,
         'game_state': gameState,
         'owner_id': server.getRoomOwner(roomId),
+        'state_version': _store.bumpOutboundStateVersion(roomId),
         'timestamp': DateTime.now().toIso8601String(),
       });
       

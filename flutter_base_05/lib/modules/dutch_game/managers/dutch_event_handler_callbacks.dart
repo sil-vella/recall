@@ -19,7 +19,7 @@ import '../screens/game_play/utils/dutch_anim_runtime.dart';
 class DutchEventHandlerCallbacks {
   /// When true, logs verbose Dutch WS/state paths including payload-size lines for `game_state_updated`.
   /// Enable while tracing initial-peek vs visible table (`[peek-ui-trace]`); set false after.
-  static const bool LOGGING_SWITCH = false; // WS + game_animation trace (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = false; // WS + game_animation trace (enable-logging-switch.mdc)
   static final Logger _logger = Logger();
 
   /// Counter for `game_state_updated` receives (only incremented when LOGGING_SWITCH is true).

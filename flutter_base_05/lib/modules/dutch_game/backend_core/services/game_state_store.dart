@@ -8,9 +8,19 @@ const bool LOGGING_SWITCH = false; // Enabled for match start / state store
 class GameStateStore {
   static final GameStateStore instance = GameStateStore._internal();
   final Map<String, Map<String, dynamic>> _roomIdToState = {};
+  /// Per-room wire sequence for `game_state_updated` (embedded Dart server / practice).
+  /// Client dedupe keys on this when present; must bump on every distinct outbound snapshot.
+  final Map<String, int> _outboundStateSeqByRoom = {};
   final Logger _logger = Logger();
 
   GameStateStore._internal();
+
+  /// Returns the next monotonic version for [roomId] (starts at 1).
+  int bumpOutboundStateVersion(String roomId) {
+    final next = (_outboundStateSeqByRoom[roomId] ?? 0) + 1;
+    _outboundStateSeqByRoom[roomId] = next;
+    return next;
+  }
 
   /// Ensure a state map exists for the room.
   Map<String, dynamic> ensure(String roomId) {
@@ -126,11 +136,13 @@ class GameStateStore {
 
   void clear(String roomId) {
     _roomIdToState.remove(roomId);
+    _outboundStateSeqByRoom.remove(roomId);
   }
 
   /// Clear all room state (reset to init). Use when clearing all games (e.g. mode switch).
   void clearAll() {
     _roomIdToState.clear();
+    _outboundStateSeqByRoom.clear();
     if (LOGGING_SWITCH) {
       _logger.info('GameStateStore: clearAll() - cleared all room state');
     }

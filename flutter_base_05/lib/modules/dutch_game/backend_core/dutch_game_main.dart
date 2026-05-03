@@ -222,6 +222,7 @@ class DutchGameModule {
           'game_state': initialState['game_state'],
           // Seed ownership for Flutter to gate Start button
           'owner_id': ownerId,
+          'state_version': store.bumpOutboundStateVersion(roomId),
           'timestamp': DateTime.now().toIso8601String(),
         },
       );
@@ -479,6 +480,7 @@ class DutchGameModule {
         'game_state': gameState,
         'turn_events': [], // No turn events for leave
         if (ownerId != null) 'owner_id': ownerId,
+        'state_version': store.bumpOutboundStateVersion(roomId),
         'timestamp': DateTime.now().toIso8601String(),
       });
       
@@ -541,6 +543,7 @@ class DutchGameModule {
         'game_id': roomId,
         'game_state': gs,
         if (ownerId != null) 'owner_id': ownerId,
+        'state_version': store.bumpOutboundStateVersion(roomId),
         'timestamp': DateTime.now().toIso8601String(),
       });
 

@@ -162,6 +162,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       
       final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
       final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+      final stateVersion = _store.bumpOutboundStateVersion(roomId);
 
       // Send to single player (playerId = sessionId in this system)
       server.sendToSession(playerId, {
@@ -169,6 +170,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'game_id': roomId,
         'game_state': filteredGameState,
         'turn_events': turnEvents,
+        'state_version': stateVersion,
         if (ownerId != null) 'owner_id': ownerId,
         if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
         if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
@@ -236,6 +238,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final winners = updates['winners'] as List<dynamic>?;
       final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
       final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+      final stateVersion = _store.bumpOutboundStateVersion(roomId);
 
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
@@ -246,6 +249,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'game_id': roomId,
         'game_state': filteredGameState,
         'turn_events': turnEvents,
+        'state_version': stateVersion,
         if (winners != null) 'winners': winners, // Include winners list for game end notification
         if (ownerId != null) 'owner_id': ownerId,
         if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
@@ -392,11 +396,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       return;
     }
 
+    final stateVersion = _store.bumpOutboundStateVersion(roomId);
     server.broadcastToRoom(roomId, {
       'event': 'game_state_updated',
       'game_id': roomId,
       'game_state': filteredGameState,
       'turn_events': turnEvents, // Include turn_events for animations
+      'state_version': stateVersion,
       if (winners != null) 'winners': winners, // Include winners list for game end notification
       if (ownerId != null) 'owner_id': ownerId,
       if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,

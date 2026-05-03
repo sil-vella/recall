@@ -161,16 +161,16 @@ So the player who “missed” or declined same rank is only reset to `waiting` 
 
 ### 4.1 Where wrong same rank is detected
 
-- **Round:** `handleSameRankPlay` → `_validateSameRankPlay(gameState, cardRank)` is false (~3200–3208).  
-- Then: wrong-rank branch adds `same_rank_reject_*` action (card to discard then back to hand), applies penalty (draw from draw pile, add to hand), adds `drawn_card_*` action for the penalty card.
+- **Round:** `handleSameRankPlay` → `_validateSameRankPlay(gameState, cardRank)` is false.  
+- Then: wrong-rank branch updates `known_cards`, then runs a **staged** penalty (timers): phase 1 mimics a successful same-rank (hand blank/remove + card on discard + `same_rank_play` + state + `turn_events`); after **2s** phase 2 removes that discard top, restores the hand slot, `same_rank_penalty_rebound` + state; after **1s more** phase 3 draws the penalty card, `draw` + final state. **`_endSameRankWindow()`** cancels the delay timers and **flushes** any in-flight penalty (runs rebound + penalty draw immediately if the window ended before the 2s/1s beats), so the penalty is still applied. Timers are cleared without that flush in `_cancelActionTimers` and `dispose`.
 
 ### 4.2 Flow after wrong same rank (penalty applied)
 
-- **Round** (~3208–3343):  
-  - `same_rank_reject` and `drawn_card` actions queued for UI.  
-  - Player status set to `waiting`: `_updatePlayerStatusInGamesMap('waiting', playerId: playerId, gamesMap: currentGames)`.  
-  - State broadcast with updated hand and draw pile.  
-  - **Returns `true`** (penalty was applied successfully).  
+- **Round:**  
+  - **Phase 1 (immediate):** Same hand/discard mutations as a **successful** same-rank (`_shouldCreateBlankSlotAtIndex` → null or remove, `_addToDiscardPile(playedCard)`), `same_rank_play` **`game_animation`**, `onGameStateChanged` with `games`, `discardPile`, and a `play` **turn_event** (same as success). Player set to `waiting`.  
+  - **Phase 2 (+2s):** Remove temporary top discard (must match attempted `cardId`), restore hand slot (ID-only), **`same_rank_penalty_rebound`** anim + state.  
+  - **Phase 3 (+1s after phase 2):** Remove penalty card from draw pile, append ID-only to hand, **`draw`** (`source: 'deck'`) + `onGameStateChanged`.  
+  - **Returns `false`** immediately after scheduling phase 2 (wrong attempt; e.g. computer loop stops further same-rank tries this window).  
 - **Same-rank timer:** **Not** cancelled. The same-rank window is still open for other players; `_sameRankTimer` keeps running until it expires and `_endSameRankWindow()` is called.  
 - So the **acting** player (who played the wrong rank) is reset to `waiting` and gets the penalty card; the **window** continues for others until the single shared timer ends.
 
@@ -183,8 +183,7 @@ So the player who “missed” or declined same rank is only reset to `waiting` 
 
 ### 4.4 Flutter (wrong same rank)
 
-- UI plays `same_rank_reject` then `drawn_card` animations from the action queue.  
-- State update carries the new hand and `waiting` status, so the acting player’s UI reflects “no longer in same-rank action” and the new card.
+- UI runs **one** `game_animation` per phase, each followed by its own `game_state_updated`. Phase 1 state briefly matches a legal same-rank play (including discard top); phase 2 reverts the discard and refills the hand slot; phase 3 adds the facedown penalty and runs the deck draw flight.
 
 **Summary (wrong same rank):**  
 - Acting player is set to `waiting` and gets penalty; same-rank timer is **not** cancelled; window continues for others until timer expiry, then `_endSameRankWindow()` and normal progression.

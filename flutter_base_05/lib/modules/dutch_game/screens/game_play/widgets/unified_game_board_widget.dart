@@ -326,7 +326,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   void _flushAnimLayoutReport(Map<String, dynamic> board) {
     if (_animStackAnchorKey.currentContext == null) return;
-    final uid = _getCurrentUserId();
+    final uid = _myBoardPlayerId(board);
     final slotPathToKey = <String, GlobalKey>{};
     final myHand = board['myHand'] as Map<String, dynamic>? ?? {};
     final cards = myHand['cards'] as List<dynamic>? ?? [];
@@ -638,7 +638,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             : MediaQuery.sizeOf(context).width;
         final centerMaxW = (rowW * 0.34).clamp(150.0, 280.0);
         final centerBoard = Align(
-          alignment: Alignment.topCenter,
+          alignment: Alignment.center,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: centerMaxW),
             child: _buildGameBoard(board),
@@ -1183,7 +1183,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               final cardWidth = cardDimensions.width;
               final cardHeight = cardDimensions.height;
               final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
+              final stackKey = _getOrCreateCardKey('${playerId}_$index', 'opponent');
               final stackWidget = Container(
+                key: stackKey,
                 width: cardWidth,
                 height: stackHeight,
                 decoration: BoxDecoration(
@@ -1611,24 +1613,36 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       padding: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Top: match pot. Below: draw pile, then discard pile (stacked vertically in center column).
+          // Top: match pot. Below: draw + discard as a block, vertically centered in remaining height.
           final gameboardRowWidth = constraints.maxWidth;
           final gameboardMaxHeight = constraints.maxHeight;
           if (LOGGING_SWITCH) {
             _logger.info('[GameBoard overflow] _buildGameBoard: constraints maxW=$gameboardRowWidth maxH=$gameboardMaxHeight');
           }
           return Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildMatchPotRow(gameboardRowWidth, board),
               const SizedBox(height: 8),
-              LayoutBuilder(
-                builder: (context, c) => _buildDrawPile(availableWidth: c.maxWidth, board: board),
-              ),
-              const SizedBox(height: 8),
-              LayoutBuilder(
-                builder: (context, c) => _buildDiscardPile(availableWidth: c.maxWidth, board: board),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      LayoutBuilder(
+                        builder: (context, c) =>
+                            _buildDrawPile(availableWidth: c.maxWidth, board: board),
+                      ),
+                      const SizedBox(height: 8),
+                      LayoutBuilder(
+                        builder: (context, c) =>
+                            _buildDiscardPile(availableWidth: c.maxWidth, board: board),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           );
@@ -2308,9 +2322,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       turnTimeLimit = 30; // Safe default
     }
     
-    // Use DutchEventHandlerCallbacks.getCurrentUserId() to get sessionId (not userId)
-    // This matches how players are identified in game_state (by sessionId)
-    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+    // Games map SSOT for "me" (practice: `practice_session_<userId>` even when getCurrentUserId is login UUID).
+    final myBoardPlayerId = _myBoardPlayerId(board);
     
     // Get current user's player data from game_state to retrieve profile picture
     // Profile picture is fetched when player joins and stored in player['profile_picture']
@@ -2318,7 +2331,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     Map<String, dynamic>? currentUserPlayer;
     try {
       currentUserPlayer = players.cast<Map<String, dynamic>>().firstWhere(
-        (p) => p['id']?.toString() == currentUserId,
+        (p) => p['id']?.toString() == myBoardPlayerId,
       );
     } catch (e) {
       // Player not found, will use fallback to StateManager
@@ -2329,7 +2342,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final hasPlayerCalledFinalRound = gameState['players'] != null
         ? (gameState['players'] as List<dynamic>?)
             ?.any((p) => p is Map<String, dynamic> && 
-                p['id']?.toString() == currentUserId && 
+                p['id']?.toString() == myBoardPlayerId && 
                 p['hasCalledFinalRound'] == true) ?? false
         : false;
     
@@ -2393,14 +2406,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   color: timerColor,
                   backgroundColor: AppColors.surfaceVariant,
                   centerChild: _buildPlayerProfilePicture(
-                    _getCurrentUserId(),
+                    _myBoardPlayerId(board),
                     profilePictureUrl: currentUserProfilePicture,
                     diameter: _kHudAvatarInRing,
                   ),
                 )
               else
                 _buildPlayerProfilePicture(
-                  _getCurrentUserId(),
+                  _myBoardPlayerId(board),
                   profilePictureUrl: currentUserProfilePicture,
                 ),
             ],
@@ -2464,7 +2477,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          (finalRoundActive && finalRoundCalledBy == _getCurrentUserId())
+                          (finalRoundActive && finalRoundCalledBy == _myBoardPlayerId(board))
                               ? Icons.flag
                               : Icons.flag_outlined,
                           size: 12,
@@ -2472,7 +2485,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          (finalRoundActive && finalRoundCalledBy == _getCurrentUserId())
+                          (finalRoundActive && finalRoundCalledBy == _myBoardPlayerId(board))
                               ? 'You Called Final Round'
                               : 'Final Round Active',
                           style: AppTextStyles.bodySmall().copyWith(
@@ -2488,7 +2501,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 ],
                 if (playerStatus != 'unknown')
                   PlayerStatusChip(
-                    playerId: _getCurrentUserId(),
+                    playerId: _myBoardPlayerId(board),
                     size: PlayerStatusChipSize.small,
                   ),
               ],
@@ -2586,11 +2599,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             final drawnCardId = drawnCard?['cardId']?.toString();
             final bgsInner = board['boardGameState'] as Map<String, dynamic>? ?? {};
             final players = bgsInner['players'] as List<dynamic>? ?? [];
-            final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+            final myPid = _myBoardPlayerId(board);
             
             List<dynamic> myCollectionRankCards = [];
             for (var player in players) {
-              if (player is Map<String, dynamic> && player['id']?.toString() == currentUserId) {
+              if (player is Map<String, dynamic> && player['id']?.toString() == myPid) {
                 myCollectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
                 break;
               }
@@ -2653,7 +2666,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     ? drawnCard 
                     : (peekedCardData ?? collectionRankCardData);
                 // Use calculated dimensions from LayoutBuilder
-                final playerId = _getCurrentUserId();
+                final playerId = myPid;
                 final cardKey = _getOrCreateCardKey('${playerId}_$i', 'my_hand');
                 final cardWidget = _buildMyHandCardWidget(
                   cardDataToUse,
@@ -2681,7 +2694,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           
           // Handle null cards (blank slots from same-rank plays)
           if (card == null) {
-            final playerId = _getCurrentUserId();
+            final playerId = myPid;
             final blankSlotKey = _getOrCreateCardKey('${playerId}_$index', 'my_hand');
             cardWidgets.add(
               Padding(
@@ -2790,7 +2803,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               
               final cardWidth = cardDimensions.width;
               final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
-              final stackKey = _getOrCreateCardKey('${_getCurrentUserId()}_$index', 'my_hand');
+              final stackKey = _getOrCreateCardKey('${myPid}_$index', 'my_hand');
               
               final stackWidget = Container(
                 key: stackKey,
@@ -2824,7 +2837,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   ),
                   child: applyMyFirstCardHud(
                     index,
-                    _wrapHandSlotAnimMask(_getCurrentUserId(), index, stackWidget),
+                    _wrapHandSlotAnimMask(myPid, index, stackWidget),
                   ),
                 ),
               );
@@ -2835,7 +2848,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             if (cardId == null) {
               continue;
             }
-            final playerId = _getCurrentUserId();
+            final playerId = myPid;
             final cardKey = _getOrCreateCardKey('${playerId}_$index', 'my_hand');
             final cardWidget = _buildMyHandCardWidget(
               cardDataToUse, 
@@ -2887,10 +2900,28 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  /// Same identity as [DutchEventHandlerCallbacks.getCurrentUserId]: session/socket id in
-  /// multiplayer (matches `players[].id` and `game_animation` `owner_id`), practice session id
-  /// in practice mode — **not** login Mongo `userId`. Required so anim layout keys match runtime rects.
-  String _getCurrentUserId() => DutchEventHandlerCallbacks.getCurrentUserId();
+  /// `players[].id` for the human row (SSOT for `game_animation` [`owner_id`] and games map).
+  /// In practice, [getCurrentUserId] can resolve to login UUID when `practiceUser` is unset while
+  /// the embedded backend still uses `practice_session_<userId>` as [players].id — that
+  /// mismatch breaks [DutchAnimRuntime] slot rects vs overlay [rectFor].
+  String _myBoardPlayerId(Map<String, dynamic> board) {
+    final players =
+        (board['boardGameState'] as Map<String, dynamic>? ?? {})['players'] as List<dynamic>? ?? [];
+    for (final p in players) {
+      if (p is! Map<String, dynamic>) continue;
+      if (p['isHuman'] == true) {
+        final id = p['id']?.toString() ?? '';
+        if (id.isNotEmpty) return id;
+      }
+    }
+    final cached = DutchEventHandlerCallbacks.getCurrentUserId();
+    for (final p in players) {
+      if (p is! Map<String, dynamic>) continue;
+      final id = p['id']?.toString() ?? '';
+      if (id.isNotEmpty && id == cached) return id;
+    }
+    return cached;
+  }
 
   /// Get current user's status from the same source as PlayerStatusChip
   /// This ensures consistency between status chip and card lighting

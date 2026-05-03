@@ -125,17 +125,20 @@ class DutchAnimRuntime extends ChangeNotifier {
     required Map<String, dynamic> cardPositions,
     Map<String, dynamic>? pileRects,
   }) {
-    // After play+draw shrink to 4 visible slots, layout no longer reports index `4`, but
-    // `reposition` anim needs the last rect for the 5th (drawn) slot — carry it forward per player.
+    // Slots without a measured [GlobalKey] this frame (e.g. hand shrank after play, or a
+    // collection-stack index skipped in the widget tree) are omitted from [cardPositions].
+    // Carry forward any previous slot rects still missing so [reposition] / play-ghost can
+    // resolve until the next layout captures that index again.
     final mergedPlayers = <String, dynamic>{};
     for (final e in cardPositions.entries) {
       final pid = e.key;
       final incoming = Map<String, dynamic>.from(e.value as Map? ?? {});
       final prevPm = _cardPositions[pid];
       if (prevPm is Map<String, dynamic>) {
-        final prev4 = prevPm['4'];
-        if (prev4 != null && !incoming.containsKey('4')) {
-          incoming['4'] = prev4;
+        for (final ke in prevPm.entries) {
+          if (!incoming.containsKey(ke.key)) {
+            incoming[ke.key] = ke.value;
+          }
         }
       }
       mergedPlayers[pid] = incoming;

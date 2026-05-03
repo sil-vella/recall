@@ -32,6 +32,16 @@ class DutchGameRound {
   Timer? _pendingComputerDecisionTimer;
   /// Timer for peeking phase after a queen peek completes. We wait for this before processing the next special card.
   Timer? _peekingPhaseTimer;
+  /// Staged wrong same-rank penalty: phase2 = rebound after "fake success" beat; phase3 = penalty draw.
+  Timer? _wrongSameRankPenaltyPhase2Timer;
+  Timer? _wrongSameRankPenaltyPhase3Timer;
+  String? _wrongPenaltyPlayerId;
+  int? _wrongPenaltyCardIndex;
+  String? _wrongPenaltyCardId;
+  bool _wrongPenaltyPhase1UsedBlankSlot = false;
+  Map<String, dynamic>? _wrongPenaltyPlayedFullData;
+  /// True after phase2 (rebound) has been applied; used to flush phase3 if the same-rank window ends mid-sequence.
+  bool _wrongPenaltyPhase2Applied = false;
 
   // Unified counter for missed draw and play actions per player
   final Map<String, int> _missedActionCounts = {};
@@ -65,6 +75,40 @@ class DutchGameRound {
   bool _gameEndedCallbackCalled = false;
   
   DutchGameRound(this._stateCallback, this._gameId);
+
+  void _cancelWrongSameRankPenaltyTimers() {
+    _wrongSameRankPenaltyPhase2Timer?.cancel();
+    _wrongSameRankPenaltyPhase2Timer = null;
+    _wrongSameRankPenaltyPhase3Timer?.cancel();
+    _wrongSameRankPenaltyPhase3Timer = null;
+    _wrongPenaltyPlayerId = null;
+    _wrongPenaltyCardIndex = null;
+    _wrongPenaltyCardId = null;
+    _wrongPenaltyPlayedFullData = null;
+    _wrongPenaltyPhase1UsedBlankSlot = false;
+    _wrongPenaltyPhase2Applied = false;
+  }
+
+  /// Completes wrong same-rank penalty if the same-rank window ends before delayed timers fire
+  /// (otherwise phase3 was cancelled and the penalty card was never drawn).
+  void _flushWrongSameRankPenaltyBeforeSameRankWindowEnds() {
+    _wrongSameRankPenaltyPhase2Timer?.cancel();
+    _wrongSameRankPenaltyPhase2Timer = null;
+    _wrongSameRankPenaltyPhase3Timer?.cancel();
+    _wrongSameRankPenaltyPhase3Timer = null;
+    if (_wrongPenaltyPlayerId == null) return;
+    if (!_wrongPenaltyPhase2Applied) {
+      final ok = _runWrongSameRankPenaltyPhase2(immediatePhase3: true);
+      if (!ok) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: wrong same-rank window end flush — phase2 did not apply; clearing staging');
+        }
+        _cancelWrongSameRankPenaltyTimers();
+      }
+      return;
+    }
+    _runWrongSameRankPenaltyPhase3();
+  }
 
   /// Helper method to clear action data from a specific player or all players
   /// [playerId] If provided, clears action for that player only. If null, clears for all players.
@@ -650,8 +694,8 @@ class DutchGameRound {
 
   /// Room-wide animation hint before state updates. Does not merge the game state store.
   ///
-  /// [actionType]: e.g. draw, play_card, same_rank_play, collect_from_discard, jack_swap,
-  /// queen_peek, reposition.
+  /// [actionType]: e.g. draw, play_card, same_rank_play, same_rank_penalty_rebound,
+  /// collect_from_discard, jack_swap, queen_peek, reposition.
   /// [cards]: maps with owner_id, hand_index (slot in that owner's hand; -1 = drawn area for queen_peek),
   /// optional card (full map when visibility allows).
   /// [context]: optional JSON-safe map (e.g. peeking_player_id for queen_peek).
@@ -676,6 +720,201 @@ class DutchGameRound {
       _logger.info(
         'Dutch: emitGameAnimation action=$actionType cards=${cards.length}${source != null && source.isNotEmpty ? ' source=$source' : ''}',
       );
+    }
+  }
+
+  /// Phase 2 of wrong same-rank penalty: remove temporary discard top, restore hand slot, rebound anim.
+  ///
+  /// Returns false if phase2 did not apply (caller may clear staging). When [immediatePhase3] is true,
+  /// phase3 runs immediately after a successful phase2 (used when the same-rank window ends mid-sequence).
+  bool _runWrongSameRankPenaltyPhase2({bool immediatePhase3 = false}) {
+    try {
+      if (_wrongPenaltyPlayerId == null ||
+          _wrongPenaltyCardIndex == null ||
+          _wrongPenaltyCardId == null ||
+          _wrongPenaltyPlayedFullData == null) {
+        return false;
+      }
+      final playerId = _wrongPenaltyPlayerId!;
+      final cardIndex = _wrongPenaltyCardIndex!;
+      final cardId = _wrongPenaltyCardId!;
+      final playedFull = Map<String, dynamic>.from(_wrongPenaltyPlayedFullData!);
+      final usedBlank = _wrongPenaltyPhase1UsedBlankSlot;
+
+      final currentGames = _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId] as Map<String, dynamic>?;
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      if (gameState == null) return false;
+
+      final discardPile = _ensureCardMapList(gameState['discardPile']);
+      if (discardPile.isEmpty) return false;
+      final top = discardPile.last;
+      if (top is! Map || top['cardId']?.toString() != cardId) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: wrong same-rank phase2 discard top mismatch, skip rebound');
+        }
+        return false;
+      }
+      discardPile.removeLast();
+      gameState['discardPile'] = discardPile;
+
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      Map<String, dynamic>? player;
+      for (final p in players) {
+        if (p is Map<String, dynamic> && p['id']?.toString() == playerId) {
+          player = p;
+          break;
+        }
+      }
+      if (player == null) return false;
+
+      final handRaw = player['hand'] as List<dynamic>? ?? [];
+      final hand = List<dynamic>.from(handRaw);
+      final idOnlyRestore = <String, dynamic>{
+        'cardId': cardId,
+        'suit': '?',
+        'rank': '?',
+        'points': 0,
+      };
+      if (usedBlank) {
+        if (cardIndex >= 0 && cardIndex < hand.length) {
+          hand[cardIndex] = idOnlyRestore;
+        }
+      } else {
+        if (cardIndex >= 0 && cardIndex <= hand.length) {
+          hand.insert(cardIndex, idOnlyRestore);
+        }
+      }
+      _trimTrailingNullSlotsFromIndex4(hand);
+      player['hand'] = hand;
+
+      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'penalty_same_rank_phase2');
+
+      final reboundCard = <String, dynamic>{
+        'owner_id': playerId,
+        'hand_index': cardIndex,
+        'card': playedFull,
+      };
+      _emitActionAnimation(
+        actionType: 'same_rank_penalty_rebound',
+        cards: [reboundCard],
+      );
+      _stateCallback.onGameStateChanged({
+        'games': currentGames,
+        'discardPile': discardPile,
+      });
+
+      _wrongPenaltyPhase2Applied = true;
+      if (immediatePhase3) {
+        _runWrongSameRankPenaltyPhase3();
+      } else {
+        _wrongSameRankPenaltyPhase3Timer?.cancel();
+        _wrongSameRankPenaltyPhase3Timer = Timer(const Duration(seconds: 1), _runWrongSameRankPenaltyPhase3);
+      }
+      return true;
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: wrong same-rank phase2 error: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Phase 3 of wrong same-rank penalty: draw penalty card, facedown flight, final state.
+  void _runWrongSameRankPenaltyPhase3() {
+    try {
+      if (_wrongPenaltyPlayerId == null) {
+        return;
+      }
+      final playerId = _wrongPenaltyPlayerId!;
+
+      final currentGames = _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId] as Map<String, dynamic>?;
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      if (gameState == null) {
+        _cancelWrongSameRankPenaltyTimers();
+        return;
+      }
+
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      Map<String, dynamic>? player;
+      for (final p in players) {
+        if (p is Map<String, dynamic> && p['id']?.toString() == playerId) {
+          player = p;
+          break;
+        }
+      }
+      if (player == null) {
+        _cancelWrongSameRankPenaltyTimers();
+        return;
+      }
+
+      var drawPile = _ensureCardMapList(gameState['drawPile']);
+      if (drawPile.isEmpty) {
+        final discardPile = _ensureCardMapList(gameState['discardPile']);
+        if (discardPile.length <= 1) {
+          _cancelWrongSameRankPenaltyTimers();
+          return;
+        }
+        final topCard = discardPile.last;
+        final cardsToReshuffle = discardPile.sublist(0, discardPile.length - 1);
+        final idOnlyCards = cardsToReshuffle
+            .map((card) => <String, dynamic>{
+                  'cardId': (card as Map<String, dynamic>)['cardId'],
+                  'suit': '?',
+                  'rank': '?',
+                  'points': 0,
+                })
+            .toList();
+        idOnlyCards.shuffle();
+        drawPile = List<Map<String, dynamic>>.from(idOnlyCards);
+        gameState['discardPile'] = [topCard];
+        gameState['drawPile'] = drawPile;
+      }
+      if (drawPile.isEmpty) {
+        _cancelWrongSameRankPenaltyTimers();
+        return;
+      }
+      final penaltyCard = drawPile.removeLast();
+      gameState['drawPile'] = drawPile;
+
+      final hand = List<dynamic>.from(player['hand'] as List<dynamic>? ?? []);
+      final penaltyCardIdOnly = <String, dynamic>{
+        'cardId': penaltyCard['cardId'],
+        'suit': '?',
+        'rank': '?',
+        'points': 0,
+      };
+      hand.add(penaltyCardIdOnly);
+      _trimTrailingNullSlotsFromIndex4(hand);
+      player['hand'] = hand;
+      final penaltyCardIndex = hand.length - 1;
+
+      _updatePlayerStatusInGamesMap('waiting', playerId: playerId, gamesMap: currentGames);
+      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'penalty_same_rank');
+
+      _emitActionAnimation(
+        actionType: 'draw',
+        source: 'deck',
+        cards: [
+          <String, dynamic>{
+            'owner_id': playerId,
+            'hand_index': penaltyCardIndex,
+          },
+        ],
+      );
+      _stateCallback.onGameStateChanged({
+        'games': currentGames,
+      });
+
+      _cancelWrongSameRankPenaltyTimers();
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: wrong same-rank phase3 error: $e');
+      }
+      _cancelWrongSameRankPenaltyTimers();
     }
   }
 
@@ -3388,14 +3627,15 @@ class DutchGameRound {
         // Even though drawnCard should be cleared at line 1752, defensive sanitization ensures no leaks
         _sanitizeDrawnCardsInGamesMap(currentGames, context: 'reposition');
 
+        final repositionAnimCard = <String, dynamic>{
+          'owner_id': actualPlayerId,
+          'hand_index': cardIndex, // destination slot (played card's index)
+          if (originalIndex != null) 'from_hand_index': originalIndex, // drawn slot before move (Flutter flight)
+          'card': Map<String, dynamic>.from(drawnCard),
+        };
         _emitActionAnimation(
           actionType: 'reposition',
-          cards: [
-            <String, dynamic>{
-              'owner_id': actualPlayerId,
-              'hand_index': cardIndex,
-            },
-          ],
+          cards: [repositionAnimCard],
         );
 
         _stateCallback.onGameStateChanged({
@@ -3588,139 +3828,115 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Applying penalty for wrong same rank play - drawing card from draw pile');
         };
-        
-        // Declare same_rank_reject action so UI can animate card to discard, pause 1s, then back to hand
-        final rejectActionName = 'same_rank_reject_${_generateActionId()}';
-        final rejectActionData = {
-          'card1Data': {
-            'cardIndex': cardIndexForRest,
-            'playerId': playerId,
-          },
-          'card1FullData': playedCardFullData, // Full card so overlay can show face during animation
-        };
-        _addActionToPlayerQueue(player, rejectActionName, rejectActionData);
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 ACTION_DATA: Added same_rank_reject action for penalty - card1Data: {cardIndex: $cardIndexForRest, playerId: $playerId}');
-        }
+
         // Wrong same-rank: add attempted card to known_cards; remove stale same-rank candidates (they were forgotten/wrong)
         updateKnownCards('wrong_same_rank', playerId, [cardIdForRest], swapData: {
           'handIndex': cardIndexForRest,
           'removeCandidateIds': sameRankCandidateCardIds ?? [],
         });
-        
+
+        _cancelWrongSameRankPenaltyTimers();
+
         final drawPile = _ensureCardMapList(gameState['drawPile']);
         final discardPile = _ensureCardMapList(gameState['discardPile']);
-        
-        // Check if draw pile is empty and reshuffle if needed (same logic as regular draw)
+
+        // Ensure draw pile non-empty before staged penalty (phase 3); same reshuffle as regular draw/penalty
         if (drawPile.isEmpty) {
-          // Draw pile is empty - reshuffle discard pile (except top card) into draw pile
           if (discardPile.length <= 1) {
             if (LOGGING_SWITCH) {
               _logger.error('Dutch: Cannot apply penalty - draw pile is empty and discard pile has ${discardPile.length} card(s)');
             };
             return false;
           }
-          
-          // Keep the top card in discard pile, reshuffle the rest
+
           final topCard = discardPile.last;
           final cardsToReshuffle = discardPile.sublist(0, discardPile.length - 1);
-          
+
           if (LOGGING_SWITCH) {
             _logger.info('Dutch: Draw pile empty during penalty - reshuffling ${cardsToReshuffle.length} cards from discard pile (keeping top card: ${topCard['cardId']})');
           };
-          
-          // Convert full card data to ID-only for reshuffled cards
+
           final idOnlyCards = cardsToReshuffle.map((card) => <String, dynamic>{
             'cardId': card['cardId'],
             'suit': '?',
             'rank': '?',
             'points': 0,
           }).toList();
-          
-          // Shuffle the cards
+
           idOnlyCards.shuffle();
-          
-          // Add shuffled cards to draw pile
           drawPile.addAll(idOnlyCards);
-          
-          // Keep only the top card in discard pile
           gameState['discardPile'] = [topCard];
-          
-          // Update game state with reshuffled draw pile
           gameState['drawPile'] = drawPile;
-          
+
           if (LOGGING_SWITCH) {
             _logger.info('Dutch: Reshuffled ${idOnlyCards.length} cards into draw pile for penalty. Draw pile now has ${drawPile.length} cards, discard pile has 1 card');
           };
         }
-        
-        // Re-fetch drawPile in case it was reshuffled above
-        final currentDrawPile = _ensureCardMapList(gameState['drawPile']);
-        if (currentDrawPile.isEmpty) {
+
+        final currentDrawPileAfterPrep = _ensureCardMapList(gameState['drawPile']);
+        if (currentDrawPileAfterPrep.isEmpty) {
           if (LOGGING_SWITCH) {
             _logger.error('Dutch: Draw pile is empty after reshuffle check - cannot apply penalty');
           };
           return false;
         }
-        
-        // Draw a card from the draw pile (remove last card)
-        final penaltyCard = currentDrawPile.removeLast();
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Drew penalty card ${penaltyCard['cardId']} from draw pile');
-        };
-        
-        // Add penalty card to player's hand as ID-only (same format as regular hand cards)
-        // Format matches dutch game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
-        final penaltyCardIdOnly = {
-          'cardId': penaltyCard['cardId'],
-          'suit': '?',      // Face-down: hide suit
-          'rank': '?',      // Face-down: hide rank
-          'points': 0,      // Face-down: hide points
-        };
-        
-        hand.add(penaltyCardIdOnly);
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only');
-        };
-        
-        // Trim trailing nulls from index 4+ if all are null, then persist
-        _trimTrailingNullSlotsFromIndex4(hand);
-        // CRITICAL: Persist changes to game state
-        player['hand'] = hand;  // Update player's hand with the penalty card
-        gameState['drawPile'] = currentDrawPile;  // Update draw pile after removing penalty card (may have been reshuffled)
-        
-        // Declare drawn_card action for animation (draw pile → hand; same as regular draw)
-        final penaltyCardIndex = hand.length - 1;
-        final penaltyActionName = 'drawn_card_${_generateActionId()}';
-        final penaltyActionData = {
-          'card1Data': {
-            'cardIndex': penaltyCardIndex,
-            'playerId': playerId,
-          },
-        };
-        _addActionToPlayerQueue(player, penaltyActionName, penaltyActionData);
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 ACTION_DATA: Added drawn_card action for penalty - card1Data: {cardIndex: $penaltyCardIndex, playerId: $playerId}');
+
+        // Phase 1: same layout as a successful same-rank play (blank/remove + card on discard) + same_rank_play only.
+        final shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndexForRest);
+        if (shouldCreateBlankSlot) {
+          hand[cardIndexForRest] = null;
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Wrong same-rank phase1 blank slot at index $cardIndexForRest for staged penalty');
+          };
+        } else {
+          hand.removeAt(cardIndexForRest);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Wrong same-rank phase1 removed card at index $cardIndexForRest for staged penalty');
+          };
         }
-        
-        // Update player state to reflect the new hand and draw pile
-        // CRITICAL: Pass currentGames to avoid reading stale state
+        _trimTrailingNullSlotsFromIndex4(hand);
+        player['hand'] = hand;
+        _addToDiscardPile(playedCardFullData);
+        final updatedDiscardPile = _ensureCardMapList(gameState['discardPile']);
+
+        _wrongPenaltyPlayerId = playerId;
+        _wrongPenaltyCardIndex = cardIndexForRest;
+        _wrongPenaltyCardId = cardIdForRest;
+        _wrongPenaltyPhase1UsedBlankSlot = shouldCreateBlankSlot;
+        _wrongPenaltyPlayedFullData = Map<String, dynamic>.from(playedCardFullData);
+        _wrongPenaltyPhase2Applied = false;
+
         _updatePlayerStatusInGamesMap('waiting', playerId: playerId, gamesMap: currentGames);
-        
-        // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting penalty update
-        _sanitizeDrawnCardsInGamesMap(currentGames, context: 'penalty_same_rank');
-        
-        // Broadcast the updated game state (hand and drawPile changes)
-        // Use the games map we're working with (currentGames already has modifications, drawnCard sanitized)
+        _sanitizeDrawnCardsInGamesMap(currentGames, context: 'penalty_same_rank_phase1');
+
+        final currentTurnEvents = _getCurrentTurnEvents();
+        final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
+          ..add(_createTurnEvent(cardIdForRest, 'play'));
+
+        _emitActionAnimation(
+          actionType: 'same_rank_play',
+          cards: [
+            <String, dynamic>{
+              'owner_id': playerId,
+              'hand_index': cardIndexForRest,
+              'card': Map<String, dynamic>.from(playedCardFullData),
+            },
+          ],
+        );
+
         _stateCallback.onGameStateChanged({
           'games': currentGames,
+          'discardPile': updatedDiscardPile,
+          'turn_events': turnEvents,
         });
-        
+
+        _wrongSameRankPenaltyPhase2Timer?.cancel();
+        _wrongSameRankPenaltyPhase2Timer = Timer(const Duration(seconds: 2), _runWrongSameRankPenaltyPhase2);
+
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Penalty applied successfully - player $playerId now has ${hand.length} cards');
+          _logger.info('Dutch: Wrong same-rank staged penalty started for $playerId (phase2 in 2s, phase3 +1s)');
         };
-        
-        // Return false so caller (e.g. computer same-rank loop) knows wrong attempt occurred and stops further attempts this window
+
         return false;
       }
       
@@ -4672,6 +4888,7 @@ class DutchGameRound {
   /// Replicates backend's _end_same_rank_window method in game_round.py lines 599-643
   Future<void> _endSameRankWindow() async {
     try {
+      _flushWrongSameRankPenaltyBeforeSameRankWindowEnds();
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Ending same rank window - resetting all players to waiting status');
       };
@@ -7251,6 +7468,7 @@ class DutchGameRound {
     _pendingMoveToNextPlayerRetryTimer = null;
     _pendingComputerDecisionTimer?.cancel();
     _pendingComputerDecisionTimer = null;
+    _cancelWrongSameRankPenaltyTimers();
   }
 
   /// Dispose of resources
@@ -7259,6 +7477,7 @@ class DutchGameRound {
     _peekingPhaseTimer?.cancel();
     _specialCardTimer?.cancel();
     _pendingMoveToNextPlayerTimer?.cancel();
+    _cancelWrongSameRankPenaltyTimers();
     _cancelActionTimers();
     if (LOGGING_SWITCH) {
       _logger.info('Dutch: DutchGameRound disposed for game $_gameId');

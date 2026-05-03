@@ -1,7 +1,6 @@
 import 'dart:async' show unawaited;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'hooks_manager.dart';
 import 'module_manager.dart';
@@ -12,8 +11,6 @@ import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
 import 'websockets/websocket_manager.dart';
-import '../services/version_check_service.dart';
-import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../tools/logging/logger.dart';
 class AppManager extends ChangeNotifier {
   static final AppManager _instance = AppManager._internal();
@@ -125,105 +122,6 @@ class AppManager extends ChangeNotifier {
         rethrow;
       }
     }
-    
-    // Always check for app updates on every app start (not just first initialization)
-    // This ensures version check runs even if app was previously initialized
-    _checkForAppUpdates(context);
-  }
-  
-  /// Check for app updates after initialization (non-blocking)
-  void _checkForAppUpdates(BuildContext context) {
-    // Skip version check on web - web apps update automatically
-    if (kIsWeb) {
-      if (LOGGING_SWITCH) {
-        _logger.info('AppManager: Skipping version check on web platform');
-      }
-      return;
-    }
-    
-    // Run asynchronously without blocking app startup
-    Future.microtask(() async {
-      try {
-        if (LOGGING_SWITCH) {
-          _logger.info('AppManager: Starting version check');
-        }
-        
-        // Get ModuleManager to access ConnectionsApiModule
-        final moduleManager = Provider.of<ModuleManager>(context, listen: false);
-        final apiModule = moduleManager.getModuleByType<ConnectionsApiModule>();
-        
-        if (apiModule == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('AppManager: ConnectionsApiModule not available for version check');
-          }
-          return;
-        }
-        
-        // Initialize VersionCheckService if needed
-        final versionCheckService = VersionCheckService();
-        if (!versionCheckService.isInitialized) {
-          await versionCheckService.initialize();
-        }
-        
-        // Check for updates
-        final result = await versionCheckService.checkForUpdates(apiModule);
-        
-        if (result['success'] == true) {
-          final updateAvailable = result['update_available'] == true;
-          final updateRequired = result['update_required'] == true;
-          final currentVersion = result['current_version'];
-          final serverVersion = result['server_version'];
-          final downloadLink = result['download_link']?.toString() ?? '';
-          
-          if (LOGGING_SWITCH) {
-            _logger.info('AppManager: Version check completed - Current: $currentVersion, Server: $serverVersion, Update Available: $updateAvailable, Update Required: $updateRequired');
-          }
-          
-          // If update is required, navigate to blocking update screen
-          if (updateRequired && downloadLink.isNotEmpty) {
-            if (LOGGING_SWITCH) {
-              _logger.info('AppManager: Update required - navigating to update screen');
-            }
-            
-            // Wait for router to be initialized before navigating
-            final navigationManager = Provider.of<NavigationManager>(context, listen: false);
-            
-            // Use a small delay to ensure router is ready, then navigate
-            await Future.delayed(const Duration(milliseconds: 500));
-            
-            // Navigate to update screen with download link as parameter
-            // Use go() which replaces current route (prevents back navigation)
-            final router = navigationManager.router;
-            final updateRoute = '/update-required?download_link=${Uri.encodeComponent(downloadLink)}';
-            router.go(updateRoute);
-            if (LOGGING_SWITCH) {
-              _logger.info('AppManager: Navigated to update screen');
-            }
-            return; // Exit early - don't trigger hook since we're blocking
-          }
-          
-          // Trigger hook for modules to listen to version check results (only if update not required)
-          _hooksManager.triggerHookWithData('app_version_checked', {
-            'update_available': updateAvailable,
-            'update_required': updateRequired,
-            'current_version': currentVersion,
-            'server_version': serverVersion,
-            'download_link': downloadLink,
-            'timestamp': DateTime.now().toIso8601String(),
-          });
-        } else {
-          if (LOGGING_SWITCH) {
-            _logger.warning('AppManager: Version check failed: ${result['error']}');
-          }
-        }
-        
-      } catch (e) {
-        // Don't let version check errors affect app startup
-        if (LOGGING_SWITCH) {
-          _logger.error('AppManager: Error during version check: $e');
-        }
-      }
-    });
   }
 
   /// Register core providers with ProviderManager

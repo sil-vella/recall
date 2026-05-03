@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../modules/dutch_game/managers/feature_registry_manager.dart';
 import '../../modules/dutch_game/managers/feature_contracts.dart';
@@ -121,7 +124,7 @@ class _FeatureSlotState extends State<FeatureSlot> {
       );
     }
 
-    // For home screen buttons, return as swipeable carousel
+    // For home screen buttons: vertical snap-scroll; only item centered in viewport is tappable
     if (widget.contract == 'home_screen_button') {
       return _HomeScreenCarousel(features: features, widgets: widgets);
     }
@@ -163,72 +166,71 @@ class _FeatureSlotState extends State<FeatureSlot> {
       calculatedHeight = feature.height ?? 80;
     }
 
+    final side = calculatedHeight;
+    final iconSize = (side * 0.4).clamp(40.0, 96.0);
+
     const borderRadius = BorderRadius.all(Radius.circular(12));
-    return Container(
-      width: double.infinity,
-      height: calculatedHeight,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: borderRadius,
-        border: Border.all(
-          color: AppColors.matchPotGold,
-          width: 5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+    return Center(
+      child: Container(
+        width: side,
+        height: side,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          border: Border.all(
+            color: AppColors.matchPotGold,
+            width: 5,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: borderRadius,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Base: accent color so it always shows behind
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.accentColor,
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            // Image at full opacity (when present)
-            if (feature.imagePath != null)
-              Container(
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(feature.imagePath!),
-                    fit: BoxFit.cover,
-                    opacity: 1.0,
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (feature.backgroundColor != null)
+                Container(
+                  decoration: BoxDecoration(
+                    color: feature.backgroundColor,
                   ),
                 ),
-              ),
-            // Tap target and label
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: feature.onTap,
-                borderRadius: borderRadius,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (feature.icon != null) ...[
-                          Icon(
-                            feature.icon,
-                            size: 48,
-                            color: AppColors.textOnPrimary,
-                          ),
-                          const SizedBox(height: 8),
-                        ],
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: feature.onTap,
+                  borderRadius: borderRadius,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (feature.iconSvgPath != null) ...[
+                            SvgPicture.asset(
+                              feature.iconSvgPath!,
+                              width: iconSize,
+                              height: iconSize,
+                              colorFilter: ColorFilter.mode(
+                                AppColors.accentColor,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ] else if (feature.icon != null) ...[
+                            Icon(
+                              feature.icon,
+                              size: iconSize,
+                              color: AppColors.textOnPrimary,
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                         Text(
                           feature.text,
                           style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
@@ -248,6 +250,7 @@ class _FeatureSlotState extends State<FeatureSlot> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -259,8 +262,26 @@ class _FeatureSlotState extends State<FeatureSlot> {
   }
 }
 
-/// Swipeable carousel widget for home screen features
-/// Shows current item at full opacity, with previous/next items visible at 50% opacity
+/// Hides platform scrollbars for the home feature strip (drag / wheel still scrolls).
+class _HomeScreenCarouselScrollBehavior extends MaterialScrollBehavior {
+  const _HomeScreenCarouselScrollBehavior();
+
+  @override
+  Widget buildScrollbar(BuildContext context, Widget child, ScrollableDetails details) {
+    return child;
+  }
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
+
+/// Vertical snap list: item aligned to viewport center is “in focus” (opacity 1.0); others [kDimmedCardOpacity].
+/// Only the focused row accepts taps ([IgnorePointer] on the rest).
 class _HomeScreenCarousel extends StatefulWidget {
   final List<FeatureDescriptor> features;
   final List<Widget> widgets;
@@ -270,62 +291,130 @@ class _HomeScreenCarousel extends StatefulWidget {
     required this.widgets,
   });
 
+  static const double kDimmedCardOpacity = 0.3;
+  /// Viewport height as a fraction of screen — list scrolls inside this band.
+  static const double kViewportHeightFraction = 0.42;
+
   @override
   State<_HomeScreenCarousel> createState() => _HomeScreenCarouselState();
 }
 
 class _HomeScreenCarouselState extends State<_HomeScreenCarousel> {
-  late PageController _pageController;
-  int _currentPage = 0;
+  final ScrollController _scrollController = ScrollController();
+  int _focusedIndex = 0;
+  late List<FeatureDescriptor> _sortedFeatures;
   late List<Widget> _sortedWidgets;
+  bool _initialScrollScheduled = false;
+  bool _snapScheduled = false;
 
   @override
   void initState() {
     super.initState();
-    
-    // Sort features by priority (ascending - lower priority first)
-    // Demo has priority 90, Play has priority 100, so demo comes first
-    final sortedFeatures = List<MapEntry<int, Widget>>.generate(
-      widget.features.length,
-      (index) => MapEntry(
-        widget.features[index].priority,
-        widget.widgets[index],
-      ),
-    )..sort((a, b) => a.key.compareTo(b.key));
-
-    _sortedWidgets = sortedFeatures.map((entry) => entry.value).toList();
-
-    // Find demo button index (priority 90) to start there
-    final demoIndex = sortedFeatures.indexWhere((entry) => entry.key == 90);
-    _currentPage = demoIndex >= 0 ? demoIndex : 0;
-
-    _pageController = PageController(
-      initialPage: _currentPage,
-      viewportFraction: 0.85, // Each item takes 85% of viewport
-    );
+    final order = List<int>.generate(widget.features.length, (i) => i)
+      ..sort((a, b) => widget.features[a].priority.compareTo(widget.features[b].priority));
+    _sortedFeatures = order.map((i) => widget.features[i]).toList();
+    _sortedWidgets = order.map((i) => widget.widgets[i]).toList();
+    _scrollController.addListener(_syncFocusFromScroll);
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _scrollController.removeListener(_syncFocusFromScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
-  void _goToPreviousPage() {
-    if (_currentPage > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+  double _itemStride(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final safeH = mq.size.height - mq.padding.vertical;
+    var side = 80.0;
+    for (final f in _sortedFeatures) {
+      if (f is HomeScreenButtonFeatureDescriptor) {
+        if (f.heightPercentage != null) {
+          side = math.max(side, safeH * f.heightPercentage!);
+        } else {
+          side = math.max(side, (f.height ?? 80).toDouble());
+        }
+      }
     }
+    return side + 16.0;
   }
 
-  void _goToNextPage() {
-    if (_currentPage < _sortedWidgets.length - 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+  void _syncFocusFromScroll() {
+    if (!_scrollController.hasClients) return;
+    final mq = MediaQuery.of(context);
+    final vp = mq.size.height * _HomeScreenCarousel.kViewportHeightFraction;
+    final itemH = _itemStride(context);
+    final topPad = math.max(0.0, (vp - itemH) / 2.0);
+    final n = _sortedWidgets.length;
+    final i = _indexForOffset(_scrollController.offset, topPad, itemH, vp, n);
+    if (i != _focusedIndex) setState(() => _focusedIndex = i);
+  }
+
+  int _indexForOffset(double offset, double topPad, double itemH, double vp, int n) {
+    final center = offset + vp / 2.0;
+    var i = ((center - topPad - itemH / 2.0) / itemH).round();
+    i = i.clamp(0, n - 1);
+    return i;
+  }
+
+  double _offsetToCenterIndex(int index, double topPad, double itemH, double vp) {
+    return topPad + index * itemH + itemH / 2.0 - vp / 2.0;
+  }
+
+  void _snapToNearest() {
+    if (!_scrollController.hasClients || !mounted) return;
+    final mq = MediaQuery.of(context);
+    final vp = mq.size.height * _HomeScreenCarousel.kViewportHeightFraction;
+    final itemH = _itemStride(context);
+    final topPad = math.max(0.0, (vp - itemH) / 2.0);
+    final n = _sortedWidgets.length;
+    final i = _indexForOffset(_scrollController.offset, topPad, itemH, vp, n);
+    final target = _offsetToCenterIndex(i, topPad, itemH, vp);
+    final maxScroll = math.max(0.0, _scrollController.position.maxScrollExtent);
+    final clamped = target.clamp(0.0, maxScroll).toDouble();
+    _scrollController.animateTo(
+      clamped,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _scheduleSnap() {
+    if (_snapScheduled) return;
+    _snapScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _snapScheduled = false;
+      if (mounted) _snapToNearest();
+    });
+  }
+
+  void _animateToIndex(int index) {
+    if (!_scrollController.hasClients || !mounted) return;
+    final mq = MediaQuery.of(context);
+    final vp = mq.size.height * _HomeScreenCarousel.kViewportHeightFraction;
+    final itemH = _itemStride(context);
+    final topPad = math.max(0.0, (vp - itemH) / 2.0);
+    final n = _sortedWidgets.length;
+    final i = index.clamp(0, n - 1);
+    final maxScroll = math.max(0.0, _scrollController.position.maxScrollExtent);
+    final target =
+        _offsetToCenterIndex(i, topPad, itemH, vp).clamp(0.0, maxScroll).toDouble();
+    setState(() => _focusedIndex = i);
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _goToPrevious() {
+    if (_focusedIndex > 0) _animateToIndex(_focusedIndex - 1);
+  }
+
+  void _goToNext() {
+    if (_focusedIndex < _sortedWidgets.length - 1) {
+      _animateToIndex(_focusedIndex + 1);
     }
   }
 
@@ -335,68 +424,82 @@ class _HomeScreenCarouselState extends State<_HomeScreenCarousel> {
       return const SizedBox.shrink();
     }
 
-    final screenHeight = MediaQuery.of(context).size.height;
-    final availableHeight = screenHeight * 0.5; // 50% of screen height
-    final canGoLeft = _currentPage > 0;
-    final canGoRight = _currentPage < _sortedWidgets.length - 1;
+    final mq = MediaQuery.of(context);
+    final vp = mq.size.height * _HomeScreenCarousel.kViewportHeightFraction;
+    final itemH = _itemStride(context);
+    final topPad = math.max(0.0, (vp - itemH) / 2.0);
+    final n = _sortedWidgets.length;
+
+    if (!_initialScrollScheduled) {
+      _initialScrollScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        final mq2 = MediaQuery.of(context);
+        final vp2 = mq2.size.height * _HomeScreenCarousel.kViewportHeightFraction;
+        final itemH2 = _itemStride(context);
+        final topPad2 = math.max(0.0, (vp2 - itemH2) / 2.0);
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        final target = _offsetToCenterIndex(0, topPad2, itemH2, vp2).clamp(0.0, maxScroll).toDouble();
+        _scrollController.jumpTo(target);
+        _syncFocusFromScroll();
+      });
+    }
+
+    final canGoUp = _focusedIndex > 0;
+    final canGoDown = _focusedIndex < n - 1;
 
     return SizedBox(
-      height: availableHeight,
+      height: vp,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          // PageView carousel
-          PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentPage = index;
-              });
-            },
-            itemCount: _sortedWidgets.length,
-            itemBuilder: (context, index) {
-              return AnimatedBuilder(
-                animation: _pageController,
-                builder: (context, child) {
-                  double opacity = 0.5; // Default to 50% for side items
-                  
-                  if (_pageController.position.haveDimensions) {
-                    final page = _pageController.page!;
-                    final distance = (page - index).abs();
-                    
-                    // Current page (or very close to it) gets full opacity
-                    // Adjacent pages get 50% opacity
-                    if (distance < 0.5) {
-                      opacity = 1.0 - (distance * 1.0); // Smooth transition from 1.0 to 0.5
-                      opacity = opacity.clamp(0.5, 1.0);
-                    } else {
-                      opacity = 0.5;
-                    }
-                  } else {
-                    // Before PageView is ready, use simple distance calculation
-                    final distance = (index - _currentPage).abs();
-                    opacity = distance == 0 ? 1.0 : 0.5;
-                  }
-
-                  return Opacity(
-                    opacity: opacity,
-                    child: _sortedWidgets[index],
-                  );
-                },
-              );
-            },
+          ScrollConfiguration(
+            behavior: const _HomeScreenCarouselScrollBehavior(),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollEndNotification &&
+                    notification.metrics.axis == Axis.vertical) {
+                  _scheduleSnap();
+                }
+                return false;
+              },
+              child: ListView(
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(),
+                padding: EdgeInsets.zero,
+                children: [
+                  SizedBox(height: topPad),
+                  ...List.generate(n, (i) {
+                    return SizedBox(
+                      height: itemH,
+                      child: Center(
+                        child: Opacity(
+                          opacity: i == _focusedIndex
+                              ? 1.0
+                              : _HomeScreenCarousel.kDimmedCardOpacity,
+                          child: IgnorePointer(
+                            ignoring: i != _focusedIndex,
+                            child: _sortedWidgets[i],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  SizedBox(height: topPad),
+                ],
+              ),
+            ),
           ),
-          
-          // Left arrow button
-          if (canGoLeft)
+          if (canGoUp)
             Positioned(
               left: 0,
+              right: 0,
               top: 0,
-              bottom: 0,
               child: Center(
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: _goToPreviousPage,
+                    onTap: _goToPrevious,
                     borderRadius: BorderRadius.circular(30),
                     child: Container(
                       width: 48,
@@ -410,27 +513,25 @@ class _HomeScreenCarouselState extends State<_HomeScreenCarousel> {
                         ),
                       ),
                       child: Icon(
-                        Icons.arrow_back_ios,
+                        Icons.keyboard_arrow_up,
                         color: AppColors.textOnPrimary,
-                        size: 24,
+                        size: 28,
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          
-          // Right arrow button
-          if (canGoRight)
+          if (canGoDown)
             Positioned(
+              left: 0,
               right: 0,
-              top: 0,
               bottom: 0,
               child: Center(
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: _goToNextPage,
+                    onTap: _goToNext,
                     borderRadius: BorderRadius.circular(30),
                     child: Container(
                       width: 48,
@@ -444,9 +545,9 @@ class _HomeScreenCarouselState extends State<_HomeScreenCarousel> {
                         ),
                       ),
                       child: Icon(
-                        Icons.arrow_forward_ios,
+                        Icons.keyboard_arrow_down,
                         color: AppColors.textOnPrimary,
-                        size: 24,
+                        size: 28,
                       ),
                     ),
                   ),

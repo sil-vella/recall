@@ -9,6 +9,7 @@ import '../../../widgets/card_widget.dart';
 import '../../../widgets/dutch_slice_builder.dart';
 import '../utils/dutch_anim_layout_reporter.dart';
 import '../utils/dutch_anim_runtime.dart';
+import '../utils/dutch_opponent_seat_layout.dart';
 import 'dutch_card_anim_overlay.dart';
 import 'player_status_chip_widget.dart';
 import 'circular_timer_widget.dart';
@@ -78,43 +79,6 @@ _HandHudCorner _handHudCornerForTableOrientation(CardTableOrientation o) {
   }
 }
 
-/// Seat order (clockwise list index): 1st → left, 2nd → top, 3rd → right; repeats for 4+.
-/// Special cases: 1 opponent → left only; 2 → 1st left + 2nd top (no right).
-({List<Map<String, dynamic>> top, List<Map<String, dynamic>> left, List<Map<String, dynamic>> right})
-_bucketOpponentsForTable(List<dynamic> opponents) {
-  final list = <Map<String, dynamic>>[];
-  for (final o in opponents) {
-    if (o is Map<String, dynamic>) {
-      list.add(Map<String, dynamic>.from(o));
-    }
-  }
-  if (list.isEmpty) {
-    return (top: <Map<String, dynamic>>[], left: <Map<String, dynamic>>[], right: <Map<String, dynamic>>[]);
-  }
-  if (list.length == 1) {
-    return (top: <Map<String, dynamic>>[], left: list, right: <Map<String, dynamic>>[]);
-  }
-  if (list.length == 2) {
-    return (top: [list[1]], left: [list[0]], right: <Map<String, dynamic>>[]);
-  }
-  final top = <Map<String, dynamic>>[];
-  final left = <Map<String, dynamic>>[];
-  final right = <Map<String, dynamic>>[];
-  for (var i = 0; i < list.length; i++) {
-    switch (i % 3) {
-      case 0:
-        left.add(list[i]);
-        break;
-      case 1:
-        top.add(list[i]);
-        break;
-      default:
-        right.add(list[i]);
-    }
-  }
-  return (top: top, left: left, right: right);
-}
-
 /// Opponent slice + peek protection inputs for the play surface (top strip + middle row).
 class _OppBoardContext {
   _OppBoardContext._({
@@ -123,7 +87,7 @@ class _OppBoardContext {
     required this.currentTurnIndex,
     required this.isGameActive,
     required this.playerStatus,
-  }) : buckets = _bucketOpponentsForTable(opponents);
+  }) : buckets = bucketOpponentsForDutchTable(opponents);
 
   final List<dynamic> cardsToPeek;
   final List<dynamic> opponents;
@@ -188,6 +152,14 @@ Map<String, dynamic> _unifiedBoardViewSlice(Map<String, dynamic> d) {
 /// Unified play surface: top strip (intrinsic height, full width) → [Expanded] middle
 /// row (left/right [Expanded], center board [IntrinsicWidth]) → my hand (intrinsic height).
 /// Opponent bucketing: 1 → left only; 2 → left + top; 3+ indices 0/1/2… → left / top / right.
+///
+/// **Centering (layout):**
+/// - **My-hand live card row:** horizontal centering uses a single mechanism in
+///   [_buildMyHandCardsGrid] only (`Row` + `mainAxisAlignment` inside a width-constrained scroll child).
+///   Other `Center`/`Align` widgets here are for opponents, piles, pot, or empty placeholders—not the my-hand row.
+/// - **Opponents:** top strip uses `Center`+`Row` for the seat group; top `Wrap` uses `WrapAlignment.center`;
+///   side columns use `Align(centerLeft/centerRight)`—each intentional for table UX.
+/// - **Flight cards:** [DutchCardAnimOverlay] uses `Center` inside measured rects for geometry, not board row centering.
 class UnifiedGameBoardWidget extends StatefulWidget {
   const UnifiedGameBoardWidget({Key? key}) : super(key: key);
 
@@ -257,8 +229,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Avoid mergeLayout loops when layout post-frame runs repeatedly with same geometry.
   String? _lastAnimLayoutSignature;
 
-  /// Dedupe [DutchAnimRuntime] notifies: only [setState] when [DutchAnimRuntime.handAnimMaskSignature] changes.
-  String _lastAnimHandMaskSig = '';
+  /// Dedupe [DutchAnimRuntime] notifies: mask and/or anim queue length (for my-hand row stability).
+  String _lastAnimRuntimeStabilitySig = '';
 
   Map<String, dynamic> _dutchGameState() =>
       StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? const {};
@@ -281,14 +253,20 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     ));
 
     DutchAnimRuntime.instance.addListener(_onAnimRuntimeForHandMask);
-    _lastAnimHandMaskSig = DutchAnimRuntime.instance.handAnimMaskSignature;
+    _lastAnimRuntimeStabilitySig = _computeAnimRuntimeStabilitySig();
+  }
+
+  String _computeAnimRuntimeStabilitySig() {
+    final snap = DutchAnimRuntime.instance.snapshotForAnim();
+    final q = snap[DutchAnimRuntime.eventDataKey] as List? ?? [];
+    return '${DutchAnimRuntime.instance.handAnimMaskSignature}|${q.length}';
   }
 
   void _onAnimRuntimeForHandMask() {
     if (!mounted) return;
-    final sig = DutchAnimRuntime.instance.handAnimMaskSignature;
-    if (sig == _lastAnimHandMaskSig) return;
-    _lastAnimHandMaskSig = sig;
+    final sig = _computeAnimRuntimeStabilitySig();
+    if (sig == _lastAnimRuntimeStabilitySig) return;
+    _lastAnimRuntimeStabilitySig = sig;
     setState(() {});
   }
 
@@ -324,6 +302,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     });
   }
 
+  /// [CardTableOrientation.name] per player for [DutchCardAnimOverlay] (matches seat buckets).
+  Map<String, String> _playerTableOrientationKeys(Map<String, dynamic> board) {
+    final myId = _myBoardPlayerId(board);
+    final out = <String, String>{myId: CardTableOrientation.portraitUp.name};
+    final opponentsPanel = board['opponentsPanel'] as Map<String, dynamic>? ?? {};
+    final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
+    final buckets = bucketOpponentsForDutchTable(opponents);
+    void tag(List<Map<String, dynamic>> list, CardTableOrientation o) {
+      for (final p in list) {
+        final id = p['id']?.toString() ?? '';
+        if (id.isNotEmpty) out[id] = o.name;
+      }
+    }
+    tag(buckets.top, CardTableOrientation.portraitDown);
+    tag(buckets.left, CardTableOrientation.landscapeFromLeft);
+    tag(buckets.right, CardTableOrientation.landscapeFromRight);
+    return out;
+  }
+
   void _flushAnimLayoutReport(Map<String, dynamic> board) {
     if (_animStackAnchorKey.currentContext == null) return;
     final uid = _myBoardPlayerId(board);
@@ -353,7 +350,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       drawPileKey: _drawPileKey,
       discardPileKey: _discardPileKey,
     );
-    final sig = '${jsonEncode(hands)}|${jsonEncode(piles)}';
+    final orientKeys = _playerTableOrientationKeys(board);
+    final sig = '${jsonEncode(hands)}|${jsonEncode(piles)}|${jsonEncode(orientKeys)}';
     if (sig == _lastAnimLayoutSignature) {
       if (LOGGING_SWITCH) {
         _logger.debug(
@@ -372,6 +370,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     DutchAnimRuntime.instance.mergeLayout(
       cardPositions: hands,
       pileRects: piles,
+      playerTableOrientations: orientKeys,
     );
   }
 
@@ -2518,6 +2517,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   cardsToPeek,
                   selectedIndex,
                   board,
+                  isMyTurn,
                   firstCardHandHud: myFirstCardHandHud,
                 ),
               ),
@@ -2561,7 +2561,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     List<dynamic> cards,
     List<dynamic> cardsToPeek,
     int selectedIndex,
-    Map<String, dynamic> board, {
+    Map<String, dynamic> board,
+    bool isMyTurn, {
     Widget? firstCardHandHud,
   }) {
     return LayoutBuilder(
@@ -2878,19 +2879,35 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           }
 
           final slotStride = cardDimensions.width + cardPadding;
+          final minSlotsForRow = cards.length;
+          while (cardWidgets.length < minSlotsForRow) {
+            cardWidgets.add(SizedBox(width: slotStride, height: cardHeight));
+          }
+
           final totalRowWidth =
               cardWidgets.isEmpty ? 0.0 : cardWidgets.length * slotStride;
-          // Use at least container width so Center can center the row when it's narrower (e.g. after resize)
-          final rowContainerWidth = totalRowWidth < containerWidth ? containerWidth : totalRowWidth;
+          // Scroll child width: at least viewport so the row has slack; not a second "centering" layer
+          // (horizontal centering is only [Row.mainAxisAlignment] below).
+          final naturalRowContainerWidth =
+              totalRowWidth < containerWidth ? containerWidth : totalRowWidth;
+
+          if (LOGGING_SWITCH) {
+            _logger.info(
+              '[MyHandLayout] realRow isMyTurn=$isMyTurn cardsLen=${cards.length} '
+              'paddedSlots=${cardWidgets.length} minSlots=$minSlotsForRow '
+              'totalRowW=${totalRowWidth.toStringAsFixed(1)} containerW=${containerWidth.toStringAsFixed(1)} '
+              'scrollChildW=${naturalRowContainerWidth.toStringAsFixed(1)}',
+            );
+          }
+
           final rowWidget = SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SizedBox(
-              width: rowContainerWidth,
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: cardWidgets,
-                ),
+              width: naturalRowContainerWidth,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: cardWidgets,
               ),
             ),
           );

@@ -107,6 +107,9 @@ filter_logs() {
             
             # Display to console with color coding
             echo -e "${color}[$timestamp] [$level] $message\033[0m"
+        else
+            # Critical: do not swallow Flutter / Dart output (compile errors, crash traces, etc.).
+            echo "$line" >&2
         fi
     done
 }

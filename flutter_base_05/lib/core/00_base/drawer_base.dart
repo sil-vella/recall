@@ -25,12 +25,14 @@ class CustomDrawer extends StatelessWidget {
       elevation: 0,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.primaryColor,
+          color: AppColors.accentContrast,
         ),
         child: Column(
           children: [
-            // ✅ Drawer Header with Image
             DrawerHeader(
+              decoration: BoxDecoration(
+                color: AppColors.accentContrast,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,

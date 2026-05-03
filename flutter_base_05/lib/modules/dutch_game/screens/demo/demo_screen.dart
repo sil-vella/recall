@@ -12,14 +12,7 @@ class DemoScreen extends BaseScreen {
   const DemoScreen({Key? key}) : super(key: key);
 
   @override
-  String computeTitle(BuildContext context) => 'Dutch Game Demo';
-
-  @override
-  Decoration? getBackground(BuildContext context) {
-    return BoxDecoration(
-      color: AppColors.pokerTableGreen,
-    );
-  }
+  String computeTitle(BuildContext context) => 'Learn How';
 
   @override
   DemoScreenState createState() => DemoScreenState();
@@ -145,7 +138,7 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.primaryColor,
+        color: AppColors.accentContrast,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -177,7 +170,7 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
                 Text(
                   title,
                   style: AppTextStyles.headingSmall().copyWith(
-                    color: AppColors.textOnPrimary,
+                    color: AppColors.white,
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
@@ -193,7 +186,7 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
   Widget _buildStartDemoButton() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.accentColor,
+        color: AppColors.accentContrast,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -240,7 +233,7 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
                 Text(
                   'Start Demo',
                   style: AppTextStyles.headingMedium().copyWith(
-                    color: AppColors.textOnAccent,
+                    color: AppColors.white,
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
@@ -249,7 +242,7 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
                 Text(
                   'Run all demos sequentially',
                   style: AppTextStyles.bodySmall().copyWith(
-                    color: AppColors.textOnAccent.withOpacity(0.9),
+                    color: AppColors.white.withOpacity(0.9),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -267,20 +260,20 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
     required String icon,
   }) {
     return Container(
-              decoration: BoxDecoration(
-                color: AppColors.primaryColor,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
+      decoration: BoxDecoration(
+        color: AppColors.accentContrast,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           onTap: () async {
             if (LOGGING_SWITCH) {
               _logger.info('🎮 DemoScreen: Demo action button tapped: $actionType');
@@ -300,9 +293,9 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
                 );
               }
             }
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
             padding: EdgeInsets.symmetric(
               horizontal: AppPadding.defaultPadding.left,
               vertical: AppPadding.smallPadding.top,
@@ -318,16 +311,16 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
                 Text(
                   title,
                   style: AppTextStyles.headingSmall().copyWith(
-                          color: AppColors.textOnPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-              ],
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
+              ],
             ),
+          ),
+        ),
+      ),
     );
   }
 

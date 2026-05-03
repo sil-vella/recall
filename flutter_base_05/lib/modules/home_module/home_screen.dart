@@ -22,7 +22,7 @@ class HomeScreen extends BaseScreen {
   Decoration? getBackground(BuildContext context) {
     return const BoxDecoration(
       image: DecorationImage(
-        image: AssetImage('assets/images/backgrounds/main-screens-background(002).jpg'),
+        image: AssetImage('assets/images/backgrounds/main-screens-background.webp'),
         fit: BoxFit.contain,
         alignment: Alignment.bottomRight,
       ),

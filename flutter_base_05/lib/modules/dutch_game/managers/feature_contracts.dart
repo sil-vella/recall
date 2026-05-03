@@ -24,8 +24,7 @@ class IconActionFeatureDescriptor extends FeatureDescriptor {
         );
 }
 
-/// Specialized descriptor for home screen full-width button features.
-/// Supports image background or solid color, with optional icon above centered text.
+/// Full-width home tile: icon + text; optional [backgroundColor] fill ([imagePath] ignored by UI).
 class HomeScreenButtonFeatureDescriptor extends FeatureDescriptor {
   final String text;
   final VoidCallback onTap;
@@ -35,8 +34,10 @@ class HomeScreenButtonFeatureDescriptor extends FeatureDescriptor {
   final double? heightPercentage; // Percentage of available height (0.0 to 1.0)
   final EdgeInsetsGeometry? padding;
   final TextStyle? textStyle;
-  /// Optional icon shown above the text (e.g. Icons.casino, Icons.play_circle_outline).
+  /// Optional icon shown above the text (e.g. Icons.casino).
   final IconData? icon;
+  /// Optional vector asset above the text; when set, used instead of [icon].
+  final String? iconSvgPath;
 
   HomeScreenButtonFeatureDescriptor({
     required String featureId,
@@ -50,6 +51,7 @@ class HomeScreenButtonFeatureDescriptor extends FeatureDescriptor {
     this.padding,
     this.textStyle,
     this.icon,
+    this.iconSvgPath,
     int priority = 100,
     Map<String, dynamic>? metadata,
   }) : super(

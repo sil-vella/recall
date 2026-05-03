@@ -651,75 +651,89 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       bottomNavigationBar: widget.getBottomNavigationBar(context),
 
       body: SafeArea(
-        child: Container(
-          decoration: widget.getBackground(context) ??
-            // Clean background - use scaffold background
-            BoxDecoration(
-              color: AppColors.scaffoldBackgroundColor,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.scaffoldBackgroundColor,
+                      AppColors.scaffoldDeepPlumColor,
+                    ],
+                  ),
+                ),
+              ),
             ),
-            // (AppBackgrounds.backgrounds.isNotEmpty
-            //   ? BoxDecoration(
-            //       image: DecorationImage(
-            //         image: AssetImage(AppBackgrounds.backgrounds[0]),
-            //         fit: BoxFit.cover,
-            //         colorFilter: ColorFilter.mode(
-            //           AppColors.primaryColor.withOpacity(0.7),
-            //           BlendMode.darken,
-            //         ),
-            //       ),
-            //     )
-            //   : BoxDecoration(
-            //       color: AppColors.primaryColor,
-            //     )
-            // ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // TEMP: snack-bar reserved strip disabled — re-enable [totalBottomSpace] + [SizedBox] below if needed.
-              // Account for snack bar height (typically 48-56px, using 56px for safety)
-              // Also account for system bottom padding (safe area)
-              // const snackBarHeight = 56.0;
-              // final bottomPadding = MediaQuery.of(context).padding.bottom;
-              // final totalBottomSpace = snackBarHeight + bottomPadding;
-              
-              // Top banner space commented out
-              // final topBannerHeight = kIsWeb
-              //     ? (adsense_placeholder.hasTopAdSlot ? 50.0 : 0.0)
-              //     : (bannerAdModule != null ? 50.0 : 0.0);
-              // TEMP: AdSense / AdMob bottom slot disabled — re-enable [bottomBannerHeight] + block below.
-              // final bottomBannerHeight = kIsWeb
-              //     ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
-              //     : (bannerAdModule != null ? 50.0 : 0.0);
-              
-              if (LOGGING_SWITCH) {
-                _logger.info(
-                  'BaseScreen LayoutBuilder: maxHeight=${constraints.maxHeight}, '
-                  'maxWidth=${constraints.maxWidth}, bottomPadding=${MediaQuery.of(context).padding.bottom}, '
-                  'bannerAdModule=${bannerAdModule != null}',
-                );
-              }
-              
-              final bottomPromo = _cachedBottomPromo;
-              final bottomSource = _cachedBottomSource;
-              final useAdmobBottom =
-                  bottomSource == 'admob' || bottomSource == 'admobs';
-              final promoHeight =
-                  !useAdmobBottom && bottomPromo != null ? 44.0 : 0.0;
-              if (LOGGING_SWITCH) {
-                _logger.info(
-                  'BaseScreen promo strip: bottomSource=$bottomSource useAdmobBottom=$useAdmobBottom '
-                  'bottomPromo=${bottomPromo != null} promoHeight=$promoHeight',
-                );
-              }
-              final bottomBannerHeight = useAdmobBottom
-                  ? (kIsWeb
-                      ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
-                      : (bannerAdModule != null ? 50.0 : 0.0))
-                  : 0.0;
+            Positioned.fill(
+              child: Container(
+                decoration: widget.getBackground(context) ?? const BoxDecoration(),
+                // (AppBackgrounds.backgrounds.isNotEmpty
+                //   ? BoxDecoration(
+                //       image: DecorationImage(
+                //         image: AssetImage(AppBackgrounds.backgrounds[0]),
+                //         fit: BoxFit.cover,
+                //         colorFilter: ColorFilter.mode(
+                //           AppColors.primaryColor.withOpacity(0.7),
+                //           BlendMode.darken,
+                //         ),
+                //       ),
+                //     )
+                //   : BoxDecoration(
+                //       color: AppColors.primaryColor,
+                //     )
+                // ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // TEMP: snack-bar reserved strip disabled — re-enable [totalBottomSpace] + [SizedBox] below if needed.
+                    // Account for snack bar height (typically 48-56px, using 56px for safety)
+                    // Also account for system bottom padding (safe area)
+                    // const snackBarHeight = 56.0;
+                    // final bottomPadding = MediaQuery.of(context).padding.bottom;
+                    // final totalBottomSpace = snackBarHeight + bottomPadding;
+                    
+                    // Top banner space commented out
+                    // final topBannerHeight = kIsWeb
+                    //     ? (adsense_placeholder.hasTopAdSlot ? 50.0 : 0.0)
+                    //     : (bannerAdModule != null ? 50.0 : 0.0);
+                    // TEMP: AdSense / AdMob bottom slot disabled — re-enable [bottomBannerHeight] + block below.
+                    // final bottomBannerHeight = kIsWeb
+                    //     ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
+                    //     : (bannerAdModule != null ? 50.0 : 0.0);
+                    
+                    if (LOGGING_SWITCH) {
+                      _logger.info(
+                        'BaseScreen LayoutBuilder: maxHeight=${constraints.maxHeight}, '
+                        'maxWidth=${constraints.maxWidth}, bottomPadding=${MediaQuery.of(context).padding.bottom}, '
+                        'bannerAdModule=${bannerAdModule != null}',
+                      );
+                    }
+                    
+                    final bottomPromo = _cachedBottomPromo;
+                    final bottomSource = _cachedBottomSource;
+                    final useAdmobBottom =
+                        bottomSource == 'admob' || bottomSource == 'admobs';
+                    final promoHeight =
+                        !useAdmobBottom && bottomPromo != null ? 44.0 : 0.0;
+                    if (LOGGING_SWITCH) {
+                      _logger.info(
+                        'BaseScreen promo strip: bottomSource=$bottomSource useAdmobBottom=$useAdmobBottom '
+                        'bottomPromo=${bottomPromo != null} promoHeight=$promoHeight',
+                      );
+                    }
+                    final bottomBannerHeight = useAdmobBottom
+                        ? (kIsWeb
+                            ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
+                            : (bannerAdModule != null ? 50.0 : 0.0))
+                        : 0.0;
 
-              return Column(
-                    mainAxisSize: MainAxisSize.max,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+                    return Column(
+                      mainAxisSize: MainAxisSize.max,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                       // Global header slot at the top (fixed, takes natural height)
                       // Nothing behind it - this takes its space
                       FeatureSlot(
@@ -784,12 +798,15 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                       // Nothing behind it - this takes its space
                       // TEMP: disabled — pair with [totalBottomSpace] locals above when re-enabling.
                       // SizedBox(height: totalBottomSpace),
-                    ],
-              );
-            },
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+            ],
           ),
         ),
-      ),
     );
 
     return scaffold;

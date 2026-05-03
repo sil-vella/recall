@@ -13,7 +13,6 @@ dependencies:
   provider: ^6.1.1
   http: ^1.1.0
   shared_preferences: ^2.2.2
-  package_info_plus: ^8.0.0
   flutter_native_splash: ^2.4.0
   just_audio: ^0.9.42
   auto_size_text: ^3.0.0
@@ -42,6 +41,7 @@ dependencies:
   uuid: ^4.3.3
   lottie: ^3.3.1
   video_player: ^2.9.2
+  flutter_svg: ^2.0.10
 
   # Firebase (Analytics, AdMob-ready)
   firebase_core: ^3.8.0
@@ -67,6 +67,7 @@ flutter:
     - assets/images/
     - assets/videos/
     - assets/images/backgrounds/
+    - assets/images/icons/
     - assets/deck_config.yaml
     - assets/computer_player_config.yaml
     - assets/predefined_hands.yaml
@@ -80,6 +81,8 @@ flutter_native_splash:
   android_gravity: fill
   ios_content_mode: scaleToFill
   fullscreen: true
+  # API 31+: OS shows a centered masked icon, not a full-bleed bitmap (see Android splash-screen docs).
+  # Use a 960×960 (with icon background) asset with important art inside the ~640dp circle, same green as [color].
   android_12:
     color: "#2a5c32"
     image: assets/images/splash_screen.png

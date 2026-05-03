@@ -7,10 +7,10 @@ import '../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../tools/logging/logger.dart';
 import '../../../../utils/consts/theme_consts.dart';
 
-/// Enable for leaderboard testing (period-wins + snapshot history). See `.cursor/rules/enable-logging-switch.mdc`.
+/// Enable for leaderboard testing (period-wins). See `.cursor/rules/enable-logging-switch.mdc`.
 const bool LOGGING_SWITCH = false;
 
-/// Route: `/dutch/leaderboard` — live period wins + optional snapshot history from public Dutch endpoints.
+/// Route: `/dutch/leaderboard` — live period wins from public Dutch endpoints.
 class LeaderboardScreen extends BaseScreen {
   const LeaderboardScreen({Key? key}) : super(key: key);
 
@@ -19,10 +19,9 @@ class LeaderboardScreen extends BaseScreen {
 
   @override
   Decoration? getBackground(BuildContext context) {
-    return BoxDecoration(
-      color: AppColors.scaffoldBackgroundColor,
-      image: const DecorationImage(
-        image: AssetImage('assets/images/backgrounds/leaderboard-screen-background_002.jpg'),
+    return const BoxDecoration(
+      image: DecorationImage(
+        image: AssetImage('assets/images/backgrounds/main-screens-background.webp'),
         fit: BoxFit.contain,
         alignment: Alignment.bottomRight,
       ),
@@ -46,12 +45,6 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   Map<String, dynamic>? _monthlyViewer;
   Map<String, dynamic>? _yearlyViewer;
   int _tabIndex = 0;
-
-  bool _historyOpen = false;
-  bool _historyLoading = false;
-  String? _historyError;
-  List<Map<String, String>> _historyMonthlyFlat = [];
-  List<Map<String, String>> _historyYearlyFlat = [];
 
   @override
   void initState() {
@@ -108,93 +101,6 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
         _loading = false;
       });
     }
-    if (mounted && _historyOpen) {
-      await _loadHistory();
-    }
-  }
-
-  Future<void> _loadHistory() async {
-    if (LOGGING_SWITCH) {
-      _logger.info('LeaderboardScreen: loading snapshot history (monthly+yearly leaderboards)', isOn: LOGGING_SWITCH);
-    }
-    setState(() {
-      _historyLoading = true;
-      _historyError = null;
-    });
-    try {
-      final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
-      if (api == null) {
-        _historyError = 'API not available';
-        _historyMonthlyFlat = [];
-        _historyYearlyFlat = [];
-        if (mounted) setState(() => _historyLoading = false);
-        return;
-      }
-      final results = await Future.wait([
-        api.sendGetRequest('/public/dutch/leaderboards?leaderboard_type=monthly&limit=20'),
-        api.sendGetRequest('/public/dutch/leaderboards?leaderboard_type=yearly&limit=20'),
-      ]);
-      final mOk = results[0] is Map && (results[0] as Map)['success'] == true;
-      final yOk = results[1] is Map && (results[1] as Map)['success'] == true;
-      if (mOk && yOk) {
-        _historyMonthlyFlat = _flattenSnapshotLeaderboards((results[0] as Map)['leaderboards']);
-        _historyYearlyFlat = _flattenSnapshotLeaderboards((results[1] as Map)['leaderboards']);
-        _historyError = null;
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            'LeaderboardScreen: history ok flat_monthly=${_historyMonthlyFlat.length} flat_yearly=${_historyYearlyFlat.length}',
-            isOn: LOGGING_SWITCH,
-          );
-        }
-      } else {
-        final err = (results[0] is Map ? (results[0] as Map)['error']?.toString() : null) ??
-            (results[1] is Map ? (results[1] as Map)['error']?.toString() : null) ??
-            'Failed to load history';
-        _historyError = err;
-        _historyMonthlyFlat = [];
-        _historyYearlyFlat = [];
-      }
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('LeaderboardScreen: history load error', error: e, isOn: LOGGING_SWITCH);
-      }
-      _historyError = e.toString();
-      _historyMonthlyFlat = [];
-      _historyYearlyFlat = [];
-    }
-    if (mounted) {
-      setState(() {
-        _historyLoading = false;
-      });
-    }
-  }
-
-  List<Map<String, String>> _flattenSnapshotLeaderboards(dynamic raw) {
-    final list = raw is List ? raw : const [];
-    final rows = <Map<String, String>>[];
-    for (final item in list) {
-      final m = Map<String, dynamic>.from(item as Map);
-      final dateLabel = _formatSnapshotDate(m['date_time']?.toString());
-      for (final w in (m['winners'] as List?) ?? const []) {
-        final wm = Map<String, dynamic>.from(w as Map);
-        final un = wm['username']?.toString() ?? '';
-        final uid = wm['user_id']?.toString() ?? '';
-        rows.add({'username': un, 'date': dateLabel, 'user_id': uid});
-      }
-    }
-    return rows;
-  }
-
-  /// Snapshot `date_time` from API (ISO); show YYYY-MM-DD for readability.
-  String _formatSnapshotDate(String? raw) {
-    if (raw == null || raw.isEmpty) return '';
-    final d = DateTime.tryParse(raw);
-    if (d == null) return raw;
-    final l = d.toLocal();
-    final y = l.year.toString().padLeft(4, '0');
-    final mo = l.month.toString().padLeft(2, '0');
-    final day = l.day.toString().padLeft(2, '0');
-    return '$y-$mo-$day';
   }
 
   void _applyResponse(dynamic response, {required bool isMonthly}) {
@@ -269,172 +175,38 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
           ),
         ),
         Expanded(
-          child: Column(
-            children: [
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppColors.accentColor,
-                  onRefresh: _load,
-                  child: _tabIndex == 0
-                      ? _PeriodLeaderboardBody(
-                          error: _monthlyError,
-                          rows: _monthlyRows,
-                          viewer: _monthlyViewer,
-                          periodLabel: _monthlyPeriodKey.isEmpty ? 'This month (UTC)' : 'Month $_monthlyPeriodKey (UTC)',
-                          emptyMessage: 'No wins recorded this month yet.',
-                          onRetry: _load,
-                        )
-                      : _PeriodLeaderboardBody(
-                          error: _yearlyError,
-                          rows: _yearlyRows,
-                          viewer: _yearlyViewer,
-                          periodLabel: _yearlyPeriodKey.isEmpty ? 'This year (UTC)' : 'Year $_yearlyPeriodKey (UTC)',
-                          emptyMessage: 'No wins recorded this year yet.',
-                          onRetry: _load,
-                        ),
-                ),
-              ),
-              Semantics(
-                label: 'leaderboard_history_section',
-                identifier: 'leaderboard_history_section',
-                child: Material(
-                  color: AppColors.surface,
-                  elevation: 1,
-                  child: Theme(
-                    data: Theme.of(context).copyWith(dividerColor: AppColors.casinoBorderColor),
-                    child: ExpansionTile(
-                      initiallyExpanded: false,
-                      backgroundColor: AppColors.surface,
-                      collapsedBackgroundColor: AppColors.surface,
-                      iconColor: AppColors.primaryColor,
-                      collapsedIconColor: AppColors.primaryColor,
-                      onExpansionChanged: (open) {
-                        setState(() => _historyOpen = open);
-                        if (open) {
-                          _loadHistory();
-                        }
-                      },
-                      title: Text(
-                        'History',
-                        style: AppTextStyles.headingSmall(color: AppColors.primaryColor),
-                      ),
-                      subtitle: Text(
-                        'Past monthly & yearly winners',
-                        style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
-                      ),
-                      children: [
-                        if (_historyLoading)
-                          Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Center(
-                              child: CircularProgressIndicator(color: AppColors.accentColor),
-                            ),
-                          )
-                        else if (_historyError != null)
-                          Padding(
-                            padding: AppPadding.defaultPadding,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  _historyError!,
-                                  style: AppTextStyles.bodyMedium(color: AppColors.errorColor),
-                                ),
-                                TextButton(
-                                  onPressed: _loadHistory,
-                                  style: TextButton.styleFrom(foregroundColor: AppColors.accentColor),
-                                  child: const Text('Retry'),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          SizedBox(
-                            height: 280,
-                            child: ListView(
-                              padding: AppPadding.defaultPadding,
-                              children: [
-                                Text(
-                                  'Monthly',
-                                  style: AppTextStyles.label(color: AppColors.primaryColor),
-                                ),
-                                const SizedBox(height: 8),
-                                if (_historyMonthlyFlat.isEmpty)
-                                  Text(
-                                    'No monthly snapshots yet.',
-                                    style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
-                                  )
-                                else
-                                  ..._historyMonthlyFlat.map(_historyUsernameDateRow),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Yearly',
-                                  style: AppTextStyles.label(color: AppColors.primaryColor),
-                                ),
-                                const SizedBox(height: 8),
-                                if (_historyYearlyFlat.isEmpty)
-                                  Text(
-                                    'No yearly snapshots yet.',
-                                    style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
-                                  )
-                                else
-                                  ..._historyYearlyFlat.map(_historyUsernameDateRow),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
+          child: RefreshIndicator(
+            color: AppColors.accentColor,
+            onRefresh: _load,
+            child: _tabIndex == 0
+                ? _PeriodLeaderboardBody(
+                    error: _monthlyError,
+                    rows: _monthlyRows,
+                    viewer: _monthlyViewer,
+                    periodLabel: _monthlyPeriodKey.isEmpty ? 'This month (UTC)' : 'Month $_monthlyPeriodKey (UTC)',
+                    emptyMessage: 'No wins recorded this month yet.',
+                    onRetry: _load,
+                  )
+                : _PeriodLeaderboardBody(
+                    error: _yearlyError,
+                    rows: _yearlyRows,
+                    viewer: _yearlyViewer,
+                    periodLabel: _yearlyPeriodKey.isEmpty ? 'This year (UTC)' : 'Year $_yearlyPeriodKey (UTC)',
+                    emptyMessage: 'No wins recorded this year yet.',
+                    onRetry: _load,
                   ),
-                ),
-              ),
-            ],
           ),
         ),
       ],
     );
   }
-
-  Widget _historyUsernameDateRow(Map<String, String> row) {
-    final name = _displayNameFromHistoryRow(row);
-    final date = row['date'] ?? '';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              name,
-              style: AppTextStyles.bodyMedium(color: AppColors.textOnCard),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            date,
-            style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-/// Text on list row cards: [AppColors.textOnCard] (rank #1 name uses [AppColors.white]).
+/// Resolve display name for a period-wins row (username or anonymized id tail).
 String _displayNameFromPeriodRow(Map<String, dynamic> row) {
   final u = row['username']?.toString().trim();
   if (u != null && u.isNotEmpty) return u;
   final id = row['user_id']?.toString() ?? '';
-  if (id.isNotEmpty) {
-    final tail = id.length > 8 ? id.substring(id.length - 8) : id;
-    return 'Player $tail';
-  }
-  return 'Player';
-}
-
-String _displayNameFromHistoryRow(Map<String, String> row) {
-  final u = row['username']?.trim();
-  if (u != null && u.isNotEmpty) return u;
-  final id = row['user_id']?.trim() ?? '';
   if (id.isNotEmpty) {
     final tail = id.length > 8 ? id.substring(id.length - 8) : id;
     return 'Player $tail';
@@ -586,6 +358,7 @@ class _PodiumPlace extends StatelessWidget {
   }
 }
 
+/// Monthly / Yearly toggle — deep plum track; active = full light plum, inactive = low-opacity plum.
 class _PeriodTabBar extends StatelessWidget {
   const _PeriodTabBar({
     required this.tabIndex,
@@ -597,64 +370,86 @@ class _PeriodTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _TabSegment(
-            label: 'Monthly',
-            selected: tabIndex == 0,
-            onTap: () => onChanged(0),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _TabSegment(
-            label: 'Yearly',
-            selected: tabIndex == 1,
-            onTap: () => onChanged(1),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TabSegment extends StatelessWidget {
-  const _TabSegment({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
+    final inactivePlum = AppColors.accentContrast.withValues(alpha: 0.28);
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.scaffoldDeepPlumColor,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.primaryColor.withValues(alpha: 0.2) : AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected ? AppColors.primaryColor : AppColors.casinoBorderColor,
-              width: selected ? 2 : 1,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cardVariant,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => onChanged(0),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: tabIndex == 0 ? AppColors.accentContrast : inactivePlum,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      bottomLeft: Radius.circular(12),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Monthly',
+                    style: AppTextStyles.bodyMedium().copyWith(
+                      color: tabIndex == 0
+                          ? AppColors.white
+                          : AppColors.white.withValues(alpha: 0.45),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: AppTextStyles.bodyLarge(
-              color: selected ? AppColors.primaryColor : AppColors.textOnCard,
-            ).copyWith(fontWeight: selected ? FontWeight.w600 : FontWeight.normal),
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => onChanged(1),
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: tabIndex == 1 ? AppColors.accentContrast : inactivePlum,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Yearly',
+                    style: AppTextStyles.bodyMedium().copyWith(
+                      color: tabIndex == 1
+                          ? AppColors.white
+                          : AppColors.white.withValues(alpha: 0.45),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -781,10 +576,12 @@ class _PeriodLeaderboardBody extends StatelessWidget {
           decoration: BoxDecoration(
             color: isFirstPlace
                 ? AppColors.matchPotGold.withValues(alpha: 0.14)
-                : AppColors.surface,
+                : AppColors.accentContrast.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isFirstPlace ? AppColors.matchPotGold : AppColors.casinoBorderColor,
+              color: isFirstPlace
+                  ? AppColors.matchPotGold
+                  : AppColors.accentContrast.withValues(alpha: 0.45),
               width: isFirstPlace ? 2 : 1,
             ),
           ),
@@ -803,7 +600,9 @@ class _PeriodLeaderboardBody extends StatelessWidget {
                       Text(
                         '#$rank',
                         style: AppTextStyles.bodyMedium(
-                          color: isFirstPlace ? AppColors.matchPotGold : AppColors.primaryColor,
+                          color: isFirstPlace
+                              ? AppColors.matchPotGold
+                              : AppColors.white.withValues(alpha: 0.88),
                         ).copyWith(
                           fontWeight: isFirstPlace ? FontWeight.w800 : FontWeight.bold,
                         ),
@@ -815,7 +614,9 @@ class _PeriodLeaderboardBody extends StatelessWidget {
                 child: Text(
                   name,
                   style: AppTextStyles.bodyMedium(
-                    color: isFirstPlace ? AppColors.white : AppColors.textOnCard,
+                    color: isFirstPlace
+                        ? AppColors.white
+                        : AppColors.white.withValues(alpha: 0.92),
                   ).copyWith(
                     fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
                   ),
@@ -824,7 +625,9 @@ class _PeriodLeaderboardBody extends StatelessWidget {
               Text(
                 '$wins wins',
                 style: AppTextStyles.bodyMedium(
-                  color: isFirstPlace ? AppColors.matchPotGold : AppColors.textSecondary,
+                  color: isFirstPlace
+                      ? AppColors.matchPotGold
+                      : AppColors.white.withValues(alpha: 0.72),
                 ).copyWith(fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal),
               ),
             ],

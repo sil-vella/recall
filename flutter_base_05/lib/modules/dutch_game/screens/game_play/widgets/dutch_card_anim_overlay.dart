@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../utils/platform/shared_imports.dart';
@@ -9,6 +11,39 @@ import '../utils/dutch_anim_runtime.dart';
 
 const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; set false after test
 
+/// Same angles as [CardWidget]'s [RotatedBox] quarter-turns (radians, clockwise).
+double _tableOrientationToRadians(CardTableOrientation o) {
+  switch (o) {
+    case CardTableOrientation.portraitUp:
+      return 0;
+    case CardTableOrientation.portraitDown:
+      return math.pi;
+    case CardTableOrientation.landscapeFromLeft:
+      return math.pi / 2;
+    case CardTableOrientation.landscapeFromRight:
+      return 3 * math.pi / 2;
+  }
+}
+
+/// [GlobalKey] layout rects for a [CardWidget]+[RotatedBox] hand slot: outer box may be swapped vs portrait logical size.
+Size _portraitCardSizeFromLayoutRect(double layoutW, double layoutH) {
+  if (layoutH >= layoutW) {
+    return Size(layoutW, layoutH);
+  }
+  return Size(layoutH, layoutW);
+}
+
+CardTableOrientation _seatOrientationForPlayer(Map<String, dynamic> anim, String playerId) {
+  final raw = anim[DutchAnimRuntime.playerTableOrientationsKey];
+  if (raw is! Map) return CardTableOrientation.portraitUp;
+  final s = raw[playerId]?.toString();
+  if (s == null || s.isEmpty) return CardTableOrientation.portraitUp;
+  for (final v in CardTableOrientation.values) {
+    if (v.name == s) return v;
+  }
+  return CardTableOrientation.portraitUp;
+}
+
 enum _PlanTag { none, linear, jackSwap, queenPeek }
 
 /// One card flying from [from] rect to [to] rect (anchor-relative pixels).
@@ -17,10 +52,14 @@ class _CardFlightData {
     required this.from,
     required this.to,
     required this.model,
+    this.fromRadians = 0,
+    this.toRadians = 0,
   });
   final Map<String, double> from;
   final Map<String, double> to;
   final CardModel model;
+  final double fromRadians;
+  final double toRadians;
 }
 
 /// Resolved animation for the current queue head.
@@ -68,10 +107,14 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
   Map<String, double>? _flightFromRect;
   Map<String, double>? _flightToRect;
   CardModel? _flightModel;
+  double _flightFromRadians = 0;
+  double _flightToRadians = 0;
 
   Map<String, double>? _jackFromB;
   Map<String, double>? _jackToB;
   CardModel? _jackModelB;
+  double _jackFromRadiansB = 0;
+  double _jackToRadiansB = 0;
 
   Map<String, double>? _peekTargetRect;
 
@@ -165,9 +208,13 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     _flightFromRect = null;
     _flightToRect = null;
     _flightModel = null;
+    _flightFromRadians = 0;
+    _flightToRadians = 0;
     _jackFromB = null;
     _jackToB = null;
     _jackModelB = null;
+    _jackFromRadiansB = 0;
+    _jackToRadiansB = 0;
     _peekTargetRect = null;
   }
 
@@ -370,6 +417,8 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         _flightFromRect = Map<String, double>.from(a.from);
         _flightToRect = Map<String, double>.from(a.to);
         _flightModel = a.model;
+        _flightFromRadians = a.fromRadians;
+        _flightToRadians = a.toRadians;
         if (action == 'play_card' || action == 'same_rank_play') {
           final animSnap = _runtime.snapshotForAnim();
           final ghostRect = _rectForPlayStaticGhost(animSnap);
@@ -403,9 +452,13 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         _flightFromRect = Map<String, double>.from(a.from);
         _flightToRect = Map<String, double>.from(a.to);
         _flightModel = a.model;
+        _flightFromRadians = a.fromRadians;
+        _flightToRadians = a.toRadians;
         _jackFromB = Map<String, double>.from(b.from);
         _jackToB = Map<String, double>.from(b.to);
         _jackModelB = b.model;
+        _jackFromRadiansB = b.fromRadians;
+        _jackToRadiansB = b.toRadians;
         break;
       case _PlanTag.queenPeek:
         _peekTargetRect = Map<String, double>.from(plan.peekTarget!);
@@ -550,8 +603,16 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final from = source == 'discard' ? pileRect('discard') : pileRect('draw');
       final to = rectFor(owner, hi);
       if (from == null || to == null) return null;
+      final deckTilt = source == 'deck' ? -0.13 : 0.0;
+      final toSeat = _tableOrientationToRadians(_seatOrientationForPlayer(anim, owner));
       return _AnimPlan.linear(
-        _CardFlightData(from: from, to: to, model: modelFromCardMap(c0)),
+        _CardFlightData(
+          from: from,
+          to: to,
+          model: modelFromCardMap(c0),
+          fromRadians: deckTilt,
+          toRadians: toSeat,
+        ),
       );
     }
 
@@ -565,8 +626,15 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final from = pileRect('discard');
       final to = rectFor(owner, hi);
       if (from == null || to == null) return null;
+      final toSeat = _tableOrientationToRadians(_seatOrientationForPlayer(anim, owner));
       return _AnimPlan.linear(
-        _CardFlightData(from: from, to: to, model: modelFromCardMap(c0)),
+        _CardFlightData(
+          from: from,
+          to: to,
+          model: modelFromCardMap(c0),
+          fromRadians: 0.06,
+          toRadians: toSeat,
+        ),
       );
     }
 
@@ -580,8 +648,15 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final from = pileRect('discard');
       final to = rectFor(owner, hi);
       if (from == null || to == null) return null;
+      final toSeat = _tableOrientationToRadians(_seatOrientationForPlayer(anim, owner));
       return _AnimPlan.linear(
-        _CardFlightData(from: from, to: to, model: modelFromCardMap(c0)),
+        _CardFlightData(
+          from: from,
+          to: to,
+          model: modelFromCardMap(c0),
+          fromRadians: 0.1,
+          toRadians: toSeat,
+        ),
       );
     }
 
@@ -603,8 +678,16 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final from = rectFor(owner, hi);
       final to = pileRect('discard');
       if (from == null || to == null) return null;
+      final fromSeat = _tableOrientationToRadians(_seatOrientationForPlayer(anim, owner));
+      final discardUpright = _tableOrientationToRadians(CardTableOrientation.portraitUp);
       return _AnimPlan.linear(
-        _CardFlightData(from: from, to: to, model: modelFromCardMap(c0)),
+        _CardFlightData(
+          from: from,
+          to: to,
+          model: modelFromCardMap(c0),
+          fromRadians: fromSeat,
+          toRadians: discardUpright + 0.11,
+        ),
       );
     }
 
@@ -620,8 +703,15 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final from = rectFor(owner, fromIdx);
       final to = rectFor(owner, toIdx);
       if (from == null || to == null) return null;
+      final seatR = _tableOrientationToRadians(_seatOrientationForPlayer(anim, owner));
       return _AnimPlan.linear(
-        _CardFlightData(from: from, to: to, model: modelFromCardMap(c0)),
+        _CardFlightData(
+          from: from,
+          to: to,
+          model: modelFromCardMap(c0),
+          fromRadians: seatR,
+          toRadians: seatR,
+        ),
       );
     }
 
@@ -638,10 +728,24 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final r0 = rectFor(o0, i0);
       final r1 = rectFor(o1, i1);
       if (r0 == null || r1 == null) return null;
+      final seat0 = _tableOrientationToRadians(_seatOrientationForPlayer(anim, o0));
+      final seat1 = _tableOrientationToRadians(_seatOrientationForPlayer(anim, o1));
       // Jack swap: always face-down ghosts (no rank/suit from server payload on the flight tiles).
       return _AnimPlan.jackSwap(
-        _CardFlightData(from: r0, to: r1, model: _placeholderFaceDown),
-        _CardFlightData(from: r1, to: r0, model: _placeholderFaceDown),
+        _CardFlightData(
+          from: r0,
+          to: r1,
+          model: _placeholderFaceDown,
+          fromRadians: seat0 + 0.05,
+          toRadians: seat1 - 0.05,
+        ),
+        _CardFlightData(
+          from: r1,
+          to: r0,
+          model: _placeholderFaceDown,
+          fromRadians: seat1 - 0.05,
+          toRadians: seat0 + 0.05,
+        ),
       );
     }
 
@@ -721,23 +825,37 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       required Map<String, double> from,
       required Map<String, double> to,
       required CardModel model,
+      double fromRadians = 0,
+      double toRadians = 0,
     }) {
       final left = from['left']! + (to['left']! - from['left']!) * t;
       final top = from['top']! + (to['top']! - from['top']!) * t;
-      final w = from['width']!;
-      final h = from['height']!;
-      final dims = Size(w, h);
+      final outerW = from['width']! + (to['width']! - from['width']!) * t;
+      final outerH = from['height']! + (to['height']! - from['height']!) * t;
+      final pf = _portraitCardSizeFromLayoutRect(from['width']!, from['height']!);
+      final pt = _portraitCardSizeFromLayoutRect(to['width']!, to['height']!);
+      final portraitW = pf.width + (pt.width - pf.width) * t;
+      final portraitH = pf.height + (pt.height - pf.height) * t;
+      final dims = Size(portraitW, portraitH);
+      final angle = fromRadians + (toRadians - fromRadians) * t;
       return Positioned(
         left: left,
         top: top,
-        width: w,
-        height: h,
-        child: CardWidget(
-          card: model,
-          dimensions: dims,
-          config: CardDisplayConfig.forMyHand(),
-          showBack: _activePlan == _PlanTag.jackSwap || !model.hasFullData,
-          isSelected: false,
+        width: outerW,
+        height: outerH,
+        child: Transform.rotate(
+          angle: angle,
+          alignment: Alignment.center,
+          // Layout rect centering for [GlobalKey] alignment—not my-hand row centering on the board.
+          child: Center(
+            child: CardWidget(
+              card: model,
+              dimensions: dims,
+              config: CardDisplayConfig.forMyHand(),
+              showBack: _activePlan == _PlanTag.jackSwap || !model.hasFullData,
+              isSelected: false,
+            ),
+          ),
         ),
       );
     }
@@ -750,18 +868,22 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final gm = _playDeckGhostModel!;
       final gw = g['width']!;
       final gh = g['height']!;
+      final ghostPortrait = _portraitCardSizeFromLayoutRect(gw, gh);
       children.add(
         Positioned(
           left: g['left']!,
           top: g['top']!,
           width: gw,
           height: gh,
-          child: CardWidget(
-            card: gm,
-            dimensions: Size(gw, gh),
-            config: CardDisplayConfig.forMyHand(),
-            showBack: true,
-            isSelected: false,
+          child: Center(
+            // Same as [positionedCard]: portrait card centered in pile/slot rect for paint alignment.
+            child: CardWidget(
+              card: gm,
+              dimensions: ghostPortrait,
+              config: CardDisplayConfig.forMyHand(),
+              showBack: true,
+              isSelected: false,
+            ),
           ),
         ),
       );
@@ -771,6 +893,8 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         from: _flightFromRect!,
         to: _flightToRect!,
         model: _flightModel!,
+        fromRadians: _flightFromRadians,
+        toRadians: _flightToRadians,
       ),
     );
     if (_activePlan == _PlanTag.jackSwap) {
@@ -779,6 +903,8 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
           from: _jackFromB!,
           to: _jackToB!,
           model: _jackModelB!,
+          fromRadians: _jackFromRadiansB,
+          toRadians: _jackToRadiansB,
         ),
       );
     }

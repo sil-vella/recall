@@ -1,19 +1,16 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
-import '../../core/managers/state_manager.dart';
 import '../../core/managers/navigation_manager.dart';
+import '../../core/managers/state_manager.dart';
 import '../../core/managers/auth_manager.dart';
 import '../../core/managers/websockets/websocket_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../modules/analytics_module/analytics_module.dart';
-import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../core/services/shared_preferences.dart';
-import '../../core/services/version_check_service.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../utils/profile_photo_helper.dart';
@@ -91,10 +88,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     _profileRefetchTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) _fetchUserProfile();
     });
-    // Check for app updates on every account screen load
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForAppUpdates();
-    });
   }
   
   /// Track screen view
@@ -170,98 +163,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     if (_loginModule == null) {
       if (LOGGING_SWITCH) {
         _logger.error('❌ Login module not available');
-      }
-    }
-  }
-  
-  /// Check for app updates - runs on every account screen load
-  /// This ensures users get update notifications even after skipping
-  Future<void> _checkForAppUpdates() async {
-    // Skip version check on web - web apps update automatically
-    if (kIsWeb) {
-      if (LOGGING_SWITCH) {
-        _logger.info('AccountScreen: Skipping version check on web platform');
-      }
-      return;
-    }
-    
-    try {
-      if (LOGGING_SWITCH) {
-        _logger.info('AccountScreen: Starting version check');
-      }
-      
-      // Get ConnectionsApiModule
-      final apiModule = _moduleManager.getModuleByType<ConnectionsApiModule>();
-      
-      if (apiModule == null) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('AccountScreen: ConnectionsApiModule not available for version check');
-        }
-        return;
-      }
-      
-      // Initialize VersionCheckService if needed
-      final versionCheckService = VersionCheckService();
-      if (!versionCheckService.isInitialized) {
-        await versionCheckService.initialize();
-      }
-      
-      // Check for updates
-      final result = await versionCheckService.checkForUpdates(apiModule);
-      
-      if (result['success'] == true) {
-        final updateAvailable = result['update_available'] == true;
-        final updateRequired = result['update_required'] == true;
-        final currentVersion = result['current_version'];
-        final serverVersion = result['server_version'];
-        final downloadLink = result['download_link']?.toString() ?? '';
-        
-        if (LOGGING_SWITCH) {
-          _logger.info('AccountScreen: Version check completed - Current: $currentVersion, Server: $serverVersion, Update Available: $updateAvailable, Update Required: $updateRequired');
-        }
-        
-        // If update is required, navigate to update screen (only once per run)
-        if (updateRequired && downloadLink.isNotEmpty) {
-          if (versionCheckService.updateRequiredScreenShownThisRun) {
-            if (LOGGING_SWITCH) {
-              _logger.info('AccountScreen: Update required but already shown this run, skipping navigation');
-            }
-          } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('AccountScreen: Update required - navigating to update screen');
-            }
-            versionCheckService.markUpdateRequiredScreenShownThisRun();
-
-            // Wait a moment to ensure context is ready
-            await Future.delayed(const Duration(milliseconds: 300));
-
-            if (!mounted) return;
-
-            // Navigate to update screen with download link as parameter
-            final navigationManager = NavigationManager();
-            final router = navigationManager.router;
-            final updateRoute = '/update-required?download_link=${Uri.encodeComponent(downloadLink)}';
-            router.go(updateRoute);
-            if (LOGGING_SWITCH) {
-              _logger.info('AccountScreen: Navigated to update screen');
-            }
-          }
-        } else if (updateAvailable && !updateRequired) {
-          if (LOGGING_SWITCH) {
-            _logger.info('AccountScreen: Optional update available (not required)');
-          }
-          // Optional updates can be shown as a non-blocking notification if desired
-        }
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.warning('AccountScreen: Version check failed: ${result['error']}');
-        }
-      }
-      
-    } catch (e) {
-      // Don't let version check errors affect account screen
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Error during version check: $e');
       }
     }
   }
@@ -1721,13 +1622,13 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   Icon(
                     Icons.account_circle,
                     size: 80,
-                    color: Theme.of(context).primaryColor,
+                    color: AppColors.white.withValues(alpha: 0.92),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     _isLoginMode ? 'Welcome Back' : 'Create Account',
                     style: AppTextStyles.headingLarge().copyWith(
-                      color: AppColors.primaryColor,
+                      color: AppColors.white,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -1736,7 +1637,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       ? 'Sign in to your account' 
                       : 'Join our community',
                     style: AppTextStyles.bodyLarge().copyWith(
-                      color: AppColors.textSecondary,
+                      color: AppColors.white.withValues(alpha: 0.78),
                     ),
                   ),
                 ],
@@ -1745,10 +1646,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             
             const SizedBox(height: 40),
             
-            // Mode Toggle
+            // Mode Toggle — deep plum track; active = full light plum, inactive = low-opacity plum.
             Container(
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: AppColors.scaffoldDeepPlumColor,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
@@ -1770,9 +1671,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          color: _isLoginMode 
-                            ? Theme.of(context).primaryColor 
-                            : Colors.transparent,
+                          color: _isLoginMode
+                              ? AppColors.accentContrast
+                              : AppColors.accentContrast.withValues(alpha: 0.28),
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(12),
                             bottomLeft: Radius.circular(12),
@@ -1782,7 +1683,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                           child: Text(
                             'Login',
                             style: AppTextStyles.bodyMedium().copyWith(
-                              color: _isLoginMode ? AppColors.textOnAccent : AppColors.textSecondary,
+                              color: _isLoginMode
+                                  ? AppColors.white
+                                  : AppColors.white.withValues(alpha: 0.45),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1800,9 +1703,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          color: !_isLoginMode 
-                            ? Theme.of(context).primaryColor 
-                            : Colors.transparent,
+                          color: !_isLoginMode
+                              ? AppColors.accentContrast
+                              : AppColors.accentContrast.withValues(alpha: 0.28),
                           borderRadius: const BorderRadius.only(
                             topRight: Radius.circular(12),
                             bottomRight: Radius.circular(12),
@@ -1812,7 +1715,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                           child: Text(
                             'Register',
                             style: AppTextStyles.bodyMedium().copyWith(
-                              color: !_isLoginMode ? AppColors.textOnAccent : AppColors.textSecondary,
+                              color: !_isLoginMode
+                                  ? AppColors.white
+                                  : AppColors.white.withValues(alpha: 0.45),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1829,7 +1734,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             // Forms
             Container(
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: AppColors.accentContrast,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -1915,8 +1820,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: AppColors.textOnAccent,
+                backgroundColor: AppColors.scaffoldDeepPlumColor,
+                foregroundColor: AppColors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1928,13 +1833,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                     width: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.textOnAccent),
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
                     ),
                   )
                 : Text(
                     _isLoginMode ? 'Sign In' : 'Create Account',
                     style: AppTextStyles.bodyMedium().copyWith(
                       fontWeight: FontWeight.bold,
+                      color: AppColors.white,
                     ),
                   ),
             ),
@@ -1961,9 +1867,15 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                         }
                       }
                     },
-                    icon: const Icon(Icons.person_outline),
-                    label: const Text('Continue as Guest'),
+                    icon: Icon(Icons.person_outline, color: AppColors.white.withValues(alpha: 0.92)),
+                    label: Text(
+                      'Continue as Guest',
+                      style: AppTextStyles.bodyMedium(color: AppColors.white),
+                    ),
                     style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.white,
+                      backgroundColor: Colors.transparent,
+                      side: BorderSide(color: AppColors.white.withValues(alpha: 0.55)),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -1974,7 +1886,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   Text(
                     'No email or password required',
                     style: AppTextStyles.bodySmall().copyWith(
-                      color: AppColors.textSecondary,
+                      color: AppColors.white.withValues(alpha: 0.72),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -2016,9 +1928,15 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                                 }
                               }
                             },
-                            icon: const Icon(Icons.person_outline),
-                            label: const Text('Continue as Guest'),
+                            icon: Icon(Icons.person_outline, color: AppColors.white.withValues(alpha: 0.92)),
+                            label: Text(
+                              'Continue as Guest',
+                              style: AppTextStyles.bodyMedium(color: AppColors.white),
+                            ),
                             style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.white,
+                              backgroundColor: Colors.transparent,
+                              side: BorderSide(color: AppColors.white.withValues(alpha: 0.55)),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -2029,7 +1947,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                           Text(
                             'Use your saved guest account',
                             style: AppTextStyles.bodySmall().copyWith(
-                              color: AppColors.textSecondary,
+                              color: AppColors.white.withValues(alpha: 0.72),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -2064,9 +1982,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 _isLoginMode 
                   ? "Don't have an account? Sign up" 
                   : "Already have an account? Sign in",
-                style: TextStyle(
-                  color: AppColors.textOnAccent,
+                style: AppTextStyles.bodyMedium().copyWith(
+                  color: AppColors.white.withValues(alpha: 0.88),
                   fontWeight: FontWeight.w500,
+                  decoration: TextDecoration.underline,
+                  decorationColor: AppColors.white.withValues(alpha: 0.55),
                 ),
               ),
             ),
@@ -2112,6 +2032,54 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     );
   }
   
+  /// Input fields on login/register panels (app bar plum + deeper plum fills).
+  InputDecoration _accountAuthFieldDecoration({
+    required String hintText,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+    Color? fillColor,
+  }) {
+    final radius = BorderRadius.circular(AppBorderRadius.large);
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: AppTextStyles.bodyMedium().copyWith(
+        color: AppColors.white.withValues(alpha: 0.62),
+      ),
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: fillColor ?? AppColors.scaffoldDeepPlumColor,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: AppPadding.defaultPadding.left,
+        vertical: AppPadding.mediumPadding.top,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.92)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.38)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.92), width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: AppColors.errorColor),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: AppColors.errorColor, width: 1.5),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.22)),
+      ),
+    );
+  }
+
   /// Section: button to clear all user data from app storage + explanatory note.
   Widget _buildClearStorageSection() {
     return Column(
@@ -2155,6 +2123,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   /// Login form: email/password for email accounts.
   /// Email and password are stored in SharedPref for pre-fill after logout.
   Widget _buildLoginForm() {
+    final fieldStyle = AppTextStyles.bodyMedium().copyWith(color: AppColors.white);
     return Form(
       key: _loginFormKey,
       child: Column(
@@ -2163,7 +2132,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           // Email Field
           Text(
             'Email',
-            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            style: AppTextStyles.label().copyWith(color: AppColors.white.withValues(alpha: 0.92)),
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           Semantics(
@@ -2174,24 +2143,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             child: TextFormField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
+              cursorColor: AppColors.white,
+              style: fieldStyle,
+              decoration: _accountAuthFieldDecoration(
                 hintText: 'Enter your email',
-                prefixIcon: const Icon(Icons.email_outlined),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: AppPadding.defaultPadding.left,
-                  vertical: AppPadding.mediumPadding.top,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                  borderSide: BorderSide(color: AppColors.borderDefault),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                  borderSide: BorderSide(color: AppColors.borderFocused),
-                ),
+                prefixIcon: Icon(Icons.email_outlined, color: AppColors.white.withValues(alpha: 0.85)),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -2209,7 +2165,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           // Password Field
           Text(
             'Password',
-            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            style: AppTextStyles.label().copyWith(color: AppColors.white.withValues(alpha: 0.92)),
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           Semantics(
@@ -2220,29 +2176,17 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             child: TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
-              decoration: InputDecoration(
+              cursorColor: AppColors.white,
+              style: fieldStyle,
+              decoration: _accountAuthFieldDecoration(
                 hintText: 'Enter your password',
-                prefixIcon: const Icon(Icons.lock_outlined),
+                prefixIcon: Icon(Icons.lock_outlined, color: AppColors.white.withValues(alpha: 0.85)),
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: AppColors.white.withValues(alpha: 0.85),
                   ),
                   onPressed: _togglePasswordVisibility,
-                ),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: AppPadding.defaultPadding.left,
-                  vertical: AppPadding.mediumPadding.top,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                  borderSide: BorderSide(color: AppColors.borderDefault),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                  borderSide: BorderSide(color: AppColors.borderFocused),
                 ),
               ),
               validator: (value) {
@@ -2259,6 +2203,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   }
   
   Widget _buildRegisterForm() {
+    final fieldStyle = AppTextStyles.bodyMedium().copyWith(color: AppColors.white);
+    final guestReadStyle = AppTextStyles.bodyMedium().copyWith(
+      color: AppColors.white.withValues(alpha: 0.78),
+    );
     return Form(
       key: _registerFormKey,
       child: Column(
@@ -2300,40 +2248,25 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             // Guest Email (read-only)
             Text(
               'Guest Email',
-              style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+              style: AppTextStyles.label().copyWith(color: AppColors.white.withValues(alpha: 0.92)),
             ),
             SizedBox(height: AppPadding.smallPadding.top),
             TextFormField(
               initialValue: _guestEmail,
               readOnly: true,
               enabled: false,
-              decoration: InputDecoration(
+              style: guestReadStyle,
+              decoration: _accountAuthFieldDecoration(
                 hintText: 'Your guest account email',
-                prefixIcon: const Icon(Icons.email_outlined),
-                filled: true,
-                fillColor: AppColors.surfaceVariant,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: AppPadding.defaultPadding.left,
-                  vertical: AppPadding.mediumPadding.top,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                  borderSide: BorderSide(color: AppColors.borderDefault),
-                ),
-                disabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                  borderSide: BorderSide(color: AppColors.borderDefault),
-                ),
+                prefixIcon: Icon(Icons.email_outlined, color: AppColors.white.withValues(alpha: 0.55)),
+                fillColor: AppColors.scaffoldBackgroundColor,
               ),
             ),
             SizedBox(height: AppPadding.defaultPadding.top),
             // Guest Password (read-only, obscured)
             Text(
               'Guest Password',
-              style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+              style: AppTextStyles.label().copyWith(color: AppColors.white.withValues(alpha: 0.92)),
             ),
             SizedBox(height: AppPadding.smallPadding.top),
             TextFormField(
@@ -2341,59 +2274,31 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               readOnly: true,
               enabled: false,
               obscureText: true,
-              decoration: InputDecoration(
+              style: guestReadStyle,
+              decoration: _accountAuthFieldDecoration(
                 hintText: 'Your guest account password',
-                prefixIcon: const Icon(Icons.lock_outlined),
-                filled: true,
-                fillColor: AppColors.surfaceVariant,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: AppPadding.defaultPadding.left,
-                  vertical: AppPadding.mediumPadding.top,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                  borderSide: BorderSide(color: AppColors.borderDefault),
-                ),
-                disabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                  borderSide: BorderSide(color: AppColors.borderDefault),
-                ),
+                prefixIcon: Icon(Icons.lock_outlined, color: AppColors.white.withValues(alpha: 0.55)),
+                fillColor: AppColors.scaffoldBackgroundColor,
               ),
             ),
             SizedBox(height: AppPadding.defaultPadding.top),
             // Divider
-            const Divider(),
+            Divider(color: AppColors.white.withValues(alpha: 0.22)),
             SizedBox(height: AppPadding.defaultPadding.top),
           ],
           // Username Field
           Text(
             'Username',
-            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            style: AppTextStyles.label().copyWith(color: AppColors.white.withValues(alpha: 0.92)),
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
             controller: _usernameController,
-            decoration: InputDecoration(
+            cursorColor: AppColors.white,
+            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+            decoration: _accountAuthFieldDecoration(
               hintText: 'Choose a username',
-              prefixIcon: const Icon(Icons.person_outlined),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: AppPadding.defaultPadding.left,
-                vertical: AppPadding.mediumPadding.top,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                borderSide: BorderSide(color: AppColors.borderDefault),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                borderSide: BorderSide(color: AppColors.borderFocused),
-              ),
+              prefixIcon: Icon(Icons.person_outlined, color: AppColors.white.withValues(alpha: 0.85)),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -2422,30 +2327,17 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           // Email Field
           Text(
             'Email',
-            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            style: AppTextStyles.label().copyWith(color: AppColors.white.withValues(alpha: 0.92)),
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
             controller: _registerEmailController,
             keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
+            cursorColor: AppColors.white,
+            style: fieldStyle,
+            decoration: _accountAuthFieldDecoration(
               hintText: 'Enter your email',
-              prefixIcon: const Icon(Icons.email_outlined),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: AppPadding.defaultPadding.left,
-                vertical: AppPadding.mediumPadding.top,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                borderSide: BorderSide(color: AppColors.borderDefault),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                borderSide: BorderSide(color: AppColors.borderFocused),
-              ),
+              prefixIcon: Icon(Icons.email_outlined, color: AppColors.white.withValues(alpha: 0.85)),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -2462,35 +2354,23 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           // Password Field
           Text(
             'Password',
-            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            style: AppTextStyles.label().copyWith(color: AppColors.white.withValues(alpha: 0.92)),
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
             controller: _registerPasswordController,
             obscureText: _obscurePassword,
-            decoration: InputDecoration(
+            cursorColor: AppColors.white,
+            style: fieldStyle,
+            decoration: _accountAuthFieldDecoration(
               hintText: 'Create a password',
-              prefixIcon: const Icon(Icons.lock_outlined),
+              prefixIcon: Icon(Icons.lock_outlined, color: AppColors.white.withValues(alpha: 0.85)),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.white.withValues(alpha: 0.85),
                 ),
                 onPressed: _togglePasswordVisibility,
-              ),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: AppPadding.defaultPadding.left,
-                vertical: AppPadding.mediumPadding.top,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                borderSide: BorderSide(color: AppColors.borderDefault),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                borderSide: BorderSide(color: AppColors.borderFocused),
               ),
             ),
             validator: (value) {
@@ -2507,35 +2387,23 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           // Confirm Password Field
           Text(
             'Confirm Password',
-            style: AppTextStyles.label().copyWith(color: AppColors.textPrimary),
+            style: AppTextStyles.label().copyWith(color: AppColors.white.withValues(alpha: 0.92)),
           ),
           SizedBox(height: AppPadding.smallPadding.top),
           TextFormField(
             controller: _confirmPasswordController,
             obscureText: _obscureConfirmPassword,
-            decoration: InputDecoration(
+            cursorColor: AppColors.white,
+            style: fieldStyle,
+            decoration: _accountAuthFieldDecoration(
               hintText: 'Confirm your password',
-              prefixIcon: const Icon(Icons.lock_outlined),
+              prefixIcon: Icon(Icons.lock_outlined, color: AppColors.white.withValues(alpha: 0.85)),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.white.withValues(alpha: 0.85),
                 ),
                 onPressed: _toggleConfirmPasswordVisibility,
-              ),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: AppPadding.defaultPadding.left,
-                vertical: AppPadding.mediumPadding.top,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                borderSide: BorderSide(color: AppColors.borderDefault),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.large),
-                borderSide: BorderSide(color: AppColors.borderFocused),
               ),
             ),
             validator: (value) {

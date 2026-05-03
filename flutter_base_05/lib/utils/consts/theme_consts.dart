@@ -145,6 +145,17 @@ class ThemeConfig {
     }
   }
 
+  /// Deep plum / dark background: second stop for base screen scaffold gradient.
+  /// Derived from [scaffoldBackgroundColor] so each preset stays in-family, darker toward near-black.
+  static Color get scaffoldDeepPlumColor {
+    return Color.lerp(
+          scaffoldBackgroundColor,
+          const Color(0xFF050508),
+          0.48,
+        ) ??
+        scaffoldBackgroundColor;
+  }
+
   /// Semantic colors - auto-adjusted based on theme
   static Color get successColor {
     // Green variant that complements the theme
@@ -238,6 +249,7 @@ class AppColors {
   static Color get accentColor2 => ThemeConfig.accentColor2;
   static Color get accentContrast => ThemeConfig.accentContrast;
   static Color get scaffoldBackgroundColor => ThemeConfig.scaffoldBackgroundColor;
+  static Color get scaffoldDeepPlumColor => ThemeConfig.scaffoldDeepPlumColor;
 
   // Neutral colors (theme-independent)
   static const Color white = Colors.white;

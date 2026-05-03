@@ -30,7 +30,7 @@ class HomeScreenFeatureRegistrar {
       featureId: 'dutch_game_play',
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: 'Play Dutch',
-      icon: Icons.casino, // Game cards / play
+      iconSvgPath: 'assets/images/icons/play-icon.svg',
       onTap: () {
         if (LOGGING_SWITCH) {
           _logger.info('HomeScreen: Dutch game play button pressed');
@@ -51,9 +51,8 @@ class HomeScreenFeatureRegistrar {
           }
         }
       },
-      imagePath: 'assets/images/backgrounds/play-dutch-home-item-background_003.jpg',
-      heightPercentage: 0.5, // 50% of available height
-      priority: 100, // Default priority
+      heightPercentage: 0.25, // 25% of available height (max card height)
+      priority: 90, // Lower number sorts first in home carousel
       textStyle: AppTextStyles.headingMedium().copyWith(
         color: AppColors.textOnPrimary,
         fontWeight: FontWeight.bold,
@@ -81,7 +80,7 @@ class HomeScreenFeatureRegistrar {
       featureId: 'dutch_game_demo',
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: 'Demo',
-      icon: Icons.play_circle_outline, // Demo / tutorial
+      iconSvgPath: 'assets/images/icons/learn-icon.svg',
       onTap: () {
         if (LOGGING_SWITCH) {
           _logger.info('HomeScreen: Dutch game demo button pressed');
@@ -102,9 +101,8 @@ class HomeScreenFeatureRegistrar {
           }
         }
       },
-      imagePath: 'assets/images/backgrounds/demo-feature-background.png',
-      heightPercentage: 0.5, // 50% of available height
-      priority: 90, // Lower priority than play button (appears after)
+      heightPercentage: 0.25, // 25% of available height (max card height)
+      priority: 100, // After play (90) in ascending home carousel order
       textStyle: AppTextStyles.headingMedium().copyWith(
         color: AppColors.textOnPrimary,
         fontWeight: FontWeight.bold,

@@ -15,7 +15,7 @@ class DutchAnimRuntime extends ChangeNotifier {
   DutchAnimRuntime._();
   static final DutchAnimRuntime instance = DutchAnimRuntime._();
 
-  static const bool LOGGING_SWITCH = false; // Anim queue / layout (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // Anim queue / layout (enable-logging-switch.mdc; set false after test)
   final Logger _logger = Logger();
 
   static const String eventDataKey = 'eventData';
@@ -23,10 +23,13 @@ class DutchAnimRuntime extends ChangeNotifier {
   static const String pileRectsKey = 'pileRects';
   static const String eventSeqKey = 'eventSeq';
   static const String cardPositionsVersionKey = 'cardPositionsVersion';
+  /// Per [playerId] → [CardTableOrientation.name] (from [UnifiedGameBoardWidget] seat buckets).
+  static const String playerTableOrientationsKey = 'playerTableOrientations';
 
   final List<Map<String, dynamic>> _eventData = [];
   Map<String, dynamic> _cardPositions = {};
   Map<String, dynamic> _pileRects = {};
+  Map<String, String> _playerTableOrientations = {};
   int _eventSeq = 0;
   int _cardPositionsVersion = 0;
   String? _lastLayoutSignature;
@@ -56,12 +59,20 @@ class DutchAnimRuntime extends ChangeNotifier {
     _animMaskedHandSlots
       ..clear()
       ..addAll(next);
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'DutchAnimRuntime: setAnimMaskedHandSlots count=${next.length} keys=${next.join(",")}',
+      );
+    }
     notifyListeners();
   }
 
   void clearAnimMaskedHandSlots() {
     if (_animMaskedHandSlots.isEmpty) return;
     _animMaskedHandSlots.clear();
+    if (LOGGING_SWITCH) {
+      _logger.info('DutchAnimRuntime: clearAnimMaskedHandSlots');
+    }
     notifyListeners();
   }
 
@@ -73,6 +84,7 @@ class DutchAnimRuntime extends ChangeNotifier {
       pileRectsKey: Map<String, dynamic>.from(_pileRects),
       eventSeqKey: _eventSeq,
       cardPositionsVersionKey: _cardPositionsVersion,
+      playerTableOrientationsKey: Map<String, String>.from(_playerTableOrientations),
     };
   }
 
@@ -80,6 +92,7 @@ class DutchAnimRuntime extends ChangeNotifier {
     _eventData.clear();
     _cardPositions = {};
     _pileRects = {};
+    _playerTableOrientations = {};
     _eventSeq = 0;
     _cardPositionsVersion = 0;
     _lastLayoutSignature = null;
@@ -124,6 +137,7 @@ class DutchAnimRuntime extends ChangeNotifier {
   void mergeLayout({
     required Map<String, dynamic> cardPositions,
     Map<String, dynamic>? pileRects,
+    Map<String, String>? playerTableOrientations,
   }) {
     // Slots without a measured [GlobalKey] this frame (e.g. hand shrank after play, or a
     // collection-stack index skipped in the widget tree) are omitted from [cardPositions].
@@ -143,7 +157,11 @@ class DutchAnimRuntime extends ChangeNotifier {
       }
       mergedPlayers[pid] = incoming;
     }
-    final sig = '${jsonEncode(mergedPlayers)}|${jsonEncode(pileRects ?? _pileRects)}';
+    if (playerTableOrientations != null) {
+      _playerTableOrientations = Map<String, String>.from(playerTableOrientations);
+    }
+    final sig =
+        '${jsonEncode(mergedPlayers)}|${jsonEncode(pileRects ?? _pileRects)}|${jsonEncode(_playerTableOrientations)}';
     if (sig == _lastLayoutSignature) {
       if (LOGGING_SWITCH && _eventData.isNotEmpty) {
         _logger.debug(

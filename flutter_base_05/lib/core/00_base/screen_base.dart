@@ -597,7 +597,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
 
   /// Asset path for app bar logo (used when [BaseScreen.useLogoInAppBar] is true).
-  static const String kAppBarLogoAsset = 'assets/images/logo_icon.png';
+  static const String kAppBarLogoAsset = 'assets/images/logo_icon.webp';
 
   @override
   Widget build(BuildContext context) {

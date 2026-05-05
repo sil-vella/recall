@@ -5,6 +5,7 @@ import '../../core/managers/app_manager.dart';
 import '../../core/widgets/feature_slot.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../tools/logging/logger.dart';
+import '../dutch_game/widgets/ui_kit/dutch_responsive_shell.dart';
 
 class HomeScreen extends BaseScreen {
   const HomeScreen({Key? key}) : super(key: key);
@@ -94,22 +95,21 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
     }
     
     try {
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Home screen button features slot - full-width buttons registered by modules
-                FeatureSlot(
-                  scopeKey: featureScopeKey,
-                  slotId: 'home_screen_buttons',
-                  contract: 'home_screen_button',
-                  useTemplate: false,
-                ),
-              ],
-            ),
+      return DutchResponsiveShell(
+        hero: const _HomeHero(),
+        menu: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Home screen button features slot - full-width buttons registered by modules
+              FeatureSlot(
+                scopeKey: featureScopeKey,
+                slotId: 'home_screen_buttons',
+                contract: 'home_screen_button',
+                useTemplate: false,
+              ),
+            ],
           ),
         ),
       );
@@ -127,5 +127,72 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
         ),
       );
     }
+  }
+}
+
+/// Hero block rendered above the home CTAs by [DutchResponsiveShell].
+///
+/// Centered, on-theme welcome card. Pure presentation — no state, no
+/// hooks, no navigation. Designed to be safe to remove or replace later
+/// without touching the feature slot wiring.
+class _HomeHero extends StatelessWidget {
+  const _HomeHero();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Cap the visual size of the hero so very tall screens don't stretch
+        // the orb out of proportion.
+        final shortest = constraints.biggest.shortestSide;
+        final orbSize = shortest * 0.45;
+
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: orbSize,
+                height: orbSize,
+                constraints: const BoxConstraints(
+                  maxWidth: 220,
+                  maxHeight: 220,
+                ),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.accentColor2.withValues(alpha: 0.55),
+                      AppColors.accentContrast.withValues(alpha: 0.45),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Image.asset(
+                  'assets/images/logo.webp',
+                  width: orbSize * 0.5,
+                  height: orbSize * 0.5,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Play, practice, and climb the leaderboard.',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodyMedium(
+                    color: AppColors.white.withValues(alpha: 0.78),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 } 

@@ -204,10 +204,10 @@ class CardWidget extends StatelessWidget {
   /// (see DECK_CREATION_RESHUFFLING_AND_CONFIG.md and card_display in deck config).
   String? _getSpecialCardImagePath() {
     final rank = card.rank.toLowerCase();
-    if (rank == 'queen') return 'assets/images/backgrounds/queen.png';
-    if (rank == 'king') return 'assets/images/backgrounds/king.png';
-    if (rank == 'jack') return 'assets/images/backgrounds/jack.png';
-    if (rank == 'joker') return 'assets/images/backgrounds/joker.png';
+    if (rank == 'queen') return 'assets/images/backgrounds/queen.webp';
+    if (rank == 'king') return 'assets/images/backgrounds/king.webp';
+    if (rank == 'jack') return 'assets/images/backgrounds/jack.webp';
+    if (rank == 'joker') return 'assets/images/backgrounds/joker.webp';
     return null;
   }
   /// Build rank/suit text (single color, no stroke). Used for top-left and bottom-right corners. [fontWeight] defaults to bold; use w800 for extra-bold bottom rank.
@@ -424,7 +424,7 @@ class CardWidget extends StatelessWidget {
               if (isPracticeMode) {
                 // Load from assets for practice mode
                 return Image(
-                  image: AssetImage('assets/images/card_back.png'),
+                  image: AssetImage('assets/images/card_back.webp'),
                   width: dimensions.width * 0.9, // Leave some padding
                   height: dimensions.height * 0.9,
                   fit: BoxFit.contain,
@@ -473,7 +473,7 @@ class CardWidget extends StatelessWidget {
                     }
                     // Fallback to asset image if network fails
                     return Image(
-                      image: AssetImage('assets/images/card_back.png'),
+                      image: AssetImage('assets/images/card_back.webp'),
                       width: dimensions.width * 0.9,
                       height: dimensions.height * 0.9,
                       fit: BoxFit.contain,

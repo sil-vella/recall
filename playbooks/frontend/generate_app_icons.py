@@ -203,21 +203,21 @@ def update_pubspec_yaml(pubspec_path):
         # Update image_path
         content = re.sub(
             r'^(\s+image_path:\s*)"[^"]*"',
-            r'\1"assets/images/icon.png"',
+            r'\1"assets/images/icon.webp"',
             content,
             flags=re.MULTILINE
         )
         # Update adaptive_icon_background
         content = re.sub(
             r'^(\s+adaptive_icon_background:\s*)"[^"]*"',
-            r'\1"assets/images/icon_background.png"',
+            r'\1"assets/images/icon_background.webp"',
             content,
             flags=re.MULTILINE
         )
         # Update adaptive_icon_foreground
         content = re.sub(
             r'^(\s+adaptive_icon_foreground:\s*)"[^"]*"',
-            r'\1"assets/images/icon_foreground.png"',
+            r'\1"assets/images/icon_foreground.webp"',
             content,
             flags=re.MULTILINE
         )
@@ -266,9 +266,9 @@ def update_pubspec_yaml(pubspec_path):
     flutter_icons_config = """flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/icon.png"
-  adaptive_icon_background: "assets/images/icon_background.png"
-  adaptive_icon_foreground: "assets/images/icon_foreground.png"
+  image_path: "assets/images/icon.webp"
+  adaptive_icon_background: "assets/images/icon_background.webp"
+  adaptive_icon_foreground: "assets/images/icon_foreground.webp"
   remove_alpha_ios: true"""
     
     # Find and replace the commented block (multiline)

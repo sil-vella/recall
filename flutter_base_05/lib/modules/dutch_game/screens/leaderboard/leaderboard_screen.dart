@@ -6,6 +6,7 @@ import '../../../../core/managers/state_manager.dart';
 import '../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../tools/logging/logger.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 
 /// Enable for leaderboard testing (period-wins). See `.cursor/rules/enable-logging-switch.mdc`.
 const bool LOGGING_SWITCH = false;
@@ -491,12 +492,13 @@ class _PeriodLeaderboardBody extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppPadding.defaultPadding,
         children: [
-          Text(error!, style: AppTextStyles.bodyMedium(color: AppColors.errorColor)),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => onRetry(),
-            style: TextButton.styleFrom(foregroundColor: AppColors.accentColor),
-            child: const Text('Retry'),
+          DutchEmptyStateCard(
+            title: 'Leaderboard unavailable',
+            message: error!,
+            variant: DutchEmptyStateVariant.error,
+            actionLabel: 'Retry',
+            onAction: () => onRetry(),
+            semanticIdentifier: 'leaderboard_error',
           ),
         ],
       );
@@ -522,13 +524,11 @@ class _PeriodLeaderboardBody extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 24),
-          Center(
-            child: Text(
-              emptyMessage,
-              style: AppTextStyles.bodyLarge(color: AppColors.textSecondary),
-              textAlign: TextAlign.center,
-            ),
+          const SizedBox(height: 16),
+          DutchEmptyStateCard(
+            message: emptyMessage,
+            icon: Icons.emoji_events_outlined,
+            semanticIdentifier: 'leaderboard_empty',
           ),
         ],
       );

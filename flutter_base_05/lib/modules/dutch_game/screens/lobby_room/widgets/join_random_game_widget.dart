@@ -503,19 +503,23 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: TableTierFeltPanel(tableLevel: _displayTableLevel),
+              child: IgnorePointer(
+                child: Image.asset(
+                  DutchGamePlayTableStyles.tableBackGraphicAssetPath(_displayTableLevel),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
+                ),
+              ),
             ),
             Positioned.fill(
               child: IgnorePointer(
                 child: Opacity(
-                  opacity: AppOpacity.shadow,
-                  child: Image.asset(
-                    DutchGamePlayTableStyles.tableBackGraphicAssetPath(_displayTableLevel),
-                    fit: BoxFit.cover,
-                    alignment: Alignment.center,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox.shrink(),
-                  ),
+                  // Felt overlay acts like a table-tier tint on top of the
+                  // decorative backgraphic (lower opacity by design).
+                  opacity: 0.7,
+                  child: TableTierFeltPanel(tableLevel: _displayTableLevel),
                 ),
               ),
             ),

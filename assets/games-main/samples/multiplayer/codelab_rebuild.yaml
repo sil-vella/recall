@@ -1,0 +1,197 @@
+# Run with tooling from https://github.com/flutter/codelabs/tree/main/tooling/codelab_rebuild
+name: Multiplayer sample rebuild
+steps:
+  - name: Remove runners
+    rmdirs:
+      - android
+      - ios
+      - linux
+      - macos
+      - web
+  - name: Flutter recreate
+    flutter: create --org com.example --project-name card --platforms android,ios,linux,macos,web .
+  - name: Remove test/widget_test.dart
+    rm: test/widget_test.dart
+  - name: Patch android/app/build.gradle.kts
+    path: android/app/build.gradle.kts
+    patch-u: |
+      --- a/samples/multiplayer/android/app/build.gradle.kts
+      +++ b/samples/multiplayer/android/app/build.gradle.kts
+      @@ -1,5 +1,8 @@
+       plugins {
+           id("com.android.application")
+      +    // START: FlutterFire Configuration
+      +    id("com.google.gms.google-services")
+      +    // END: FlutterFire Configuration
+           id("kotlin-android")
+           // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+           id("dev.flutter.flutter-gradle-plugin")
+  - name: Patch android/settings.gradle.kts
+    path: android/settings.gradle.kts
+    patch-u: |
+      --- a/samples/multiplayer/android/settings.gradle.kts
+      +++ b/samples/multiplayer/android/settings.gradle.kts
+      @@ -19,6 +19,9 @@ pluginManagement {
+       plugins {
+           id("dev.flutter.flutter-plugin-loader") version "1.0.0"
+           id("com.android.application") version "8.7.3" apply false
+      +    // START: FlutterFire Configuration
+      +    id("com.google.gms.google-services") version("4.3.15") apply false
+      +    // END: FlutterFire Configuration
+           id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+       }
+  - name: Patch ios/Podfile
+    path: ios/Podfile
+    patch-u: |
+      --- b/samples/multiplayer/ios/Podfile
+      +++ a/samples/multiplayer/ios/Podfile
+      @@ -1,5 +1,4 @@
+      -# Uncomment this line to define a global platform for your project
+      -# platform :ios, '12.0'
+      +platform :ios, '13.0'
+       
+       # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+       ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+  - name: Add android/app/google-services.json
+    path: android/app/google-services.json
+    replace-contents: |
+      {
+        "project_info": {
+          "project_number": "279016704934",
+          "project_id": "card-game-eea6d",
+          "storage_bucket": "card-game-eea6d.appspot.com"
+        },
+        "client": [
+          {
+            "client_info": {
+              "mobilesdk_app_id": "1:279016704934:android:88be1397c39d5ae110dd67",
+              "android_client_info": {
+                "package_name": "com.example.card"
+              }
+            },
+            "oauth_client": [],
+            "api_key": [
+              {
+                "current_key": "AIzaSyBj32JbbKHD2UgP8aoQRuEjkexEUzR1hXE"
+              }
+            ],
+            "services": {
+              "appinvite_service": {
+                "other_platform_oauth_client": []
+              }
+            }
+          },
+          {
+            "client_info": {
+              "mobilesdk_app_id": "1:279016704934:android:de477079147d89de10dd67",
+              "android_client_info": {
+                "package_name": "com.example.game_template"
+              }
+            },
+            "oauth_client": [],
+            "api_key": [
+              {
+                "current_key": "AIzaSyBj32JbbKHD2UgP8aoQRuEjkexEUzR1hXE"
+              }
+            ],
+            "services": {
+              "appinvite_service": {
+                "other_platform_oauth_client": []
+              }
+            }
+          }
+        ],
+        "configuration_version": "1"
+      }
+  - name: Add ios/firebase_app_id_file.json
+    path: ios/firebase_app_id_file.json
+    replace-contents: |
+      {
+        "file_generated_by": "FlutterFire CLI",
+        "purpose": "FirebaseAppID & ProjectID for this Firebase app in this directory",
+        "GOOGLE_APP_ID": "1:279016704934:ios:3ea782755a91ada110dd67",
+        "FIREBASE_PROJECT_ID": "card-game-eea6d",
+        "GCM_SENDER_ID": "279016704934"
+      }
+  - name: Add macos/firebase_app_id_file.json
+    path: macos/firebase_app_id_file.json
+    replace-contents: |
+      {
+        "file_generated_by": "FlutterFire CLI",
+        "purpose": "FirebaseAppID & ProjectID for this Firebase app in this directory",
+        "GOOGLE_APP_ID": "1:279016704934:ios:faac0650d42695f210dd67",
+        "FIREBASE_PROJECT_ID": "card-game-eea6d",
+        "GCM_SENDER_ID": "279016704934"
+      }
+  - name: Add ios/Runner/GoogleService-info.plist
+    path: ios/Runner/GoogleService-info.plist
+    replace-contents: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+      	<key>API_KEY</key>
+      	<string>AIzaSyD6KsB6n5jsvLf2apddzFIoo2ZPbbwMbdk</string>
+      	<key>GCM_SENDER_ID</key>
+      	<string>279016704934</string>
+      	<key>PLIST_VERSION</key>
+      	<string>1</string>
+      	<key>BUNDLE_ID</key>
+      	<string>com.example.card</string>
+      	<key>PROJECT_ID</key>
+      	<string>card-game-eea6d</string>
+      	<key>STORAGE_BUCKET</key>
+      	<string>card-game-eea6d.appspot.com</string>
+      	<key>IS_ADS_ENABLED</key>
+      	<false></false>
+      	<key>IS_ANALYTICS_ENABLED</key>
+      	<false></false>
+      	<key>IS_APPINVITE_ENABLED</key>
+      	<true></true>
+      	<key>IS_GCM_ENABLED</key>
+      	<true></true>
+      	<key>IS_SIGNIN_ENABLED</key>
+      	<true></true>
+      	<key>GOOGLE_APP_ID</key>
+      	<string>1:279016704934:ios:3ea782755a91ada110dd67</string>
+      </dict>
+      </plist>
+  - name: Add GoogleService-Info.plist
+    xcode-project-path: ios/Runner.xcodeproj
+    xcode-add-file: GoogleService-Info.plist
+  - name: Add macos/Runner/GoogleService-info.plist
+    path: macos/Runner/GoogleService-info.plist
+    replace-contents: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+      	<key>API_KEY</key>
+      	<string>AIzaSyD6KsB6n5jsvLf2apddzFIoo2ZPbbwMbdk</string>
+      	<key>GCM_SENDER_ID</key>
+      	<string>279016704934</string>
+      	<key>PLIST_VERSION</key>
+      	<string>1</string>
+      	<key>BUNDLE_ID</key>
+      	<string>com.example.card.RunnerTests</string>
+      	<key>PROJECT_ID</key>
+      	<string>card-game-eea6d</string>
+      	<key>STORAGE_BUCKET</key>
+      	<string>card-game-eea6d.appspot.com</string>
+      	<key>IS_ADS_ENABLED</key>
+      	<false></false>
+      	<key>IS_ANALYTICS_ENABLED</key>
+      	<false></false>
+      	<key>IS_APPINVITE_ENABLED</key>
+      	<true></true>
+      	<key>IS_GCM_ENABLED</key>
+      	<true></true>
+      	<key>IS_SIGNIN_ENABLED</key>
+      	<true></true>
+      	<key>GOOGLE_APP_ID</key>
+      	<string>1:279016704934:ios:faac0650d42695f210dd67</string>
+      </dict>
+      </plist>
+  - name: Add GoogleService-Info.plist
+    xcode-project-path: macos/Runner.xcodeproj
+    xcode-add-file: GoogleService-Info.plist

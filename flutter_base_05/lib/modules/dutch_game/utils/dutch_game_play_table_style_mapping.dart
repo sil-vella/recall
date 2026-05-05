@@ -34,13 +34,13 @@ class DutchGamePlayTableStyles {
   DutchGamePlayTableStyles._();
 
   static const String _kHomeTableBackGraphic =
-      'assets/images/backgrounds/home-table-backgraphic_002.png';
+      'assets/images/backgrounds/home-table-backgraphic_002.webp';
   static const String _kLocalTableBackGraphic =
-      'assets/images/backgrounds/local-table-backgraphic.png';
+      'assets/images/backgrounds/local-table-backgraphic.webp';
   static const String _kTownTableBackGraphic =
-      'assets/images/backgrounds/town-table-backgraphic.png';
+      'assets/images/backgrounds/town-table-backgraphic.webp';
   static const String _kCityTableBackGraphic =
-      'assets/images/backgrounds/city-table-backgraphic.png';
+      'assets/images/backgrounds/city-table-backgraphic.webp';
 
   /// Decorative full-bleed overlay image for lobby/quick-join panels (paired with [forLevel]).
   static String tableBackGraphicAssetPath(int tableLevel) {

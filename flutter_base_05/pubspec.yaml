@@ -74,7 +74,7 @@ flutter:
 
 flutter_native_splash:
   color: "#2a5c32"
-  image: assets/images/splash_screen.png
+  image: assets/images/splash_screen.webp
   android: true
   ios: true
   web: false
@@ -85,12 +85,12 @@ flutter_native_splash:
   # Use a 960×960 (with icon background) asset with important art inside the ~640dp circle, same green as [color].
   android_12:
     color: "#2a5c32"
-    image: assets/images/splash_screen.png
+    image: assets/images/splash_screen.webp
     icon_background_color: "#2a5c32"
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/icon.png"
-  adaptive_icon_background: "assets/images/icon_background.png"
-  adaptive_icon_foreground: "assets/images/icon_foreground.png"
+  image_path: "assets/images/icon.webp"
+  adaptive_icon_background: "assets/images/icon_background.webp"
+  adaptive_icon_foreground: "assets/images/icon_foreground.webp"
   remove_alpha_ios: true

@@ -44,6 +44,25 @@ CardTableOrientation _seatOrientationForPlayer(Map<String, dynamic> anim, String
   return CardTableOrientation.portraitUp;
 }
 
+/// Resolve slot-facing radians for a hand rect.
+/// If seat mapping is missing but the slot rect is landscape, force landscape radians so
+/// left/right opponents do not render vertical ghosts.
+double _seatRadiansForHandRect(
+  Map<String, dynamic> anim,
+  String playerId,
+  Map<String, double> rect,
+) {
+  final mapped = _seatOrientationForPlayer(anim, playerId);
+  final mappedRadians = _tableOrientationToRadians(mapped);
+  final isLandscapeRect = (rect['width'] ?? 0) > (rect['height'] ?? 0);
+  final mappedPortrait =
+      mapped == CardTableOrientation.portraitUp || mapped == CardTableOrientation.portraitDown;
+  if (isLandscapeRect && mappedPortrait) {
+    return math.pi / 2;
+  }
+  return mappedRadians;
+}
+
 enum _PlanTag { none, linear, jackSwap, queenPeek }
 
 /// One card flying from [from] rect to [to] rect (anchor-relative pixels).
@@ -703,7 +722,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final from = rectFor(owner, fromIdx);
       final to = rectFor(owner, toIdx);
       if (from == null || to == null) return null;
-      final seatR = _tableOrientationToRadians(_seatOrientationForPlayer(anim, owner));
+      final seatR = _seatRadiansForHandRect(anim, owner, to);
       return _AnimPlan.linear(
         _CardFlightData(
           from: from,

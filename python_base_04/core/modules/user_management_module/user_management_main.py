@@ -43,7 +43,7 @@ from core.services.analytics_service import AnalyticsService
 
 class UserManagementModule(BaseModule):
     # Logging switch: /public/register, /public/register-guest, login, Google sign-in, invite search, etc.
-    LOGGING_SWITCH = False  # Registration + auth paths → server.log (see .cursor/rules/enable-logging-switch.mdc)
+    LOGGING_SWITCH = True  # Registration + auth paths → server.log (see .cursor/rules/enable-logging-switch.mdc)
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):
@@ -1956,11 +1956,19 @@ class UserManagementModule(BaseModule):
             role_from_db = user.get('role', 'player')
             if UserManagementModule.LOGGING_SWITCH:
                 custom_log(f"UserManagement: get_user_profile user_id={user_id} role_from_db={role_from_db!r} (JWT has no role)", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+            profile = user.get('profile', {}) or {}
+            picture = profile.get('picture')
+            if UserManagementModule.LOGGING_SWITCH:
+                custom_log(
+                    f"UserManagement: get_user_profile user_id={user_id} picture_present={bool(picture)} picture={picture!r}",
+                    level="INFO",
+                    isOn=UserManagementModule.LOGGING_SWITCH,
+                )
             profile_data = {
                 'user_id': user_id,
                 'email': plain_email or user.get('email'),
                 'username': plain_username or user.get('username'),
-                'profile': user.get('profile', {}),
+                'profile': profile,
                 'modules': user.get('modules', {}),
                 'role': role_from_db,
             }

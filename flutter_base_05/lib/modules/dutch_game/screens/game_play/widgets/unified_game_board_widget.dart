@@ -20,7 +20,7 @@ import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;

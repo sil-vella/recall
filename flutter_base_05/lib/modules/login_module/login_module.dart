@@ -22,7 +22,7 @@ import 'utils/ws_jwt_access_expiry.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = false; // Profile avatar upload + auth trace (enable-logging-switch.mdc) — set false after debugging
+  static const bool LOGGING_SWITCH = true; // Profile avatar upload + auth trace (enable-logging-switch.mdc) — set false after debugging
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -58,6 +58,9 @@ class LoginModule extends ModuleBase {
         "userId": _sharedPref?.getString('user_id'),
         "username": _sharedPref?.getString('username'),
         "email": _sharedPref?.getString('email'),
+        // Hydrate avatar URL immediately for already-authenticated sessions.
+        // This avoids initials fallback while profile refresh is still in flight.
+        "profilePicture": _sharedPref?.getString('profile_picture'),
         "error": null
       });
     });
@@ -1347,10 +1350,16 @@ class LoginModule extends ModuleBase {
       stateManager.updateModuleState("login", updates);
       
       if (pictureUrl != null && pictureUrl.isNotEmpty) {
+        if (_sharedPref != null) {
+          await _sharedPref!.setString('profile_picture', pictureUrl);
+        }
         if (LOGGING_SWITCH) {
           Logger().info('LoginModule: Profile picture updated: $pictureUrl');
         }
       } else {
+        if (_sharedPref != null) {
+          await _sharedPref!.remove('profile_picture');
+        }
         if (LOGGING_SWITCH) {
           Logger().info('LoginModule: No profile picture available');
         }

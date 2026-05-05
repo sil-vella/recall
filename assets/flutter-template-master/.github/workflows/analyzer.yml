@@ -1,0 +1,19 @@
+name: Analyzer
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  check_analyzer:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: subosito/flutter-action@v2.8.0
+      with:
+        channel: 'stable'
+    - run: ./tool/install_fvm.sh
+    - run: fvm flutter packages get
+    - run: fvm flutter analyze

@@ -6,6 +6,8 @@ import '../../game_play/widgets/game_phase_chip_widget.dart';
 import '../../../managers/dutch_game_state_updater.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../widgets/ui_kit/dutch_empty_state_card.dart';
+import '../../../widgets/ui_kit/dutch_section_header.dart';
 
 const bool LOGGING_SWITCH = false; // Start flow: _enterGameRoom, isRoomOwner (enable-logging-switch.mdc)
 
@@ -90,28 +92,23 @@ class CurrentRoomWidget extends StatelessWidget {
         color: AppColors.widgetContainerBackground,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Padding(
+      child: const Padding(
         padding: AppPadding.cardPadding,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Joined Games',
-              style: AppTextStyles.headingSmall(),
+            DutchSectionHeader(
+              title: 'Joined Games',
+              icon: Icons.group_outlined,
+              dense: true,
+              semanticIdentifier: 'lobby_joined_games_header',
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Not currently in any games',
-              style: AppTextStyles.label().copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Join a game or create a new one to start playing',
-              style: AppTextStyles.bodySmall().copyWith(
-                color: AppColors.textSecondary,
-              ),
+            SizedBox(height: 4),
+            DutchEmptyStateCard(
+              title: 'Not in any games',
+              message: 'Join a game or create a new one to start playing.',
+              icon: Icons.sports_esports_outlined,
+              semanticIdentifier: 'lobby_joined_games_empty',
             ),
           ],
         ),

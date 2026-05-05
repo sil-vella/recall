@@ -4,7 +4,7 @@ Generate Flutter Splash Screen from Source Image
 
 This script takes a splash screen image and configures flutter_native_splash:
 - Validates image dimensions (should be rectangular, portrait for mobile)
-- Copies the source image to assets/images/splash_screen.png
+- Copies the source image to assets/images/splash_screen.webp
 - Updates pubspec.yaml to enable flutter_native_splash configuration
 - Runs flutter pub get
 - Runs dart run flutter_native_splash:create
@@ -266,7 +266,7 @@ def update_pubspec_yaml(pubspec_path, background_color):
     # Step 3: Update or add flutter_native_splash configuration at root level
     splash_config = f"""flutter_native_splash:
   color: "{background_color}"
-  image: assets/images/splash_screen.png
+  image: assets/images/splash_screen.webp
   android: true
   ios: true
   web: false
@@ -275,7 +275,7 @@ def update_pubspec_yaml(pubspec_path, background_color):
   fullscreen: true
   android_12:
     color: "{background_color}"
-    image: assets/images/splash_screen.png
+    image: assets/images/splash_screen.webp
     icon_background_color: "{background_color}"
 """
     

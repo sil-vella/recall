@@ -20,7 +20,7 @@ import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
 /// When true, logs screen build and rebuild timing for this screen.
-const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -479,12 +479,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     // Preload card back and special-card backgrounds once when entering game play (match start)
     if (!_cardBackPrecached && mounted) {
       _cardBackPrecached = true;
-      precacheImage(const AssetImage('assets/images/card_back.png'), context);
-      precacheImage(const AssetImage('assets/images/table_logo.png'), context);
-      precacheImage(const AssetImage('assets/images/backgrounds/queen.png'), context);
-      precacheImage(const AssetImage('assets/images/backgrounds/king.png'), context);
-      precacheImage(const AssetImage('assets/images/backgrounds/jack.png'), context);
-      precacheImage(const AssetImage('assets/images/backgrounds/joker.png'), context);
+      precacheImage(const AssetImage('assets/images/card_back.webp'), context);
+      precacheImage(const AssetImage('assets/images/table_logo.webp'), context);
+      precacheImage(const AssetImage('assets/images/backgrounds/queen.webp'), context);
+      precacheImage(const AssetImage('assets/images/backgrounds/king.webp'), context);
+      precacheImage(const AssetImage('assets/images/backgrounds/jack.webp'), context);
+      precacheImage(const AssetImage('assets/images/backgrounds/joker.webp'), context);
     }
     
     // Check for initial instructions after dependencies are set (game state should be ready)
@@ -774,7 +774,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                                       const int imageVersion = 2;
                                       if (isPracticeMode) {
                                         return Image(
-                                          image: const AssetImage('assets/images/table_logo.png'),
+                                          image: const AssetImage('assets/images/table_logo.webp'),
                                           fit: BoxFit.contain,
                                           errorBuilder: (context, error, stackTrace) => Icon(
                                             Icons.broken_image,
@@ -799,7 +799,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                                         },
                                         errorBuilder: (context, error, stackTrace) {
                                           return Image(
-                                            image: const AssetImage('assets/images/table_logo.png'),
+                                            image: const AssetImage('assets/images/table_logo.webp'),
                                             fit: BoxFit.contain,
                                             errorBuilder: (context, err, st) => Icon(
                                               Icons.broken_image,

@@ -4,6 +4,7 @@ import '../../../managers/game_coordinator.dart';
 // import '../../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 // import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../widgets/ui_kit/dutch_empty_state_card.dart';
 
 /// Widget to display available games with fetch functionality
 /// 
@@ -114,38 +115,11 @@ class AvailableGamesWidget extends StatelessWidget {
 
   /// Build empty state when no games are available
   Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderDefault),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.games_outlined,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No games available',
-            style: AppTextStyles.bodyMedium().copyWith(
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Click "Fetch Games" to find available games you can join',
-            style: AppTextStyles.label().copyWith(
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+    return const DutchEmptyStateCard(
+      title: 'No games available',
+      message: 'Click "Fetch Games" to find available games you can join.',
+      icon: Icons.games_outlined,
+      semanticIdentifier: 'lobby_available_games_empty',
     );
   }
 

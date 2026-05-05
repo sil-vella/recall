@@ -15,7 +15,7 @@ class DutchAnimRuntime extends ChangeNotifier {
   DutchAnimRuntime._();
   static final DutchAnimRuntime instance = DutchAnimRuntime._();
 
-  static const bool LOGGING_SWITCH = true; // Anim queue / layout (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = false; // Anim queue / layout (enable-logging-switch.mdc; set false after test)
   final Logger _logger = Logger();
 
   static const String eventDataKey = 'eventData';

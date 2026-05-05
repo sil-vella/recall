@@ -10,6 +10,9 @@ import '../../core/managers/websockets/websocket_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../modules/analytics_module/analytics_module.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
+import '../../modules/dutch_game/widgets/ui_kit/dutch_avatar.dart';
+import '../../modules/dutch_game/widgets/ui_kit/dutch_section_header.dart';
+import '../../modules/dutch_game/widgets/ui_kit/dutch_settings_row.dart';
 import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
@@ -27,7 +30,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Profile photo pick/upload trace (enable-logging-switch.mdc) — set false after debugging
+  static const bool LOGGING_SWITCH = true; // Profile photo pick/upload trace (enable-logging-switch.mdc) — set false after debugging
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -62,6 +65,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   Timer? _profileRefetchTimer;
 
   bool _uploadingProfilePhoto = false;
+  Uint8List? _recentUploadedProfilePhotoBytes;
   
   // Module manager
   final ModuleManager _moduleManager = ModuleManager();
@@ -965,6 +969,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         _logger.info('AccountScreen: upload result success=${result['success']} keys=${result.keys.toList()}');
       }
       if (result['success'] == true) {
+        // Keep a local in-memory preview so the profile UI can show the new
+        // image immediately even if network fetch is delayed/fails/cached.
+        _recentUploadedProfilePhotoBytes = Uint8List.fromList(prepared);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -1012,31 +1019,108 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     }
   }
 
-  /// Build profile picture widget with fallback to icon
-  /// Reads profile picture from StateManager
-  Widget _buildProfilePicture() {
-    final stateManager = StateManager();
-    final loginState = stateManager.getModuleState<Map<String, dynamic>>("login") ?? {};
-    final profilePictureUrl = loginState["profilePicture"] as String?;
-    
-    if (profilePictureUrl != null && profilePictureUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: 40,
-        backgroundImage: NetworkImage(profilePictureUrl),
-        backgroundColor: AppColors.surfaceVariant,
-        onBackgroundImageError: (exception, stackTrace) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('AccountScreen: Failed to load profile picture: $exception');
-          }
-        },
+  /// Profile header used by the logged-in view: themed avatar + welcome title +
+  /// "Change photo" affordance. Uses `DutchAvatar` so the same component can be
+  /// reused for opponents/leaderboard rows in the future.
+  Widget _buildProfileHeader({
+    required String username,
+    required String email,
+  }) {
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>("login") ?? {};
+    final profilePictureUrl = (loginState["profilePicture"] as String?)?.trim();
+    final profile = loginState["profile"] as Map<String, dynamic>? ?? const {};
+    final avatarVersion = (profile["updated_at"]?.toString() ??
+            loginState["profile_updated_at"]?.toString() ??
+            '')
+        .trim();
+    final effectivePictureUrl = (profilePictureUrl != null && profilePictureUrl.isNotEmpty)
+        ? (avatarVersion.isNotEmpty
+            ? '$profilePictureUrl${profilePictureUrl.contains('?') ? '&' : '?'}v=${Uri.encodeQueryComponent(avatarVersion)}'
+            : profilePictureUrl)
+        : null;
+    final displayName = username.isNotEmpty ? username : email;
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'AccountScreen: _buildProfileHeader displayName="$displayName" '
+        'profilePictureUrl="${profilePictureUrl ?? "(null)"}" '
+        'effectivePictureUrl="${effectivePictureUrl ?? "(null)"}" '
+        'hasLocalBytes=${_recentUploadedProfilePhotoBytes != null && _recentUploadedProfilePhotoBytes!.isNotEmpty} '
+        'uploading=$_uploadingProfilePhoto',
       );
     }
-    
-    // Fallback to icon if no picture
-    return Icon(
-      Icons.account_circle,
-      size: 80,
-      color: Theme.of(context).primaryColor,
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              DutchAvatar(
+                displayName: displayName.isNotEmpty ? displayName : 'Player',
+                imageBytes: _recentUploadedProfilePhotoBytes,
+                imageUrl: effectivePictureUrl,
+                size: 96,
+                semanticIdentifier: 'profile_avatar',
+                onTap: _uploadingProfilePhoto ? null : _pickAndUploadProfilePhoto,
+              ),
+              if (_uploadingProfilePhoto)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withValues(alpha: 0.45),
+                    ),
+                    alignment: Alignment.center,
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Semantics(
+            label: 'Change profile photo',
+            identifier: 'profile_photo_change',
+            button: true,
+            child: TextButton.icon(
+              onPressed: _uploadingProfilePhoto ? null : _pickAndUploadProfilePhoto,
+              icon: Icon(
+                Icons.photo_camera_outlined,
+                color: AppColors.accentColor2,
+                size: 18,
+              ),
+              label: Text(
+                'Change photo',
+                style: AppTextStyles.bodyMedium(color: AppColors.accentColor2),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Welcome back!',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.headingLarge(color: AppColors.white)
+                .copyWith(letterSpacing: 0.3),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            displayName.isNotEmpty ? displayName : 'Player',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyLarge(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1317,89 +1401,77 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 40),
-                  
-                  // User Profile Section
-                  Center(
-                    child: Column(
-                      children: [
-                        // Profile Picture or Icon
-                        _buildProfilePicture(),
-                        const SizedBox(height: 12),
-                        Semantics(
-                          label: 'Change profile photo',
-                          identifier: 'profile_photo_change',
-                          button: true,
-                          child: TextButton.icon(
-                            onPressed: _uploadingProfilePhoto ? null : _pickAndUploadProfilePhoto,
-                            icon: _uploadingProfilePhoto
-                                ? SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.primaryColor,
-                                    ),
-                                  )
-                                : Icon(Icons.photo_camera_outlined, color: AppColors.primaryColor),
-                            label: Text(
-                              'Change photo',
-                              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.primaryColor),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Welcome Back!',
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).primaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          username.isNotEmpty ? username : email,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: 24),
+
+                  // Profile header (avatar + name + change-photo affordance)
+                  _buildProfileHeader(
+                    username: username,
+                    email: email,
                   ),
-                  
-                  const SizedBox(height: 40),
-                  
-                  // User Info Card
+
+                  const SizedBox(height: 24),
+
+                  // Account Information — themed settings rows from the Dutch UI kit.
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: AppColors.scaffoldBackgroundColor.withValues(alpha: 0.55),
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.accentContrast.withValues(alpha: 0.35),
+                        width: 1,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.cardVariant,
+                          color: Colors.black.withValues(alpha: 0.18),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 16,
+                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Account Information',
-                          style: AppTextStyles.headingMedium(),
+                        const DutchSectionHeader(
+                          title: 'Account Information',
+                          icon: Icons.person_outline,
+                          semanticIdentifier: 'account_info_header',
                         ),
-                        const SizedBox(height: 16),
-                        _buildInfoRow('Username', username),
                         const SizedBox(height: 8),
-                        _buildInfoRow('Email', email),
+                        DutchSettingsRow(
+                          title: 'Username',
+                          subtitle: username.isNotEmpty ? username : null,
+                          leadingIcon: Icons.badge_outlined,
+                          semanticIdentifier: 'account_row_username',
+                        ),
                         const SizedBox(height: 8),
-                        _buildInfoRow('User ID', loginState?["userId"] ?? ""),
+                        DutchSettingsRow(
+                          title: 'Email',
+                          subtitle: email.isNotEmpty ? email : null,
+                          leadingIcon: Icons.email_outlined,
+                          semanticIdentifier: 'account_row_email',
+                        ),
                         const SizedBox(height: 8),
-                        _buildInfoRow('Role', _formatRole(loginState?["role"] ?? "player")),
+                        DutchSettingsRow(
+                          title: 'User ID',
+                          subtitle: (loginState?["userId"] ?? "").toString().isNotEmpty
+                              ? (loginState!["userId"]).toString()
+                              : null,
+                          leadingIcon: Icons.fingerprint,
+                          semanticIdentifier: 'account_row_user_id',
+                        ),
+                        const SizedBox(height: 8),
+                        DutchSettingsRow(
+                          title: 'Role',
+                          subtitle: _formatRole(loginState?["role"] ?? "player"),
+                          leadingIcon: Icons.shield_outlined,
+                          semanticIdentifier: 'account_row_role',
+                        ),
                         if (_isAdminRole(loginState?["role"])) ...[
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 12),
                           OutlinedButton.icon(
                             onPressed: _isLoading ? null : _onAdminDashboardPressed,
                             icon: Icon(Icons.admin_panel_settings, size: 20, color: AppColors.accentColor),

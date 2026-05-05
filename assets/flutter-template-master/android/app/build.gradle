@@ -1,0 +1,121 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+    id "com.google.firebase.crashlytics"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+  localPropertiesFile.withReader('UTF-8') { reader -> localProperties.load(reader)
+  }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+  flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+  flutterVersionName = '1.0'
+}
+
+android {
+  buildToolsVersion "34.0.0"
+  compileSdkVersion 36
+  ndkVersion "29.0.14033849"
+  namespace "com.icapps.fluttertemplate"
+
+  sourceSets {
+    main.java.srcDirs += 'src/main/kotlin'
+  }
+
+  lintOptions {
+    disable 'InvalidPackage'
+    checkReleaseBuilds false
+  }
+
+  defaultConfig {
+    applicationId "com.icapps.fluttertemplate"
+    minSdkVersion flutter.minSdkVersion
+    targetSdkVersion 35
+    multiDexEnabled true
+    versionCode flutterVersionCode.toInteger()
+    versionName flutterVersionName
+    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+  }
+
+  signingConfigs {
+    debug {
+      storeFile file("../keystore/debug.keystore")
+      storePassword "your-store-alias"
+      keyAlias "your-key-alias"
+      keyPassword "your-key-password"
+    }
+    release {
+      storeFile file("../keystore/release.keystore")
+      storePassword "your-store-alias"
+      keyAlias "your-key-alias"
+      keyPassword "your-key-password"
+    }
+  }
+
+
+  buildTypes {
+    debug {
+      signingConfig signingConfigs.debug
+    }
+    release {
+      minifyEnabled true
+      signingConfig signingConfigs.release
+    }
+  }
+
+  flavorDimensions "flavors"
+  productFlavors {
+    dev {
+      dimension "flavors"
+      applicationIdSuffix ".debug"
+      versionNameSuffix "-debug"
+    }
+    alpha {
+      dimension "flavors"
+      applicationIdSuffix ".alpha"
+      versionNameSuffix "-alpha"
+    }
+    beta {
+      dimension "flavors"
+      applicationIdSuffix ".beta"
+      versionNameSuffix "-beta"
+    }
+    prod {
+      dimension "flavors"
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = JavaVersion.VERSION_17
+  }
+
+  buildFeatures {
+    buildConfig = true
+  }
+}
+
+flutter {
+  source '../..'
+}
+
+dependencies {
+  testImplementation 'junit:junit:4.12'
+  androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+  androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.0'
+}

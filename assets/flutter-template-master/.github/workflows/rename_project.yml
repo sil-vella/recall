@@ -1,0 +1,19 @@
+name: Rename project
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  check_rename_project:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: subosito/flutter-action@v2.8.0
+      with:
+        channel: 'stable'
+    - run: ./tool/install_fvm.sh
+    - run: fvm flutter packages get
+    - run: printf 'Test Project\ndescription\ntest_project\nTestProject\ncom.test.project\nn\ny\n' | fvm flutter pub run ./tool/setup/dart/rename_project.dart

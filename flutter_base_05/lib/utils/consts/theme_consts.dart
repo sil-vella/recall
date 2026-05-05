@@ -322,6 +322,9 @@ class AppColors {
   /// Gold for winning pot / coins — theme-independent so it stays gold in every theme (e.g. Dutch green).
   static const Color matchPotGold = Color(0xFFFBC02D); // Material amber 300 / gold
 
+  /// Lighter gold companion to [matchPotGold] for gradients (e.g. promotion headlines, badges).
+  static const Color matchPotGoldLight = Color(0xFFFFE082); // Material amber 100
+
   /// My-hand "Call Final Round" / final-round status chip background.
   static const Color callFinalRoundChipBackground = Color(0xFFF55333);
 

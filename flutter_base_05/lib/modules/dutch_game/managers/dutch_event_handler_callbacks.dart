@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
+
 import '../utils/platform/shared_imports.dart';
 
 import '../../../core/managers/state_manager.dart';
@@ -13,6 +15,8 @@ import '../utils/game_instructions_provider.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
 import '../screens/demo/demo_action_handler.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
+import '../screens/promotion/dutch_promotion_screen.dart';
+import '../screens/promotion/dutch_win_celebration_screen.dart';
 
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
@@ -34,6 +38,7 @@ class DutchEventHandlerCallbacks {
   // Analytics module cache
   static AnalyticsModule? _analyticsModule;
   static String? _lastPromotionSignature;
+  static String? _lastWinCelebrationSignature;
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
@@ -104,11 +109,132 @@ class DutchEventHandlerCallbacks {
     final context = NavigationManager().navigatorKey.currentContext;
     if (context == null) {
       if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ $logContext: cannot show promotion modal (no active navigator context)');
+        _logger.warning('⚠️ $logContext: cannot show promotion screen (no active navigator context)');
       }
       return;
     }
 
+    unawaited(_pushPromotionScreens(
+      context: context,
+      change: change,
+      levelPromoted: levelPromoted,
+      rankPromoted: rankPromoted,
+      logContext: logContext,
+    ));
+  }
+
+  /// Show a fullscreen win celebration for the current user once per game end.
+  static void _showWinCelebrationIfNeeded({
+    required String gameId,
+    required bool isCurrentUserWinner,
+    required String winnerMessages,
+    required String logContext,
+  }) {
+    if (!isCurrentUserWinner) return;
+    final signature = '$gameId|$winnerMessages';
+    if (_lastWinCelebrationSignature == signature) return;
+    _lastWinCelebrationSignature = signature;
+
+    final context = NavigationManager().navigatorKey.currentContext;
+    if (context == null) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('⚠️ $logContext: cannot show win celebration (no active navigator context)');
+      }
+      return;
+    }
+
+    unawaited(() async {
+      try {
+        if (LOGGING_SWITCH) {
+          _logger.info('🏆 $logContext: pushing win celebration screen');
+        }
+        await Navigator.of(context, rootNavigator: true).push<void>(
+          MaterialPageRoute<void>(
+            fullscreenDialog: true,
+            builder: (_) => DutchWinCelebrationScreen(
+              winnerMessage: 'Winner(s): $winnerMessages',
+            ),
+          ),
+        );
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.error('⚠️ $logContext: failed to push win celebration screen: $e');
+        }
+      }
+    }());
+  }
+
+  /// Sequenced fullscreen promotion screens. Level-up shows first; once the
+  /// player closes it, rank-up follows. Falls back to [InstantMessageModal] if
+  /// pushing the fullscreen route fails so a promotion is never silently lost.
+  static Future<void> _pushPromotionScreens({
+    required BuildContext context,
+    required DutchRankLevelChangeResult change,
+    required bool levelPromoted,
+    required bool rankPromoted,
+    required String logContext,
+  }) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    Future<void> push(DutchPromotionKind kind) async {
+      try {
+        await navigator.push<void>(
+          MaterialPageRoute<void>(
+            fullscreenDialog: true,
+            builder: (_) => DutchPromotionScreen(
+              kind: kind,
+              change: change,
+            ),
+          ),
+        );
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.error(
+            '⚠️ $logContext: failed to push DutchPromotionScreen(${kind.name}): $e',
+          );
+        }
+        // Re-resolve a fresh context after the async gap; the original context
+        // may no longer be mounted.
+        final fallbackContext = NavigationManager().navigatorKey.currentContext;
+        if (fallbackContext == null) return;
+        _showPromotionFallbackModal(
+          context: fallbackContext,
+          change: change,
+          levelPromoted: levelPromoted,
+          rankPromoted: rankPromoted,
+        );
+      }
+    }
+
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '🚀 $logContext: promotion sequence start levelPromoted=$levelPromoted rankPromoted=$rankPromoted '
+        'rank=${change.rankBefore}->${change.rankAfter} level=${change.levelBefore}->${change.levelAfter}',
+      );
+    }
+
+    if (levelPromoted) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🚀 $logContext: pushing LevelUp promotion screen');
+      }
+      await push(DutchPromotionKind.levelUp);
+    }
+    if (rankPromoted) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🚀 $logContext: pushing RankUp promotion screen');
+      }
+      await push(DutchPromotionKind.rankUp);
+    }
+  }
+
+  /// Legacy promotion modal — kept as a safety net for environments where the
+  /// fullscreen route can't be pushed (e.g. navigator unavailable mid-teardown).
+  static void _showPromotionFallbackModal({
+    required BuildContext context,
+    required DutchRankLevelChangeResult change,
+    required bool levelPromoted,
+    required bool rankPromoted,
+  }) {
     final lines = <String>[];
     if (levelPromoted) {
       lines.add('Level Up: ${change.levelBefore ?? '-'} -> ${change.levelAfter ?? '-'}');
@@ -119,7 +245,6 @@ class DutchEventHandlerCallbacks {
     if (change.winsAfter != null) {
       lines.add('Wins: ${change.winsAfter}');
     }
-
     final title = rankPromoted ? 'Promotion Unlocked!' : 'Level Up!';
     final body = lines.join('\n');
 
@@ -2102,8 +2227,14 @@ When anyone has played a card with the **same rank** as your **collection card**
           'winners': winners,
           'game_ended': true,
         },
-        showModal: true, // Show modal for game end
+        showModal: !isCurrentUserWinner, // Winner gets fullscreen celebration instead
         isCurrentUserWinner: isCurrentUserWinner,
+      );
+      _showWinCelebrationIfNeeded(
+        gameId: gameId,
+        isCurrentUserWinner: isCurrentUserWinner,
+        winnerMessages: winnerMessages,
+        logContext: 'handleGameStateUpdated',
       );
       
       // Track game completed event (only actual winners)
@@ -2350,8 +2481,14 @@ When anyone has played a card with the **same rank** as your **collection card**
           'winners': winners,
           'game_ended': true,
         },
-        showModal: true, // Show modal for game end
+        showModal: !isCurrentUserWinnerPartial, // Winner gets fullscreen celebration instead
         isCurrentUserWinner: isCurrentUserWinnerPartial,
+      );
+      _showWinCelebrationIfNeeded(
+        gameId: gameId,
+        isCurrentUserWinner: isCurrentUserWinnerPartial,
+        winnerMessages: winnerMessages,
+        logContext: 'handleGameStatePartialUpdate',
       );
     } else {
       // Normal partial update - ensure modal is hidden if game hasn't ended

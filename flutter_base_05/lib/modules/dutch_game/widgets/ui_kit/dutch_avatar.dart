@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../../../tools/logging/logger.dart';
+import '../../../../utils/consts/config.dart';
 import '../../../../utils/consts/theme_consts.dart';
 
 /// Circle avatar with deterministic colored initials fallback.
@@ -39,6 +40,39 @@ class DutchAvatar extends StatelessWidget {
   final Color? borderColor;
   final VoidCallback? onTap;
   final String? semanticIdentifier;
+
+  /// Normalize backend-provided profile image URLs for real devices.
+  ///
+  /// In local debug flows, the backend can emit `http://localhost:...` or
+  /// `http://127.0.0.1:...` media URLs. Those only work on the same host and
+  /// fail on Android/iOS devices. We rewrite host/scheme/port to `Config.apiUrl`
+  /// while preserving the original media path/query.
+  String _effectiveImageUrl(String rawUrl) {
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return trimmed;
+
+    final base = Uri.tryParse(Config.apiUrl);
+    final incoming = Uri.tryParse(trimmed);
+    if (base == null || incoming == null) return trimmed;
+
+    if (!incoming.hasScheme || incoming.host.isEmpty) {
+      if (trimmed.startsWith('/')) {
+        return '${base.scheme}://${base.authority}$trimmed';
+      }
+      return trimmed;
+    }
+
+    final host = incoming.host.toLowerCase();
+    final needsRewrite = host == 'localhost' || host == '127.0.0.1' || host == '10.0.2.2';
+    if (!needsRewrite) return trimmed;
+
+    final rewritten = incoming.replace(
+      scheme: base.scheme,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+    );
+    return rewritten.toString();
+  }
 
   String _initialsFor(String name) {
     final trimmed = name.trim();
@@ -124,15 +158,18 @@ class DutchAvatar extends StatelessWidget {
       );
     }
     if (imageUrl != null && imageUrl!.isNotEmpty) {
+      final resolvedUrl = _effectiveImageUrl(imageUrl!);
       if (LOGGING_SWITCH) {
-        _logger.info('DutchAvatar: rendering Image.network url="$imageUrl" semantic="$semanticIdentifier"');
+        _logger.info(
+          'DutchAvatar: rendering Image.network raw="$imageUrl" resolved="$resolvedUrl" semantic="$semanticIdentifier"',
+        );
       }
       return Image.network(
-        imageUrl!,
+        resolvedUrl,
         fit: BoxFit.cover,
         errorBuilder: (_, error, stack) {
           if (LOGGING_SWITCH) {
-            _logger.warning('DutchAvatar: Image.network failed url="$imageUrl" error=$error');
+            _logger.warning('DutchAvatar: Image.network failed url="$resolvedUrl" error=$error');
           }
           return _buildInitials();
         },

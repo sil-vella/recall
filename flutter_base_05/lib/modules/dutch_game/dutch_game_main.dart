@@ -21,6 +21,7 @@ import '../../screens/admin_dashboard_screen/admin_dashboard_screen.dart';
 import '../../screens/coin_purchase_screen/coin_purchase_screen.dart';
 import '../dutch_game/screens/admin_tournaments_screen/admin_tournaments_screen.dart';
 import '../dutch_game/screens/leaderboard/leaderboard_screen.dart';
+import '../dutch_game/screens/achievements/achievements_screen.dart';
 
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
@@ -355,6 +356,14 @@ class DutchGameMain extends ModuleBase {
       drawerTitle: 'Leaderboard',
       drawerIcon: Icons.emoji_events,
       drawerPosition: 40,
+    );
+
+    navigationManager.registerRoute(
+      path: '/dutch/achievements',
+      screen: (BuildContext context) => const AchievementsScreen(),
+      drawerTitle: 'Achievements',
+      drawerIcon: Icons.workspace_premium,
+      drawerPosition: 45,
     );
 
     navigationManager.registerRoute(

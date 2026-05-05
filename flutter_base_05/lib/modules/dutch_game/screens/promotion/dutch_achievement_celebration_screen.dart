@@ -9,26 +9,34 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
 import '../../../audio_module/audio_module.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
-import 'widgets/dutch_promotion_burst.dart' show DutchPromotionBurst, kDutchPromotionBurstForegroundSpacer;
+import 'widgets/dutch_promotion_burst.dart'
+    show
+        DutchPromotionBurst,
+        kDutchPromotionBurstAchievementLottie,
+        kDutchPromotionBurstForegroundSpacer;
 
-/// Full-screen celebration shown when the current user wins a match.
-/// This mirrors the promotion visual language (burst + confetti + headline),
-/// but keeps content focused on the win outcome.
-class DutchWinCelebrationScreen extends StatefulWidget {
-  const DutchWinCelebrationScreen({
+/// Full-screen celebration when the current user unlocks an achievement.
+/// Visual language matches [DutchWinCelebrationScreen] (burst + confetti + headline).
+class DutchAchievementCelebrationScreen extends StatefulWidget {
+  const DutchAchievementCelebrationScreen({
     super.key,
-    required this.winnerMessage,
+    required this.achievementTitle,
+    required this.achievementDescription,
+    this.achievementId,
   });
 
-  final String winnerMessage;
+  final String achievementTitle;
+  final String achievementDescription;
+  final String? achievementId;
 
   @override
-  State<DutchWinCelebrationScreen> createState() => _DutchWinCelebrationScreenState();
+  State<DutchAchievementCelebrationScreen> createState() =>
+      _DutchAchievementCelebrationScreenState();
 }
 
-class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
+class _DutchAchievementCelebrationScreenState extends State<DutchAchievementCelebrationScreen>
     with SingleTickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
   static const Duration _secondaryBurstDelay = Duration(milliseconds: 1500);
 
@@ -47,7 +55,7 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
   void initState() {
     super.initState();
     _initConfetti();
-    _playWinSound();
+    _playSound();
     _scheduleSecondaryBurst();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,7 +64,7 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
       _leftConfetti.play();
       _rightConfetti.play();
       if (LOGGING_SWITCH) {
-        _logger.info('DutchWinCelebrationScreen: opened');
+        _logger.info('DutchAchievementCelebrationScreen: opened id=${widget.achievementId}');
       }
     });
   }
@@ -76,13 +84,13 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
     }
   }
 
-  void _playWinSound() {
+  void _playSound() {
     try {
       final audio = ModuleManager().getModuleByType<AudioModule>();
       audio?.playSound('level_up_1');
     } catch (e) {
       if (LOGGING_SWITCH) {
-        _logger.error('DutchWinCelebrationScreen: sound failed: $e');
+        _logger.error('DutchAchievementCelebrationScreen: sound failed: $e');
       }
     }
   }
@@ -120,7 +128,8 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
         .animate(_entryController);
 
     return Semantics(
-      identifier: 'win_celebration_screen',
+      identifier: 'achievement_celebration_${widget.achievementId ?? 'unknown'}',
+      label: 'Achievement unlocked: ${widget.achievementTitle}',
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(
@@ -130,6 +139,7 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
             DutchPromotionBurst(
               leftController: _leftConfetti,
               rightController: _rightConfetti,
+              centerLottieAsset: kDutchPromotionBurstAchievementLottie,
             ),
             SafeArea(
               child: Padding(
@@ -144,14 +154,25 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
                         opacity: entryFade,
                         child: _buildHeadline(),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       FadeTransition(
                         opacity: entryFade,
                         child: Text(
-                          widget.winnerMessage,
+                          widget.achievementTitle,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.headingMedium(color: AppColors.white).copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      FadeTransition(
+                        opacity: entryFade,
+                        child: Text(
+                          widget.achievementDescription,
                           textAlign: TextAlign.center,
                           style: AppTextStyles.bodyLarge(color: AppColors.white).copyWith(
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
@@ -163,7 +184,7 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
                           onPressed: _close,
                           leadingIcon: Icons.check_circle_outline,
                           expand: false,
-                          semanticIdentifier: 'win_celebration_continue',
+                          semanticIdentifier: 'achievement_celebration_continue',
                         ),
                       ),
                     ],
@@ -210,12 +231,12 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
         stops: [0.0, 0.5, 1.0],
       ).createShader(rect),
       child: Text(
-        'YOU WON!',
+        'ACHIEVEMENT!',
         textAlign: TextAlign.center,
         style: AppTextStyles.headingLarge(color: AppColors.white).copyWith(
-          fontSize: 44,
+          fontSize: 40,
           fontWeight: FontWeight.w900,
-          letterSpacing: 4,
+          letterSpacing: 3,
           height: 1.0,
         ),
       ),

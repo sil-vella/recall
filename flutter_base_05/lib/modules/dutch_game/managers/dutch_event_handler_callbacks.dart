@@ -17,6 +17,8 @@ import '../screens/demo/demo_action_handler.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
 import '../screens/promotion/dutch_promotion_screen.dart';
 import '../screens/promotion/dutch_win_celebration_screen.dart';
+import '../screens/promotion/dutch_achievement_celebration_screen.dart';
+import '../utils/dutch_achievement_catalog.dart';
 
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
@@ -61,9 +63,9 @@ class DutchEventHandlerCallbacks {
   
   /// Refresh Dutch user stats after a match and detect rank/level changes vs pre-refresh snapshot.
   static void _refreshUserStatsAfterGameEnd(String logContext) {
-    final statsBefore = DutchRankLevelChangeChecker.snapshotRankLevelWins(
-      DutchGameHelpers.getUserDutchGameStats(),
-    );
+    final userStatsBefore = DutchGameHelpers.getUserDutchGameStats();
+    final statsBefore = DutchRankLevelChangeChecker.snapshotRankLevelWins(userStatsBefore);
+    final achievementIdsBefore = _achievementIdsFromUserStats(userStatsBefore);
     DutchGameHelpers.fetchAndUpdateUserDutchGameData().then((success) {
       if (LOGGING_SWITCH) {
         if (success) {
@@ -91,7 +93,72 @@ class DutchEventHandlerCallbacks {
           );
         }
       }
+      final afterStats = DutchGameHelpers.getUserDutchGameStats();
+      final achievementIdsAfter = _achievementIdsFromUserStats(afterStats);
+      final newly = achievementIdsAfter.difference(achievementIdsBefore);
+      // Avoid treating long-unlocked badges as "new" when local state predates API field.
+      final canTrustAchievementDiff =
+          userStatsBefore != null && userStatsBefore.containsKey('achievements_unlocked_ids');
+      if (canTrustAchievementDiff && newly.isNotEmpty) {
+        _showNewAchievementModals(newly, logContext);
+      }
     });
+  }
+
+  static Set<String> _achievementIdsFromUserStats(Map<String, dynamic>? stats) {
+    if (stats == null) return {};
+    final raw = stats['achievements_unlocked_ids'];
+    if (raw is! List) return {};
+    return raw.map((e) => e.toString()).toSet();
+  }
+
+  /// Fullscreen celebration(s), same stack style as [DutchWinCelebrationScreen].
+  static void _showNewAchievementModals(Set<String> newlyEarned, String logContext) {
+    if (newlyEarned.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_pushAchievementCelebrationsSequential(newlyEarned, logContext));
+    });
+  }
+
+  static Future<void> _pushAchievementCelebrationsSequential(
+    Set<String> newlyEarned,
+    String logContext,
+  ) async {
+    for (final id in newlyEarned) {
+      final ctx = NavigationManager().navigatorKey.currentContext;
+      if (ctx == null || !ctx.mounted) return;
+      final entry = DutchAchievementEntry.byId(id);
+      final title = entry?.title ?? 'Achievement';
+      final body = entry?.description ?? id;
+      try {
+        if (LOGGING_SWITCH) {
+          _logger.info('🏅 $logContext: pushing achievement celebration id=$id');
+        }
+        await Navigator.of(ctx, rootNavigator: true).push<void>(
+          MaterialPageRoute<void>(
+            fullscreenDialog: true,
+            builder: (_) => DutchAchievementCelebrationScreen(
+              achievementId: id,
+              achievementTitle: title,
+              achievementDescription: body,
+            ),
+          ),
+        );
+      } catch (e) {
+        if (LOGGING_SWITCH) {
+          _logger.error('⚠️ $logContext: achievement celebration failed for $id: $e');
+        }
+        final fallback = NavigationManager().navigatorKey.currentContext;
+        if (fallback != null && fallback.mounted) {
+          InstantMessageModal.showFrontendOnlyInstant(
+            fallback,
+            title: title,
+            body: body,
+            data: {'event': 'dutch_achievement', 'achievement_id': id},
+          );
+        }
+      }
+    }
   }
 
   static void _showPromotionNotification(

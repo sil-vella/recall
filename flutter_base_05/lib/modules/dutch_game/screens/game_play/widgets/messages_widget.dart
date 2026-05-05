@@ -1243,36 +1243,42 @@ class _WinnerTrophyInModalState extends State<_WinnerTrophyInModal>
     super.dispose();
   }
 
+  static const double _lottieBox = 90;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
-      child: Center(
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_entryController, _pulseController]),
-          builder: (context, child) {
-            final scale = _entryScale.value * (_entryController.isCompleted ? _pulseScale.value : 1);
-            return Transform.scale(
-              scale: scale,
-              child: child,
-            );
-          },
-          child: SizedBox(
-            width: 100,
-            height: 100,
-            child: FutureBuilder<LottieComposition?>(
-              future: _compositionFuture,
-              builder: (context, snapshot) {
-                final composition = snapshot.data;
-                if (snapshot.hasError || composition == null) {
-                  return const SizedBox(width: 100, height: 100);
-                }
-                return Lottie(
-                  composition: composition,
-                  fit: BoxFit.contain,
-                  repeat: true,
-                );
-              },
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_entryController, _pulseController]),
+            builder: (context, child) {
+              final scale = _entryScale.value * (_entryController.isCompleted ? _pulseScale.value : 1);
+              return Transform.scale(
+                scale: scale,
+                child: child,
+              );
+            },
+            child: SizedBox(
+              width: _lottieBox,
+              height: _lottieBox,
+              child: FutureBuilder<LottieComposition?>(
+                future: _compositionFuture,
+                builder: (context, snapshot) {
+                  final composition = snapshot.data;
+                  if (snapshot.hasError || composition == null) {
+                    return SizedBox(width: _lottieBox, height: _lottieBox);
+                  }
+                  return Lottie(
+                    composition: composition,
+                    fit: BoxFit.contain,
+                    repeat: true,
+                  );
+                },
+              ),
             ),
           ),
         ),

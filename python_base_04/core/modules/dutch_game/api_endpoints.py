@@ -13,6 +13,13 @@ import uuid
 
 from . import dutch_notifications
 from .wins_level_rank_matcher import WinsLevelRankMatcher
+from .dutch_achievement_catalog import (
+    achievements_unlocked_ids_sorted,
+    compute_new_unlocks,
+    next_win_streak,
+    parse_stored_streak,
+    unlocked_achievement_ids_from_dutch_game,
+)
 
 dutch_api = Blueprint('dutch_api', __name__)
 
@@ -958,18 +965,35 @@ def update_game_stats():
                     current_user_level = matcher.DEFAULT_LEVEL
                 level_changed = target_user_level != current_user_level
 
+                streak_before = parse_stored_streak(dutch_game.get("win_streak_current"))
+                new_win_streak = next_win_streak(streak_before, bool(is_winner))
+                already_unlocked = unlocked_achievement_ids_from_dutch_game(dutch_game)
+                newly_unlocked_achievements = compute_new_unlocks(new_win_streak, already_unlocked)
+                raw_best = dutch_game.get("win_streak_best", 0)
+                try:
+                    prev_best = max(0, int(raw_best))
+                except (TypeError, ValueError):
+                    prev_best = 0
+                new_win_streak_best = max(prev_best, new_win_streak)
+
                 set_fields = {
                     'modules.dutch_game.total_matches': new_total_matches,
                     'modules.dutch_game.wins': new_wins,
                     'modules.dutch_game.losses': new_losses,
                     'modules.dutch_game.win_rate': new_win_rate,
                     'modules.dutch_game.level': target_user_level,
+                    'modules.dutch_game.win_streak_current': new_win_streak,
+                    'modules.dutch_game.win_streak_best': new_win_streak_best,
                     'modules.dutch_game.last_match_date': current_timestamp,
                     'modules.dutch_game.last_updated': current_timestamp,
                     'updated_at': current_timestamp
                 }
                 if rank_should_increase:
                     set_fields['modules.dutch_game.rank'] = target_rank
+                for ach_id in newly_unlocked_achievements:
+                    set_fields[f"modules.dutch_game.achievements.unlocked.{ach_id}"] = {
+                        "unlocked_at": current_timestamp,
+                    }
 
                 update_operation = {'$set': set_fields}
                 if coins_to_add > 0:
@@ -985,6 +1009,8 @@ def update_game_stats():
                         "coins": new_coins,
                         "coins_added": coins_to_add,
                         "win_rate": new_win_rate,
+                        "win_streak_current": new_win_streak,
+                        "newly_unlocked_achievements": newly_unlocked_achievements,
                         **({"rank": target_rank} if rank_should_increase else {}),
                         **({"level": target_user_level} if level_changed else {}),
                     })
@@ -1237,7 +1263,10 @@ def get_user_stats():
             "win_rate": dutch_game.get('win_rate', 0.0),
             "subscription_tier": dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL,
             "last_match_date": dutch_game.get('last_match_date'),
-            "last_updated": dutch_game.get('last_updated')
+            "last_updated": dutch_game.get('last_updated'),
+            "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
+            "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
+            "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
         }
         if stats_data.get('last_match_date') and isinstance(stats_data['last_match_date'], datetime):
             stats_data['last_match_date'] = stats_data['last_match_date'].isoformat()
@@ -1291,6 +1320,9 @@ def get_user_stats_service():
             "subscription_tier": dutch_game.get("subscription_tier") or matcher.TIER_PROMOTIONAL,
             "level": dutch_game.get("level", matcher.DEFAULT_LEVEL),
             "rank": dutch_game.get("rank") or matcher.DEFAULT_RANK,
+            "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
+            "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
+            "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
         }
         custom_log(f"📊 DutchGame: get_user_stats_service user_id={user_id} coins={stats_data['coins']} subscription_tier={stats_data['subscription_tier']}", level="INFO", isOn=LOGGING_SWITCH)
         return jsonify({"success": True, "message": "User statistics retrieved", "data": stats_data, "user_id": user_id, "timestamp": datetime.utcnow().isoformat()}), 200

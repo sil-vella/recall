@@ -12,7 +12,8 @@ import '../../../audio_module/audio_module.dart';
 import '../../backend_core/utils/dutch_rank_level_change_checker.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
 import 'widgets/dutch_promotion_before_after.dart';
-import 'widgets/dutch_promotion_burst.dart';
+import 'widgets/dutch_promotion_burst.dart'
+    show DutchPromotionBurst, kDutchPromotionBurstForegroundSpacer;
 import 'widgets/dutch_promotion_rank_badge.dart';
 
 /// Which kind of promotion is being celebrated.
@@ -219,44 +220,48 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FadeTransition(
-              opacity: entryFade,
-              child: _buildHeadline(headline),
-            ),
-            const SizedBox(height: 18),
-            ScaleTransition(
-              scale: entryScale,
-              child: _buildBadge(isLevel),
-            ),
-            const SizedBox(height: 24),
-            FadeTransition(
-              opacity: entryFade,
-              child: DutchPromotionBeforeAfter(
-                kind: isLevel
-                    ? DutchPromotionBadgeKind.level
-                    : DutchPromotionBadgeKind.rank,
-                beforeLevel: widget.change.levelBefore,
-                afterLevel: widget.change.levelAfter,
-                beforeRank: _capitalise(widget.change.rankBefore),
-                afterRank: _capitalise(widget.change.rankAfter),
-                semanticIdentifier: 'promotion_before_after',
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              const SizedBox(height: kDutchPromotionBurstForegroundSpacer),
+              FadeTransition(
+                opacity: entryFade,
+                child: _buildHeadline(headline),
               ),
-            ),
-            const SizedBox(height: 18),
-            FadeTransition(
-              opacity: entryFade,
-              child: _buildSubline(isLevel),
-            ),
-            const SizedBox(height: 28),
-            FadeTransition(
-              opacity: entryFade,
-              child: _buildActions(),
-            ),
-          ],
+              const SizedBox(height: 18),
+              ScaleTransition(
+                scale: entryScale,
+                child: _buildBadge(isLevel),
+              ),
+              const SizedBox(height: 24),
+              FadeTransition(
+                opacity: entryFade,
+                child: DutchPromotionBeforeAfter(
+                  kind: isLevel
+                      ? DutchPromotionBadgeKind.level
+                      : DutchPromotionBadgeKind.rank,
+                  beforeLevel: widget.change.levelBefore,
+                  afterLevel: widget.change.levelAfter,
+                  beforeRank: _capitalise(widget.change.rankBefore),
+                  afterRank: _capitalise(widget.change.rankAfter),
+                  semanticIdentifier: 'promotion_before_after',
+                ),
+              ),
+              const SizedBox(height: 18),
+              FadeTransition(
+                opacity: entryFade,
+                child: _buildSubline(isLevel),
+              ),
+              const SizedBox(height: 28),
+              FadeTransition(
+                opacity: entryFade,
+                child: _buildActions(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -310,7 +315,7 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
           : DutchPromotionBadgeKind.rank,
       level: widget.change.levelAfter,
       rankLabel: _capitalise(widget.change.rankAfter),
-      size: 200,
+      size: 100,
       semanticIdentifier: 'promotion_main_badge',
     );
   }

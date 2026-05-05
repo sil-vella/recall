@@ -143,25 +143,37 @@ class DutchEventHandlerCallbacks {
       return;
     }
 
-    unawaited(() async {
-      try {
+    // One frame after the game-ended modal is shown so standings layer exists under this route
+    // (same idea as level-up then rank-up: dismiss top screen to reveal the one below).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = NavigationManager().navigatorKey.currentContext;
+      if (ctx == null) {
         if (LOGGING_SWITCH) {
-          _logger.info('🏆 $logContext: pushing win celebration screen');
+          _logger.warning('⚠️ $logContext: win celebration deferred push skipped (no context)');
         }
-        await Navigator.of(context, rootNavigator: true).push<void>(
-          MaterialPageRoute<void>(
-            fullscreenDialog: true,
-            builder: (_) => DutchWinCelebrationScreen(
-              winnerMessage: 'Winner(s): $winnerMessages',
-            ),
-          ),
-        );
-      } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.error('⚠️ $logContext: failed to push win celebration screen: $e');
-        }
+        return;
       }
-    }());
+      unawaited(() async {
+        try {
+          if (!ctx.mounted) return;
+          if (LOGGING_SWITCH) {
+            _logger.info('🏆 $logContext: pushing win celebration screen');
+          }
+          await Navigator.of(ctx, rootNavigator: true).push<void>(
+            MaterialPageRoute<void>(
+              fullscreenDialog: true,
+              builder: (_) => DutchWinCelebrationScreen(
+                winnerMessage: 'Winner(s): $winnerMessages',
+              ),
+            ),
+          );
+        } catch (e) {
+          if (LOGGING_SWITCH) {
+            _logger.error('⚠️ $logContext: failed to push win celebration screen: $e');
+          }
+        }
+      }());
+    });
   }
 
   /// Sequenced fullscreen promotion screens. Level-up shows first; once the
@@ -1296,7 +1308,7 @@ When anyone has played a card with the **same rank** as your **collection card**
   
   /// Add a session message to the message board
   /// [showModal] - If true, displays the modal. Only set to true for game end messages.
-  /// [isCurrentUserWinner] - When showModal is true for game end, store in messages so UI can show celebration/coin stream.
+  /// [isCurrentUserWinner] - When showModal is true for game end, store in messages so UI can show trophy/coin stream in standings.
   static void _addSessionMessage({required String? level, required String? title, required String? message, Map<String, dynamic>? data, bool showModal = false, bool? isCurrentUserWinner}) {
     if (LOGGING_SWITCH) {
       _logger.info('📨 _addSessionMessage: Called with level=$level, title="$title", message="$message", showModal=$showModal');
@@ -2227,7 +2239,8 @@ When anyone has played a card with the **same rank** as your **collection card**
           'winners': winners,
           'game_ended': true,
         },
-        showModal: !isCurrentUserWinner, // Winner gets fullscreen celebration instead
+        // Always show standings modal; winners also get celebration pushed on top (see _showWinCelebrationIfNeeded).
+        showModal: true,
         isCurrentUserWinner: isCurrentUserWinner,
       );
       _showWinCelebrationIfNeeded(
@@ -2481,7 +2494,7 @@ When anyone has played a card with the **same rank** as your **collection card**
           'winners': winners,
           'game_ended': true,
         },
-        showModal: !isCurrentUserWinnerPartial, // Winner gets fullscreen celebration instead
+        showModal: true,
         isCurrentUserWinner: isCurrentUserWinnerPartial,
       );
       _showWinCelebrationIfNeeded(

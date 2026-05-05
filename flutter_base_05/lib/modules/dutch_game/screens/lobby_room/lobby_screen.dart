@@ -410,7 +410,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       }
       
       // Navigate to game play screen
-      NavigationManager().navigateTo('/dutch/game-play');
+      NavigationManager().navigateToPush('/dutch/game-play');
       
       // Show success message
       if (mounted) {

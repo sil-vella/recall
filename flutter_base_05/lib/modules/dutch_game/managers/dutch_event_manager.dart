@@ -225,7 +225,7 @@ class DutchEventManager {
               'isRandomJoinInProgress': false,
             });
             Future.delayed(const Duration(milliseconds: 300), () {
-              NavigationManager().navigateTo('/dutch/game-play');
+              NavigationManager().navigateToPush('/dutch/game-play');
             });
           }
           break;
@@ -385,7 +385,7 @@ class DutchEventManager {
               _logger.info('🎮 websocket_join_room: Navigating to /dutch/game-play from $currentRoute');
             }
             Future.delayed(const Duration(milliseconds: 250), () {
-              NavigationManager().navigateTo('/dutch/game-play');
+              NavigationManager().navigateToPush('/dutch/game-play');
             });
           } else {
             if (LOGGING_SWITCH) {
@@ -538,7 +538,7 @@ class DutchEventManager {
         DutchGameHelpers.setCurrentGameSync(roomId, retryGames);
       }
     }
-    NavigationManager().navigateTo('/dutch/game-play');
+    NavigationManager().navigateToPush('/dutch/game-play');
     if (context != null && context.mounted) {
       ScaffoldMessenger.maybeOf(context)!.showSnackBar(
         SnackBar(

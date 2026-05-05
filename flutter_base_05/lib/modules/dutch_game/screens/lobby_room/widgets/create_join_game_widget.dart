@@ -259,7 +259,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
         if (games.containsKey(roomId)) {
           DutchGameHelpers.setCurrentGameSync(roomId, games);
-          NavigationManager().navigateTo('/dutch/game-play');
+          NavigationManager().navigateToPush('/dutch/game-play');
           _roomIdController.clear();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -299,7 +299,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
       if (games.containsKey(roomId)) {
         DutchGameHelpers.setCurrentGameSync(roomId, games);
-        NavigationManager().navigateTo('/dutch/game-play');
+        NavigationManager().navigateToPush('/dutch/game-play');
       } else {
         await Future<void>.delayed(const Duration(milliseconds: 400));
         if (mounted) {
@@ -307,7 +307,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
           final retryGames = Map<String, dynamic>.from(retryState['games'] as Map<String, dynamic>? ?? {});
           if (retryGames.containsKey(roomId)) {
             DutchGameHelpers.setCurrentGameSync(roomId, retryGames);
-            NavigationManager().navigateTo('/dutch/game-play');
+            NavigationManager().navigateToPush('/dutch/game-play');
           }
         }
       }
@@ -1243,7 +1243,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                   onPressed: canJoinMatch
                       ? () {
                           Navigator.pop(context);
-                          NavigationManager().navigateTo('/dutch/game-play');
+                          NavigationManager().navigateToPush('/dutch/game-play');
                         }
                       : null,
                   style: TextButton.styleFrom(

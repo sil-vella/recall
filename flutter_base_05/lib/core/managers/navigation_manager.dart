@@ -110,6 +110,7 @@ class NavigationManager extends ChangeNotifier {
   bool _isRouterInitialized = false;
   bool _hasTriggeredRouterHook = false;
   final List<Function()> _pendingNavigations = [];
+  final List<Function()> _pendingPushNavigations = [];
   
   // Analytics tracking
   AnalyticsModule? _analyticsModule;
@@ -324,6 +325,50 @@ class NavigationManager extends ChangeNotifier {
       // Navigation failed
     }
   }
+
+  /// Navigates with [GoRouter.push] so Android back returns to the previous route.
+  ///
+  /// If already on the same path as [route], uses [go] instead to avoid stacking
+  /// duplicate entries. Analytics and dedup match [navigateTo].
+  void navigateToPush(String route, {Map<String, dynamic>? parameters}) {
+    final now = DateTime.now();
+    if (_lastNavigationRoute == route &&
+        _lastNavigationTime != null &&
+        now.difference(_lastNavigationTime!).inMilliseconds < 1000) {
+      return;
+    }
+
+    _lastNavigationRoute = route;
+    _lastNavigationTime = now;
+
+    _trackScreenView(route);
+
+    String finalRoute = route;
+    if (parameters != null && parameters.isNotEmpty) {
+      final uri = Uri.parse(route);
+      final queryParams = Map<String, String>.from(uri.queryParameters);
+      parameters.forEach((key, value) {
+        queryParams[key] = value.toString();
+      });
+      finalRoute = uri.replace(queryParameters: queryParams).toString();
+    }
+
+    try {
+      if (_routerInstance != null) {
+        final currentPath = _routerInstance!.routeInformationProvider.value.uri.path;
+        final targetPath = Uri.parse(finalRoute).path;
+        if (currentPath == targetPath) {
+          _routerInstance!.go(finalRoute);
+        } else {
+          _routerInstance!.push(finalRoute);
+        }
+      } else if (_navigationCallback != null) {
+        _navigationCallback!(finalRoute);
+      }
+    } catch (e) {
+      // Navigation failed
+    }
+  }
   
   /// ✅ Navigate to a specific route (queues if router not ready)
   void navigateToWithDelay(String route, {Map<String, dynamic>? parameters}) {
@@ -337,6 +382,17 @@ class NavigationManager extends ChangeNotifier {
       });
     }
   }
+
+  /// Queues [navigateToPush] until the router is ready (mirrors [navigateToWithDelay]).
+  void navigateToPushWithDelay(String route, {Map<String, dynamic>? parameters}) {
+    if (_isRouterInitialized && _routerInstance != null) {
+      navigateToPush(route, parameters: parameters);
+    } else {
+      _pendingPushNavigations.add(() {
+        navigateToPush(route, parameters: parameters);
+      });
+    }
+  }
   
   /// ✅ Process pending navigations
   void _processPendingNavigations() {
@@ -345,6 +401,12 @@ class NavigationManager extends ChangeNotifier {
         navigation();
       }
       _pendingNavigations.clear();
+    }
+    if (_pendingPushNavigations.isNotEmpty) {
+      for (final navigation in _pendingPushNavigations) {
+        navigation();
+      }
+      _pendingPushNavigations.clear();
     }
   }
 

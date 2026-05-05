@@ -356,7 +356,7 @@ class CurrentRoomWidget extends StatelessWidget {
       });
       
       // Navigate to game play screen
-      NavigationManager().navigateTo('/dutch/game-play');
+      NavigationManager().navigateToPush('/dutch/game-play');
       
     } catch (e) {
       // Handle error silently

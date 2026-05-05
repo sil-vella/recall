@@ -167,7 +167,7 @@ class DemoActionHandler {
       if (LOGGING_SWITCH) {
         _logger.info('🎮 DemoActionHandler: Navigating to game play screen');
       }
-      NavigationManager().navigateTo('/dutch/game-play');
+      NavigationManager().navigateToPush('/dutch/game-play');
 
       if (LOGGING_SWITCH) {
         _logger.info('✅ DemoActionHandler: Demo action $actionType started successfully'); } } catch (e, stackTrace) { if (LOGGING_SWITCH) {

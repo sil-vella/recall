@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, PlatformDispatcher;
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart'
+    show kIsWeb, PlatformDispatcher, defaultTargetPlatform, TargetPlatform;
 import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:dutch/core/widgets/adsense_placeholder_stub.dart' if (dart.library.html) 'package:dutch/core/widgets/adsense_placeholder_web.dart' as adsense_placeholder;
@@ -19,12 +21,27 @@ import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 // Logging switch for main.dart - enable for debugging init (see .cursor/rules/enable-logging-switch.mdc)
 const bool LOGGING_SWITCH = false; // App init + promotional loader — enable-logging-switch.mdc
 
+/// Hides the Android system navigation bar so the app uses the full screen height;
+/// the bar can be revealed briefly with an edge swipe. Status bar stays visible.
+void _applyAndroidImmersiveBottomBar() {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  try {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: const [SystemUiOverlay.top],
+    );
+  } catch (_) {
+    // Best-effort; some embedders may not support manual UI mode.
+  }
+}
+
 Future<void> main() async {
   final logger = Logger();
   if (LOGGING_SWITCH) logger.info('main: start', isOn: true);
 
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
+  _applyAndroidImmersiveBottomBar();
   if (LOGGING_SWITCH) logger.info('main: WidgetsBinding done', isOn: true);
 
   await PromotionalAdsConfigLoader.initialize();
@@ -99,17 +116,30 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _isInitializing = false;
   static final Logger _logger = Logger();
 
   @override
   void initState() {
     super.initState();
-    
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeApp();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _applyAndroidImmersiveBottomBar();
+    }
   }
 
   Future<void> _initializeApp() async {
@@ -198,6 +228,20 @@ class _MyAppState extends State<MyApp> {
       title: "Dutch App",
       theme: AppTheme.darkTheme,
       routerConfig: router,
+      builder: (context, child) {
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (bool didPop, dynamic result) {
+            if (didPop) return;
+            if (router.canPop()) {
+              router.pop();
+            } else {
+              SystemNavigator.pop();
+            }
+          },
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

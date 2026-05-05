@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
@@ -414,7 +415,8 @@ class GamePlayScreen extends BaseScreen {
   GamePlayScreenState createState() => GamePlayScreenState();
 }
 
-class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
+class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
+    with WidgetsBindingObserver {
   final Logger _logger = Logger();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   String? _previousGameId;
@@ -443,6 +445,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(WakelockPlus.enable());
     _cachedPlayTableLevel = resolveDutchGamePlayTableLevel(
       StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {},
     );
@@ -518,11 +522,29 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(WakelockPlus.disable());
     StateManager().removeListener(_onStateManagerForTableStyle);
     if (LOGGING_SWITCH) {
       _logger.info('GamePlay: Disposing');
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(WakelockPlus.enable());
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        unawaited(WakelockPlus.disable());
+        break;
+    }
   }
 
   void _initializeGameState() {

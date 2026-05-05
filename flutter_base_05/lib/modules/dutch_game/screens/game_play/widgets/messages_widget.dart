@@ -1192,7 +1192,7 @@ class _MessagesWidgetState extends State<MessagesWidget> {
   }
 }
 
-/// Trophy/Lottie shown inside the modal just above the players list when current user won.
+/// Lottie celebration above the standings when the current user won (no static trophy icon).
 class _WinnerTrophyInModal extends StatefulWidget {
   @override
   State<_WinnerTrophyInModal> createState() => _WinnerTrophyInModalState();
@@ -1264,17 +1264,13 @@ class _WinnerTrophyInModalState extends State<_WinnerTrophyInModal>
               future: _compositionFuture,
               builder: (context, snapshot) {
                 final composition = snapshot.data;
-                if (!snapshot.hasError && composition != null) {
-                  return Lottie(
-                    composition: composition,
-                    fit: BoxFit.contain,
-                    repeat: true,
-                  );
+                if (snapshot.hasError || composition == null) {
+                  return const SizedBox(width: 100, height: 100);
                 }
-                return Icon(
-                  Icons.emoji_events,
-                  size: 64,
-                  color: AppColors.matchPotGold,
+                return Lottie(
+                  composition: composition,
+                  fit: BoxFit.contain,
+                  repeat: true,
                 );
               },
             ),

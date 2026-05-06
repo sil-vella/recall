@@ -39,7 +39,7 @@ const String kDutchPromotionBurstDefaultLottie = 'assets/lottie/winner01.lottie'
 const String kDutchPromotionBurstAchievementLottie = 'assets/lottie/achievement.lottie';
 
 /// Lottie square edge length (sync with fullscreen foreground spacers).
-const double kDutchPromotionBurstLottieBox = 180;
+const double kDutchPromotionBurstLottieBox = 234;
 
 /// Top offset inside the full-screen stack (below status bar).
 const double kDutchPromotionBurstTopInnerPadding = 8;

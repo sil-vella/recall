@@ -62,11 +62,16 @@ class DutchEventHandlerCallbacks {
   }
   
   /// Refresh Dutch user stats after a match and detect rank/level changes vs pre-refresh snapshot.
-  static void _refreshUserStatsAfterGameEnd(String logContext) {
+  /// When [afterModalGate] is provided, waits for that modal flow to finish before
+  /// showing follow-up celebrations so ordering stays deterministic.
+  static void _refreshUserStatsAfterGameEnd(
+    String logContext, {
+    Future<void>? afterModalGate,
+  }) {
     final userStatsBefore = DutchGameHelpers.getUserDutchGameStats();
     final statsBefore = DutchRankLevelChangeChecker.snapshotRankLevelWins(userStatsBefore);
     final achievementIdsBefore = _achievementIdsFromUserStats(userStatsBefore);
-    DutchGameHelpers.fetchAndUpdateUserDutchGameData().then((success) {
+    DutchGameHelpers.fetchAndUpdateUserDutchGameData().then((success) async {
       if (LOGGING_SWITCH) {
         if (success) {
           _logger.info('✅ $logContext: Successfully refreshed user stats after game end');
@@ -75,6 +80,9 @@ class DutchEventHandlerCallbacks {
         }
       }
       if (!success) return;
+      if (afterModalGate != null) {
+        await afterModalGate;
+      }
       final statsAfter = DutchRankLevelChangeChecker.snapshotRankLevelWins(
         DutchGameHelpers.getUserDutchGameStats(),
       );
@@ -82,8 +90,17 @@ class DutchEventHandlerCallbacks {
         statsBefore: statsBefore,
         statsAfter: statsAfter,
       );
+      final afterStats = DutchGameHelpers.getUserDutchGameStats();
+      final achievementIdsAfter = _achievementIdsFromUserStats(afterStats);
+      final newly = achievementIdsAfter.difference(achievementIdsBefore);
+      // Avoid treating long-unlocked badges as "new" when local state predates API field.
+      final canTrustAchievementDiff =
+          userStatsBefore != null && userStatsBefore.containsKey('achievements_unlocked_ids');
+      if (canTrustAchievementDiff && newly.isNotEmpty) {
+        await _showNewAchievementModals(newly, logContext);
+      }
       if (change.hadBeforeSnapshot && change.anyStoredFieldChanged) {
-        _showPromotionNotification(change, logContext);
+        await _showPromotionNotification(change, logContext);
         if (LOGGING_SWITCH) {
           _logger.info(
             '📊 $logContext: rank/level changed after match — rank: ${change.rankBefore}->${change.rankAfter} '
@@ -92,15 +109,6 @@ class DutchEventHandlerCallbacks {
             '(${change.matcherTrend})',
           );
         }
-      }
-      final afterStats = DutchGameHelpers.getUserDutchGameStats();
-      final achievementIdsAfter = _achievementIdsFromUserStats(afterStats);
-      final newly = achievementIdsAfter.difference(achievementIdsBefore);
-      // Avoid treating long-unlocked badges as "new" when local state predates API field.
-      final canTrustAchievementDiff =
-          userStatsBefore != null && userStatsBefore.containsKey('achievements_unlocked_ids');
-      if (canTrustAchievementDiff && newly.isNotEmpty) {
-        _showNewAchievementModals(newly, logContext);
       }
     });
   }
@@ -113,11 +121,12 @@ class DutchEventHandlerCallbacks {
   }
 
   /// Fullscreen celebration(s), same stack style as [DutchWinCelebrationScreen].
-  static void _showNewAchievementModals(Set<String> newlyEarned, String logContext) {
+  static Future<void> _showNewAchievementModals(
+    Set<String> newlyEarned,
+    String logContext,
+  ) async {
     if (newlyEarned.isEmpty) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_pushAchievementCelebrationsSequential(newlyEarned, logContext));
-    });
+    await _pushAchievementCelebrationsSequential(newlyEarned, logContext);
   }
 
   static Future<void> _pushAchievementCelebrationsSequential(
@@ -161,10 +170,10 @@ class DutchEventHandlerCallbacks {
     }
   }
 
-  static void _showPromotionNotification(
+  static Future<void> _showPromotionNotification(
     DutchRankLevelChangeResult change,
     String logContext,
-  ) {
+  ) async {
     final rankPromoted = change.storedRankTrend == StoredTrend.progression;
     final levelPromoted = change.storedLevelTrend == StoredTrend.progression;
     if (!rankPromoted && !levelPromoted) return;
@@ -181,22 +190,22 @@ class DutchEventHandlerCallbacks {
       return;
     }
 
-    unawaited(_pushPromotionScreens(
+    await _pushPromotionScreens(
       context: context,
       change: change,
       levelPromoted: levelPromoted,
       rankPromoted: rankPromoted,
       logContext: logContext,
-    ));
+    );
   }
 
   /// Show a fullscreen win celebration for the current user once per game end.
-  static void _showWinCelebrationIfNeeded({
+  static Future<void> _showWinCelebrationIfNeeded({
     required String gameId,
     required bool isCurrentUserWinner,
     required String winnerMessages,
     required String logContext,
-  }) {
+  }) async {
     if (!isCurrentUserWinner) return;
     final signature = '$gameId|$winnerMessages';
     if (_lastWinCelebrationSignature == signature) return;
@@ -212,12 +221,14 @@ class DutchEventHandlerCallbacks {
 
     // One frame after the game-ended modal is shown so standings layer exists under this route
     // (same idea as level-up then rank-up: dismiss top screen to reveal the one below).
+    final completer = Completer<void>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = NavigationManager().navigatorKey.currentContext;
       if (ctx == null) {
         if (LOGGING_SWITCH) {
           _logger.warning('⚠️ $logContext: win celebration deferred push skipped (no context)');
         }
+        if (!completer.isCompleted) completer.complete();
         return;
       }
       unawaited(() async {
@@ -238,9 +249,12 @@ class DutchEventHandlerCallbacks {
           if (LOGGING_SWITCH) {
             _logger.error('⚠️ $logContext: failed to push win celebration screen: $e');
           }
+        } finally {
+          if (!completer.isCompleted) completer.complete();
         }
       }());
     });
+    await completer.future;
   }
 
   /// Sequenced fullscreen promotion screens. Level-up shows first; once the
@@ -2310,7 +2324,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         showModal: true,
         isCurrentUserWinner: isCurrentUserWinner,
       );
-      _showWinCelebrationIfNeeded(
+      final winCelebrationGate = _showWinCelebrationIfNeeded(
         gameId: gameId,
         isCurrentUserWinner: isCurrentUserWinner,
         winnerMessages: winnerMessages,
@@ -2331,7 +2345,10 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (LOGGING_SWITCH) {
         _logger.info('🔄 handleGameStateUpdated: Refreshing user stats after game end to update coins display');
       }
-      _refreshUserStatsAfterGameEnd('handleGameStateUpdated');
+      _refreshUserStatsAfterGameEnd(
+        'handleGameStateUpdated',
+        afterModalGate: winCelebrationGate,
+      );
     } else {
       // Normal game state update - ensure modal is hidden if game hasn't ended
       if (uiPhase != 'game_ended') {
@@ -2550,7 +2567,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (LOGGING_SWITCH) {
         _logger.info('🔄 handleGameStatePartialUpdate: Refreshing user stats after game end to update coins display');
       }
-      _refreshUserStatsAfterGameEnd('handleGameStatePartialUpdate');
+      Future<void>? winCelebrationGate;
       
       _addSessionMessage(
         level: 'success',
@@ -2564,11 +2581,15 @@ When anyone has played a card with the **same rank** as your **collection card**
         showModal: true,
         isCurrentUserWinner: isCurrentUserWinnerPartial,
       );
-      _showWinCelebrationIfNeeded(
+      winCelebrationGate = _showWinCelebrationIfNeeded(
         gameId: gameId,
         isCurrentUserWinner: isCurrentUserWinnerPartial,
         winnerMessages: winnerMessages,
         logContext: 'handleGameStatePartialUpdate',
+      );
+      _refreshUserStatsAfterGameEnd(
+        'handleGameStatePartialUpdate',
+        afterModalGate: winCelebrationGate,
       );
     } else {
       // Normal partial update - ensure modal is hidden if game hasn't ended

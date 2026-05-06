@@ -239,15 +239,18 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
               const SizedBox(height: 24),
               FadeTransition(
                 opacity: entryFade,
-                child: DutchPromotionBeforeAfter(
-                  kind: isLevel
-                      ? DutchPromotionBadgeKind.level
-                      : DutchPromotionBadgeKind.rank,
-                  beforeLevel: widget.change.levelBefore,
-                  afterLevel: widget.change.levelAfter,
-                  beforeRank: _capitalise(widget.change.rankBefore),
-                  afterRank: _capitalise(widget.change.rankAfter),
-                  semanticIdentifier: 'promotion_before_after',
+                child: Align(
+                  alignment: Alignment.center,
+                  child: DutchPromotionBeforeAfter(
+                    kind: isLevel
+                        ? DutchPromotionBadgeKind.level
+                        : DutchPromotionBadgeKind.rank,
+                    beforeLevel: widget.change.levelBefore,
+                    afterLevel: widget.change.levelAfter,
+                    beforeRank: _capitalise(widget.change.rankBefore),
+                    afterRank: _capitalise(widget.change.rankAfter),
+                    semanticIdentifier: 'promotion_before_after',
+                  ),
                 ),
               ),
               const SizedBox(height: 18),

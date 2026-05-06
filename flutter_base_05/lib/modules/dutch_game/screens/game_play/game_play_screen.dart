@@ -4,7 +4,6 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
-import '../../../../utils/consts/config.dart';
 import '../../../../utils/widgets/felt_texture_widget.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../utils/dutch_game_play_table_style_mapping.dart';
@@ -19,6 +18,7 @@ import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
+import 'utils/table_design_style_helpers.dart';
 
 /// When true, logs screen build and rebuild timing for this screen.
 const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
@@ -431,13 +431,16 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
 
   /// Last resolved room table tier; used to avoid rebuilding the whole screen on unrelated state churn.
   int? _cachedPlayTableLevel;
+  String _cachedEquippedTableDesignId = '';
 
   void _onStateManagerForTableStyle() {
     if (!mounted) return;
     final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final level = resolveDutchGamePlayTableLevel(dutch);
-    if (level != _cachedPlayTableLevel) {
+    final equippedTableDesignId = TableDesignStyleHelpers.readEquippedTableDesignId(dutch);
+    if (level != _cachedPlayTableLevel || equippedTableDesignId != _cachedEquippedTableDesignId) {
       _cachedPlayTableLevel = level;
+      _cachedEquippedTableDesignId = equippedTableDesignId;
       setState(() {});
     }
   }
@@ -448,6 +451,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     WidgetsBinding.instance.addObserver(this);
     unawaited(WakelockPlus.enable());
     _cachedPlayTableLevel = resolveDutchGamePlayTableLevel(
+      StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {},
+    );
+    _cachedEquippedTableDesignId = TableDesignStyleHelpers.readEquippedTableDesignId(
       StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {},
     );
     StateManager().addListener(_onStateManagerForTableStyle);
@@ -682,7 +688,16 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
 
     final dutchSnapshot = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final playTableLevel = resolveDutchGamePlayTableLevel(dutchSnapshot);
+    final userStats = dutchSnapshot['userStats'] as Map<String, dynamic>? ?? {};
+    final inventory = userStats['inventory'] as Map<String, dynamic>? ?? {};
+    final cosmetics = inventory['cosmetics'] as Map<String, dynamic>? ?? {};
+    final equipped = cosmetics['equipped'] as Map<String, dynamic>? ?? {};
+    final equippedTableDesignId = equipped['table_design_id']?.toString() ?? '';
+    final currentGameId = dutchSnapshot['currentGameId']?.toString() ?? '';
     final tableStyle = DutchGamePlayTableStyles.forLevel(playTableLevel);
+    final borderColor = TableDesignStyleHelpers.outerBorderColorForDesign(equippedTableDesignId);
+    final borderGlow = TableDesignStyleHelpers.outerBorderGlowForDesign(equippedTableDesignId);
+    final isJuventusBorder = TableDesignStyleHelpers.isJuventusTableDesign(equippedTableDesignId);
 
     // Tier PNG + opacity on the screen backdrop only ([getBackground] green shows through); table card sits above.
     final content = Stack(
@@ -713,9 +728,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
             'maxWidth=${constraints.maxWidth}',
           );
         }
-        // Outer border: 2% of table width, max 25
+        // Outer border (customizable): doubled thickness from previous sizing.
         final tableWidth = constraints.maxWidth;
-        final outerBorderWidth = (tableWidth * 0.02).clamp(0.0, 25.0);
+        final outerBorderWidth = (tableWidth * 0.04).clamp(0.0, 50.0);
 
         return Stack(
           key: _mainStackKey,
@@ -727,21 +742,32 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                 // Outer border layer - dark gray/charcoal (% of table width)
                 Container(
                   decoration: BoxDecoration(
-                    border: Border.all(
-                      color: AppColors.casinoOuterBorderColor,
-                      width: outerBorderWidth,
-                    ),
+                    border: isJuventusBorder
+                        ? null
+                        : Border.all(
+                            color: borderColor,
+                            width: outerBorderWidth,
+                          ),
                     borderRadius: BorderRadius.circular(24.0),
                     boxShadow: [
                       // Strong outer shadow for depth
                       BoxShadow(
-                        color: AppColors.black.withValues(alpha: 0.8),
+                        color: borderGlow,
                         blurRadius: 35.0,
                         spreadRadius: 5.0,
                         offset: const Offset(0, 8),
                       ),
                     ],
                   ),
+                  child: isJuventusBorder
+                      ? CustomPaint(
+                          painter: JuventusStripeBorderPainter(
+                            borderWidth: outerBorderWidth,
+                            borderRadius: 24.0,
+                          ),
+                          child: const SizedBox.expand(),
+                        )
+                      : null,
                 ),
                   // Inner border layer - inset by outer border width so outer border stays visible
                   Container(
@@ -773,65 +799,57 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                       clipBehavior: Clip.antiAlias, // Smooth edges without black artifacts
                       child: LayoutBuilder(
                         builder: (context, innerConstraints) {
-                          final tableWidth = innerConstraints.maxWidth;
-                          final overlaySize = tableWidth * 0.5;
+                          final isPracticeMode = currentGameId.startsWith('practice_room_');
+                          final overlayUrl = TableDesignStyleHelpers.buildOverlayUrl(
+                            currentGameId: currentGameId,
+                            equippedTableDesignId: equippedTableDesignId,
+                            imageVersion: 1,
+                          );
                           return Stack(
                             children: [
                               Positioned.fill(
                                 child: TableBackgroundWidget(
-                                  key: ValueKey<int>(playTableLevel),
+                                  key: ValueKey<String>('${playTableLevel}_$equippedTableDesignId'),
                                   tableStyle: tableStyle,
                                 ),
                               ),
-                              // Table overlay (table_logo): assets in practice, network with asset fallback in multiplayer
-                              Center(
-                                child: SizedBox(
-                                  width: overlaySize,
-                                  height: overlaySize,
-                                  child: Builder(
-                                    builder: (context) {
-                                      final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-                                      final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-                                      final isPracticeMode = currentGameId.startsWith('practice_room_');
-                                      const int imageVersion = 2;
-                                      if (isPracticeMode) {
-                                        return Image(
-                                          image: const AssetImage('assets/images/table_logo.webp'),
-                                          fit: BoxFit.contain,
-                                          errorBuilder: (context, error, stackTrace) => Icon(
-                                            Icons.broken_image,
-                                            size: overlaySize * 0.4,
-                                            color: AppColors.white.withOpacity(0.5),
-                                          ),
-                                        );
-                                      }
-                                      final imageUrl = currentGameId.isNotEmpty
-                                          ? '${Config.apiUrl}/sponsors/media/table_logo.png?gameId=$currentGameId&v=$imageVersion'
-                                          : '${Config.apiUrl}/sponsors/media/table_logo.png?v=$imageVersion';
-                                      return Image.network(
-                                        imageUrl,
-                                        fit: BoxFit.contain,
-                                        loadingBuilder: (context, child, loadingProgress) {
-                                          if (loadingProgress == null) return child;
-                                          return Icon(
-                                            Icons.image,
-                                            size: overlaySize * 0.4,
-                                            color: AppColors.white.withOpacity(0.5),
-                                          );
-                                        },
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Image(
-                                            image: const AssetImage('assets/images/table_logo.webp'),
-                                            fit: BoxFit.contain,
-                                            errorBuilder: (context, err, st) => Icon(
-                                              Icons.broken_image,
-                                              size: overlaySize * 0.4,
-                                              color: AppColors.white.withOpacity(0.5),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
+                              // Table cosmetic overlay: centered and 90% of table area with preserved ratio.
+                              Positioned.fill(
+                                child: Center(
+                                  child: SizedBox(
+                                    // Strict 65% width of table; height is capped to 65% only if ratio would overflow.
+                                    width: innerConstraints.maxWidth * 0.65,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxHeight: innerConstraints.maxHeight * 0.65,
+                                      ),
+                                      child: Opacity(
+                                        opacity: 0.22,
+                                        child: FittedBox(
+                                          fit: BoxFit.fitWidth,
+                                          alignment: Alignment.center,
+                                          child: isPracticeMode
+                                              ? Image(
+                                                  image: const AssetImage('assets/images/table_logo.webp'),
+                                                  fit: BoxFit.contain,
+                                                  errorBuilder: (context, error, stackTrace) =>
+                                                      const SizedBox.shrink(),
+                                                )
+                                              : Image.network(
+                                                  overlayUrl,
+                                                  fit: BoxFit.contain,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return Image(
+                                                      image: const AssetImage('assets/images/table_logo.webp'),
+                                                      fit: BoxFit.contain,
+                                                      errorBuilder: (context, err, st) =>
+                                                          const SizedBox.shrink(),
+                                                    );
+                                                  },
+                                                ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),

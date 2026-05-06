@@ -25,7 +25,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // join_random_game / create_room → WS (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // join_random_game / create_room → WS (enable-logging-switch.mdc; set false after test)
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -921,6 +921,118 @@ class DutchGameHelpers {
         _logger.error('❌ DutchGameHelpers: Error getting user stats from state: $e');
       }
       return null;
+    }
+  }
+
+  /// Fetch MVP consumables/cosmetics shop catalog.
+  static Future<List<Map<String, dynamic>>> getShopCatalog() async {
+    try {
+      final moduleManager = ModuleManager();
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (connectionsModule == null) return <Map<String, dynamic>>[];
+      final response = await connectionsModule.sendPostRequest('/userauth/dutch/get-shop-catalog', {});
+      if (response is! Map || response['success'] != true) return <Map<String, dynamic>>[];
+      final items = response['items'] as List<dynamic>? ?? const [];
+      return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  /// Fetch inventory from API and cache it in `userStats.inventory`.
+  static Future<Map<String, dynamic>?> fetchInventory() async {
+    try {
+      final moduleManager = ModuleManager();
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (connectionsModule == null) return null;
+      final response = await connectionsModule.sendPostRequest('/userauth/dutch/get-inventory', {});
+      if (response is! Map || response['success'] != true) return null;
+      final inventory = Map<String, dynamic>.from(response['inventory'] as Map? ?? {});
+      final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final currentStats = Map<String, dynamic>.from(dutchState['userStats'] as Map? ?? {});
+      currentStats['inventory'] = inventory;
+      _stateUpdater.updateState({'userStats': currentStats});
+      return inventory;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Purchase one shop item using coins.
+  static Future<Map<String, dynamic>> purchaseShopItem(String itemId) async {
+    try {
+      final moduleManager = ModuleManager();
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (connectionsModule == null) {
+        return {'success': false, 'error': 'ConnectionsApiModule unavailable'};
+      }
+      final response = await connectionsModule.sendPostRequest('/userauth/dutch/purchase-item', {'item_id': itemId});
+      if (response is! Map || response['success'] != true) {
+        return {'success': false, 'error': response['error'] ?? response['message'] ?? 'Purchase failed'};
+      }
+      await fetchAndUpdateUserDutchGameData();
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Equip one owned cosmetic.
+  static Future<Map<String, dynamic>> equipCosmetic({
+    required String slot,
+    required String cosmeticId,
+  }) async {
+    try {
+      final moduleManager = ModuleManager();
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (connectionsModule == null) {
+        return {'success': false, 'error': 'ConnectionsApiModule unavailable'};
+      }
+      final response = await connectionsModule.sendPostRequest('/userauth/dutch/equip-cosmetic', {
+        'slot': slot,
+        'cosmetic_id': cosmeticId,
+      });
+      if (response is! Map || response['success'] != true) {
+        return {'success': false, 'error': response['error'] ?? response['message'] ?? 'Equip failed'};
+      }
+      await fetchInventory();
+      if (slot == 'card_back') {
+        final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
+        final currentGameId = dutchState['currentGameId']?.toString() ?? '';
+        final login = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+        final myUserId = login['userId']?.toString() ?? login['user_id']?.toString() ?? '';
+        if (currentGameId.isNotEmpty && games.containsKey(currentGameId) && myUserId.isNotEmpty) {
+          final gameEntry = Map<String, dynamic>.from(games[currentGameId] as Map? ?? {});
+          final gameData = Map<String, dynamic>.from(gameEntry['gameData'] as Map? ?? {});
+          final gameState = Map<String, dynamic>.from(gameData['game_state'] as Map? ?? {});
+          final players = List<Map<String, dynamic>>.from(
+            (gameState['players'] as List<dynamic>? ?? const []).whereType<Map>(),
+          );
+          bool changed = false;
+          for (final p in players) {
+            final uid = p['userId']?.toString() ?? '';
+            if (uid == myUserId) {
+              if (cosmeticId.isEmpty) {
+                p.remove('card_back_id');
+              } else {
+                p['card_back_id'] = cosmeticId;
+              }
+              changed = true;
+            }
+          }
+          if (changed) {
+            gameState['players'] = players;
+            gameData['game_state'] = gameState;
+            gameEntry['gameData'] = gameData;
+            games[currentGameId] = gameEntry;
+            _stateUpdater.updateState({'games': games});
+          }
+        }
+      }
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
     }
   }
 

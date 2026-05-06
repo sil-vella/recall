@@ -22,7 +22,7 @@ import 'utils/ws_jwt_access_expiry.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = true; // Profile avatar upload + auth trace (enable-logging-switch.mdc) — set false after debugging
+  static const bool LOGGING_SWITCH = false; // Profile avatar upload + auth trace (enable-logging-switch.mdc) — set false after debugging
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;

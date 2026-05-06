@@ -37,7 +37,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Lobby create_room → room_created hook (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Lobby create_room → room_created hook (enable-logging-switch.mdc)
 
 /// Dutch game backend module. Registers the four room-lifecycle hook callbacks
 /// and holds the coordinator for game events. Instantiated once by WebSocketServer.
@@ -176,6 +176,7 @@ class DutchGameModule {
         String playerName = 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}';
         String? profilePicture;
         String? usernameFromProfile;
+        String? equippedCardBackId;
         if (ownerId.isNotEmpty) {
           try {
             final profileResult = await server.pythonClient.getUserProfile(ownerId);
@@ -197,6 +198,16 @@ class DutchGameModule {
           } catch (e) {
             if (LOGGING_SWITCH) _logger.warning('⚠️ Error fetching creator profile: $e');
           }
+          try {
+            final statsResult = await server.pythonClient.getUserStatsForJoin(ownerId);
+            if (statsResult['success'] == true) {
+              final inventory = statsResult['inventory'] as Map<String, dynamic>? ?? {};
+              final cosmetics = inventory['cosmetics'] as Map<String, dynamic>? ?? {};
+              final equipped = cosmetics['equipped'] as Map<String, dynamic>? ?? {};
+              final cardBack = equipped['card_back_id']?.toString() ?? '';
+              if (cardBack.isNotEmpty) equippedCardBackId = cardBack;
+            }
+          } catch (_) {}
         }
         initialPlayers = [
           {
@@ -213,6 +224,7 @@ class DutchGameModule {
             'userId': ownerId,
             if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) 'username': usernameFromProfile,
             if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
+            if (equippedCardBackId != null && equippedCardBackId.isNotEmpty) 'card_back_id': equippedCardBackId,
           }
         ];
       } else if (LOGGING_SWITCH) {
@@ -361,6 +373,7 @@ class DutchGameModule {
       String playerName = 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}';
       String? profilePicture;
       String? usernameFromProfile;
+      String? equippedCardBackId;
       
       if (userId != null && userId.isNotEmpty) {
         try {
@@ -392,6 +405,16 @@ class DutchGameModule {
           }
           // Continue with default name
         }
+        try {
+          final statsResult = await server.pythonClient.getUserStatsForJoin(userId);
+          if (statsResult['success'] == true) {
+            final inventory = statsResult['inventory'] as Map<String, dynamic>? ?? {};
+            final cosmetics = inventory['cosmetics'] as Map<String, dynamic>? ?? {};
+            final equipped = cosmetics['equipped'] as Map<String, dynamic>? ?? {};
+            final cardBack = equipped['card_back_id']?.toString() ?? '';
+            if (cardBack.isNotEmpty) equippedCardBackId = cardBack;
+          }
+        } catch (_) {}
       }
 
       // Add new player - use sessionId as player ID
@@ -409,6 +432,7 @@ class DutchGameModule {
         if (userId != null && userId.isNotEmpty) 'userId': userId,  // Store userId for coin deduction
         if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) 'username': usernameFromProfile,  // Store username for display
         if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
+        if (equippedCardBackId != null && equippedCardBackId.isNotEmpty) 'card_back_id': equippedCardBackId,
       });
 
       gameState['players'] = players;

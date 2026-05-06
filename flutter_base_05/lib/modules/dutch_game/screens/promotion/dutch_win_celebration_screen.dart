@@ -28,7 +28,7 @@ class DutchWinCelebrationScreen extends StatefulWidget {
 
 class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
     with SingleTickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
   static const Duration _secondaryBurstDelay = Duration(milliseconds: 1500);
 

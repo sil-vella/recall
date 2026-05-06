@@ -11,7 +11,7 @@ from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
 
 # Logging switch for route registration (see .cursor/rules/enable-logging-switch.mdc)
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 
 class DutchGameMain(BaseModule):
@@ -73,6 +73,11 @@ class DutchGameMain(BaseModule):
             )
             self._register_route_helper("/service/dutch/get-user-stats", api_endpoints.get_user_stats_service, methods=["POST"])
             self._register_route_helper("/service/dutch/deduct-game-coins", api_endpoints.deduct_game_coins_service, methods=["POST"])
+            self._register_route_helper("/service/dutch/get-shop-catalog", api_endpoints.get_shop_catalog_service, methods=["POST"])
+            self._register_route_helper("/service/dutch/get-inventory", api_endpoints.get_inventory_service, methods=["POST"])
+            self._register_route_helper("/service/dutch/purchase-item", api_endpoints.purchase_item_service, methods=["POST"])
+            self._register_route_helper("/service/dutch/equip-cosmetic", api_endpoints.equip_cosmetic_service, methods=["POST"])
+            self._register_route_helper("/service/dutch/consume-win-booster", api_endpoints.consume_win_booster_service, methods=["POST"])
             self._register_route_helper("/service/dutch/attach-tournament-match-room", api_endpoints.attach_tournament_match_room_service, methods=["POST"])
             self._register_route_helper("/service/dutch/rematch-tournament-snapshot", api_endpoints.rematch_tournament_snapshot_service, methods=["POST"])
             self._register_route_helper("/service/dutch/get-tournaments", api_endpoints.get_tournaments_service, methods=["GET"])
@@ -84,12 +89,19 @@ class DutchGameMain(BaseModule):
             self._register_route_helper("/userauth/dutch/attach-tournament-match-room", api_endpoints.attach_tournament_match_room, methods=["POST"], auth="jwt")
             self._register_route_helper("/userauth/dutch/get-user-stats", api_endpoints.get_user_stats, methods=["GET"], auth="jwt")
             self._register_route_helper("/userauth/dutch/deduct-game-coins", api_endpoints.deduct_game_coins, methods=["POST"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/get-shop-catalog", api_endpoints.get_shop_catalog_service, methods=["POST"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/get-inventory", api_endpoints.get_inventory_service, methods=["POST"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/purchase-item", api_endpoints.purchase_item_service, methods=["POST"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/equip-cosmetic", api_endpoints.equip_cosmetic_service, methods=["POST"], auth="jwt")
+            self._register_route_helper("/userauth/dutch/consume-win-booster", api_endpoints.consume_win_booster_service, methods=["POST"], auth="jwt")
             self._register_route_helper("/userauth/dutch/invite-players-to-match", api_endpoints.invite_players_to_match, methods=["POST"], auth="jwt")
             notification_module = self.app_manager.module_manager.get_module("notification_module")
             api_endpoints.register_notification_handlers(notification_module)
             self._register_route_helper("/public/dutch/get-comp-players", api_endpoints.get_comp_players, methods=["POST"])
             self._register_route_helper("/public/dutch/get-tournaments-list", api_endpoints.get_tournaments_list_public, methods=["GET"])
             self._register_route_helper("/public/dutch/leaderboards", api_endpoints.get_leaderboards_list_public, methods=["GET"])
+            self._register_route_helper("/sponsors/media/card_back.webp", api_endpoints.get_card_back_media, methods=["GET"])
+            self._register_route_helper("/sponsors/media/table_design_overlay.webp", api_endpoints.get_table_design_overlay_media, methods=["GET"])
             self._register_route_helper(
                 "/public/dutch/leaderboard-period-wins",
                 api_endpoints.get_period_wins_leaderboard_public,

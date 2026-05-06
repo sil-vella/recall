@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/card_display_config.dart';
@@ -12,12 +14,14 @@ import '../../../../tools/logging/logger.dart';
 /// Size is determined at the placement widget level and passed as dimensions.
 /// Config only controls appearance (displayMode, showPoints, etc.)
 class CardWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; set false after test
+  static const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; set false after test
   static final Logger _logger = Logger();
   final CardModel card;
   final Size dimensions; // Required - size determined at placement widget level
   final CardDisplayConfig config;
   final bool showBack;
+  final String? ownerCardBackId;
+  final bool forceDefaultBack;
   final bool isSelected;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -28,6 +32,8 @@ class CardWidget extends StatelessWidget {
     required this.dimensions, // Required - placement widget must provide size
     CardDisplayConfig? config,
     this.showBack = false,
+    this.ownerCardBackId,
+    this.forceDefaultBack = false,
     this.isSelected = false,
     this.onTap,
     this.onLongPress,
@@ -81,6 +87,33 @@ class CardWidget extends StatelessWidget {
         break;
     }
     return core;
+  }
+
+  Color _cardBackBaseColor(String equippedCardBackId) {
+    switch (equippedCardBackId.trim()) {
+      case 'card_back_juventus':
+        return AppColors.white;
+      case 'card_back_ocean':
+        return AppColors.pokerTableBlue;
+      case 'card_back_ember':
+        return AppColors.accentColor;
+      default:
+        return AppColors.primaryColor;
+    }
+  }
+
+  /// Thin frame around the custom back art — keep in sync with shop `card_back_*` packs / catalog.
+  Color _cardBackFrameBorderColor(String equippedCardBackId) {
+    switch (equippedCardBackId.trim()) {
+      case 'card_back_juventus':
+        return AppColors.darkGray;
+      case 'card_back_ocean':
+        return AppColors.matchPotGold;
+      case 'card_back_ember':
+        return AppColors.casinoBorderColor;
+      default:
+        return AppColors.casinoBorderColor;
+    }
   }
 
   /// Build the front face of the card
@@ -390,15 +423,105 @@ class CardWidget extends StatelessWidget {
     // Calculate border radius from card dimensions (SSOT approach)
     // Use dynamic calculation from CardDimensions if using default borderRadius (8.0)
     // Otherwise use the explicitly set borderRadius from config
-    final borderRadius = (config.borderRadius == 8.0) 
+    final borderRadius = (config.borderRadius == 8.0)
         ? CardDimensions.calculateBorderRadius(dimensions)
         : config.borderRadius;
-    
+
+    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    final equippedCardBackId = (ownerCardBackId ?? '').trim();
+    final baseColor = forceDefaultBack ? AppColors.primaryColor : _cardBackBaseColor(equippedCardBackId);
+    final frameBorderColor =
+        forceDefaultBack ? AppColors.casinoBorderColor : _cardBackFrameBorderColor(equippedCardBackId);
+    final isPracticeMode = currentGameId.startsWith('practice_room_');
+
+    final frameInset = (dimensions.width * 0.04).clamp(2.0, 7.0);
+    final artPadding = (dimensions.width * 0.022).clamp(2.0, 5.0);
+    final innerRadius = math.max(2.0, borderRadius - 2.0);
+    const double kFrameStroke = 1.2;
+
+    Widget artChild;
+    if (isPracticeMode) {
+      artChild = Image(
+        image: const AssetImage('assets/images/card_back.webp'),
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          if (LOGGING_SWITCH) {
+            _logger.error('🖼️ CardWidget: Asset load error for card_back.webp');
+          }
+          return Icon(
+            Icons.broken_image,
+            size: dimensions.width * 0.35,
+            color: AppColors.white.withOpacity(0.5),
+          );
+        },
+      );
+    } else {
+      const int imageVersion = 3;
+      final imageUrl = forceDefaultBack
+          ? (currentGameId.isNotEmpty
+              ? '${Config.apiUrl}/sponsors/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
+              : '${Config.apiUrl}/sponsors/media/card_back.webp?v=$imageVersion')
+          : equippedCardBackId.isNotEmpty
+              ? (currentGameId.isNotEmpty
+                  ? '${Config.apiUrl}/sponsors/media/card_back.webp?skinId=$equippedCardBackId&gameId=$currentGameId&v=$imageVersion'
+                  : '${Config.apiUrl}/sponsors/media/card_back.webp?skinId=$equippedCardBackId&v=$imageVersion')
+              : (currentGameId.isNotEmpty
+                  ? '${Config.apiUrl}/sponsors/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
+                  : '${Config.apiUrl}/sponsors/media/card_back.webp?v=$imageVersion');
+
+      final useBlueTint = !forceDefaultBack && equippedCardBackId == 'card_back_ocean';
+      final useEmberTint = !forceDefaultBack && equippedCardBackId == 'card_back_ember';
+      Widget netImage = Image.network(
+        imageUrl,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
+          return Icon(
+            Icons.image,
+            size: dimensions.width * 0.35,
+            color: AppColors.white.withOpacity(0.5),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          if (LOGGING_SWITCH) {
+            _logger.error('🖼️ CardWidget: Network image load error, falling back to asset');
+          }
+          return Image(
+            image: const AssetImage('assets/images/card_back.webp'),
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              if (LOGGING_SWITCH) {
+                _logger.error('🖼️ CardWidget: Asset fallback also failed');
+              }
+              return Icon(
+                Icons.broken_image,
+                size: dimensions.width * 0.35,
+                color: AppColors.white.withOpacity(0.5),
+              );
+            },
+          );
+        },
+      );
+      if (useBlueTint || useEmberTint) {
+        netImage = ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            useBlueTint ? AppColors.pokerTableBlue.withOpacity(0.35) : AppColors.accentColor.withOpacity(0.35),
+            BlendMode.modulate,
+          ),
+          child: netImage,
+        );
+      }
+      artChild = netImage;
+    }
+
     return Container(
       width: dimensions.width,
       height: dimensions.height,
       decoration: BoxDecoration(
-        color: AppColors.primaryColor,
+        color: baseColor,
         borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
@@ -408,90 +531,30 @@ class CardWidget extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: EdgeInsets.all(dimensions.width * 0.05),
-        child: Center(
-          child: Builder(
-            builder: (context) {
-              // Get currentGameId to detect practice mode (read once, no listener)
-              final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-              final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-              
-              // Detect practice mode: practice games have IDs starting with "practice_room_"
-              final isPracticeMode = currentGameId.startsWith('practice_room_');
-              
-              // In practice mode, load from assets; otherwise load from server
-              if (isPracticeMode) {
-                // Load from assets for practice mode
-                return Image(
-                  image: AssetImage('assets/images/card_back.webp'),
-                  width: dimensions.width * 0.9, // Leave some padding
-                  height: dimensions.height * 0.9,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    if (LOGGING_SWITCH) {
-                      _logger.error('🖼️ CardWidget: Asset load error for card_back.png');
-                    }
-                    return Icon(
-                      Icons.broken_image,
-                      size: dimensions.width * 0.4,
-                      color: AppColors.white.withOpacity(0.5),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Padding(
+          padding: EdgeInsets.all(frameInset),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: baseColor,
+              borderRadius: BorderRadius.circular(innerRadius),
+              border: Border.all(color: frameBorderColor, width: kFrameStroke),
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(artPadding),
+              child: Center(
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    return SizedBox(
+                      width: c.maxWidth,
+                      height: c.maxHeight,
+                      child: artChild,
                     );
                   },
-                );
-              } else {
-                // Load from server for multiplayer games
-                // Build image URL with cache-busting query parameters
-                // Version 2: Increment this when uploading a new image to force cache refresh
-                const int imageVersion = 3;
-                final imageUrl = currentGameId.isNotEmpty
-                    ? '${Config.apiUrl}/sponsors/media/card_back.png?gameId=$currentGameId&v=$imageVersion'
-                    : '${Config.apiUrl}/sponsors/media/card_back.png?v=$imageVersion';
-                
-                // Use Image.network which uses browser's native image loading on web
-                // This avoids CORS issues that affect the http package
-                // Fallback to asset image if network fails
-                return Image.network(
-                  imageUrl,
-                  width: dimensions.width * 0.9, // Leave some padding
-                  height: dimensions.height * 0.9,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) {
-                      return child;
-                    }
-                    // Show placeholder while loading
-                    return Icon(
-                      Icons.image,
-                      size: dimensions.width * 0.4,
-                      color: AppColors.white.withOpacity(0.5),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    if (LOGGING_SWITCH) {
-                      _logger.error('🖼️ CardWidget: Network image load error, falling back to asset');
-                    }
-                    // Fallback to asset image if network fails
-                    return Image(
-                      image: AssetImage('assets/images/card_back.webp'),
-                      width: dimensions.width * 0.9,
-                      height: dimensions.height * 0.9,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        if (LOGGING_SWITCH) {
-                          _logger.error('🖼️ CardWidget: Asset fallback also failed');
-                        }
-                        return Icon(
-                          Icons.broken_image,
-                          size: dimensions.width * 0.4,
-                          color: AppColors.white.withOpacity(0.5),
-                        );
-                      },
-                    );
-                  },
-                );
-              }
-            },
+                ),
+              ),
+            ),
           ),
         ),
       ),

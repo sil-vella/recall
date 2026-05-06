@@ -27,8 +27,7 @@ void _applyAndroidImmersiveBottomBar() {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
   try {
     SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: const [SystemUiOverlay.top],
+      SystemUiMode.immersiveSticky,
     );
   } catch (_) {
     // Best-effort; some embedders may not support manual UI mode.

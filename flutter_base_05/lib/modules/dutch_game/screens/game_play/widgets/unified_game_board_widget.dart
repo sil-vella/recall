@@ -18,14 +18,29 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
+import '../../../utils/dutch_game_helpers.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;
 const double _kHudRingStroke = 3.0;
 const double _kHudAvatarInRing = _kHudRingOuter - 2 * _kHudRingStroke - 2.0;
+
+String _friendlyCardBackLabel(String cardBackId) {
+  switch (cardBackId) {
+    case 'card_back_ember':
+      return 'Ember';
+    case 'card_back_ocean':
+      return 'Ocean';
+    default:
+      if (cardBackId.isEmpty) return 'Default';
+      final base = cardBackId.replaceFirst('card_back_', '').replaceAll('_', ' ').trim();
+      if (base.isEmpty) return 'Default';
+      return base[0].toUpperCase() + base.substring(1);
+  }
+}
 
 /// Where profile + timer HUD sits relative to **logical hand index 0** (slightly outside the card).
 enum _HandHudCorner {
@@ -1006,6 +1021,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     Widget? handHudBar,
     _HandHudCorner? handHudCorner,
   }) {
+    final ownerCardBackId = player['card_back_id']?.toString();
     return LayoutBuilder(
       builder: (context, constraints) {
         // Use available width (after column padding) for all calculations
@@ -1099,6 +1115,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               cardDimensions,
               cardKey: cardKey,
               cardTableOrientation: cardTableOrientation,
+              ownerCardBackId: ownerCardBackId,
             );
             collectionRankWidgets[cardId] = cardWidget;
           }
@@ -1233,6 +1250,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             cardKey: cardKey,
             currentPlayerStatus: currentPlayerStatus,
             cardTableOrientation: cardTableOrientation,
+            ownerCardBackId: ownerCardBackId,
           );
           cardWidgets.add(
             Padding(
@@ -1294,6 +1312,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     GlobalKey? cardKey,
     String? currentPlayerStatus,
     required CardTableOrientation cardTableOrientation,
+    String? ownerCardBackId,
   }) {
     final cardModel = CardModel.fromMap(card);
     final cardId = card['cardId']?.toString();
@@ -1305,6 +1324,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       card: updatedCardModel,
       dimensions: cardDimensions,
       config: CardDisplayConfig.forOpponent().copyWith(tableOrientation: cardTableOrientation),
+      ownerCardBackId: ownerCardBackId,
       isSelected: isSelected,
       onTap: () => _handleOpponentCardClick(card, playerId),
     );
@@ -2390,6 +2410,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // For timer color, always get the status chip color (including same_rank_window)
     final timerColor = _getStatusChipColor(playerStatus);
+    final myUserStats = _dutchGameState()['userStats'] as Map<String, dynamic>? ?? {};
+    final myInventory = myUserStats['inventory'] as Map<String, dynamic>? ?? {};
+    final myCosmetics = myInventory['cosmetics'] as Map<String, dynamic>? ?? {};
+    final myEquipped = myCosmetics['equipped'] as Map<String, dynamic>? ?? {};
+    final myEquippedCardBackId = myEquipped['card_back_id']?.toString() ?? '';
+    final equippedLabel = _friendlyCardBackLabel(myEquippedCardBackId);
 
     final Widget? myFirstCardHandHud = cards.isEmpty
         ? null
@@ -2432,6 +2458,32 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 Text(
                   'You',
                   style: AppTextStyles.headingSmall(),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _showInPlayCustomizeModal,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceVariant.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.borderDefault),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.tune, size: 12, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          equippedLabel,
+                          style: AppTextStyles.overline().copyWith(
+                            color: AppColors.textSecondary,
+                            fontSize: 8,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const Spacer(),
                 if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !finalRoundActive && !hasPlayerCalledFinalRound && !_callFinalRoundTappedPending) ...[
@@ -2940,6 +2992,230 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return cached;
   }
 
+  Future<void> _showInPlayCustomizeModal() async {
+    if (LOGGING_SWITCH) {
+      _logger.info('🧭 UnifiedGameBoardWidget: opening in-play customize modal');
+    }
+    List<Map<String, dynamic>> catalog = const [];
+    Map<String, dynamic> inventory = const {};
+
+    Future<void> refresh(StateSetter setModalState) async {
+      if (LOGGING_SWITCH) {
+        _logger.info('🧭 UnifiedGameBoardWidget: refresh in-play customize modal data');
+      }
+      catalog = await DutchGameHelpers.getShopCatalog();
+      inventory = await DutchGameHelpers.fetchInventory() ?? {};
+      if (LOGGING_SWITCH) {
+        _logger.info('🧭 UnifiedGameBoardWidget: modal data loaded catalog=${catalog.length}');
+      }
+      setModalState(() {});
+    }
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Customize',
+      barrierColor: AppColors.black.withValues(alpha: AppOpacity.instructionsModalBarrier),
+      pageBuilder: (context, _, __) {
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              bool isOwned(Map<String, dynamic> item) {
+                final type = item['item_type']?.toString() ?? '';
+                final id = item['item_id']?.toString() ?? '';
+                final cosmetics = inventory['cosmetics'] as Map<String, dynamic>? ?? {};
+                final ownedBacks = (cosmetics['owned_card_backs'] as List<dynamic>? ?? const [])
+                    .map((e) => e.toString())
+                    .toSet();
+                final ownedTables = (cosmetics['owned_table_designs'] as List<dynamic>? ?? const [])
+                    .map((e) => e.toString())
+                    .toSet();
+                if (type == 'card_back') return ownedBacks.contains(id);
+                if (type == 'table_design') return ownedTables.contains(id);
+                return false;
+              }
+
+              bool isEquipped(Map<String, dynamic> item) {
+                final type = item['item_type']?.toString() ?? '';
+                final id = item['item_id']?.toString() ?? '';
+                final equipped =
+                    (inventory['cosmetics'] as Map<String, dynamic>? ?? const {})['equipped']
+                        as Map<String, dynamic>? ??
+                    const {};
+                if (type == 'card_back') return equipped['card_back_id']?.toString() == id;
+                if (type == 'table_design') return equipped['table_design_id']?.toString() == id;
+                return false;
+              }
+
+              final cosmeticItems = catalog.where((i) {
+                final t = i['item_type']?.toString() ?? '';
+                return t == 'card_back' || t == 'table_design';
+              }).toList();
+
+              if (catalog.isEmpty && inventory.isEmpty) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  refresh(setModalState);
+                });
+              }
+
+              return Material(
+                color: Colors.transparent,
+                child: Container(
+                  margin: EdgeInsets.fromLTRB(
+                    AppPadding.defaultPadding.left,
+                    0,
+                    AppPadding.defaultPadding.right,
+                    110,
+                  ),
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  decoration: BoxDecoration(
+                    color: AppColors.widgetContainerBackground,
+                    borderRadius: AppBorderRadius.largeRadius,
+                    border: Border.all(color: AppColors.borderDefault),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.black.withValues(alpha: AppOpacity.shadow),
+                        blurRadius: AppSizes.shadowBlur,
+                        offset: AppSizes.shadowOffset,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: AppBorderRadius.largeRadius,
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      children: [
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.accentColor,
+                          ),
+                          child: Padding(
+                            padding: AppPadding.cardPadding,
+                            child: Text(
+                              'Quick Customize',
+                              style: AppTextStyles.headingSmall(color: AppColors.textOnAccent),
+                            ),
+                          ),
+                        ),
+                        if (cosmeticItems.where(isOwned).isEmpty)
+                          Padding(
+                            padding: AppPadding.mediumPadding,
+                            child: Text(
+                              'No owned packs yet.',
+                              style: AppTextStyles.bodySmall(color: AppColors.lightGray),
+                            ),
+                          ),
+                        for (final item in cosmeticItems)
+                          if (isOwned(item))
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                AppPadding.mediumPadding.left,
+                                0,
+                                AppPadding.mediumPadding.right,
+                                AppPadding.smallPadding.bottom,
+                              ),
+                              child: Container(
+                                padding: AppPadding.cardPadding,
+                                decoration: BoxDecoration(
+                                  color: AppColors.scaffoldBackgroundColor.withValues(alpha: 0.45),
+                                  borderRadius: AppBorderRadius.mediumRadius,
+                                  border: Border.all(
+                                    color: isEquipped(item)
+                                        ? AppColors.accentColor.withValues(alpha: 0.45)
+                                        : AppColors.borderDefault,
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item['display_name']?.toString() ?? 'Item',
+                                        style: AppTextStyles.bodySmall(color: AppColors.white),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (!isEquipped(item))
+                                      FilledButton(
+                                        onPressed: () async {
+                                          final type = item['item_type']?.toString() ?? '';
+                                          final slot =
+                                              type == 'card_back' ? 'card_back' : 'table_design';
+                                          await DutchGameHelpers.equipCosmetic(
+                                            slot: slot,
+                                            cosmeticId: item['item_id']?.toString() ?? '',
+                                          );
+                                          await refresh(setModalState);
+                                        },
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: AppColors.accentColor,
+                                          foregroundColor: AppColors.textOnAccent,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 8,
+                                          ),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: AppBorderRadius.smallRadius,
+                                          ),
+                                          textStyle: AppTextStyles.label(
+                                            color: AppColors.textOnAccent,
+                                          ),
+                                        ),
+                                        child: const Text('Use'),
+                                      ),
+                                    if (isEquipped(item))
+                                      OutlinedButton(
+                                        onPressed: () async {
+                                          final type = item['item_type']?.toString() ?? '';
+                                          final slot =
+                                              type == 'card_back' ? 'card_back' : 'table_design';
+                                          await DutchGameHelpers.equipCosmetic(
+                                            slot: slot,
+                                            cosmeticId: '',
+                                          );
+                                          await refresh(setModalState);
+                                        },
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.white,
+                                          side: BorderSide(
+                                            color: AppColors.accentContrast.withValues(alpha: 0.7),
+                                            width: 1.5,
+                                          ),
+                                          backgroundColor:
+                                              AppColors.accentContrast.withValues(alpha: 0.18),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: AppBorderRadius.smallRadius,
+                                          ),
+                                          textStyle: AppTextStyles.label(color: AppColors.white),
+                                        ),
+                                        child: const Text('Unuse'),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   /// Get current user's status from the same source as PlayerStatusChip
   /// This ensures consistency between status chip and card lighting
   String _getCurrentUserStatus() {
@@ -3278,6 +3554,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final shouldShowBack = isDrawnCard 
         ? !hasCompleteData  // Show back if data is incomplete
         : (cardModel.isFaceDown || !cardModel.hasFullData);
+    final userStats = _dutchGameState()['userStats'] as Map<String, dynamic>? ?? {};
+    final inventory = userStats['inventory'] as Map<String, dynamic>? ?? {};
+    final cosmetics = inventory['cosmetics'] as Map<String, dynamic>? ?? {};
+    final equipped = cosmetics['equipped'] as Map<String, dynamic>? ?? {};
+    final myCardBackId = equipped['card_back_id']?.toString();
     
     // Use provided cardDimensions (may be rescaled to fit container)
     Widget cardWidget = CardWidget(
@@ -3286,6 +3567,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       dimensions: cardDimensions,
       config: CardDisplayConfig.forMyHand(),
       showBack: shouldShowBack,
+      ownerCardBackId: myCardBackId,
       isSelected: isSelected,
       onTap: () => _handleMyHandCardSelection(context, index, cardMap),
     );

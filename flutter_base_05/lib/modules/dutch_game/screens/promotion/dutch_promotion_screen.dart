@@ -46,7 +46,7 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
   /// fullscreen flow surfaces in `server.log` during initial smoke-tests; set
   /// to `false` once the screen has been verified end-to-end. See
   /// `.cursor/rules/enable-logging-switch.mdc`.
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
 
   /// Delay before the secondary confetti burst for sustained energy.

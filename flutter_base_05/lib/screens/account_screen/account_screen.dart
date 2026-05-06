@@ -30,7 +30,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = true; // Profile photo pick/upload trace (enable-logging-switch.mdc) — set false after debugging
+  static const bool LOGGING_SWITCH = false; // Profile photo pick/upload trace (enable-logging-switch.mdc) — set false after debugging
   static final Logger _logger = Logger();
   
   // Form controllers

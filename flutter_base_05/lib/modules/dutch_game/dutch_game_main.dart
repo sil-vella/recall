@@ -9,6 +9,7 @@ import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/hooks_manager.dart';
 import '../../tools/logging/logger.dart';
+import '../../utils/consts/theme_consts.dart';
 
 // Import Dutch game components
 import '../dutch_game/managers/dutch_module_manager.dart';
@@ -19,6 +20,7 @@ import '../dutch_game/screens/game_play/utils/dutch_anim_runtime.dart';
 import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
 import '../../screens/admin_dashboard_screen/admin_dashboard_screen.dart';
 import '../../screens/coin_purchase_screen/coin_purchase_screen.dart';
+import '../dutch_game/screens/shop/dutch_cosmetics_shop_screen.dart';
 import '../dutch_game/screens/admin_tournaments_screen/admin_tournaments_screen.dart';
 import '../dutch_game/screens/leaderboard/leaderboard_screen.dart';
 import '../dutch_game/screens/achievements/achievements_screen.dart';
@@ -26,7 +28,7 @@ import '../dutch_game/screens/achievements/achievements_screen.dart';
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
 class DutchGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Enabled for testing auto-guest creation flow (auth_login_complete hook)
+  static const bool LOGGING_SWITCH = true; // Enabled for testing auto-guest creation flow (auth_login_complete hook)
   final Logger _logger = Logger();
   
   final navigationManager = NavigationManager();
@@ -372,6 +374,32 @@ class DutchGameMain extends ModuleBase {
       drawerTitle: 'Buy coins',
       drawerIcon: Icons.monetization_on,
       drawerPosition: 50,
+    );
+    navigationManager.registerRoute(
+      path: '/dutch-customize',
+      screen: (BuildContext context) {
+        if (LOGGING_SWITCH) {
+          _logger.info('🧭 DutchGameMain: opening /dutch-customize from drawer/navigation');
+        }
+        try {
+          return const DutchCustomizeScreen();
+        } catch (e) {
+          if (LOGGING_SWITCH) {
+            _logger.error('❌ DutchGameMain: failed to build /dutch-customize: $e');
+          }
+          return Scaffold(
+            body: Center(
+              child: Text(
+                'Customize screen failed to open.',
+                style: AppTextStyles.bodyMedium(),
+              ),
+            ),
+          );
+        }
+      },
+      drawerTitle: 'Customize',
+      drawerIcon: Icons.palette_outlined,
+      drawerPosition: 55,
     );
   }
 

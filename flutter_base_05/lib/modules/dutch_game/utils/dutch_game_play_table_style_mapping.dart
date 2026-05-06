@@ -95,6 +95,12 @@ class DutchGamePlayTableStyles {
         return _table1Home;
     }
   }
+
+  /// Deprecated: table felt is strictly bound to room table level.
+  /// Cosmetic table designs should style overlay/border only, not felt color.
+  static DutchGamePlayTableStyle forLevelWithDesign(int level, String? designId) {
+    return forLevel(level);
+  }
 }
 
 /// Reads room table tier from `dutch_game` module state (games map / game_state).

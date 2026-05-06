@@ -17,7 +17,7 @@ import '../../../../utils/consts/theme_consts.dart';
 /// The initials background is hashed from `displayName` so the same player
 /// always gets the same shade — useful for leaderboard rows / opponent chips.
 class DutchAvatar extends StatelessWidget {
-  static const bool LOGGING_SWITCH = true; // Avatar render/fallback trace (enable-logging-switch.mdc) — set false after debugging
+  static const bool LOGGING_SWITCH = false; // Avatar render/fallback trace (enable-logging-switch.mdc) — set false after debugging
   static final Logger _logger = Logger();
 
   const DutchAvatar({

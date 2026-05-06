@@ -1,7 +1,8 @@
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple, List
-from flask import Blueprint, request, jsonify
+from pathlib import Path
+from flask import Blueprint, request, jsonify, send_file
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.modules.user_management_module import tier_rank_level_matcher as matcher
 from tools.logger.custom_logging import custom_log
@@ -24,22 +25,153 @@ from .dutch_achievement_catalog import (
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = False  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
+LOGGING_SWITCH = True  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
 
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
 
 # Per-match win facts for time-bounded leaderboards (insert-only; idempotent via unique index).
 MATCH_WIN_OUTCOMES_COLL = "dutch_match_win_outcomes"
+CONSUMABLE_TX_COLL = "dutch_consumable_transactions"
+
+BOOSTER_ITEM_ID = "coin_booster_win_x1_5"
+BOOSTER_MULTIPLIER = 1.5
+
+SHOP_CATALOG = [
+    {"item_id": BOOSTER_ITEM_ID, "item_type": "booster", "category_group": "consumables", "category_theme": "core", "price_coins": 120, "display_name": "Win Coin Booster x1.5", "is_active": True},
+    {"item_id": "coin_booster_win_x1_5_pack5", "item_type": "booster_pack", "category_group": "consumables", "category_theme": "core", "price_coins": 540, "display_name": "Win Coin Booster x1.5 (x5)", "quantity": 5, "is_active": True},
+    {"item_id": "card_back_ember", "item_type": "card_back", "category_group": "card_backs", "category_theme": "fantasy", "price_coins": 300, "display_name": "Card Back Ember", "asset_url_or_path": "assets/images/card_back.webp", "is_active": True},
+    {"item_id": "card_back_ocean", "item_type": "card_back", "category_group": "card_backs", "category_theme": "nature", "price_coins": 300, "display_name": "Card Back Ocean", "asset_url_or_path": "assets/images/card_back.webp", "is_active": True},
+    {"item_id": "card_back_juventus", "item_type": "card_back", "category_group": "card_backs", "category_theme": "sports", "price_coins": 500, "display_name": "Card Back Juventus", "asset_url_or_path": "assets/images/card_back.webp", "is_active": True},
+    {"item_id": "table_design_neon", "item_type": "table_design", "category_group": "table_designs", "category_theme": "neon", "price_coins": 500, "display_name": "Table Design Neon", "is_active": True},
+    {"item_id": "table_design_royal", "item_type": "table_design", "category_group": "table_designs", "category_theme": "royal", "price_coins": 900, "display_name": "Table Design Royal", "is_active": True},
+    {"item_id": "table_design_juventus", "item_type": "table_design", "category_group": "table_designs", "category_theme": "sports", "price_coins": 1100, "display_name": "Table Design Juventus", "is_active": True},
+]
 
 # Store app_manager reference (will be set by module)
 _app_manager = None
+SPONSORS_MEDIA_DIR = Path(__file__).resolve().parents[4] / "sponsors" / "media"
+
+
+def _table_design_overlay_path_from_skin_id(skin_id: str) -> Optional[Path]:
+    """
+    New media layout:
+    sponsors/media/table_design/<pack_name>/table_design_overlay_<pack_name>.webp
+    """
+    sid = (skin_id or "").strip()
+    if not sid.startswith("table_design_"):
+        return None
+    pack_name = sid.replace("table_design_", "", 1).strip().lower()
+    if not pack_name:
+        return None
+    return SPONSORS_MEDIA_DIR / "table_design" / pack_name / f"table_design_overlay_{pack_name}.webp"
+
+
+def _card_back_path_from_skin_id(skin_id: str) -> Optional[Path]:
+    """
+    New media layout:
+    sponsors/media/card_back/<pack_name>/card_back_<pack_name>.webp
+    """
+    sid = (skin_id or "").strip()
+    if not sid.startswith("card_back_"):
+        return None
+    pack_name = sid.replace("card_back_", "", 1).strip().lower()
+    if not pack_name:
+        return None
+    return SPONSORS_MEDIA_DIR / "card_back" / pack_name / f"card_back_{pack_name}.webp"
 
 
 def set_app_manager(app_manager):
     """Set app manager for database access"""
     global _app_manager
     _app_manager = app_manager
+
+
+def _ensure_consumable_indexes(db_manager) -> None:
+    """Create minimal consumable transaction indexes (idempotent)."""
+    try:
+        coll = db_manager.db[CONSUMABLE_TX_COLL]
+        coll.create_index([("user_id", 1), ("created_at", -1)])
+        coll.create_index([("idempotency_key", 1)], unique=True, sparse=True)
+    except Exception as e:
+        custom_log(f"📊 DutchGame: consumable index ensure (non-fatal): {e}", level="WARNING", isOn=LOGGING_SWITCH)
+
+
+def _default_inventory() -> Dict[str, Any]:
+    return {
+        "boosters": {BOOSTER_ITEM_ID: 0},
+        "cosmetics": {
+            "owned_card_backs": [],
+            "owned_table_designs": [],
+            "equipped": {"card_back_id": "", "table_design_id": ""},
+        },
+    }
+
+
+def _normalize_inventory(raw: Any) -> Dict[str, Any]:
+    inv = _default_inventory()
+    if not isinstance(raw, dict):
+        return inv
+    boosters = raw.get("boosters")
+    if isinstance(boosters, dict):
+        try:
+            inv["boosters"][BOOSTER_ITEM_ID] = max(0, int(boosters.get(BOOSTER_ITEM_ID, 0) or 0))
+        except Exception:
+            inv["boosters"][BOOSTER_ITEM_ID] = 0
+    cosmetics = raw.get("cosmetics")
+    if isinstance(cosmetics, dict):
+        backs = cosmetics.get("owned_card_backs")
+        tables = cosmetics.get("owned_table_designs")
+        eq = cosmetics.get("equipped")
+        if isinstance(backs, list):
+            inv["cosmetics"]["owned_card_backs"] = [str(x) for x in backs if str(x).strip()]
+        if isinstance(tables, list):
+            inv["cosmetics"]["owned_table_designs"] = [str(x) for x in tables if str(x).strip()]
+        if isinstance(eq, dict):
+            inv["cosmetics"]["equipped"]["card_back_id"] = str(eq.get("card_back_id", "") or "")
+            inv["cosmetics"]["equipped"]["table_design_id"] = str(eq.get("table_design_id", "") or "")
+    return inv
+
+
+def _dutch_game_with_inventory(user: Dict[str, Any]) -> Dict[str, Any]:
+    modules = user.get("modules", {})
+    dutch_game = dict(modules.get("dutch_game", {}) or {})
+    dutch_game["inventory"] = _normalize_inventory(dutch_game.get("inventory"))
+    return dutch_game
+
+
+def _find_catalog_item(item_id: str) -> Optional[Dict[str, Any]]:
+    for item in SHOP_CATALOG:
+        if item.get("item_id") == item_id and item.get("is_active") is True:
+            return item
+    return None
+
+
+def _insert_consumable_tx(db_manager, *, user_id: ObjectId, tx_type: str, payload: Dict[str, Any], idempotency_key: Optional[str] = None) -> Dict[str, Any]:
+    _ensure_consumable_indexes(db_manager)
+    doc = {
+        "user_id": user_id,
+        "tx_type": tx_type,
+        "payload": payload,
+        "created_at": datetime.utcnow(),
+    }
+    if idempotency_key:
+        doc["idempotency_key"] = idempotency_key
+    try:
+        res = db_manager.db[CONSUMABLE_TX_COLL].insert_one(doc)
+        return {"ok": True, "tx_id": str(res.inserted_id)}
+    except DuplicateKeyError:
+        return {"ok": True, "duplicate": True}
+
+
+def _compute_boosted_win_amount(base_win_coins: int, has_booster: bool) -> Tuple[int, float, int]:
+    """Return (final_win_coins, multiplier, bonus_from_booster)."""
+    base = max(0, int(base_win_coins or 0))
+    if not has_booster or base <= 0:
+        return base, 1.0, 0
+    final_total = int(round(base * BOOSTER_MULTIPLIER))
+    bonus = max(0, final_total - base)
+    return base + bonus, BOOSTER_MULTIPLIER, bonus
 
 
 def _enrich_td_out_from_tournament_doc(db_manager, tournament_oid: ObjectId, td_out: Dict[str, Any]) -> Dict[str, Any]:
@@ -930,14 +1062,27 @@ def update_game_stats():
                 current_total_matches = dutch_game.get('total_matches', 0)
                 current_coins = dutch_game.get('coins', 0)
                 subscription_tier = dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL
+                inventory = _normalize_inventory(dutch_game.get("inventory"))
                 is_winner = player_result.get('is_winner', False)
                 pot = player_result.get('pot', 0)
                 coins_to_add = 0
+                base_win_coins = 0
+                booster_multiplier = 1.0
+                bonus_from_booster = 0
+                should_consume_booster = False
                 # game_coin_required = room-wide; subscription_tier = this user's DB (promo skips credit only for them).
                 if is_winner and pot > 0 and not matcher.should_skip_match_coin_economy(
                     subscription_tier, is_coin_required=game_coin_required
                 ):
-                    coins_to_add = pot
+                    base_win_coins = int(pot)
+                    coins_to_add = base_win_coins
+                    available_boosters = int(inventory.get("boosters", {}).get(BOOSTER_ITEM_ID, 0) or 0)
+                    if available_boosters > 0:
+                        coins_to_add, booster_multiplier, bonus_from_booster = _compute_boosted_win_amount(
+                            base_win_coins,
+                            has_booster=True,
+                        )
+                        should_consume_booster = True
                 new_total_matches = current_total_matches + 1
                 new_wins = current_wins + (1 if is_winner else 0)
                 new_losses = current_losses + (0 if is_winner else 1)
@@ -994,6 +1139,10 @@ def update_game_stats():
                     set_fields[f"modules.dutch_game.achievements.unlocked.{ach_id}"] = {
                         "unlocked_at": current_timestamp,
                     }
+                if should_consume_booster:
+                    next_qty = max(0, int(inventory.get("boosters", {}).get(BOOSTER_ITEM_ID, 0) or 0) - 1)
+                    inventory["boosters"][BOOSTER_ITEM_ID] = next_qty
+                    set_fields["modules.dutch_game.inventory"] = inventory
 
                 update_operation = {'$set': set_fields}
                 if coins_to_add > 0:
@@ -1008,12 +1157,28 @@ def update_game_stats():
                         "total_matches": new_total_matches,
                         "coins": new_coins,
                         "coins_added": coins_to_add,
+                        "base_win_coins": base_win_coins,
+                        "booster_multiplier": booster_multiplier,
+                        "bonus_from_booster": bonus_from_booster,
+                        "final_win_coins": coins_to_add if is_winner else 0,
                         "win_rate": new_win_rate,
                         "win_streak_current": new_win_streak,
                         "newly_unlocked_achievements": newly_unlocked_achievements,
                         **({"rank": target_rank} if rank_should_increase else {}),
                         **({"level": target_user_level} if level_changed else {}),
                     })
+                    if should_consume_booster:
+                        _insert_consumable_tx(
+                            db_manager,
+                            user_id=user_id,
+                            tx_type="consume_win_booster",
+                            payload={
+                                "room_id": room_id,
+                                "base_win_coins": base_win_coins,
+                                "bonus_from_booster": bonus_from_booster,
+                                "multiplier": booster_multiplier,
+                            },
+                        )
                     room_key = str(room_id).strip() if room_id else ""
                     if is_winner and room_key:
                         tid_out = (tournament_data.get("tournament_id") or "").strip() or None
@@ -1267,6 +1432,7 @@ def get_user_stats():
             "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
             "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
             "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
+            "inventory": _normalize_inventory(dutch_game.get("inventory")),
         }
         if stats_data.get('last_match_date') and isinstance(stats_data['last_match_date'], datetime):
             stats_data['last_match_date'] = stats_data['last_match_date'].isoformat()
@@ -1323,12 +1489,321 @@ def get_user_stats_service():
             "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
             "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
             "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
+            "inventory": _normalize_inventory(dutch_game.get("inventory")),
         }
         custom_log(f"📊 DutchGame: get_user_stats_service user_id={user_id} coins={stats_data['coins']} subscription_tier={stats_data['subscription_tier']}", level="INFO", isOn=LOGGING_SWITCH)
         return jsonify({"success": True, "message": "User statistics retrieved", "data": stats_data, "user_id": user_id, "timestamp": datetime.utcnow().isoformat()}), 200
     except Exception as e:
         custom_log(f"❌ DutchGame: Error in get_user_stats_service: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to retrieve user statistics", "message": str(e)}), 500
+
+
+def get_shop_catalog_service():
+    """Service endpoint: return MVP Dutch consumables/cosmetics catalog."""
+    try:
+        return jsonify({"success": True, "items": SHOP_CATALOG, "timestamp": datetime.utcnow().isoformat()}), 200
+    except Exception as e:
+        custom_log(f"❌ DutchGame: get_shop_catalog_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": "Failed to fetch shop catalog", "message": str(e)}), 500
+
+
+def get_inventory_service():
+    """Service endpoint: return Dutch inventory (boosters + cosmetics) for a given user_id."""
+    try:
+        data = request.get_json() or {}
+        user_id = (data.get("user_id") or getattr(request, "user_id", "") or "").strip()
+        if not user_id:
+            return jsonify({"success": False, "error": "user_id required"}), 400
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database connection unavailable"}), 500
+        try:
+            user_oid = ObjectId(user_id)
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid user_id"}), 400
+        user = db_manager.find_one("users", {"_id": user_oid})
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+        dutch_game = _dutch_game_with_inventory(user)
+        return jsonify({"success": True, "inventory": dutch_game.get("inventory", _default_inventory()), "user_id": user_id}), 200
+    except Exception as e:
+        custom_log(f"❌ DutchGame: get_inventory_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": "Failed to fetch inventory", "message": str(e)}), 500
+
+
+def purchase_item_service():
+    """Service endpoint: atomic coin spend + item grant (MVP)."""
+    try:
+        data = request.get_json() or {}
+        user_id = (data.get("user_id") or getattr(request, "user_id", "") or "").strip()
+        item_id = (data.get("item_id") or "").strip()
+        idempotency_key = (data.get("idempotency_key") or "").strip() or None
+        if not user_id or not item_id:
+            return jsonify({"success": False, "error": "user_id and item_id are required"}), 400
+        item = _find_catalog_item(item_id)
+        if not item:
+            return jsonify({"success": False, "error": "Unknown item_id"}), 400
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database connection unavailable"}), 500
+        try:
+            user_oid = ObjectId(user_id)
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid user_id"}), 400
+        user = db_manager.find_one("users", {"_id": user_oid})
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+        dutch_game = _dutch_game_with_inventory(user)
+        current_coins = int((dutch_game.get("coins") or 0))
+        price = int(item.get("price_coins") or 0)
+        if current_coins < price:
+            return jsonify({"success": False, "error": "insufficient_coins", "current_coins": current_coins, "price_coins": price}), 400
+        inventory = dutch_game.get("inventory") or _default_inventory()
+        delta: Dict[str, Any] = {}
+        item_type = item.get("item_type")
+        if item_type in ("booster", "booster_pack"):
+            qty = int(item.get("quantity") or 1)
+            inventory["boosters"][BOOSTER_ITEM_ID] = int(inventory["boosters"].get(BOOSTER_ITEM_ID, 0) or 0) + qty
+            delta["booster_added"] = qty
+        elif item_type == "card_back":
+            backs = set(inventory["cosmetics"].get("owned_card_backs", []))
+            backs.add(item_id)
+            inventory["cosmetics"]["owned_card_backs"] = sorted(list(backs))
+            delta["owned_card_backs"] = 1
+        elif item_type == "table_design":
+            tables = set(inventory["cosmetics"].get("owned_table_designs", []))
+            tables.add(item_id)
+            inventory["cosmetics"]["owned_table_designs"] = sorted(list(tables))
+            delta["owned_table_designs"] = 1
+        else:
+            return jsonify({"success": False, "error": "Unsupported item_type"}), 400
+
+        update_result = db_manager.db["users"].update_one(
+            {
+                "_id": user_oid,
+                "modules.dutch_game.coins": {"$gte": price},
+            },
+            {
+                "$inc": {"modules.dutch_game.coins": -price},
+                "$set": {
+                    "modules.dutch_game.inventory": inventory,
+                    "modules.dutch_game.last_updated": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat(),
+                },
+            },
+        )
+        if not update_result or update_result.modified_count <= 0:
+            return jsonify({"success": False, "error": "purchase_conflict_retry"}), 409
+        refreshed_user = db_manager.find_one("users", {"_id": user_oid}) or {}
+        tx_res = _insert_consumable_tx(
+            db_manager,
+            user_id=user_oid,
+            tx_type="purchase_item",
+            payload={"item_id": item_id, "price_coins": price, "delta": delta},
+            idempotency_key=idempotency_key,
+        )
+        return jsonify({
+            "success": True,
+            "new_coin_balance": int((((refreshed_user.get("modules") or {}).get("dutch_game", {}) or {}).get("coins", 0))),
+            "granted_item": {"item_id": item_id, "item_type": item_type},
+            "inventory_delta": delta,
+            "tx_id": tx_res.get("tx_id"),
+        }), 200
+    except Exception as e:
+        custom_log(f"❌ DutchGame: purchase_item_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": "Failed to purchase item", "message": str(e)}), 500
+
+
+def equip_cosmetic_service():
+    """Service endpoint: equip owned card_back or table_design cosmetics."""
+    try:
+        data = request.get_json() or {}
+        user_id = (data.get("user_id") or getattr(request, "user_id", "") or "").strip()
+        cosmetic_id = (data.get("cosmetic_id") or "").strip()
+        slot = (data.get("slot") or "").strip()
+        if not user_id or slot not in ("card_back", "table_design"):
+            return jsonify({"success": False, "error": "user_id and valid slot required"}), 400
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database connection unavailable"}), 500
+        try:
+            user_oid = ObjectId(user_id)
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid user_id"}), 400
+        user = db_manager.find_one("users", {"_id": user_oid})
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+        inv = _dutch_game_with_inventory(user).get("inventory", _default_inventory())
+        if slot == "card_back":
+            if cosmetic_id == "":
+                inv["cosmetics"]["equipped"]["card_back_id"] = ""
+                db_manager.db["users"].update_one({"_id": user_oid}, {"$set": {"modules.dutch_game.inventory": inv, "modules.dutch_game.last_updated": datetime.utcnow().isoformat()}})
+                _insert_consumable_tx(
+                    db_manager,
+                    user_id=user_oid,
+                    tx_type="unequip_cosmetic",
+                    payload={"slot": slot},
+                )
+                return jsonify({"success": True, "equipped": inv["cosmetics"]["equipped"]}), 200
+            owned = set(inv["cosmetics"].get("owned_card_backs", []))
+            if cosmetic_id not in owned:
+                return jsonify({"success": False, "error": "cosmetic_not_owned"}), 400
+            inv["cosmetics"]["equipped"]["card_back_id"] = cosmetic_id
+        else:
+            if cosmetic_id == "":
+                inv["cosmetics"]["equipped"]["table_design_id"] = ""
+                db_manager.db["users"].update_one({"_id": user_oid}, {"$set": {"modules.dutch_game.inventory": inv, "modules.dutch_game.last_updated": datetime.utcnow().isoformat()}})
+                _insert_consumable_tx(
+                    db_manager,
+                    user_id=user_oid,
+                    tx_type="unequip_cosmetic",
+                    payload={"slot": slot},
+                )
+                return jsonify({"success": True, "equipped": inv["cosmetics"]["equipped"]}), 200
+            owned = set(inv["cosmetics"].get("owned_table_designs", []))
+            if cosmetic_id not in owned:
+                return jsonify({"success": False, "error": "cosmetic_not_owned"}), 400
+            inv["cosmetics"]["equipped"]["table_design_id"] = cosmetic_id
+        db_manager.db["users"].update_one({"_id": user_oid}, {"$set": {"modules.dutch_game.inventory": inv, "modules.dutch_game.last_updated": datetime.utcnow().isoformat()}})
+        _insert_consumable_tx(
+            db_manager,
+            user_id=user_oid,
+            tx_type="equip_cosmetic",
+            payload={"slot": slot, "cosmetic_id": cosmetic_id},
+        )
+        return jsonify({"success": True, "equipped": inv["cosmetics"]["equipped"]}), 200
+    except Exception as e:
+        custom_log(f"❌ DutchGame: equip_cosmetic_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": "Failed to equip cosmetic", "message": str(e)}), 500
+
+
+def consume_win_booster_service():
+    """Service endpoint: consume one win booster (utility endpoint; primary consumption still occurs in update_game_stats)."""
+    try:
+        data = request.get_json() or {}
+        user_id = (data.get("user_id") or getattr(request, "user_id", "") or "").strip()
+        if not user_id:
+            return jsonify({"success": False, "error": "user_id required"}), 400
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database connection unavailable"}), 500
+        try:
+            user_oid = ObjectId(user_id)
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid user_id"}), 400
+        user = db_manager.find_one("users", {"_id": user_oid})
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+        inv = _dutch_game_with_inventory(user).get("inventory", _default_inventory())
+        current_qty = int(inv.get("boosters", {}).get(BOOSTER_ITEM_ID, 0) or 0)
+        if current_qty <= 0:
+            return jsonify({"success": False, "error": "no_booster_available"}), 400
+        inv["boosters"][BOOSTER_ITEM_ID] = current_qty - 1
+        db_manager.db["users"].update_one({"_id": user_oid}, {"$set": {"modules.dutch_game.inventory": inv}})
+        tx = _insert_consumable_tx(
+            db_manager,
+            user_id=user_oid,
+            tx_type="consume_win_booster_manual",
+            payload={"remaining": inv["boosters"][BOOSTER_ITEM_ID]},
+            idempotency_key=(data.get("idempotency_key") or "").strip() or None,
+        )
+        return jsonify({"success": True, "remaining": inv["boosters"][BOOSTER_ITEM_ID], "tx_id": tx.get("tx_id")}), 200
+    except Exception as e:
+        custom_log(f"❌ DutchGame: consume_win_booster_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": "Failed to consume booster", "message": str(e)}), 500
+
+
+def get_table_design_overlay_media():
+    """Public media endpoint: map equipped table design skinId -> overlay image file."""
+    try:
+        skin_id = (request.args.get("skinId") or "").strip()
+        media_path = _table_design_overlay_path_from_skin_id(skin_id)
+        if media_path is None:
+            media_path = SPONSORS_MEDIA_DIR / "table_logo.webp"
+        if not media_path.exists():
+            fallback_webp = SPONSORS_MEDIA_DIR / "table_logo.webp"
+            fallback_png = SPONSORS_MEDIA_DIR / "table_logo.png"
+            if fallback_webp.exists():
+                if LOGGING_SWITCH:
+                    custom_log(
+                        f"🖼️ DutchGame: table overlay fallback used skinId={skin_id} missing={media_path}",
+                        level="WARNING",
+                        isOn=LOGGING_SWITCH,
+                    )
+                return send_file(fallback_webp, mimetype="image/webp")
+            if fallback_png.exists():
+                if LOGGING_SWITCH:
+                    custom_log(
+                        f"🖼️ DutchGame: png table overlay fallback used skinId={skin_id} missing={media_path}",
+                        level="WARNING",
+                        isOn=LOGGING_SWITCH,
+                    )
+                return send_file(fallback_png, mimetype="image/png")
+            return jsonify({"success": False, "error": "media_not_found", "message": f"Missing media file: {media_path}"}), 404
+
+        if LOGGING_SWITCH:
+            custom_log(
+                f"🖼️ DutchGame: table overlay served skinId={skin_id} file={media_path}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+        if media_path.suffix.lower() == ".webp":
+            return send_file(media_path, mimetype="image/webp")
+        return send_file(media_path, mimetype="image/png")
+    except Exception as e:
+        custom_log(f"❌ DutchGame: get_table_design_overlay_media error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": "failed_to_serve_table_overlay", "message": str(e)}), 500
+
+
+def get_card_back_media():
+    """Public media endpoint: map equipped card-back skinId -> media file."""
+    try:
+        skin_id = (request.args.get("skinId") or "").strip()
+        media_path = _card_back_path_from_skin_id(skin_id)
+        if media_path is None:
+            media_path = SPONSORS_MEDIA_DIR / "card_back.webp"
+
+        if not media_path.exists():
+            fallback_webp = SPONSORS_MEDIA_DIR / "card_back.webp"
+            fallback_png = SPONSORS_MEDIA_DIR / "card_back.png"
+            if fallback_webp.exists():
+                if LOGGING_SWITCH:
+                    custom_log(
+                        f"🖼️ DutchGame: card back fallback used skinId={skin_id} missing={media_path}",
+                        level="WARNING",
+                        isOn=LOGGING_SWITCH,
+                    )
+                return send_file(fallback_webp, mimetype="image/webp")
+            if fallback_png.exists():
+                if LOGGING_SWITCH:
+                    custom_log(
+                        f"🖼️ DutchGame: png card back fallback used skinId={skin_id} missing={media_path}",
+                        level="WARNING",
+                        isOn=LOGGING_SWITCH,
+                    )
+                return send_file(fallback_png, mimetype="image/png")
+            return jsonify({"success": False, "error": "media_not_found", "message": f"Missing media file: {media_path}"}), 404
+
+        if LOGGING_SWITCH:
+            custom_log(
+                f"🖼️ DutchGame: card back served skinId={skin_id} file={media_path}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+        if media_path.suffix.lower() == ".webp":
+            return send_file(media_path, mimetype="image/webp")
+        return send_file(media_path, mimetype="image/png")
+    except Exception as e:
+        custom_log(f"❌ DutchGame: get_card_back_media error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": "failed_to_serve_card_back", "message": str(e)}), 500
 
 
 def _deduct_game_coins_from_body(data: Dict[str, Any]):

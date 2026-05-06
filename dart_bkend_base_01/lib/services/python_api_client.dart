@@ -4,7 +4,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Coin check: get-user-stats + WS auth paths (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Coin check: get-user-stats + WS auth paths (enable-logging-switch.mdc)
 
 class PythonApiClient {
   final String baseUrl;
@@ -248,6 +248,7 @@ class PythonApiClient {
           final data = result['data'] as Map<String, dynamic>? ?? <String, dynamic>{};
           final coins = data['coins'] as int?;
           final tier = (data['subscription_tier'] as String?)?.trim() ?? '';
+          final inventory = data['inventory'] as Map<String, dynamic>? ?? <String, dynamic>{};
           if (LOGGING_SWITCH) {
             _logger.info('📊 Dart: get-user-stats success userId=$userId coins=$coins subscription_tier="$tier"');
           }
@@ -255,6 +256,7 @@ class PythonApiClient {
             'success': true,
             'coins': coins,
             'subscription_tier': tier,
+            'inventory': inventory,
           };
         }
         return {

@@ -6,7 +6,7 @@ import 'dutch_game_state_updater.dart';
 import 'player_action.dart';
 import '../utils/dutch_game_helpers.dart';
 
-const bool LOGGING_SWITCH = false; // Random join → start_match / game state (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // Random join → start_match / game state (enable-logging-switch.mdc; set false after test)
 
 /// Game Coordinator for handling all player game actions
 /// 

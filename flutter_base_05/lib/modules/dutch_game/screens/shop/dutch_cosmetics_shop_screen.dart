@@ -41,7 +41,7 @@ class DutchCustomizeScreen extends BaseScreen {
 }
 
 class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   /// Dark scrim behind title / price only.
   static final Color _kTextScrimFill = AppColors.darkGray.withValues(alpha: 0.92);
 

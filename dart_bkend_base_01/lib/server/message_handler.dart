@@ -14,7 +14,7 @@ import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // create_room/get_public_rooms/join_room WS → RoomManager (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // create_room/get_public_rooms/join_room WS → RoomManager (enable-logging-switch.mdc; set false after test)
 
 /// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
 /// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.

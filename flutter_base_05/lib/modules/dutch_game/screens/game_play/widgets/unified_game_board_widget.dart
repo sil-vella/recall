@@ -21,7 +21,7 @@ import '../../demo/demo_functionality.dart';
 import '../../../utils/dutch_game_helpers.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;
@@ -170,7 +170,7 @@ Map<String, dynamic> _unifiedBoardViewSlice(Map<String, dynamic> d) {
 ///
 /// **Centering (layout):**
 /// - **My-hand live card row:** horizontal centering uses a single mechanism in
-///   [_buildMyHandCardsGrid] only (`Row` + `mainAxisAlignment` inside a width-constrained scroll child).
+///   [_buildMyHandCardsGrid] only (`Row` + adaptive card sizing to fit width; no horizontal scroll).
 ///   Other `Center`/`Align` widgets here are for opponents, piles, pot, or empty placeholders—not the my-hand row.
 /// - **Opponents:** top strip uses `Center`+`Row` for the seat group; top `Wrap` uses `WrapAlignment.center`;
 ///   side columns use `Align(centerLeft/centerRight)`—each intentional for table UX.
@@ -214,9 +214,57 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   String? _previousPlayerStatus; // Track previous status to detect transitions
   /// Last [game_state.phase] seen — used to reset local flags on transition to `initial_peek` (rematch / new deal).
   String? _lastPhaseForLocalReset;
-  /// Effective width used for my hand card sizing; updates 2s after layout change to avoid jitter on resize.
-  double? _myHandEffectiveWidth;
-  Timer? _myHandResizeDelayTimer;
+
+  /// Minimum card width when shrinking hands to fit layout (preserves [CardDimensions.CARD_ASPECT_RATIO]).
+  static const double _kMinCardWidth = 20.0;
+
+  /// Shrinks card width so [slots] cards fit in [availableWidth] (and optionally [availableHeight]).
+  Size _adaptiveCardSize({
+    required double availableWidth,
+    required int slots,
+    required double slotGap,
+    double? availableHeight,
+    bool verticalStack = false,
+    double minWidth = _kMinCardWidth,
+  }) {
+    final n = slots <= 0 ? 1 : slots;
+    if (verticalStack &&
+        availableHeight != null &&
+        availableHeight.isFinite &&
+        availableHeight > 0) {
+      final gapBudget = (n - 1) * slotGap;
+      final maxTotalCardHeight = availableHeight - gapBudget;
+      if (maxTotalCardHeight <= 0) {
+        final w = _kMinCardWidth.clamp(_kMinCardWidth, CardDimensions.MAX_CARD_WIDTH);
+        return Size(w, w / CardDimensions.CARD_ASPECT_RATIO);
+      }
+      final maxHPerCard = maxTotalCardHeight / n;
+      var w = maxHPerCard * CardDimensions.CARD_ASPECT_RATIO;
+      w = w.clamp(minWidth, CardDimensions.MAX_CARD_WIDTH);
+      if (w > availableWidth) {
+        w = availableWidth.clamp(minWidth, CardDimensions.MAX_CARD_WIDTH);
+      }
+      return Size(w, w / CardDimensions.CARD_ASPECT_RATIO);
+    }
+
+    if (verticalStack) {
+      // For side stacks with unbounded height, do not divide by card count.
+      // Start from max that fits column width and only shrink if height is constrained.
+      final w = availableWidth.clamp(minWidth, CardDimensions.MAX_CARD_WIDTH);
+      return Size(w, w / CardDimensions.CARD_ASPECT_RATIO);
+    }
+
+    // Keep one trailing gap budget because slot builders currently pad each card on the right.
+    var w = (availableWidth - n * slotGap) / n;
+    w = w.clamp(minWidth, CardDimensions.MAX_CARD_WIDTH);
+    if (availableHeight != null && availableHeight.isFinite && availableHeight > 0) {
+      final maxWByH = availableHeight * CardDimensions.CARD_ASPECT_RATIO;
+      if (maxWByH < w) {
+        w = maxWByH.clamp(minWidth, CardDimensions.MAX_CARD_WIDTH);
+      }
+    }
+    return Size(w, w / CardDimensions.CARD_ASPECT_RATIO);
+  }
 
   /// Timer to clear selected-card overlays (opponent highlight + my hand selection) after 3 seconds.
   Timer? _selectedCardOverlayTimer;
@@ -394,7 +442,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     DutchAnimRuntime.instance.removeListener(_onAnimRuntimeForHandMask);
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
-    _myHandResizeDelayTimer?.cancel();
     _selectedCardOverlayTimer?.cancel();
     _glowAnimationController?.dispose();
     super.dispose();
@@ -603,32 +650,49 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         '(Center + Row mainAxisSize.min; intrinsic width per seat)',
       );
     }
-    // Center the top opponent row as a group (intrinsic width per seat; no [Expanded] stretch).
     return SizedBox(
       width: double.infinity,
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
-        child: Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (int i = 0; i < ctx.buckets.top.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                _paddedOpponentSlot(
-                  board,
-                  ctx.buckets.top[i],
-                  ctx.cardsToPeek,
-                  ctx.currentTurnIndex,
-                  ctx.isGameActive,
-                  ctx.playerStatus,
-                  ctx.opponents,
-                  CardTableOrientation.portraitDown,
-                ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final topCount = ctx.buckets.top.length;
+            final seatGap = 8.0;
+            final totalGap = topCount > 1 ? (topCount - 1) * seatGap : 0.0;
+            final rowWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+                ? constraints.maxWidth
+                : MediaQuery.sizeOf(context).width;
+            final seatWidth = (rowWidth - totalGap) / (topCount <= 0 ? 1 : topCount);
+            if (LOGGING_SWITCH) {
+              _logger.info(
+                '[OppWidgets] top-row constraints rowW=${rowWidth.toStringAsFixed(1)} '
+                'topCount=$topCount seatW=${seatWidth.toStringAsFixed(1)}',
+              );
+            }
+            return Row(
+              mainAxisSize: MainAxisSize.max,
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < topCount; i++) ...[
+                  if (i > 0) SizedBox(width: seatGap),
+                  SizedBox(
+                    width: seatWidth,
+                    child: _paddedOpponentSlot(
+                      board,
+                      ctx.buckets.top[i],
+                      ctx.cardsToPeek,
+                      ctx.currentTurnIndex,
+                      ctx.isGameActive,
+                      ctx.playerStatus,
+                      ctx.opponents,
+                      CardTableOrientation.portraitDown,
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -788,8 +852,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       centerVerticallyInSideColumn: sideColumnOpp,
     );
 
+    final horizontalPad = sideColumnOpp
+        ? AppPadding.mediumPadding.left
+        : AppPadding.smallPadding.left;
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPad),
       child: sideColumnOpp
           ? Align(
               alignment: cardTableOrientation == CardTableOrientation.landscapeFromRight
@@ -1033,8 +1100,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (availableWidth <= 0 || !availableWidth.isFinite) {
           return const SizedBox.shrink();
         }
-        // Left/right columns: same SSOT size as draw pile / top opponent; stack one card per row (Column).
-        // Top/bottom: size so 4 cards fit in one row; 5th wraps (Wrap).
+        // Left/right columns: vertical stack — shrink cards so all fit in column height + width.
+        // Top/bottom: single row — shrink cards so all fit (no Wrap overflow).
         final sideColumnVerticalHand = cardTableOrientation == CardTableOrientation.landscapeFromLeft ||
             cardTableOrientation == CardTableOrientation.landscapeFromRight;
 
@@ -1042,16 +1109,32 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         late final Size cardDimensions;
         late final double stackOffset;
 
+        final slotCount = cards.isEmpty ? 1 : cards.length;
+        final boundedHeight = constraints.maxHeight.isFinite && constraints.maxHeight > 0
+            ? constraints.maxHeight
+            : null;
+
         if (sideColumnVerticalHand) {
-          cardDimensions = CardDimensions.getUnifiedDimensions();
           slotGap = 6.0;
-          stackOffset = CardDimensions.getUnifiedStackOffset();
+          cardDimensions = _adaptiveCardSize(
+            availableWidth: availableWidth,
+            slots: slotCount,
+            slotGap: slotGap,
+            availableHeight: boundedHeight,
+            verticalStack: true,
+            minWidth: 1.0,
+          );
+          stackOffset = cardDimensions.height * CardDimensions.STACK_OFFSET_PERCENTAGE;
         } else {
           slotGap = availableWidth * 0.02;
-          final cardWidth = CardDimensions.clampCardWidth((availableWidth - 4 * slotGap) / 4);
-          final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
-          cardDimensions = Size(cardWidth, cardHeight);
-          stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
+          cardDimensions = _adaptiveCardSize(
+            availableWidth: availableWidth,
+            slots: slotCount,
+            slotGap: slotGap,
+            availableHeight: boundedHeight,
+            minWidth: 1.0,
+          );
+          stackOffset = cardDimensions.height * CardDimensions.STACK_OFFSET_PERCENTAGE;
         }
 
         final EdgeInsets handSlotPadding =
@@ -1291,13 +1374,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           );
         }
 
-        return Wrap(
-          alignment: cardTableOrientation == CardTableOrientation.portraitDown
-              ? WrapAlignment.center
-              : WrapAlignment.start,
-          spacing: 0,
-          runSpacing: slotGap,
-          children: cardWidgets,
+        return SizedBox(
+          width: availableWidth,
+          child: Row(
+            mainAxisAlignment: cardTableOrientation == CardTableOrientation.portraitDown
+                ? MainAxisAlignment.center
+                : MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: cardWidgets,
+          ),
         );
       },
     );
@@ -2626,27 +2711,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             if (containerWidth <= 0 || !containerWidth.isFinite) {
               return const SizedBox.shrink();
             }
-            // Use effective width for card sizing; update 2s after layout change to avoid jitter on resize
-            final widthForSizing = _myHandEffectiveWidth ?? containerWidth;
-            if (_myHandEffectiveWidth == null) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && _myHandEffectiveWidth == null) {
-                  setState(() => _myHandEffectiveWidth = containerWidth);
-                }
-              });
-            } else if ((_myHandEffectiveWidth! - containerWidth).abs() > 0.5) {
-              _myHandResizeDelayTimer?.cancel();
-              final newWidth = containerWidth;
-              _myHandResizeDelayTimer = Timer(const Duration(seconds: 2), () {
-                if (mounted) {
-                  setState(() {
-                    _myHandEffectiveWidth = newWidth;
-                    _myHandResizeDelayTimer = null;
-                  });
-                }
-              });
-            }
-            
+
             final currentPlayerStatus = _getCurrentUserStatus();
             final drawnCard = board['myDrawnCard'] as Map<String, dynamic>?;
             final drawnCardId = drawnCard?['cardId']?.toString();
@@ -2670,13 +2735,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             
             Map<String, Widget> collectionRankWidgets = {};
             
-            // Same SSOT as opponent hands / side columns / piles ([CardDimensions.getUnifiedDimensions]).
-            // Previously my hand used (width / (cards+1 slots)) − pad, which ran smaller than opponents'
-            // (width − 4×pad) / 4 top-row sizing when both were below the 55px cap.
-            final cardDimensions = CardDimensions.getUnifiedDimensions();
+            final cardPadding = containerWidth * 0.02;
+            final cardDimensions = _adaptiveCardSize(
+              availableWidth: containerWidth,
+              slots: cards.length,
+              slotGap: cardPadding,
+            );
             final cardHeight = cardDimensions.height;
-            final stackOffset = CardDimensions.getUnifiedStackOffset();
-            final cardPadding = widthForSizing * 0.02;
+            final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
 
             Widget applyMyFirstCardHud(int index, Widget slotContent) {
               final hud = firstCardHandHud;
@@ -2930,41 +2996,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             }
           }
 
-          final slotStride = cardDimensions.width + cardPadding;
-          final minSlotsForRow = cards.length;
-          while (cardWidgets.length < minSlotsForRow) {
-            cardWidgets.add(SizedBox(width: slotStride, height: cardHeight));
-          }
-
-          final totalRowWidth =
-              cardWidgets.isEmpty ? 0.0 : cardWidgets.length * slotStride;
-          // Scroll child width: at least viewport so the row has slack; not a second "centering" layer
-          // (horizontal centering is only [Row.mainAxisAlignment] below).
-          final naturalRowContainerWidth =
-              totalRowWidth < containerWidth ? containerWidth : totalRowWidth;
-
           if (LOGGING_SWITCH) {
+            final approxTotalRowW =
+                cardWidgets.length * (cardDimensions.width + cardPadding);
             _logger.info(
               '[MyHandLayout] realRow isMyTurn=$isMyTurn cardsLen=${cards.length} '
-              'paddedSlots=${cardWidgets.length} minSlots=$minSlotsForRow '
-              'totalRowW=${totalRowWidth.toStringAsFixed(1)} containerW=${containerWidth.toStringAsFixed(1)} '
-              'scrollChildW=${naturalRowContainerWidth.toStringAsFixed(1)}',
+              'slots=${cardWidgets.length} '
+              'approxTotalRowW=${approxTotalRowW.toStringAsFixed(1)} containerW=${containerWidth.toStringAsFixed(1)} '
+              'cardW=${cardDimensions.width.toStringAsFixed(1)}',
             );
           }
 
-          final rowWidget = SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: naturalRowContainerWidth,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: cardWidgets,
-              ),
+          return SizedBox(
+            width: containerWidth,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: cardWidgets,
             ),
           );
-
-            return rowWidget;
           },
     );
   }

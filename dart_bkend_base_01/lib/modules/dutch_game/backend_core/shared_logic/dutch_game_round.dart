@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -32,6 +32,8 @@ class DutchGameRound {
   Timer? _pendingComputerDecisionTimer;
   /// Timer for peeking phase after a queen peek completes. We wait for this before processing the next special card.
   Timer? _peekingPhaseTimer;
+  /// Delay before chaining to next special card (matches human jack success 2s pause; avoids overlapping timers in UI).
+  Timer? _pendingNextSpecialCardTimer;
   /// Staged wrong same-rank penalty: phase2 = rebound after "fake success" beat; phase3 = penalty draw.
   Timer? _wrongSameRankPenaltyPhase2Timer;
   Timer? _wrongSameRankPenaltyPhase3Timer;
@@ -60,6 +62,8 @@ class DutchGameRound {
   // Flag to prevent multiple calls to _endSpecialCardsWindow() due to race conditions
   // When timer expires and jack swap completes simultaneously, both try to end the window
   bool _isEndingSpecialCardsWindow = false;
+  // Hard lock for special-card resolution; blocks normal turn progression until fully closed.
+  bool _specialWindowActive = false;
   
   // Winners list - stores winner information when game ends
   List<Map<String, dynamic>> _winnersList = [];
@@ -1734,7 +1738,7 @@ class DutchGameRound {
               _specialCardPlayers.removeAt(0);
               if (_specialCardPlayers.isEmpty) _specialCardData.clear();
               _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
-              _processNextSpecialCard();
+              _scheduleNextSpecialCardWithDelay(why: 'jack_miss');
             } else {
               _moveToNextPlayer();
             }
@@ -1764,7 +1768,7 @@ class DutchGameRound {
                 _specialCardPlayers.removeAt(0);
                 if (_specialCardPlayers.isEmpty) _specialCardData.clear();
                 _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
-                _processNextSpecialCard();
+                _scheduleNextSpecialCardWithDelay(why: 'jack_fail');
               }
             }
           } else {
@@ -1776,7 +1780,7 @@ class DutchGameRound {
               _specialCardPlayers.removeAt(0);
               if (_specialCardPlayers.isEmpty) _specialCardData.clear();
               _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
-              _processNextSpecialCard();
+              _scheduleNextSpecialCardWithDelay(why: 'jack_decline');
             }
           }
           break;
@@ -1793,7 +1797,7 @@ class DutchGameRound {
               _specialCardPlayers.removeAt(0);
               if (_specialCardPlayers.isEmpty) _specialCardData.clear();
               _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
-              _processNextSpecialCard();
+              _scheduleNextSpecialCardWithDelay(why: 'queen_miss');
             } else {
               _moveToNextPlayer();
             }
@@ -1816,7 +1820,7 @@ class DutchGameRound {
                 _specialCardPlayers.removeAt(0);
                 if (_specialCardPlayers.isEmpty) _specialCardData.clear();
                 _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
-                _processNextSpecialCard();
+                _scheduleNextSpecialCardWithDelay(why: 'queen_fail');
               }
             }
           } else {
@@ -1829,7 +1833,7 @@ class DutchGameRound {
               _specialCardPlayers.removeAt(0);
               if (_specialCardPlayers.isEmpty) _specialCardData.clear();
               _stateCallback.onGameStateChanged({'games': _stateCallback.currentGamesMap});
-              _processNextSpecialCard();
+              _scheduleNextSpecialCardWithDelay(why: 'queen_decline');
             }
           }
           break;
@@ -3745,8 +3749,15 @@ class DutchGameRound {
         return false;
       }
 
-      if (!_allowSameRankPlayPhase(gameState, playerId)) {
+      final bool phaseAllowsSameRankPlay = _allowSameRankPlayPhase(gameState, playerId);
+      final bool isCpuIndexAttempt = cardIndex != null;
+      final bool isLateCpuSameRankAttempt = !phaseAllowsSameRankPlay && isCpuIndexAttempt;
+      if (!phaseAllowsSameRankPlay && !isCpuIndexAttempt) {
         return false;
+      }
+      if (isLateCpuSameRankAttempt && LOGGING_SWITCH) {
+        final phase = _effectiveGamePhase(gameState);
+        _logger.warning('Dutch: CPU same-rank attempt arrived after window closed (phase=$phase). Running penalty validation path only.');
       }
       
       final handRaw = player['hand'] as List<dynamic>? ?? [];
@@ -3939,6 +3950,13 @@ class DutchGameRound {
 
         return false;
       }
+
+      if (isLateCpuSameRankAttempt) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Ignoring late CPU same-rank success candidate (window already closed) for player $playerId card=$cardIdForRest');
+        }
+        return false;
+      }
       
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Same rank validation passed for card $cardIdForRest with rank $cardRank');
@@ -4108,6 +4126,10 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
+      if (LOGGING_SWITCH) {
+        final phase = _effectiveGamePhase(_getCurrentGameState() ?? <String, dynamic>{});
+        _logger.info('[jack-swap-trace] start acting=$actingPlayerId first=$firstPlayerId/$firstCardId second=$secondPlayerId/$secondCardId phase=$phase');
+      }
       if (_winnersList.isNotEmpty) {
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping jack swap handling.');
@@ -4139,6 +4161,10 @@ class DutchGameRound {
       }
 
       if (!_allowSpecialWindowHead(gameState, actingPlayerId, 'jack_swap')) {
+        if (LOGGING_SWITCH) {
+          final phase = _effectiveGamePhase(gameState);
+          _logger.warning('[jack-swap-trace] blocked_by_window_guard acting=$actingPlayerId phase=$phase pending_special=${_specialCardPlayers.length}');
+        }
         return false;
       }
 
@@ -4355,6 +4381,9 @@ class DutchGameRound {
         'games': currentGames, // Games map with modifications (drawnCard sanitized)
         'turn_events': turnEvents, // Add turn events for animations
       });
+      if (LOGGING_SWITCH) {
+        _logger.info('[jack-swap-trace] state_broadcast acting=$actingPlayerId turn_events=${turnEvents.length}');
+      }
       // Do not clear action here: queue format is consumed by UI for animation; clearing would remove it before UI reads it (same as play_card, drawn_card, etc.)
 
       if (LOGGING_SWITCH) {
@@ -4392,6 +4421,7 @@ class DutchGameRound {
       if (_isEndingSpecialCardsWindow) {
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Special cards window is already ending - skipping processing after Jack swap');
+          _logger.info('[jack-swap-trace] skip_post_complete reason=window_ending acting=$actingPlayerId');
         };
         return true;
       }
@@ -4431,14 +4461,21 @@ class DutchGameRound {
       };
       Timer(const Duration(seconds: 2), () {
         // Process next special card or end window
+        if (LOGGING_SWITCH) {
+          _logger.info('[jack-swap-trace] continue_after_delay acting=$actingPlayerId remaining_special=${_specialCardPlayers.length}');
+        }
         _processNextSpecialCard();
       });
 
+      if (LOGGING_SWITCH) {
+        _logger.info('[jack-swap-trace] completed acting=$actingPlayerId remaining_special=${_specialCardPlayers.length}');
+      }
       return true;
 
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('Dutch: Error in handleJackSwap: $e');
+        _logger.error('[jack-swap-trace] error acting=$actingPlayerId error=$e');
       };
       return false;
     }
@@ -4905,6 +4942,12 @@ class DutchGameRound {
       // Get current games map to pass to avoid stale state
       final currentGamesForSameRank = _stateCallback.currentGamesMap;
       await _checkComputerPlayerSameRankPlays(gamesMap: currentGamesForSameRank);
+      // IMPORTANT: CPU same-rank attempts can stage wrong-rank penalties during the awaited call above.
+      // Flush again here so late staged penalties are completed before the window closes/move-next runs.
+      _flushWrongSameRankPenaltyBeforeSameRankWindowEnds();
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Post-CPU same-rank flush executed for staged wrong-rank penalties');
+      }
       
       final initiatorForFinalRound = _sameRankWindowInitiatorPlayerId;
       _sameRankWindowInitiatorPlayerId = null;
@@ -6138,6 +6181,7 @@ class DutchGameRound {
   void _handleSpecialCardsWindow() {
     try {
       if (_winnersList.isNotEmpty) {
+        _specialWindowActive = false;
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s). Skipping special play window.');
         };
@@ -6145,6 +6189,7 @@ class DutchGameRound {
       }
       // Check if we have any special cards played
       if (_specialCardData.isEmpty) {
+        _specialWindowActive = false;
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: No special cards played in this round - moving to next player');
         };
@@ -6162,6 +6207,11 @@ class DutchGameRound {
       
       // Reset flag when starting new special cards window
       _isEndingSpecialCardsWindow = false;
+      _specialWindowActive = true;
+      _cancelNormalTurnAdvanceTimers();
+      if (LOGGING_SWITCH) {
+        _logger.info('[special-lock] activated source=_handleSpecialCardsWindow cards=${_specialCardData.length}');
+      }
       
       // CRITICAL: Set gamePhase to special_play_window to match Python backend behavior
       // This ensures same_rank_window phase is fully ended before special_play_window begins
@@ -6198,10 +6248,25 @@ class DutchGameRound {
       _processNextSpecialCard();
       
     } catch (e) {
+      _pendingNextSpecialCardTimer?.cancel();
+      _pendingNextSpecialCardTimer = null;
+      _specialWindowActive = false;
       if (LOGGING_SWITCH) {
         _logger.error('Dutch: Error in _handleSpecialCardsWindow: $e');
       };
     }
+  }
+
+  /// Same 2 s pause as successful jack swap before advancing — keeps CPU decline/miss from overlapping the next opponent's timer in the UI.
+  void _scheduleNextSpecialCardWithDelay({String why = ''}) {
+    _pendingNextSpecialCardTimer?.cancel();
+    if (LOGGING_SWITCH) {
+      _logger.info('[jack-swap-trace] schedule_next_special delay=2s why=$why');
+    }
+    _pendingNextSpecialCardTimer = Timer(const Duration(seconds: 2), () {
+      _pendingNextSpecialCardTimer = null;
+      _processNextSpecialCard();
+    });
   }
 
   /// Process the next player's special card with 10-second timer
@@ -6254,6 +6319,9 @@ class DutchGameRound {
       
       // Set player status based on special power
       if (specialPower == 'jack_swap') {
+        if (LOGGING_SWITCH) {
+          _logger.info('[jack-swap-trace] special_head player=$playerId remaining=${_specialCardPlayers.length}');
+        }
         _updatePlayerStatusInGamesMap('jack_swap', playerId: playerId);
       } else if (specialPower == 'queen_peek') {
         _updatePlayerStatusInGamesMap('queen_peek', playerId: playerId);
@@ -6324,6 +6392,9 @@ class DutchGameRound {
         });
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: ${specialCardTimerDuration}-second timer started for player $playerId\'s $specialPower (phase-based, using direct specialPower value)');
+          if (specialPower == 'jack_swap') {
+            _logger.info('[jack-swap-trace] timer_started player=$playerId seconds=$specialCardTimerDuration');
+          }
         };
       } else if (LOGGING_SWITCH) {
         _logger.info('Dutch: Computer player $playerId for $specialPower - not starting special card timer (callback will advance)');
@@ -6352,6 +6423,10 @@ class DutchGameRound {
       if (_specialCardPlayers.isNotEmpty) {
         final specialData = _specialCardPlayers[0];
         final playerId = specialData['player_id']?.toString() ?? 'unknown';
+        final specialPower = specialData['special_power']?.toString() ?? 'unknown';
+        if (LOGGING_SWITCH && specialPower == 'jack_swap') {
+          _logger.warning('[jack-swap-trace] timer_expired player=$playerId pending_special=${_specialCardPlayers.length}');
+        }
         
         // Clear cards_to_peek for Queen peek timer expiration
         final gameState = _getCurrentGameState();
@@ -6490,10 +6565,16 @@ class DutchGameRound {
       _peekingPhaseTimer?.cancel();
       _peekingPhaseTimer = null;
       _specialCardTimer?.cancel();
+      _pendingNextSpecialCardTimer?.cancel();
+      _pendingNextSpecialCardTimer = null;
       
       // Clear special card data
       _specialCardData.clear();
       _specialCardPlayers.clear();
+      _specialWindowActive = false;
+      if (LOGGING_SWITCH) {
+        _logger.info('[special-lock] released source=_endSpecialCardsWindow');
+      }
       
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Special cards window ended - cleared all special card data');
@@ -6546,6 +6627,10 @@ class DutchGameRound {
       };
       // Reset flag on error to prevent permanent lock
       _isEndingSpecialCardsWindow = false;
+      _specialWindowActive = false;
+      if (LOGGING_SWITCH) {
+        _logger.warning('[special-lock] released source=_endSpecialCardsWindow_error');
+      }
     }
   }
 
@@ -6685,6 +6770,14 @@ class DutchGameRound {
       // Hardening: only move to next player when special-card and same-rank windows are cleared
       final gamePhase = gameState['gamePhase']?.toString() ?? gameState['phase']?.toString() ?? '';
       final allowedPhases = {'player_turn', 'playing', ''}; // 'playing' is normalized from player_turn in game registry
+      if (_specialWindowActive) {
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: Cannot move to next player while special window lock is active. Retrying in 2s.');
+          _logger.warning('[special-lock] blocked_move phase=$gamePhase pending_special=${_specialCardPlayers.length}');
+        };
+        _scheduleMoveToNextPlayerRetry();
+        return;
+      }
       if (!allowedPhases.contains(gamePhase)) {
         if (LOGGING_SWITCH) {
           _logger.warning('Dutch: Cannot move to next player while gamePhase is "$gamePhase" (expected player_turn/playing). Retrying in 2s.');
@@ -7351,6 +7444,25 @@ class DutchGameRound {
 
   /// Handle draw action timer expiration
   void _onDrawActionTimerExpired(String playerId) {
+    if (_specialWindowActive) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Draw timer expired for $playerId but special window is active; ignoring expiry');
+        _logger.info('[special-lock] ignore_draw_timer player=$playerId pending_special=${_specialCardPlayers.length}');
+      }
+      return;
+    }
+    final gameState = _getCurrentGameState();
+    if (gameState != null) {
+      final currentPlayer = _stateCallback.getMainStateCurrentPlayer() ?? gameState['currentPlayer'] as Map<String, dynamic>?;
+      final currentPlayerId = currentPlayer?['id']?.toString();
+      if (currentPlayerId != playerId) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Ignoring stale draw timer for $playerId; current player is $currentPlayerId');
+          _logger.info('[special-lock] ignore_stale_draw_timer expired_for=$playerId current=$currentPlayerId');
+        }
+        return;
+      }
+    }
     if (LOGGING_SWITCH) {
       _logger.info('Dutch: Draw action timer expired for player $playerId - skipping turn');
     };
@@ -7376,6 +7488,25 @@ class DutchGameRound {
 
   /// Handle play action timer expiration
   void _onPlayActionTimerExpired(String playerId) {
+    if (_specialWindowActive) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Play timer expired for $playerId but special window is active; ignoring expiry');
+        _logger.info('[special-lock] ignore_play_timer player=$playerId pending_special=${_specialCardPlayers.length}');
+      }
+      return;
+    }
+    final guardState = _getCurrentGameState();
+    if (guardState != null) {
+      final currentPlayer = _stateCallback.getMainStateCurrentPlayer() ?? guardState['currentPlayer'] as Map<String, dynamic>?;
+      final currentPlayerId = currentPlayer?['id']?.toString();
+      if (currentPlayerId != playerId) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Ignoring stale play timer for $playerId; current player is $currentPlayerId');
+          _logger.info('[special-lock] ignore_stale_play_timer expired_for=$playerId current=$currentPlayerId');
+        }
+        return;
+      }
+    }
     if (LOGGING_SWITCH) {
       _logger.info('Dutch: Play action timer expired for player $playerId - skipping turn (drawn card remains in hand)');
     };
@@ -7467,7 +7598,10 @@ class DutchGameRound {
   }
 
   /// Cancel all action timers (including pending delayed computer decision, so it does not run after turn change)
-  void _cancelActionTimers() {
+  void _cancelNormalTurnAdvanceTimers() {
+    if (LOGGING_SWITCH) {
+      _logger.info('[special-lock] cancel_normal_turn_timers draw=${_drawActionTimer != null} play=${_playActionTimer != null} pending_next=${_pendingMoveToNextPlayerTimer != null} retry=${_pendingMoveToNextPlayerRetryTimer != null} cpu=${_pendingComputerDecisionTimer != null} pending_special_chain=${_pendingNextSpecialCardTimer != null}');
+    }
     _drawActionTimer?.cancel();
     _drawActionTimer = null;
     _playActionTimer?.cancel();
@@ -7478,6 +7612,13 @@ class DutchGameRound {
     _pendingMoveToNextPlayerRetryTimer = null;
     _pendingComputerDecisionTimer?.cancel();
     _pendingComputerDecisionTimer = null;
+    _pendingNextSpecialCardTimer?.cancel();
+    _pendingNextSpecialCardTimer = null;
+  }
+
+  /// Cancel all action timers (including pending delayed computer decision, so it does not run after turn change)
+  void _cancelActionTimers() {
+    _cancelNormalTurnAdvanceTimers();
     _cancelWrongSameRankPenaltyTimers();
   }
 
@@ -7486,6 +7627,7 @@ class DutchGameRound {
     _sameRankTimer?.cancel();
     _peekingPhaseTimer?.cancel();
     _specialCardTimer?.cancel();
+    _pendingNextSpecialCardTimer?.cancel();
     _pendingMoveToNextPlayerTimer?.cancel();
     _cancelWrongSameRankPenaltyTimers();
     _cancelActionTimers();

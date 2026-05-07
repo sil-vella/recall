@@ -33,7 +33,7 @@ class PlayerAction {
   static final DutchGameStateUpdater _stateUpdater = DutchGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // start_match / leave after random join (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // start_match / leave after random join (enable-logging-switch.mdc; set false after test)
   
   // Analytics module cache
   static AnalyticsModule? _analyticsModule;

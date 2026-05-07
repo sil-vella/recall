@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 from tools.logger.custom_logging import custom_log
 
 # Profile avatar pipeline trace → server.log (see .cursor/rules/enable-logging-switch.mdc)
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 # Allowed client filename extensions (case-insensitive).
 ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})

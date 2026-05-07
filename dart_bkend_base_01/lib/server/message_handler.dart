@@ -166,6 +166,45 @@ class MessageHandler {
     };
   }
 
+  /// Optional ``special_event_id`` when **creating** a room (Quick Join new room or ``create_room``).
+  /// Validates catalog id, event ``min_user_level``, and resolved table tier vs [gameTableLevel].
+  ({String? error, String? persistedId, Map<String, dynamic>? modal})
+      _resolveSpecialEventForRoomCreation({
+    required String sessionId,
+    String? rawSpecialEventId,
+    required int gameTableLevel,
+  }) {
+    final trimmed = rawSpecialEventId?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return (error: null, persistedId: null, modal: null);
+    }
+    final row = LevelMatcher.specialEventRowById(trimmed);
+    if (row == null) {
+      return (error: 'Unknown or invalid special event.', persistedId: null, modal: null);
+    }
+    final minEvtRaw = row['min_user_level'];
+    final minEvtLvl = minEvtRaw is int ? minEvtRaw : int.tryParse('$minEvtRaw') ?? 1;
+    final userLevel = _server.getUserLevelForSession(sessionId) ?? 1;
+    if (userLevel < minEvtLvl) {
+      return (
+        error:
+            'Your player level is too low for this special event (requires level $minEvtLvl).',
+        persistedId: null,
+        modal: null,
+      );
+    }
+    final resolved = LevelMatcher.resolvedGameTableLevelForSpecialEvent(row);
+    if (resolved != gameTableLevel) {
+      return (
+        error: 'Special event does not match selected table tier.',
+        persistedId: null,
+        modal: null,
+      );
+    }
+    final modal = LevelMatcher.endMatchModalSnapshotForSpecialEventId(trimmed);
+    return (error: null, persistedId: trimmed, modal: modal);
+  }
+
   /// Unified event handler - ALL events come through here
   Future<void> handleMessage(String sessionId, Map<String, dynamic> data) async {
     final event = data['event'] as String?;
@@ -863,6 +902,53 @@ class MessageHandler {
     final isCoinRequired =
         data['is_coin_required'] as bool? ?? data['isCoinRequired'] as bool? ?? true;
 
+    String? parsedCreateSpecialEventId;
+    final rawCreateSe = data['special_event_id'] ?? data['specialEventId'];
+    if (rawCreateSe is String && rawCreateSe.trim().isNotEmpty) {
+      parsedCreateSpecialEventId = rawCreateSe.trim();
+    }
+    late final int effectiveGameLevel;
+    String? createRoomSpecialEventId;
+    Map<String, dynamic>? createRoomSpecialModal;
+    if (parsedCreateSpecialEventId != null) {
+      final row0 = LevelMatcher.specialEventRowById(parsedCreateSpecialEventId);
+      if (row0 == null) {
+        _server.sendToSession(sessionId, {
+          'event': 'create_room_error',
+          'message': 'Unknown or invalid special event.',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        return;
+      }
+      final resolved = LevelMatcher.resolvedGameTableLevelForSpecialEvent(row0);
+      if (gameLevel != null && gameLevel != resolved) {
+        _server.sendToSession(sessionId, {
+          'event': 'create_room_error',
+          'message': 'Special event does not match selected table tier.',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        return;
+      }
+      effectiveGameLevel = gameLevel ?? resolved;
+      final se = _resolveSpecialEventForRoomCreation(
+        sessionId: sessionId,
+        rawSpecialEventId: parsedCreateSpecialEventId,
+        gameTableLevel: effectiveGameLevel,
+      );
+      if (se.error != null) {
+        _server.sendToSession(sessionId, {
+          'event': 'create_room_error',
+          'message': se.error!,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        return;
+      }
+      createRoomSpecialEventId = se.persistedId;
+      createRoomSpecialModal = se.modal;
+    } else {
+      effectiveGameLevel = gameLevel ?? 1;
+    }
+
     // Log create_room payload for debugging (visible in container logs)
     print('[create_room] payload: is_tournament=$isTournament is_coin_required=$isCoinRequired add_creator_to_room=$addCreatorToRoom auto_start=$autoStart min_players=$minPlayers max_players=$maxPlayers');
     print('[create_room] accepted_players count=${acceptedPlayers?.length ?? 0}');
@@ -886,7 +972,8 @@ class MessageHandler {
         permission: permission,
         password: password,
         autoStart: autoStart,
-        gameLevel: gameLevel,
+        gameLevel: effectiveGameLevel,
+        specialEventId: createRoomSpecialEventId,
         acceptedPlayers: acceptedPlayers?.isNotEmpty == true ? acceptedPlayers : null,
         addCreatorToRoom: addCreatorToRoom,
         isTournament: isTournament,
@@ -988,6 +1075,12 @@ class MessageHandler {
       }
       if (room.gameLevel != null) roomCreatedData['game_level'] = room.gameLevel!;
       roomCreatedData['is_coin_required'] = isCoinRequired;
+      if (createRoomSpecialEventId != null && createRoomSpecialEventId.isNotEmpty) {
+        roomCreatedData['special_event_id'] = createRoomSpecialEventId;
+      }
+      if (createRoomSpecialModal != null && createRoomSpecialModal.isNotEmpty) {
+        roomCreatedData['special_event_end_match_modal'] = createRoomSpecialModal;
+      }
       if (LOGGING_SWITCH) {
         _logger.room('🎣 Triggering room_created hook: roomId=$roomId add_creator_to_room=$addCreatorToRoom is_tournament=$isTournament is_coin_required=$isCoinRequired');
       }
@@ -995,7 +1088,7 @@ class MessageHandler {
       
       // When addCreatorToRoom is true, send room_joined and trigger hook (auto-join creator like Python does)
       if (addCreatorToRoom) {
-        final level = room.gameLevel ?? gameLevel ?? 1;
+        final level = room.gameLevel ?? effectiveGameLevel;
         final creatorRoomJoinedPayload = {
           'event': 'room_joined',
           'room_id': roomId,
@@ -1073,7 +1166,7 @@ class MessageHandler {
     }
 
     if (addCreatorToRoom) {
-      final createGameLevel = gameLevel ?? 1;
+      final createGameLevel = effectiveGameLevel;
       final creatorUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
       if (!WinsLevelRankMatcher.userMayJoinGameTable(creatorUserLevel, createGameLevel)) {
         _server.sendToSession(sessionId, {
@@ -1501,6 +1594,12 @@ class MessageHandler {
     if (requestedGameLevel < 1 || requestedGameLevel > 4) {
       requestedGameLevel = 1;
     }
+    // Optional catalog special-events id: pooling uses `_filterRoomsBySpecialEventLane` (event lane vs vanilla).
+    String? parsedSpecialEventId;
+    final rawSpecialEventId = data['special_event_id'] ?? data['specialEventId'];
+    if (rawSpecialEventId is String && rawSpecialEventId.trim().isNotEmpty) {
+      parsedSpecialEventId = rawSpecialEventId.trim();
+    }
     if (LOGGING_SWITCH) {
       _logger.room('✅ _handleJoinRandomGame: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
       _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId, isClearAndCollect=$isClearAndCollect, requestedGameLevel=$requestedGameLevel');
@@ -1539,7 +1638,15 @@ class MessageHandler {
       if (LOGGING_SWITCH) {
         _logger.room('🔍 _handleJoinRandomGame: availableRooms (after table filter), requestedGameLevel=$requestedGameLevel: ${availableRooms.length}');
       }
-      
+
+      // Vanilla random join must not land in special-event lanes; event join must only pool matching `special_event_id`.
+      availableRooms = _filterRoomsBySpecialEventLane(availableRooms, parsedSpecialEventId);
+      if (LOGGING_SWITCH) {
+        _logger.room(
+          '🔍 _handleJoinRandomGame: availableRooms (after special-event lane filter), requestedSpecialEventId=$parsedSpecialEventId: ${availableRooms.length}',
+        );
+      }
+
       if (availableRooms.isNotEmpty) {
         // Pick a random room
         final random = Random();
@@ -1562,9 +1669,11 @@ class MessageHandler {
         return;
       }
       
-      // No available rooms - create new room and auto-start (verify coins first)
+      // No pooled room in this tier + event lane — create new and auto-start after coin check
       if (LOGGING_SWITCH) {
-        _logger.room('🎲 No available rooms found, creating new room for random join');
+        _logger.room(
+          '🎲 join_random_game: creating new room (pooledAfterFilters=${availableRooms.length}, requestedSpecialEventId=$parsedSpecialEventId)',
+        );
       }
 
       final uid = userId;
@@ -1599,6 +1708,22 @@ class MessageHandler {
           );
           return;
         }
+        final seAttach = _resolveSpecialEventForRoomCreation(
+          sessionId: sessionId,
+          rawSpecialEventId: parsedSpecialEventId,
+          gameTableLevel: requestedGameLevel,
+        );
+        if (seAttach.error != null) {
+          _server.sendToSession(sessionId, {
+            'event': 'join_room_error',
+            'message': seAttach.error!,
+            'timestamp': DateTime.now().toIso8601String(),
+            'join_source': 'join_random_game',
+          });
+          return;
+        }
+        final persistedSpecialEventId = seAttach.persistedId;
+        final specialEventEndModal = seAttach.modal;
         // Create room with default settings (using config values)
         final roomId = _roomManager.createRoom(
         sessionId,
@@ -1610,6 +1735,7 @@ class MessageHandler {
         autoStart: true,
         isRandomJoin: true,
         gameLevel: requestedGameLevel,
+        specialEventId: persistedSpecialEventId,
       );
       
       // Store isClearAndCollect in game state store for later use when starting match
@@ -1642,6 +1768,7 @@ class MessageHandler {
         'game_type': room.gameType,
         'permission': room.permission,
         'auto_start': room.autoStart,
+        'game_level': requestedGameLevel,
         'is_random_join': true, // Flag to indicate this was auto-created for random join
         'is_coin_required': true,
         'timestamp': DateTime.now().toIso8601String(),
@@ -1658,7 +1785,12 @@ class MessageHandler {
         'game_type': room.gameType,
         'permission': room.permission,
         'created_at': DateTime.now().toIso8601String(),
+        'game_level': requestedGameLevel,
         'is_coin_required': true,
+        if (persistedSpecialEventId != null && persistedSpecialEventId.isNotEmpty)
+          'special_event_id': persistedSpecialEventId,
+        if (specialEventEndModal != null && specialEventEndModal.isNotEmpty)
+          'special_event_end_match_modal': specialEventEndModal,
       });
       
       // Send room_joined event (auto-join creator)
@@ -1992,6 +2124,34 @@ class MessageHandler {
       final roomLevel = room.gameLevel ?? 1;
       return roomLevel == requestedGameLevel;
     }).toList();
+  }
+
+  /// Resolved catalog special-event id for pool matching: [Room.specialEventId] if set, else [game_state.special_event_id] (legacy).
+  String? _resolvedSpecialEventIdOnRoom(Room room) {
+    final fromRoom = room.specialEventId;
+    if (fromRoom != null && fromRoom.trim().isNotEmpty) return fromRoom.trim();
+    try {
+      final gs = GameStateStore.instance.getGameState(room.roomId);
+      final s = gs['special_event_id']?.toString().trim();
+      if (s != null && s.isNotEmpty) return s;
+    } catch (_) {}
+    return null;
+  }
+
+  /// Random-join pooling lanes:
+  /// - No `special_event_id` in request → only rooms **without** a special event (vanilla tables).
+  /// - Request includes `special_event_id` → only rooms whose resolved id **equals** that string.
+  List<Room> _filterRoomsBySpecialEventLane(
+    List<Room> rooms,
+    String? requestedSpecialEventId,
+  ) {
+    final req = requestedSpecialEventId?.trim();
+    if (req == null || req.isEmpty) {
+      return rooms
+          .where((r) => _resolvedSpecialEventIdOnRoom(r) == null)
+          .toList();
+    }
+    return rooms.where((r) => _resolvedSpecialEventIdOnRoom(r) == req).toList();
   }
   
   // ========= GAME EVENT HANDLER (UNIFIED) =========

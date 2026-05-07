@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -257,7 +257,11 @@ class DutchGameRound {
     String actorId,
     String expectedSpecialPower,
   ) {
-    if (_effectiveGamePhase(gameState) != 'special_play_window') {
+    final effectivePhase = _effectiveGamePhase(gameState);
+    if (effectivePhase != 'special_play_window') {
+      if (LOGGING_SWITCH) {
+        _logger.warning('[special-head-guard] reject actor=$actorId expected=$expectedSpecialPower reason=phase_mismatch phase=$effectivePhase pending_special=${_specialCardPlayers.length}');
+      }
       _stateCallback.onActionError(
         'Special action not available in this phase',
         data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
@@ -265,6 +269,9 @@ class DutchGameRound {
       return false;
     }
     if (_specialCardPlayers.isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('[special-head-guard] reject actor=$actorId expected=$expectedSpecialPower reason=no_pending_special');
+      }
       _stateCallback.onActionError(
         'No special play pending',
         data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
@@ -274,6 +281,10 @@ class DutchGameRound {
     final head = _specialCardPlayers[0];
     final headPid = head['player_id']?.toString() ?? '';
     if (headPid != actorId) {
+      final headPower = head['special_power']?.toString() ?? '';
+      if (LOGGING_SWITCH) {
+        _logger.warning('[special-head-guard] reject actor=$actorId expected=$expectedSpecialPower reason=head_player_mismatch head_player=$headPid head_power=$headPower pending_special=${_specialCardPlayers.length}');
+      }
       _stateCallback.onActionError(
         'Not your special card action',
         data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
@@ -282,6 +293,9 @@ class DutchGameRound {
     }
     final power = head['special_power']?.toString() ?? '';
     if (power != expectedSpecialPower) {
+      if (LOGGING_SWITCH) {
+        _logger.warning('[special-head-guard] reject actor=$actorId expected=$expectedSpecialPower reason=head_power_mismatch head_power=$power pending_special=${_specialCardPlayers.length}');
+      }
       _stateCallback.onActionError(
         'Wrong special action type for this step',
         data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
@@ -4806,6 +4820,12 @@ class DutchGameRound {
           _logger.info('Dutch: DEBUG: special_card_data length after adding Jack: ${_specialCardData.length}');
         };
         if (LOGGING_SWITCH) {
+          final queueSummary = _specialCardData
+              .map((c) => '${c['player_id']}:${c['special_power']}')
+              .join(' | ');
+          _logger.info('[special-enqueue] added actor=$playerId power=jack_swap card=$cardId queue_len=${_specialCardData.length} queue=[$queueSummary]');
+        }
+        if (LOGGING_SWITCH) {
           _logger.info('Dutch: Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)');
         };
         
@@ -4828,6 +4848,12 @@ class DutchGameRound {
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: DEBUG: special_card_data length after adding Queen: ${_specialCardData.length}');
         };
+        if (LOGGING_SWITCH) {
+          final queueSummary = _specialCardData
+              .map((c) => '${c['player_id']}:${c['special_power']}')
+              .join(' | ');
+          _logger.info('[special-enqueue] added actor=$playerId power=queen_peek card=$cardId queue_len=${_specialCardData.length} queue=[$queueSummary]');
+        }
         if (LOGGING_SWITCH) {
           _logger.info('Dutch: Added Queen special card for player $playerId: $cardRank of $cardSuit (chronological order)');
         };
@@ -6239,6 +6265,14 @@ class DutchGameRound {
       
       // Create a working copy for processing (we'll remove cards as we process them)
       _specialCardPlayers = List<Map<String, dynamic>>.from(_specialCardData);
+      if (LOGGING_SWITCH) {
+        final queueSummary = _specialCardPlayers
+            .asMap()
+            .entries
+            .map((e) => '#${e.key}:${e.value['player_id']}:${e.value['special_power']}')
+            .join(' | ');
+        _logger.info('[special-window] queue_snapshot len=${_specialCardPlayers.length} queue=[$queueSummary]');
+      }
       
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Starting special card processing with ${_specialCardPlayers.length} cards');
@@ -6303,6 +6337,14 @@ class DutchGameRound {
       final cardSuit = specialData['suit']?.toString() ?? 'unknown';
       final specialPower = specialData['special_power']?.toString() ?? 'unknown';
       final description = specialData['description']?.toString() ?? 'No description';
+      if (LOGGING_SWITCH) {
+        final queueSummary = _specialCardPlayers
+            .asMap()
+            .entries
+            .map((e) => '#${e.key}:${e.value['player_id']}:${e.value['special_power']}')
+            .join(' | ');
+        _logger.info('[special-head] actor=$playerId power=$specialPower remaining=${_specialCardPlayers.length} queue=[$queueSummary]');
+      }
       
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Processing special card for player $playerId: $cardRank of $cardSuit');

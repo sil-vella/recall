@@ -11,7 +11,7 @@ from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
 
 # Logging switch for route registration (see .cursor/rules/enable-logging-switch.mdc)
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class DutchGameMain(BaseModule):
@@ -108,6 +108,11 @@ class DutchGameMain(BaseModule):
                 methods=["GET"],
             )
             self._register_route_helper("/public/dutch/get-tournaments", api_endpoints.get_tournaments_public, methods=["GET"])
+            self._register_route_helper(
+                "/public/dutch/table-tier-back/<filename>",
+                api_endpoints.serve_table_tier_background_public,
+                methods=["GET"],
+            )
             self._register_route_helper("/userauth/dutch/tournament-signup", api_endpoints.tournament_signup, methods=["POST"], auth="jwt")
 
             custom_log("🔐 DutchGame: All routes registered successfully", level="INFO", isOn=LOGGING_SWITCH)

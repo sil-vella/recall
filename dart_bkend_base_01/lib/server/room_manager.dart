@@ -23,6 +23,9 @@ class Room {
   final bool isRandomJoin;
   /// Game level (e.g. 1, 2, 3) from create_room payload; optional.
   final int? gameLevel;
+  /// Catalog `special_events` row id when this room was created for that preset (random join / create_room).
+  /// Used so `join_random_game` can pool into the correct **event lane** vs vanilla tables at the same tier.
+  final String? specialEventId;
   String? difficulty; // Room difficulty (set by first human player's rank)
   /// Accepted players for create-match invite flow: [{ user_id, username, is_comp_player }]. Available in _handleJoinRoom.
   final List<Map<String, dynamic>>? acceptedPlayers;
@@ -61,6 +64,7 @@ class Room {
     this.autoStart = true,
     this.isRandomJoin = false,
     this.gameLevel,
+    this.specialEventId,
     this.difficulty,
     this.acceptedPlayers,
     this.isTournament = false,
@@ -104,6 +108,8 @@ class Room {
       'player_count': sessionIds.length, // Keep for backward compatibility
     };
     if (gameLevel != null) m['game_level'] = gameLevel;
+    final seOut = specialEventId?.trim();
+    if (seOut != null && seOut.isNotEmpty) m['special_event_id'] = seOut;
     if (isTournament) m['is_tournament'] = true;
     if (tournamentData != null && tournamentData!.isNotEmpty) m['tournament_data'] = tournamentData;
     return m;
@@ -136,6 +142,7 @@ class RoomManager {
     bool? autoStart,
     bool? isRandomJoin,
     int? gameLevel,
+    String? specialEventId,
     List<Map<String, dynamic>>? acceptedPlayers,
     /// When true (default), creator is added to the room. When false, room is created but creator is not in it.
     bool addCreatorToRoom = true,
@@ -158,6 +165,9 @@ class RoomManager {
       autoStart: autoStart ?? true,
       isRandomJoin: isRandomJoin ?? false,
       gameLevel: gameLevel,
+      specialEventId: specialEventId != null && specialEventId.trim().isNotEmpty
+          ? specialEventId.trim()
+          : null,
       acceptedPlayers: acceptedPlayers,
       isTournament: isTournament,
       tournamentData: tournamentData,

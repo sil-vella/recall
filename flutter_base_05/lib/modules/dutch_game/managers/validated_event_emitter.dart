@@ -33,7 +33,7 @@ class DutchGameEventEmitter {
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final DemoModeBridge _demoBridge = DemoModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // create_room / WS emit trace (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = false; // create_room / WS emit trace (enable-logging-switch.mdc; set false after test)
   
   // Current transport mode (defaults to WebSocket for backward compatibility; unset after clear so practice/WS re-apply)
   EventTransportMode _transportMode = EventTransportMode.websocket;
@@ -60,12 +60,14 @@ class DutchGameEventEmitter {
     'join_random_game': {
       'isClearAndCollect', // Optional: game mode flag
       'game_level', // Optional: room table tier (1–4) when creating/joining via random flow
+      'special_event_id', // Optional: catalog special_events row id when **creating** a new random room
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
     },
     'create_room': {
       'permission', 'max_players', 'min_players',
       'auto_start', 'game_type', 'password',
       'game_level', // Optional: game level (e.g. 1, 2, 3) for room/game configuration
+      'special_event_id', // Optional: catalog special_events id; must match game_level tier (or omit game_level to infer)
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
       'is_tournament', 'tournament_data', // Optional: tournament match (id, name, format, leaderboard, matches_left)
       'accepted_players', // Optional: list of { user_id, username, is_comp_player } for create-match invite flow
@@ -284,6 +286,12 @@ class DutchGameEventEmitter {
       type: bool,
       required: false,
       description: 'Game mode flag: false = clear mode (no collection), true = collection mode',
+    ),
+    'special_event_id': DutchEventFieldSpec(
+      type: String,
+      required: false,
+      pattern: r'^[A-Za-z0-9_-]+$',
+      description: 'Optional special_events preset id for random join room creation path',
     ),
     // Tournament fields (create_room / join_room)
     'is_tournament': DutchEventFieldSpec(

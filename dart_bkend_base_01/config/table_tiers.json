@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "tiers": [
+    {
+      "level": 1,
+      "title": "Home Table",
+      "coin_fee": 25,
+      "min_user_level": 1,
+      "style": {
+        "felt_hex": "#4E8065",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "home-table-backgraphic_002.webp"
+      }
+    },
+    {
+      "level": 2,
+      "title": "Local Table",
+      "coin_fee": 50,
+      "min_user_level": 2,
+      "style": {
+        "felt_hex": "#514E80",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "local-table-backgraphic.webp"
+      }
+    },
+    {
+      "level": 3,
+      "title": "Town Table",
+      "coin_fee": 100,
+      "min_user_level": 3,
+      "style": {
+        "felt_hex": "#994C59",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "town-table-backgraphic.webp"
+      }
+    },
+    {
+      "level": 4,
+      "title": "City Table",
+      "coin_fee": 200,
+      "min_user_level": 4,
+      "style": {
+        "felt_hex": "#734E80",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "city-table-backgraphic.webp"
+      }
+    }
+  ],
+  "special_events": [
+    {
+      "id": "winter_duels",
+      "title": "Winter Duels",
+      "description": "Optional copy for UI.",
+      "coin_fee": 50,
+      "min_user_level": 2,
+      "metadata": {
+        "match_type": "bracket",
+        "anything": true,
+        "rewards": {
+          "coins": "100",
+          "achievement": "winter_duels_winner"
+        },
+        "end_match_modal": {
+          "text": "You won 100 coins!",
+          "background_image_file": "winter_duels_background.webp",
+          "cta_text": {
+            "text": "View Achievements",
+            "action": "view_achievements",
+            "redirect_to_screen": "achievements"
+          }
+        }
+      },
+      "style": {
+        "felt_hex": "#4E8065",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "your-event-art.webp"
+      }
+    }
+  ]
+}

@@ -195,6 +195,13 @@ class Config {
     '',
   );
 
+  /// Path to declarative Dutch table tiers JSON ([table_tiers.json]). Falls back to `./config/table_tiers.json`.
+  static String get DUTCH_TABLE_TIERS_PATH => _getConfigString(
+    'DUTCH_TABLE_TIERS_PATH',
+    'dutch_table_tiers_path',
+    '',
+  );
+
   static String get DUTCH_RANK_HIERARCHY => _getConfigString(
     'DUTCH_RANK_HIERARCHY',
     'dutch_rank_hierarchy',

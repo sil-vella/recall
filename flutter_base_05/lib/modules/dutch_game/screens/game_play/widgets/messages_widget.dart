@@ -8,6 +8,7 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../utils/consts/config.dart';
 import '../../../backend_core/utils/level_matcher.dart';
 import '../../../managers/dutch_event_handler_callbacks.dart';
 import '../../../managers/validated_event_emitter.dart';
@@ -49,7 +50,42 @@ Map<String, dynamic> _snapshotGameStateForRematch(Map<String, dynamic>? gs) {
   return Map<String, dynamic>.from(gs);
 }
 
-/// Show "Play Again" when not a random game: prefer `is_random_game` on game_state or gameData; else treat `is_random_join` as random.
+/// `special_events[].metadata.end_match_modal` from live [game_state], or catalog fallback via [special_event_id].
+Map<String, dynamic>? _resolvedSpecialEventEndModal(Map<String, dynamic>? gameState) {
+  if (gameState == null) return null;
+  final raw = gameState['special_event_end_match_modal'];
+  if (raw is Map && raw.isNotEmpty) {
+    return Map<String, dynamic>.from(raw.map((k, v) => MapEntry(k.toString(), v)));
+  }
+  final seId = gameState['special_event_id']?.toString().trim();
+  if (seId == null || seId.isEmpty) return null;
+  return LevelMatcher.endMatchModalSnapshotForSpecialEventId(seId);
+}
+
+String? _resolveEndMatchModalBackgroundUrl(Map<String, dynamic> modal) {
+  final url = modal['background_image_url']?.toString().trim();
+  if (url != null && url.isNotEmpty) return url;
+  final file = modal['background_image_file']?.toString().trim();
+  if (file == null || file.isEmpty) return null;
+  final base = Config.apiUrl.replaceAll(RegExp(r'/$'), '');
+  return '$base/public/dutch/table-tier-back/${Uri.encodeComponent(file)}';
+}
+
+void _navigateEndMatchModalCta(Map<String, dynamic> cta, VoidCallback onClose) {
+  final dest =
+      (cta['redirect_to_screen'] ?? cta['redirectToScreen'] ?? '').toString().trim().toLowerCase();
+  switch (dest) {
+    case 'achievements':
+      NavigationManager().navigateTo('/dutch/achievements');
+      break;
+    default:
+      break;
+  }
+  onClose();
+}
+
+/// Show "Play Again" when not a random game:
+/// prefer `is_random_game` on game_state or gameData; else treat `is_random_join` as random.
 bool _shouldShowPlayAgain(Map<String, dynamic>? gameState, Map<String, dynamic>? gameData) {
   if (gameState != null && gameState.containsKey('is_random_game')) {
     return gameState['is_random_game'] != true;
@@ -318,6 +354,7 @@ class GameEndedModalData {
     this.gameTableLevel,
     this.isCoinRequired = true,
     this.tournamentLeaderboard,
+    this.specialEventEndMatchModal,
   });
 
   final String title;
@@ -349,6 +386,9 @@ class GameEndedModalData {
 
   /// Cumulative tournament standings (from `game_state.tournament_data.matches` + this hand), when in a tournament.
   final List<TournamentLeaderboardRow>? tournamentLeaderboard;
+
+  /// Catalog / server snapshot: `special_events[].metadata.end_match_modal` (hero text, optional art, CTA).
+  final Map<String, dynamic>? specialEventEndMatchModal;
 
   /// Single read from [dutchGameState] when scheduling the modal — not used during modal build.
   static GameEndedModalData? fromDutchStateOnce(Map<String, dynamic> dutchGameState) {
@@ -387,7 +427,15 @@ class GameEndedModalData {
         !_tournamentDataHidesPlayAgain(gameState);
     final orderedWinnersRaw = gameState?['winners'] as List<dynamic>?;
     final hasOrderedWinners = orderedWinnersRaw != null && orderedWinnersRaw.isNotEmpty;
-    if (!hasOrderedWinners && content.isEmpty) return null;
+    final specialEventEndModal = _resolvedSpecialEventEndModal(gameState);
+    final specialHeroText = specialEventEndModal?['text']?.toString().trim() ?? '';
+    final specialHeroBg = specialEventEndModal != null
+        ? _resolveEndMatchModalBackgroundUrl(specialEventEndModal)
+        : null;
+    final hasSpecialEndUi =
+        specialHeroText.isNotEmpty || (specialHeroBg != null && specialHeroBg.isNotEmpty);
+
+    if (!hasOrderedWinners && content.isEmpty && !hasSpecialEndUi) return null;
 
     final deepWinners = <Map<String, dynamic>>[];
     if (orderedWinnersRaw != null) {
@@ -425,6 +473,7 @@ class GameEndedModalData {
       gameTableLevel: gameTableLevel,
       isCoinRequired: isCoinRequired,
       tournamentLeaderboard: tournamentLeaderboard,
+      specialEventEndMatchModal: specialEventEndModal,
     );
   }
 }
@@ -605,6 +654,73 @@ Widget _gameEndedOrderedWinnersColumn(
   );
 }
 
+Widget? _specialEventEndMatchHero(Map<String, dynamic> modal) {
+  final text = modal['text']?.toString().trim() ?? '';
+  final bgUrl = _resolveEndMatchModalBackgroundUrl(modal);
+  final hasBg = bgUrl != null && bgUrl.isNotEmpty;
+  if (text.isEmpty && !hasBg) return null;
+
+  if (hasBg) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Image.network(
+            bgUrl,
+            height: 140,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              height: 140,
+              color: AppColors.cardVariant,
+            ),
+          ),
+          Container(
+            height: 140,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.black.withValues(alpha: 0.35),
+                  AppColors.black.withValues(alpha: 0.75),
+                ],
+              ),
+            ),
+          ),
+          if (text.isNotEmpty)
+            Padding(
+              padding: AppPadding.smallPadding,
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodyMedium().copyWith(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  return Padding(
+    padding: AppPadding.smallPadding,
+    child: Text(
+      text,
+      textAlign: TextAlign.center,
+      style: AppTextStyles.bodyMedium().copyWith(
+        color: AppColors.matchPotGold,
+        fontWeight: FontWeight.w600,
+        height: 1.35,
+      ),
+    ),
+  );
+}
+
 /// Game-ended overlay: **only** [GameEndedModalData] — no reads from [StateManager].
 class _GameEndedModalLayer extends StatefulWidget {
   const _GameEndedModalLayer({
@@ -699,6 +815,14 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
         AppColors.widgetContainerBackground;
     final headerTextColor = ThemeConfig.getTextColorForBackground(headerBackgroundColor);
     final hasRows = d.orderedWinners.isNotEmpty;
+    final endModal = d.specialEventEndMatchModal;
+    final heroWidget = endModal != null ? _specialEventEndMatchHero(endModal) : null;
+    Map<String, dynamic>? ctaMap;
+    final ctaRaw = endModal?['cta_text'];
+    if (ctaRaw is Map) {
+      ctaMap = Map<String, dynamic>.from(ctaRaw.map((k, v) => MapEntry(k.toString(), v)));
+    }
+    final ctaLabel = ctaMap?['text']?.toString().trim() ?? '';
 
     return Material(
       color: AppColors.black.withValues(alpha: 0.54),
@@ -769,19 +893,34 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (heroWidget != null) ...[
+                              heroWidget,
+                              SizedBox(height: AppPadding.smallPadding.top),
+                            ],
                             _gameEndedOrderedWinnersColumn(d.orderedWinners, d.currentUserId),
                             if (d.tournamentLeaderboard != null && d.tournamentLeaderboard!.isNotEmpty)
                               _tournamentLeaderboardSection(d.tournamentLeaderboard!),
                           ],
                         )
-                      : Text(
-                          d.content,
-                          style: AppTextStyles.bodyMedium().copyWith(
-                            color: AppColors.white,
-                            height: 1.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: TextAlign.center,
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (heroWidget != null) ...[
+                              heroWidget,
+                              SizedBox(height: AppPadding.smallPadding.top),
+                            ],
+                            if (d.content.trim().isNotEmpty)
+                              Text(
+                                d.content,
+                                style: AppTextStyles.bodyMedium().copyWith(
+                                  color: AppColors.white,
+                                  height: 1.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                          ],
                         ),
                 ),
               ),
@@ -795,63 +934,90 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
                       bottomRight: Radius.circular(12),
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (d.showPlayAgain)
-                        DutchSliceBuilder<String>(
-                          selector: (dg) => dg['rematch_waiting_game_id']?.toString() ?? '',
-                          builder: (context, waitingId, _) {
-                            final waiting = waitingId.isNotEmpty && waitingId == d.gameId;
-                            return Semantics(
-                              label: waiting ? 'Waiting Rematch' : 'Play Again',
-                              identifier: 'game_ended_play_again',
-                              button: true,
-                              child: TextButton.icon(
-                                onPressed: waiting ? null : () => unawaited(_emitRematch(context)),
-                                icon: waiting
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: AppColors.matchPotGold,
-                                        ),
-                                      )
-                                    : Icon(
-                                        Icons.replay,
-                                        color: AppColors.matchPotGold,
-                                      ),
-                                label: Text(
-                                  waiting ? 'Waiting Rematch' : 'Play Again',
-                                  style: AppTextStyles.buttonText().copyWith(
-                                    color: AppColors.matchPotGold,
-                                  ),
-                                ),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: AppColors.matchPotGold,
+                      if (ctaMap != null && ctaLabel.isNotEmpty)
+                        Padding(
+                          padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
+                          child: Semantics(
+                            label: ctaLabel,
+                            identifier: 'game_ended_special_event_cta',
+                            button: true,
+                            child: TextButton(
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.matchPotGold,
+                              ),
+                              onPressed: () => _navigateEndMatchModalCta(ctaMap!, widget.onClose),
+                              child: Text(
+                                ctaLabel,
+                                style: AppTextStyles.buttonText().copyWith(
+                                  color: AppColors.matchPotGold,
                                 ),
                               ),
-                            );
-                          },
-                        )
-                      else
-                        const SizedBox.shrink(),
-                      TextButton.icon(
-                        onPressed: widget.onClose,
-                        icon: Icon(
-                          Icons.close,
-                          color: AppColors.textOnCard,
-                        ),
-                        label: Text(
-                          'Close',
-                          style: AppTextStyles.buttonText().copyWith(
-                            color: AppColors.textOnCard,
+                            ),
                           ),
                         ),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.textOnCard,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (d.showPlayAgain)
+                            DutchSliceBuilder<String>(
+                              selector: (dg) => dg['rematch_waiting_game_id']?.toString() ?? '',
+                              builder: (context, waitingId, _) {
+                                final waiting = waitingId.isNotEmpty && waitingId == d.gameId;
+                                return Semantics(
+                                  label: waiting ? 'Waiting Rematch' : 'Play Again',
+                                  identifier: 'game_ended_play_again',
+                                  button: true,
+                                  child: TextButton.icon(
+                                    onPressed: waiting ? null : () => unawaited(_emitRematch(context)),
+                                    icon: waiting
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.matchPotGold,
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.replay,
+                                            color: AppColors.matchPotGold,
+                                          ),
+                                    label: Text(
+                                      waiting ? 'Waiting Rematch' : 'Play Again',
+                                      style: AppTextStyles.buttonText().copyWith(
+                                        color: AppColors.matchPotGold,
+                                      ),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.matchPotGold,
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          else
+                            const SizedBox.shrink(),
+                          TextButton.icon(
+                            onPressed: widget.onClose,
+                            icon: Icon(
+                              Icons.close,
+                              color: AppColors.textOnCard,
+                            ),
+                            label: Text(
+                              'Close',
+                              style: AppTextStyles.buttonText().copyWith(
+                                color: AppColors.textOnCard,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.textOnCard,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

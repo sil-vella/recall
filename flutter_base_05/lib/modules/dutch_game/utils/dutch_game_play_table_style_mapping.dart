@@ -1,7 +1,33 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../utils/consts/theme_consts.dart';
+import '../backend_core/utils/level_matcher.dart';
+import 'local_table_bg_image_stub.dart'
+    if (dart.library.io) 'local_table_bg_image_io.dart' as table_bg_fs;
 
+/// Parses `#RRGGBB` / `#RRGGBBAA` hex into [Color], or returns null if invalid.
+Color? dutchHexToColor(String? raw) {
+  if (raw == null) return null;
+  var s = raw.trim();
+  if (s.isEmpty) return null;
+  if (s.startsWith('#')) {
+    s = s.substring(1);
+  }
+  if (s.length == 6) {
+    final v = int.tryParse(s, radix: 16);
+    if (v == null) return null;
+    return Color(0xFF000000 | v);
+  }
+  if (s.length == 8) {
+    final v = int.tryParse(s, radix: 16);
+    if (v == null) return null;
+    final a = (v >> 24) & 0xFF;
+    final rgb = v & 0x00FFFFFF;
+    return Color.fromARGB(a, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+  }
+  return null;
+}
 /// Per–table-tier styling for the **inset game table** (felt + spotlights), keyed by room **table**
 /// tier (`game_level` / `gameLevel` 1–4), not the user's progression level.
 ///
@@ -27,36 +53,110 @@ class DutchGamePlayTableStyle {
 /// - Level **1** (Home): [AppColors.pokerTableGreen], warm spotlights.
 /// - Level **2** (Local): [AppColors.pokerTableBlue], warm spotlights.
 /// - Level **3** (Town): [AppColors.pokerTableTown], warm spotlights.
-/// - Level **4** (City): [AppColors.pokerTableCity] and city overlay asset.
+/// - Level **4** (City): [AppColors.pokerTableCity], warm spotlights.
 ///
-/// [tableBackGraphicAssetPath] returns the PNG used e.g. on Quick Join over the tier felt (same keys as [forLevel]).
+/// Tier back illustrations are loaded from server `back_graphic_url` and cached on disk (non-web), not bundled.
 class DutchGamePlayTableStyles {
   DutchGamePlayTableStyles._();
 
-  static const String _kHomeTableBackGraphic =
-      'assets/images/backgrounds/home-table-backgraphic_002.webp';
-  static const String _kLocalTableBackGraphic =
-      'assets/images/backgrounds/local-table-backgraphic.webp';
-  static const String _kTownTableBackGraphic =
-      'assets/images/backgrounds/town-table-backgraphic.webp';
-  static const String _kCityTableBackGraphic =
-      'assets/images/backgrounds/city-table-backgraphic.webp';
-
-  /// Decorative full-bleed overlay image for lobby/quick-join panels (paired with [forLevel]).
-  static String tableBackGraphicAssetPath(int tableLevel) {
-    switch (tableLevel) {
-      case 2:
-        return _kLocalTableBackGraphic;
-      case 3:
-        return _kTownTableBackGraphic;
-      case 4:
-        return _kCityTableBackGraphic;
-      case 1:
-      default:
-        return _kHomeTableBackGraphic;
-    }
+  static Widget _tableBackGraphicFeltFallback(int tableLevel) {
+    final s = DutchGamePlayTableStyles.forLevel(tableLevel);
+    final mid = Color.lerp(s.feltBackground, s.spotlightColor, 0.12);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(0.0, -0.35),
+          radius: 1.35,
+          colors: [
+            mid ?? s.feltBackground,
+            s.feltBackground,
+          ],
+          stops: const [0.0, 1.0],
+        ),
+      ),
+      child: const SizedBox.expand(),
+    );
   }
 
+  /// Full-bleed background: `back_graphic_url` → downloaded file cache → felt gradient (no bundled art).
+  static Widget tableBackGraphicFill(int tableLevel, {BoxFit fit = BoxFit.cover}) {
+    LevelMatcher.ensureHydratedMinimal();
+    final styleMap = LevelMatcher.styleForLevel(tableLevel);
+    final urlRemote = (styleMap['back_graphic_url'] ?? '').toString().trim();
+    final urlOk =
+        urlRemote.isNotEmpty && (urlRemote.startsWith('http://') || urlRemote.startsWith('https://'));
+    if (urlOk) {
+      return Image.network(
+        urlRemote,
+        fit: fit,
+        errorBuilder: (_, __, ___) => _tableBackGraphicFeltFallback(tableLevel),
+      );
+    }
+    if (!kIsWeb) {
+      final cachedPath = LevelMatcher.localGraphicPathForLevel(tableLevel);
+      final p = cachedPath ?? '';
+      if (p.isNotEmpty && table_bg_fs.localTableBackGraphicCached(p)) {
+        return table_bg_fs.localTableBgImageFile(p, fit: fit);
+      }
+    }
+    return _tableBackGraphicFeltFallback(tableLevel);
+  }
+
+  static Widget _tableBackGraphicEventFeltFallback(
+    Map<String, dynamic> styleMap,
+    int fallbackTableLevel,
+  ) {
+    LevelMatcher.ensureHydratedMinimal();
+    final felt = dutchHexToColor(styleMap['felt_hex']?.toString()) ??
+        DutchGamePlayTableStyles.forLevel(fallbackTableLevel).feltBackground;
+    final spot = dutchHexToColor(styleMap['spotlight_hex']?.toString()) ??
+        DutchGamePlayTableStyles.forLevel(fallbackTableLevel).spotlightColor;
+    final mid = Color.lerp(felt, spot, 0.12);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(0.0, -0.35),
+          radius: 1.35,
+          colors: [
+            mid ?? felt,
+            felt,
+          ],
+          stops: const [0.0, 1.0],
+        ),
+      ),
+      child: const SizedBox.expand(),
+    );
+  }
+
+  /// Like [tableBackGraphicFill] but for a catalog `special_events` row (filesystem cache keyed by [eventId]).
+  static Widget tableBackGraphicFillForSpecialEvent({
+    required String eventId,
+    required Map<String, dynamic> styleMap,
+    BoxFit fit = BoxFit.cover,
+    int fallbackTableLevel = 1,
+  }) {
+    LevelMatcher.ensureHydratedMinimal();
+    final trimmedId = eventId.trim();
+    final urlRemote = (styleMap['back_graphic_url'] ?? '').toString().trim();
+    final urlOk =
+        urlRemote.isNotEmpty && (urlRemote.startsWith('http://') || urlRemote.startsWith('https://'));
+    if (urlOk) {
+      return Image.network(
+        urlRemote,
+        fit: fit,
+        errorBuilder: (_, __, ___) =>
+            _tableBackGraphicEventFeltFallback(styleMap, fallbackTableLevel),
+      );
+    }
+    if (!kIsWeb && trimmedId.isNotEmpty) {
+      final cachedPath = LevelMatcher.localGraphicPathForEvent(trimmedId);
+      final p = cachedPath ?? '';
+      if (p.isNotEmpty && table_bg_fs.localTableBackGraphicCached(p)) {
+        return table_bg_fs.localTableBgImageFile(p, fit: fit);
+      }
+    }
+    return _tableBackGraphicEventFeltFallback(styleMap, fallbackTableLevel);
+  }
   /// Solid fill for the entire play [BaseScreen] body (behind header slot, letterbox, etc.).
   /// Intentionally **not** tier-specific so e.g. table 2 can use blue felt on the table only.
   static const Color playScreenBackdropColor = AppColors.pokerTableGreen;
@@ -81,8 +181,7 @@ class DutchGamePlayTableStyles {
     spotlightColor: AppColors.warmSpotlightColor,
   );
 
-  /// Resolved style for a room table tier. Unknown or out-of-range values use table 1.
-  static DutchGamePlayTableStyle forLevel(int level) {
+  static DutchGamePlayTableStyle _legacyFallback(int level) {
     switch (level) {
       case 2:
         return _table2Local;
@@ -96,6 +195,18 @@ class DutchGamePlayTableStyles {
     }
   }
 
+  /// Resolved style — catalog hex when present ([LevelMatcher]); else bundled defaults.
+  static DutchGamePlayTableStyle forLevel(int level) {
+    LevelMatcher.ensureHydratedMinimal();
+    final styleMap = LevelMatcher.styleForLevel(level);
+    final felt = dutchHexToColor(styleMap['felt_hex']?.toString());
+    final spot = dutchHexToColor(styleMap['spotlight_hex']?.toString());
+    final leg = _legacyFallback(level);
+    return DutchGamePlayTableStyle(
+      feltBackground: felt ?? leg.feltBackground,
+      spotlightColor: spot ?? leg.spotlightColor,
+    );
+  }
   /// Deprecated: table felt is strictly bound to room table level.
   /// Cosmetic table designs should style overlay/border only, not felt color.
   static DutchGamePlayTableStyle forLevelWithDesign(int level, String? designId) {
@@ -132,8 +243,14 @@ int resolveDutchGamePlayTableLevel(Map<String, dynamic>? dutchGameState) {
 }
 
 int _parseTableLevelInt(dynamic gl) {
-  if (gl is int) return gl.clamp(1, 4);
-  if (gl is num) return gl.toInt().clamp(1, 4);
-  final p = int.tryParse('$gl');
-  return (p ?? 1).clamp(1, 4);
+  LevelMatcher.ensureHydratedMinimal();
+  final minL = LevelMatcher.minConfiguredTableLevel;
+  final maxL = LevelMatcher.maxConfiguredTableLevel;
+  final raw = gl is int
+      ? gl
+      : gl is num
+          ? gl.toInt()
+          : int.tryParse('$gl');
+  final fallback = LevelMatcher.levelOrder.contains(1) ? 1 : minL;
+  return (raw ?? fallback).clamp(minL, maxL);
 }

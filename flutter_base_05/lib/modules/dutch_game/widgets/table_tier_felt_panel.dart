@@ -6,20 +6,31 @@ import '../utils/dutch_game_play_table_style_mapping.dart';
 
 /// Felt + spotlight + border + scrim for a room table tier (`game_level` 1–4).
 /// Used by Join Random content and create-room table dropdown items.
+///
+/// When [feltOverride] / [spotlightOverride] are set (e.g. special-event catalog hex), they replace the tier palette.
 class TableTierFeltPanel extends StatelessWidget {
   final int tableLevel;
+  final Color? feltOverride;
+  final Color? spotlightOverride;
 
-  const TableTierFeltPanel({super.key, required this.tableLevel});
+  const TableTierFeltPanel({
+    super.key,
+    required this.tableLevel,
+    this.feltOverride,
+    this.spotlightOverride,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final style = DutchGamePlayTableStyles.forLevel(tableLevel);
+    final tierStyle = DutchGamePlayTableStyles.forLevel(tableLevel);
+    final felt = feltOverride ?? tierStyle.feltBackground;
+    final spotlight = spotlightOverride ?? tierStyle.spotlightColor;
     return Stack(
       fit: StackFit.expand,
       children: [
         Positioned.fill(
           child: FeltTextureWidget(
-            backgroundColor: style.feltBackground,
+            backgroundColor: felt,
             seed: 40 + tableLevel,
             pointDensity: 0.18,
           ),
@@ -35,8 +46,8 @@ class TableTierFeltPanel extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    style.spotlightColor.withValues(alpha: 0.35),
-                    style.spotlightColor.withValues(alpha: 0.0),
+                    spotlight.withValues(alpha: 0.35),
+                    spotlight.withValues(alpha: 0.0),
                   ],
                   stops: const [0.0, 0.85],
                 ),

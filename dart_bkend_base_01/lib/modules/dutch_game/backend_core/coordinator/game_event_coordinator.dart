@@ -1034,6 +1034,16 @@ class GameEventCoordinator {
       final tournamentData = data['tournament_data'] as Map<String, dynamic>?;
       if (isTournament) gameState['is_tournament'] = true;
       if (tournamentData != null && tournamentData.isNotEmpty) gameState['tournament_data'] = tournamentData;
+
+      final persistedSeId = current['special_event_id']?.toString();
+      final persistedSeModal = current['special_event_end_match_modal'];
+      if (persistedSeId != null && persistedSeId.trim().isNotEmpty) {
+        gameState['special_event_id'] = persistedSeId.trim();
+      }
+      if (persistedSeModal is Map && persistedSeModal.isNotEmpty) {
+        gameState['special_event_end_match_modal'] =
+            Map<String, dynamic>.from(persistedSeModal.map((k, v) => MapEntry(k.toString(), v)));
+      }
       if (LOGGING_SWITCH) {
         _logger.info('✅ _handleStartMatch: Created gameState map successfully');
       }

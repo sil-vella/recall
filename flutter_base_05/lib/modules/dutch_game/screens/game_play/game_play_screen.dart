@@ -707,13 +707,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
           child: IgnorePointer(
             child: Opacity(
               opacity: AppOpacity.shadow,
-              child: Image.asset(
-                DutchGamePlayTableStyles.tableBackGraphicAssetPath(playTableLevel),
-                fit: BoxFit.cover,
-                alignment: Alignment.center,
-                errorBuilder: (context, error, stackTrace) =>
-                    const SizedBox.shrink(),
-              ),
+              child: DutchGamePlayTableStyles.tableBackGraphicFill(playTableLevel),
             ),
           ),
         ),

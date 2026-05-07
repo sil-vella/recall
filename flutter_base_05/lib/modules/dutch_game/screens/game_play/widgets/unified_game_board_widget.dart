@@ -989,44 +989,123 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         break;
     }
 
+    // In opponent slots, "current turn" already means this seat is the active actor.
+    // Do not gate on isCurrentPlayer here, otherwise highlights never appear.
+    final isOpponentTurn = isCurrentTurn;
+    final highlightOpponentSeat = isOpponentTurn && isGameActive;
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '[TurnHighlight] oppId=${player['id']} '
+        'isCurrentTurn=$isCurrentTurn isCurrentPlayer=$isCurrentPlayer '
+        'isGameActive=$isGameActive highlight=$highlightOpponentSeat '
+        'status=$playerStatus phase=$phase',
+      );
+    }
+
     final Widget? opponentHandHudBar = hand.isEmpty
         ? null
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (shouldShowTimer)
-                CircularTimerWidget(
-                  key: ValueKey('timer_${player['id']}_${playerStatus}'),
-                  durationSeconds: effectiveTimer,
-                  size: _kHudRingOuter,
-                  strokeWidth: _kHudRingStroke,
-                  color: timerColor,
-                  backgroundColor: AppColors.surfaceVariant,
-                  centerChild: _buildPlayerProfilePicture(
-                    player['id']?.toString() ?? '',
-                    profilePictureUrl: player['profile_picture']?.toString(),
-                    diameter: _kHudAvatarInRing,
-                  ),
-                )
-              else
-                _buildPlayerProfilePicture(
-                  player['id']?.toString() ?? '',
-                  profilePictureUrl: player['profile_picture']?.toString(),
-                ),
-              if (hasCalledDutch || (isCurrentTurn && !isCurrentPlayer)) ...[
+              AnimatedScale(
+                scale: highlightOpponentSeat ? 1.08 : 1.0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                child: shouldShowTimer
+                    ? CircularTimerWidget(
+                        key: ValueKey('timer_${player['id']}_${playerStatus}'),
+                        durationSeconds: effectiveTimer,
+                        size: highlightOpponentSeat ? (_kHudRingOuter + 4) : _kHudRingOuter,
+                        strokeWidth: highlightOpponentSeat ? (_kHudRingStroke + 0.5) : _kHudRingStroke,
+                        color: timerColor,
+                        backgroundColor: AppColors.surfaceVariant,
+                        centerChild: _buildPlayerProfilePicture(
+                          player['id']?.toString() ?? '',
+                          profilePictureUrl: player['profile_picture']?.toString(),
+                          diameter: _kHudAvatarInRing,
+                        ),
+                      )
+                    : _buildPlayerProfilePicture(
+                        player['id']?.toString() ?? '',
+                        profilePictureUrl: player['profile_picture']?.toString(),
+                      ),
+              ),
+              if (hasCalledDutch || isOpponentTurn) ...[
                 const SizedBox(width: 8),
                 if (hasCalledDutch) ...[
                   Icon(Icons.flag, size: 16, color: AppColors.errorColor),
-                  if (isCurrentTurn && !isCurrentPlayer) const SizedBox(width: 4),
+                  if (isOpponentTurn) const SizedBox(width: 4),
                 ],
-                if (isCurrentTurn && !isCurrentPlayer)
-                  Icon(Icons.play_arrow, size: 16, color: AppColors.accentColor2),
+                if (isOpponentTurn)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentColor2,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'TURN',
+                      style: AppTextStyles.overline().copyWith(
+                        color: AppColors.textOnAccent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
               ],
             ],
           );
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final handPanel = hand.isNotEmpty
+            ? _buildOpponentsCardsRow(
+                hand,
+                cardsToPeek,
+                playerCollectionRankCards,
+                drawnCard,
+                player['id']?.toString() ?? '',
+                knownCards,
+                isInitialPeekPhase,
+                player,
+                nameAlignment: nameAlignment,
+                currentPlayerStatus: currentPlayerStatus,
+                cardTableOrientation: cardTableOrientation,
+                handHudBar: opponentHandHudBar,
+                handHudCorner: _handHudCornerForTableOrientation(cardTableOrientation),
+              )
+            : _buildEmptyHand();
+
+        final decoratedHandPanel = AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.all(highlightOpponentSeat ? 4 : 0),
+          decoration: BoxDecoration(
+            color: highlightOpponentSeat ? timerColor.withOpacity(0.12) : null,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: highlightOpponentSeat ? timerColor : Colors.transparent,
+              width: highlightOpponentSeat ? 2.0 : 0.0,
+            ),
+            boxShadow: highlightOpponentSeat
+                ? [
+                    BoxShadow(
+                      color: timerColor.withOpacity(0.35),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : const [],
+          ),
+          child: handPanel,
+        );
+        if (LOGGING_SWITCH) {
+          _logger.info(
+            '[TurnHighlight] render oppId=${player['id']} '
+            'orientation=$cardTableOrientation highlighted=$highlightOpponentSeat '
+            'hand=${hand.length}',
+          );
+        }
+
         return Column(
           crossAxisAlignment: columnAlignment,
           mainAxisAlignment: columnMainAlignment,
@@ -1034,23 +1113,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           children: [
             Align(
               alignment: cardAlignment,
-              child: hand.isNotEmpty
-                  ? _buildOpponentsCardsRow(
-                      hand,
-                      cardsToPeek,
-                      playerCollectionRankCards,
-                      drawnCard,
-                      player['id']?.toString() ?? '',
-                      knownCards,
-                      isInitialPeekPhase,
-                      player,
-                      nameAlignment: nameAlignment,
-                      currentPlayerStatus: currentPlayerStatus,
-                      cardTableOrientation: cardTableOrientation,
-                      handHudBar: opponentHandHudBar,
-                      handHudCorner: _handHudCornerForTableOrientation(cardTableOrientation),
-                    )
-                  : _buildEmptyHand(),
+              child: decoratedHandPanel,
             ),
           ],
         );
@@ -1374,15 +1437,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           );
         }
 
-        return SizedBox(
-          width: availableWidth,
-          child: Row(
-            mainAxisAlignment: cardTableOrientation == CardTableOrientation.portraitDown
-                ? MainAxisAlignment.center
-                : MainAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: cardWidgets,
-          ),
+        return Row(
+          mainAxisAlignment: cardTableOrientation == CardTableOrientation.portraitDown
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: cardWidgets,
         );
       },
     );
@@ -1717,7 +1777,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       padding: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Top: match pot. Below: draw + discard as a block, vertically centered in remaining height.
+          // Draw + discard centered in stretch space; match pot anchored to bottom of middle column.
           final gameboardRowWidth = constraints.maxWidth;
           final gameboardMaxHeight = constraints.maxHeight;
           if (LOGGING_SWITCH) {
@@ -1727,8 +1787,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             mainAxisSize: MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildMatchPotRow(gameboardRowWidth, board),
-              const SizedBox(height: 8),
               Expanded(
                 child: Center(
                   child: Column(
@@ -1748,6 +1806,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              _buildMatchPotRow(gameboardRowWidth, board),
             ],
           );
         },
@@ -2177,7 +2237,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   // ========== Match Pot Methods ==========
 
-  /// Full-width row on top of the game board: "Winning pot: {amount} [icon]".
+  /// Full-width row at the bottom of the game board column: coin icon with amount beneath.
   /// Shown only when: not a practice game and user is not promotional tier.
   /// Amount vs '—' by isGameActive and gamePhase when shown.
   /// [rowWidth] is the full game board width (used to scale font/icon).
@@ -2203,51 +2263,37 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
     final shouldShowPot = isGameActive && gamePhase != 'waiting';
 
-    // Winning pot row: 2x size for text/icon; use theme gold (accentColor2)
-    final fontSize = (rowWidth * 0.05).clamp(20.0, 40.0);
-    final iconSize = (rowWidth * 0.05).clamp(25.0, 58.0);
+    // Icon slightly larger than prior inline layout; amount below, smaller than icon scale.
+    final iconSize = (rowWidth * 0.072).clamp(32.0, 76.0);
+    final amountFontSize = (rowWidth * 0.045).clamp(18.0, 34.0);
     if (LOGGING_SWITCH) {
-      _logger.info('[GameBoard overflow] _buildMatchPotRow: rowWidth=$rowWidth fontSize=$fontSize iconSize=$iconSize');
+      _logger.info('[GameBoard overflow] _buildMatchPotRow: rowWidth=$rowWidth amountFontSize=$amountFontSize iconSize=$iconSize');
     }
 
     // Dedicated gold so it is not overridden by theme (e.g. Dutch theme accentColor2 is green)
     const potColor = AppColors.matchPotGold;
+    final iconColor = shouldShowPot ? potColor : AppColors.textSecondary;
 
     return Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: rowWidth),
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          runSpacing: 4,
-          spacing: 4,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            Icon(
+              Icons.monetization_on,
+              size: iconSize,
+              color: iconColor,
+            ),
+            const SizedBox(height: 4),
             Text(
-              'Winning pot: ',
+              shouldShowPot ? matchPot.toString() : '—',
               style: AppTextStyles.headingLarge().copyWith(
                 color: shouldShowPot ? potColor : AppColors.textSecondary,
                 fontWeight: FontWeight.bold,
-                fontSize: fontSize,
+                fontSize: amountFontSize,
               ),
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  '${shouldShowPot ? matchPot.toString() : '—'} ',
-                  style: AppTextStyles.headingLarge().copyWith(
-                    color: shouldShowPot ? potColor : AppColors.textSecondary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: fontSize,
-                  ),
-                ),
-                Icon(
-                  Icons.monetization_on,
-                  size: iconSize,
-                  color: potColor,
-                ),
-              ],
             ),
           ],
         ),
@@ -2529,6 +2575,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             ],
           );
     
+    final highlightMyHandSection = isGameActive && isMyTurn;
     // My hand section: column with (1) header row = You + status chip (+ optional Call Final Round), (2) cards with HUD on index 0
     return Container(
       child: Padding(
@@ -2644,20 +2691,41 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             ),
             const SizedBox(height: 16),
             // Row 2: cards only, taking all available horizontal space
-            if (cards.isEmpty)
-              _buildMyHandEmptyHand()
-            else
-              SizedBox(
-                width: double.infinity,
-                child: _buildMyHandCardsGrid(
-                  cards,
-                  cardsToPeek,
-                  selectedIndex,
-                  board,
-                  isMyTurn,
-                  firstCardHandHud: myFirstCardHandHud,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.all(highlightMyHandSection ? 4 : 0),
+              decoration: BoxDecoration(
+                color: highlightMyHandSection ? timerColor.withOpacity(0.12) : null,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: highlightMyHandSection ? timerColor : Colors.transparent,
+                  width: highlightMyHandSection ? 2.0 : 0.0,
                 ),
+                boxShadow: highlightMyHandSection
+                    ? [
+                        BoxShadow(
+                          color: timerColor.withOpacity(0.35),
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : const [],
               ),
+              child: cards.isEmpty
+                  ? _buildMyHandEmptyHand()
+                  : SizedBox(
+                      width: double.infinity,
+                      child: _buildMyHandCardsGrid(
+                        cards,
+                        cardsToPeek,
+                        selectedIndex,
+                        board,
+                        isMyTurn,
+                        firstCardHandHud: myFirstCardHandHud,
+                      ),
+                    ),
+            ),
           ],
         ),
       ),

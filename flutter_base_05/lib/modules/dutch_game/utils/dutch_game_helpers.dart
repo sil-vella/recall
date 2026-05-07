@@ -15,6 +15,7 @@ import '../backend_core/services/game_registry.dart';
 import '../practice/practice_mode_bridge.dart';
 import '../managers/game_coordinator.dart';
 import '../backend_core/utils/level_matcher.dart';
+import 'table_tiers_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
 
 /// Convenient helper methods for dutch game operations
@@ -556,9 +557,12 @@ class DutchGameHelpers {
   /// Uses join_random_game WebSocket event.
   ///
   /// [gameLevel] — room table tier (1–4), passed as `game_level` for create/join flows.
+  /// [specialEventId] — when set (e.g. Quick Join carousel on a catalog special event), the server **create-new-room**
+  /// path may attach matching `special_event_*` snapshot to `game_state` for end-of-match UI.
   static Future<Map<String, dynamic>> joinRandomGame({
     bool isClearAndCollect = true,
     int gameLevel = 1,
+    String? specialEventId,
   }) async {
     try {
       // 🎯 CRITICAL: Clear all existing game state before starting new game
@@ -592,6 +596,8 @@ class DutchGameHelpers {
         data: {
           'isClearAndCollect': isClearAndCollect,
           'game_level': gameLevel,
+          if (specialEventId != null && specialEventId.trim().isNotEmpty)
+            'special_event_id': specialEventId.trim(),
         },
       );
       if (LOGGING_SWITCH) {
@@ -673,6 +679,8 @@ class DutchGameHelpers {
   /// - null if dutch_game module doesn't exist for the user
   static Future<Map<String, dynamic>?> getUserDutchGameData() async {
     try {
+      await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
+
       if (LOGGING_SWITCH) {
         _logger.info('📊 DutchGameHelpers: Fetching user dutch_game stats from API');
       }
@@ -685,9 +693,14 @@ class DutchGameHelpers {
       if (connectionsModule == null) {
         throw Exception('ConnectionsApiModule not available - ensure it is initialized');
       }
+
+      final revision = await TableTiersBootstrap.getStoredRevisionForApi();
+      final route = (revision == null || revision.isEmpty)
+          ? '/userauth/dutch/get-user-stats'
+          : '/userauth/dutch/get-user-stats?client_table_tiers_revision=${Uri.encodeQueryComponent(revision)}';
       
       // Make API call to get user dutch game stats (dedicated endpoint)
-      final response = await connectionsModule.sendGetRequest('/userauth/dutch/get-user-stats');
+      final response = await connectionsModule.sendGetRequest(route);
       
       // Check if response contains error
       if (response is Map && response.containsKey('error')) {
@@ -721,7 +734,9 @@ class DutchGameHelpers {
           'data': null,
         };
       }
-      
+
+      await TableTiersBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
+
       // Extract data from response
       final statsData = response['data'] as Map<String, dynamic>?;
       

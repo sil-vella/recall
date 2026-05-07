@@ -89,6 +89,8 @@ class DutchGameModule {
       final permission = data['permission'] as String?;
       final createdAt = data['created_at'] as String?;
       final currentSize = data['current_size'] as int?;
+      final specialEventIdHook = data['special_event_id']?.toString();
+      final specialEndModalHook = data['special_event_end_match_modal'];
 
       if (roomId == null || ownerId == null || sessionId == null) {
         if (LOGGING_SWITCH) {
@@ -255,6 +257,15 @@ class DutchGameModule {
       if (createdAt != null && createdAt.isNotEmpty) gameStateInner['created_at'] = createdAt;
       if (currentSize != null) gameStateInner['current_size'] = currentSize;
       gameStateInner['owner_id'] = ownerId;
+
+      final seTrim = specialEventIdHook?.trim();
+      if (seTrim != null && seTrim.isNotEmpty) {
+        gameStateInner['special_event_id'] = seTrim;
+      }
+      if (specialEndModalHook is Map && specialEndModalHook.isNotEmpty) {
+        gameStateInner['special_event_end_match_modal'] =
+            Map<String, dynamic>.from(specialEndModalHook.map((k, v) => MapEntry(k.toString(), v)));
+      }
 
       store.mergeRoot(roomId, {
         'game_id': roomId,

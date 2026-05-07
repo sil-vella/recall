@@ -1,7 +1,9 @@
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple, List
 from pathlib import Path
+from urllib.parse import unquote
 from flask import Blueprint, request, jsonify, send_file
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.modules.user_management_module import tier_rank_level_matcher as matcher
@@ -10,9 +12,11 @@ from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 import time
 import random
+import re
 import uuid
 
 from . import dutch_notifications
+from . import table_tiers_catalog as ttc
 from .wins_level_rank_matcher import WinsLevelRankMatcher
 from .dutch_achievement_catalog import (
     achievements_unlocked_ids_sorted,
@@ -25,7 +29,7 @@ from .dutch_achievement_catalog import (
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
+LOGGING_SWITCH = False  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
 
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
@@ -51,6 +55,26 @@ SHOP_CATALOG = [
 # Store app_manager reference (will be set by module)
 _app_manager = None
 SPONSORS_MEDIA_DIR = Path(__file__).resolve().parents[4] / "sponsors" / "media"
+
+# Packaged tier back-graphics (WebP preferred). Served at /public/dutch/table-tier-back/<filename>.
+TABLE_TIER_BACKGRAPHICS_DIR = Path(__file__).resolve().parent / "static" / "table_backgraphics"
+_BG_EXT_TO_MIME = {
+    ".webp": "image/webp",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
+
+
+def _resolve_public_api_base() -> str:
+    """HTTPS origin clients use when downloading tier images — set behind reverse proxy via DUTCH_PUBLIC_API_BASE."""
+    env = (
+        (os.getenv("DUTCH_PUBLIC_API_BASE") or "").strip().rstrip("/")
+        or (os.getenv("PUBLIC_APP_URL") or "").strip().rstrip("/")
+    )
+    if env:
+        return env
+    return (request.url_root or "").rstrip("/")
 
 
 def _table_design_overlay_path_from_skin_id(skin_id: str) -> Optional[Path]:
@@ -1415,25 +1439,45 @@ def get_user_stats():
         modules = user.get('modules', {})
         dutch_game = modules.get('dutch_game', {})
         if not dutch_game:
-            return jsonify({"success": False, "error": "Dutch game module not found", "message": "User does not have dutch_game module initialized", "data": None}), 404
-        stats_data = {
-            "enabled": dutch_game.get('enabled', True),
-            "wins": dutch_game.get('wins', 0),
-            "losses": dutch_game.get('losses', 0),
-            "total_matches": dutch_game.get('total_matches', 0),
-            "points": dutch_game.get('points', 0),
-            "coins": dutch_game.get('coins', 0),
-            "level": dutch_game.get('level', matcher.DEFAULT_LEVEL),
-            "rank": dutch_game.get('rank') or matcher.DEFAULT_RANK,
-            "win_rate": dutch_game.get('win_rate', 0.0),
-            "subscription_tier": dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL,
-            "last_match_date": dutch_game.get('last_match_date'),
-            "last_updated": dutch_game.get('last_updated'),
-            "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
-            "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
-            "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
-            "inventory": _normalize_inventory(dutch_game.get("inventory")),
-        }
+            stats_data = {
+                "enabled": False,
+                "wins": 0,
+                "losses": 0,
+                "total_matches": 0,
+                "points": 0,
+                "coins": 0,
+                "level": matcher.DEFAULT_LEVEL,
+                "rank": matcher.DEFAULT_RANK,
+                "win_rate": 0.0,
+                "subscription_tier": matcher.TIER_PROMOTIONAL,
+                "last_match_date": None,
+                "last_updated": None,
+                "win_streak_current": parse_stored_streak(None),
+                "win_streak_best": parse_stored_streak(None),
+                "achievements_unlocked_ids": [],
+                "inventory": _normalize_inventory(None),
+                "dutch_module_initialized": False,
+            }
+        else:
+            stats_data = {
+                "enabled": dutch_game.get('enabled', True),
+                "wins": dutch_game.get('wins', 0),
+                "losses": dutch_game.get('losses', 0),
+                "total_matches": dutch_game.get('total_matches', 0),
+                "points": dutch_game.get('points', 0),
+                "coins": dutch_game.get('coins', 0),
+                "level": dutch_game.get('level', matcher.DEFAULT_LEVEL),
+                "rank": dutch_game.get('rank') or matcher.DEFAULT_RANK,
+                "win_rate": dutch_game.get('win_rate', 0.0),
+                "subscription_tier": dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL,
+                "last_match_date": dutch_game.get('last_match_date'),
+                "last_updated": dutch_game.get('last_updated'),
+                "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
+                "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
+                "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
+                "inventory": _normalize_inventory(dutch_game.get("inventory")),
+                "dutch_module_initialized": True,
+            }
         if stats_data.get('last_match_date') and isinstance(stats_data['last_match_date'], datetime):
             stats_data['last_match_date'] = stats_data['last_match_date'].isoformat()
         if stats_data.get('last_updated') and isinstance(stats_data['last_updated'], datetime):
@@ -1444,7 +1488,20 @@ def get_user_stats():
                 level="INFO",
                 isOn=LOGGING_SWITCH,
             )
-        return jsonify({"success": True, "message": "User statistics retrieved successfully", "data": stats_data, "user_id": str(user_id), "timestamp": datetime.utcnow().isoformat()}), 200
+        client_rev = (request.args.get("client_table_tiers_revision") or "").strip()
+        rev = ttc.TABLE_TIERS_REVISION
+        response_body: Dict[str, Any] = {
+            "success": True,
+            "message": "User statistics retrieved successfully",
+            "data": stats_data,
+            "user_id": str(user_id),
+            "timestamp": datetime.utcnow().isoformat(),
+            "table_tiers_revision": rev,
+        }
+        if (not client_rev) or client_rev != rev:
+            public_base = _resolve_public_api_base()
+            response_body["table_tiers"] = ttc.build_client_table_tiers_payload(public_base)
+        return jsonify(response_body), 200
     except Exception as e:
         custom_log(f"❌ DutchGame: Error in get_user_stats: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to retrieve user statistics", "message": str(e)}), 500
@@ -1763,6 +1820,30 @@ def get_table_design_overlay_media():
         return jsonify({"success": False, "error": "failed_to_serve_table_overlay", "message": str(e)}), 500
 
 
+def serve_table_tier_background_public(filename: str):
+    """Public: serve packed WebP/PNG tier back-graphic referenced by declarative catalog (filename only)."""
+    try:
+        name = Path(unquote(str(filename or ""))).name
+        raw = str(filename or "")
+        if not name or "/" in raw or "\\" in raw or ".." in raw:
+            return jsonify({"success": False, "error": "bad_filename", "message": "invalid path"}), 400
+        if not re.match(r"^[A-Za-z0-9._-]+$", name):
+            return jsonify({"success": False, "error": "bad_filename", "message": "invalid characters"}), 400
+        media_path = (TABLE_TIER_BACKGRAPHICS_DIR / name).resolve()
+        root = TABLE_TIER_BACKGRAPHICS_DIR.resolve()
+        try:
+            media_path.relative_to(root)
+        except ValueError:
+            return jsonify({"success": False, "error": "not_found"}), 404
+        if not media_path.exists() or not media_path.is_file():
+            return jsonify({"success": False, "error": "media_not_found", "message": name}), 404
+        suf = media_path.suffix.lower()
+        return send_file(media_path, mimetype=_BG_EXT_TO_MIME.get(suf, "application/octet-stream"))
+    except Exception as e:
+        custom_log(f"❌ DutchGame: serve_table_tier_background_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({"success": False, "error": "failed_to_serve", "message": str(e)}), 500
+
+
 def get_card_back_media():
     """Public media endpoint: map equipped card-back skinId -> media file."""
     try:
@@ -1884,9 +1965,9 @@ def _deduct_game_coins_from_body(data: Dict[str, Any]):
         try:
             gt = int(game_table_level)
         except (TypeError, ValueError):
-            return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be an integer 1–4"}), 400
+            return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be an integer"}), 400
         if not matcher.is_valid_level(gt):
-            return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level must be 1–4 (room table tier)"}), 400
+            return jsonify({"success": False, "error": "Invalid game_table_level", "message": "game_table_level is not a configured room table tier"}), 400
         fee = matcher.table_level_to_coin_fee(gt, default_fee=25)
         if coins is not None and coins != fee:
             return jsonify({
@@ -1897,11 +1978,11 @@ def _deduct_game_coins_from_body(data: Dict[str, Any]):
         coins = fee
         table_level_for_gate = gt
     if coins is None or not isinstance(coins, int) or coins <= 0:
-        return jsonify({"success": False, "error": "Invalid coins amount", "message": "coins must be a positive integer, or send game_table_level 1–4"}), 400
+        return jsonify({"success": False, "error": "Invalid coins amount", "message": "coins must be a positive integer, or send a valid game_table_level"}), 400
 
     # If caller didn't provide game_table_level, infer it from the coin fee (defensive fallback).
     if table_level_for_gate is None:
-        for lvl in (1, 2, 3, 4):
+        for lvl in matcher.LEVEL_ORDER:
             expected_fee = matcher.table_level_to_coin_fee(lvl, default_fee=25)
             if coins == expected_fee:
                 table_level_for_gate = lvl

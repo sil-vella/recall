@@ -16,7 +16,7 @@ import '../backend_core/utils/level_matcher.dart';
 class TableTiersBootstrap {
   TableTiersBootstrap._();
 
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
 
   static const String prefRevisionKey = 'dutch_table_tiers_revision';
   static const String prefDocKey = 'dutch_table_tiers_doc_json';
@@ -194,10 +194,83 @@ class TableTiersBootstrap {
           } catch (_) {
             /* keep network / felt fallback */
           }
+
+          // Additional declarative special-event assets for no-app-update visuals/media.
+          final meta = m['metadata'];
+          final styleMap = Map<String, dynamic>.from(style);
+          final metaMap = meta is Map ? Map<String, dynamic>.from(meta) : <String, dynamic>{};
+          await _cacheEventAuxAsset(
+            client: client,
+            cacheRoot: cacheRoot,
+            eventId: eidRaw,
+            assetKey: 'overlay_image_url',
+            url: styleMap['overlay_image_url']?.toString(),
+          );
+          await _cacheEventAuxAsset(
+            client: client,
+            cacheRoot: cacheRoot,
+            eventId: eidRaw,
+            assetKey: 'banner_image_url',
+            url: metaMap['banner_image_url']?.toString(),
+          );
+          await _cacheEventAuxAsset(
+            client: client,
+            cacheRoot: cacheRoot,
+            eventId: eidRaw,
+            assetKey: 'intro_video_url',
+            url: metaMap['intro_video_url']?.toString(),
+          );
+          await _cacheEventAuxAsset(
+            client: client,
+            cacheRoot: cacheRoot,
+            eventId: eidRaw,
+            assetKey: 'audio_url',
+            url: metaMap['audio_url']?.toString(),
+          );
         }
       }
     } finally {
       client.close();
+    }
+  }
+
+  static Future<void> _cacheEventAuxAsset({
+    required http.Client client,
+    required Directory cacheRoot,
+    required String eventId,
+    required String assetKey,
+    required String? url,
+  }) async {
+    final resolvedUrl = (url ?? '').trim();
+    if (resolvedUrl.isEmpty ||
+        !(resolvedUrl.startsWith('https://') || resolvedUrl.startsWith('http://'))) {
+      return;
+    }
+    var ext = '.bin';
+    try {
+      final segs = Uri.parse(resolvedUrl).pathSegments;
+      if (segs.isNotEmpty) {
+        final tail = segs.last;
+        final dot = tail.lastIndexOf('.');
+        if (dot > 0 && dot < tail.length - 1) {
+          ext = tail.substring(dot);
+        }
+      }
+    } catch (_) {}
+    final safeSeg = _safeCacheSegment(eventId);
+    final safeAsset = _safeCacheSegment(assetKey);
+    final file = File('${cacheRoot.path}/event_${safeSeg}_${safeAsset}$ext');
+    try {
+      if (!file.existsSync() || file.lengthSync() == 0) {
+        final rsp = await client.get(Uri.parse(resolvedUrl));
+        if (rsp.statusCode >= 400) {
+          return;
+        }
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(rsp.bodyBytes);
+      }
+    } catch (_) {
+      // Ignore optional-asset cache failures; runtime can still use remote URL.
     }
   }
 

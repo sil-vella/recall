@@ -207,6 +207,43 @@ class DutchGamePlayTableStyles {
       spotlightColor: spot ?? leg.spotlightColor,
     );
   }
+
+  /// Event-aware style resolver. Uses `special_events[].style` when [specialEventId] is present; otherwise tier style.
+  static DutchGamePlayTableStyle resolveStyle({
+    required int level,
+    String? specialEventId,
+  }) {
+    final eventId = specialEventId?.trim() ?? '';
+    if (eventId.isEmpty) return forLevel(level);
+    final row = LevelMatcher.specialEventRowById(eventId);
+    final styleMap = row?['style'];
+    if (styleMap is! Map) return forLevel(level);
+    final map = Map<String, dynamic>.from(styleMap);
+    final base = forLevel(level);
+    return DutchGamePlayTableStyle(
+      feltBackground: dutchHexToColor(map['felt_hex']?.toString()) ?? base.feltBackground,
+      spotlightColor: dutchHexToColor(map['spotlight_hex']?.toString()) ?? base.spotlightColor,
+    );
+  }
+
+  /// Event-aware background art resolver. Uses special-event art lane when [specialEventId] is set.
+  static Widget tableBackGraphicFillFor({
+    required int level,
+    String? specialEventId,
+    BoxFit fit = BoxFit.cover,
+  }) {
+    final eventId = specialEventId?.trim() ?? '';
+    if (eventId.isEmpty) return tableBackGraphicFill(level, fit: fit);
+    final row = LevelMatcher.specialEventRowById(eventId);
+    final styleMap = row?['style'];
+    if (styleMap is! Map) return tableBackGraphicFill(level, fit: fit);
+    return tableBackGraphicFillForSpecialEvent(
+      eventId: eventId,
+      styleMap: Map<String, dynamic>.from(styleMap),
+      fit: fit,
+      fallbackTableLevel: level,
+    );
+  }
   /// Deprecated: table felt is strictly bound to room table level.
   /// Cosmetic table designs should style overlay/border only, not felt color.
   static DutchGamePlayTableStyle forLevelWithDesign(int level, String? designId) {
@@ -240,6 +277,35 @@ int resolveDutchGamePlayTableLevel(Map<String, dynamic>? dutchGameState) {
     gl = gameState?['gameLevel'] ?? gameState?['game_level'];
   }
   return _parseTableLevelInt(gl);
+}
+
+/// Reads active room `special_event_id` from games map / game_state (if any).
+String? resolveDutchGamePlaySpecialEventId(Map<String, dynamic>? dutchGameState) {
+  if (dutchGameState == null || dutchGameState.isEmpty) {
+    return null;
+  }
+  final id = dutchGameState['currentGameId']?.toString().trim() ?? '';
+  final gameInfo = dutchGameState['gameInfo'] as Map<String, dynamic>?;
+  final resolvedId = id.isNotEmpty
+      ? id
+      : (gameInfo?['currentGameId']?.toString().trim() ?? '');
+  if (resolvedId.isEmpty) {
+    return null;
+  }
+  final games = dutchGameState['games'] as Map<String, dynamic>?;
+  final gameEntry = games?[resolvedId] as Map<String, dynamic>?;
+  if (gameEntry == null) {
+    return null;
+  }
+
+  dynamic raw = gameEntry['special_event_id'];
+  if (raw == null) {
+    final gameData = gameEntry['gameData'] as Map<String, dynamic>?;
+    final gameState = gameData?['game_state'] as Map<String, dynamic>?;
+    raw = gameState?['special_event_id'];
+  }
+  final seId = raw?.toString().trim() ?? '';
+  return seId.isEmpty ? null : seId;
 }
 
 int _parseTableLevelInt(dynamic gl) {

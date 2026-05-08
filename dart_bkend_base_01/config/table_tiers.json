@@ -56,6 +56,9 @@
       "metadata": {
         "match_type": "bracket",
         "anything": true,
+        "banner_image_file": "winter_duels_banner.webp",
+        "intro_video_file": "winter_duels_intro.mp4",
+        "audio_file": "winter_duels_theme.mp3",
         "rewards": {
           "coins": "100",
           "achievement": "winter_duels_winner"
@@ -71,9 +74,10 @@
         }
       },
       "style": {
-        "felt_hex": "#4E8065",
-        "spotlight_hex": "#FFD4A3",
-        "back_graphic_file": "your-event-art.webp"
+        "felt_hex": "#2F6FA7",
+        "spotlight_hex": "#A9D8FF",
+        "back_graphic_file": "winter_ice_table_back.webp",
+        "overlay_image_file": "winter_ice_table_back.webp"
       }
     }
   ]

@@ -5,6 +5,13 @@ Top-level keys:
   - ``tiers``: standard room table tiers (levels, fees, styles).
   - ``special_events``: optional special-event / match presets (distinct string ``id``, not tier levels).
     Optional ``metadata.rewards`` is surfaced as ``rewards_parsed`` after placeholder normalization.
+    Optional declarative assets (server-side only, no app release):
+      - ``style.back_graphic_file`` -> ``style.back_graphic_url`` (existing)
+      - ``style.overlay_image_file`` -> ``style.overlay_image_url`` (new)
+      - ``metadata.end_match_modal.background_image_file`` -> ``...background_image_url`` (existing)
+      - ``metadata.banner_image_file`` -> ``metadata.banner_image_url`` (new)
+      - ``metadata.intro_video_file`` -> ``metadata.intro_video_url`` (new)
+      - ``metadata.audio_file`` -> ``metadata.audio_url`` (new)
 
 Produces maps used by tier_rank_level_matcher and a stable revision/hash for Flutter sync.
 """
@@ -72,6 +79,7 @@ _CONFIG_DIR = Path(__file__).resolve().parent / "config"
 _DEFAULT_JSON_PATH = _CONFIG_DIR / "table_tiers.json"
 
 _EVENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+_ASSET_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def _read_json_file(path: Path) -> Optional[Dict[str, Any]]:
@@ -296,7 +304,33 @@ LEVEL_TO_MIN_USER_LEVEL: Dict[int, int] = {
 }
 
 
-def _inject_style_back_graphic_url(style: Dict[str, Any], base: str) -> None:
+def _build_public_asset_relpath(filename: str, *, default_subdir: str = "") -> Optional[str]:
+    """
+    Normalize a declarative asset filename/path into a safe relative public path.
+
+    - Allows nested paths (e.g. ``special_events/foo.webp``) while blocking traversal.
+    - When filename has no path segment and ``default_subdir`` is set, prefixes it.
+    """
+    raw = str(filename or "").strip()
+    if not raw:
+        return None
+    normalized = raw.replace("\\", "/").lstrip("/")
+    parts = [p for p in normalized.split("/") if p not in ("", ".")]
+    if not parts or any(p == ".." for p in parts):
+        return None
+    if len(parts) == 1 and default_subdir.strip():
+        parts = [default_subdir.strip(), parts[0]]
+    if any(not _ASSET_SEGMENT_RE.match(p) for p in parts):
+        return None
+    return "/".join(quote(p, safe="._-") for p in parts)
+
+
+def _inject_style_back_graphic_url(
+    style: Dict[str, Any],
+    base: str,
+    *,
+    default_subdir: str = "",
+) -> None:
     existing = str(style.get("back_graphic_url") or "").strip()
     if existing.startswith(("http://", "https://")):
         return
@@ -306,12 +340,19 @@ def _inject_style_back_graphic_url(style: Dict[str, Any], base: str) -> None:
     fn = str(style.get("back_graphic_file") or "").strip()
     if not fn:
         return
-    slug = quote(Path(fn).name, safe=".")
-    style["back_graphic_url"] = f"{b}/public/dutch/table-tier-back/{slug}"
+    rel = _build_public_asset_relpath(fn, default_subdir=default_subdir)
+    if not rel:
+        return
+    style["back_graphic_url"] = f"{b}/public/dutch/table-tier-back/{rel}"
     style.pop("back_graphic_file", None)
 
 
-def _inject_end_match_modal_background_url(modal: Dict[str, Any], base: str) -> None:
+def _inject_end_match_modal_background_url(
+    modal: Dict[str, Any],
+    base: str,
+    *,
+    default_subdir: str = "",
+) -> None:
     """Adds ``background_image_url`` from packaged filename (same public path as tier back-graphics)."""
     existing = str(modal.get("background_image_url") or "").strip()
     if existing.startswith(("http://", "https://")):
@@ -322,9 +363,36 @@ def _inject_end_match_modal_background_url(modal: Dict[str, Any], base: str) -> 
     fn = str(modal.get("background_image_file") or "").strip()
     if not fn:
         return
-    slug = quote(Path(fn).name, safe=".")
-    modal["background_image_url"] = f"{b}/public/dutch/table-tier-back/{slug}"
+    rel = _build_public_asset_relpath(fn, default_subdir=default_subdir)
+    if not rel:
+        return
+    modal["background_image_url"] = f"{b}/public/dutch/table-tier-back/{rel}"
     modal.pop("background_image_file", None)
+
+
+def _inject_asset_file_url(
+    container: Dict[str, Any],
+    *,
+    source_key: str,
+    target_key: str,
+    base: str,
+    default_subdir: str = "",
+) -> None:
+    """Adds ``target_key`` URL from packaged filename under ``source_key`` (same public path as tier back-graphics)."""
+    existing = str(container.get(target_key) or "").strip()
+    if existing.startswith(("http://", "https://")):
+        return
+    b = base.strip().rstrip("/")
+    if not b:
+        return
+    fn = str(container.get(source_key) or "").strip()
+    if not fn:
+        return
+    rel = _build_public_asset_relpath(fn, default_subdir=default_subdir)
+    if not rel:
+        return
+    container[target_key] = f"{b}/public/dutch/table-tier-back/{rel}"
+    container.pop(source_key, None)
 
 
 def build_client_table_tiers_payload(public_base_url: str) -> Dict[str, Any]:
@@ -349,10 +417,42 @@ def build_client_table_tiers_payload(public_base_url: str) -> Dict[str, Any]:
             continue
         est = ev.get("style")
         if isinstance(est, dict):
-            _inject_style_back_graphic_url(est, base)
+            _inject_style_back_graphic_url(est, base, default_subdir="special_events")
+            _inject_asset_file_url(
+                est,
+                source_key="overlay_image_file",
+                target_key="overlay_image_url",
+                base=base,
+                default_subdir="special_events",
+            )
         meta = ev.get("metadata")
         if isinstance(meta, dict):
+            _inject_asset_file_url(
+                meta,
+                source_key="banner_image_file",
+                target_key="banner_image_url",
+                base=base,
+                default_subdir="special_events",
+            )
+            _inject_asset_file_url(
+                meta,
+                source_key="intro_video_file",
+                target_key="intro_video_url",
+                base=base,
+                default_subdir="special_events",
+            )
+            _inject_asset_file_url(
+                meta,
+                source_key="audio_file",
+                target_key="audio_url",
+                base=base,
+                default_subdir="special_events",
+            )
             em = meta.get("end_match_modal")
             if isinstance(em, dict):
-                _inject_end_match_modal_background_url(em, base)
+                _inject_end_match_modal_background_url(
+                    em,
+                    base,
+                    default_subdir="special_events",
+                )
     return doc

@@ -21,7 +21,7 @@ import '../../demo/demo_functionality.dart';
 import '../../../utils/dutch_game_helpers.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;
@@ -40,6 +40,26 @@ String _friendlyCardBackLabel(String cardBackId) {
       if (base.isEmpty) return 'Default';
       return base[0].toUpperCase() + base.substring(1);
   }
+}
+
+bool _isSpecialEventActiveInState(Map<String, dynamic> dutchGameState) {
+  final currentGameId = dutchGameState['currentGameId']?.toString().trim() ?? '';
+  if (currentGameId.isEmpty) return false;
+  final gamesRaw = dutchGameState['games'];
+  if (gamesRaw is! Map) return false;
+  final gameEntryRaw = gamesRaw[currentGameId];
+  if (gameEntryRaw is! Map) return false;
+  final gameEntry = Map<String, dynamic>.from(gameEntryRaw);
+  final direct = gameEntry['special_event_id']?.toString().trim() ?? '';
+  if (direct.isNotEmpty) return true;
+  final gameDataRaw = gameEntry['gameData'];
+  if (gameDataRaw is! Map) return false;
+  final gameData = Map<String, dynamic>.from(gameDataRaw);
+  final gameStateRaw = gameData['game_state'];
+  if (gameStateRaw is! Map) return false;
+  final gameState = Map<String, dynamic>.from(gameStateRaw);
+  final nested = gameState['special_event_id']?.toString().trim() ?? '';
+  return nested.isNotEmpty;
 }
 
 /// Where profile + timer HUD sits relative to **logical hand index 0** (slightly outside the card).
@@ -2546,7 +2566,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final myCosmetics = myInventory['cosmetics'] as Map<String, dynamic>? ?? {};
     final myEquipped = myCosmetics['equipped'] as Map<String, dynamic>? ?? {};
     final myEquippedCardBackId = myEquipped['card_back_id']?.toString() ?? '';
-    final equippedLabel = _friendlyCardBackLabel(myEquippedCardBackId);
+    final isSpecialEventActive = _isSpecialEventActiveInState(_dutchGameState());
+    final equippedLabel = isSpecialEventActive
+        ? 'Event'
+        : _friendlyCardBackLabel(myEquippedCardBackId);
 
     final Widget? myFirstCardHandHud = cards.isEmpty
         ? null
@@ -2592,31 +2615,32 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   style: AppTextStyles.headingSmall(),
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _showInPlayCustomizeModal,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.borderDefault),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.tune, size: 12, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          equippedLabel,
-                          style: AppTextStyles.overline().copyWith(
-                            color: AppColors.textSecondary,
-                            fontSize: 8,
+                if (!isSpecialEventActive)
+                  GestureDetector(
+                    onTap: _showInPlayCustomizeModal,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceVariant.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.borderDefault),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.tune, size: 12, color: AppColors.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            equippedLabel,
+                            style: AppTextStyles.overline().copyWith(
+                              color: AppColors.textSecondary,
+                              fontSize: 8,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 const Spacer(),
                 if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !finalRoundActive && !hasPlayerCalledFinalRound && !_callFinalRoundTappedPending) ...[
                   GestureDetector(
@@ -3111,6 +3135,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   Future<void> _showInPlayCustomizeModal() async {
+    if (_isSpecialEventActiveInState(_dutchGameState())) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cosmetics are fixed during special events.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     if (LOGGING_SWITCH) {
       _logger.info('🧭 UnifiedGameBoardWidget: opening in-play customize modal');
     }

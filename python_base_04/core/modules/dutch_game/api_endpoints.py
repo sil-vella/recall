@@ -29,7 +29,7 @@ from .dutch_achievement_catalog import (
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = False  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
+LOGGING_SWITCH = True  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
 
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
@@ -1821,22 +1821,24 @@ def get_table_design_overlay_media():
 
 
 def serve_table_tier_background_public(filename: str):
-    """Public: serve packed WebP/PNG tier back-graphic referenced by declarative catalog (filename only)."""
+    """Public: serve packed WebP/PNG tier back-graphic referenced by declarative catalog (supports safe subpaths)."""
     try:
-        name = Path(unquote(str(filename or ""))).name
-        raw = str(filename or "")
-        if not name or "/" in raw or "\\" in raw or ".." in raw:
+        raw = unquote(str(filename or ""))
+        normalized = raw.replace("\\", "/").lstrip("/")
+        parts = [p for p in normalized.split("/") if p not in ("", ".")]
+        if not parts or any(p == ".." for p in parts):
             return jsonify({"success": False, "error": "bad_filename", "message": "invalid path"}), 400
-        if not re.match(r"^[A-Za-z0-9._-]+$", name):
+        if any(not re.match(r"^[A-Za-z0-9._-]+$", p) for p in parts):
             return jsonify({"success": False, "error": "bad_filename", "message": "invalid characters"}), 400
-        media_path = (TABLE_TIER_BACKGRAPHICS_DIR / name).resolve()
+        rel_path = Path(*parts)
+        media_path = (TABLE_TIER_BACKGRAPHICS_DIR / rel_path).resolve()
         root = TABLE_TIER_BACKGRAPHICS_DIR.resolve()
         try:
             media_path.relative_to(root)
         except ValueError:
             return jsonify({"success": False, "error": "not_found"}), 404
         if not media_path.exists() or not media_path.is_file():
-            return jsonify({"success": False, "error": "media_not_found", "message": name}), 404
+            return jsonify({"success": False, "error": "media_not_found", "message": str(rel_path)}), 404
         suf = media_path.suffix.lower()
         return send_file(media_path, mimetype=_BG_EXT_TO_MIME.get(suf, "application/octet-stream"))
     except Exception as e:

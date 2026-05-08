@@ -1238,7 +1238,23 @@ class ComputerPlayerFactory {
       _logger.info('Dutch: DEBUG - Acting player known_cards structure: ${knownCards.keys.toList()}');
     };
     
-    final actingPlayerKnownCardsRaw = knownCards[actingPlayerId] as Map<String, dynamic>?;
+    Map<String, dynamic>? actingPlayerKnownCardsRaw;
+    final nestedKnown = knownCards[actingPlayerId];
+    if (nestedKnown is Map) {
+      actingPlayerKnownCardsRaw = Map<String, dynamic>.from(nestedKnown);
+    } else if (knownCards.isNotEmpty) {
+      // Fallback for legacy/flattened known_cards shape where own cards are stored directly by cardId.
+      final flattened = <String, dynamic>{};
+      for (final entry in knownCards.entries) {
+        final k = entry.key.toString();
+        if (k.startsWith('card_') && entry.value is Map) {
+          flattened[k] = Map<String, dynamic>.from(entry.value as Map);
+        }
+      }
+      if (flattened.isNotEmpty) {
+        actingPlayerKnownCardsRaw = flattened;
+      }
+    }
     
     if (actingPlayerKnownCardsRaw != null) {
       if (LOGGING_SWITCH) {
@@ -1260,8 +1276,10 @@ class ComputerPlayerFactory {
         }
       }
     } else {
+      // Stabilize strategy input by treating missing own known-cards as empty known set.
+      // This happens legitimately after same-rank/jack chains where remembered cards are consumed.
       if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - No known_cards entry found for acting player $actingPlayerId in known_cards structure');
+        _logger.info('Dutch: DEBUG - No known_cards entry found for acting player $actingPlayerId; using empty known-card set');
       };
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: DEBUG - Known_cards structure keys: ${knownCards.keys.toList()}');
@@ -2390,7 +2408,7 @@ class ComputerPlayerFactory {
     
     if (highestOwnCard == null) {
       if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - No known cards for acting player, using fallback');
+        _logger.info('Dutch: DEBUG - No known cards for acting player, using fallback');
       };
       return _selectRandomExceptOwn(actingPlayerId, allPlayers, gameState);
     }

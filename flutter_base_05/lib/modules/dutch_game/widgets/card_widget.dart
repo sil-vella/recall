@@ -14,7 +14,7 @@ import '../../../../tools/logging/logger.dart';
 /// Size is determined at the placement widget level and passed as dimensions.
 /// Config only controls appearance (displayMode, showPoints, etc.)
 class CardWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; set false after test
+  static const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; set false after test
   static final Logger _logger = Logger();
   final CardModel card;
   final Size dimensions; // Required - size determined at placement widget level
@@ -100,6 +100,28 @@ class CardWidget extends StatelessWidget {
       default:
         return AppColors.primaryColor;
     }
+  }
+
+  bool _isSpecialEventGameActive(
+    Map<String, dynamic> dutchGameState,
+    String currentGameId,
+  ) {
+    if (currentGameId.isEmpty) return false;
+    final games = dutchGameState['games'];
+    if (games is! Map) return false;
+    final gameEntryRaw = games[currentGameId];
+    if (gameEntryRaw is! Map) return false;
+    final gameEntry = Map<String, dynamic>.from(gameEntryRaw);
+    final direct = gameEntry['special_event_id']?.toString().trim() ?? '';
+    if (direct.isNotEmpty) return true;
+    final gameDataRaw = gameEntry['gameData'];
+    if (gameDataRaw is! Map) return false;
+    final gameData = Map<String, dynamic>.from(gameDataRaw);
+    final gameStateRaw = gameData['game_state'];
+    if (gameStateRaw is! Map) return false;
+    final gameState = Map<String, dynamic>.from(gameStateRaw);
+    final nested = gameState['special_event_id']?.toString().trim() ?? '';
+    return nested.isNotEmpty;
   }
 
   /// Thin frame around the custom back art — keep in sync with shop `card_back_*` packs / catalog.
@@ -429,10 +451,12 @@ class CardWidget extends StatelessWidget {
 
     final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    final specialEventActive = _isSpecialEventGameActive(dutchGameState, currentGameId);
+    final effectiveForceDefaultBack = forceDefaultBack || specialEventActive;
     final equippedCardBackId = (ownerCardBackId ?? '').trim();
-    final baseColor = forceDefaultBack ? AppColors.primaryColor : _cardBackBaseColor(equippedCardBackId);
+    final baseColor = effectiveForceDefaultBack ? AppColors.primaryColor : _cardBackBaseColor(equippedCardBackId);
     final frameBorderColor =
-        forceDefaultBack ? AppColors.casinoBorderColor : _cardBackFrameBorderColor(equippedCardBackId);
+        effectiveForceDefaultBack ? AppColors.casinoBorderColor : _cardBackFrameBorderColor(equippedCardBackId);
     final isPracticeMode = currentGameId.startsWith('practice_room_');
 
     final frameInset = (dimensions.width * 0.04).clamp(2.0, 7.0);
@@ -458,7 +482,7 @@ class CardWidget extends StatelessWidget {
       );
     } else {
       const int imageVersion = 3;
-      final imageUrl = forceDefaultBack
+      final imageUrl = effectiveForceDefaultBack
           ? (currentGameId.isNotEmpty
               ? '${Config.apiUrl}/sponsors/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
               : '${Config.apiUrl}/sponsors/media/card_back.webp?v=$imageVersion')
@@ -470,8 +494,8 @@ class CardWidget extends StatelessWidget {
                   ? '${Config.apiUrl}/sponsors/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
                   : '${Config.apiUrl}/sponsors/media/card_back.webp?v=$imageVersion');
 
-      final useBlueTint = !forceDefaultBack && equippedCardBackId == 'card_back_ocean';
-      final useEmberTint = !forceDefaultBack && equippedCardBackId == 'card_back_ember';
+      final useBlueTint = !effectiveForceDefaultBack && equippedCardBackId == 'card_back_ocean';
+      final useEmberTint = !effectiveForceDefaultBack && equippedCardBackId == 'card_back_ember';
       Widget netImage = Image.network(
         imageUrl,
         fit: BoxFit.contain,

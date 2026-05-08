@@ -7,6 +7,7 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../../utils/widgets/felt_texture_widget.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../utils/dutch_game_play_table_style_mapping.dart';
+import '../../backend_core/utils/level_matcher.dart';
 import '../../../../tools/logging/logger.dart';
 import 'widgets/game_info_widget.dart';
 import 'widgets/unified_game_board_widget.dart';
@@ -21,7 +22,7 @@ import '../demo/demo_action_handler.dart';
 import 'utils/table_design_style_helpers.dart';
 
 /// When true, logs screen build and rebuild timing for this screen.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -270,8 +271,13 @@ class _FinalRoundInnerGlowPulseState extends State<_FinalRoundInnerGlowPulse>
 /// Background widget for the play surface: felt texture + edge spotlights from [DutchGamePlayTableStyle].
 class TableBackgroundWidget extends StatefulWidget {
   final DutchGamePlayTableStyle tableStyle;
+  final bool enableFeltTexture;
 
-  const TableBackgroundWidget({Key? key, required this.tableStyle}) : super(key: key);
+  const TableBackgroundWidget({
+    Key? key,
+    required this.tableStyle,
+    this.enableFeltTexture = true,
+  }) : super(key: key);
 
   @override
   State<TableBackgroundWidget> createState() => _TableBackgroundWidgetState();
@@ -294,11 +300,12 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
 
           return Stack(
             children: [
-              Positioned.fill(
-                child: FeltTextureWidget(
-                  backgroundColor: widget.tableStyle.feltBackground,
+              if (widget.enableFeltTexture)
+                Positioned.fill(
+                  child: FeltTextureWidget(
+                    backgroundColor: widget.tableStyle.feltBackground,
+                  ),
                 ),
-              ),
               Positioned(
                 left: -0,
                 top: topSpotlightY - spotlightSize / 2,
@@ -407,7 +414,11 @@ class GamePlayScreen extends BaseScreen {
   Decoration? getBackground(BuildContext context) {
     final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final level = resolveDutchGamePlayTableLevel(dutch);
-    final felt = DutchGamePlayTableStyles.forLevel(level).feltBackground;
+    final specialEventId = resolveDutchGamePlaySpecialEventId(dutch);
+    final felt = DutchGamePlayTableStyles.resolveStyle(
+      level: level,
+      specialEventId: specialEventId,
+    ).feltBackground;
     return BoxDecoration(color: felt);
   }
 
@@ -692,9 +703,54 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     final inventory = userStats['inventory'] as Map<String, dynamic>? ?? {};
     final cosmetics = inventory['cosmetics'] as Map<String, dynamic>? ?? {};
     final equipped = cosmetics['equipped'] as Map<String, dynamic>? ?? {};
-    final equippedTableDesignId = equipped['table_design_id']?.toString() ?? '';
+    final resolvedSpecialEventId = resolveDutchGamePlaySpecialEventId(dutchSnapshot);
+    final bool isSpecialEventMatch =
+        resolvedSpecialEventId != null && resolvedSpecialEventId.trim().isNotEmpty;
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        'GamePlayScreen: event-state '
+        'currentGameId=${dutchSnapshot['currentGameId']?.toString() ?? ''} '
+        'resolvedSpecialEventId=${resolvedSpecialEventId ?? ''} '
+        'isSpecialEventMatch=$isSpecialEventMatch',
+      );
+    }
+    String eventOverlayUrl = '';
+    if (isSpecialEventMatch) {
+      final row = LevelMatcher.specialEventRowById(resolvedSpecialEventId);
+      final styleMap = row?['style'];
+      if (styleMap is Map) {
+        final overlayUrl = styleMap['overlay_image_url']?.toString().trim() ?? '';
+        final backGraphicUrl = styleMap['back_graphic_url']?.toString().trim() ?? '';
+        // Backward-compatible fallback: if overlay URL is not present in payload yet,
+        // reuse event back graphic so special-events still replace felt.
+        eventOverlayUrl = overlayUrl.isNotEmpty ? overlayUrl : backGraphicUrl;
+        if (LOGGING_SWITCH) {
+          _logger.info(
+            'GamePlayScreen: special-event style resolved '
+            'eventId=$resolvedSpecialEventId '
+            'rowKeys=${row?.keys.toList()} '
+            'styleKeys=${Map<String, dynamic>.from(styleMap).keys.toList()} '
+            'overlayImageUrl=$overlayUrl '
+            'backGraphicUrl=$backGraphicUrl '
+            'effectiveOverlayUrl=$eventOverlayUrl',
+          );
+        }
+      } else if (LOGGING_SWITCH) {
+        _logger.warning(
+          'GamePlayScreen: special-event style missing or invalid '
+          'eventId=$resolvedSpecialEventId rowFound=${row != null}',
+        );
+      }
+    }
+    // Special-event matches own the table cosmetics; ignore user equipped table design.
+    final equippedTableDesignId =
+        isSpecialEventMatch ? '' : (equipped['table_design_id']?.toString() ?? '');
     final currentGameId = dutchSnapshot['currentGameId']?.toString() ?? '';
-    final tableStyle = DutchGamePlayTableStyles.forLevel(playTableLevel);
+    final specialEventId = resolvedSpecialEventId;
+    final tableStyle = DutchGamePlayTableStyles.resolveStyle(
+      level: playTableLevel,
+      specialEventId: specialEventId,
+    );
     final borderColor = TableDesignStyleHelpers.outerBorderColorForDesign(equippedTableDesignId);
     final borderGlow = TableDesignStyleHelpers.outerBorderGlowForDesign(equippedTableDesignId);
     final isJuventusBorder = TableDesignStyleHelpers.isJuventusTableDesign(equippedTableDesignId);
@@ -707,7 +763,10 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
           child: IgnorePointer(
             child: Opacity(
               opacity: AppOpacity.shadow,
-              child: DutchGamePlayTableStyles.tableBackGraphicFill(playTableLevel),
+                child: DutchGamePlayTableStyles.tableBackGraphicFillFor(
+                  level: playTableLevel,
+                  specialEventId: specialEventId,
+                ),
             ),
           ),
         ),
@@ -799,14 +858,42 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                             equippedTableDesignId: equippedTableDesignId,
                             imageVersion: 1,
                           );
+                          if (LOGGING_SWITCH) {
+                            _logger.info(
+                              'GamePlayScreen: render-decision '
+                              'eventId=${specialEventId ?? ''} '
+                              'isSpecialEventMatch=$isSpecialEventMatch '
+                              'eventOverlayUrlPresent=${eventOverlayUrl.isNotEmpty} '
+                              'eventOverlayUrl=$eventOverlayUrl '
+                              'feltEnabled=${!isSpecialEventMatch} '
+                              'tableDesignOverlayUrl=$overlayUrl',
+                            );
+                          }
                           return Stack(
                             children: [
                               Positioned.fill(
                                 child: TableBackgroundWidget(
-                                  key: ValueKey<String>('${playTableLevel}_$equippedTableDesignId'),
+                                  key: ValueKey<String>(
+                                    '${playTableLevel}_${specialEventId ?? ''}_$equippedTableDesignId',
+                                  ),
                                   tableStyle: tableStyle,
+                                  enableFeltTexture: !isSpecialEventMatch,
                                 ),
                               ),
+                              if (isSpecialEventMatch && eventOverlayUrl.isNotEmpty)
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: Opacity(
+                                      opacity: 0.5,
+                                      child: Image.network(
+                                        eventOverlayUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const SizedBox.shrink(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               // Table cosmetic overlay: centered and 90% of table area with preserved ratio.
                               Positioned.fill(
                                 child: Center(
@@ -822,7 +909,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                                         child: FittedBox(
                                           fit: BoxFit.fitWidth,
                                           alignment: Alignment.center,
-                                          child: isPracticeMode
+                                          child: (isPracticeMode || isSpecialEventMatch)
                                               ? Image(
                                                   image: const AssetImage('assets/images/table_logo.webp'),
                                                   fit: BoxFit.contain,

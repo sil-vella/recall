@@ -210,6 +210,11 @@ class DutchGameEventEmitter {
       pattern: r'^card_[a-zA-Z0-9_]+$',
       description: 'Card ID in format: card_xxxxx',
     ),
+    'card_ids': DutchEventFieldSpec(
+      type: List,
+      required: false,
+      description: 'List of exactly 2 card IDs for completed_initial_peek',
+    ),
     'replace_index': DutchEventFieldSpec(
       type: int,
       required: false,
@@ -487,6 +492,26 @@ class DutchGameEventEmitter {
           eventType: eventType,
           fieldName: 'game_id',
         );
+      }
+    }
+    if (eventType == 'completed_initial_peek') {
+      final idsRaw = validatedData['card_ids'];
+      if (idsRaw is! List || idsRaw.length != 2) {
+        throw DutchEventException(
+          'Field "card_ids" must contain exactly 2 card IDs for completed_initial_peek',
+          eventType: eventType,
+          fieldName: 'card_ids',
+        );
+      }
+      for (final raw in idsRaw) {
+        final id = raw?.toString() ?? '';
+        if (!ValidationUtils.matchesPattern(id, r'^card_[a-zA-Z0-9_]+$')) {
+          throw DutchEventException(
+            'Field "card_ids" contains invalid card id "$id"',
+            eventType: eventType,
+            fieldName: 'card_ids',
+          );
+        }
       }
     }
 

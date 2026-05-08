@@ -1307,11 +1307,15 @@ class GameEventCoordinator {
       _logger.info('✅ _processAIInitialPeek: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
     }
 
-    // Initialize known_cards structure
-    final knownCards = computerPlayer['known_cards'] as Map<String, dynamic>? ?? {};
-    if (knownCards[playerId] == null) {
-      knownCards[playerId] = <String, dynamic>{};
-    }
+    // Initialize known_cards structure with robust dynamic conversions.
+    final knownCardsRaw = computerPlayer['known_cards'];
+    final knownCards = knownCardsRaw is Map
+        ? Map<String, dynamic>.from(knownCardsRaw)
+        : <String, dynamic>{};
+    final playerKnownRaw = knownCards[playerId];
+    final playerKnown = playerKnownRaw is Map
+        ? Map<String, dynamic>.from(playerKnownRaw)
+        : <String, dynamic>{};
 
     if (isClearAndCollect) {
       // Collection mode: Select one card for collection, store other in known_cards
@@ -1326,7 +1330,8 @@ class GameEventCoordinator {
       final nonCollectionIndex = nonCollectionCard['cardId'] == card1['cardId'] ? indices[0] : indices[1];
       final cardWithIndex = Map<String, dynamic>.from(nonCollectionCard);
       cardWithIndex['handIndex'] = nonCollectionIndex;
-      (knownCards[playerId] as Map<String, dynamic>)[cardId] = cardWithIndex;
+      playerKnown[cardId] = cardWithIndex;
+      knownCards[playerId] = playerKnown;
       computerPlayer['known_cards'] = knownCards;
 
       // Set collection_rank_cards to exactly the one selected card (replace, don't append - ensures no duplicate from store/merge)
@@ -1347,13 +1352,14 @@ class GameEventCoordinator {
       c1['handIndex'] = indices[0];
       final c2 = Map<String, dynamic>.from(card2);
       c2['handIndex'] = indices[1];
-      (knownCards[playerId] as Map<String, dynamic>)[card1Id] = c1;
-      (knownCards[playerId] as Map<String, dynamic>)[card2Id] = c2;
+      playerKnown[card1Id] = c1;
+      playerKnown[card2Id] = c2;
+      knownCards[playerId] = playerKnown;
       computerPlayer['known_cards'] = knownCards;
 
-      // Ensure collection_rank_cards is empty and collection_rank is not set
+      // Ensure collection_rank_cards is empty and collection_rank remains nullable-safe for downstream maps.
       computerPlayer['collection_rank_cards'] = <Map<String, dynamic>>[];
-      computerPlayer['collection_rank'] = null;
+      computerPlayer['collection_rank'] = '';
 
       if (LOGGING_SWITCH) {
         _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} peeked at cards at positions $indices (clear mode - both cards stored in known_cards)');
@@ -1495,22 +1501,6 @@ class GameEventCoordinator {
         _logger.info('GameEventCoordinator: Handling completed initial peek with data: $data');
       }
 
-      // Extract card_ids from payload
-      final cardIds = (data['card_ids'] as List<dynamic>?)?.cast<String>() ?? [];
-
-      if (cardIds.length != 2) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameEventCoordinator: Invalid card_ids: $cardIds. Expected exactly 2 card IDs.');
-        }
-        server.sendToSession(sessionId, {
-          'event': 'completed_initial_peek_error',
-          'room_id': roomId,
-          'message': 'Invalid card_ids: Expected exactly 2 card IDs',
-          'timestamp': DateTime.now().toIso8601String(),
-        });
-        return;
-      }
-
       // Get current game state
       final gameState = _store.getGameState(roomId);
       final players = gameState['players'] as List<dynamic>? ?? [];
@@ -1552,15 +1542,40 @@ class GameEventCoordinator {
       if (currentPhase != 'initial_peek' || playerStatus != 'initial_peek') {
         if (LOGGING_SWITCH) {
           _logger.warning(
-            'GameEventCoordinator: Rejecting completed_initial_peek for session=$sessionId '
+            'GameEventCoordinator: Ignoring late completed_initial_peek for session=$sessionId '
             '(phase=$currentPhase, playerStatus=$playerStatus)',
           );
         }
         server.sendToSession(sessionId, {
+          'event': 'completed_initial_peek_acknowledged',
+          'room_id': roomId,
+          'message': 'Initial peek already resolved; request ignored',
+          'ignored': true,
+          'reason': 'initial_peek_not_active',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        return;
+      }
+
+      // Extract card_ids from payload only when initial-peek is active for this player.
+      final cardIdsRaw = data['card_ids'];
+      final cardIds = <String>[];
+      if (cardIdsRaw is List) {
+        for (final v in cardIdsRaw) {
+          final id = v?.toString().trim() ?? '';
+          if (id.isNotEmpty) {
+            cardIds.add(id);
+          }
+        }
+      }
+      if (cardIds.length != 2) {
+        if (LOGGING_SWITCH) {
+          _logger.error('GameEventCoordinator: Invalid card_ids: $cardIdsRaw. Expected exactly 2 card IDs.');
+        }
+        server.sendToSession(sessionId, {
           'event': 'completed_initial_peek_error',
           'room_id': roomId,
-          'message':
-              'Initial peek not active for this player (phase=$currentPhase, status=$playerStatus)',
+          'message': 'Invalid card_ids: Expected exactly 2 card IDs',
           'timestamp': DateTime.now().toIso8601String(),
         });
         return;

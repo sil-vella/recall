@@ -25,7 +25,7 @@ import '../utils/dutch_achievement_catalog.dart';
 class DutchEventHandlerCallbacks {
   /// When true, logs verbose Dutch WS/state paths including payload-size lines for `game_state_updated`.
   /// Enable while tracing initial-peek vs visible table (`[peek-ui-trace]`); set false after.
-  static const bool LOGGING_SWITCH = false; // WS + game_animation trace (enable-logging-switch.mdc)
+  static const bool LOGGING_SWITCH = true; // kick/leave + game_state + widget sync (enable-logging-switch.mdc; set false after test)
   static final Logger _logger = Logger();
 
   /// Counter for `game_state_updated` receives (only incremented when LOGGING_SWITCH is true).
@@ -408,6 +408,23 @@ class DutchEventHandlerCallbacks {
     return '$eventType|$gameId|$phase|$currentPlayer|${players.length}|$turnCount|$changed|$keysStr';
   }
 
+  /// True if the local user appears on [players] by session/practice id or login user id.
+  static bool _localUserOnPlayerList(
+    List<dynamic> players,
+    String sessionOrPracticeId,
+    String loginUserId,
+  ) {
+    for (final p in players) {
+      if (p is! Map<String, dynamic>) continue;
+      final pid = p['id']?.toString() ?? '';
+      final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+      if (pid == sessionOrPracticeId || (loginUserId.isNotEmpty && pUserId == loginUserId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   static bool _shouldDropDuplicateOrStaleEvent({
     required String eventType,
     required String gameId,
@@ -672,6 +689,42 @@ class DutchEventHandlerCallbacks {
   static String getCurrentLoginUserId() {
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     return loginState['userId']?.toString() ?? '';
+  }
+
+  /// WS `game_state_updated` often omits root `current_player_status`; derive from [gameState].
+  static String deriveWireCurrentPlayerStatus(
+    Map<String, dynamic> gameState, {
+    String? wireStatus,
+  }) {
+    final ws = wireStatus?.trim();
+    if (ws != null && ws.isNotEmpty && ws != 'unknown') {
+      return ws;
+    }
+    final cp = gameState['currentPlayer'];
+    if (cp is Map<String, dynamic>) {
+      final st = cp['status']?.toString().trim();
+      if (st != null && st.isNotEmpty) {
+        return st;
+      }
+      final id = cp['id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        final players = gameState['players'] as List<dynamic>? ?? [];
+        for (final p in players) {
+          if (p is Map<String, dynamic> && p['id']?.toString() == id) {
+            final pst = p['status']?.toString().trim();
+            if (pst != null && pst.isNotEmpty) {
+              return pst;
+            }
+            break;
+          }
+        }
+      }
+    }
+    final phase = gameState['phase']?.toString().trim();
+    if (phase != null && phase.isNotEmpty) {
+      return phase;
+    }
+    return ws ?? 'unknown';
   }
   
   /// Check if current user is room owner for a specific game
@@ -1262,18 +1315,31 @@ When anyone has played a card with the **same rank** as your **collection card**
         _logger.info('🔍 _syncWidgetStatesFromGameState: Player IDs: ${players.map((p) => p is Map ? p['id']?.toString() : 'unknown').join(', ')}');
       }
       
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final loginUserId = loginState['userId']?.toString() ?? '';
+
       Map<String, dynamic>? myPlayer;
-      
-      try {
-        myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
-          (player) => player['id']?.toString() == currentUserId,
-        );
+      for (final p in players) {
+        if (p is Map<String, dynamic> && p['id']?.toString() == currentUserId) {
+          myPlayer = p;
+          break;
+        }
+      }
+      if (myPlayer == null && loginUserId.isNotEmpty) {
+        for (final p in players) {
+          if (p is! Map<String, dynamic>) continue;
+          final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+          if (pUserId == loginUserId) {
+            myPlayer = p;
+            break;
+          }
+        }
+      }
+      if (myPlayer != null) {
         if (LOGGING_SWITCH) {
           _logger.info('✅ _syncWidgetStatesFromGameState: Found matching player with ID: ${myPlayer['id']}');
         }
-      } catch (e) {
-        final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-        final loginUserId = loginState['userId']?.toString() ?? '';
+      } else {
         bool _matchesCurrentUser(dynamic p) {
           if (p is! Map<String, dynamic>) return false;
           final pid = p['id']?.toString() ?? '';
@@ -1307,12 +1373,35 @@ When anyone has played a card with the **same rank** as your **collection card**
           );
           return;
         }
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️  _syncWidgetStatesFromGameState: Current user ($currentUserId) not found in players list. Player IDs: ${players.map((p) => p is Map ? p['id']?.toString() : 'unknown').join(', ')}');
+        // kickedModalShownFor may be set from a false positive while we are still on the roster.
+        // Do not permanently skip widget sync in that case (survivor would look "frozen").
+        if (alreadyShownFor == gameId && players.any(_matchesCurrentUser)) {
+          StateManager().updateModuleState('dutch_game', {'kickedModalShownFor': ''});
+          for (final p in players) {
+            if (p is Map<String, dynamic> && p['id']?.toString() == currentUserId) {
+              myPlayer = p;
+              break;
+            }
+          }
+          if (myPlayer == null && loginUserId.isNotEmpty) {
+            for (final p in players) {
+              if (p is! Map<String, dynamic>) continue;
+              final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+              if (pUserId == loginUserId) {
+                myPlayer = p;
+                break;
+              }
+            }
+          }
         }
-        return;
+        if (myPlayer == null) {
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️  _syncWidgetStatesFromGameState: Current user ($currentUserId) not found in players list. Player IDs: ${players.map((p) => p is Map ? p['id']?.toString() : 'unknown').join(', ')}');
+          }
+          return;
+        }
       }
-      
+
       // Extract widget-specific data from player
       final hand = myPlayer['hand'] as List<dynamic>? ?? [];
       final cardsToPeek = myPlayer['cardsToPeek'] as List<dynamic>? ?? [];
@@ -1422,6 +1511,47 @@ When anyone has played a card with the **same rank** as your **collection card**
         _logger.error('❌ _syncWidgetStatesFromGameState: Error syncing widget states: $e');
       }
     }
+  }
+
+  /// Server removed this client from the room for inactivity (`leave_room_success` with `reason`).
+  static void handleKickedForInactivityLeaveSuccess(Map<String, dynamic> data) {
+    // Payload is for the session that left; ignore replays/stale hooks meant for another seat.
+    final leftSessionId = data['session_id']?.toString() ?? '';
+    final selfId = getCurrentUserId();
+    if (leftSessionId.isEmpty || leftSessionId != selfId) {
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '[kick-trace] handleKickedForInactivityLeaveSuccess skip: leftSession=$leftSessionId self=$selfId '
+          'reason=${data['reason']} room=${data['room_id']}',
+        );
+      }
+      return;
+    }
+    final roomId = data['room_id']?.toString() ?? '';
+    if (roomId.isEmpty || !roomId.startsWith('room_')) return;
+    final dg = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final currentGameId = dg['currentGameId']?.toString() ?? '';
+    final currentRoomId = dg['currentRoomId']?.toString() ?? '';
+    if (roomId != currentGameId && roomId != currentRoomId) {
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '[kick-trace] handleKickedForInactivityLeaveSuccess skip: roomId=$roomId '
+          'currentGameId=$currentGameId currentRoomId=$currentRoomId',
+        );
+      }
+      return;
+    }
+    if (LOGGING_SWITCH) {
+      _logger.info('[kick-trace] handleKickedForInactivityLeaveSuccess APPLY room=$roomId kickedModalShownFor set');
+    }
+    StateManager().updateModuleState('dutch_game', {'kickedModalShownFor': roomId});
+    _addSessionMessage(
+      level: 'warning',
+      title: 'Removed from Game',
+      message: 'You were removed for too many missed actions.',
+      showModal: true,
+      data: <String, dynamic>{'game_id': roomId, 'kicked': true},
+    );
   }
   
   /// Add a session message to the message board
@@ -1684,12 +1814,16 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     final stateAfterSync = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final kickedModalShownFor = stateAfterSync['kickedModalShownFor']?.toString() ?? '';
-    if (kickedModalShownFor == gameId) {
+    final seatId = getCurrentUserId();
+    final loginUidForRoster = loginState['userId']?.toString() ?? '';
+    final stillOnRosterAfterKickFlag =
+        _localUserOnPlayerList(players, seatId, loginUidForRoster);
+    if (kickedModalShownFor == gameId && !stillOnRosterAfterKickFlag) {
       // Keep kicked-user modal visible: `_addSessionMessage(showModal:true)` sets `gamePhase=game_ended`,
       // but this normal update path could otherwise overwrite it back to `playing`.
       uiPhase = 'game_ended';
       if (LOGGING_SWITCH) {
-        _logger.info('🚪 handleGameStateUpdated: preserving game_ended uiPhase for kicked modal gameId=$gameId');
+        _logger.info('🚪 handleGameStarted: preserving game_ended uiPhase for kicked modal gameId=$gameId');
       }
     }
     
@@ -1942,7 +2076,10 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     final roundNumber = data['round_number'] as int? ?? 1;
     final currentPlayer = data['current_player'];
-    final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
+    final currentPlayerStatus = deriveWireCurrentPlayerStatus(
+      gameState,
+      wireStatus: data['current_player_status']?.toString(),
+    );
     final roundStatus = data['round_status']?.toString() ?? 'active';
     // final timestamp = data['timestamp']?.toString() ?? '';
     
@@ -1962,14 +2099,6 @@ When anyone has played a card with the **same rank** as your **collection card**
     final currentRoomId = currentState['currentRoomId']?.toString() ?? '';
     final isOnCurrentMatch = gameId == currentGameId || gameId == currentRoomId;
     final kickedAlreadyShownFor = currentState['kickedModalShownFor']?.toString() ?? '';
-
-    // Hard lock: once kicked modal is set for this match, ignore subsequent live updates for it.
-    if (isOnCurrentMatch && kickedAlreadyShownFor == gameId) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🚪 handleGameStateUpdated: Ignoring state update for kicked match gameId=$gameId');
-      }
-      return;
-    }
     
     // 🎯 CRITICAL: If games map is empty but currentGameId is set, this might be a stale event
     // from a game that was just cleared. Only accept events for the current game or if currentGameId is empty.
@@ -2002,6 +2131,9 @@ When anyone has played a card with the **same rank** as your **collection card**
       return pid == currentUserId || (loginUserIdForKick.isNotEmpty && pUserId == loginUserIdForKick);
     }
     final userStillInPlayers = players.any(_matchesCurrentUserForKick);
+    if (userStillInPlayers && kickedAlreadyShownFor == gameId) {
+      StateManager().updateModuleState('dutch_game', {'kickedModalShownFor': ''});
+    }
     final phaseForKick = gameState['phase']?.toString() ?? '';
     if (isOnCurrentMatch &&
         gameId.startsWith('room_') &&
@@ -2019,8 +2151,6 @@ When anyone has played a card with the **same rank** as your **collection card**
         showModal: true,
         data: <String, dynamic>{'game_id': gameId, 'kicked': true},
       );
-      // Freeze this match after kick-out modal is triggered.
-      return;
     }
 
     final wasNewGame = !currentGames.containsKey(gameId);
@@ -2231,21 +2361,33 @@ When anyone has played a card with the **same rank** as your **collection card**
     
     // Get current user's player status for instructions (not the current player's status)
     // Note: players list and currentUserId are already extracted above for debug logging
-    String? currentUserPlayerStatus;
-    try {
-      final myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
-        (player) => player['id'] == currentUserId,
-      );
-      currentUserPlayerStatus = myPlayer['status']?.toString();
-      if (LOGGING_SWITCH) {
+    Map<String, dynamic>? myPlayerForInstructions;
+    for (final p in players) {
+      if (p is Map<String, dynamic> && p['id']?.toString() == currentUserId) {
+        myPlayerForInstructions = p;
+        break;
+      }
+    }
+    if (myPlayerForInstructions == null) {
+      final loginUserId = StateManager().getModuleState<Map<String, dynamic>>('login')?['userId']?.toString() ?? '';
+      if (loginUserId.isNotEmpty) {
+        for (final p in players) {
+          if (p is! Map<String, dynamic>) continue;
+          final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+          if (uid == loginUserId) {
+            myPlayerForInstructions = p;
+            break;
+          }
+        }
+      }
+    }
+    final currentUserPlayerStatus = myPlayerForInstructions?['status']?.toString();
+    if (LOGGING_SWITCH) {
+      if (myPlayerForInstructions != null) {
         _logger.info('📚 handleGameStateUpdated: Current user player status=$currentUserPlayerStatus, currentPlayerStatus=$currentPlayerStatus');
+      } else {
+        _logger.warning('📚 handleGameStateUpdated: Current user player not found for instructions');
       }
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('📚 handleGameStateUpdated: Current user player not found: $e');
-      }
-      // Player not found, will be handled in _triggerInstructionsIfNeeded
-      currentUserPlayerStatus = null;
     }
     
     // Normalize backend phase to UI phase
@@ -2310,8 +2452,9 @@ When anyone has played a card with the **same rank** as your **collection card**
     });
     
     // Trigger instructions if showInstructions is enabled
-    final isMyTurn = currentPlayerFromState?['id']?.toString() == currentUserId ||
-                     (currentPlayer is Map && currentPlayer['id']?.toString() == currentUserId);
+    final seatIdForTurn = myPlayerForInstructions?['id']?.toString() ?? currentUserId;
+    final isMyTurn = currentPlayerFromState?['id']?.toString() == seatIdForTurn ||
+        (currentPlayer is Map && currentPlayer['id']?.toString() == seatIdForTurn);
     if (LOGGING_SWITCH) {
       _logger.info('📚 handleGameStateUpdated: Triggering instructions - isMyTurn=$isMyTurn, currentUserStatus=$currentUserPlayerStatus');
     }
@@ -2484,17 +2627,6 @@ When anyone has played a card with the **same rank** as your **collection card**
       _logger.info("handleGameStatePartialUpdate: $data");
     }
     final gameId = data['game_id']?.toString() ?? '';
-    final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    final currentGameId = currentState['currentGameId']?.toString() ?? '';
-    final currentRoomId = currentState['currentRoomId']?.toString() ?? '';
-    final kickedModalShownFor = currentState['kickedModalShownFor']?.toString() ?? '';
-    final isOnCurrentMatch = gameId == currentGameId || gameId == currentRoomId;
-    if (isOnCurrentMatch && kickedModalShownFor == gameId) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🚪 handleGameStatePartialUpdate: Ignoring partial update for kicked match gameId=$gameId');
-      }
-      return;
-    }
     final changedProperties = data['changed_properties'] as List<dynamic>? ?? [];
     final partialGameState = data['partial_game_state'] as Map<String, dynamic>? ?? {};
     // final timestamp = data['timestamp']?.toString() ?? '';

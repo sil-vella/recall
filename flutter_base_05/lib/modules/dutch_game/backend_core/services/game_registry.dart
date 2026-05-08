@@ -589,20 +589,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     }
     
     try {
-      // Get userId from session (playerId = sessionId in this system)
-      final userId = server.getUserIdForSession(playerId) ?? playerId;
-      
-      // Trigger the leave_room hook through the server
-      // This will call the _onLeaveRoom handler in DutchGameModule
-      server.triggerHook('leave_room', data: {
-        'room_id': roomId,
-        'session_id': playerId, // playerId = sessionId in this system
-        'user_id': userId,
-        'left_at': DateTime.now().toIso8601String(),
-      });
-      
+      server.forceSessionLeaveRoom(playerId, reason: 'removed_inactivity');
       if (LOGGING_SWITCH) {
-        _logger.info('GameStateCallback: Successfully triggered leave_room hook for player $playerId');
+        _logger.info('GameStateCallback: forceSessionLeaveRoom completed for player $playerId');
       }
     } catch (e) {
       if (LOGGING_SWITCH) {

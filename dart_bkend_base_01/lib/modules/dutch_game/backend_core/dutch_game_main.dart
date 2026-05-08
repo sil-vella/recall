@@ -39,6 +39,54 @@ import 'services/game_state_store.dart';
 
 const bool LOGGING_SWITCH = false; // Lobby create_room → room_created hook (enable-logging-switch.mdc)
 
+/// If [gameState.currentPlayer] is missing from [players] (e.g. leave mid-turn), pick a new
+/// current seat so broadcasts stay consistent for remaining clients and CPU timers.
+void _reassignCurrentPlayerIfInvalidForLeave(
+  Map<String, dynamic> gameState,
+  List<dynamic> players,
+) {
+  if (players.isEmpty) return;
+
+  String? curId;
+  final cp = gameState['currentPlayer'];
+  if (cp is Map<String, dynamic>) {
+    curId = cp['id']?.toString();
+  }
+
+  final rosterHasCurrent = curId != null &&
+      curId.isNotEmpty &&
+      players.any((p) {
+        if (p is! Map<String, dynamic>) return false;
+        return p['id']?.toString() == curId;
+      });
+  if (rosterHasCurrent) return;
+
+  Map<String, dynamic>? chosen;
+  for (final p in players) {
+    if (p is Map<String, dynamic> && (p['isActive'] as bool? ?? true)) {
+      chosen = p;
+      break;
+    }
+  }
+  if (chosen == null) {
+    for (final p in players) {
+      if (p is Map<String, dynamic>) {
+        chosen = p;
+        break;
+      }
+    }
+  }
+  if (chosen == null) return;
+
+  for (final p in players) {
+    if (p is! Map<String, dynamic>) continue;
+    if (identical(p, chosen)) continue;
+    p['status'] = 'waiting';
+  }
+  chosen['status'] = 'drawing_card';
+  gameState['currentPlayer'] = chosen;
+}
+
 /// Dutch game backend module. Registers the four room-lifecycle hook callbacks
 /// and holds the coordinator for game events. Instantiated once by WebSocketServer.
 class DutchGameModule {
@@ -526,6 +574,8 @@ class DutchGameModule {
       
       gameState['players'] = players;
       gameState['playerCount'] = newPlayerCount; // Update player count
+
+      _reassignCurrentPlayerIfInvalidForLeave(gameState, players);
       
       // Ensure phase is set (preserve existing phase if present)
       if (!gameState.containsKey('phase')) {
@@ -554,9 +604,9 @@ class DutchGameModule {
       }
 
       // CRITICAL: Broadcast the updated game state to all remaining players
-      // This ensures other players see that the player has left
-      // Note: If this was triggered by auto-leave, _moveToNextPlayer() was already called
-      // in the timer expiry handler, so the game has already progressed to the next player
+      // This ensures other players see that the player has left.
+      // Inactivity kicks: DutchGameRound advances the turn synchronously before
+      // [triggerLeaveRoom]; [_reassignCurrentPlayerIfInvalidForLeave] covers any other leave path.
       final ownerId = server.getRoomOwner(roomId);
       server.broadcastToRoom(roomId, {
         'event': 'game_state_updated',

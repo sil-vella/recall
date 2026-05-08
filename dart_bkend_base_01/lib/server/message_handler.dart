@@ -1486,44 +1486,7 @@ class MessageHandler {
       _logger.room('🎯 LEAVE_ROOM: getRoomForSession returned roomId: $roomId for session: $sessionId');
     }
     if (roomId != null) {
-      final room = _roomManager.getRoomInfo(roomId);
-      final userId = _server.getUserIdForSession(sessionId) ?? sessionId; // Get userId from server
-      _roomManager.leaveRoom(sessionId);
-      
-      // Cleanup timer if room becomes empty during delay period
-      if (room != null && room.currentSize == 0) {
-        RandomJoinTimerManager.instance.cleanup(roomId);
-        if (LOGGING_SWITCH) {
-          _logger.room('🧹 Cleaned up timer for empty room: $roomId');
-        }
-      }
-      
-      // Send leave_room_success (primary event matching Python)
-      _server.sendToSession(sessionId, {
-        'event': 'leave_room_success',
-        'room_id': roomId,
-        'session_id': sessionId,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      
-      // 🎣 Trigger leave_room hook
-      _server.triggerHook('leave_room', data: {
-        'room_id': roomId,
-        'session_id': sessionId,
-        'user_id': userId,
-        'left_at': DateTime.now().toIso8601String(),
-      });
-      
-      // Broadcast to remaining room members
-      if (room != null) {
-        _server.broadcastToRoom(roomId, {
-          'event': 'player_left',
-          'room_id': roomId,
-          'player_count': room.currentSize,
-          'timestamp': DateTime.now().toIso8601String(),
-        });
-      }
-      
+      _server.forceSessionLeaveRoom(sessionId);
       if (LOGGING_SWITCH) {
         _logger.room('✅ Session $sessionId left room $roomId');
       }

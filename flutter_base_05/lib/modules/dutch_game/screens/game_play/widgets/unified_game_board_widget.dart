@@ -21,7 +21,7 @@ import '../../demo/demo_functionality.dart';
 import '../../../utils/dutch_game_helpers.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = false; // Multi-human: TurnHighlight / board slice (enable-logging-switch.mdc; set false after test)
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;
@@ -1016,7 +1016,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     if (LOGGING_SWITCH) {
       _logger.info(
         '[TurnHighlight] oppId=${player['id']} '
-        'isCurrentTurn=$isCurrentTurn isCurrentPlayer=$isCurrentPlayer '
+        'isCurrentTurn=$isCurrentTurn turnActorIdMatchesSeat=$isCurrentPlayer '
         'isGameActive=$isGameActive highlight=$highlightOpponentSeat '
         'status=$playerStatus phase=$phase',
       );
@@ -3111,13 +3111,38 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  /// `players[].id` for the human row (SSOT for `game_animation` [`owner_id`] and games map).
-  /// In practice, [getCurrentUserId] can resolve to login UUID when `practiceUser` is unset while
-  /// the embedded backend still uses `practice_session_<userId>` as [players].id — that
-  /// mismatch breaks [DutchAnimRuntime] slot rects vs overlay [rectFor].
+  /// `players[].id` for **this** client's bottom hand row (must match [game_animation] `owner_id`
+  /// lookups in [DutchAnimRuntime] / [DutchCardAnimOverlay.rectFor]).
+  ///
+  /// Never use "first `isHuman` in roster" — with two humans that maps both devices to the same
+  /// seat id so layout keys and [cardPositions] point at the wrong strip (other player's actions
+  /// animate into "my hand").
   String _myBoardPlayerId(Map<String, dynamic> board) {
     final players =
         (board['boardGameState'] as Map<String, dynamic>? ?? {})['players'] as List<dynamic>? ?? [];
+
+    final sessionId = DutchEventHandlerCallbacks.getCurrentUserId().trim();
+    if (sessionId.isNotEmpty) {
+      for (final p in players) {
+        if (p is! Map<String, dynamic>) continue;
+        final id = p['id']?.toString() ?? '';
+        if (id.isNotEmpty && id == sessionId) return id;
+      }
+    }
+
+    final loginId = DutchEventHandlerCallbacks.getCurrentLoginUserId().trim();
+    if (loginId.isNotEmpty) {
+      for (final p in players) {
+        if (p is! Map<String, dynamic>) continue;
+        final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+        if (uid == loginId) {
+          final id = p['id']?.toString() ?? '';
+          if (id.isNotEmpty) return id;
+        }
+      }
+    }
+
+    // Single-human fallback (or before roster is hydrated): first human seat, else session id.
     for (final p in players) {
       if (p is! Map<String, dynamic>) continue;
       if (p['isHuman'] == true) {
@@ -3125,13 +3150,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (id.isNotEmpty) return id;
       }
     }
-    final cached = DutchEventHandlerCallbacks.getCurrentUserId();
-    for (final p in players) {
-      if (p is! Map<String, dynamic>) continue;
-      final id = p['id']?.toString() ?? '';
-      if (id.isNotEmpty && id == cached) return id;
-    }
-    return cached;
+    return sessionId;
   }
 
   Future<void> _showInPlayCustomizeModal() async {

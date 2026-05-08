@@ -4,13 +4,14 @@ import 'package:uuid/uuid.dart';
 import 'room_manager.dart';
 import 'message_handler.dart';
 import 'random_join_timer_manager.dart';
+
 import '../services/python_api_client.dart';
 import '../utils/server_logger.dart';
 import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // WS connect/auth + sessions (enable-logging-switch.mdc; set false after test); inbox HTTP trace → http_notify_handler.dart
+const bool LOGGING_SWITCH = true; // forceSessionLeaveRoom + room broadcast (enable-logging-switch.mdc; set false after test)
 
 /// Core WebSocket event name for instant notifications pushed by the backend to a session.
 const String kWsInstantNotificationEvent = 'ws_instant_notification';
@@ -442,6 +443,72 @@ class WebSocketServer {
       }
     }
     return n;
+  }
+
+  /// Same side effects as handling an inbound `leave_room` message: remove [sessionId] from its
+  /// room, optional random-join timer cleanup, send `leave_room_success`, run `leave_room` hook,
+  /// then `player_left` to remaining members. Used when the game layer removes a player (e.g.
+  /// missed-action kick) so they are no longer in the room and stop receiving room broadcasts.
+  ///
+  /// When [reason] is non-null and non-empty, it is included on `leave_room_success` and the hook
+  /// payload (e.g. `removed_inactivity` for inactivity removal).
+  void forceSessionLeaveRoom(String sessionId, {String? reason}) {
+    final roomId = _roomManager.getRoomForSession(sessionId);
+    if (roomId == null) {
+      if (LOGGING_SWITCH) {
+        _logger.room('forceSessionLeaveRoom: session $sessionId not in any room');
+      }
+      return;
+    }
+    final room = _roomManager.getRoomInfo(roomId);
+    final userId = getUserIdForSession(sessionId) ?? sessionId;
+    _roomManager.leaveRoom(sessionId);
+
+    if (LOGGING_SWITCH) {
+      final remaining = getSessionsInRoom(roomId);
+      _logger.room(
+        '[kick-trace] forceSessionLeaveRoom removed=$sessionId room=$roomId reason=$reason '
+        'remainingSessions=${remaining.length} ids=$remaining',
+      );
+    }
+
+    if (room != null && room.currentSize == 0) {
+      RandomJoinTimerManager.instance.cleanup(roomId);
+      if (LOGGING_SWITCH) {
+        _logger.room('🧹 forceSessionLeaveRoom: cleaned random-join timer for empty room $roomId');
+      }
+    }
+
+    final leaveSuccess = <String, dynamic>{
+      'event': 'leave_room_success',
+      'room_id': roomId,
+      'session_id': sessionId,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    if (reason != null && reason.isNotEmpty) {
+      leaveSuccess['reason'] = reason;
+    }
+    sendToSession(sessionId, leaveSuccess);
+
+    final hookData = <String, dynamic>{
+      'room_id': roomId,
+      'session_id': sessionId,
+      'user_id': userId,
+      'left_at': DateTime.now().toIso8601String(),
+    };
+    if (reason != null && reason.isNotEmpty) {
+      hookData['reason'] = reason;
+    }
+    triggerHook('leave_room', data: hookData);
+
+    if (room != null) {
+      broadcastToRoom(roomId, {
+        'event': 'player_left',
+        'room_id': roomId,
+        'player_count': room.currentSize,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    }
   }
 
   void broadcastToRoom(String roomId, Map<String, dynamic> message) {

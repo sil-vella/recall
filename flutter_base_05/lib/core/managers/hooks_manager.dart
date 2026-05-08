@@ -44,7 +44,13 @@ class HooksManager {
     
     // If this hook was already triggered, immediately call the new callback with the last data
     // This ensures late-registering modules (like after async initialization) still get the hook
-    if (_triggeredHooksData.containsKey(hookName) && _isAppInitialized) {
+    //
+    // Exception: `leave_room_success` carries session-specific fields (`session_id`, `reason`).
+    // Replaying stale payloads to a newly registered listener caused false "removed for inactivity"
+    // UI and blocked live match updates for the remaining human.
+    if (hookName != 'leave_room_success' &&
+        _triggeredHooksData.containsKey(hookName) &&
+        _isAppInitialized) {
       final lastData = _triggeredHooksData[hookName];
       if (lastData != null) {
         // Execute the newly registered callback immediately with the last data

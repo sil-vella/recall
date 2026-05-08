@@ -84,6 +84,46 @@ class WebSocketServerStub {
     _onTriggerHook?.call(hookName, data: data, context: context);
   }
 
+  /// Mirrors [WebSocketServer.forceSessionLeaveRoom] for practice / embedded coordinator.
+  void forceSessionLeaveRoom(String sessionId, {String? reason}) {
+    final rid = _roomManager.getRoomForSession(sessionId);
+    if (rid == null) return;
+    final userId = getUserIdForSession(sessionId) ?? sessionId;
+    _roomManager.leaveRoom(sessionId);
+
+    final leaveSuccess = <String, dynamic>{
+      'event': 'leave_room_success',
+      'room_id': rid,
+      'session_id': sessionId,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    if (reason != null && reason.isNotEmpty) {
+      leaveSuccess['reason'] = reason;
+    }
+    sendToSession(sessionId, leaveSuccess);
+
+    final hookData = <String, dynamic>{
+      'room_id': rid,
+      'session_id': sessionId,
+      'user_id': userId,
+      'left_at': DateTime.now().toIso8601String(),
+    };
+    if (reason != null && reason.isNotEmpty) {
+      hookData['reason'] = reason;
+    }
+    triggerHook('leave_room', data: hookData);
+
+    final roomAfter = _roomManager.getRoomInfo(rid);
+    if (roomAfter != null) {
+      broadcastToRoom(rid, {
+        'event': 'player_left',
+        'room_id': rid,
+        'player_count': roomAfter.currentSize,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+
   int get connectionCount => 1;
 }
 

@@ -6,8 +6,36 @@ import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
 
+String _deriveWireCurrentPlayerStatus(Map<String, dynamic> gameState) {
+  final cp = gameState['currentPlayer'];
+  if (cp is Map<String, dynamic>) {
+    final st = cp['status']?.toString().trim();
+    if (st != null && st.isNotEmpty) {
+      return st;
+    }
+    final id = cp['id']?.toString();
+    if (id != null && id.isNotEmpty) {
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      for (final p in players) {
+        if (p is Map<String, dynamic> && p['id']?.toString() == id) {
+          final pst = p['status']?.toString().trim();
+          if (pst != null && pst.isNotEmpty) {
+            return pst;
+          }
+          break;
+        }
+      }
+    }
+  }
+  final phase = gameState['phase']?.toString().trim();
+  if (phase != null && phase.isNotEmpty) {
+    return phase;
+  }
+  return 'unknown';
+}
+
 /// When true, logs registry lifecycle, WS emit paths, and payload-size lines for `game_state_updated`.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file — set false after coordination/peek testing
+const bool LOGGING_SWITCH = true; // triggerLeaveRoom + game_state emit (enable-logging-switch.mdc; set false after test)
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -216,6 +244,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'game_state': filteredGameState,
       'turn_events': turnEvents,
       'state_version': stateVersion,
+      if (filteredGameState['currentPlayer'] != null) 'current_player': filteredGameState['currentPlayer'],
+      'current_player_status': _deriveWireCurrentPlayerStatus(filteredGameState),
       if (winners != null) 'winners': winners,
       if (ownerId != null) 'owner_id': ownerId,
       if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
@@ -647,20 +677,11 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     }
     
     try {
-      // Get userId from session (playerId = sessionId in this system)
-      final userId = server.getUserIdForSession(playerId) ?? playerId;
-      
-      // Trigger the leave_room hook through the server
-      // This will call the _onLeaveRoom handler in DutchGameModule
-      server.triggerHook('leave_room', data: {
-        'room_id': roomId,
-        'session_id': playerId, // playerId = sessionId in this system
-        'user_id': userId,
-        'left_at': DateTime.now().toIso8601String(),
-      });
-      
+      // Remove session from the room (same as client leave_room) so they stop receiving
+      // room broadcasts; then leave_room hook updates game state for remaining players.
+      server.forceSessionLeaveRoom(playerId, reason: 'removed_inactivity');
       if (LOGGING_SWITCH) {
-        _logger.info('GameStateCallback: Successfully triggered leave_room hook for player $playerId');
+        _logger.info('GameStateCallback: forceSessionLeaveRoom completed for player $playerId');
       }
     } catch (e) {
       if (LOGGING_SWITCH) {

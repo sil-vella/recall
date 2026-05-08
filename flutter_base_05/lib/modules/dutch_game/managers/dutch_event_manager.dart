@@ -25,7 +25,7 @@ typedef _NotificationSuccessHandler = Future<void> Function(
 );
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = false; // Random join nav + room events; coin-purchase paths (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // leave_room_success hook / kick trace (enable-logging-switch.mdc; set false after test)
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();
@@ -178,6 +178,21 @@ class DutchEventManager {
           data: data,
         );
       }
+    });
+
+    // Server-driven leave (e.g. inactivity kick): same leave_room_success as voluntary leave,
+    // but reason is set so we show the removed-from-game modal without relying on game_state.
+    HooksManager().registerHookWithData('leave_room_success', (data) {
+      final reason = data['reason']?.toString() ?? '';
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '[kick-trace] leave_room_success hook reason=$reason room=${data['room_id']} session=${data['session_id']}',
+        );
+      }
+      if (reason != 'removed_inactivity') return;
+      DutchEventHandlerCallbacks.handleKickedForInactivityLeaveSuccess(
+        Map<String, dynamic>.from(data),
+      );
     });
     
     // Register room_creation hook callback

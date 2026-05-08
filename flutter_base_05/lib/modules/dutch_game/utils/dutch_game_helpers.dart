@@ -27,7 +27,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // join_random_game / create_room → WS (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // isGameStillInState / kick trace (enable-logging-switch.mdc; set false after test)
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -36,14 +36,30 @@ class DutchGameHelpers {
     _recentlyLeftGameIds.remove(gameId);
   }
 
-  /// Returns true if [gameId] is still in dutch_game state (in games map or is currentGameId).
+  /// Returns true if [gameId] is still in dutch_game state (in games map, current match id, or lobby room id).
   /// Used by Dutch WS listeners to ignore stale events for games we've left or cleared.
+  ///
+  /// Includes [currentRoomId] so we do not drop live `game_state_updated` when `games` is briefly
+  /// missing the key but the client is still in the match (e.g. mid-merge or after a peer left).
   static bool isGameStillInState(String gameId) {
     if (gameId.isEmpty) return false;
     final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final games = dutchState['games'] as Map<String, dynamic>? ?? {};
     final currentGameId = dutchState['currentGameId']?.toString() ?? '';
-    return games.containsKey(gameId) || currentGameId == gameId;
+    final currentRoomId = dutchState['currentRoomId']?.toString() ?? '';
+    final randomJoin = dutchState['isRandomJoinInProgress'] == true;
+    final ok = games.containsKey(gameId) ||
+        currentGameId == gameId ||
+        currentRoomId == gameId;
+    if (LOGGING_SWITCH && !ok) {
+      final keys = games.keys.take(12).toList();
+      _logger.info(
+        '[kick-trace] isGameStillInState=false gameId=$gameId randomJoin=$randomJoin '
+        'gamesContains=${games.containsKey(gameId)} currentGameId=$currentGameId currentRoomId=$currentRoomId '
+        'gamesKeys=$keys',
+      );
+    }
+    return ok;
   }
 
   /// True when a random-join is in progress (we sent join_random_game and are waiting for room/game_state).

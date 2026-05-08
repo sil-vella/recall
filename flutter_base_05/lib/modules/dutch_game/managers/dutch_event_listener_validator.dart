@@ -18,7 +18,7 @@ class EventConfig {
 /// Dutch Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class DutchGameEventListenerValidator {
-  static const bool LOGGING_SWITCH = false; // Random join event validation (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // kick/leave + game_state gate (enable-logging-switch.mdc; set false after test)
   static DutchGameEventListenerValidator? _instance;
   
   static DutchGameEventListenerValidator get instance {
@@ -289,7 +289,10 @@ class DutchGameEventListenerValidator {
         final randomJoinInProgress = DutchGameHelpers.isRandomJoinInProgress;
         if (!inState && !randomJoinInProgress) {
           if (LOGGING_SWITCH) {
-            _logger.info("⏭️ Ignoring Dutch WS event: $eventType for game_id=$gameId (game not in state)");
+            _logger.info(
+              '[kick-trace] Ignoring Dutch WS event: $eventType game_id=$gameId '
+              'inState=$inState randomJoinInProgress=$randomJoinInProgress',
+            );
           }
           return;
         }

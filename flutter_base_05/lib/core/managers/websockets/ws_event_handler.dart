@@ -9,7 +9,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // inbox_changed + create_room_success / is_random_join (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // leave_room_success → hooks (enable-logging-switch.mdc; set false after test)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -579,13 +579,26 @@ class WSEventHandler {
   void handleLeaveRoomSuccess(dynamic data) {
     try {
       final roomId = data['room_id'] ?? '';
-      
+      final map = <String, dynamic>{};
+      if (data is Map) {
+        for (final e in data.entries) {
+          map[e.key.toString()] = e.value;
+        }
+      }
+
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
         roomId: null,
         roomInfo: null,
       );
-      
+
+      if (LOGGING_SWITCH) {
+        _logger.info(
+          '[kick-trace] handleLeaveRoomSuccess room=$roomId reason=${map['reason']} session=${map['session_id']} keys=${map.keys.toList()}',
+        );
+      }
+      HooksManager().triggerHookWithData('leave_room_success', map);
+
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
         'action': 'left',

@@ -23,7 +23,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // State after random join → game (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = false; // Multi-human: currentPlayerStatus / SSOT slices (enable-logging-switch.mdc; set false after test)
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -462,6 +462,16 @@ class DutchGameStateUpdater {
         return player['status']?.toString() ?? 'unknown';
       }
     }
+    final loginUserId = DutchEventHandlerCallbacks.getCurrentLoginUserId();
+    if (loginUserId.isNotEmpty) {
+      for (final player in players) {
+        if (player is! Map<String, dynamic>) continue;
+        final uid = player['userId']?.toString() ?? player['user_id']?.toString() ?? '';
+        if (uid == loginUserId) {
+          return player['status']?.toString() ?? 'unknown';
+        }
+      }
+    }
     return 'unknown';
   }
 
@@ -480,9 +490,29 @@ class DutchGameStateUpdater {
     final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    final roster = gameState['players'] as List<dynamic>? ?? [];
     
     if (currentPlayer != null) {
-      return currentPlayer['status']?.toString() ?? 'unknown';
+      final st = currentPlayer['status']?.toString();
+      if (st != null && st.isNotEmpty) {
+        return st;
+      }
+      final actorId = currentPlayer['id']?.toString();
+      if (actorId != null && actorId.isNotEmpty) {
+        for (final p in roster) {
+          if (p is Map<String, dynamic> && p['id']?.toString() == actorId) {
+            final pst = p['status']?.toString();
+            if (pst != null && pst.isNotEmpty) {
+              return pst;
+            }
+            break;
+          }
+        }
+      }
+    }
+    final phaseFallback = gameState['phase']?.toString();
+    if (phaseFallback != null && phaseFallback.isNotEmpty) {
+      return phaseFallback;
     }
     return 'unknown';
   }

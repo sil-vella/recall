@@ -12,7 +12,7 @@ import 'websocket_events.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 
-const bool LOGGING_SWITCH = false; // Lobby → random join WS connect/auth (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // Multi-human: sessionData / seat id after connect (enable-logging-switch.mdc; set false after test)
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();
@@ -114,6 +114,24 @@ class WebSocketManager {
     if (socketConnected != _isConnected) {
       _isConnected = socketConnected;
     }
+  }
+
+  /// Dutch multiplayer treats Socket.IO session id as the seat / player id. The server handshake
+  /// often omits structured session data — merge [connectData] with `session_id` / `sessionId`.
+  Map<String, dynamic>? _sessionPayloadForConnect([dynamic connectData]) {
+    final sid = (_socket?.id ?? '').trim();
+    if (connectData is Map<String, dynamic> && connectData.isNotEmpty) {
+      final merged = Map<String, dynamic>.from(connectData);
+      if (sid.isNotEmpty) {
+        merged.putIfAbsent('session_id', () => sid);
+        merged.putIfAbsent('sessionId', () => sid);
+      }
+      return merged;
+    }
+    if (sid.isNotEmpty) {
+      return {'session_id': sid, 'sessionId': sid};
+    }
+    return null;
   }
 
   /// Drop socket, listener/handler refs, and flags so the next [initialize]/[connect] rebuilds transport
@@ -239,7 +257,7 @@ class WebSocketManager {
       _isConnected = true;
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: true,
-        sessionData: null, // No session data available yet
+        sessionData: _sessionPayloadForConnect(),
       );
       if (LOGGING_SWITCH) {
         _logger.info('✅ StateManager updated with connection status in initialize()');
@@ -296,7 +314,7 @@ class WebSocketManager {
       _isConnecting = false; // Reset connecting state
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: true,
-        sessionData: null,
+        sessionData: _sessionPayloadForConnect(),
       );
 
       // Logs are now sent via HTTP endpoint, no need to drain pending logs
@@ -583,7 +601,7 @@ class WebSocketManager {
         // Update StateManager for UI indicators
         WebSocketStateHelpers.updateConnectionStatus(
           isConnected: true,
-          sessionData: null, // No session data available for pre-established connection
+          sessionData: _sessionPayloadForConnect(),
         );
         if (LOGGING_SWITCH) {
           _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed for pre-established connection');
@@ -623,7 +641,7 @@ class WebSocketManager {
         // Update StateManager for UI indicators
         WebSocketStateHelpers.updateConnectionStatus(
           isConnected: true,
-          sessionData: data is Map<String, dynamic> ? data : null,
+          sessionData: _sessionPayloadForConnect(data),
         );
         if (LOGGING_SWITCH) {
           _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed');

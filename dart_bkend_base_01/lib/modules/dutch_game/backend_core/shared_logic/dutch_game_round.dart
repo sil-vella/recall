@@ -682,6 +682,30 @@ class DutchGameRound {
     // The callback implementation will handle multiplayer vs practice distinction
     _stateCallback.triggerLeaveRoom(playerId);
   }
+
+  /// Human draw/play timer just recorded a miss. On the **second** miss we must advance the
+  /// turn **before** [triggerLeaveRoom] removes the player from the roster: otherwise
+  /// `_moveToNextPlayer(fromTimerExpiry: true)` only schedules `_executeMoveToNextPlayerCore`
+  /// in 2s, the leave hook runs immediately with `currentPlayer` still pointing at the kicked
+  /// seat, and the delayed core later hits `currentIndex == -1` and aborts (stuck game).
+  void _recordHumanTimerMissAndAdvanceOrKick(String playerId) {
+    _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
+    final c = _missedActionCounts[playerId] ?? 0;
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Player $playerId missed action count: $c');
+    }
+    if (c >= 2) {
+      _pendingMoveToNextPlayerTimer?.cancel();
+      _pendingMoveToNextPlayerTimer = null;
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Second timer miss — advancing turn synchronously before inactivity kick for $playerId');
+      }
+      _executeMoveToNextPlayerCore();
+      _onMissedActionThresholdReached(playerId);
+    } else {
+      _moveToNextPlayer(fromTimerExpiry: true);
+    }
+  }
   
   /// Get the current game state from the callback
   Map<String, dynamic>? _getCurrentGameState() {
@@ -1661,9 +1685,16 @@ class DutchGameRound {
             };
             // Check if threshold reached (2 missed actions)
             if (_missedActionCounts[playerId] == 2) {
+              _pendingMoveToNextPlayerTimer?.cancel();
+              _pendingMoveToNextPlayerTimer = null;
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Computer second miss — advancing turn before inactivity kick for $playerId');
+              }
+              _executeMoveToNextPlayerCore();
               _onMissedActionThresholdReached(playerId);
+            } else {
+              _moveToNextPlayer();
             }
-            _moveToNextPlayer();
             break;
           }
           // Guard: do not apply play if turn has already moved (e.g. after special-card window)
@@ -7513,19 +7544,7 @@ class DutchGameRound {
     _playActionTimer?.cancel();
     _playActionTimer = null;
     
-    // Move to next player first (normal flow) - use fromTimerExpiry so the 2s delay is cancellable
-    _moveToNextPlayer(fromTimerExpiry: true);
-    
-    // Then check missed action threshold and trigger auto-leave if needed
-    _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}');
-    };
-    
-    // Check if threshold reached (2 missed actions)
-    if (_missedActionCounts[playerId] == 2) {
-      _onMissedActionThresholdReached(playerId);
-    }
+    _recordHumanTimerMissAndAdvanceOrKick(playerId);
   }
 
   /// Handle play action timer expiration
@@ -7624,19 +7643,7 @@ class DutchGameRound {
       };
     }
     
-    // Move to next player first (normal flow) - use fromTimerExpiry so the 2s delay is cancellable
-    _moveToNextPlayer(fromTimerExpiry: true);
-    
-    // Then check missed action threshold and trigger auto-leave if needed
-    _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}');
-    };
-    
-    // Check if threshold reached (2 missed actions)
-    if (_missedActionCounts[playerId] == 2) {
-      _onMissedActionThresholdReached(playerId);
-    }
+    _recordHumanTimerMissAndAdvanceOrKick(playerId);
   }
 
   /// Cancel all action timers (including pending delayed computer decision, so it does not run after turn change)

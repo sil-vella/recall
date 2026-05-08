@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "item_id": "coin_booster_win_x1_5",
+      "item_type": "booster",
+      "category_group": "consumables",
+      "category_theme": "core",
+      "price_coins": 120,
+      "display_name": "Win Coin Booster x1.5",
+      "is_active": true,
+      "effects": {
+        "grant": {
+          "booster_key": "coin_booster_win_x1_5",
+          "quantity": 1
+        }
+      }
+    },
+    {
+      "item_id": "coin_booster_win_x1_5_pack5",
+      "item_type": "booster_pack",
+      "category_group": "consumables",
+      "category_theme": "core",
+      "price_coins": 540,
+      "display_name": "Win Coin Booster x1.5 (x5)",
+      "quantity": 5,
+      "is_active": true,
+      "effects": {
+        "grant": {
+          "booster_key": "coin_booster_win_x1_5",
+          "quantity": 5
+        }
+      }
+    },
+    {
+      "item_id": "card_back_ember",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 300,
+      "display_name": "Card Back Ember",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#C84A2F",
+        "frame_border_color": "#D4AF37"
+      }
+    },
+    {
+      "item_id": "card_back_ocean",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "nature",
+      "price_coins": 300,
+      "display_name": "Card Back Ocean",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#2A6FB0",
+        "frame_border_color": "#D4AF37"
+      }
+    },
+    {
+      "item_id": "card_back_juventus",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "sports",
+      "price_coins": 500,
+      "display_name": "Card Back Juventus",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#FFFFFF",
+        "frame_border_color": "#2A6FB0"
+      }
+    },
+    {
+      "item_id": "table_design_neon",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 500,
+      "display_name": "Table Design Neon",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#2A6FB0"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_royal",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "royal",
+      "price_coins": 900,
+      "display_name": "Table Design Royal",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#4C5A8E"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_juventus",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 1100,
+      "display_name": "Table Design Juventus",
+      "is_active": true,
+      "style": {
+        "border_style": "stripes",
+        "border_colors": [
+          "#000000",
+          "#FFFFFF"
+        ]
+      }
+    },
+    {
+      "item_id": "card_back_dragon",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "display_name": "Card Back Dragon",
+      "price_coins": 350,
+      "is_active": true,
+      "style": {
+        "card_background_color": "#6A2A84",
+        "frame_border_color": "#D4AF37"
+      }
+    }
+  ]
+}

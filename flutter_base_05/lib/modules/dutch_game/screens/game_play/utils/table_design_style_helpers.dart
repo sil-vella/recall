@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../../../core/managers/state_manager.dart';
 import '../../../../../../utils/consts/config.dart';
 import '../../../../../../utils/consts/theme_consts.dart';
+import '../../../utils/consumables_catalog_bootstrap.dart';
 
 class TableDesignStyleHelpers {
   static String readEquippedTableDesignId(Map<String, dynamic> dutchState) {
@@ -14,6 +15,8 @@ class TableDesignStyleHelpers {
   }
 
   static Color outerBorderColorForDesign(String tableDesignId) {
+    final colors = borderColorsForDesign(tableDesignId);
+    if (colors.isNotEmpty) return colors.first;
     switch (tableDesignId.trim()) {
       case 'table_design_neon':
         return AppColors.pokerTableBlue;
@@ -25,6 +28,8 @@ class TableDesignStyleHelpers {
   }
 
   static Color outerBorderGlowForDesign(String tableDesignId) {
+    final colors = borderColorsForDesign(tableDesignId);
+    if (colors.isNotEmpty) return colors.first.withValues(alpha: 0.55);
     switch (tableDesignId.trim()) {
       case 'table_design_neon':
         return AppColors.pokerTableBlue.withValues(alpha: 0.55);
@@ -36,7 +41,38 @@ class TableDesignStyleHelpers {
   }
 
   static bool isJuventusTableDesign(String tableDesignId) {
-    return tableDesignId.trim() == 'table_design_juventus';
+    return borderStyleForDesign(tableDesignId) == 'stripes' ||
+        tableDesignId.trim() == 'table_design_juventus';
+  }
+
+  static String borderStyleForDesign(String tableDesignId) {
+    final style = ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId);
+    final borderStyle = style['border_style']?.toString().trim().toLowerCase() ?? '';
+    if (borderStyle == 'stripes') return 'stripes';
+    return 'solid';
+  }
+
+  static List<Color> borderColorsForDesign(String tableDesignId) {
+    final style = ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId);
+    final raw = style['border_colors'];
+    if (raw is! List) return const <Color>[];
+    final out = <Color>[];
+    for (final item in raw.take(2)) {
+      final c = _parseHexColor(item?.toString());
+      if (c != null) out.add(c);
+    }
+    return out;
+  }
+
+  static Color? _parseHexColor(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return null;
+    final hex = v.startsWith('#') ? v.substring(1) : v;
+    if (hex.length != 6 && hex.length != 8) return null;
+    final full = hex.length == 6 ? 'FF$hex' : hex;
+    final parsed = int.tryParse(full, radix: 16);
+    if (parsed == null) return null;
+    return Color(parsed);
   }
 
   static String buildOverlayUrl({
@@ -61,10 +97,12 @@ class TableDesignStyleHelpers {
 class JuventusStripeBorderPainter extends CustomPainter {
   final double borderWidth;
   final double borderRadius;
+  final List<Color> stripeColors;
 
   const JuventusStripeBorderPainter({
     required this.borderWidth,
     required this.borderRadius,
+    this.stripeColors = const [AppColors.black, AppColors.white],
   });
 
   @override
@@ -79,26 +117,27 @@ class JuventusStripeBorderPainter extends CustomPainter {
     final base = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = borderWidth
-      ..color = AppColors.black;
+      ..color = stripeColors.first;
     canvas.drawRRect(outer, base);
 
     // Triple Juventus stripe thickness vs original baseline (borderWidth / 2.2).
     final stripe = (borderWidth * 1.36).clamp(10.0, 30.0);
-    final white = Paint()..color = AppColors.white;
+    final stripePaint = Paint()
+      ..color = stripeColors.length > 1 ? stripeColors[1] : stripeColors.first;
 
     for (double x = 0; x < size.width; x += stripe * 2) {
-      canvas.drawRect(Rect.fromLTWH(x, 0, stripe, borderWidth), white);
+      canvas.drawRect(Rect.fromLTWH(x, 0, stripe, borderWidth), stripePaint);
       canvas.drawRect(
         Rect.fromLTWH(x, size.height - borderWidth, stripe, borderWidth),
-        white,
+        stripePaint,
       );
     }
 
     for (double y = 0; y < size.height; y += stripe * 2) {
-      canvas.drawRect(Rect.fromLTWH(0, y, borderWidth, stripe), white);
+      canvas.drawRect(Rect.fromLTWH(0, y, borderWidth, stripe), stripePaint);
       canvas.drawRect(
         Rect.fromLTWH(size.width - borderWidth, y, borderWidth, stripe),
-        white,
+        stripePaint,
       );
     }
     canvas.restore();
@@ -107,7 +146,8 @@ class JuventusStripeBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant JuventusStripeBorderPainter oldDelegate) {
     return oldDelegate.borderWidth != borderWidth ||
-        oldDelegate.borderRadius != borderRadius;
+        oldDelegate.borderRadius != borderRadius ||
+        oldDelegate.stripeColors != stripeColors;
   }
 }
 

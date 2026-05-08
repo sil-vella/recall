@@ -17,6 +17,7 @@ import uuid
 
 from . import dutch_notifications
 from . import table_tiers_catalog as ttc
+from . import consumables_catalog as cc
 from .wins_level_rank_matcher import WinsLevelRankMatcher
 from .dutch_achievement_catalog import (
     achievements_unlocked_ids_sorted,
@@ -38,19 +39,8 @@ METRICS_SWITCH = False
 MATCH_WIN_OUTCOMES_COLL = "dutch_match_win_outcomes"
 CONSUMABLE_TX_COLL = "dutch_consumable_transactions"
 
-BOOSTER_ITEM_ID = "coin_booster_win_x1_5"
 BOOSTER_MULTIPLIER = 1.5
-
-SHOP_CATALOG = [
-    {"item_id": BOOSTER_ITEM_ID, "item_type": "booster", "category_group": "consumables", "category_theme": "core", "price_coins": 120, "display_name": "Win Coin Booster x1.5", "is_active": True},
-    {"item_id": "coin_booster_win_x1_5_pack5", "item_type": "booster_pack", "category_group": "consumables", "category_theme": "core", "price_coins": 540, "display_name": "Win Coin Booster x1.5 (x5)", "quantity": 5, "is_active": True},
-    {"item_id": "card_back_ember", "item_type": "card_back", "category_group": "card_backs", "category_theme": "fantasy", "price_coins": 300, "display_name": "Card Back Ember", "asset_url_or_path": "assets/images/card_back.webp", "is_active": True},
-    {"item_id": "card_back_ocean", "item_type": "card_back", "category_group": "card_backs", "category_theme": "nature", "price_coins": 300, "display_name": "Card Back Ocean", "asset_url_or_path": "assets/images/card_back.webp", "is_active": True},
-    {"item_id": "card_back_juventus", "item_type": "card_back", "category_group": "card_backs", "category_theme": "sports", "price_coins": 500, "display_name": "Card Back Juventus", "asset_url_or_path": "assets/images/card_back.webp", "is_active": True},
-    {"item_id": "table_design_neon", "item_type": "table_design", "category_group": "table_designs", "category_theme": "neon", "price_coins": 500, "display_name": "Table Design Neon", "is_active": True},
-    {"item_id": "table_design_royal", "item_type": "table_design", "category_group": "table_designs", "category_theme": "royal", "price_coins": 900, "display_name": "Table Design Royal", "is_active": True},
-    {"item_id": "table_design_juventus", "item_type": "table_design", "category_group": "table_designs", "category_theme": "sports", "price_coins": 1100, "display_name": "Table Design Juventus", "is_active": True},
-]
+BOOSTER_ITEM_ID = cc.primary_win_booster_key()
 
 # Store app_manager reference (will be set by module)
 _app_manager = None
@@ -122,8 +112,9 @@ def _ensure_consumable_indexes(db_manager) -> None:
 
 
 def _default_inventory() -> Dict[str, Any]:
+    boosters = {k: 0 for k in cc.booster_inventory_keys()}
     return {
-        "boosters": {BOOSTER_ITEM_ID: 0},
+        "boosters": boosters,
         "cosmetics": {
             "owned_card_backs": [],
             "owned_table_designs": [],
@@ -138,10 +129,11 @@ def _normalize_inventory(raw: Any) -> Dict[str, Any]:
         return inv
     boosters = raw.get("boosters")
     if isinstance(boosters, dict):
-        try:
-            inv["boosters"][BOOSTER_ITEM_ID] = max(0, int(boosters.get(BOOSTER_ITEM_ID, 0) or 0))
-        except Exception:
-            inv["boosters"][BOOSTER_ITEM_ID] = 0
+        for bkey in cc.booster_inventory_keys():
+            try:
+                inv["boosters"][bkey] = max(0, int(boosters.get(bkey, 0) or 0))
+            except Exception:
+                inv["boosters"][bkey] = 0
     cosmetics = raw.get("cosmetics")
     if isinstance(cosmetics, dict):
         backs = cosmetics.get("owned_card_backs")
@@ -165,10 +157,7 @@ def _dutch_game_with_inventory(user: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _find_catalog_item(item_id: str) -> Optional[Dict[str, Any]]:
-    for item in SHOP_CATALOG:
-        if item.get("item_id") == item_id and item.get("is_active") is True:
-            return item
-    return None
+    return cc.find_item(item_id, active_only=True)
 
 
 def _insert_consumable_tx(db_manager, *, user_id: ObjectId, tx_type: str, payload: Dict[str, Any], idempotency_key: Optional[str] = None) -> Dict[str, Any]:
@@ -1489,7 +1478,9 @@ def get_user_stats():
                 isOn=LOGGING_SWITCH,
             )
         client_rev = (request.args.get("client_table_tiers_revision") or "").strip()
+        client_cons_rev = (request.args.get("client_consumables_catalog_revision") or "").strip()
         rev = ttc.TABLE_TIERS_REVISION
+        cons_rev = cc.CONSUMABLES_CATALOG_REVISION
         response_body: Dict[str, Any] = {
             "success": True,
             "message": "User statistics retrieved successfully",
@@ -1497,10 +1488,13 @@ def get_user_stats():
             "user_id": str(user_id),
             "timestamp": datetime.utcnow().isoformat(),
             "table_tiers_revision": rev,
+            "consumables_catalog_revision": cons_rev,
         }
         if (not client_rev) or client_rev != rev:
             public_base = _resolve_public_api_base()
             response_body["table_tiers"] = ttc.build_client_table_tiers_payload(public_base)
+        if (not client_cons_rev) or client_cons_rev != cons_rev:
+            response_body["consumables_catalog"] = cc.build_client_consumables_payload()
         return jsonify(response_body), 200
     except Exception as e:
         custom_log(f"❌ DutchGame: Error in get_user_stats: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -1558,7 +1552,12 @@ def get_user_stats_service():
 def get_shop_catalog_service():
     """Service endpoint: return MVP Dutch consumables/cosmetics catalog."""
     try:
-        return jsonify({"success": True, "items": SHOP_CATALOG, "timestamp": datetime.utcnow().isoformat()}), 200
+        return jsonify({
+            "success": True,
+            "items": cc.get_catalog_items(active_only=True),
+            "catalog_revision": cc.CONSUMABLES_CATALOG_REVISION,
+            "timestamp": datetime.utcnow().isoformat(),
+        }), 200
     except Exception as e:
         custom_log(f"❌ DutchGame: get_shop_catalog_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to fetch shop catalog", "message": str(e)}), 500
@@ -1623,9 +1622,14 @@ def purchase_item_service():
         delta: Dict[str, Any] = {}
         item_type = item.get("item_type")
         if item_type in ("booster", "booster_pack"):
-            qty = int(item.get("quantity") or 1)
-            inventory["boosters"][BOOSTER_ITEM_ID] = int(inventory["boosters"].get(BOOSTER_ITEM_ID, 0) or 0) + qty
+            grant = item.get("grant") if isinstance(item.get("grant"), dict) else {}
+            booster_key = str(grant.get("booster_key") or item.get("item_id") or BOOSTER_ITEM_ID).strip() or BOOSTER_ITEM_ID
+            qty = int(grant.get("quantity") or item.get("quantity") or 1)
+            qty = max(1, qty)
+            inventory.setdefault("boosters", {})
+            inventory["boosters"][booster_key] = int(inventory["boosters"].get(booster_key, 0) or 0) + qty
             delta["booster_added"] = qty
+            delta["booster_key"] = booster_key
         elif item_type == "card_back":
             backs = set(inventory["cosmetics"].get("owned_card_backs", []))
             backs.add(item_id)

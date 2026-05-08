@@ -30,13 +30,16 @@ This document is the **implementation companion** for the MVP shop: catalog shap
 
 ---
 
-## 2. Catalog SSOT (`SHOP_CATALOG`)
+## 2. Catalog SSOT (revisioned backend document)
 
-The shop list is defined in Python as **`SHOP_CATALOG`** in:
+The shop catalog is now defined as a **declarative JSON document** and normalized by a backend catalog module:
 
-`python_base_04/core/modules/dutch_game/api_endpoints.py`
+- Source JSON: `python_base_04/core/modules/dutch_game/config/consumables_catalog.json`
+- Catalog loader/normalizer/revision hash: `python_base_04/core/modules/dutch_game/consumables_catalog.py`
 
-Each row is a `dict` returned verbatim to the app (filtered only by `is_active` if you add that logic elsewhere). Typical fields:
+`api_endpoints.py` no longer owns a hardcoded shop list; it reads from the catalog module.
+
+Each item row is normalized and exposed to clients through API envelopes/catalog routes. Typical fields:
 
 | Field | Required | Notes |
 |-------|----------|--------|
@@ -47,10 +50,12 @@ Each row is a `dict` returned verbatim to the app (filtered only by `is_active` 
 | `display_name` | Yes | Shown in Customize tiles. |
 | `price_coins` | Yes | Integer. |
 | `is_active` | Yes | Catalog inclusion. |
-| `quantity` | For packs | e.g. `5` for `booster_pack`; defaults to `1` for `booster`. |
+| `quantity` | For packs | e.g. `5` for `booster_pack`; defaults to `1` for `booster` when omitted. |
+| `effects.grant.booster_key` | Consumables | Declarative grant target key for inventory boosters. |
+| `effects.grant.quantity` | Consumables | Declarative quantity grant for consumables. |
 | `asset_url_or_path` | Optional | Legacy / placeholder; **live card art** is resolved via §4 URLs from `item_id`. |
 
-**Purchase support** (`purchase_item_service`): only the `item_type` values above are implemented; anything else returns `Unsupported item_type`.
+**Purchase support** (`purchase_item_service`): current supported `item_type` values are `booster`, `booster_pack`, `card_back`, `table_design`. Unknown types still fail with `Unsupported item_type`.
 
 ---
 
@@ -116,7 +121,8 @@ Under `users.modules.dutch_game`:
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/userauth/dutch/get-shop-catalog` | Returns `{ success, items }` from `SHOP_CATALOG`. |
+| GET | `/userauth/dutch/get-user-stats` | Returns user stats plus revision metadata (`table_tiers_revision`, `consumables_catalog_revision`), and conditionally returns full docs when client revisions are stale/missing. |
+| POST | `/userauth/dutch/get-shop-catalog` | Legacy-compatible catalog route; returns `{ success, items, catalog_revision }` from canonical active catalog. |
 | POST | `/userauth/dutch/get-inventory` | Returns `{ success, inventory }`. |
 | POST | `/userauth/dutch/purchase-item` | Body `{ item_id }`; coin check + grant. |
 | POST | `/userauth/dutch/equip-cosmetic` | Body `{ slot, cosmetic_id }`; `slot` is `card_back` or `table_design`; empty `cosmetic_id` clears. |
@@ -135,7 +141,7 @@ Under `users.modules.dutch_game`:
 
 **Data**
 
-- Catalog: `DutchGameHelpers.getShopCatalog()`  
+- Catalog: `DutchGameHelpers.getShopCatalog()` (cache-first via consumables bootstrap; backend refresh when available)  
 - Inventory: `DutchGameHelpers.fetchInventory()`  
 
 **Section layout (top to bottom)**
@@ -201,21 +207,22 @@ If you introduce a new `category_group` that must appear in a fixed place (e.g. 
 
 **Goal:** Sell and equip `table_design_forest` with a new overlay image.
 
-### Step A — Python catalog
+### Step A — declarative catalog JSON
 
-In `api_endpoints.py`, append to `SHOP_CATALOG`:
+In `python_base_04/core/modules/dutch_game/config/consumables_catalog.json`, append to `items`:
 
-```python
+```json
 {
-    "item_id": "table_design_forest",
-    "item_type": "table_design",
-    "category_group": "table_designs",
-    "category_theme": "nature",  # or new theme string; header becomes "Table designs - Nature"
-    "price_coins": 600,
-    "display_name": "Table Design Forest",
-    "is_active": True,
-},
+  "item_id": "table_design_forest",
+  "item_type": "table_design",
+  "category_group": "table_designs",
+  "category_theme": "nature",
+  "price_coins": 600,
+  "display_name": "Table Design Forest",
+  "is_active": true
+}
 ```
+`category_theme` can be any new theme string; section header becomes `Table designs - <Theme>`.
 
 ### Step B — Image asset
 
@@ -244,7 +251,7 @@ If you skip Step D, the pack still **works**: default border + overlay image at 
 
 - Purchase with a test user; confirm `owned_table_designs` contains `table_design_forest`.  
 - Equip; confirm play table shows overlay and Customize “My Packs” lists the owned item.  
-- No Python change is required for `purchase_item` / `equip` beyond catalog row **unless** you add a new `item_type`.
+- No Python endpoint change is required for `purchase_item` / `equip` beyond catalog row **unless** you add a new `item_type`.
 
 ---
 
@@ -252,20 +259,21 @@ If you skip Step D, the pack still **works**: default border + overlay image at 
 
 **Goal:** `card_back_dragon` with custom art.
 
-### Step A — Catalog row
+### Step A — Catalog row (`consumables_catalog.json`)
 
-```python
+```json
 {
-    "item_id": "card_back_dragon",
-    "item_type": "card_back",
-    "category_group": "card_backs",
-    "category_theme": "fantasy",
-    "price_coins": 350,
-    "display_name": "Card Back Dragon",
-    "asset_url_or_path": "assets/images/card_back.webp",  # optional placeholder
-    "is_active": True,
-},
+  "item_id": "card_back_dragon",
+  "item_type": "card_back",
+  "category_group": "card_backs",
+  "category_theme": "fantasy",
+  "price_coins": 350,
+  "display_name": "Card Back Dragon",
+  "asset_url_or_path": "assets/images/card_back.webp",
+  "is_active": true
+}
 ```
+`asset_url_or_path` is optional placeholder metadata for UI compatibility.
 
 ### Step B — File on disk
 
@@ -293,21 +301,27 @@ If you show friendly names anywhere (e.g. debug HUD), update helpers such as `_f
 
 ## 11. Walkthrough: new **consumable** line (same core theme)
 
-Example: another booster variant **must** still use supported `item_type` values or you extend `purchase_item_service`.
+Example: another booster variant **must** still use supported `item_type` values or you extend the backend item-type handler logic.
 
 For a new **`booster_pack`** under the same UI block as existing boosters:
 
-```python
+```json
 {
-    "item_id": "coin_booster_win_x1_5_pack10",
-    "item_type": "booster_pack",
-    "category_group": "consumables",
-    "category_theme": "core",
-    "price_coins": 1000,
-    "display_name": "Win Coin Booster x1.5 (x10)",
-    "quantity": 10,
-    "is_active": True,
-},
+  "item_id": "coin_booster_win_x1_5_pack10",
+  "item_type": "booster_pack",
+  "category_group": "consumables",
+  "category_theme": "core",
+  "price_coins": 1000,
+  "display_name": "Win Coin Booster x1.5 (x10)",
+  "quantity": 10,
+  "is_active": true,
+  "effects": {
+    "grant": {
+      "booster_key": "coin_booster_win_x1_5",
+      "quantity": 10
+    }
+  }
+}
 ```
 
 No image asset is required for MVP tiles (icon fallback in Customize). If you add a **new** `category_theme` under consumables, `_sortShopSectionKeys` currently places every `consumables::` **except** `consumables::core` in rank `1` (after core, before card backs). Adjust ranks if you need a different order.
@@ -345,10 +359,13 @@ Example: premium card line `card_backs::premium_metal`.
 
 | Concern | Location |
 |---------|----------|
+| Declarative consumables catalog JSON | `python_base_04/core/modules/dutch_game/config/consumables_catalog.json` |
+| Catalog normalization + revision | `python_base_04/core/modules/dutch_game/consumables_catalog.py` |
 | Catalog + purchase + media routes | `python_base_04/core/modules/dutch_game/api_endpoints.py` |
 | Dutch module route registration | `python_base_04/core/modules/dutch_game/dutch_game_main.py` |
 | Customize UI + section logic | `flutter_base_05/.../dutch_cosmetics_shop_screen.dart` |
 | Shop / equip API client | `flutter_base_05/.../dutch_game_helpers.dart` |
+| Catalog cache bootstrap (Flutter) | `flutter_base_05/.../consumables_catalog_bootstrap.dart` |
 | Card back rendering | `flutter_base_05/.../card_widget.dart` |
 | Table overlay URL + border helpers | `flutter_base_05/.../table_design_style_helpers.dart` |
 | Table tier felt (not cosmetic) | `flutter_base_05/.../dutch_game_play_table_style_mapping.dart` |
@@ -357,10 +374,93 @@ Example: premium card line `card_backs::premium_metal`.
 
 ---
 
-## 15. Booster rules (reminder)
+## 15. Catalog + shop update flow (detailed)
 
-- `BOOSTER_ITEM_ID` / multiplier constants live next to `SHOP_CATALOG` in `api_endpoints.py`.  
-- Inventory normalization ensures the booster dict key exists.  
+This section describes how catalog updates propagate from backend to app without requiring a Flutter release.
+
+### 15.1 Cold start (no local cache)
+
+1. Flutter starts Dutch stats flow (`DutchGameHelpers.getUserDutchGameData`).
+2. `ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats()` finds no stored doc/revision.
+3. Flutter calls:
+   - `GET /userauth/dutch/get-user-stats`
+   - without `client_consumables_catalog_revision`.
+4. Backend includes:
+   - `consumables_catalog_revision`
+   - full `consumables_catalog` document.
+5. Flutter `mergeStatsEnvelope()` stores:
+   - `dutch_consumables_catalog_revision`
+   - `dutch_consumables_catalog_doc_json`.
+6. Shop reads from cached doc (and can still refresh via `/get-shop-catalog`).
+
+### 15.2 Warm start (cache hit, revision unchanged)
+
+1. Flutter hydrates cached consumables doc + revision from SharedPreferences.
+2. Flutter calls `get-user-stats` with:
+   - `client_consumables_catalog_revision=<stored_revision>`.
+3. Backend compares with canonical revision:
+   - if equal, backend returns revision only (no full catalog payload).
+4. Flutter keeps local cached catalog and avoids large payload transfer.
+
+### 15.3 Warm start (cache hit, revision stale)
+
+1. Backend catalog changes (JSON edited/deployed), producing a new catalog revision hash.
+2. Client still sends old revision in `client_consumables_catalog_revision`.
+3. Backend detects mismatch and returns:
+   - new `consumables_catalog_revision`
+   - full `consumables_catalog`.
+4. Flutter merges envelope, replacing cached doc/revision.
+5. Shop renders new catalog structure without app update.
+
+### 15.4 Legacy refresh path (`/get-shop-catalog`)
+
+`DutchGameHelpers.getShopCatalog()` keeps compatibility:
+
+1. Read cached catalog first (`ConsumablesCatalogBootstrap.getCachedItems()`).
+2. Try POST `/userauth/dutch/get-shop-catalog`.
+3. On success:
+   - use returned `items`
+   - persist via `mergeCatalogItems(items, catalog_revision)`.
+4. On failure:
+   - return cached items.
+
+This gives resilient UX while the revision envelope flow remains primary.
+
+### 15.5 Backend add/remove flow example
+
+#### Add a new item
+
+1. Add item object in `consumables_catalog.json` under `items`.
+2. Deploy backend.
+3. On next stale-revision stats call, client receives new catalog doc.
+4. Shop auto-renders item based on declarative fields (`item_type`, `category_group`, `category_theme`, `display_name`, `price_coins`).
+
+#### Remove / deactivate an item
+
+Preferred: set `"is_active": false` instead of deleting immediately.
+
+1. Update catalog JSON.
+2. Deploy backend.
+3. New revision triggers doc refresh on clients.
+4. Removed/deactivated item no longer appears in active shop listing.
+
+### 15.6 Purchase update flow example
+
+For `booster` / `booster_pack`:
+
+1. User taps Buy in Customize.
+2. Flutter sends `POST /userauth/dutch/purchase-item` with `item_id`.
+3. Backend finds item in canonical catalog (`find_item(item_id)`).
+4. Backend applies declarative grant:
+   - `effects.grant.booster_key`
+   - `effects.grant.quantity`
+5. Backend decrements coins atomically and stores inventory/transaction.
+6. Flutter refreshes user stats and inventory to reflect new balances/counts.
+
+## 16. Booster rules (reminder)
+
+- Primary win booster key is derived from catalog (fallback remains available), and multiplier stays in `api_endpoints.py`.  
+- Inventory normalization ensures declared booster keys exist in inventory.  
 - Consuming boosters on win is handled in the stats / game outcome pipeline (not duplicated here).
 
-This MVP intentionally keeps **catalog** in code; moving to database-driven catalog later would replace `SHOP_CATALOG` + `_find_catalog_item` but the **media naming rules** and **Flutter switches** should stay aligned for predictable deployments.
+The current system keeps catalog SSOT in backend JSON + canonical Python module with revision hashing. A future DB-driven catalog can replace the JSON source while preserving the same revision envelope contract and Flutter cache bootstrap pattern.

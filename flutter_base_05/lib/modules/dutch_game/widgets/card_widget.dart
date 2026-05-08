@@ -8,6 +8,7 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../../utils/consts/config.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
+import '../utils/consumables_catalog_bootstrap.dart';
 
 /// A reusable card widget for the Dutch game
 /// 
@@ -90,6 +91,9 @@ class CardWidget extends StatelessWidget {
   }
 
   Color _cardBackBaseColor(String equippedCardBackId) {
+    final style = ConsumablesCatalogBootstrap.getStyleForItem(equippedCardBackId);
+    final catalogColor = _parseHexColor(style['card_background_color']?.toString());
+    if (catalogColor != null) return catalogColor;
     switch (equippedCardBackId.trim()) {
       case 'card_back_juventus':
         return AppColors.white;
@@ -126,6 +130,9 @@ class CardWidget extends StatelessWidget {
 
   /// Thin frame around the custom back art — keep in sync with shop `card_back_*` packs / catalog.
   Color _cardBackFrameBorderColor(String equippedCardBackId) {
+    final style = ConsumablesCatalogBootstrap.getStyleForItem(equippedCardBackId);
+    final catalogColor = _parseHexColor(style['frame_border_color']?.toString());
+    if (catalogColor != null) return catalogColor;
     switch (equippedCardBackId.trim()) {
       case 'card_back_juventus':
         return AppColors.darkGray;
@@ -136,6 +143,17 @@ class CardWidget extends StatelessWidget {
       default:
         return AppColors.casinoBorderColor;
     }
+  }
+
+  Color? _parseHexColor(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return null;
+    final hex = v.startsWith('#') ? v.substring(1) : v;
+    if (hex.length != 6 && hex.length != 8) return null;
+    final full = hex.length == 6 ? 'FF$hex' : hex;
+    final parsed = int.tryParse(full, radix: 16);
+    if (parsed == null) return null;
+    return Color(parsed);
   }
 
   /// Build the front face of the card

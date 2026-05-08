@@ -16,6 +16,7 @@ import '../practice/practice_mode_bridge.dart';
 import '../managers/game_coordinator.dart';
 import '../backend_core/utils/level_matcher.dart';
 import 'table_tiers_bootstrap.dart';
+import 'consumables_catalog_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
 
 /// Convenient helper methods for dutch game operations
@@ -680,6 +681,7 @@ class DutchGameHelpers {
   static Future<Map<String, dynamic>?> getUserDutchGameData() async {
     try {
       await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
+      await ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats();
 
       if (LOGGING_SWITCH) {
         _logger.info('📊 DutchGameHelpers: Fetching user dutch_game stats from API');
@@ -695,9 +697,17 @@ class DutchGameHelpers {
       }
 
       final revision = await TableTiersBootstrap.getStoredRevisionForApi();
-      final route = (revision == null || revision.isEmpty)
+      final consumablesRevision = await ConsumablesCatalogBootstrap.getStoredRevisionForApi();
+      final queryParts = <String>[];
+      if (revision != null && revision.isNotEmpty) {
+        queryParts.add('client_table_tiers_revision=${Uri.encodeQueryComponent(revision)}');
+      }
+      if (consumablesRevision != null && consumablesRevision.isNotEmpty) {
+        queryParts.add('client_consumables_catalog_revision=${Uri.encodeQueryComponent(consumablesRevision)}');
+      }
+      final route = queryParts.isEmpty
           ? '/userauth/dutch/get-user-stats'
-          : '/userauth/dutch/get-user-stats?client_table_tiers_revision=${Uri.encodeQueryComponent(revision)}';
+          : '/userauth/dutch/get-user-stats?${queryParts.join('&')}';
       
       // Make API call to get user dutch game stats (dedicated endpoint)
       final response = await connectionsModule.sendGetRequest(route);
@@ -736,6 +746,7 @@ class DutchGameHelpers {
       }
 
       await TableTiersBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
+      await ConsumablesCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
 
       // Extract data from response
       final statsData = response['data'] as Map<String, dynamic>?;
@@ -942,15 +953,22 @@ class DutchGameHelpers {
   /// Fetch MVP consumables/cosmetics shop catalog.
   static Future<List<Map<String, dynamic>>> getShopCatalog() async {
     try {
+      await ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats();
+      final cached = ConsumablesCatalogBootstrap.getCachedItems();
       final moduleManager = ModuleManager();
       final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
-      if (connectionsModule == null) return <Map<String, dynamic>>[];
+      if (connectionsModule == null) return cached;
       final response = await connectionsModule.sendPostRequest('/userauth/dutch/get-shop-catalog', {});
-      if (response is! Map || response['success'] != true) return <Map<String, dynamic>>[];
+      if (response is! Map || response['success'] != true) return cached;
       final items = response['items'] as List<dynamic>? ?? const [];
-      return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      final typed = items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      await ConsumablesCatalogBootstrap.mergeCatalogItems(
+        items: typed,
+        revision: response['catalog_revision']?.toString(),
+      );
+      return typed;
     } catch (_) {
-      return <Map<String, dynamic>>[];
+      return ConsumablesCatalogBootstrap.getCachedItems();
     }
   }
 

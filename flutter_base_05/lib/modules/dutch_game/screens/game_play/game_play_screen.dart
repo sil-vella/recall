@@ -753,6 +753,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     );
     final borderColor = TableDesignStyleHelpers.outerBorderColorForDesign(equippedTableDesignId);
     final borderGlow = TableDesignStyleHelpers.outerBorderGlowForDesign(equippedTableDesignId);
+    final borderColors = TableDesignStyleHelpers.borderColorsForDesign(equippedTableDesignId);
     final isJuventusBorder = TableDesignStyleHelpers.isJuventusTableDesign(equippedTableDesignId);
 
     // Tier PNG + opacity on the screen backdrop only ([getBackground] green shows through); table card sits above.
@@ -817,6 +818,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                           painter: JuventusStripeBorderPainter(
                             borderWidth: outerBorderWidth,
                             borderRadius: 24.0,
+                            stripeColors: borderColors.isEmpty
+                                ? const [AppColors.black, AppColors.white]
+                                : borderColors,
                           ),
                           child: const SizedBox.expand(),
                         )

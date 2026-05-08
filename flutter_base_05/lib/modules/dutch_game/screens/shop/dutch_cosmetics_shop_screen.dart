@@ -451,6 +451,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     final tableStyle = DutchGamePlayTableStyles.forLevel(1);
     final borderColor = TableDesignStyleHelpers.outerBorderColorForDesign(skinId);
     final borderGlow = TableDesignStyleHelpers.outerBorderGlowForDesign(skinId);
+    final borderColors = TableDesignStyleHelpers.borderColorsForDesign(skinId);
     final isJuventus = TableDesignStyleHelpers.isJuventusTableDesign(skinId);
     final overlayUrl = TableDesignStyleHelpers.buildOverlayUrl(
       currentGameId: '',
@@ -501,6 +502,9 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                     painter: JuventusStripeBorderPainter(
                       borderWidth: outerBorderW,
                       borderRadius: outerR,
+                      stripeColors: borderColors.isEmpty
+                          ? const [AppColors.black, AppColors.white]
+                          : borderColors,
                     ),
                     child: const SizedBox.expand(),
                   ),

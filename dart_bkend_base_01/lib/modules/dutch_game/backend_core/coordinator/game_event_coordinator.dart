@@ -1357,9 +1357,9 @@ class GameEventCoordinator {
       knownCards[playerId] = playerKnown;
       computerPlayer['known_cards'] = knownCards;
 
-      // Ensure collection_rank_cards is empty and collection_rank remains nullable-safe for downstream maps.
+      // Ensure collection_rank_cards is empty and collection_rank is not set in classic mode.
       computerPlayer['collection_rank_cards'] = <Map<String, dynamic>>[];
-      computerPlayer['collection_rank'] = '';
+      computerPlayer.remove('collection_rank');
 
       if (LOGGING_SWITCH) {
         _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} peeked at cards at positions $indices (clear mode - both cards stored in known_cards)');

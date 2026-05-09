@@ -580,6 +580,7 @@ class DutchGameHelpers {
     bool isClearAndCollect = true,
     int gameLevel = 1,
     String? specialEventId,
+    bool hasRetriedForSession = false,
   }) async {
     try {
       // 🎯 CRITICAL: Clear all existing game state before starting new game
@@ -590,6 +591,23 @@ class DutchGameHelpers {
       final isReady = await ensureWebSocketReady();
       if (!isReady) {
         throw Exception('WebSocket not ready - cannot join random game. Please ensure you are logged in.');
+      }
+
+      final readySessionId = await _waitForStableWebSocketSessionId();
+      if (readySessionId == null || readySessionId.isEmpty) {
+        if (hasRetriedForSession) {
+          throw Exception('WebSocket session is unstable - please retry.');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.warning('⚠️ joinRandomGame: session not stable after ready check, resetting transport and retrying once');
+        }
+        WebSocketManager.instance.resetTransportState(reason: 'join_random_unstable_session_pre_emit');
+        return joinRandomGame(
+          isClearAndCollect: isClearAndCollect,
+          gameLevel: gameLevel,
+          specialEventId: specialEventId,
+          hasRetriedForSession: true,
+        );
       }
       
       // Set flag to indicate we're in a random join flow (for navigation)
@@ -617,6 +635,26 @@ class DutchGameHelpers {
             'special_event_id': specialEventId.trim(),
         },
       );
+
+      final postEmitSessionId = _readCurrentWebSocketSessionId();
+      if (postEmitSessionId.isEmpty || postEmitSessionId != readySessionId) {
+        if (hasRetriedForSession) {
+          throw Exception('WebSocket session changed while joining random game.');
+        }
+        if (LOGGING_SWITCH) {
+          _logger.warning(
+            '⚠️ joinRandomGame: session changed during emit '
+            '(before=$readySessionId after=$postEmitSessionId). Retrying once.',
+          );
+        }
+        WebSocketManager.instance.resetTransportState(reason: 'join_random_session_changed_during_emit');
+        return joinRandomGame(
+          isClearAndCollect: isClearAndCollect,
+          gameLevel: gameLevel,
+          specialEventId: specialEventId,
+          hasRetriedForSession: true,
+        );
+      }
       if (LOGGING_SWITCH) {
         _logger.info('📤 joinRandomGame: emit completed, waiting for WebSocket response');
       }
@@ -638,6 +676,59 @@ class DutchGameHelpers {
         'error': 'Failed to join random game: $e',
       };
     }
+  }
+
+  static String _readCurrentWebSocketSessionId() {
+    try {
+      final wsManagerSessionId = WebSocketManager.instance.socket?.id.toString().trim() ?? '';
+      if (wsManagerSessionId.isNotEmpty && wsManagerSessionId != 'unknown') {
+        return wsManagerSessionId;
+      }
+      final wsState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+      final sessionData = wsState['sessionData'] as Map<String, dynamic>? ?? {};
+      final stateSessionId = (sessionData['session_id'] ?? sessionData['sessionId'] ?? '')
+          .toString()
+          .trim();
+      return stateSessionId;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static Future<String?> _waitForStableWebSocketSessionId({
+    int timeoutMs = 1800,
+    int stableWindowMs = 350,
+  }) async {
+    final start = DateTime.now();
+    final checkInterval = const Duration(milliseconds: 70);
+    String? candidate;
+    DateTime? candidateSince;
+
+    while (DateTime.now().difference(start).inMilliseconds < timeoutMs) {
+      final wsConnected = WebSocketManager.instance.isConnected;
+      final wsState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+      final isAuthenticated = wsState['is_authenticated'] == true;
+      final sid = _readCurrentWebSocketSessionId();
+
+      if (!wsConnected || !isAuthenticated || sid.isEmpty) {
+        candidate = null;
+        candidateSince = null;
+        await Future.delayed(checkInterval);
+        continue;
+      }
+
+      if (candidate != sid) {
+        candidate = sid;
+        candidateSince = DateTime.now();
+      } else if (candidateSince != null &&
+          DateTime.now().difference(candidateSince).inMilliseconds >= stableWindowMs) {
+        return sid;
+      }
+
+      await Future.delayed(checkInterval);
+    }
+
+    return null;
   }
 
   /// Find a specific game by room ID via API call

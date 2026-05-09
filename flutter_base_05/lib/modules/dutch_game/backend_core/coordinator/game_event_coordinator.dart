@@ -1259,7 +1259,7 @@ class GameEventCoordinator {
 
       // Ensure collection_rank_cards is empty and collection_rank is not set
       computerPlayer['collection_rank_cards'] = <Map<String, dynamic>>[];
-      computerPlayer['collection_rank'] = null;
+      computerPlayer.remove('collection_rank');
 
       if (LOGGING_SWITCH) {
         _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} peeked at cards at positions $indices (clear mode - both cards stored in known_cards)');

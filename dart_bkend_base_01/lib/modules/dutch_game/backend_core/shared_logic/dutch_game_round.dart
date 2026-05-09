@@ -6743,7 +6743,7 @@ class DutchGameRound {
           
           // Only clear if collection_rank is set (not already empty/null)
           if (currentCollectionRank.isNotEmpty && currentCollectionRank != 'null') {
-            player['collection_rank'] = null;
+            player.remove('collection_rank');
             if (LOGGING_SWITCH) {
               _logger.info('Dutch: Cleared collection_rank for player $playerName ($playerId) - collection_rank_cards is empty');
             };

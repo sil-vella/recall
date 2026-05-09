@@ -1156,6 +1156,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
+  Size _orientedCardFootprint(Size portraitDimensions, CardTableOrientation orientation) {
+    switch (orientation) {
+      case CardTableOrientation.landscapeFromLeft:
+      case CardTableOrientation.landscapeFromRight:
+        return Size(portraitDimensions.height, portraitDimensions.width);
+      case CardTableOrientation.portraitUp:
+      case CardTableOrientation.portraitDown:
+        return portraitDimensions;
+    }
+  }
+
   Widget _buildOpponentsCardsRow(
     List<dynamic> cards,
     List<dynamic> cardsToPeek,
@@ -1207,14 +1218,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             verticalStack: true,
             minWidth: 1.0,
           );
-          stackOffset = cardDimensions.height * CardDimensions.STACK_OFFSET_PERCENTAGE;
+          final orientedFootprint = _orientedCardFootprint(cardDimensions, cardTableOrientation);
+          stackOffset = orientedFootprint.height * CardDimensions.STACK_OFFSET_PERCENTAGE;
         } else {
           slotGap = availableWidth * 0.02;
           cardDimensions = _adaptiveCardSize(
             availableWidth: availableWidth,
             slots: slotCount,
             slotGap: slotGap,
-            availableHeight: boundedHeight,
+            // Top/bottom rows should fit by horizontal capacity only.
+            // Do not downscale by vertical constraints; let row height grow with content (e.g. collection stacks).
+            availableHeight: null,
             minWidth: 1.0,
           );
           stackOffset = cardDimensions.height * CardDimensions.STACK_OFFSET_PERCENTAGE;
@@ -1362,13 +1376,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   }
                 }
               }
-              final cardWidth = cardDimensions.width;
-              final cardHeight = cardDimensions.height;
-              final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
+              final orientedFootprint = _orientedCardFootprint(cardDimensions, cardTableOrientation);
+              final cardWidth = orientedFootprint.width;
+              final cardHeight = orientedFootprint.height;
+              final isSideSeat = cardTableOrientation == CardTableOrientation.landscapeFromLeft ||
+                  cardTableOrientation == CardTableOrientation.landscapeFromRight;
+              final stackDepth = (orderedCollectionWidgets.length - 1) * stackOffset;
+              final stackWidth = isSideSeat ? cardWidth + stackDepth : cardWidth;
+              final stackHeight = isSideSeat ? cardHeight : cardHeight + stackDepth;
               final stackKey = _getOrCreateCardKey('${playerId}_$index', 'opponent');
               final stackWidget = Container(
                 key: stackKey,
-                width: cardWidth,
+                width: stackWidth,
                 height: stackHeight,
                 decoration: BoxDecoration(
                   boxShadow: [
@@ -1382,9 +1401,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: orderedCollectionWidgets.asMap().entries.map((entry) {
+                    final depth = entry.key * stackOffset;
+                    final left = !isSideSeat
+                        ? 0.0
+                        : (cardTableOrientation == CardTableOrientation.landscapeFromRight
+                            ? stackDepth - depth
+                            : depth);
+                    final top = !isSideSeat ? depth : 0.0;
                     return Positioned(
-                      left: 0,
-                      top: entry.key * stackOffset,
+                      left: left,
+                      top: top,
                       child: entry.value,
                     );
                   }).toList(),

@@ -696,14 +696,28 @@ class DutchGameStateUpdater {
     // Get all players from game state (includes full player data with status)
     final allPlayers = gameState['players'] as List<dynamic>? ?? [];
     
-    // Get current user ID to filter out self from opponents
-    // Use helper that handles both practice and multiplayer modes
+    // Identify "self" for opponent filtering: matches [getCurrentUserId]
+    // (`hum_<mongo>` in multiplayer) and avoids duplicate rows when id is still session-based.
     final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-    
+    final loginMongoId =
+        DutchEventHandlerCallbacks.getCurrentLoginUserId().trim();
+    bool isSelfSeat(dynamic raw) {
+      if (raw is! Map) return false;
+      final pid = raw['id']?.toString() ?? '';
+      if (pid.isNotEmpty && pid == currentUserId) return true;
+      if (loginMongoId.isNotEmpty) {
+        if (pid == 'hum_$loginMongoId') return true;
+        final pUid = raw['userId']?.toString().trim() ?? '';
+        final human = raw['isHuman'] == true;
+        if (human && pUid.isNotEmpty && pUid == loginMongoId) return true;
+      }
+      return false;
+    }
+
     // Find current user's index in allPlayers list
     int currentUserIndex = -1;
     for (int i = 0; i < allPlayers.length; i++) {
-      if (allPlayers[i]['id']?.toString() == currentUserId) {
+      if (isSelfSeat(allPlayers[i])) {
         currentUserIndex = i;
         break;
       }
@@ -723,10 +737,8 @@ class DutchGameStateUpdater {
         opponents.add(allPlayers[i]);
       }
     } else {
-      // Fallback: if current user not found, just filter them out
-      opponents = allPlayers.where((player) => 
-        player['id']?.toString() != currentUserId
-      ).toList();
+      // Fallback: exclude every row that matches self (handles id/session mismatches)
+      opponents = allPlayers.where((player) => !isSelfSeat(player)).toList();
     }
     
     // Find current player index in the reordered opponents list

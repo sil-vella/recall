@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Action gating / turn validation (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // action timer pause during grace (disconnect rejoin; set false after test)
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -47,7 +47,10 @@ class DutchGameRound {
 
   // Unified counter for missed draw and play actions per player
   final Map<String, int> _missedActionCounts = {};
-  
+
+  /// During WS disconnect grace, suppress draw/play expiry for this seat.
+  final Set<String> _actionTimersGracePausedForPlayerIds = {};
+
   // Computer player factory for YAML-based AI behavior
   ComputerPlayerFactory? _computerPlayerFactory;
   
@@ -77,7 +80,16 @@ class DutchGameRound {
   
   // Track if onGameEnded has already been called to prevent duplicate stats updates
   bool _gameEndedCallbackCalled = false;
-  
+
+  /// True after [dispose]; blocks stale timer/async callbacks from advancing a torn-down round.
+  bool _disposed = false;
+
+  /// Phases where move-to-next must not schedule the 2s retry loop (lobby / ended / teardown).
+  static const Set<String> _terminalPhasesNoMoveToNextRetry = {
+    'waiting_for_players',
+    'game_ended',
+  };
+
   DutchGameRound(this._stateCallback, this._gameId);
 
   void _cancelWrongSameRankPenaltyTimers() {
@@ -1596,6 +1608,7 @@ class DutchGameRound {
       _pendingComputerDecisionTimer?.cancel();
       _pendingComputerDecisionTimer = Timer(Duration(milliseconds: (delaySeconds * 1000).round()), () async {
         _pendingComputerDecisionTimer = null;
+        if (_disposed) return;
         await _executeComputerDecision(decision, playerId, eventName);
       });
       
@@ -1610,6 +1623,7 @@ class DutchGameRound {
   /// Execute computer player decision based on YAML configuration
   Future<void> _executeComputerDecision(Map<String, dynamic> decision, String playerId, String eventName) async {
     try {
+      if (_disposed) return;
       // Check if game has ended - if so, stop executing computer decisions
       if (_isGameEnded()) {
         if (LOGGING_SWITCH) {
@@ -6781,6 +6795,7 @@ class DutchGameRound {
         }
         _pendingMoveToNextPlayerTimer = Timer(const Duration(seconds: 2), () {
           _pendingMoveToNextPlayerTimer = null;
+          if (_disposed) return;
           _executeMoveToNextPlayerCore();
         });
         return;
@@ -6793,14 +6808,16 @@ class DutchGameRound {
       // Clear all player actions before moving to next player
       _clearPlayerAction();
 
-      // Add 2 second delay before moving to next player
-      await Future.delayed(const Duration(seconds: 2));
-
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Delay complete, proceeding with move to next player');
-      }
-
-      _executeMoveToNextPlayerCore();
+      // Same 2s delay as timer-expiry path, but cancellable via [dispose] (no uncancellable [Future.delayed]).
+      _pendingMoveToNextPlayerTimer = Timer(const Duration(seconds: 2), () {
+        _pendingMoveToNextPlayerTimer = null;
+        if (_disposed) return;
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Delay complete, proceeding with move to next player');
+        }
+        _executeMoveToNextPlayerCore();
+      });
+      return;
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('Dutch: Error moving to next player: $e');
@@ -6810,9 +6827,11 @@ class DutchGameRound {
 
   /// Schedules a single retry of move-to-next in 2s when blocked by phase or special-cards list.
   void _scheduleMoveToNextPlayerRetry() {
+    if (_disposed) return;
     _pendingMoveToNextPlayerRetryTimer?.cancel();
     _pendingMoveToNextPlayerRetryTimer = Timer(const Duration(seconds: 2), () {
       _pendingMoveToNextPlayerRetryTimer = null;
+      if (_disposed) return;
       _executeMoveToNextPlayerCore();
     });
   }
@@ -6821,6 +6840,7 @@ class DutchGameRound {
   /// Called from _moveToNextPlayer (normal path) or from the cancellable timer (timer-expiry path).
   void _executeMoveToNextPlayerCore() {
     try {
+      if (_disposed) return;
       _pendingMoveToNextPlayerRetryTimer?.cancel();
       _pendingMoveToNextPlayerRetryTimer = null;
       // Clear all player actions before moving to next player
@@ -6858,6 +6878,14 @@ class DutchGameRound {
         return;
       }
       if (!allowedPhases.contains(gamePhase)) {
+        if (_terminalPhasesNoMoveToNextRetry.contains(gamePhase)) {
+          if (LOGGING_SWITCH) {
+            _logger.info(
+              'Dutch: Not retrying move-to-next for terminal phase "$gamePhase" (lobby/teardown/ended).',
+            );
+          }
+          return;
+        }
         if (LOGGING_SWITCH) {
           _logger.warning('Dutch: Cannot move to next player while gamePhase is "$gamePhase" (expected player_turn/playing). Retrying in 2s.');
         };
@@ -7479,6 +7507,13 @@ class DutchGameRound {
     _drawActionTimer?.cancel();
     _drawActionTimer = null;
 
+    if (_actionTimersGracePausedForPlayerIds.contains(playerId)) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Not starting draw timer (disconnect grace) for player $playerId');
+      };
+      return;
+    }
+
     if (!_shouldStartTimer()) {
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Timer disabled (showInstructions=true) - not starting draw timer for player $playerId');
@@ -7503,6 +7538,13 @@ class DutchGameRound {
     _playActionTimer?.cancel();
     _playActionTimer = null;
 
+    if (_actionTimersGracePausedForPlayerIds.contains(playerId)) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Not starting play timer (disconnect grace) for player $playerId');
+      };
+      return;
+    }
+
     if (!_shouldStartTimer()) {
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Timer disabled (showInstructions=true) - not starting play timer for player $playerId');
@@ -7522,7 +7564,40 @@ class DutchGameRound {
   }
 
   /// Handle draw action timer expiration
+  void pauseActionTimersForPlayer(String playerId) {
+    _actionTimersGracePausedForPlayerIds.add(playerId);
+    final gs = _getCurrentGameState();
+    if (gs == null) return;
+    final cp = _resolveCurrentPlayer(gs);
+    if (cp?['id']?.toString() != playerId) return;
+    _cancelNormalTurnAdvanceTimers();
+  }
+
+  void resumeActionTimersForPlayer(String playerId) {
+    _actionTimersGracePausedForPlayerIds.remove(playerId);
+    final gs = _getCurrentGameState();
+    if (gs == null) return;
+    final cp = _resolveCurrentPlayer(gs);
+    if (cp?['id']?.toString() != playerId) return;
+    final st = cp?['status']?.toString() ?? '';
+    if (st == 'drawing_card') {
+      _startDrawActionTimer(playerId);
+    } else if (st == 'playing_card') {
+      _startPlayActionTimer(playerId);
+    }
+  }
+
+  void clearActionTimerPauseWithoutResume(String playerId) {
+    _actionTimersGracePausedForPlayerIds.remove(playerId);
+  }
+
   void _onDrawActionTimerExpired(String playerId) {
+    if (_actionTimersGracePausedForPlayerIds.contains(playerId)) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Draw timer suppressed (disconnect grace pause) for $playerId');
+      };
+      return;
+    }
     if (_specialWindowActive) {
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Draw timer expired for $playerId but special window is active; ignoring expiry');
@@ -7555,6 +7630,12 @@ class DutchGameRound {
 
   /// Handle play action timer expiration
   void _onPlayActionTimerExpired(String playerId) {
+    if (_actionTimersGracePausedForPlayerIds.contains(playerId)) {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Play timer suppressed (disconnect grace pause) for $playerId');
+      };
+      return;
+    }
     if (_specialWindowActive) {
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Play timer expired for $playerId but special window is active; ignoring expiry');
@@ -7679,6 +7760,8 @@ class DutchGameRound {
 
   /// Dispose of resources
   void dispose() {
+    _disposed = true;
+    _actionTimersGracePausedForPlayerIds.clear();
     _sameRankTimer?.cancel();
     _peekingPhaseTimer?.cancel();
     _specialCardTimer?.cancel();

@@ -35,7 +35,7 @@ String _deriveWireCurrentPlayerStatus(Map<String, dynamic> gameState) {
 }
 
 /// When true, logs registry lifecycle, WS emit paths, and payload-size lines for `game_state_updated`.
-const bool LOGGING_SWITCH = true; // triggerLeaveRoom + game_state emit (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // dispose/disconnect emits (disconnect rejoin; set false after test)
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -61,7 +61,8 @@ class GameRegistry {
   DutchGameRound? getExisting(String roomId) => _roomIdToRound[roomId];
 
   void dispose(String roomId) {
-    _roomIdToRound.remove(roomId);
+    final round = _roomIdToRound.remove(roomId);
+    round?.dispose();
     GameStateStore.instance.clear(roomId);
     if (LOGGING_SWITCH) {
       _logger.info('GameRegistry: Disposed game for $roomId');
@@ -263,16 +264,32 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     Map<String, dynamic>? privateOverlay,
   }) {
     final sessions = server.getSessionsInRoom(roomId);
+    String? wsForSeat(String playerSeatId) =>
+        server.websocketSessionForGamePlayer(roomId, playerSeatId);
+
+    final String? onlyWs =
+        onlyPlayerId == null ? null : wsForSeat(onlyPlayerId);
+    final String? excludeWs =
+        excludePlayerId == null ? null : wsForSeat(excludePlayerId);
+    final String? privateWs =
+        privatePlayerId == null ? null : wsForSeat(privatePlayerId);
+
     for (final sessionId in sessions) {
-      if (onlyPlayerId != null && sessionId != onlyPlayerId) {
-        continue;
+      if (onlyPlayerId != null) {
+        if (onlyWs != null && sessionId != onlyWs) {
+          continue;
+        }
+        if (onlyWs == null) {
+          continue;
+        }
       }
-      if (excludePlayerId != null && sessionId == excludePlayerId) {
+      if (excludePlayerId != null && excludeWs != null && sessionId == excludeWs) {
         continue;
       }
       if (privatePlayerId != null &&
           privateOverlay != null &&
-          sessionId == privatePlayerId) {
+          privateWs != null &&
+          sessionId == privateWs) {
         server.sendToSession(sessionId, <String, dynamic>{
           ...basePayload,
           ...privateOverlay,
@@ -679,7 +696,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     try {
       // Remove session from the room (same as client leave_room) so they stop receiving
       // room broadcasts; then leave_room hook updates game state for remaining players.
-      server.forceSessionLeaveRoom(playerId, reason: 'removed_inactivity');
+      final wsSeat = server.websocketSessionForGamePlayer(roomId, playerId);
+      final sessionArg = wsSeat ?? playerId;
+      server.forceSessionLeaveRoom(sessionArg, reason: 'removed_inactivity');
       if (LOGGING_SWITCH) {
         _logger.info('GameStateCallback: forceSessionLeaveRoom completed for player $playerId');
       }
@@ -722,7 +741,16 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         }
         
         // Get user_id from session (for human players) or from player object (for comp players)
-        var userId = server.getUserIdForSession(playerId);
+        var userId = player['userId']?.toString().trim();
+        if (userId == null || userId.isEmpty) {
+          final wsSeat = server.websocketSessionForGamePlayer(roomId, playerId);
+          if (wsSeat != null && wsSeat.isNotEmpty) {
+            userId = server.getUserIdForSession(wsSeat);
+          }
+        }
+        if (userId == null || userId.isEmpty) {
+          userId = server.getUserIdForSession(playerId);
+        }
         if (userId == null) {
           // Fallback: Check if player object has userId (for comp players from database)
           userId = player['userId']?.toString();

@@ -3,8 +3,9 @@ import '../module_manager.dart';
 import 'ws_event_handler.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
+import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
 
-const bool LOGGING_SWITCH = false; // WS events → authenticated (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // resume_room_error handling (disconnect rejoin; set false after test)
 
 /// WebSocket Event Listener
 /// Centralized Socket.IO event listener registration and management
@@ -71,6 +72,8 @@ class WSEventListener {
     
     // Authentication events
     _registerAuthenticationListeners();
+
+    _registerResumeRoomListeners();
     
     if (LOGGING_SWITCH) {
       _logger.info('✅ All WebSocket event listeners registered successfully');
@@ -338,6 +341,12 @@ class WSEventListener {
         _logger.error('❌ Authentication error');
       }
       _eventHandler.handleAuthenticationError(data);
+    });
+  }
+
+  void _registerResumeRoomListeners() {
+    _socket?.on('resume_room_error', (_) {
+      DutchGameHelpers.clearLastMultiplayerRoomId();
     });
   }
 } 

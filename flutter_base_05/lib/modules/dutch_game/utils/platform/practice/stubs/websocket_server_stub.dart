@@ -70,6 +70,14 @@ class WebSocketServerStub {
     return info?.ownerId;
   }
 
+  /// Map canonical seat id → practice session id (mirror backend API).
+  String? websocketSessionForGamePlayer(String roomId, String gamePlayerSeatId) {
+    final sessions = _roomManager.getSessionsInRoom(roomId);
+    if (sessions.contains(gamePlayerSeatId)) return gamePlayerSeatId;
+    if (sessions.length == 1) return sessions.first;
+    return null;
+  }
+
   /// Get room info for a room
   /// Returns the RoomInfoStub object or null if not found
   RoomInfoStub? getRoomInfo(String roomId) {

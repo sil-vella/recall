@@ -8,7 +8,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Per-room event queue + random-join WS trace (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // session→player id resolution under rebind (disconnect rejoin; set false after test)
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -54,20 +54,28 @@ class GameEventCoordinator {
   /// after verifying the player exists in the game
   String? _getPlayerIdFromSession(String sessionId, String roomId) {
     try {
-      // Player ID is now sessionId - verify player exists in game
       final gameState = _store.getGameState(roomId);
       final players = (gameState['players'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .toList();
 
-      // Check if a player with this sessionId exists
-      final playerExists = players.any((p) => p['id'] == sessionId);
-      if (playerExists) {
-        return sessionId; // Player ID = sessionId
+      final room = roomManager.getRoom(roomId);
+      final stableFromBinding = room?.seatIdForSession(sessionId);
+
+      final candidates = <String>{
+        if (stableFromBinding != null && stableFromBinding.isNotEmpty) stableFromBinding,
+        sessionId,
+      };
+
+      for (final cid in candidates) {
+        final ok = players.any((p) => p['id'] == cid);
+        if (ok) return cid;
       }
 
       if (LOGGING_SWITCH) {
-        _logger.warning('GameEventCoordinator: No player found with sessionId $sessionId in room $roomId');
+        _logger.warning(
+          'GameEventCoordinator: No player found for WS session $sessionId in room $roomId (binding=$stableFromBinding)',
+        );
       }
       return null;
     } catch (e) {

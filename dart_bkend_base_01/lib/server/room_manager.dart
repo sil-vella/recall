@@ -3,7 +3,15 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 /// Set to true to log Room TTL events to server.log for testing (plan: Room TTL implementation).
-const bool LOGGING_SWITCH = false; // Room create/join/capacity before match start (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // seat/session bindings / join (disconnect rejoin tracing; set false after test)
+
+/// Stable multiplayer human seat id derived from authenticated user (`hum_<userId>`).
+/// Guests / missing user reuse [sessionId] as the canonical id.
+String canonicalMultiplayerHumanPlayerId(String sessionId, String userId) {
+  final u = userId.trim();
+  if (u.isEmpty) return sessionId;
+  return 'hum_$u';
+}
 
 class Room {
   final String roomId;
@@ -53,6 +61,12 @@ class Room {
   String? rematchInitiatorSessionId;
   String? rematchInitiatorUserId;
 
+  /// Active websocket session → canonical [`hum_<user>`] seat id stored in game state players.
+  final Map<String, String> sessionToPlayerId = {};
+
+  /// Canonical seat id (`hum_<user>` or legacy session UUID) → currently connected websocket session.
+  final Map<String, String> playerIdToActiveSessionId = {};
+
   Room({
     required this.roomId,
     required this.ownerId,
@@ -92,6 +106,40 @@ class Room {
     _ttlExpiresAt = DateTime.now().add(ttl);
   }
   
+  /// Register or replace binding for [sessionId] ↔ canonical [playerSeatId].
+  void bindSessionToPlayerSeat(String sessionId, String playerSeatId) {
+    final priorSeat = sessionToPlayerId[sessionId];
+    if (priorSeat != null && priorSeat != playerSeatId && playerIdToActiveSessionId[priorSeat] == sessionId) {
+      playerIdToActiveSessionId.remove(priorSeat);
+    }
+    sessionToPlayerId[sessionId] = playerSeatId;
+    playerIdToActiveSessionId[playerSeatId] = sessionId;
+  }
+
+  /// Remove WS session from seat mappings (seat id remains in game roster until hooks run).
+  void unbindSession(String sessionId) {
+    final seat = sessionToPlayerId.remove(sessionId);
+    if (seat != null && playerIdToActiveSessionId[seat] == sessionId) {
+      playerIdToActiveSessionId.remove(seat);
+    }
+  }
+
+  /// When [newSessionId] replaces [oldSessionId] for same seat ([playerSeatId]).
+  void rebindSessionSeat(String playerSeatId, String oldSessionId, String newSessionId) {
+    unbindSession(oldSessionId);
+    bindSessionToPlayerSeat(newSessionId, playerSeatId);
+  }
+
+  String? seatIdForSession(String sessionId) => sessionToPlayerId[sessionId];
+
+  /// Active websocket for a canonical seat id, or legacy id when it equals an active session in this room.
+  String? websocketSessionForSeat(String seatOrSessionId) {
+    final ws = playerIdToActiveSessionId[seatOrSessionId];
+    if (ws != null) return ws;
+    if (sessionIds.contains(seatOrSessionId)) return seatOrSessionId;
+    return null;
+  }
+
   Map<String, dynamic> toJson() {
     final m = <String, dynamic>{
       'room_id': roomId,
@@ -176,6 +224,10 @@ class RoomManager {
     if (addCreatorToRoom) {
       room.sessionIds.add(creatorSessionId);
       _sessionToRoom[creatorSessionId] = roomId;
+      room.bindSessionToPlayerSeat(
+        creatorSessionId,
+        canonicalMultiplayerHumanPlayerId(creatorSessionId, userId),
+      );
     }
 
     _rooms[roomId] = room;
@@ -211,6 +263,8 @@ class RoomManager {
     
     room.sessionIds.add(sessionId);
     _sessionToRoom[sessionId] = roomId;
+
+    room.bindSessionToPlayerSeat(sessionId, canonicalMultiplayerHumanPlayerId(sessionId, userId));
     
     // Reinstate TTL on join (extend expiration time)
     reinstateRoomTtl(roomId);
@@ -225,6 +279,7 @@ class RoomManager {
     
     final room = _rooms[roomId];
     room?.sessionIds.remove(sessionId);
+    room?.unbindSession(sessionId);
     _sessionToRoom.remove(sessionId);
     
     print('👋 Session $sessionId left room $roomId');
@@ -264,6 +319,12 @@ class RoomManager {
   Room? getRoom(String roomId) => _rooms[roomId];
   
   String? getRoomForSession(String sessionId) => _sessionToRoom[sessionId];
+
+  /// Replace websocket mapping when [oldSessionId] is swapped for [newSessionId] in [roomId].
+  void replaceSessionMapping(String oldSessionId, String newSessionId, String roomId) {
+    _sessionToRoom.remove(oldSessionId);
+    _sessionToRoom[newSessionId] = roomId;
+  }
   
   List<String> getSessionsInRoom(String roomId) {
     return _rooms[roomId]?.sessionIds ?? [];

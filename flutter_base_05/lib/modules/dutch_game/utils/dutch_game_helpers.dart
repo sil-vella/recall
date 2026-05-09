@@ -27,7 +27,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true; // isGameStillInState / kick trace (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // attemptResumeRoomAfterAuth + prefs (disconnect rejoin; set false after test)
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
@@ -67,6 +67,53 @@ class DutchGameHelpers {
   static bool get isRandomJoinInProgress {
     final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     return dutchState['isRandomJoinInProgress'] == true;
+  }
+
+  static const String _kLastMultiplayerRoomIdKey = 'dutch_last_multiplayer_room_id';
+
+  /// Persist last `room_*` id for reconnect `resume_room` fallback (SharedPreferences).
+  static Future<void> persistLastMultiplayerRoomId(String? roomId) async {
+    final r = roomId?.trim() ?? '';
+    if (r.isEmpty || !r.startsWith('room_')) return;
+    try {
+      await SharedPrefManager().setString(_kLastMultiplayerRoomIdKey, r);
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.info('persistLastMultiplayerRoomId: skip ($e)');
+      }
+    }
+  }
+
+  /// Synchronous read of persisted room id (may be stale).
+  static String? getLastMultiplayerRoomIdSync() {
+    try {
+      final v = SharedPrefManager().get(_kLastMultiplayerRoomIdKey);
+      final s = v?.toString().trim() ?? '';
+      return s.isNotEmpty && s.startsWith('room_') ? s : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> clearLastMultiplayerRoomId() async {
+    try {
+      await SharedPrefManager().setString(_kLastMultiplayerRoomIdKey, '');
+    } catch (_) {}
+  }
+
+  /// After JWT auth succeeds, attempt one WS `resume_room` for server-side disconnect grace.
+  static Future<void> attemptResumeRoomAfterAuth({String? roomId}) async {
+    final rid = (roomId ?? getLastMultiplayerRoomIdSync())?.trim() ?? '';
+    if (rid.isEmpty || !rid.startsWith('room_')) return;
+    final ws = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    if (ws['is_authenticated'] != true) return;
+    try {
+      await _eventEmitter.emit(eventType: 'resume_room', data: {'room_id': rid});
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        _logger.info('attemptResumeRoomAfterAuth: emit error $e');
+      }
+    }
   }
   
   // ========================================

@@ -208,5 +208,22 @@ class Config {
     'beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend',
   );
 
+  // ========= Disconnect / reconnect grace (Dart WS) =========
+
+  /// When true, an in-progress multiplayer disconnect schedules a delayed leave/rebind window
+  /// (`resume_room`) instead of tearing the match down immediately when the socket drops.
+  static bool get enableDisconnectRejoinGrace => _getConfigBool(
+    'ENABLE_DISCONNECT_REJOIN_GRACE',
+    'enable_disconnect_rejoin_grace',
+    true,
+  );
+
+  /// Grace window seconds before finalized leave_room for a dropped authenticated human player.
+  static int get disconnectRejoinGraceSeconds => _getConfigInt(
+    'DISCONNECT_REJOIN_GRACE_SECONDS',
+    'disconnect_rejoin_grace_seconds',
+    20,
+  );
+
 }
 

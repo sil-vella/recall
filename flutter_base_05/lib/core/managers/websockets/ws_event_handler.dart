@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../state_manager.dart';
 import '../module_manager.dart';
 import '../hooks_manager.dart';
@@ -9,7 +11,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // leave_room_success → hooks (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // authenticated resumable_room hint + resume path (disconnect rejoin; set false after test)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -235,6 +237,11 @@ class WSEventHandler {
       // Trigger specific event callbacks
       _eventManager.triggerCallbacks('room_joined', convertedData);
       _eventManager.triggerCallbacks('join_room_success', convertedData);
+
+      final rj = roomId.toString();
+      if (rj.startsWith('room_')) {
+        unawaited(DutchGameHelpers.persistLastMultiplayerRoomId(rj));
+      }
       
       // 🎣 Trigger websocket_room_joined hook for other modules
       HooksManager().triggerHookWithData('websocket_room_joined', {
@@ -301,6 +308,11 @@ class WSEventHandler {
         roomId: roomId,
         roomInfo: roomData,
       );
+
+      final rs = roomId.toString();
+      if (rs.startsWith('room_')) {
+        unawaited(DutchGameHelpers.persistLastMultiplayerRoomId(rs));
+      }
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
@@ -453,6 +465,11 @@ class WSEventHandler {
         roomId: roomId,
         roomInfo: roomData,
       );
+
+      final crs = roomId.toString();
+      if (crs.startsWith('room_')) {
+        unawaited(DutchGameHelpers.persistLastMultiplayerRoomId(crs));
+      }
       
       // Set room ownership and game state in dutch game state
       final maxSize = roomData['max_size']; // Extract max_size from room data
@@ -597,6 +614,12 @@ class WSEventHandler {
           '[kick-trace] handleLeaveRoomSuccess room=$roomId reason=${map['reason']} session=${map['session_id']} keys=${map.keys.toList()}',
         );
       }
+
+      final last = DutchGameHelpers.getLastMultiplayerRoomIdSync();
+      if (last != null && last == '$roomId') {
+        unawaited(DutchGameHelpers.clearLastMultiplayerRoomId());
+      }
+
       HooksManager().triggerHookWithData('leave_room_success', map);
 
       // Trigger event callbacks for room management screen
@@ -636,6 +659,11 @@ class WSEventHandler {
         final roomId = data['room_id'] ?? '';
         final reason = data['reason'] ?? 'unknown';
         final timestamp = data['timestamp'];
+
+        final last = DutchGameHelpers.getLastMultiplayerRoomIdSync();
+        if (last != null && last == '$roomId') {
+          unawaited(DutchGameHelpers.clearLastMultiplayerRoomId());
+        }
         
         // Update WebSocket state to clear room info if it's the current room
         final currentRoomId = WebSocketStateUpdater.getCurrentRoomId();
@@ -936,6 +964,16 @@ class WSEventHandler {
         isAuthenticated: true,
         userId: data is Map ? data['user_id'] : null,
       );
+
+      if (data is Map) {
+        final m = Map<String, dynamic>.from(data);
+        final hint = m['resumable_room_id']?.toString().trim();
+        if (hint != null && hint.isNotEmpty) {
+          unawaited(DutchGameHelpers.attemptResumeRoomAfterAuth(roomId: hint));
+        } else {
+          unawaited(DutchGameHelpers.attemptResumeRoomAfterAuth());
+        }
+      }
     } catch (e) {
       if (LOGGING_SWITCH) {
         _logger.error('Error handling authentication success: $e');

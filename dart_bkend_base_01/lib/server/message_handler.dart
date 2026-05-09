@@ -14,7 +14,7 @@ import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // create_room/get_public_rooms/join_room WS → RoomManager (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // resume_room + room WS handlers (disconnect rejoin; set false after test)
 
 /// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
 /// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.
@@ -270,6 +270,9 @@ class MessageHandler {
         break;
       case 'leave_room':
         _handleLeaveRoom(sessionId);
+        break;
+      case 'resume_room':
+        _handleResumeRoom(sessionId, data);
         break;
       case 'list_rooms':
         _handleListRooms(sessionId);
@@ -1498,7 +1501,60 @@ class MessageHandler {
       });
     }
   }
-  
+
+  /// Rebind a freshly authenticated websocket to an `hum_<user>` seat pending disconnect grace.
+  void _handleResumeRoom(String sessionId, Map<String, dynamic> data) {
+    final roomId = (data['room_id'] ?? data['game_id'])?.toString() ?? '';
+    final userId = _server.getUserIdForSession(sessionId);
+    if (LOGGING_SWITCH) {
+      _logger.room(
+        'resume_room: session=$sessionId room=$roomId user=${userId ?? "(null)"}',
+      );
+    }
+    if (roomId.isEmpty || !roomId.startsWith('room_')) {
+      if (LOGGING_SWITCH) {
+        _logger.room('resume_room_error: invalid room_id for session=$sessionId');
+      }
+      _server.sendToSession(sessionId, {
+        'event': 'resume_room_error',
+        'message': 'Invalid or missing room_id',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      return;
+    }
+    if (userId == null || userId.trim().isEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.room('resume_room_error: not authenticated session=$sessionId');
+      }
+      _server.sendToSession(sessionId, {
+        'event': 'resume_room_error',
+        'message': 'User not authenticated',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      return;
+    }
+    final ok = _server.tryResumeRoomForUser(
+      newSessionId: sessionId,
+      roomId: roomId,
+      userId: userId,
+    );
+    if (LOGGING_SWITCH) {
+      _logger.room(
+        ok
+            ? 'resume_room OK session=$sessionId room=$roomId user=$userId'
+            : 'resume_room FAILED session=$sessionId room=$roomId user=$userId',
+      );
+    }
+    if (!ok) {
+      _server.sendToSession(sessionId, {
+        'event': 'resume_room_error',
+        'room_id': roomId,
+        'message': 'Resume not allowed (grace expired or not your seat)',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+
   void _handleListRooms(String sessionId) {
     final rooms = _roomManager.getAllRooms();
     _server.sendToSession(sessionId, {

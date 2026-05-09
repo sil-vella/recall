@@ -25,7 +25,7 @@ import '../utils/dutch_achievement_catalog.dart';
 class DutchEventHandlerCallbacks {
   /// When true, logs verbose Dutch WS/state paths including payload-size lines for `game_state_updated`.
   /// Enable while tracing initial-peek vs visible table (`[peek-ui-trace]`); set false after.
-  static const bool LOGGING_SWITCH = true; // kick/leave + game_state + widget sync (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = false; // kick/leave + game_state + widget sync (enable-logging-switch.mdc; set false after test)
   static final Logger _logger = Logger();
 
   /// Counter for `game_state_updated` receives (only incremented when LOGGING_SWITCH is true).
@@ -593,9 +593,11 @@ class DutchEventHandlerCallbacks {
     }
   }
   
-  /// Get current user ID from practice user data or login state
-  /// Practice mode stores user data in dutch_game state, multiplayer uses login state
-  /// In multiplayer mode, returns sessionId (which is the player ID), not userId
+  /// Game-facing identity used to match [game_state.players].[id].
+  ///
+  /// - Practice: `practice_session_<userId>`
+  /// - Multiplayer (authenticated): `hum_<websocket user_id>` — same stable seat as Dart backend
+  /// - Fallback: websocket `session_id` / socket id / login `userId`
   static String getCurrentUserId() {
     final cachedUserId = _cachedCurrentUserId;
     final cachedAt = _cachedCurrentUserIdAt;
@@ -625,11 +627,27 @@ class DutchEventHandlerCallbacks {
         return practiceSessionId;
       }
     }
-    
-    // Fall back to login state (multiplayer mode)
-    // In multiplayer, try to get sessionId from websocket state first
+
+    // Fall back to login state (multiplayer mode).
+    final websocketState =
+        StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+
+    // Multiplayer seated human id (`hum_<auth user id>`) — aligns with Dart `canonicalMultiplayerHumanPlayerId`.
+    final wsAuthMongoId = websocketState['user_id']?.toString().trim() ?? '';
+    if (wsAuthMongoId.isNotEmpty) {
+      final stableSeat = 'hum_$wsAuthMongoId';
+      if (LOGGING_SWITCH) {
+        _logger.debug(
+          '🔍 getCurrentUserId: multiplayer stable seat from websocket.user_id -> $stableSeat',
+        );
+      }
+      _cachedCurrentUserId = stableSeat;
+      _cachedCurrentUserIdAt = DateTime.now();
+      return stableSeat;
+    }
+
+    // Unauthenticated guest / pre-auth: use session ids from websocket state
     // Check both camelCase and snake_case keys for compatibility
-    final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
     final sessionData = websocketState['sessionData'] as Map<String, dynamic>?;
     final sessionId = sessionData?['session_id']?.toString() ?? 
                       sessionData?['sessionId']?.toString();
@@ -1357,7 +1375,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         final isOnCurrentMatch = gameId == currentGameId || gameId == currentRoomId;
         if ((wasInGame || isOnCurrentMatch) &&
             alreadyShownFor != gameId &&
-            phase != 'waiting_for_players' &&
+            (phase != 'waiting_for_players' || wasInGame) &&
             isOnCurrentMatch &&
             gameId.startsWith('room_')) {
           if (LOGGING_SWITCH) {
@@ -1513,16 +1531,39 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
   }
 
+  /// True when [leftSessionId] from `leave_room_success` refers to this WebSocket connection
+  /// (not multiplayer seat id from [getCurrentUserId], which is `hum_*`).
+  static bool _leaveRoomSuccessSessionIsThisClient(String leftSessionId) {
+    final trimmed = leftSessionId.trim();
+    if (trimmed.isEmpty) return false;
+    try {
+      final sock = WebSocketManager.instance.socket;
+      if (sock != null) {
+        final sid = sock.id.trim();
+        if (sid.isNotEmpty && sid == trimmed) return true;
+      }
+    } catch (_) {}
+    final ws = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final sd = ws['sessionData'];
+    if (sd is Map) {
+      final fromState =
+          sd['session_id']?.toString().trim() ?? sd['sessionId']?.toString().trim() ?? '';
+      if (fromState.isNotEmpty && fromState == trimmed) return true;
+    }
+    return false;
+  }
+
   /// Server removed this client from the room for inactivity (`leave_room_success` with `reason`).
   static void handleKickedForInactivityLeaveSuccess(Map<String, dynamic> data) {
-    // Payload is for the session that left; ignore replays/stale hooks meant for another seat.
+    // Payload is for the WebSocket session that left; seat id (`hum_*`) must not be used here.
     final leftSessionId = data['session_id']?.toString() ?? '';
-    final selfId = getCurrentUserId();
-    if (leftSessionId.isEmpty || leftSessionId != selfId) {
+    final wsSessionMatchesKick =
+        leftSessionId.isNotEmpty && _leaveRoomSuccessSessionIsThisClient(leftSessionId);
+    if (leftSessionId.isEmpty || !wsSessionMatchesKick) {
       if (LOGGING_SWITCH) {
         _logger.info(
-          '[kick-trace] handleKickedForInactivityLeaveSuccess skip: leftSession=$leftSessionId self=$selfId '
-          'reason=${data['reason']} room=${data['room_id']}',
+          '[kick-trace] handleKickedForInactivityLeaveSuccess skip: leftSession=$leftSessionId '
+          'matchesWs=$wsSessionMatchesKick reason=${data['reason']} room=${data['room_id']}',
         );
       }
       return;
@@ -2099,6 +2140,23 @@ When anyone has played a card with the **same rank** as your **collection card**
     final currentRoomId = currentState['currentRoomId']?.toString() ?? '';
     final isOnCurrentMatch = gameId == currentGameId || gameId == currentRoomId;
     final kickedAlreadyShownFor = currentState['kickedModalShownFor']?.toString() ?? '';
+    final loginStateForKick = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final loginUserIdForKick = loginStateForKick['userId']?.toString() ?? '';
+    bool matchesCurrentUserForKick(dynamic p) {
+      if (p is! Map<String, dynamic>) return false;
+      final pid = p['id']?.toString() ?? '';
+      final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+      return pid == currentUserId || (loginUserIdForKick.isNotEmpty && pUserId == loginUserIdForKick);
+    }
+    List<dynamic>? prevPlayersFromMapKick;
+    if (currentGames.containsKey(gameId)) {
+      final entryKick = currentGames[gameId] as Map<String, dynamic>?;
+      final gdKick = entryKick?['gameData'] as Map<String, dynamic>?;
+      final gsKick = gdKick?['game_state'] as Map<String, dynamic>?;
+      prevPlayersFromMapKick = gsKick?['players'] as List<dynamic>?;
+    }
+    final wasPreviouslyOnRosterKick =
+        (prevPlayersFromMapKick ?? []).any(matchesCurrentUserForKick);
     
     // 🎯 CRITICAL: If games map is empty but currentGameId is set, this might be a stale event
     // from a game that was just cleared. Only accept events for the current game or if currentGameId is empty.
@@ -2122,23 +2180,17 @@ When anyone has played a card with the **same rank** as your **collection card**
     /// Captured before overwriting `gameData.game_state` (for kicked-player modal detection).
     List<dynamic>? previousPlayersForWidgetSync;
     // Fallback kick detection directly in this handler (independent of widget-sync ordering).
-    final loginStateForKick = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final loginUserIdForKick = loginStateForKick['userId']?.toString() ?? '';
-    bool _matchesCurrentUserForKick(dynamic p) {
-      if (p is! Map<String, dynamic>) return false;
-      final pid = p['id']?.toString() ?? '';
-      final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-      return pid == currentUserId || (loginUserIdForKick.isNotEmpty && pUserId == loginUserIdForKick);
-    }
-    final userStillInPlayers = players.any(_matchesCurrentUserForKick);
+    final userStillInPlayers = players.any(matchesCurrentUserForKick);
     if (userStillInPlayers && kickedAlreadyShownFor == gameId) {
       StateManager().updateModuleState('dutch_game', {'kickedModalShownFor': ''});
     }
     final phaseForKick = gameState['phase']?.toString() ?? '';
+    final phaseAllowsKickFallback =
+        phaseForKick != 'waiting_for_players' || wasPreviouslyOnRosterKick;
     if (isOnCurrentMatch &&
         gameId.startsWith('room_') &&
         kickedAlreadyShownFor != gameId &&
-        phaseForKick != 'waiting_for_players' &&
+        phaseAllowsKickFallback &&
         !userStillInPlayers) {
       if (LOGGING_SWITCH) {
         _logger.warning('🚪 handleGameStateUpdated: Current user missing from players for active match $gameId — forcing kicked modal');

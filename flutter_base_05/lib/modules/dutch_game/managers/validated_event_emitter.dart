@@ -33,7 +33,7 @@ class DutchGameEventEmitter {
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final DemoModeBridge _demoBridge = DemoModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // completed_initial_peek emit path (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // resume_room + multiplayer player_id canonical (disconnect rejoin; set false after test)
   
   // Current transport mode (defaults to WebSocket for backward compatibility; unset after clear so practice/WS re-apply)
   EventTransportMode _transportMode = EventTransportMode.websocket;
@@ -78,6 +78,7 @@ class DutchGameEventEmitter {
       'room_id', 'password', 'user_id', 'game_level', // user_id fallback; game_level default 1
       'rank', 'level', // Optional: user rank and level (for validation, usually from session)
     },
+    'resume_room': {'room_id'},
     'join_game': {'game_id', 'player_name', 'max_players'},
     'start_match': {'game_id', 'showInstructions', 'isClearAndCollect'},
     'play_card': {'game_id', 'card_id', 'replace_index'}, // player_id auto-added
@@ -348,7 +349,9 @@ class DutchGameEventEmitter {
       if (eventsNeedingPlayerId.contains(eventType)) {
         final sessionId = _getSessionId();
         if (sessionId.isNotEmpty && sessionId != 'unknown_session') {
-          eventPayload['player_id'] = sessionId; // Use sessionId as player_id
+          final gid = eventPayload['game_id']?.toString() ?? '';
+          eventPayload['player_id'] =
+              gid.startsWith('room_') ? _multiplayerStableSeatIdForCurrentUser() : sessionId;
         }
       }
 
@@ -614,6 +617,16 @@ class DutchGameEventEmitter {
     }
   }
   
+  /// Stable `hum_<userId>` used by Dart backend for multiplayer seats (must match auth user_id).
+  String _multiplayerStableSeatIdForCurrentUser() {
+    final ws = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final authUid = ws['user_id']?.toString().trim() ?? '';
+    if (authUid.isEmpty) {
+      return _getSessionId();
+    }
+    return 'hum_$authUid';
+  }
+
   /// Get current session ID (player_id / session_id in event payload).
   /// In practice mode returns practice_session_$userId; in WS mode returns socket.id.
   /// Aligns with getCurrentUserId() so backend and UI use the same identity.

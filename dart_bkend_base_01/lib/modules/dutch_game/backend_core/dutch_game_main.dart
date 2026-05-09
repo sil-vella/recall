@@ -37,7 +37,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Lobby create_room → room_created hook (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // leave/grace + snapshot hooks (disconnect rejoin; set false after test)
 
 /// If [gameState.currentPlayer] is missing from [players] (e.g. leave mid-turn), pick a new
 /// current seat so broadcasts stay consistent for remaining clients and CPU timers.
@@ -259,9 +259,10 @@ class DutchGameModule {
             }
           } catch (_) {}
         }
+        final seatId = canonicalMultiplayerHumanPlayerId(sessionId, ownerId);
         initialPlayers = [
           {
-            'id': sessionId,
+            'id': seatId,
             'name': playerName,
             'isHuman': true,
             'status': 'waiting',
@@ -363,27 +364,28 @@ class DutchGameModule {
       }
 
       if (LOGGING_SWITCH) {
-        _logger.info('🎣 room_joined: Adding player with session ID $sessionId to room $roomId');
+        _logger.info('🎣 room_joined: processing session=$sessionId room=$roomId');
       }
 
       final store = GameStateStore.instance;
-      final gameState = store.getGameState(roomId);
-      final players = gameState['players'] as List<dynamic>? ?? [];
+      final canonicalSeat =
+          canonicalMultiplayerHumanPlayerId(sessionId, userId ?? '');
 
-      // Check if player already exists (by sessionId or by userId to avoid same human twice)
-      final existingPlayer = players.any((p) => p['id'] == sessionId);
-      if (existingPlayer) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Player with session $sessionId already in game $roomId');
-        }
-        _sendGameSnapshot(sessionId, roomId);
-        return;
-      }
-      if (userId != null && userId.isNotEmpty) {
-        final existingByUserId = players.any((p) => p['userId'] == userId);
-        if (existingByUserId) {
+      // Fast-path if roster already authoritative (handles sync re-entry).
+      {
+        final gs0 = store.getGameState(roomId);
+        final pl0 = gs0['players'] as List<dynamic>? ?? [];
+        if (pl0.any((p) => p['id'] == canonicalSeat)) {
           if (LOGGING_SWITCH) {
-            _logger.info('User $userId already in game $roomId (different session), skipping duplicate');
+            _logger.info('Player seat $canonicalSeat already in game $roomId (sync check)');
+          }
+          _sendGameSnapshot(sessionId, roomId);
+          return;
+        }
+        if (userId != null && userId.isNotEmpty &&
+            pl0.any((p) => p['userId']?.toString() == userId)) {
+          if (LOGGING_SWITCH) {
+            _logger.info('User $userId already in game $roomId (sync check)');
           }
           _sendGameSnapshot(sessionId, roomId);
           return;
@@ -419,13 +421,6 @@ class DutchGameModule {
         if (LOGGING_SWITCH) {
           _logger.warning('🎣 room_joined: Practice room $roomId has no difficulty, defaulting to medium');
         }
-      }
-      
-      // Update game state with room difficulty
-      if (roomDifficulty != null) {
-        final stateRoot = store.getState(roomId);
-        stateRoot['roomDifficulty'] = roomDifficulty;
-        store.setGameState(roomId, stateRoot['game_state'] as Map<String, dynamic>);
       }
 
       // Fetch user profile data (full name, profile picture) if userId is available
@@ -476,9 +471,47 @@ class DutchGameModule {
         } catch (_) {}
       }
 
-      // Add new player - use sessionId as player ID
+      // Authoritative roster read AFTER awaits — `room_created` may merge while we fetch profile,
+      // and early `players` references would otherwise be orphaned or stale.
+      final gameState =
+          Map<String, dynamic>.from(store.getGameState(roomId));
+      final playersExisting = gameState['players'] as List<dynamic>? ?? [];
+      final players = <Map<String, dynamic>>[];
+      for (final p in playersExisting) {
+        if (p is Map<String, dynamic>) {
+          players.add(Map<String, dynamic>.from(p));
+        }
+      }
+
+      if (players.any((p) => p['id'] == canonicalSeat)) {
+        if (LOGGING_SWITCH) {
+          _logger.info(
+            '🎣 room_joined: seat $canonicalSeat already present after await (room_created won race); skip duplicate add',
+          );
+        }
+        _sendGameSnapshot(sessionId, roomId);
+        return;
+      }
+      if (userId != null &&
+          userId.isNotEmpty &&
+          players.any((p) => p['userId']?.toString() == userId)) {
+        if (LOGGING_SWITCH) {
+          _logger.info(
+            '🎣 room_joined: user $userId already in roster after await; skip duplicate add',
+          );
+        }
+        _sendGameSnapshot(sessionId, roomId);
+        return;
+      }
+
+      if (roomDifficulty != null) {
+        final stateRoot = store.getState(roomId);
+        stateRoot['roomDifficulty'] = roomDifficulty;
+      }
+
+      // Add new player — stable seat id survives WS reconnect (`hum_<userId>`).
       players.add({
-        'id': sessionId, // Use sessionId as player ID
+        'id': canonicalSeat,
         'name': playerName,
         'isHuman': true,
         'status': 'waiting',
@@ -495,7 +528,6 @@ class DutchGameModule {
       });
 
       gameState['players'] = players;
-      // Maintain playerCount for UI
       gameState['playerCount'] = players.length;
       store.setGameState(roomId, gameState);
 
@@ -543,31 +575,34 @@ class DutchGameModule {
   void _onLeaveRoom(Map<String, dynamic> data) {
     try {
       final roomId = data['room_id'] as String?;
-      final sessionId = data['session_id'] as String?; // Use sessionId as player ID
+      final sessionId = data['session_id'] as String?;
+      final gamePlayerId =
+          data['game_player_id'] as String? ?? sessionId;
 
-      if (roomId == null || sessionId == null) {
+      if (roomId == null || gamePlayerId == null || gamePlayerId.isEmpty) {
         if (LOGGING_SWITCH) {
-          _logger.warning('🎣 leave_room: missing roomId or sessionId');
+          _logger.warning('🎣 leave_room: missing roomId or game_player_id');
         }
         return;
       }
 
       if (LOGGING_SWITCH) {
-        _logger.info('🎣 leave_room: Removing player with session $sessionId from room $roomId');
+        _logger.info(
+            '🎣 leave_room: Removing player $gamePlayerId from room $roomId (session=$sessionId)');
       }
 
       final store = GameStateStore.instance;
       final gameState = store.getGameState(roomId);
       final players = (gameState['players'] as List<dynamic>? ?? []);
 
-      // Remove player by sessionId (player ID)
+      // Remove player by canonical seat id (or legacy session-as-id)
       final initialPlayerCount = players.length;
-      players.removeWhere((p) => p['id'] == sessionId);
+      players.removeWhere((p) => p['id'] == gamePlayerId);
       final newPlayerCount = players.length;
       
       if (initialPlayerCount == newPlayerCount) {
         if (LOGGING_SWITCH) {
-          _logger.warning('🎣 leave_room: Player $sessionId not found in game state players list');
+          _logger.warning('🎣 leave_room: Player $gamePlayerId not found in game state players list');
           _logger.warning('🎣 leave_room: Current players: ${players.map((p) => p['id']?.toString() ?? 'unknown').join(', ')}');
         }
       }
@@ -585,7 +620,8 @@ class DutchGameModule {
       store.setGameState(roomId, gameState);
 
       if (LOGGING_SWITCH) {
-        _logger.info('✅ Player with session $sessionId removed from game $roomId (players: $initialPlayerCount -> $newPlayerCount)');
+        _logger.info(
+            '✅ Player $gamePlayerId removed from game $roomId (players: $initialPlayerCount -> $newPlayerCount)');
       }
 
       // One player left mid-match: declare winner and use normal game_ended broadcast (same as regular end).
@@ -618,7 +654,8 @@ class DutchGameModule {
       });
       
       if (LOGGING_SWITCH) {
-        _logger.info('✅ Broadcasted game_state_updated to all players in room $roomId after player $sessionId left');
+        _logger.info(
+            '✅ Broadcasted game_state_updated to all players in room $roomId after player $gamePlayerId left');
       }
     } catch (e) {
       if (LOGGING_SWITCH) {
@@ -661,6 +698,29 @@ class DutchGameModule {
         _logger.error('❌ Error in _onRoomClosed: $e');
       }
     }
+  }
+
+  /// Send full Dutch snapshot to one websocket session (resume_room / recovery).
+  void sendGameSnapshotToSession(String sessionId, String roomId) =>
+      _sendGameSnapshot(sessionId, roomId);
+
+  /// Pause/resume primary action timers during disconnect grace (`DutchGameRound`).
+  void pauseActionTimersForDisconnectGrace(String roomId, String stablePlayerId) {
+    GameRegistry.instance
+        .getExisting(roomId)
+        ?.pauseActionTimersForPlayer(stablePlayerId);
+  }
+
+  void resumeActionTimersAfterReconnect(String roomId, String stablePlayerId) {
+    GameRegistry.instance
+        .getExisting(roomId)
+        ?.resumeActionTimersForPlayer(stablePlayerId);
+  }
+
+  void clearDisconnectGracePause(String roomId, String stablePlayerId) {
+    GameRegistry.instance
+        .getExisting(roomId)
+        ?.clearActionTimerPauseWithoutResume(stablePlayerId);
   }
 
   /// Helper: Send current game state snapshot to a session

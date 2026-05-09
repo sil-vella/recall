@@ -12,6 +12,9 @@ class RoomInfoStub {
   final bool autoStart;
   String? difficulty; // Room difficulty (for practice: from lobby selection, for multiplayer: from creator's rank)
 
+  /// Practice stub: no WS seat binding; coordinator falls back to session id as player id.
+  String? seatIdForSession(String sessionId) => null;
+
   RoomInfoStub({
     required this.roomId,
     required this.ownerId,
@@ -95,6 +98,9 @@ class RoomManagerStub {
   RoomInfoStub? getRoomInfo(String roomId) {
     return _rooms[roomId];
   }
+
+  /// Alias for backend [RoomManager.getRoom] — returns the same [RoomInfoStub] as [getRoomInfo].
+  dynamic getRoom(String roomId) => getRoomInfo(roomId);
 
   List<String> getSessionsInRoom(String roomId) {
     return _sessionToRoom.entries

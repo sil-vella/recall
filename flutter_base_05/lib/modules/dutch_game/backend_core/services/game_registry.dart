@@ -4,7 +4,7 @@ import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Game init / match start (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // dispose emits / disconnect pairing (disconnect rejoin; set false after test)
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -30,7 +30,8 @@ class GameRegistry {
   DutchGameRound? getExisting(String roomId) => _roomIdToRound[roomId];
 
   void dispose(String roomId) {
-    _roomIdToRound.remove(roomId);
+    final round = _roomIdToRound.remove(roomId);
+    round?.dispose();
     GameStateStore.instance.clear(roomId);
     if (LOGGING_SWITCH) {
       _logger.info('GameRegistry: Disposed game for $roomId');
@@ -164,8 +165,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
       final stateVersion = _store.bumpOutboundStateVersion(roomId);
 
-      // Send to single player (playerId = sessionId in this system)
-      server.sendToSession(playerId, {
+      final wsTarget =
+          server.websocketSessionForGamePlayer(roomId, playerId) ?? playerId;
+      server.sendToSession(wsTarget, {
         'event': 'game_state_updated',
         'game_id': roomId,
         'game_state': filteredGameState,
@@ -243,7 +245,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
 
-      // Broadcast to all players except the excluded one (excludePlayerId = sessionId in this system)
+      final excludeWs = server.websocketSessionForGamePlayer(roomId, excludePlayerId) ??
+          excludePlayerId;
       server.broadcastToRoomExcept(roomId, {
         'event': 'game_state_updated',
         'game_id': roomId,
@@ -255,7 +258,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
         if (cardsToPeekFromState != null) 'cards_to_peek': cardsToPeekFromState,
         'timestamp': DateTime.now().toIso8601String(),
-      }, excludePlayerId);
+      }, excludeWs);
       
       if (LOGGING_SWITCH) {
         _logger.info('✅ broadcastGameStateExcept: Broadcasted state update to all except player $excludePlayerId');
@@ -589,7 +592,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     }
     
     try {
-      server.forceSessionLeaveRoom(playerId, reason: 'removed_inactivity');
+      final wsSeat = server.websocketSessionForGamePlayer(roomId, playerId);
+      final sessionArg = wsSeat ?? playerId;
+      server.forceSessionLeaveRoom(sessionArg, reason: 'removed_inactivity');
       if (LOGGING_SWITCH) {
         _logger.info('GameStateCallback: forceSessionLeaveRoom completed for player $playerId');
       }
@@ -631,19 +636,25 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           continue;
         }
         
-        // Get user_id from session (for human players) or from player object (for comp players)
-        var userId = server.getUserIdForSession(playerId);
-        if (userId == null) {
-          // Fallback: Check if player object has userId (for comp players from database)
+        var userId = player['userId']?.toString().trim();
+        if (userId == null || userId.isEmpty) {
+          final wsSeat = server.websocketSessionForGamePlayer(roomId, playerId);
+          if (wsSeat != null && wsSeat.isNotEmpty) {
+            userId = server.getUserIdForSession(wsSeat);
+          }
+        }
+        if (userId == null || userId.isEmpty) {
+          userId = server.getUserIdForSession(playerId);
+        }
+        if (userId == null || userId.isEmpty) {
           userId = player['userId']?.toString();
           if (userId == null || userId.isEmpty) {
             if (LOGGING_SWITCH) {
-              _logger.warning('GameStateCallback: No user_id found for player $playerId (tried session and player object), skipping stats update');
+              _logger.warning(
+                'GameStateCallback: No user_id for player $playerId, skipping stats update',
+              );
             }
             continue;
-          }
-          if (LOGGING_SWITCH) {
-            _logger.info('GameStateCallback: Using userId from player object for comp player $playerId: $userId');
           }
         }
         

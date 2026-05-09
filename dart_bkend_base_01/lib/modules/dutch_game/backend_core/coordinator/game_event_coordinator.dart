@@ -1755,9 +1755,9 @@ class GameEventCoordinator {
 
         // Ensure collection_rank_cards is empty and collection_rank is not set
         humanPlayer['collection_rank_cards'] = <Map<String, dynamic>>[];
-        humanPlayer['collection_rank'] = null;
+        humanPlayer.remove('collection_rank');
         playerInGamesMap['collection_rank_cards'] = <Map<String, dynamic>>[];
-        playerInGamesMap['collection_rank'] = null;
+        playerInGamesMap.remove('collection_rank');
 
         if (LOGGING_SWITCH) {
           _logger.info('GameEventCoordinator: Human player peeked at cards (clear mode - both cards stored in known_cards)');

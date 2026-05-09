@@ -3680,7 +3680,13 @@ class DutchGameRound {
           'owner_id': actualPlayerId,
           'hand_index': cardIndex, // destination slot (played card's index)
           if (originalIndex != null) 'from_hand_index': originalIndex, // drawn card slot before move (Flutter flight)
-          'card': Map<String, dynamic>.from(drawnCard),
+          // Never leak full card data over room-wide reposition animation.
+          'card': <String, dynamic>{
+            'cardId': drawnCard['cardId'],
+            'suit': '?',
+            'rank': '?',
+            'points': 0,
+          },
         };
         _emitActionAnimation(
           actionType: 'reposition',

@@ -16,7 +16,7 @@ import '../backend_core/utils/level_matcher.dart';
 class TableTiersBootstrap {
   TableTiersBootstrap._();
 
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
 
   static const String prefRevisionKey = 'dutch_table_tiers_revision';
   static const String prefDocKey = 'dutch_table_tiers_doc_json';

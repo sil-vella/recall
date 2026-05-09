@@ -42,7 +42,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = true; // Lobby (incl. random join host) trace (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = false; // Lobby (incl. random join host) trace (enable-logging-switch.mdc; set false after test)
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 

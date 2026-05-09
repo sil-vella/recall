@@ -16,8 +16,8 @@ import urllib.parse
 
 import requests
 
-# Coin purchase / Checkout Session + webhook tracing for testing
-LOGGING_SWITCH = False
+# Coin purchase: Stripe Checkout + webhooks + RevenueCat verify-coin-purchase (enable-logging-switch.mdc)
+LOGGING_SWITCH = False  # Set True to trace RC verify + Stripe coin paths in tools/logger/server.log
 
 # Play / App Store product id → Dutch game coins (must match client display mapping).
 REVENUECAT_COIN_PRODUCT_COINS = {
@@ -620,6 +620,14 @@ class StripeModule(BaseModule):
                     {"success": False, "error": "product_identifier and store_transaction_id are required"}
                 ), 400
 
+            custom_log(
+                "verify_revenuecat_coin_purchase: request "
+                f"user_id={user_id} product={product_identifier!r} "
+                f"store_transaction_id_len={len(store_transaction_id)}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+
             coins = REVENUECAT_COIN_PRODUCT_COINS.get(product_identifier)
             if coins is None or coins <= 0:
                 return jsonify({"success": False, "error": "Unknown or unsupported coin product"}), 400
@@ -635,6 +643,12 @@ class StripeModule(BaseModule):
                         isOn=LOGGING_SWITCH,
                     )
                     return jsonify({"success": False, "error": "Transaction already recorded"}), 403
+                custom_log(
+                    "verify_revenuecat_coin_purchase: idempotent hit (already credited) "
+                    f"user_id={user_id} product={product_identifier!r}",
+                    level="INFO",
+                    isOn=LOGGING_SWITCH,
+                )
                 return jsonify({"success": True, "message": "Already credited", "coins": coins}), 200
 
             url = "https://api.revenuecat.com/v1/subscribers/{}".format(
@@ -651,6 +665,12 @@ class StripeModule(BaseModule):
                 return jsonify({"success": False, "error": "Could not reach RevenueCat"}), 502
 
             if rc_resp.status_code == 404:
+                custom_log(
+                    "verify_revenuecat_coin_purchase: RC HTTP 404 subscriber not found "
+                    f"user_id={user_id}",
+                    level="INFO",
+                    isOn=LOGGING_SWITCH,
+                )
                 return jsonify(
                     {
                         "success": False,
@@ -679,6 +699,14 @@ class StripeModule(BaseModule):
             if not isinstance(tx_list, list):
                 tx_list = []
 
+            custom_log(
+                "verify_revenuecat_coin_purchase: RC payload "
+                f"non_subs_keys={list(non_subs.keys())!r} "
+                f"tx_count_for_product={len(tx_list)}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+
             matched = False
             for tx in tx_list:
                 if not isinstance(tx, dict):
@@ -694,6 +722,13 @@ class StripeModule(BaseModule):
                     break
 
             if not matched:
+                custom_log(
+                    "verify_revenuecat_coin_purchase: no matching transaction "
+                    f"user_id={user_id} product={product_identifier!r} "
+                    f"store_transaction_id_prefix={store_transaction_id[:16]!r}…",
+                    level="INFO",
+                    isOn=LOGGING_SWITCH,
+                )
                 return jsonify(
                     {
                         "success": False,

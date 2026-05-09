@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../constant.dart';
+import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/config.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+
+/// Paywall purchase tracing (enable-logging-switch.mdc).
+const bool LOGGING_SWITCH = false;
 
 /// Generic Paywall Widget for RevenueCat
 /// Can be customized for your app's specific needs
@@ -21,6 +25,8 @@ class Paywall extends StatefulWidget {
 }
 
 class _PaywallState extends State<Paywall> {
+  final Logger _logger = Logger();
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -72,19 +78,31 @@ class _PaywallState extends State<Paywall> {
                   child: ListTile(
                     onTap: () async {
                       try {
-                        final purchaseResult = await Purchases.purchasePackage(
-                          myProductList[index]
-                        );
-                        
+                        final pkg = myProductList[index];
+                        if (LOGGING_SWITCH) {
+                          _logger.info(
+                            'RevenueCat Paywall: purchasePackage id=${pkg.storeProduct.identifier}',
+                          );
+                        }
+                        final purchaseResult = await Purchases.purchasePackage(pkg);
+
                         // In v9, purchasePackage returns PurchaseResult
                         final customerInfo = purchaseResult.customerInfo;
                         EntitlementInfo? entitlement = customerInfo
                             .entitlements.all[Config.revenueCatEntitlementId];
                         bool isActive = entitlement?.isActive ?? false;
-                        
+                        if (LOGGING_SWITCH) {
+                          _logger.info(
+                            'RevenueCat Paywall: purchase done entitlementActive=$isActive '
+                            'entitlementId=${Config.revenueCatEntitlementId}',
+                          );
+                        }
+
                         widget.onPurchaseComplete?.call(isActive);
                       } catch (e) {
-                        // Purchase error
+                        if (LOGGING_SWITCH) {
+                          _logger.warning('RevenueCat Paywall: purchase error: $e');
+                        }
                       }
 
                       setState(() {});

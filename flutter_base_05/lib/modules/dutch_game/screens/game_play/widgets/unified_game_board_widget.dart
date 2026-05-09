@@ -21,7 +21,7 @@ import '../../demo/demo_functionality.dart';
 import '../../../utils/dutch_game_helpers.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = true; // Multi-human: TurnHighlight / board slice (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // Multi-human: TurnHighlight / board slice (enable-logging-switch.mdc; set false after test)
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;

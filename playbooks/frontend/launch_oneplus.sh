@@ -3,9 +3,6 @@
 # Flutter app launcher with filtered Logger output only
 # Shows only your custom Logger calls, filters out all system logs
 
-# Note: We'll use process groups for cleanup but won't enable full job control
-# as it can interfere with VS Code's terminal handling
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FRONTEND_ENV="$REPO_ROOT/.env.local"
@@ -149,175 +146,49 @@ else
     echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
-# Function to strip ANSI escape codes from a string
-# Handles both \x1b[NNm and standalone [NNm (logcat/pipe often drops ESC)
-strip_ansi() {
-    echo "$1" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | sed 's/\[[0-9;]*m//g'
-}
-
-# Function to filter and display only Logger calls
-# Only accepts lines that match the exact AppLogger format from start (rejects merged/junk lines)
-# Writes only plain text to file and stdout so redirecting/tee to server.log never adds ANSI or junk
+# Same Logger → server.log pipeline as launch_chrome.sh (flutter tool stdout, not adb logcat).
 filter_logs() {
-    # Track last logged message to avoid duplicates
-    last_logged=""
-    # Strict pattern: [ISO timestamp] [LEVEL] [AppLogger] message (no leading garbage)
-    STRICT_PATTERN='^\[([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+)\] \[(INFO|DEBUG|WARNING|ERROR)\] \[AppLogger\] (.*)$'
-    # Reject lines that still look like ANSI SGR remnants (e.g. [37m, [0m) so we never pass them through
-    ANSI_REMNANT='\[[0-9;]+m'
-
     while IFS= read -r line; do
-        # Strip any remaining ANSI (pipeline sed should have done it; fallback if not)
-        line=$(strip_ansi "$line" 2>/dev/null || echo "$line" | sed 's/\[[0-9;]*m//g')
-        # Reject lines that still contain ANSI remnants (unstriped codes)
-        [[ "$line" =~ $ANSI_REMNANT ]] && continue
-        # Require exact match from start of line so we never write malformed or merged lines
-        if [[ "$line" =~ $STRICT_PATTERN ]]; then
-            timestamp="${BASH_REMATCH[1]}"
-            level="${BASH_REMATCH[2]}"
-            message="${BASH_REMATCH[3]}"
-            [ -z "$message" ] && continue
-            log_entry="[$timestamp] [$level] $message"
-            if [ "$log_entry" = "$last_logged" ]; then
+        if echo "$line" | grep -q "\[.*\] \[.*\] \[AppLogger\]"; then
+            timestamp=$(echo "$line" | sed -n 's/^\[\([^]]*\)\].*/\1/p')
+            level=$(echo "$line" | sed -n 's/^\[[^]]*\] \[\([^]]*\)\].*/\1/p')
+            message=$(echo "$line" | sed -n 's/^\[[^]]*\] \[[^]]*\] \[AppLogger\] //p')
+            if [ -z "$timestamp" ] || [ -z "$level" ]; then
                 continue
             fi
-            last_logged="$log_entry"
-            echo "$log_entry" >> "$SERVER_LOG_FILE"
-            # Plain stdout only: no ANSI, so redirect/tee to server.log never adds colored garbage
-            echo "$log_entry"
+            if [ -z "$message" ]; then
+                continue
+            fi
+            case "$level" in
+                ERROR) color="\033[31m" ;;
+                WARNING) color="\033[33m" ;;
+                INFO) color="\033[32m" ;;
+                DEBUG) color="\033[36m" ;;
+                *) color="\033[37m" ;;
+            esac
+            echo "[$timestamp] [$level] $message" >> "$SERVER_LOG_FILE"
+            echo -e "${color}[$timestamp] [$level] $message\033[0m"
+        else
+            echo "$line" >&2
         fi
     done
 }
 
-# Clear logcat buffer to start fresh
-echo "🧹 Clearing logcat buffer..."
-adb -s "$DEVICE_ID" logcat -c
-
-# Start adb logcat in background to capture Android logs
-# Filter for Flutter/Dart tags and AppLogger messages
-# logcat default format: I/flutter ( PID): MESSAGE
-# Flutter Logger prints: [timestamp] [LEVEL] [AppLogger] message
-# The MESSAGE part contains the Flutter log format, so we extract it
-echo "📱 Starting logcat capture for AppLogger messages..."
-
-# Store PIDs for cleanup
-LOG_PID=""
-LOG_PGID=""
-ADB_LOGCAT_PIDS=""
 CLEANUP_DONE=false
 
-# Function to cleanup all logcat processes
 cleanup() {
-    # Prevent multiple cleanup calls
     if [ "$CLEANUP_DONE" = true ]; then
         return
     fi
     CLEANUP_DONE=true
-    
-    echo "🛑 Stopping logcat capture and cleaning up..."
-
-    # Disable Firebase Analytics DebugView when script exits.
     if [ "$FIREBASE_DEBUGVIEW_ENABLED" = true ]; then
         echo "🧪 Disabling Firebase Analytics DebugView for $ANDROID_APP_ID..."
         adb -s "$DEVICE_ID" shell setprop debug.firebase.analytics.app .none. >/dev/null 2>&1 || true
     fi
-    
-    # Kill the background logcat pipeline process and its children
-    if [ ! -z "$LOG_PID" ]; then
-        # Kill the process and all its children
-        pkill -P $LOG_PID 2>/dev/null || true
-        kill -TERM $LOG_PID 2>/dev/null || true
-        sleep 0.3
-        # Force kill if still running
-        pkill -9 -P $LOG_PID 2>/dev/null || true
-        kill -KILL $LOG_PID 2>/dev/null || true
-    fi
-    
-    # Kill process group if we have it
-    if [ ! -z "$LOG_PGID" ] && [ "$LOG_PGID" != "0" ]; then
-        kill -TERM -$LOG_PGID 2>/dev/null || true
-        sleep 0.3
-        kill -KILL -$LOG_PGID 2>/dev/null || true
-    fi
-    
-    # Kill any orphaned adb logcat processes for this device
-    ADB_LOGCAT_PIDS=$(pgrep -f "adb.*$DEVICE_ID.*logcat" 2>/dev/null || true)
-    if [ ! -z "$ADB_LOGCAT_PIDS" ]; then
-        echo "🧹 Killing orphaned adb logcat processes: $ADB_LOGCAT_PIDS"
-        for pid in $ADB_LOGCAT_PIDS; do
-            kill -TERM $pid 2>/dev/null || true
-        done
-        sleep 0.3
-        for pid in $ADB_LOGCAT_PIDS; do
-            kill -KILL $pid 2>/dev/null || true
-        done
-    fi
-    
-    # Also kill any adb logcat processes that might be writing to our log file
-    ADB_LOGCAT_PIDS=$(pgrep -f "logcat.*flutter.*dart" 2>/dev/null || true)
-    if [ ! -z "$ADB_LOGCAT_PIDS" ]; then
-        for pid in $ADB_LOGCAT_PIDS; do
-            kill -TERM $pid 2>/dev/null || true
-        done
-        sleep 0.3
-        for pid in $ADB_LOGCAT_PIDS; do
-            kill -KILL $pid 2>/dev/null || true
-        done
-    fi
-    
-    # Kill any grep/sed processes that might be part of our pipeline
-    PIPELINE_PIDS=$(pgrep -f "grep.*AppLogger|sed.*AppLogger" 2>/dev/null || true)
-    if [ ! -z "$PIPELINE_PIDS" ]; then
-        for pid in $PIPELINE_PIDS; do
-            kill -TERM $pid 2>/dev/null || true
-        done
-        sleep 0.3
-        for pid in $PIPELINE_PIDS; do
-            kill -KILL $pid 2>/dev/null || true
-        done
-    fi
-    
     echo "✅ Cleanup completed"
 }
 
-# Set up trap to cleanup on exit
 trap cleanup EXIT INT TERM HUP
-
-# Export so the background subshell pipeline (adb logcat | ... | filter_logs) can write to server.log
-export SERVER_LOG_FILE
-export -f strip_ansi filter_logs 2>/dev/null || true
-
-# Strip ANSI in pipeline (no reliance on exported functions). SGR: ESC[NNm or [NNm (logcat may drop ESC)
-# Use printf for ESC so macOS sed gets a literal escape character. Strip leading [NNm so broken lines recover.
-ANSI_STRIP_SED="s/$(printf '\033')\[[0-9;]*[a-zA-Z]//g; s/\[[0-9;]*m//g; s/^\[[0-9;]*m//g"
-
-# Start logcat in a new process group
-(
-    # Create new process group
-    set -m
-    # Capture Flutter and Dart logs, suppress other tags
-    # Strip ANSI in pipeline first so filter_logs never sees SGR codes (logcat/pipe can drop ESC)
-    # Then grep for AppLogger lines, trim logcat prefix, filter and write clean lines only
-    adb -s "$DEVICE_ID" logcat flutter:I dart:I *:S 2>&1 | \
-    sed -E "$ANSI_STRIP_SED" | \
-    grep "\[.*\] \[.*\] \[AppLogger\]" | \
-    sed -E 's/^[^[]*//' | \
-    filter_logs
-) &
-LOG_PID=$!
-
-# Get the process group ID
-LOG_PGID=$(ps -o pgid= -p $LOG_PID 2>/dev/null | tr -d ' ' || echo "")
-
-# Give logcat a moment to start
-sleep 1
-
-# Test that logcat is working by checking if we can see any flutter logs
-echo "🔍 Testing logcat capture (waiting 2 seconds)..."
-sleep 2
-if ! kill -0 $LOG_PID 2>/dev/null; then
-    echo "⚠️  Warning: Logcat process may have exited early"
-fi
 
 # Build --dart-define from .env (all vars) then overrides and run-only extras
 source "$SCRIPT_DIR/dart_defines_from_env.sh"
@@ -338,14 +209,13 @@ DART_DEFINE_ARGS+=( \
   --dart-define=ENABLE_REMOTE_LOGGING=true \
 )
 
-# Launch Flutter app (logs will be captured via logcat)
+# Logger lines mirror launch_chrome.sh: same filter_logs on flutter stdout (strip tool prefix first).
 flutter run \
     -d "$DEVICE_ID" \
-    "${DART_DEFINE_ARGS[@]}"
+    "${DART_DEFINE_ARGS[@]}" 2>&1 | sed -E '/\[[0-9]{4}-[0-9]{2}-[0-9]{2}T/s/^[^[]*//' | filter_logs
 
-FLUTTER_EXIT_CODE=$?
+FLUTTER_EXIT_CODE=${PIPESTATUS[0]}
 
-# Cleanup will happen automatically via trap, but ensure it runs
 cleanup
 
 echo "✅ Flutter app launch completed (exit code: $FLUTTER_EXIT_CODE)"

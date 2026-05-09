@@ -8,7 +8,7 @@ import '../../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
 
 // Enable for random game join debugging (logs to console / server.log)
-const bool LOGGING_SWITCH = true; // Lobby random join UI → WS (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // Lobby random join UI → WS (enable-logging-switch.mdc; set false after test)
 
 /// User progression level from cached Dutch stats (used for tier / event gates).
 int joinRandomReadUserLevel() {

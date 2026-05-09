@@ -3,7 +3,7 @@ import '../utils/config.dart';
 import '../utils/server_logger.dart';
 
 /// Set to true to log Room TTL events to server.log for testing (plan: Room TTL implementation).
-const bool LOGGING_SWITCH = true; // seat/session bindings / join (disconnect rejoin tracing; set false after test)
+const bool LOGGING_SWITCH = false; // seat/session bindings / join (disconnect rejoin tracing; set false after test)
 
 /// Stable multiplayer human seat id derived from authenticated user (`hum_<userId>`).
 /// Guests / missing user reuse [sessionId] as the canonical id.

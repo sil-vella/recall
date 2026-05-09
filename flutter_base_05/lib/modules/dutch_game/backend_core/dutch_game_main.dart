@@ -4,7 +4,7 @@ import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 import 'utils/player_seat_id.dart';
 
-const bool LOGGING_SWITCH = true; // leave/grace + snapshot mirrors server (disconnect rejoin; set false after test)
+const bool LOGGING_SWITCH = false; // leave/grace + snapshot mirrors server (disconnect rejoin; set false after test)
 
 /// Entry point for registering Dutch game module components with the server.
 class DutchGameModule {

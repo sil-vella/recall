@@ -27,7 +27,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true; // attemptResumeRoomAfterAuth + prefs (disconnect rejoin; set false after test)
+  static const bool LOGGING_SWITCH = false; // attemptResumeRoomAfterAuth + prefs (disconnect rejoin; set false after test)
   
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};

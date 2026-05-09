@@ -35,7 +35,7 @@ String _deriveWireCurrentPlayerStatus(Map<String, dynamic> gameState) {
 }
 
 /// When true, logs registry lifecycle, WS emit paths, and payload-size lines for `game_state_updated`.
-const bool LOGGING_SWITCH = true; // dispose/disconnect emits (disconnect rejoin; set false after test)
+const bool LOGGING_SWITCH = false; // dispose/disconnect emits (disconnect rejoin; set false after test)
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.

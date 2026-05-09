@@ -14,7 +14,7 @@ import '../modules/dutch_game/dutch_main.dart';
 import '../modules/dutch_game/backend_core/services/game_state_store.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // disconnect grace + resume_room + broadcasts (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = false; // disconnect grace + resume_room + broadcasts (enable-logging-switch.mdc; set false after test)
 
 /// Core WebSocket event name for instant notifications pushed by the backend to a session.
 const String kWsInstantNotificationEvent = 'ws_instant_notification';

@@ -9,7 +9,7 @@ import '../../../../../utils/consts/theme_consts.dart';
 import '../../../widgets/ui_kit/dutch_empty_state_card.dart';
 import '../../../widgets/ui_kit/dutch_section_header.dart';
 
-const bool LOGGING_SWITCH = true; // Start flow: _enterGameRoom, isRoomOwner (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = false; // Start flow: _enterGameRoom, isRoomOwner (enable-logging-switch.mdc)
 
 /// Widget to display all joined rooms with join functionality
 /// 

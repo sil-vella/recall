@@ -37,7 +37,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = true; // leave/grace + snapshot hooks (disconnect rejoin; set false after test)
+const bool LOGGING_SWITCH = false; // leave/grace + snapshot hooks (disconnect rejoin; set false after test)
 
 /// If [gameState.currentPlayer] is missing from [players] (e.g. leave mid-turn), pick a new
 /// current seat so broadcasts stay consistent for remaining clients and CPU timers.

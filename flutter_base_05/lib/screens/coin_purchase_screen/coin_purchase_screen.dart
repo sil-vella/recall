@@ -13,7 +13,7 @@ import '../../tools/logging/logger.dart';
 import '../../utils/analytics_service.dart';
 import '../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false; // Coin purchase flow debugging (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // RevenueCat native + Stripe web coin flow (enable-logging-switch.mdc) — set false after debugging
 
 /// Coin purchases on **web**: Stripe Checkout via Python `/userauth/stripe/create-coin-checkout-session`.
 /// On **iOS/Android**: RevenueCat store packages + `/userauth/revenuecat/verify-coin-purchase` to credit coins.
@@ -67,15 +67,22 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   @override
   void initState() {
     super.initState();
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        'CoinPurchaseScreen: initState (kIsWeb=$kIsWeb nativeIap=$_nativeIapSupported)',
-      );
-    }
+    _logger.info(
+      'CoinPurchaseScreen: initState kIsWeb=$kIsWeb nativeIap=$_nativeIapSupported '
+      'defaultTargetPlatform=$defaultTargetPlatform '
+      '(web shows Stripe cards; iOS/Android load RevenueCat packages)',
+      isOn: LOGGING_SWITCH,
+    );
     if (kIsWeb) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _maybeHandleStripeReturn());
     } else if (_nativeIapSupported) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadNativeOfferings());
+    } else {
+      _logger.info(
+        'CoinPurchaseScreen: native RevenueCat load skipped (platform is not iOS/Android)—'
+        'Buy coins store UI only appears on web (Stripe) or iOS/Android (RevenueCat)',
+        isOn: LOGGING_SWITCH,
+      );
     }
   }
 
@@ -90,6 +97,26 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       final current = offerings.current;
       final raw = current?.availablePackages ?? <Package>[];
       final filtered = raw.where((p) => _coinsForNativeProduct(p.storeProduct.identifier) != null).toList();
+      final allSummary = offerings.all.entries
+          .map(
+            (e) =>
+                '${e.key}:[${e.value.availablePackages.map((p) => p.storeProduct.identifier).join(",")}]',
+          )
+          .join(' | ');
+      _logger.info(
+        'CoinPurchaseScreen: RevenueCat getOfferings currentId=${current?.identifier} '
+        'currentRawCount=${raw.length} filteredCount=${filtered.length} '
+        'allowedCatalogIds=${_nativeStoreProductCoins.keys.toList()} '
+        'allOfferings=$allSummary',
+        isOn: LOGGING_SWITCH,
+      );
+      if (filtered.isEmpty && raw.isNotEmpty) {
+        _logger.warning(
+          'CoinPurchaseScreen: RevenueCat packages present but none match app catalog '
+          '(store ids vs _nativeStoreProductCoins). rawIds=${raw.map((p) => p.storeProduct.identifier).toList()}',
+          isOn: LOGGING_SWITCH,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _nativePackages = filtered;
@@ -100,9 +127,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         }
       });
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('CoinPurchaseScreen: load native offerings failed: $e');
-      }
+      _logger.warning('CoinPurchaseScreen: load native offerings failed: $e', isOn: LOGGING_SWITCH);
       if (!mounted) return;
       setState(() {
         _nativePackages = [];
@@ -151,9 +176,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       try {
         await Purchases.logIn(userId);
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('CoinPurchaseScreen: Purchases.logIn failed (continuing): $e');
-        }
+        _logger.warning('CoinPurchaseScreen: Purchases.logIn failed (continuing): $e', isOn: LOGGING_SWITCH);
       }
 
       final purchaseResult = await Purchases.purchasePackage(package);
@@ -218,9 +241,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       if (code == PurchasesErrorCode.purchaseCancelledError) {
         return;
       }
-      if (LOGGING_SWITCH) {
-        _logger.warning('CoinPurchaseScreen: native purchase failed: $e');
-      }
+      _logger.warning('CoinPurchaseScreen: native purchase failed: $e', isOn: LOGGING_SWITCH);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -233,9 +254,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         );
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('CoinPurchaseScreen: native purchase error: $e', error: e);
-      }
+      _logger.error('CoinPurchaseScreen: native purchase error: $e', error: e, isOn: LOGGING_SWITCH);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -266,14 +285,19 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       });
       if (raw is! Map) continue;
       final map = Map<String, dynamic>.from(raw);
+      _logger.info(
+        'CoinPurchaseScreen: verify-coin-purchase attempt=${attempt + 1} success=${map['success']} '
+        'code=${map['code']} status=${map['status']}',
+        isOn: LOGGING_SWITCH,
+      );
       if (map['success'] == true) {
         return true;
       }
       final code = map['code']?.toString();
       final status = map['status'];
       final retryable = status == 404 && (code == 'RC_NOT_FOUND' || code == 'RC_TXN_PENDING');
-      if (!retryable && LOGGING_SWITCH) {
-        _logger.warning('CoinPurchaseScreen: verify-coin-purchase stop: $map');
+      if (!retryable) {
+        _logger.warning('CoinPurchaseScreen: verify-coin-purchase stop: $map', isOn: LOGGING_SWITCH);
       }
       if (!retryable) {
         return false;
@@ -314,12 +338,11 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     if (!kIsWeb || _handledStripeReturn || !mounted) return;
     final uri = Uri.base;
     final result = _stripeResultInUri(uri);
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        'CoinPurchaseScreen: return check url=${uri.toString()} '
-        'path=${uri.path} query=${uri.query} fragment=${uri.fragment} result=$result',
-      );
-    }
+    _logger.info(
+      'CoinPurchaseScreen: return check url=${uri.toString()} '
+      'path=${uri.path} query=${uri.query} fragment=${uri.fragment} result=$result',
+      isOn: LOGGING_SWITCH,
+    );
     if (result == 'none') return;
     if (result == 'cancel') {
       _handledStripeReturn = true;
@@ -327,9 +350,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         name: 'coin_checkout_return',
         parameters: {'result': 'cancel'},
       );
-      if (LOGGING_SWITCH) {
-        _logger.warning('CoinPurchaseScreen: stripe return indicates cancel');
-      }
+      _logger.warning('CoinPurchaseScreen: stripe return indicates cancel', isOn: LOGGING_SWITCH);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -342,18 +363,14 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       );
       return;
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('CoinPurchaseScreen: stripe success detected in return URL');
-    }
+    _logger.info('CoinPurchaseScreen: stripe success detected in return URL', isOn: LOGGING_SWITCH);
     await AnalyticsService.logEvent(
       name: 'coin_checkout_return',
       parameters: {'result': 'success'},
     );
     _handledStripeReturn = true;
     final sessionId = _sessionIdInUri(uri);
-    if (LOGGING_SWITCH) {
-      _logger.info('CoinPurchaseScreen: session_id from return URL=$sessionId');
-    }
+    _logger.info('CoinPurchaseScreen: session_id from return URL=$sessionId', isOn: LOGGING_SWITCH);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -373,21 +390,15 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           final raw = await api.sendPostRequest('/userauth/stripe/verify-coin-checkout-session', {
             'session_id': sessionId,
           });
-          if (LOGGING_SWITCH) {
-            _logger.info('CoinPurchaseScreen: verify-coin-checkout-session response=$raw');
-          }
+          _logger.info('CoinPurchaseScreen: verify-coin-checkout-session response=$raw', isOn: LOGGING_SWITCH);
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('CoinPurchaseScreen: verify-coin-checkout-session failed: $e');
-          }
+          _logger.warning('CoinPurchaseScreen: verify-coin-checkout-session failed: $e', isOn: LOGGING_SWITCH);
         }
       }
     }
     if (!mounted) return;
     final ok = await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
-    if (LOGGING_SWITCH) {
-      _logger.info('CoinPurchaseScreen: user coin refresh result=$ok');
-    }
+    _logger.info('CoinPurchaseScreen: user coin refresh result=$ok', isOn: LOGGING_SWITCH);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -401,14 +412,10 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   }
 
   Future<void> _startCheckout(_CoinPackage pack) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('CoinPurchaseScreen: checkout requested for package=${pack.key}');
-    }
+    _logger.info('CoinPurchaseScreen: checkout requested for package=${pack.key}', isOn: LOGGING_SWITCH);
     final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
     if (api == null) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('CoinPurchaseScreen: ConnectionsApiModule is null');
-      }
+      _logger.warning('CoinPurchaseScreen: ConnectionsApiModule is null', isOn: LOGGING_SWITCH);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -429,9 +436,10 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       }
       final map = Map<String, dynamic>.from(raw);
       if (map['success'] != true || map['url'] == null) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('CoinPurchaseScreen: checkout session creation failed: ${map['message'] ?? map['error']}');
-        }
+        _logger.warning(
+          'CoinPurchaseScreen: checkout session creation failed: ${map['message'] ?? map['error']}',
+          isOn: LOGGING_SWITCH,
+        );
         final msg = map['message']?.toString() ?? map['error']?.toString() ?? 'Checkout could not start';
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -444,9 +452,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         return;
       }
       final url = map['url'].toString();
-      if (LOGGING_SWITCH) {
-        _logger.info('CoinPurchaseScreen: launching checkout URL');
-      }
+      _logger.info('CoinPurchaseScreen: launching checkout URL', isOn: LOGGING_SWITCH);
       await AnalyticsService.logEvent(
         name: 'coin_checkout_started',
         parameters: {
@@ -456,9 +462,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       );
       final launched = await ConnectionsApiModule.launchUrl(url);
       if (!launched && mounted) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('CoinPurchaseScreen: checkout URL launch failed');
-        }
+        _logger.warning('CoinPurchaseScreen: checkout URL launch failed', isOn: LOGGING_SWITCH);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not open checkout. Check popup blocker.', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
@@ -467,9 +471,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         );
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('CoinPurchaseScreen: checkout error: $e', error: e);
-      }
+      _logger.error('CoinPurchaseScreen: checkout error: $e', error: e, isOn: LOGGING_SWITCH);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -479,9 +481,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         );
       }
     } finally {
-      if (LOGGING_SWITCH) {
-        _logger.info('CoinPurchaseScreen: checkout flow finished for package=${pack.key}');
-      }
+      _logger.info('CoinPurchaseScreen: checkout flow finished for package=${pack.key}', isOn: LOGGING_SWITCH);
       if (mounted) setState(() => _loadingPackageKey = null);
     }
   }

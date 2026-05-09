@@ -25,7 +25,7 @@ typedef _NotificationSuccessHandler = Future<void> Function(
 );
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = false; // leave_room_success hook / kick trace (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // leave_room_success hook / kick trace (enable-logging-switch.mdc; set false after test)
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();

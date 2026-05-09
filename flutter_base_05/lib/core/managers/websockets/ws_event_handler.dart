@@ -11,7 +11,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // authenticated resumable_room hint + resume path (disconnect rejoin; set false after test)
+const bool LOGGING_SWITCH = false; // authenticated resumable_room hint + resume path (disconnect rejoin; set false after test)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events

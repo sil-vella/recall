@@ -5,7 +5,7 @@ import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
 
-const bool LOGGING_SWITCH = true; // resume_room_error handling (disconnect rejoin; set false after test)
+const bool LOGGING_SWITCH = false; // resume_room_error handling (disconnect rejoin; set false after test)
 
 /// WebSocket Event Listener
 /// Centralized Socket.IO event listener registration and management

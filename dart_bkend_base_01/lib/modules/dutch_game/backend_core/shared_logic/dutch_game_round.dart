@@ -10,7 +10,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // action timer pause during grace (disconnect rejoin; set false after test)
+const bool LOGGING_SWITCH = false; // action timer pause during grace (disconnect rejoin; set false after test)
 
 class DutchGameRound {
   final Logger _logger = Logger();

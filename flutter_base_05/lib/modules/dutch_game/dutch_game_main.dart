@@ -28,7 +28,7 @@ import '../dutch_game/screens/achievements/achievements_screen.dart';
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
 class DutchGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Enabled for testing auto-guest creation flow (auth_login_complete hook)
+  static const bool LOGGING_SWITCH = true; // Enabled for testing auto-guest creation flow (auth_login_complete hook)
   final Logger _logger = Logger();
   
   final navigationManager = NavigationManager();

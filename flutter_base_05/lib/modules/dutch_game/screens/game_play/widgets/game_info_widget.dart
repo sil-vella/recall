@@ -22,7 +22,7 @@ class GameInfoWidget extends StatefulWidget {
 }
 
 class _GameInfoWidgetState extends State<GameInfoWidget> {
-  static const bool LOGGING_SWITCH = false; // Start / roster / effective size → server.log via Logger (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // Start / roster / effective size → server.log via Logger (enable-logging-switch.mdc; set false after test)
   static final Logger _logger = Logger();
   bool _isStartingMatch = false;
 

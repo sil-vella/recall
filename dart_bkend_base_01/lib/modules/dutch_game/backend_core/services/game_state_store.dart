@@ -1,6 +1,6 @@
 import '../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = false; // Lobby create_room → state store (enable-logging-switch.mdc)
+const bool LOGGING_SWITCH = true; // Lobby create_room → state store (enable-logging-switch.mdc)
 
 /// In-memory game state store keyed by roomId.
 /// Holds a mutable Map<String,dynamic> representing the current game state

@@ -18,7 +18,7 @@ class EventConfig {
 /// Dutch Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class DutchGameEventListenerValidator {
-  static const bool LOGGING_SWITCH = false; // kick/leave + game_state gate (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // kick/leave + game_state gate (enable-logging-switch.mdc; set false after test)
   static DutchGameEventListenerValidator? _instance;
   
   static DutchGameEventListenerValidator get instance {

@@ -25,7 +25,7 @@ import '../utils/dutch_achievement_catalog.dart';
 class DutchEventHandlerCallbacks {
   /// When true, logs verbose Dutch WS/state paths including payload-size lines for `game_state_updated`.
   /// Enable while tracing initial-peek vs visible table (`[peek-ui-trace]`); set false after.
-  static const bool LOGGING_SWITCH = false; // kick/leave + game_state + widget sync (enable-logging-switch.mdc; set false after test)
+  static const bool LOGGING_SWITCH = true; // kick/leave + game_state + widget sync (enable-logging-switch.mdc; set false after test)
   static final Logger _logger = Logger();
 
   /// Counter for `game_state_updated` receives (only incremented when LOGGING_SWITCH is true).
@@ -511,6 +511,31 @@ class DutchEventHandlerCallbacks {
       DutchGameHelpers.updateUIState({'games': gamesToCommit});
     }
   }
+
+  /// Copies `special_event_id` from `gameData.game_state` to the games-map entry root when present.
+  /// Play UI ([resolveDutchGamePlaySpecialEventId], [CardWidget], [GamePlayScreen]) checks both; keeping
+  /// the root field in sync avoids false "vanilla" matches where user equipped cosmetics override event art.
+  static void _denormalizeSpecialEventIdOnGameEntry(Map<String, dynamic> gameEntry) {
+    String? pick() {
+      final top = gameEntry['special_event_id']?.toString().trim();
+      if (top != null && top.isNotEmpty) return top;
+      final gdRaw = gameEntry['gameData'];
+      if (gdRaw is! Map) return null;
+      final gdMap = Map<String, dynamic>.from(gdRaw);
+      final gsRaw = gdMap['game_state'];
+      if (gsRaw is! Map) return null;
+      final nested = Map<String, dynamic>.from(gsRaw)['special_event_id']?.toString().trim();
+      if (nested != null && nested.isNotEmpty) return nested;
+      return null;
+    }
+
+    final id = pick();
+    if (id != null && id.isNotEmpty) {
+      gameEntry['special_event_id'] = id;
+    } else {
+      gameEntry.remove('special_event_id');
+    }
+  }
   
   /// Update a specific game in the games map and sync to global state
   static void _updateGameInMap(String gameId, Map<String, dynamic> updates) {
@@ -553,6 +578,8 @@ class DutchEventHandlerCallbacks {
         // Don't update if gameData is invalid - this prevents corrupting the games map
         return;
       }
+
+      _denormalizeSpecialEventIdOnGameEntry(mergedGame);
       
       currentGames[gameId] = mergedGame;
       
@@ -839,7 +866,7 @@ class DutchEventHandlerCallbacks {
     }
     
     // Add/update the game in the games map
-    currentGames[gameId] = {
+    final gameEntry = <String, dynamic>{
       'gameData': gameData,  // Single source of truth
       'gameStatus': status,
       'isRoomOwner': isRoomOwner,
@@ -848,6 +875,8 @@ class DutchEventHandlerCallbacks {
       'isInGame': true,
       'joinedAt': joinedAt,
     };
+    _denormalizeSpecialEventIdOnGameEntry(gameEntry);
+    currentGames[gameId] = gameEntry;
     
     if (LOGGING_SWITCH) {
       _logger.info('✅ _addGameToMap: Added game $gameId with gameData.game_id=${gameData['game_id']}');

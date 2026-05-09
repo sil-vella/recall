@@ -21,7 +21,7 @@ import '../../demo/demo_functionality.dart';
 import '../../../utils/dutch_game_helpers.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = false; // Multi-human: TurnHighlight / board slice (enable-logging-switch.mdc; set false after test)
+const bool LOGGING_SWITCH = true; // Multi-human: TurnHighlight / board slice (enable-logging-switch.mdc; set false after test)
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;
@@ -3755,7 +3755,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final inventory = userStats['inventory'] as Map<String, dynamic>? ?? {};
     final cosmetics = inventory['cosmetics'] as Map<String, dynamic>? ?? {};
     final equipped = cosmetics['equipped'] as Map<String, dynamic>? ?? {};
-    final myCardBackId = equipped['card_back_id']?.toString();
+    // Special-event matches use event lane card backs ([CardWidget] default/sponsor URL), not equipped shop skins.
+    final myCardBackId = _isSpecialEventActiveInState(_dutchGameState())
+        ? null
+        : equipped['card_back_id']?.toString();
     
     // Use provided cardDimensions (may be rescaled to fit container)
     Widget cardWidget = CardWidget(

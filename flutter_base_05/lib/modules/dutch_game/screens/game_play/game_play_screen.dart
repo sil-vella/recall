@@ -22,7 +22,7 @@ import '../demo/demo_action_handler.dart';
 import 'utils/table_design_style_helpers.dart';
 
 /// When true, logs screen build and rebuild timing for this screen.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
+const bool LOGGING_SWITCH = true; // enable-logging-switch.mdc; one switch per file
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -448,7 +448,11 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     if (!mounted) return;
     final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final level = resolveDutchGamePlayTableLevel(dutch);
-    final equippedTableDesignId = TableDesignStyleHelpers.readEquippedTableDesignId(dutch);
+    final seId = resolveDutchGamePlaySpecialEventId(dutch);
+    final isSpecialEventMatch = seId != null && seId.trim().isNotEmpty;
+    final equippedTableDesignId = isSpecialEventMatch
+        ? ''
+        : TableDesignStyleHelpers.readEquippedTableDesignId(dutch);
     if (level != _cachedPlayTableLevel || equippedTableDesignId != _cachedEquippedTableDesignId) {
       _cachedPlayTableLevel = level;
       _cachedEquippedTableDesignId = equippedTableDesignId;
@@ -461,12 +465,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(WakelockPlus.enable());
-    _cachedPlayTableLevel = resolveDutchGamePlayTableLevel(
-      StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {},
-    );
-    _cachedEquippedTableDesignId = TableDesignStyleHelpers.readEquippedTableDesignId(
-      StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {},
-    );
+    final dutch0 = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    _cachedPlayTableLevel = resolveDutchGamePlayTableLevel(dutch0);
+    final se0 = resolveDutchGamePlaySpecialEventId(dutch0);
+    _cachedEquippedTableDesignId = (se0 != null && se0.trim().isNotEmpty)
+        ? ''
+        : TableDesignStyleHelpers.readEquippedTableDesignId(dutch0);
     StateManager().addListener(_onStateManagerForTableStyle);
 
     _initializeWebSocket().then((_) {

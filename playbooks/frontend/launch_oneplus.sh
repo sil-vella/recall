@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# Flutter app launcher with filtered Logger output by default.
-# Set FLUTTER_SERVER_LOG_ALL=1 (or true) in the environment or .env.local to also append
-# every other Flutter stdout line to server.log as [FLUTTER_RAW] (Gradle/tool noise still stderr-only).
+# Flutter app launcher for Android devices. Merges flutter run stdout/stderr and mirrors
+# every line to python_base_04/tools/logger/server.log (see Documentation/debug/AGENT_DEBUG_LOGS.md).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -82,11 +81,17 @@ DEVICE_LABEL="$(get_device_label "$DEVICE_ID")"
 ANDROID_APP_ID="com.reignofplay.dutch"
 FIREBASE_DEBUGVIEW_ENABLED=false
 
-if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
-    echo "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) — Logger + full stdout → server.log (FLUTTER_SERVER_LOG_ALL)..."
-else
-    echo "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) with filtered Logger output..."
+SERVER_LOG_FILE="$REPO_ROOT/python_base_04/tools/logger/server.log"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/agent_server_log_helpers.sh"
+ensure_server_log_dir_and_maybe_rotate
+LOG_DIR=$(dirname "$SERVER_LOG_FILE")
+if [ ! -w "$LOG_DIR" ]; then
+    echo "❌ Error: Log directory is not writable: $LOG_DIR"
+    exit 1
 fi
+
+echo_and_server_log "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) (flutter run → server.log for debugging)..."
 
 # Check if adb is available
 if ! command -v adb &> /dev/null; then
@@ -95,7 +100,7 @@ if ! command -v adb &> /dev/null; then
 fi
 
 # Check if device is connected
-echo "📱 Checking device connection..."
+echo_and_server_log "📱 Checking device connection..."
 adb devices | grep -q "$DEVICE_ID"
 if [ $? -ne 0 ]; then
     echo "❌ Error: $DEVICE_LABEL ($DEVICE_ID) not found"
@@ -104,42 +109,25 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "✅ $DEVICE_LABEL ($DEVICE_ID) is connected"
+echo_and_server_log "✅ $DEVICE_LABEL ($DEVICE_ID) is connected"
 
 # Enable Firebase Analytics DebugView for this app on this device.
 # This makes local events appear quickly in Firebase DebugView.
-echo "🧪 Enabling Firebase Analytics DebugView for $ANDROID_APP_ID on $DEVICE_LABEL..."
+echo_and_server_log "🧪 Enabling Firebase Analytics DebugView for $ANDROID_APP_ID on $DEVICE_LABEL..."
 if adb -s "$DEVICE_ID" shell setprop debug.firebase.analytics.app "$ANDROID_APP_ID"; then
     FIREBASE_DEBUGVIEW_ENABLED=true
-    echo "✅ Firebase DebugView enabled"
+    echo_and_server_log "✅ Firebase DebugView enabled"
 else
-    echo "⚠️  Could not enable Firebase DebugView (continuing without it)"
+    echo_and_server_log "⚠️  Could not enable Firebase DebugView (continuing without it)"
 fi
 
 # Navigate to Flutter project directory
 cd "$SCRIPT_DIR/../../flutter_base_05" 2>/dev/null || cd flutter_base_05
 
-# Set up log file to write to Python server log
-SERVER_LOG_FILE="$REPO_ROOT/python_base_04/tools/logger/server.log"
-if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
-    echo "📝 Writing AppLogger lines + all other Flutter stdout to: $SERVER_LOG_FILE (FLUTTER_SERVER_LOG_ALL; do not redirect script stdout here)"
-else
-    echo "📝 Writing Logger output to: $SERVER_LOG_FILE (do not redirect script stdout to this file)"
-fi
-
-# Ensure log file directory exists and is writable
-LOG_DIR=$(dirname "$SERVER_LOG_FILE")
-if [ ! -d "$LOG_DIR" ]; then
-    echo "⚠️  Creating log directory: $LOG_DIR"
-    mkdir -p "$LOG_DIR"
-fi
-if [ ! -w "$LOG_DIR" ]; then
-    echo "❌ Error: Log directory is not writable: $LOG_DIR"
-    exit 1
-fi
+echo_and_server_log "📝 Flutter script + flutter run → $SERVER_LOG_FILE ([LAUNCH] = this script, [FLUTTER] = tool stream)"
 
 # Launch Flutter app with selected device configuration
-echo "🎯 Launching Flutter app for $DEVICE_LABEL..."
+echo_and_server_log "🎯 Launching Flutter app for $DEVICE_LABEL..."
 
 # Determine backend target from first argument: 'local' (default) or 'vps'
 BACKEND_TARGET="${1:-local}"
@@ -147,42 +135,22 @@ BACKEND_TARGET="${1:-local}"
 if [ "$BACKEND_TARGET" = "vps" ]; then
     API_URL="https://dutch.reignofplay.com"
     WS_URL="wss://dutch.reignofplay.com/ws"
-    echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
+    echo_and_server_log "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
     # Local LAN IP for Python & Dart services
     API_URL="http://192.168.178.81:5001"
     WS_URL="ws://192.168.178.81:8080"
-    echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
+    echo_and_server_log "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
-# Same Logger → server.log pipeline as launch_chrome.sh (flutter tool stdout, not adb logcat).
+# Same pipeline as launch_chrome.sh (flutter tool merged streams after sed strip, not raw adb logcat).
 filter_logs() {
     while IFS= read -r line; do
-        if echo "$line" | grep -q "\[.*\] \[.*\] \[AppLogger\]"; then
-            timestamp=$(echo "$line" | sed -n 's/^\[\([^]]*\)\].*/\1/p')
-            level=$(echo "$line" | sed -n 's/^\[[^]]*\] \[\([^]]*\)\].*/\1/p')
-            message=$(echo "$line" | sed -n 's/^\[[^]]*\] \[[^]]*\] \[AppLogger\] //p')
-            if [ -z "$timestamp" ] || [ -z "$level" ]; then
-                continue
-            fi
-            if [ -z "$message" ]; then
-                continue
-            fi
-            case "$level" in
-                ERROR) color="\033[31m" ;;
-                WARNING) color="\033[33m" ;;
-                INFO) color="\033[32m" ;;
-                DEBUG) color="\033[36m" ;;
-                *) color="\033[37m" ;;
-            esac
-            echo "[$timestamp] [$level] $message" >> "$SERVER_LOG_FILE"
-            echo -e "${color}[$timestamp] [$level] $message\033[0m"
-        else
-            echo "$line" >&2
-            if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
-                printf '%s [FLUTTER_RAW] %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$line" >> "$SERVER_LOG_FILE"
-            fi
-        fi
+        local ts
+        ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        printf '%s [FLUTTER] %s\n' "$ts" "$line" >> "$SERVER_LOG_FILE"
+        append_agent_json_server_log "$ts" "flutter" "INFO" "$line"
+        printf '%s\n' "$line"
     done
 }
 
@@ -221,24 +189,9 @@ DART_DEFINE_ARGS+=( \
   --dart-define=ENABLE_REMOTE_LOGGING=true \
 )
 
-# Same diagnostics idea as launch_chrome.sh (GOOGLE_CLIENT_ID): RevenueCat Play Store key must be in dart-defines.
-RC_GOOGLE_IN_DEFINES=false
-for arg in "${DART_DEFINE_ARGS[@]}"; do
-  if [[ "$arg" == --dart-define=REVENUECAT_GOOGLE_API_KEY=* ]]; then
-    RC_GOOGLE_IN_DEFINES=true
-    VAL="${arg#--dart-define=REVENUECAT_GOOGLE_API_KEY=}"
-    VAL="${VAL%\"}"
-    VAL="${VAL#\"}"
-    echo "   Dart-define REVENUECAT_GOOGLE_API_KEY: prefix=${VAL:0:8}… (length=${#VAL})"
-    break
-  fi
-done
-if [ "$RC_GOOGLE_IN_DEFINES" = false ]; then
-  echo "   ❌ REVENUECAT_GOOGLE_API_KEY not in dart-defines — set REVENUECAT_GOOGLE_API_KEY in $FRONTEND_ENV (Android IAP)."
-fi
-echo "   Total dart-defines: ${#DART_DEFINE_ARGS[@]}"
+echo_and_server_log "   Total dart-defines: ${#DART_DEFINE_ARGS[@]}"
 
-# Logger lines mirror launch_chrome.sh: same filter_logs on flutter stdout (strip tool prefix first).
+# Mirror launch_chrome.sh: filter_logs on merged flutter output (strip date prefix on matching lines first).
 flutter run \
     -d "$DEVICE_ID" \
     "${DART_DEFINE_ARGS[@]}" 2>&1 | sed -E '/\[[0-9]{4}-[0-9]{2}-[0-9]{2}T/s/^[^[]*//' | filter_logs
@@ -247,8 +200,8 @@ FLUTTER_EXIT_CODE=${PIPESTATUS[0]}
 
 cleanup
 
-echo "✅ Flutter app launch completed (exit code: $FLUTTER_EXIT_CODE)"
-echo "📝 Logger output written to: $SERVER_LOG_FILE"
-echo "🔍 To view logs: tail -f $SERVER_LOG_FILE"
+echo_and_server_log "✅ Flutter app launch completed (exit code: $FLUTTER_EXIT_CODE)"
+echo_and_server_log "📝 Flutter run log: $SERVER_LOG_FILE"
+echo_and_server_log "🔍 To view logs: tail -f $SERVER_LOG_FILE"
 
 exit $FLUTTER_EXIT_CODE

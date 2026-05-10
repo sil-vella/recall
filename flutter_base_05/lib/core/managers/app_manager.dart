@@ -135,9 +135,8 @@ class AppManager extends ChangeNotifier {
     await _adaptersManager.initializeAdapters();
   }
 
-  /// Register global hooks for RevenueCat integration
   void _registerGlobalHooks() {
-    // Register hooks for subscription state changes
+    // Subscription / billing hooks (reserved for future use)
     _hooksManager.registerHook('subscription_active', () {
       // Handle subscription activation
     });

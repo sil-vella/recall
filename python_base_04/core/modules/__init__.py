@@ -9,5 +9,5 @@ __all__ = [
     'WalletModule', 
     'TransactionsModule',
     'UserManagementModule',
-    # 'InAppPurchasesModule',  # Removed - switching to RevenueCat
+    # 'InAppPurchasesModule',  # Not used; web uses Stripe; native Play Billing TBD
 ] 

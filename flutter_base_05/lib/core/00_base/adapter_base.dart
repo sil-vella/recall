@@ -27,15 +27,16 @@ abstract class AdapterBase {
     _appManager = appManager;
     
     try {
-      await _initializeAdapter();
+      await initializeAdapter();
       _isInitialized = true;
     } catch (e) {
       rethrow;
     }
   }
   
-  /// Initialize adapter-specific logic (to be implemented by subclasses)
-  Future<void> _initializeAdapter();
+  /// Adapter-specific setup. Must be public so subclasses in other libraries can override
+  /// (private `_` hooks are library-private and are not valid overrides across libraries).
+  Future<void> initializeAdapter();
   
   /// Get AppManager instance
   AppManager get appManager => _appManager;

@@ -13,7 +13,7 @@ Make **https://dutch.reignofplay.com** the only canonical public URL for the Dut
 - [x] **Step 1 — Repo defaults + CORS (dual-origin)**: Defaults and build scripts use `dutch.reignofplay.com`. Flask CORS allows **both** `dutch.reignofplay.com` and `dutch.reignofplay.com` so old and new origins work during migration.
 - [x] **Step 2 — Production env + redeploy**: `.env.prod` + deploy playbook push updated download base and Stripe return URLs; `docker-compose.yml` already sets `APP_URL`; VPS `.env` regenerated and compose pulled/up via `08_deploy_docker_compose.yml` with `-e vps_deploy_skip_compose_confirm=true`.
 - [ ] **Step 3 — Nginx / TLS / redirects** (manual on VPS): Make `dutch.reignofplay.com` the primary `server_name`; **301** from `dutch.reignofplay.com` and `www.dutch.reignofplay.com` to the new host; adjust Certbot if needed. Repo no longer ships `04_*` nginx bootstrap—only `16_dutch_maintenance*.yml` touch nginx snippets for Dutch.
-- [ ] **Step 4 — External consoles**: Google OAuth, Stripe (return URLs / webhooks), RevenueCat, Play/App Store listings, DNS — align with the new host.
+- [ ] **Step 4 — External consoles**: Google OAuth, Stripe (return URLs / webhooks), Play/App Store listings (billing TBD), DNS — align with the new host.
 - [ ] **Step 5 — Remove dutch.reignofplay.com**: Drop `dutch.reignofplay.com` / `www.dutch.reignofplay.com` from CORS, playbooks, docs, and sample JSON; optional DB backfill of stored URLs; remove nginx `server_name` for old host when traffic is gone.
 
 ## Current progress

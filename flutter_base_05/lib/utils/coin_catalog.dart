@@ -2,36 +2,43 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart' show rootBundle;
 
-
-/// Coin catalog + native store ID tracing (enable-logging-switch.mdc).
+import 'dbg.dart';
 
 /// Loads [assets/dutch_coin_catalog.json] — SSOT shared with Python `utils/coin_catalog.py`.
 class CoinCatalog {
   CoinCatalog._();
 
-  static Map<String, int>? _revenuecatProducts;
+  /// Play/App Store product id → coins (for future native IAP; catalog key `in_app_products`).
+  static Map<String, int>? _inAppProducts;
   static List<Map<String, dynamic>>? _recommendedUi;
   static bool _loadFailed = false;
 
-  static Map<String, int> get revenuecatProducts =>
-      Map<String, int>.unmodifiable(_revenuecatProducts ?? const {});
+  static Map<String, int> get inAppProducts =>
+      Map<String, int>.unmodifiable(_inAppProducts ?? const {});
 
   static List<Map<String, dynamic>> get recommendedUiPackages =>
       List<Map<String, dynamic>>.unmodifiable(_recommendedUi ?? const []);
 
   static Future<void> ensureLoaded() async {
-    if (_revenuecatProducts != null || _loadFailed) return;
+    if (_inAppProducts != null || _loadFailed) return;
     try {
       final raw = await rootBundle.loadString('assets/dutch_coin_catalog.json');
       final map = jsonDecode(raw) as Map<String, dynamic>;
-      final rp = map['revenuecat_products'] as Map<String, dynamic>? ?? {};
-      _revenuecatProducts = rp.map((k, v) => MapEntry(k, (v as num).toInt()));
+      final ip = map['in_app_products'] as Map<String, dynamic>? ??
+          map['revenuecat_products'] as Map<String, dynamic>? ??
+          {};
+      _inAppProducts = ip.map((k, v) => MapEntry(k, (v as num).toInt()));
       final rec = map['recommended_ui_packages'] as List<dynamic>? ?? [];
       _recommendedUi = rec.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      dbg(
+        'CoinCatalog',
+        'loaded in_app_products=${_inAppProducts!.length} recommended_ui=${_recommendedUi!.length}',
+      );
     } catch (e, st) {
       _loadFailed = true;
-      _revenuecatProducts = {};
+      _inAppProducts = {};
       _recommendedUi = [];
+      dbg('CoinCatalog', 'load failed', error: e, stackTrace: st);
     }
   }
 }

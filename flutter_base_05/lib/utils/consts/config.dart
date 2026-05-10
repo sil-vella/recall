@@ -107,6 +107,18 @@ class Config {
     defaultValue: true,
   );
 
+  /// Debug-only traces (see [dbg] in `dbg.dart`). Launch scripts pass `DEBUG_MODE=true`.
+  static const bool debugMode = bool.fromEnvironment(
+    'DEBUG_MODE',
+    defaultValue: true,
+  );
+
+  /// Extra switch for noisy [dbg] lines in debug runs (`--dart-define=VERBOSE_DEV_LOGS=false`).
+  static const bool verboseDevLogs = bool.fromEnvironment(
+    'VERBOSE_DEV_LOGS',
+    defaultValue: true,
+  );
+
   // Google Sign-In Client ID (Web)
   static const String googleClientId = String.fromEnvironment(
     'GOOGLE_CLIENT_ID',
@@ -117,28 +129,6 @@ class Config {
   static const String googleClientIdAndroid = String.fromEnvironment(
     'GOOGLE_CLIENT_ID_ANDROID',
     defaultValue: '907176907209-u7cjeiousj1dd460730rgspf05u0fhic.apps.googleusercontent.com',
-  );
-
-  // RevenueCat configuration
-  static const String revenueCatEntitlementId = String.fromEnvironment(
-    'REVENUECAT_ENTITLEMENT_ID',
-    defaultValue: 'premium',
-  );
-  static const String revenueCatAppleApiKey = String.fromEnvironment(
-    'REVENUECAT_APPLE_API_KEY',
-    defaultValue: '',
-  );
-  static const String revenueCatGoogleApiKey = String.fromEnvironment(
-    'REVENUECAT_GOOGLE_API_KEY',
-    defaultValue: '',
-  );
-  static const String revenueCatAmazonApiKey = String.fromEnvironment(
-    'REVENUECAT_AMAZON_API_KEY',
-    defaultValue: '',
-  );
-  static const String revenueCatWebApiKey = String.fromEnvironment(
-    'REVENUECAT_WEB_API_KEY',
-    defaultValue: '',
   );
 
   // Diagnostics

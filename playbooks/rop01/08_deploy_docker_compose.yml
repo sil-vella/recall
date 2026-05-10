@@ -54,7 +54,6 @@
             'STRIPE_PRICE_COIN_PRO': 'stripe_price_coin_pro',
             'STRIPE_COIN_CHECKOUT_SUCCESS_URL': 'stripe_coin_checkout_success_url',
             'STRIPE_COIN_CHECKOUT_CANCEL_URL': 'stripe_coin_checkout_cancel_url',
-            'REVENUECAT_SECRET_API_KEY': 'revenuecat_secret_api_key',
         }
         result = { v: out.get(k, '') for k, v in mapping.items() }
         result.setdefault('app_version', '2.0.0')
@@ -96,7 +95,6 @@
         stripe_price_coin_pro: "{{ (env_json.stdout | default('{}') | from_json).stripe_price_coin_pro | default('') }}"
         stripe_coin_checkout_success_url: "{{ (env_json.stdout | default('{}') | from_json).stripe_coin_checkout_success_url | default('') }}"
         stripe_coin_checkout_cancel_url: "{{ (env_json.stdout | default('{}') | from_json).stripe_coin_checkout_cancel_url | default('') }}"
-        revenuecat_secret_api_key: "{{ (env_json.stdout | default('{}') | from_json).revenuecat_secret_api_key | default('') }}"
 
 - name: Deploy Docker Compose Application
   hosts: "{{ vm_name }}_user"
@@ -141,7 +139,6 @@
         stripe_price_coin_pro: "{{ (hostvars['localhost'] | default({})).get('stripe_price_coin_pro') or lookup('env', 'STRIPE_PRICE_COIN_PRO') | default('') }}"
         stripe_coin_checkout_success_url: "{{ (hostvars['localhost'] | default({})).get('stripe_coin_checkout_success_url') or lookup('env', 'STRIPE_COIN_CHECKOUT_SUCCESS_URL') | default('') }}"
         stripe_coin_checkout_cancel_url: "{{ (hostvars['localhost'] | default({})).get('stripe_coin_checkout_cancel_url') or lookup('env', 'STRIPE_COIN_CHECKOUT_CANCEL_URL') | default('') }}"
-        revenuecat_secret_api_key: "{{ (hostvars['localhost'] | default({})).get('revenuecat_secret_api_key') or lookup('env', 'REVENUECAT_SECRET_API_KEY') | default('') }}"
 
     - name: Create application directory structure
       file:

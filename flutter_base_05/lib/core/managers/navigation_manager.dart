@@ -7,7 +7,7 @@ import '../../screens/websocket_screen.dart';
 import '../../screens/account_screen/account_screen.dart';
 import '../../screens/auth_test_screen/auth_test_screen.dart';
 import '../../screens/notifications_screen/notifications_screen.dart';
-// In-app purchases screens removed - switching to RevenueCat
+// In-app purchase screen routes not registered (Stripe web; native TBD).
 import '../00_base/module_base.dart';
 import 'hooks_manager.dart';
 import '../../modules/analytics_module/analytics_module.dart';
@@ -127,7 +127,7 @@ class NavigationManager extends ChangeNotifier {
       drawerPosition: 999,
     );
     
-    // In-app purchases screens removed - switching to RevenueCat
+    // In-app purchase screen routes not registered (Stripe web; native TBD).
     // registerRoute(
     //   path: '/in-app-purchases',
     //   screen: (context) => const PurchaseScreen(),

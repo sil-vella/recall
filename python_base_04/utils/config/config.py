@@ -391,21 +391,11 @@ class Config:
     STRIPE_PRICE_COIN_GRINDER = get_file_first_config_value("stripe_price_coin_grinder", "STRIPE_PRICE_COIN_GRINDER", "")
     STRIPE_PRICE_COIN_PRO = get_file_first_config_value("stripe_price_coin_pro", "STRIPE_PRICE_COIN_PRO", "")
 
-    # RevenueCat REST (secret key from dashboard → Project settings → API keys). Used to verify
-    # Play/App Store consumables before crediting Dutch coins (see StripeModule.verify_revenuecat_coin_purchase).
-    REVENUECAT_SECRET_API_KEY = get_sensitive_config_value(
-        "flask-app/revenuecat", "secret_api_key", "revenuecat_secret_api_key", "REVENUECAT_SECRET_API_KEY", ""
-    )
-    # Optional: set in RevenueCat dashboard → Project → Webhooks → Authorization header value (exact match).
-    REVENUECAT_WEBHOOK_AUTH = get_file_first_config_value(
-        "revenuecat_webhook_auth", "REVENUECAT_WEBHOOK_AUTH", ""
-    )
-
     # Google OAuth2 Configuration (for Google Sign-In)
     GOOGLE_CLIENT_ID = get_config_value("flask-app/google-oauth", "client_id", "google_client_id", "GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = get_sensitive_config_value("flask-app/google-oauth", "client_secret", "google_client_secret", "GOOGLE_CLIENT_SECRET", "")
 
-    # Google Play Developer API Configuration - Removed (switching to RevenueCat)
+    # Google Play Developer API — optional for future direct Play Billing / voided purchases APIs
     # GOOGLE_PLAY_PACKAGE_NAME = get_file_first_config_value("google_play_package_name", "GOOGLE_PLAY_PACKAGE_NAME", "com.yourcompany.yourapp")
     # GOOGLE_PLAY_SERVICE_ACCOUNT_FILE = get_file_first_config_value("google_play_service_account", "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", "secrets/google_play_service_account")
     # GOOGLE_PLAY_API_QUOTA_LIMIT = int(get_file_first_config_value("google_play_api_quota_limit", "GOOGLE_PLAY_API_QUOTA_LIMIT", "1000"))

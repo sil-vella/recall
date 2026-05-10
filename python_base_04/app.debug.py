@@ -12,33 +12,49 @@ importlib.invalidate_caches()
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Clear serve.log on initialization (only if not recently cleared)
-def clear_serve_log():
-    """Clear the server.log file on debug app initialization (smart clearing)"""
+def ensure_server_log_file_exists():
+    """Ensure tools/logger/server.log exists; never truncate (append-only shared log)."""
     try:
-        # Use the correct path to server.log
-        log_file_path = os.path.join(os.path.dirname(__file__), 'tools', 'logger', 'server.log')
-        
-        # Check if file exists and when it was last modified
-        if os.path.exists(log_file_path):
-            # Get file modification time
-            import time
-            file_mtime = os.path.getmtime(log_file_path)
-            current_time = time.time()
-            
-            # Only clear if file is older than 30 seconds (prevents multiple clears in quick succession)
-            if (current_time - file_mtime) > 30:
-                with open(log_file_path, 'w') as f:
-                    f.write('')
-        else:
-            # Create empty file if it doesn't exist
-            with open(log_file_path, 'w') as f:
-                f.write('')
+        log_file_path = os.path.join(os.path.dirname(__file__), "tools", "logger", "server.log")
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+        if not os.path.exists(log_file_path):
+            open(log_file_path, "a", encoding="utf-8").close()
     except Exception:
         pass
 
-# Clear the log file on startup (smart clearing)
-clear_serve_log()
+
+def setup_server_log_file_handler():
+    """Append Werkzeug and root Python logging to tools/logger/server.log (shared with Flutter/Dart)."""
+    import logging
+    from datetime import datetime, timezone
+
+    log_path = os.path.join(os.path.dirname(__file__), "tools", "logger", "server.log")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    abs_path = os.path.abspath(log_path)
+    root = logging.getLogger()
+    for h in root.handlers:
+        bf = getattr(h, "baseFilename", None)
+        if bf and os.path.abspath(bf) == abs_path:
+            return
+
+    class UtcFormatter(logging.Formatter):
+        def formatTime(self, record, datefmt=None):
+            return datetime.fromtimestamp(record.created, tz=timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+
+    fh = logging.FileHandler(abs_path, mode="a", encoding="utf-8")
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(
+        UtcFormatter("%(asctime)s [PYTHON] %(levelname)s %(name)s: %(message)s")
+    )
+    root.addHandler(fh)
+    root.setLevel(logging.INFO)
+    logging.getLogger("werkzeug").setLevel(logging.INFO)
+
+
+ensure_server_log_file_exists()
+setup_server_log_file_handler()
 
 # Initialize the AppManager
 app_manager = AppManager()
@@ -221,25 +237,17 @@ def execute_internal_action(action_name, args):
 
 @app.route('/log', methods=['POST'])
 def frontend_log():
-    """Simple endpoint to catch frontend logs and append to server.log"""
+    """Append Flutter (and other client) lines to server.log — same format as launch script [FLUTTER] lines."""
     try:
+        from datetime import datetime, timezone
+
         data = request.get_json() or {}
-        
-        # Extract log data
-        message = data.get('message', '')
-        level = data.get('level', 'INFO')
-        source = data.get('source', 'frontend')
-        platform = data.get('platform', 'flutter')
-        build_mode = data.get('buildMode', 'debug')
-        timestamp = data.get('timestamp', '')
-        
-        # Format the log message
-        log_entry = f"[{timestamp}] - {source} - {level} - [{platform}|{build_mode}] {message}"
-        
-        # Append to server.log
-        log_file_path = os.path.join(os.path.dirname(__file__), 'tools', 'logger', 'server.log')
-        with open(log_file_path, 'a') as f:
-            f.write(log_entry + '\n')
+        message = (data.get("message", "") or "").replace("\r\n", "\n").replace("\n", " ").strip()
+        log_file_path = os.path.join(os.path.dirname(__file__), "tools", "logger", "server.log")
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        log_entry = f"{ts} [FLUTTER] {message}\n"
+        with open(log_file_path, "a", encoding="utf-8") as f:
+            f.write(log_entry)
         
         return jsonify({'success': True, 'message': 'Log recorded'}), 200
         

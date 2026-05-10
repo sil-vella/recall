@@ -1,5 +1,4 @@
 import '../00_base/adapter_base.dart';
-import '../ext_plugins_adapters/revenuecat/revenuecat_adapter.dart';
 
 /// Registry for all adapters in the application
 /// Automatically registers and manages all adapters
@@ -13,12 +12,7 @@ class AdapterRegistry {
 
   /// Register all adapters automatically
   void registerAllAdapters() {
-    // Register RevenueCat adapter
-    _registerAdapter(RevenueCatAdapter());
-    
-    // Add more adapters here as needed
-    // _registerAdapter(SomeOtherAdapter());
-    // _registerAdapter(AnotherAdapter());
+    // Add adapters here as needed, e.g. _registerAdapter(MyAdapter());
   }
 
   /// Register a single adapter

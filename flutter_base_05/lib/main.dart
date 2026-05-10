@@ -158,7 +158,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         });
       }
 
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[MyApp] _initializeApp failed: $e\n$st');
       if (mounted) {
         setState(() {
           _isInitializing = false;

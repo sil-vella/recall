@@ -2,7 +2,7 @@ import '../00_base/adapter_base.dart';
 import 'app_manager.dart';
 import 'adapter_registry.dart';
 
-/// Manages external service adapters (RevenueCat, etc.)
+/// Manages external service adapters (optional integrations).
 /// Similar to ModuleManager but for external integrations
 class AdaptersManager {
   static final AdaptersManager _instance = AdaptersManager._internal();

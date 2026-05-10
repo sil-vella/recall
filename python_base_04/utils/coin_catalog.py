@@ -1,5 +1,5 @@
 """
-Single source of truth for Dutch coin SKUs (native RevenueCat product ids + Stripe web packages).
+Single source of truth for Dutch coin SKUs (future native store product ids + Stripe web packages).
 Data file: flutter_base_05/assets/dutch_coin_catalog.json (same path the Flutter app bundles).
 """
 from __future__ import annotations
@@ -20,9 +20,10 @@ def _raw_catalog() -> Dict[str, Any]:
         return json.load(f)
 
 
-def get_revenuecat_product_coins() -> Dict[str, int]:
-    """Play/App Store product id -> coin amount."""
-    data = _raw_catalog().get("revenuecat_products") or {}
+def get_in_app_product_coins() -> Dict[str, int]:
+    """Native store product id -> coin amount (key `in_app_products` in JSON; legacy `revenuecat_products` supported)."""
+    raw = _raw_catalog()
+    data = raw.get("in_app_products") or raw.get("revenuecat_products") or {}
     return {str(k): int(v) for k, v in data.items() if int(v) > 0}
 
 

@@ -14,7 +14,7 @@ import '../../modules/analytics_module/analytics_module.dart';
 // WebSocket module removed - now using WebSocketManager directly
 import '../../modules/audio_module/audio_module.dart';
 import '../../modules/animations_module/animations_module.dart';
-// In-app purchases module removed - switching to RevenueCat
+// Native IAP module not registered (use Stripe on web; Play Billing TBD).
 import '../../modules/admobs/banner/banner_ad.dart';
 import '../../modules/admobs/interstitial/interstitial_ad.dart';
 import '../../modules/admobs/rewarded/rewarded_ad.dart';
@@ -113,7 +113,7 @@ class ModuleRegistry {
 
     registerModule('promotional_ads', () => PromotionalAdsModule());
     
-    // In-app purchases module removed - switching to RevenueCat
+    // Native IAP module not registered (use Stripe on web; Play Billing TBD).
     // registerModule('in_app_purchases', () => InAppPurchasesModule());
     
     // Ad modules temporarily disabled - will be converted to hooks

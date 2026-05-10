@@ -15,7 +15,7 @@ Scripts:
 
 **Purpose**:
 - Launches the Flutter web app (`flutter_base_05`) in Chrome on your Mac.
-- Streams only filtered `AppLogger` output into the shared Python `server.log` file.
+- Mirrors merged `flutter run` output into `python_base_04/tools/logger/server.log` for debugging (see `Documentation/debug/AGENT_DEBUG_LOGS.md`).
 - Allows a simple switch between LOCAL and VPS backends.
 
 **Backend selection**:
@@ -42,13 +42,13 @@ Scripts:
 **What it runs**:
 - `cd flutter_base_05`
 - `flutter run -d chrome --web-port=3002 --web-hostname=localhost` with a set of `--dart-define` flags (API_URL, WS_URL, JWT, AdMob, Stripe, logging, etc.).
-- Pipes all stdout/stderr through a `filter_logs` function that:
-  - Extracts lines coming from `[AppLogger]` in Flutter logs.
-  - Writes them to the shared Python log file:
+- Pipes merged `flutter run` stdout/stderr through `filter_logs`, which appends each line (with a UTC prefix and `[FLUTTER]`) to:
 
     ```
-    /Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log
+    python_base_04/tools/logger/server.log
     ```
+
+  and prints the same lines to the integrated terminal.
 
 This is the recommended way to run the **web** version against either the local backend or the live VPS.
 
@@ -59,7 +59,7 @@ This is the recommended way to run the **web** version against either the local 
 **Purpose**:
 - Launches the Flutter app on the connected **OnePlus** Android device with id `84fbcf31`.
 - Uses the same environment (`API_URL`, `WS_URL`, JWT, AdMob, Stripe, logging) as the Chrome launcher.
-- Streams filtered `AppLogger` output into the shared Python `server.log`.
+- Mirrors merged `flutter run` output into `python_base_04/tools/logger/server.log` (same scheme as Chrome; see `Documentation/debug/AGENT_DEBUG_LOGS.md`).
 
 **Prerequisites**:
 - `adb` installed and on your `PATH`.
@@ -97,7 +97,7 @@ This is the recommended way to run the **web** version against either the local 
     ... (JWT/AdMob/Stripe/logging defines)
   ```
 
-- All logs are filtered to `AppLogger` messages and written to the shared `server.log`, plus colorized in the terminal.
+- All merged `flutter run` lines are written to `server.log` and echoed to the terminal (no legacy AppLogger filter).
 
 Use this script for **manual testing on the physical device** against either local or VPS backends.
 

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "revenuecat_products": {
+  "in_app_products": {
     "starter_pack_100_coin": 100,
     "coins_100": 100,
     "coins_500": 500,

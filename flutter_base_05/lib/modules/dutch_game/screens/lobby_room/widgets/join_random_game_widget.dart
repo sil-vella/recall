@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../backend_core/utils/level_matcher.dart';
@@ -8,7 +7,6 @@ import '../../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
 
 // Enable for random game join debugging (logs to console / server.log)
-const bool LOGGING_SWITCH = false; // Lobby random join UI → WS (enable-logging-switch.mdc; set false after test)
 
 /// User progression level from cached Dutch stats (used for tier / event gates).
 int joinRandomReadUserLevel() {
@@ -495,8 +493,6 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   bool _isLoading = false;
   late List<JoinRandomCarouselEntry> _entries;
   late int _carouselIndex;
-  static final Logger _logger = Logger();
-
   /// Carousel identity for resync after [LevelMatcher] catalog merge.
   static String? _carouselEntryKey(JoinRandomCarouselEntry e) {
     if (e is JoinRandomTierEntry) return 't:${e.level}';
@@ -588,9 +584,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
 
   Future<void> _handleJoinRandomGame({required bool isClearAndCollect}) async {
     if (_isLoading) return;
-    if (LOGGING_SWITCH) {
-      _logger.info('🎯 JoinRandomGame: button pressed (isClearAndCollect=$isClearAndCollect)', isOn: true);
-    }
+    
 
     if (_isCurrentLocked()) {
       if (mounted) {
@@ -617,9 +611,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
 
     try {
       final isReady = await DutchGameHelpers.ensureWebSocketReady();
-      if (LOGGING_SWITCH) {
-        _logger.info('🎯 JoinRandomGame: WebSocket ready=$isReady', isOn: true);
-      }
+      
       if (!isReady) {
         return;
       }
@@ -636,9 +628,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         specialEventId:
             specialEventId != null && specialEventId.isNotEmpty ? specialEventId : null,
       );
-      if (LOGGING_SWITCH) {
-        _logger.info('🎯 JoinRandomGame: result success=${result['success']}, error=${result['error']}', isOn: true);
-      }
+      
 
       if (result['success'] == true) {
         final message = result['message'] ?? 'Joining random game...';

@@ -6,7 +6,6 @@ import '../models/card_display_config.dart';
 import '../utils/card_dimensions.dart';
 import 'card_widget.dart';
 import '../../../utils/consts/theme_consts.dart';
-import '../../../tools/logging/logger.dart';
 
 /// Demonstration widget for queen peek phase
 /// 
@@ -23,9 +22,6 @@ class QueenPeekDemonstrationWidget extends StatefulWidget {
 
 class _QueenPeekDemonstrationWidgetState extends State<QueenPeekDemonstrationWidget>
     with TickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
-  static final Logger _logger = Logger();
-  
   int _currentExample = 0; // 0 = my hand example, 1 = opponent example
   bool _cardRevealed = false;
   late AnimationController _animationController;

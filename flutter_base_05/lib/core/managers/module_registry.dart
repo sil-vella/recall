@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:dutch/modules/dutch_game/dutch_game_main.dart';
-import '../../tools/logging/logger.dart';
 import '../00_base/module_base.dart';
 import 'module_manager.dart';
 import '../../utils/consts/config.dart';
@@ -22,7 +21,6 @@ import '../../modules/admobs/rewarded/rewarded_ad.dart';
 import '../../modules/promotional_ads_module/promotional_ads_module.dart';
 
 class ModuleRegistry {
-  static final Logger _logger = Logger();
   static final ModuleRegistry _instance = ModuleRegistry._internal();
   factory ModuleRegistry() => _instance;
   ModuleRegistry._internal();

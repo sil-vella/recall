@@ -3,11 +3,11 @@
 #
 #   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/16_dutch_maintenance_revert.yml -e vm_name=rop01
 
-- name: Revert dutch.mt maintenance nginx changes
+- name: Revert dutch.reignofplay.com maintenance nginx changes
   hosts: "{{ vm_name | default('rop01') }}_user"
   become: true
   vars:
-    nginx_dutch_site: /etc/nginx/sites-available/dutch.mt
+    nginx_dutch_site: /etc/nginx/sites-available/dutch.reignofplay.com
     maintenance_snippet_path: /etc/nginx/snippets/dutch-mt-maintenance.conf
 
   tasks:

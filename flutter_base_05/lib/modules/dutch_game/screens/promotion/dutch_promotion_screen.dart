@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
-import '../../../../tools/logging/logger.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
 import '../../../audio_module/audio_module.dart';
@@ -46,9 +45,6 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
   /// fullscreen flow surfaces in `server.log` during initial smoke-tests; set
   /// to `false` once the screen has been verified end-to-end. See
   /// `.cursor/rules/enable-logging-switch.mdc`.
-  static const bool LOGGING_SWITCH = false;
-  static final Logger _logger = Logger();
-
   /// Delay before the secondary confetti burst for sustained energy.
   static const Duration _secondaryBurstDelay = Duration(milliseconds: 1600);
 
@@ -75,13 +71,7 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
       _entryController.forward();
       _leftConfetti.play();
       _rightConfetti.play();
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'DutchPromotionScreen: opened kind=${widget.kind.name} '
-          'rank=${widget.change.rankBefore}->${widget.change.rankAfter} '
-          'level=${widget.change.levelBefore}->${widget.change.levelAfter}',
-        );
-      }
+      
     });
   }
 
@@ -105,9 +95,7 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
       final audio = ModuleManager().getModuleByType<AudioModule>();
       audio?.playSound('level_up_1');
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchPromotionScreen: level_up sound failed: $e');
-      }
+      
     }
   }
 

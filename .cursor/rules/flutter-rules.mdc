@@ -309,8 +309,7 @@ try {
     // Handle API error
   }
 } catch (e) {
-  // Handle network/connection error
-  Logger().logError('API Error: $e');
+  // Handle network/connection error (e.g. user-visible message, analytics, rethrow)
 }
 ```
 
@@ -501,22 +500,15 @@ lib/
 try {
   // Function logic
 } catch (e) {
-  Logger().logError('Error in function: $e');
-  // Handle error appropriately
+  // Handle error appropriately (no app-wide custom Logger; use UI/analytics/debug tooling as needed)
 }
 ```
 
 ### 2. Logging
 
-**RULE**: Use the built-in Logger for all logging.
+**RULE**: The legacy singleton `Logger` in `lib/tools/logging/` has been **removed**. Do not add it back unless the project adopts a documented replacement.
 
-**PATTERN**:
-```dart
-Logger().logInfo('Information message');
-Logger().logWarning('Warning message');
-Logger().logError('Error message');
-Logger().logDebug('Debug message');
-```
+**PATTERN**: Prefer explicit error handling, user-visible feedback, and existing modules (e.g. analytics). For temporary local diagnostics only, you may use `dart:developer` `developer.log` behind `kDebugMode` sparingly—never as a substitute for proper error handling.
 
 ### 3. Documentation
 
@@ -771,8 +763,7 @@ class ModuleException implements Exception {
 try {
   // Operation
 } catch (e) {
-  Logger().logError('Operation failed: $e');
-  rethrow; // Re-throw with context
+  rethrow; // Re-throw with context (attach context before rethrow if needed)
 }
 ```
 

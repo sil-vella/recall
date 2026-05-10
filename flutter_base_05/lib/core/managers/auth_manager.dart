@@ -9,7 +9,6 @@ import '../managers/hooks_manager.dart';
 import '../managers/navigation_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../utils/consts/config.dart';
-import '../../tools/logging/logger.dart';
 import 'dart:async'; // Added for Timer
 
 enum AuthStatus {
@@ -21,9 +20,6 @@ enum AuthStatus {
 }
 
 class AuthManager extends ChangeNotifier {
-  // Logging switch for guest registration testing
-  static const bool LOGGING_SWITCH = false; // Refresh / session for WS prep (enable-logging-switch.mdc)
-  
   static final AuthManager _instance = AuthManager._internal();
   
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
@@ -281,11 +277,6 @@ class AuthManager extends ChangeNotifier {
   }
 
   Future<void> _signOutAfterUnauthorizedApi() async {
-    if (LOGGING_SWITCH) {
-      Logger().info(
-        'AuthManager: Session cleared after API 401 (revoked/invalid tokens; LoginModule hook will navigate)',
-      );
-    }
     await clearSessionAuthData(keepLoginFormFields: true, prefs: _sharedPref);
     _currentStatus = AuthStatus.tokenExpired;
     _hasTriggeredAuthHook = true;
@@ -578,9 +569,6 @@ class AuthManager extends ChangeNotifier {
         // 2. User was logged in but tokens are invalid AND we have guest credentials
         // But do NOT restore if tokens are invalid - let user log in fresh
         if (!isLoggedIn && isGuestAccount && guestUsername != null && guestEmail != null) {
-          if (LOGGING_SWITCH) {
-            Logger().info("AuthManager: Restoring guest credentials on session validation - Username: $guestUsername");
-          }
           await _sharedPref!.setString('username', guestUsername);
           await _sharedPref!.setString('email', guestEmail);
           if (guestUserId != null) {

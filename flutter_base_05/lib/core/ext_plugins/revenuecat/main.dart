@@ -3,31 +3,26 @@ import 'dart:io';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/config.dart';
 import 'store_config.dart';
-
-/// Set `true` to trace SDK configure / store selection (enable-logging-switch.mdc).
-const bool LOGGING_SWITCH = false;
 
 /// RevenueCat SDK Configuration
 /// This file contains the essential RevenueCat initialization logic
 /// that can be integrated into your main app
 
 Future<void> configureRevenueCatSDK() async {
-  final log = Logger();
   // Configure store based on platform
   if (kIsWeb) {
-    if (LOGGING_SWITCH) {
-      log.info('RevenueCatSDK: store=rcBilling web key configured=${Config.revenueCatWebApiKey.isNotEmpty}');
-    }
+    // Web coin flow may use Stripe only; empty web key is allowed (RC paywall/web IAP need a key).
     StoreConfig(
       store: Store.rcBilling,
       apiKey: Config.revenueCatWebApiKey,
     );
   } else if (Platform.isIOS || Platform.isMacOS) {
-    if (LOGGING_SWITCH) {
-      log.info('RevenueCatSDK: store=appStore apple key configured=${Config.revenueCatAppleApiKey.isNotEmpty}');
+    if (Config.revenueCatAppleApiKey.trim().isEmpty) {
+      throw StateError(
+        'RevenueCat: REVENUECAT_APPLE_API_KEY is empty. Add it to .env.local and pass via dart-defines.',
+      );
     }
     StoreConfig(
       store: Store.appStore,
@@ -36,29 +31,26 @@ Future<void> configureRevenueCatSDK() async {
   } else if (Platform.isAndroid) {
     // Run the app passing --dart-define=AMAZON=true
     const useAmazon = bool.fromEnvironment("amazon");
-    if (LOGGING_SWITCH) {
-      log.info(
-        'RevenueCatSDK: store=${useAmazon ? "amazon" : "playStore"} '
-        'key configured=${(useAmazon ? Config.revenueCatAmazonApiKey : Config.revenueCatGoogleApiKey).isNotEmpty}',
+    final apiKey = useAmazon ? Config.revenueCatAmazonApiKey : Config.revenueCatGoogleApiKey;
+    if (apiKey.trim().isEmpty) {
+      throw StateError(
+        'RevenueCat: ${useAmazon ? "REVENUECAT_AMAZON_API_KEY" : "REVENUECAT_GOOGLE_API_KEY"} is empty. '
+        'Native IAP requires the matching public SDK key from RevenueCat (dart-define from .env.local).',
       );
     }
     StoreConfig(
       store: useAmazon ? Store.amazon : Store.playStore,
-      apiKey: useAmazon
-          ? Config.revenueCatAmazonApiKey
-          : Config.revenueCatGoogleApiKey,
+      apiKey: apiKey,
     );
+  } else {
+    throw StateError('RevenueCat: unsupported platform ${Platform.operatingSystem}.');
   }
 
   await _configureSDK();
 }
 
 Future<void> _configureSDK() async {
-  final log = Logger();
-  await Purchases.setLogLevel(LOGGING_SWITCH ? LogLevel.debug : LogLevel.warn);
-  if (LOGGING_SWITCH) {
-    log.info('RevenueCatSDK: Purchases.configure starting (SDK logLevel=debug)');
-  }
+  await Purchases.setLogLevel(LogLevel.warn);
 
   /*
     - appUserID is nil, so an anonymous ID will be generated automatically by the Purchases SDK. Read more about Identifying Users here: https://docs.revenuecat.com/docs/user-ids
@@ -73,7 +65,4 @@ Future<void> _configureSDK() async {
       ..appUserID = null;
   }
   await Purchases.configure(configuration);
-  if (LOGGING_SWITCH) {
-    log.info('RevenueCatSDK: Purchases.configure completed');
-  }
 }

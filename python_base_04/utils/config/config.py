@@ -377,8 +377,8 @@ class Config:
     STRIPE_WEBHOOK_SECRET = get_sensitive_config_value("flask-app/stripe", "webhook_secret", "stripe_webhook_secret", "STRIPE_WEBHOOK_SECRET", "")
     STRIPE_API_VERSION = get_file_first_config_value("stripe_api_version", "STRIPE_API_VERSION", "2023-10-16")
     # Dutch web coin packs: Stripe Checkout (hosted). Success URL may include {CHECKOUT_SESSION_ID}.
-    # Path URLs: https://dutch.mt/coin-purchase?stripe_checkout=success&session_id={CHECKOUT_SESSION_ID}
-    # Hash routing: https://dutch.mt/#/coin-purchase?stripe_checkout=success&session_id={CHECKOUT_SESSION_ID}
+    # Path URLs: https://dutch.reignofplay.com/coin-purchase?stripe_checkout=success&session_id={CHECKOUT_SESSION_ID}
+    # Hash routing: https://dutch.reignofplay.com/#/coin-purchase?stripe_checkout=success&session_id={CHECKOUT_SESSION_ID}
     STRIPE_COIN_CHECKOUT_SUCCESS_URL = get_file_first_config_value(
         "stripe_coin_checkout_success_url", "STRIPE_COIN_CHECKOUT_SUCCESS_URL", ""
     )
@@ -396,6 +396,10 @@ class Config:
     # Play/App Store consumables before crediting Dutch coins (see StripeModule.verify_revenuecat_coin_purchase).
     REVENUECAT_SECRET_API_KEY = get_sensitive_config_value(
         "flask-app/revenuecat", "secret_api_key", "revenuecat_secret_api_key", "REVENUECAT_SECRET_API_KEY", ""
+    )
+    # Optional: set in RevenueCat dashboard → Project → Webhooks → Authorization header value (exact match).
+    REVENUECAT_WEBHOOK_AUTH = get_file_first_config_value(
+        "revenuecat_webhook_auth", "REVENUECAT_WEBHOOK_AUTH", ""
     )
 
     # Google OAuth2 Configuration (for Google Sign-In)

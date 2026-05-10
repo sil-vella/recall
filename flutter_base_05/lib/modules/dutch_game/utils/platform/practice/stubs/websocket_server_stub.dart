@@ -1,11 +1,8 @@
-import 'package:dutch/tools/logging/logger.dart';
 import 'room_manager_stub.dart';
 
 /// Stub implementation of WebSocketServer for practice mode
 /// Routes messages to practice bridge callbacks instead of actual WebSocket connections
 class WebSocketServerStub {
-  final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for practice bridge / match start
   final RoomManagerStub _roomManager;
   final Function(String sessionId, Map<String, dynamic> message)? _onSendToSession;
   final Function(String roomId, Map<String, dynamic> message)? _onBroadcastToRoom;
@@ -22,16 +19,12 @@ class WebSocketServerStub {
        _onTriggerHook = onTriggerHook;
 
   void sendToSession(String sessionId, Map<String, dynamic> message) {
-    if (LOGGING_SWITCH) {
-      _logger.info('WebSocketServerStub: sendToSession $sessionId');
-    }
+    
     _onSendToSession?.call(sessionId, message);
   }
 
   void broadcastToRoom(String roomId, Map<String, dynamic> message) {
-    if (LOGGING_SWITCH) {
-      _logger.info('WebSocketServerStub: broadcastToRoom $roomId');
-    }
+    
     _onBroadcastToRoom?.call(roomId, message);
   }
 
@@ -40,9 +33,7 @@ class WebSocketServerStub {
   void broadcastToRoomExcept(String roomId, Map<String, dynamic> message, String excludeSessionId) {
     final sessions = _roomManager.getSessionsInRoom(roomId);
     final filteredSessions = sessions.where((sessionId) => sessionId != excludeSessionId).toList();
-    if (LOGGING_SWITCH) {
-      _logger.info('WebSocketServerStub: broadcastToRoomExcept $roomId (excluding $excludeSessionId, ${filteredSessions.length} sessions)');
-    }
+    
     
     // In practice mode, if we're excluding the only player, this is a no-op
     // Otherwise, broadcast to remaining sessions
@@ -86,9 +77,7 @@ class WebSocketServerStub {
   
   // Method to trigger hooks (needed for compatibility with backend interface)
   void triggerHook(String hookName, {Map<String, dynamic>? data, String? context}) {
-    if (LOGGING_SWITCH) {
-      _logger.info('WebSocketServerStub: triggerHook $hookName');
-    }
+    
     _onTriggerHook?.call(hookName, data: data, context: context);
   }
 

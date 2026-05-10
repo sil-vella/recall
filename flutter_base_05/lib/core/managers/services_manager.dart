@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../tools/logging/logger.dart';
 import '../00_base/service_base.dart';
 import '../services/shared_preferences.dart';
 
 class ServicesManager extends ChangeNotifier {
-  static final Logger _logger = Logger();
   static final ServicesManager _instance = ServicesManager._internal();
   factory ServicesManager() => _instance;
   ServicesManager._internal();

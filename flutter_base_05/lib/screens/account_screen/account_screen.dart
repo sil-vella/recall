@@ -14,7 +14,6 @@ import '../../modules/dutch_game/widgets/ui_kit/dutch_avatar.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_section_header.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_settings_row.dart';
 import '../../core/services/shared_preferences.dart';
-import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../utils/profile_photo_helper.dart';
 import 'package:image_picker/image_picker.dart';
@@ -30,9 +29,6 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Profile photo pick/upload trace (enable-logging-switch.mdc) — set false after debugging
-  static final Logger _logger = Logger();
-  
   // Form controllers
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -75,9 +71,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   @override
   void initState() {
     super.initState();
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 AccountScreen initState called');
-    }
+    
     _initializeModules();
     _checkGuestAccountStatus();
     // Load preserved credentials in post-frame so form is populated before first paint when possible
@@ -100,9 +94,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       _analyticsModule = _moduleManager.getModuleByType<AnalyticsModule>();
       await _analyticsModule?.trackScreenView('account_screen');
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Error tracking screen view: $e');
-      }
+      
     }
   }
   
@@ -119,13 +111,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _isGuestAccount = newIsGuestAccount;
         });
       }
-      if (LOGGING_SWITCH) {
-        _logger.info('AccountScreen: Guest account status checked - isGuestAccount: $_isGuestAccount');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Error checking guest account status: $e');
-      }
+      
     }
   }
   
@@ -137,27 +125,19 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
       
       if (!isLoggedIn) {
-        if (LOGGING_SWITCH) {
-          _logger.info('AccountScreen: User not logged in, skipping profile fetch');
-        }
+        
         return;
       }
       
       if (_loginModule == null) {
-        if (LOGGING_SWITCH) {
-          _logger.error('AccountScreen: LoginModule not available');
-        }
+        
         return;
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('AccountScreen: Fetching user profile via LoginModule...');
-      }
+      
       await _loginModule!.fetchAndUpdateUserProfile();
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Error fetching user profile: $e');
-      }
+      
     }
   }
   
@@ -165,9 +145,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     _loginModule = _moduleManager.getModuleByType<LoginModule>();
     _analyticsModule = _moduleManager.getModuleByType<AnalyticsModule>();
     if (_loginModule == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Login module not available');
-      }
+      
     }
   }
   
@@ -193,9 +171,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       final hasPassword = password != null && password.isNotEmpty;
       if (!hasEmail && !hasUsername) return;
 
-      if (LOGGING_SWITCH) {
-        _logger.info('AccountScreen: Found preserved credentials (temp keys) - username: $username, email: $email');
-      }
+      
       // Email: use saved plain email, or for guest without email build from username
       if (hasEmail) {
         _emailController.text = email;
@@ -208,14 +184,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       } else if (isGuestAccount && hasUsername) {
         _passwordController.text = username;
       }
-      if (LOGGING_SWITCH) {
-        _logger.info('AccountScreen: Auto-populated login form from temp keys (guest=$isGuestAccount)');
-      }
+      
       if (mounted) setState(() {});
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Error checking for guest credentials', error: e);
-      }
+      
     }
   }
   
@@ -268,9 +240,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _guestEmail = email;
           _guestPassword = username; // Guest password is same as username
         });
-        if (LOGGING_SWITCH) {
-          _logger.info('AccountScreen: Guest account detected for conversion (temp keys) - Email: $email');
-        }
+        
       } else {
         setState(() {
           _isConvertingGuest = false;
@@ -279,9 +249,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         });
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Error checking for guest account: $e');
-      }
+      
       setState(() {
         _isConvertingGuest = false;
       });
@@ -385,9 +353,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         });
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Error clearing user data from storage', error: e);
-      }
+      
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -495,18 +461,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         
         // Stay on account screen after successful login.
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.warning('AccountScreen: Login failed - result: $result');
-        }
+        
         setState(() {
           _errorMessage = result['error'];
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Login exception', error: e);
-      }
+      
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;
@@ -554,24 +516,16 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           
           // Log out the guest account session after successful conversion
           // Guest credentials are already cleared in registerUser(), so logout will work normally
-          if (LOGGING_SWITCH) {
-            _logger.info("AccountScreen: Guest account conversion successful, logging out guest session");
-          }
+          
           try {
             final logoutResult = await _loginModule!.logoutUser(context);
             if (logoutResult['success'] != null) {
-              if (LOGGING_SWITCH) {
-                _logger.info("AccountScreen: Guest session logged out successfully after conversion");
-              }
+              
             } else {
-              if (LOGGING_SWITCH) {
-                _logger.warning("AccountScreen: Logout after conversion returned error: ${logoutResult['error']}");
-              }
+              
             }
           } catch (e) {
-            if (LOGGING_SWITCH) {
-              _logger.error("AccountScreen: Error during logout after guest conversion", error: e);
-            }
+            
           }
         }
         
@@ -602,18 +556,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           });
         }
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.warning('AccountScreen: Register failed - result: $result');
-        }
+        
         setState(() {
           _errorMessage = result['error'];
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Register exception', error: e);
-      }
+      
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;
@@ -632,18 +582,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       
       return isGuestAccount && username != null && username.isNotEmpty;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: Error checking for guest credentials', error: e);
-      }
+      
       return false;
     }
   }
   
   /// Handle guest login using preserved credentials (temp keys)
   Future<void> _handleGuestLogin() async {
-    if (LOGGING_SWITCH) {
-      _logger.info("AccountScreen: Guest login button pressed");
-    }
+    
     setState(() {
       _isLoading = true;
       _clearMessages();
@@ -668,9 +614,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           ? email
           : 'guest_$username@guest.local';
       
-      if (LOGGING_SWITCH) {
-        _logger.info("AccountScreen: Logging in with guest credentials (temp keys) - Username: $username");
-      }
+      
       
       final result = await _loginResolvingSessionConflict(
         email: guestEmail,
@@ -687,9 +631,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       }
       
       if (result['success'] != null) {
-        if (LOGGING_SWITCH) {
-          _logger.info("AccountScreen: Guest login successful");
-        }
+        
         setState(() {
           _successMessage = 'Welcome back, $username!';
           _isLoading = false;
@@ -697,18 +639,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         
         // Stay on account screen after successful login.
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.error("AccountScreen: Guest login failed - Error: ${result['error']}");
-        }
+        
         setState(() {
           _errorMessage = result['error'] ?? 'Login failed';
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error("AccountScreen: Exception during guest login", error: e);
-      }
+      
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;
@@ -717,27 +655,21 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   }
   
   Future<void> _handleGuestRegister() async {
-    if (LOGGING_SWITCH) {
-      _logger.info("AccountScreen: Guest registration button pressed");
-    }
+    
     setState(() {
       _isLoading = true;
       _clearMessages();
     });
     
     try {
-      if (LOGGING_SWITCH) {
-        _logger.debug("AccountScreen: Calling registerGuestUser");
-      }
+      
       final result = await _loginModule!.registerGuestUser(
         context: context,
       );
       
       if (result['success'] != null) {
         final username = result['username']?.toString() ?? '';
-        if (LOGGING_SWITCH) {
-          _logger.info("AccountScreen: Guest registration successful - Username: $username");
-        }
+        
         
         setState(() {
           _successMessage = 'Guest account created! Your username is: $username\n\nYour credentials are saved. You can log in again even after closing the app.';
@@ -746,13 +678,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         
         // If auto-login was successful, remain on account screen.
         if (result['success'].toString().contains('logged in')) {
-          if (LOGGING_SWITCH) {
-            _logger.info("AccountScreen: Auto-login successful, staying on account screen");
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info("AccountScreen: Auto-login not successful, switching to login mode");
-          }
+          
           // Switch to login mode after successful registration
           Future.delayed(const Duration(seconds: 3), () {
             setState(() {
@@ -763,18 +691,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           });
         }
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.error("AccountScreen: Guest registration failed - Error: ${result['error']}");
-        }
+        
         setState(() {
           _errorMessage = result['error'];
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error("AccountScreen: Exception during guest registration", error: e);
-      }
+      
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;
@@ -876,9 +800,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   Future<void> _pickAndUploadProfilePhoto() async {
     if (_loginModule == null || !mounted) return;
-    if (LOGGING_SWITCH) {
-      _logger.info('AccountScreen: _pickAndUploadProfilePhoto started');
-    }
+    
     setState(() => _uploadingProfilePhoto = true);
     try {
       final picker = ImagePicker();
@@ -891,18 +813,12 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         requestFullMetadata: false,
       );
       if (picked == null || !mounted) {
-        if (LOGGING_SWITCH) {
-          _logger.info('AccountScreen: _pickAndUploadProfilePhoto cancelled (no image picked)');
-        }
+        
         return;
       }
 
       final raw = await picked.readAsBytes();
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'AccountScreen: picked image path=${picked.path} raw_bytes=${raw.length}',
-        );
-      }
+      
       if (raw.length > kProfileAvatarMaxUploadBytes) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -920,13 +836,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       }
 
       final prepared = prepareProfilePhotoForUpload(Uint8List.fromList(raw));
-      if (LOGGING_SWITCH && prepared != null) {
-        _logger.info('AccountScreen: prepared JPEG for upload bytes=${prepared.length}');
-      }
+      
       if (prepared == null) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('AccountScreen: prepareProfilePhotoForUpload returned null');
-        }
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -965,9 +877,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       );
       if (!mounted) return;
 
-      if (LOGGING_SWITCH) {
-        _logger.info('AccountScreen: upload result success=${result['success']} keys=${result.keys.toList()}');
-      }
+      
       if (result['success'] == true) {
         // Keep a local in-memory preview so the profile UI can show the new
         // image immediately even if network fetch is delayed/fails/cached.
@@ -997,9 +907,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         );
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AccountScreen: _pickAndUploadProfilePhoto error: $e', error: e);
-      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1039,15 +947,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             : profilePictureUrl)
         : null;
     final displayName = username.isNotEmpty ? username : email;
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        'AccountScreen: _buildProfileHeader displayName="$displayName" '
-        'profilePictureUrl="${profilePictureUrl ?? "(null)"}" '
-        'effectivePictureUrl="${effectivePictureUrl ?? "(null)"}" '
-        'hasLocalBytes=${_recentUploadedProfilePhotoBytes != null && _recentUploadedProfilePhotoBytes!.isNotEmpty} '
-        'uploading=$_uploadingProfilePhoto',
-      );
-    }
+    
 
     return Center(
       child: Column(
@@ -1334,9 +1234,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   @override
   Widget buildContent(BuildContext context) {
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 AccountScreen buildContent called');
-    }
+    
     // Use AnimatedBuilder to listen to StateManager changes
     return AnimatedBuilder(
       animation: StateManager(),
@@ -1368,9 +1266,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   _checkGuestAccountStatus();
                   _fetchUserProfile(); // Fetch profile when user logs in
                 } catch (e, stackTrace) {
-                  if (LOGGING_SWITCH) {
-                    _logger.error('AccountScreen: Error in postFrameCallback for guest account check', error: e, stackTrace: stackTrace);
-                  }
+                  
                 }
               });
             } else {
@@ -1381,9 +1277,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             }
           }
           
-          if (LOGGING_SWITCH) {
-            _logger.info('🔍 AccountScreen - isLoggedIn: $isLoggedIn, username: $username, isGuestAccount: $_isGuestAccount, showRegistrationForm: $_showRegistrationForm');
-          }
+          
           
           // If user is logged in and not showing registration form, show user profile
           if (isLoggedIn && !_showRegistrationForm) {
@@ -1542,18 +1436,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                           const SizedBox(height: 16),
                           ElevatedButton.icon(
                             onPressed: _isLoading ? null : () async {
-                              if (LOGGING_SWITCH) {
-                                _logger.info('AccountScreen: Convert to Full Account button pressed');
-                              }
+                              
                               await _checkForGuestAccountForConversion();
                               setState(() {
                                 _isLoginMode = false; // Switch to registration mode
                                 _showRegistrationForm = true; // Show registration form even when logged in
                                 _clearForms(); // Keep new account fields empty during guest conversion
                               });
-                              if (LOGGING_SWITCH) {
-                                _logger.info('AccountScreen: Switched to registration mode, showRegistrationForm: $_showRegistrationForm');
-                              }
+                              
                             },
                             icon: const Icon(Icons.person_add),
                             label: const Text('Convert to Full Account'),
@@ -1876,9 +1766,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               button: true,
               child: ElevatedButton(
               onPressed: _isLoading ? null : () {
-                if (LOGGING_SWITCH) {
-                  _logger.info('AccountScreen: Main action button pressed - mode: ${_isLoginMode ? "login" : "register"}');
-                }
+                
                 try {
                   if (_isLoginMode) {
                     _handleLogin();
@@ -1886,9 +1774,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                     _handleRegister();
                   }
                 } catch (e, stackTrace) {
-                  if (LOGGING_SWITCH) {
-                    _logger.error('AccountScreen: Error in main action button handler', error: e, stackTrace: stackTrace);
-                  }
+                  
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -1928,15 +1814,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     onPressed: _isLoading ? null : () {
-                      if (LOGGING_SWITCH) {
-                        _logger.info('AccountScreen: Guest Registration button pressed');
-                      }
+                      
                       try {
                         _handleGuestRegister();
                       } catch (e, stackTrace) {
-                        if (LOGGING_SWITCH) {
-                          _logger.error('AccountScreen: Error in guest registration button handler', error: e, stackTrace: stackTrace);
-                        }
+                        
                       }
                     },
                     icon: Icon(Icons.person_outline, color: AppColors.white.withValues(alpha: 0.92)),
@@ -1971,14 +1853,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 future: _hasGuestCredentials(),
                 builder: (context, snapshot) {
                   try {
-                    if (LOGGING_SWITCH) {
-                      _logger.debug('AccountScreen: Guest credentials check - hasData: ${snapshot.hasData}, data: ${snapshot.data}, error: ${snapshot.error}');
-                    }
+                    
                     
                     if (snapshot.hasError) {
-                      if (LOGGING_SWITCH) {
-                        _logger.error('AccountScreen: Error checking guest credentials', error: snapshot.error);
-                      }
+                      
                       return const SizedBox.shrink(); // Return empty widget on error
                     }
                     
@@ -1989,15 +1867,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
                             onPressed: _isLoading ? null : () {
-                              if (LOGGING_SWITCH) {
-                                _logger.info('AccountScreen: Guest Login button pressed');
-                              }
+                              
                               try {
                                 _handleGuestLogin();
                               } catch (e, stackTrace) {
-                                if (LOGGING_SWITCH) {
-                                  _logger.error('AccountScreen: Error in guest login button handler', error: e, stackTrace: stackTrace);
-                                }
+                                
                               }
                             },
                             icon: Icon(Icons.person_outline, color: AppColors.white.withValues(alpha: 0.92)),
@@ -2028,9 +1902,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                     }
                     return const SizedBox.shrink();
                   } catch (e, stackTrace) {
-                    if (LOGGING_SWITCH) {
-                      _logger.error('AccountScreen: Error in FutureBuilder builder for guest credentials', error: e, stackTrace: stackTrace);
-                    }
+                    
                     return const SizedBox.shrink(); // Return empty widget on error
                   }
                 },
@@ -2039,15 +1911,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             // Mode Switch
             TextButton(
               onPressed: _isLoading ? null : () {
-                if (LOGGING_SWITCH) {
-                  _logger.info('AccountScreen: Mode switch button pressed - current mode: ${_isLoginMode ? "login" : "register"}');
-                }
+                
                 try {
                   _toggleMode();
                 } catch (e, stackTrace) {
-                  if (LOGGING_SWITCH) {
-                    _logger.error('AccountScreen: Error in mode switch button handler', error: e, stackTrace: stackTrace);
-                  }
+                  
                 }
               },
               child: Text(
@@ -2071,9 +1939,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           ),
         );
         } catch (e, stackTrace) {
-          if (LOGGING_SWITCH) {
-            _logger.error('AccountScreen: Error in AnimatedBuilder builder', error: e, stackTrace: stackTrace);
-          }
+          
           // Return a safe fallback widget to prevent red screen
           return SafeArea(
             child: Center(

@@ -1,9 +1,7 @@
 import 'package:yaml/yaml.dart';
 // Platform-specific import for file loading
 import 'package:flutter/services.dart' show rootBundle;
-import '../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for YAML loading and parsing debugging
 
 /// YAML Configuration Parser for Computer Player Behavior
 /// 
@@ -33,11 +31,8 @@ class ComputerPlayerConfig {
   
   /// Load configuration from YAML file (Flutter: loads from assets)
   static Future<ComputerPlayerConfig> fromFile(String filePath) async {
-    final logger = Logger();
     try {
-      if (LOGGING_SWITCH) {
-        logger.info('📄 ComputerPlayerConfig.fromFile() START - filePath: $filePath');
-      }
+      
       
       // Flutter: map file path to asset path
       String assetPath = filePath;
@@ -53,65 +48,43 @@ class ComputerPlayerConfig {
         assetPath = 'assets/$filename';
       }
       
-      if (LOGGING_SWITCH) {
-        logger.info('📄 ComputerPlayerConfig: Mapped filePath to assetPath: $assetPath');
-        logger.info('📄 ComputerPlayerConfig: About to call rootBundle.loadString()');
-      }
+      
       
       final yamlString = await rootBundle.loadString(assetPath);
       
-      if (LOGGING_SWITCH) {
-        logger.info('📄 ComputerPlayerConfig: rootBundle.loadString() completed - YAML string length: ${yamlString.length}');
-        logger.info('📄 ComputerPlayerConfig: About to parse YAML');
-      }
+      
       
       final yamlMap = loadYaml(yamlString);
       
-      if (LOGGING_SWITCH) {
-        logger.info('📄 ComputerPlayerConfig: YAML parsed successfully - top-level keys: ${(yamlMap as Map).keys.toList()}');
-      }
+      
       
       final convertedMap = _convertYamlMap(yamlMap) as Map<String, dynamic>;
       
-      if (LOGGING_SWITCH) {
-        logger.info('📄 ComputerPlayerConfig: YAML converted to Map - keys: ${convertedMap.keys.toList()}');
-        logger.info('📄 ComputerPlayerConfig.fromFile() SUCCESS');
-      }
+      
       
       return ComputerPlayerConfig(convertedMap);
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        logger.error('📄 ComputerPlayerConfig.fromFile() ERROR: $e', error: e, stackTrace: stackTrace);
-      }
+      
       throw Exception('Failed to load computer player config from $filePath (mapped to assets): $e');
     }
   }
   
   /// Load configuration from YAML string
   static ComputerPlayerConfig fromString(String yamlString) {
-    final logger = Logger();
     try {
-      if (LOGGING_SWITCH) {
-        logger.info('📄 ComputerPlayerConfig.fromString() START - YAML string length: ${yamlString.length}');
-      }
+      
       
       final yamlMap = loadYaml(yamlString);
       
-      if (LOGGING_SWITCH) {
-        logger.info('📄 ComputerPlayerConfig: YAML parsed successfully');
-      }
+      
       
       final convertedMap = _convertYamlMap(yamlMap) as Map<String, dynamic>;
       
-      if (LOGGING_SWITCH) {
-        logger.info('📄 ComputerPlayerConfig.fromString() SUCCESS');
-      }
+      
       
       return ComputerPlayerConfig(convertedMap);
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        logger.error('📄 ComputerPlayerConfig.fromString() ERROR: $e', error: e, stackTrace: stackTrace);
-      }
+      
       throw Exception('Failed to parse computer player config from string: $e');
     }
   }

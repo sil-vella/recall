@@ -60,7 +60,7 @@ dutch_mt_dashboard_service_key: "your-dashboard-service-key"   # optional
 google_client_id: "your-google-client-id"
 google_client_secret: "your-google-client-secret"
 app_version: "2.0.0"
-app_download_base_url: "https://dutch.mt/downloads"
+app_download_base_url: "https://dutch.reignofplay.com/downloads"
 # credit_system_api_key: ""   # optional
 ```
 

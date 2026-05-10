@@ -172,9 +172,6 @@ export 'dart:math';
 export 'dart:async';
 // Note: dart:io removed for Flutter compatibility
 
-// Flutter logger (replaces backend server_logger)
-export '../../../../tools/logging/logger.dart';
-
 // Type aliases for dependency injection
 // Allows same code to work with real or stub implementations
 typedef WebSocketServer = dynamic;
@@ -187,7 +184,6 @@ const String DECK_CONFIG_PATH = 'assets/deck_config.yaml';
 
 **Key Differences**:
 - **No `dart:io`**: Flutter doesn't support file system access
-- **Flutter Logger**: Uses Flutter-specific logging
 - **Type Aliases**: Uses `dynamic` for dependency injection (allows stubs)
 - **Assets Path**: Config files loaded from Flutter assets
 

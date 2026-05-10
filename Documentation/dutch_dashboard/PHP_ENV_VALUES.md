@@ -58,7 +58,7 @@ Values the **PHP dashboard** needs for `PYTHON_API_BASE_URL`, `DUTCH_MT_DASHBOAR
 |-------------|--------|
 | Local (Flask on same machine) | `http://localhost:5001` |
 | Local (Flask on LAN) | `http://192.168.178.81:5001` (from playbooks) |
-| Production (from playbooks) | `https://dutch.mt` |
+| Production (from playbooks) | `https://dutch.reignofplay.com` |
 
 Use the URL where your **Python/Flask API** is actually reachable. Local defaults align on port **5001** (`app.debug.py`, `Config`, playbooks, Docker).
 
@@ -110,6 +110,6 @@ Use the URL where your **Python/Flask API** is actually reachable. Local default
 
 | PHP env | Where to get the actual value |
 |--------|--------------------------------|
-| `PYTHON_API_BASE_URL` | Your Python API base URL, e.g. `http://localhost:5001` or `https://dutch.mt`. |
+| `PYTHON_API_BASE_URL` | Your Python API base URL, e.g. `http://localhost:5001` or `https://dutch.reignofplay.com`. |
 | `DUTCH_MT_DASHBOARD_SERVICE_KEY` | Not in repo. Generate one; set it in Python (env or file `dutch_mt_dashboard_service_key`) and in PHP. |
 | `JWT_SECRET` | Same as Python’s JWT signing secret: Python’s `JWT_SECRET_KEY` (Vault / file `jwt_secret_key` / env `JWT_SECRET_KEY`). Default in code is `your-super-secret-key-change-in-production` if nothing is set. |

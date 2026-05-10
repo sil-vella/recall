@@ -30,11 +30,11 @@ if Config.DEBUG:
     # Development mode - allow all origins for flexibility
     CORS(app)
 else:
-    # Production mode - dutch.mt primary; reignofplay.com + dashboard + local dev origins
+    # Production mode — canonical Dutch host is dutch.reignofplay.com; dutch.reignofplay.com retained until cutover (see Documentation/00_Active_plans/migrate-dutch-mt-to-dutch-reignofplay-com.md)
     CORS(app,
         origins=[
-            "https://dutch.mt",
-            "https://www.dutch.mt",
+            "https://dutch.reignofplay.com",
+            "https://www.dutch.reignofplay.com",
             "https://reignofplay.com",
             "https://www.reignofplay.com",
             "https://dashboard.reignofplay.com",

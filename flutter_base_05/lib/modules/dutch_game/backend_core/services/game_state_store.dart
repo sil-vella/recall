@@ -1,6 +1,5 @@
 import '../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for match start / state store
 
 /// In-memory game state store keyed by roomId.
 /// Holds a mutable Map<String,dynamic> representing the current game state
@@ -11,8 +10,6 @@ class GameStateStore {
   /// Per-room wire sequence for `game_state_updated` (embedded Dart server / practice).
   /// Client dedupe keys on this when present; must bump on every distinct outbound snapshot.
   final Map<String, int> _outboundStateSeqByRoom = {};
-  final Logger _logger = Logger();
-
   GameStateStore._internal();
 
   /// Returns the next monotonic version for [roomId] (starts at 1).
@@ -41,9 +38,7 @@ class GameStateStore {
     final state = ensure(roomId);
     if (state.containsKey('isClearAndCollect')) {
       final value = state['isClearAndCollect'];
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 GameStateStore.getState: isClearAndCollect in state: value=$value (type: ${value.runtimeType})');
-      }
+      
     }
     return state;
   }
@@ -55,43 +50,29 @@ class GameStateStore {
     // Log isClearAndCollect if present in updates
     if (updates.containsKey('isClearAndCollect')) {
       final value = updates['isClearAndCollect'];
-      if (LOGGING_SWITCH) {
-        _logger.info('💾 GameStateStore.mergeRoot: isClearAndCollect in updates: value=$value (type: ${value.runtimeType})');
-      }
+      
     }
     
     // Log turn_events if present in updates
     if (updates.containsKey('turn_events')) {
       final turnEvents = updates['turn_events'] as List<dynamic>? ?? [];
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 TURN_EVENTS DEBUG - mergeRoot received turn_events: ${turnEvents.length} events');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
-      }
+      
+      
       
       // Log previous turn_events in state before merge
       final previousTurnEvents = state['turn_events'] as List<dynamic>? ?? [];
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 TURN_EVENTS DEBUG - Previous turn_events in state before merge: ${previousTurnEvents.length} events');
-      }
+      
     }
     
     updates.forEach((k, v) => state[k] = v);
     // Removed lastUpdated - causes unnecessary state updates
-    if (LOGGING_SWITCH) {
-      _logger.info('GameStateStore: merged root for $roomId -> keys: ${updates.keys}');
-    }
+    
     
     // Log turn_events after merge
     if (updates.containsKey('turn_events')) {
       final mergedTurnEvents = state['turn_events'] as List<dynamic>? ?? [];
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 TURN_EVENTS DEBUG - turn_events in state after merge: ${mergedTurnEvents.length} events');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${mergedTurnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
-      }
+      
+      
     }
   }
 
@@ -101,24 +82,18 @@ class GameStateStore {
     // Log isClearAndCollect if present in gameState
     if (gameState.containsKey('isClearAndCollect')) {
       final value = gameState['isClearAndCollect'];
-      if (LOGGING_SWITCH) {
-        _logger.info('💾 GameStateStore.setGameState: isClearAndCollect in gameState: value=$value (type: ${value.runtimeType})');
-      }
+      
     }
     state['game_state'] = gameState;
     // Removed lastUpdated - causes unnecessary state updates
-    if (LOGGING_SWITCH) {
-      _logger.info('GameStateStore: set game_state for $roomId');
-    }
+    
   }
 
   Map<String, dynamic> getGameState(String roomId) {
     final gameState = ensure(roomId)['game_state'] as Map<String, dynamic>;
     if (gameState.containsKey('isClearAndCollect')) {
       final value = gameState['isClearAndCollect'];
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 GameStateStore.getGameState: isClearAndCollect in gameState: value=$value (type: ${value.runtimeType})');
-      }
+      
     }
     return gameState;
   }
@@ -143,9 +118,7 @@ class GameStateStore {
   void clearAll() {
     _roomIdToState.clear();
     _outboundStateSeqByRoom.clear();
-    if (LOGGING_SWITCH) {
-      _logger.info('GameStateStore: clearAll() - cleared all room state');
-    }
+    
   }
 }
 

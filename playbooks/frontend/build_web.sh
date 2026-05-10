@@ -2,8 +2,8 @@
 
 # Flutter Web build script
 # Builds a web release for Dutch and uploads to VPS
-# The web app will be served from dutch.mt
-# To deploy to a subdir (e.g. dutch.mt/example): DEPLOY_SUBDIR=example ./build_web.sh vps
+# The web app will be served from dutch.reignofplay.com
+# To deploy to a subdir (e.g. dutch.reignofplay.com/example): DEPLOY_SUBDIR=example ./build_web.sh vps
 #   (Build the Flutter app with base-href /example/ when targeting the subdir.)
 
 set -e
@@ -65,8 +65,8 @@ if [ "$BACKEND_TARGET" = "local" ]; then
     WS_URL="ws://192.168.178.81:8080"
     echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
-    API_URL="https://dutch.mt"
-    WS_URL="wss://dutch.mt/ws"
+    API_URL="https://dutch.reignofplay.com"
+    WS_URL="wss://dutch.reignofplay.com/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
@@ -192,7 +192,7 @@ if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/index.html" ]; then
 
   # Cache-bust: add ?v=$APP_VERSION so entry shell + bootstrap + linked shell assets get new URLs each release.
   # (Flutter's service worker still hashes main.dart.js/canvaskit/assets; this fixes stale index.html/bootstrap.)
-  # Nginx (04_setup_nginx) should serve index.html with Cache-Control: no-cache so the HTML revalidates.
+  # Production nginx should serve index.html with Cache-Control: no-cache so the HTML revalidates (configure on server).
   if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s|src=\"flutter_bootstrap.js\"|src=\"flutter_bootstrap.js?v=$APP_VERSION\"|g" "$INDEX_HTML"
     sed -i '' "s|href=\"site.webmanifest\"|href=\"site.webmanifest?v=$APP_VERSION\"|g" "$INDEX_HTML"
@@ -270,7 +270,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   # Move files to web root with proper permissions
   echo "📦 Installing files to web root..."
   ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" <<EOF
-    # Copy to subdir (e.g. dutch.mt/example) or to main web root
+    # Copy to subdir (e.g. dutch.reignofplay.com/example) or to main web root
     DEPLOY_SUBDIR="${DEPLOY_SUBDIR:-}"
     if [ -n "$DEPLOY_SUBDIR" ]; then
       DEPLOY_DEST="$REMOTE_WEB_ROOT/$DEPLOY_SUBDIR"
@@ -318,10 +318,10 @@ EOF
   echo ""
   if [ -n "${DEPLOY_SUBDIR:-}" ]; then
     echo "✅ Web build uploaded to VPS: $REMOTE_WEB_ROOT/$DEPLOY_SUBDIR"
-    echo "🔗 Web app URL: https://dutch.mt/$DEPLOY_SUBDIR"
+    echo "🔗 Web app URL: https://dutch.reignofplay.com/$DEPLOY_SUBDIR"
   else
     echo "✅ Web build uploaded and installed to VPS: $REMOTE_WEB_ROOT"
-    echo "🔗 Web app URL: https://dutch.mt"
+    echo "🔗 Web app URL: https://dutch.reignofplay.com"
   fi
   echo "📊 Version: $APP_VERSION"
   echo ""

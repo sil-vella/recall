@@ -563,17 +563,19 @@ class AppManager:
         """Set up periodic collection of system metrics."""
         def update_system_metrics():
             try:
-                # Update MongoDB connections
+                if not AppManager.METRICS_SWITCH:
+                    return
+                # Update MongoDB connections (only when metrics on — avoids
+                # get_connection_count and collector work when disabled)
                 if hasattr(self, 'db_manager'):
                     self.metrics_collector.collect_metric('mongodb_connections', {
                         'count': self.db_manager.get_connection_count()
-                    }, isOn=AppManager.METRICS_SWITCH)
-                
+                    }, isOn=True)
                 # Update Redis connections
                 if hasattr(self, 'redis_manager'):
                     self.metrics_collector.collect_metric('redis_connections', {
                         'count': self.redis_manager.get_connection_count()
-                    }, isOn=AppManager.METRICS_SWITCH)
+                    }, isOn=True)
             except Exception as e:
                 pass
         

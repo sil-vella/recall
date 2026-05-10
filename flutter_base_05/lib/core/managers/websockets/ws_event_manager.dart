@@ -1,17 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../../../tools/logging/logger.dart';
 import 'websocket_events.dart';
 import 'websocket_manager.dart';
 import '../state_manager.dart';
 import 'websocket_state_validator.dart';
 
-const bool LOGGING_SWITCH = false; // WS event routing (enable-logging-switch.mdc; set false after test)
-
 /// WebSocket Event Manager - Centralized event handling for WebSocket operations
 class WSEventManager {
-  static final Logger _logger = Logger();
   static final WSEventManager _instance = WSEventManager._internal();
   
   // WebSocket manager instance
@@ -47,21 +42,12 @@ class WSEventManager {
 
   /// Initialize the event manager
   void initialize() {
-    if (LOGGING_SWITCH) {
-      _logger.info('🔄 Initializing WebSocket Event Manager');
-    }
     _setupEventListeners();
     _registerWithStateManager();
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ WebSocket Event Manager initialized successfully');
-    }
   }
 
   /// Register with StateManager
   void _registerWithStateManager() {
-    if (LOGGING_SWITCH) {
-      _logger.debug('🔄 Registering WebSocket state with StateManager');
-    }
     final stateManager = StateManager();
     stateManager.registerModuleState("websocket", {
       "isConnected": _isConnected,
@@ -69,9 +55,6 @@ class WSEventManager {
       "currentRoomInfo": _currentRoomInfo,
       "sessionData": _sessionData,
     });
-    if (LOGGING_SWITCH) {
-      _logger.debug('✅ WebSocket state registered with StateManager');
-    }
   }
 
   /// Set up event listeners for all WebSocket events
@@ -272,13 +255,7 @@ class WSEventManager {
   /// Create a room
   Future<Map<String, dynamic>> createRoom(String userId, [Map<String, dynamic>? roomData]) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('WSEventManager.createRoom: userId=$userId, roomData=$roomData');
-      }
       final result = await _websocketManager.createRoom(userId, roomData);
-      if (LOGGING_SWITCH) {
-        _logger.info('WSEventManager.createRoom: result=$result');
-      }
       if (result['success'] != null) {
         // The server will automatically join the user to the room
         // and send a 'room_joined' event, which will update our state
@@ -428,4 +405,4 @@ class WSEventManager {
     _customEventController.close();
     clearCallbacks();
   }
-} 
+}

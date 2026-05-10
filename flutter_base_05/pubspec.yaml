@@ -77,6 +77,7 @@ flutter:
     - assets/deck_config.yaml
     - assets/computer_player_config.yaml
     - assets/predefined_hands.yaml
+    - assets/dutch_coin_catalog.json
 
 flutter_native_splash:
   color: "#2a5c32"

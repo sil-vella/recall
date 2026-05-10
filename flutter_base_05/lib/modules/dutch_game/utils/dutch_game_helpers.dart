@@ -5,7 +5,6 @@ import '../../../core/managers/navigation_manager.dart';
 import '../../../core/widgets/instant_message_modal.dart';
 import '../../connections_api_module/connections_api_module.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
-import '../../../tools/logging/logger.dart';
 import '../../../core/services/shared_preferences.dart';
 import '../../login_module/login_module.dart';
 import '../managers/validated_event_emitter.dart';
@@ -25,10 +24,6 @@ class DutchGameHelpers {
   // Singleton instances
   static final _eventEmitter = DutchGameEventEmitter.instance;
   static final _stateUpdater = DutchGameStateUpdater.instance;
-  static final _logger = Logger();
-  
-  static const bool LOGGING_SWITCH = false; // attemptResumeRoomAfterAuth + prefs (disconnect rejoin; set false after test)
-  
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
   static bool wasGameRecentlyLeft(String gameId) => gameId.isNotEmpty && _recentlyLeftGameIds.contains(gameId);
@@ -51,14 +46,7 @@ class DutchGameHelpers {
     final ok = games.containsKey(gameId) ||
         currentGameId == gameId ||
         currentRoomId == gameId;
-    if (LOGGING_SWITCH && !ok) {
-      final keys = games.keys.take(12).toList();
-      _logger.info(
-        '[kick-trace] isGameStillInState=false gameId=$gameId randomJoin=$randomJoin '
-        'gamesContains=${games.containsKey(gameId)} currentGameId=$currentGameId currentRoomId=$currentRoomId '
-        'gamesKeys=$keys',
-      );
-    }
+    
     return ok;
   }
 
@@ -78,9 +66,7 @@ class DutchGameHelpers {
     try {
       await SharedPrefManager().setString(_kLastMultiplayerRoomIdKey, r);
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.info('persistLastMultiplayerRoomId: skip ($e)');
-      }
+      
     }
   }
 
@@ -110,9 +96,7 @@ class DutchGameHelpers {
     try {
       await _eventEmitter.emit(eventType: 'resume_room', data: {'room_id': rid});
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.info('attemptResumeRoomAfterAuth: emit error $e');
-      }
+      
     }
   }
   
@@ -178,17 +162,13 @@ class DutchGameHelpers {
       data['tournament_data'] = tournamentData;
     }
 
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers.createRoom: emitting create_room payload: $data');
-    }
+    
     
       final result = await _eventEmitter.emit(
       eventType: 'create_room',
       data: data,
     );
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers.createRoom: emit returned — success=${result['success']} room_id=${result['room_id']} error=${result['error']}');
-      }
+      
       if (result['success'] == true) {
         _stateUpdater.updateStateSync({
           'pending_start_match_source': 'create_room',
@@ -196,9 +176,7 @@ class DutchGameHelpers {
       }
       return result;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameHelpers: Error creating room: $e');
-      }
+      
       return {
         'success': false,
         'error': 'Failed to create room: $e',
@@ -246,9 +224,7 @@ class DutchGameHelpers {
     }
     return joinResult;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameHelpers: Error joining room: $e');
-      }
+      
       return {
         'success': false,
         'error': 'Failed to join room: $e',
@@ -306,25 +282,17 @@ class DutchGameHelpers {
   
   /// Navigate to account screen when WebSocket authentication fails
   static void navigateToAccountScreen(String reason, String message) {
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: navigateToAccountScreen called - reason: $reason, message: $message');
-    }
+    
     try {
       final navigationManager = NavigationManager();
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: NavigationManager obtained, navigating to /account');
-      }
+      
       navigationManager.navigateToWithDelay('/account', parameters: {
         'auth_reason': reason,
         'auth_message': message,
       });
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: Navigation to /account initiated');
-      }
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameHelpers: Error navigating to account screen: $e', error: e, stackTrace: stackTrace);
-      }
+      
     }
   }
   
@@ -340,22 +308,16 @@ class DutchGameHelpers {
     BuildContext? context,
     bool allowTransportResetRetry = true,
   }) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: ensureWebSocketReady called');
-    }
+    
     
     // Check if user is logged in
     final stateManager = StateManager();
     final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
     final isLoggedIn = loginState['isLoggedIn'] == true;
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: User login status - isLoggedIn: $isLoggedIn');
-    }
+    
     
     if (!isLoggedIn) {
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchGameHelpers: User is not logged in, checking for existing user data');
-      }
+      
       
       // Check SharedPreferences for username and email
       try {
@@ -364,32 +326,24 @@ class DutchGameHelpers {
         final username = sharedPref.getString('username');
         final email = sharedPref.getString('email');
         
-        if (LOGGING_SWITCH) {
-          _logger.info('DutchGameHelpers: SharedPreferences check - username: ${username != null && username.isNotEmpty ? "exists" : "null"}, email: ${email != null && email.isNotEmpty ? "exists" : "null"}');
-        }
+        
         
         // If either username or email exists, user data exists - navigate to account screen
         if ((username != null && username.isNotEmpty) || (email != null && email.isNotEmpty)) {
-          if (LOGGING_SWITCH) {
-            _logger.info('DutchGameHelpers: User data found in SharedPreferences, navigating to account screen');
-          }
+          
           navigateToAccountScreen('ws_auth_required', 'Please log in to connect to game server.');
           return false;
         }
         
         // No user data found - attempt auto-guest creation
-        if (LOGGING_SWITCH) {
-          _logger.info('DutchGameHelpers: No user data found, attempting auto-guest creation');
-        }
+        
         
         // Get context from NavigationManager if not provided
         final navigationManager = NavigationManager();
         final effectiveContext = context ?? navigationManager.navigatorKey.currentContext;
         
         if (effectiveContext == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('DutchGameHelpers: Cannot auto-create guest - no context available');
-          }
+          
           return false;
         }
         
@@ -398,38 +352,28 @@ class DutchGameHelpers {
         final loginModule = moduleManager.getModuleByType<LoginModule>();
         
         if (loginModule == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('DutchGameHelpers: Cannot auto-create guest - LoginModule not available');
-          }
+          
           return false;
         }
         
         // Attempt guest registration
-        if (LOGGING_SWITCH) {
-          _logger.info('DutchGameHelpers: Calling LoginModule.registerGuestUser');
-        }
+        
         final result = await loginModule.registerGuestUser(
           context: effectiveContext,
           guestProvisionSource: 'auto_websocket',
         );
         
         if (result['success'] != null) {
-          if (LOGGING_SWITCH) {
-            _logger.info('DutchGameHelpers: Guest user created successfully, waiting for login completion');
-          }
+          
           
           // Wait for login process to fully complete
           final loginCompleted = await _waitForLoginCompletion();
           if (!loginCompleted) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('DutchGameHelpers: Login completion timeout');
-            }
+            
             return false;
           }
           
-          if (LOGGING_SWITCH) {
-            _logger.info('DutchGameHelpers: Login completed, retrying ensureWebSocketReady');
-          }
+          
           // Recursively retry - now user should be fully logged in
           // Pass context to avoid re-fetching it
           return await ensureWebSocketReady(
@@ -437,15 +381,11 @@ class DutchGameHelpers {
             allowTransportResetRetry: allowTransportResetRetry,
           );
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.warning('DutchGameHelpers: Guest creation failed: ${result['error']}');
-          }
+          
           return false;
         }
       } catch (e, stackTrace) {
-        if (LOGGING_SWITCH) {
-          _logger.error('DutchGameHelpers: Error during auto-guest creation check: $e', error: e, stackTrace: stackTrace);
-        }
+        
         return false;
       }
     }
@@ -453,21 +393,13 @@ class DutchGameHelpers {
     // Get WebSocket manager (same path as AppManager app init: JWT + listeners + connect).
     final wsManager = WebSocketManager.instance;
 
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: ensureInitializedAndConnected()...');
-    }
+    
     final ready = await wsManager.ensureInitializedAndConnected();
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: ensureInitializedAndConnected result: $ready');
-    }
+    
     if (!ready) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('DutchGameHelpers: WebSocket not ready');
-      }
+      
       if (allowTransportResetRetry) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('DutchGameHelpers: Resetting transport and retrying ensureWebSocketReady once...');
-        }
+        
         wsManager.resetTransportState(reason: 'ensure_ready_init_failed');
         return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
       }
@@ -476,38 +408,26 @@ class DutchGameHelpers {
     
     // Wait for authentication to complete (with timeout; backend may call Python to validate token)
     const int authTimeoutSeconds = 10;
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: Waiting for authentication to complete...');
-    }
+    
     bool authCompleted = await _waitForAuthentication(timeoutSeconds: authTimeoutSeconds);
     if (!authCompleted) {
       // One retry: re-emit authenticate in case the first response was lost or backend was slow
-      if (LOGGING_SWITCH) {
-        _logger.warning('DutchGameHelpers: Auth timeout, retrying once...');
-      }
+      
       await wsManager.emitAuthenticate();
       authCompleted = await _waitForAuthentication(timeoutSeconds: authTimeoutSeconds);
     }
     if (!authCompleted) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('DutchGameHelpers: Authentication did not complete within timeout');
-      }
+      
       if (allowTransportResetRetry) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('DutchGameHelpers: Resetting transport after auth timeout, retrying once...');
-        }
+        
         wsManager.resetTransportState(reason: 'ensure_ready_auth_timeout');
         return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
       }
       return false;
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: Authentication completed');
-    }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: WebSocket is ready');
-    }
+    
+    
     return true;
   }
   
@@ -523,18 +443,14 @@ class DutchGameHelpers {
       final isAuthenticated = wsState['is_authenticated'] == true;
       
       if (isAuthenticated) {
-        if (LOGGING_SWITCH) {
-          _logger.info('DutchGameHelpers: Authentication confirmed');
-        }
+        
         return true;
       }
       
       await Future.delayed(checkInterval);
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.warning('DutchGameHelpers: Authentication timeout after ${timeoutSeconds}s');
-    }
+    
     return false;
   }
   
@@ -545,9 +461,7 @@ class DutchGameHelpers {
     final startTime = DateTime.now();
     const checkInterval = Duration(milliseconds: 100);
     
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameHelpers: Waiting for login completion...');
-    }
+    
     
     while (DateTime.now().difference(startTime).inSeconds < timeoutSeconds) {
       final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -557,23 +471,17 @@ class DutchGameHelpers {
       final email = loginState['email']?.toString() ?? '';
       
       if (isLoggedIn && userId.isNotEmpty && username.isNotEmpty && email.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('DutchGameHelpers: Login state complete - userId: $userId, username: $username, email: $email');
-        }
+        
         // Wait a bit more to ensure auth_login_complete hook has been processed
         await Future.delayed(const Duration(milliseconds: 500));
-        if (LOGGING_SWITCH) {
-          _logger.info('DutchGameHelpers: Login completion confirmed');
-        }
+        
         return true;
       }
       
       await Future.delayed(checkInterval);
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.warning('DutchGameHelpers: Login completion timeout after ${timeoutSeconds}s');
-    }
+    
     return false;
   }
   
@@ -645,9 +553,7 @@ class DutchGameHelpers {
         if (hasRetriedForSession) {
           throw Exception('WebSocket session is unstable - please retry.');
         }
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ joinRandomGame: session not stable after ready check, resetting transport and retrying once');
-        }
+        
         WebSocketManager.instance.resetTransportState(reason: 'join_random_unstable_session_pre_emit');
         return joinRandomGame(
           isClearAndCollect: isClearAndCollect,
@@ -665,14 +571,10 @@ class DutchGameHelpers {
         'randomJoinIsClearAndCollect': isClearAndCollect, // Store for use in start_match
         'pending_start_match_source': 'random_join',
       });
-      if (LOGGING_SWITCH) {
-        _logger.info('🎯 Set isRandomJoinInProgress=true and randomJoinIsClearAndCollect=$isClearAndCollect using updateStateSync');
-      }
+      
       
       // Emit join_random_game event via validated event emitter with isClearAndCollect flag
-      if (LOGGING_SWITCH) {
-        _logger.info('📤 joinRandomGame: emitting join_random_game (isClearAndCollect=$isClearAndCollect)');
-      }
+      
       await _eventEmitter.emit(
         eventType: 'join_random_game',
         data: {
@@ -688,12 +590,7 @@ class DutchGameHelpers {
         if (hasRetriedForSession) {
           throw Exception('WebSocket session changed while joining random game.');
         }
-        if (LOGGING_SWITCH) {
-          _logger.warning(
-            '⚠️ joinRandomGame: session changed during emit '
-            '(before=$readySessionId after=$postEmitSessionId). Retrying once.',
-          );
-        }
+        
         WebSocketManager.instance.resetTransportState(reason: 'join_random_session_changed_during_emit');
         return joinRandomGame(
           isClearAndCollect: isClearAndCollect,
@@ -702,9 +599,7 @@ class DutchGameHelpers {
           hasRetriedForSession: true,
         );
       }
-      if (LOGGING_SWITCH) {
-        _logger.info('📤 joinRandomGame: emit completed, waiting for WebSocket response');
-      }
+      
       
       // The emit returns immediately, but the actual response comes via WebSocket events
       // Return success - the actual join/creation will be handled via event handlers
@@ -837,9 +732,7 @@ class DutchGameHelpers {
       await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
       await ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats();
 
-      if (LOGGING_SWITCH) {
-        _logger.info('📊 DutchGameHelpers: Fetching user dutch_game stats from API');
-      }
+      
       
       // Get the ConnectionsApiModule instance from the global module manager
       final moduleManager = ModuleManager();
@@ -873,13 +766,7 @@ class DutchGameHelpers {
         final isSessionOrAuth = errorMessage.toString().toLowerCase().contains('session expired') ||
             errorMessage.toString().toLowerCase().contains('please log in again') ||
             (response['error']?.toString().toLowerCase() == 'unauthorized');
-        if (LOGGING_SWITCH) {
-          if (isSessionOrAuth) {
-            _logger.warning('⚠️ DutchGameHelpers: API auth/session (expected when not logged in): $errorMessage');
-          } else {
-            _logger.error('❌ DutchGameHelpers: API error: $errorMessage');
-          }
-        }
+        
         return {
           'success': false,
           'error': errorMessage,
@@ -889,9 +776,7 @@ class DutchGameHelpers {
       
       // Check if response indicates success
       if (response is! Map || response['success'] != true) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: API response indicates failure');
-        }
+        
         return {
           'success': false,
           'error': response['message'] ?? response['error'] ?? 'Failed to fetch user stats',
@@ -906,9 +791,7 @@ class DutchGameHelpers {
       final statsData = response['data'] as Map<String, dynamic>?;
       
       if (statsData == null) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Response missing data field');
-        }
+        
         return {
           'success': false,
           'error': 'Response missing data field',
@@ -916,9 +799,7 @@ class DutchGameHelpers {
         };
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: Successfully fetched dutch_game stats: ${statsData.keys.toList()}');
-      }
+      
       
       return {
         'success': true,
@@ -927,9 +808,7 @@ class DutchGameHelpers {
       };
       
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error fetching user dutch_game stats: $e', error: e, stackTrace: stackTrace);
-      }
+      
       return {
         'success': false,
         'error': e.toString(),
@@ -959,9 +838,7 @@ class DutchGameHelpers {
     bool? isCoinRequired,
   }) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('💰 DutchGameHelpers: Deducting $coins coins for game $gameId from ${playerIds.length} player(s)');
-      }
+      
       
       // Get the ConnectionsApiModule instance from the global module manager
       final moduleManager = ModuleManager();
@@ -990,9 +867,7 @@ class DutchGameHelpers {
       // Check if response contains error
       if (response is Map && response.containsKey('error')) {
         final errorMessage = response['message'] ?? response['error'] ?? 'Failed to deduct coins';
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DutchGameHelpers: API error: $errorMessage');
-        }
+        
         return {
           'success': false,
           'error': errorMessage,
@@ -1002,9 +877,7 @@ class DutchGameHelpers {
       
       // Check if response indicates success
       if (response is! Map || response['success'] != true) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: API response indicates failure');
-        }
+        
         return {
           'success': false,
           'error': response['message'] ?? response['error'] ?? 'Failed to deduct coins',
@@ -1015,9 +888,7 @@ class DutchGameHelpers {
       // Extract updated players from response
       final updatedPlayers = response['updated_players'] as List<dynamic>? ?? [];
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: Successfully deducted coins for ${updatedPlayers.length} player(s)');
-      }
+      
       
       // Refresh user stats to show updated coin count
       await fetchAndUpdateUserDutchGameData();
@@ -1032,9 +903,7 @@ class DutchGameHelpers {
       };
       
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error deducting game coins: $e', error: e, stackTrace: stackTrace);
-      }
+      
       return {
         'success': false,
         'error': e.toString(),
@@ -1052,18 +921,14 @@ class DutchGameHelpers {
   /// - false if there was an error or no data was found
   static Future<bool> fetchAndUpdateUserDutchGameData() async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('📊 DutchGameHelpers: Fetching and updating user dutch_game data');
-      }
+      
       
       // Fetch data from API
       final result = await getUserDutchGameData();
       
       if (result == null || result['success'] != true || result['data'] == null) {
         final error = result?['error'] ?? 'Unknown error';
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Failed to fetch dutch_game data: $error');
-        }
+        
         return false;
       }
       
@@ -1076,16 +941,12 @@ class DutchGameHelpers {
         // Removed userStatsLastUpdated - causes unnecessary state updates
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: Successfully updated local state with dutch_game data');
-      }
+      
       
       return true;
       
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error fetching and updating user dutch_game data: $e', error: e, stackTrace: stackTrace);
-      }
+      
       return false;
     }
   }
@@ -1097,9 +958,7 @@ class DutchGameHelpers {
       final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       return dutchState['userStats'] as Map<String, dynamic>?;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error getting user stats from state: $e');
-      }
+      
       return null;
     }
   }
@@ -1232,9 +1091,7 @@ class DutchGameHelpers {
       String subscriptionTier = '';
 
       if (fetchFromAPI) {
-        if (LOGGING_SWITCH) {
-          _logger.info('📊 DutchGameHelpers: Fetching fresh user stats from API for tier check');
-        }
+        
         final statsResult = await getUserDutchGameData();
 
         if (statsResult != null &&
@@ -1244,13 +1101,9 @@ class DutchGameHelpers {
           if (data != null) {
             subscriptionTier = (data['subscription_tier'] as String?)?.trim() ?? '';
           }
-          if (LOGGING_SWITCH) {
-            _logger.info('📊 DutchGameHelpers: Fetched subscription_tier from API: $subscriptionTier');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DutchGameHelpers: Failed to fetch stats from API, falling back to state');
-          }
+          
           final userStats = getUserDutchGameStats();
           subscriptionTier = (userStats?['subscription_tier'] as String?)?.trim() ?? '';
         }
@@ -1261,9 +1114,7 @@ class DutchGameHelpers {
 
       return subscriptionTier;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error checking subscription tier: $e');
-      }
+      
       return '';
     }
   }
@@ -1287,30 +1138,22 @@ class DutchGameHelpers {
     final required = gameLevel != null
         ? LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25)
         : requiredCoins;
-    if (LOGGING_SWITCH) {
-      _logger.info('📊 DutchGameHelpers: checkCoinsRequirement entry gameLevel=$gameLevel required=$required fetchFromAPI=$fetchFromAPI');
-    }
+    
     try {
       final subscriptionTier = await getSubscriptionTier(fetchFromAPI: fetchFromAPI);
 
       if (subscriptionTier == 'promotional') {
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DutchGameHelpers: User has promotional tier - skipping coin check (free play)');
-        }
+        
         return true;
       }
 
-      if (LOGGING_SWITCH) {
-        _logger.info('📊 DutchGameHelpers: Subscription tier "$subscriptionTier" - checking coins requirement');
-      }
+      
 
       int? currentCoins;
       Map<String, dynamic>? userStats;
 
       if (fetchFromAPI) {
-        if (LOGGING_SWITCH) {
-          _logger.info('📊 DutchGameHelpers: Fetching fresh user stats from API for coin check');
-        }
+        
         final statsResult = await getUserDutchGameData();
 
         if (statsResult != null &&
@@ -1320,13 +1163,9 @@ class DutchGameHelpers {
           if (data != null) {
             currentCoins = data['coins'] as int? ?? 0;
           }
-          if (LOGGING_SWITCH) {
-            _logger.info('📊 DutchGameHelpers: Fetched coins from API: $currentCoins');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DutchGameHelpers: Failed to fetch stats from API, falling back to state');
-          }
+          
           userStats = getUserDutchGameStats();
           if (userStats != null) {
             currentCoins = userStats['coins'] as int? ?? 0;
@@ -1335,9 +1174,7 @@ class DutchGameHelpers {
       } else {
         userStats = getUserDutchGameStats();
         if (userStats == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DutchGameHelpers: Cannot check coins - userStats not found');
-          }
+          
           return false;
         }
         currentCoins = userStats['coins'] as int? ?? 0;
@@ -1345,27 +1182,19 @@ class DutchGameHelpers {
 
       // No tier and no stats -> fail
       if (currentCoins == null) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Cannot check coins - no stats and no tier');
-        }
+        
         return false;
       }
 
       if (currentCoins < required) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Insufficient coins - Required: $required, Current: $currentCoins');
-        }
+        
         return false;
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: Coins check passed - Required: $required, Current: $currentCoins');
-      }
+      
       return true;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error checking coins requirement: $e');
-      }
+      
       return false;
     }
   }
@@ -1399,11 +1228,7 @@ class DutchGameHelpers {
         return;
       }
     }
-    if (LOGGING_SWITCH) {
-      _logger.warning(
-        'stashLastCoinPurchaseContextAndShowBuyModal: no navigator context after $maxAttempts attempts (stash still set)',
-      );
-    }
+    
   }
 
   /// Leaves the given game/room via existing WS logic and completely clears all state
@@ -1415,49 +1240,33 @@ class DutchGameHelpers {
     if (gameId.isEmpty) return;
     try {
       _recentlyLeftGameIds.add(gameId);
-      if (LOGGING_SWITCH) {
-        _logger.info('🚪 DutchGameHelpers: leaveGameAndClearStateForGameId($gameId) (marked recently left)');
-      }
+      
       final gameCoordinator = GameCoordinator();
       gameCoordinator.cancelLeaveGameTimer(gameId);
       if (gameId.startsWith('room_')) {
         try {
           await gameCoordinator.leaveGame(gameId: gameId);
-          if (LOGGING_SWITCH) {
-            _logger.info('🚪 DutchGameHelpers: Sent leave_room for $gameId');
-          }
+          
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DutchGameHelpers: leave_room failed for $gameId: $e');
-          }
+          
         }
       } else if (gameId.startsWith('practice_room_')) {
         try {
           PracticeModeBridge.instance.endPracticeSession();
-          if (LOGGING_SWITCH) {
-            _logger.info('🚪 DutchGameHelpers: Ended practice session for $gameId');
-          }
+          
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DutchGameHelpers: endPracticeSession for $gameId: $e');
-          }
+          
         }
       }
       try {
         GameStateStore.instance.clear(gameId);
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: GameStateStore.clear($gameId): $e');
-        }
+        
       }
       removePlayerFromGame(gameId: gameId);
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: leaveGameAndClearStateForGameId($gameId) done');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: leaveGameAndClearStateForGameId($gameId): $e');
-      }
+      
       rethrow;
     }
   }
@@ -1469,19 +1278,13 @@ class DutchGameHelpers {
       final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final games = dutchState['games'] as Map<String, dynamic>? ?? {};
       final ids = games.keys.map((e) => e.toString()).toList();
-      if (LOGGING_SWITCH) {
-        _logger.info('🚪 DutchGameHelpers: leaveAllGamesAndClearState - ${ids.length} games');
-      }
+      
       for (final gameId in ids) {
         await leaveGameAndClearStateForGameId(gameId);
       }
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: leaveAllGamesAndClearState done');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: leaveAllGamesAndClearState: $e');
-      }
+      
       rethrow;
     }
   }
@@ -1491,9 +1294,7 @@ class DutchGameHelpers {
   /// Only clears game state, not websocket state (websocket module handles that)
   static void removePlayerFromGame({required String gameId}) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🧹 DutchGameHelpers: Removing player from game $gameId');
-      }
+      
       
       final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
@@ -1501,9 +1302,7 @@ class DutchGameHelpers {
       // Remove the specific game from games map
       if (games.containsKey(gameId)) {
         games.remove(gameId);
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Removed game $gameId from games map');
-        }
+        
       }
       
       // Clear currentGameId if it matches the game we're leaving
@@ -1537,21 +1336,15 @@ class DutchGameHelpers {
         updates['currentPlayerStatus'] = '';
         updates['roundStatus'] = '';
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Cleared current game references');
-        }
+        
       }
       
       // Update state (this triggers widget rebuilds)
       _stateUpdater.updateState(updates);
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: Player removed from game $gameId, widgets will update');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error removing player from game: $e');
-      }
+      
     }
   }
 
@@ -1560,9 +1353,7 @@ class DutchGameHelpers {
   /// to prevent stale data from affecting new games
   static void clearGameState({String? gameId}) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🧹 DutchGameHelpers: Clearing game state${gameId != null ? " for game $gameId" : ""}');
-      }
+      
       
       // Clear all game-related state
       _stateUpdater.updateState({
@@ -1630,13 +1421,9 @@ class DutchGameHelpers {
       });
       DutchAnimRuntime.instance.reset();
 
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: Game state cleared successfully');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error clearing game state: $e');
-      }
+      
     }
   }
 
@@ -1647,31 +1434,21 @@ class DutchGameHelpers {
   /// Leaves all games (WS leave_room for multi) and clears state before any new match init or WS send to backend.
   static Future<void> clearAllGameStateBeforeNewGame() async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🧹 DutchGameHelpers: Clearing ALL game state before starting new game (reset to init)');
-      }
+      
       
       // 1. Reset all game-related components to init state (coordinator, emitter, store)
       try {
         GameCoordinator().resetToInit();
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: GameCoordinator.resetToInit()');
-        }
+        
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error resetting coordinator: $e');
-        }
+        
       }
       try {
         // Per MODE_SWITCHING_VERIFICATION: reset to WebSocket FIRST so leave_room routes to WS
         _eventEmitter.setTransportMode(EventTransportMode.websocket);
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Reset transport to WebSocket (before leaving rooms)');
-        }
+        
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error setting transport: $e');
-        }
+        
       }
       // 2. SSOT: Leave all games and clear state (before any new match init / WS to backend)
       await leaveAllGamesAndClearState();
@@ -1684,41 +1461,26 @@ class DutchGameHelpers {
         'totalJoinedGames': 0,
       });
       DutchAnimRuntime.instance.reset();
-      if (LOGGING_SWITCH) {
-        _logger.info('🧹 DutchGameHelpers: Synchronously cleared currentGameId, games, joinedGames');
-      }
+      
       
       // 3. End practice session and clear backend store (practice bridge + GameStateStore)
       try {
         PracticeModeBridge.instance.endPracticeSession();
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Ended practice session');
-        }
+        
       } catch (e, stackTrace) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error ending practice session: $e');
-          _logger.warning('⚠️ DutchGameHelpers: Stack trace:\n$stackTrace');
-        }
+        
       }
       try {
         GameStateStore.instance.clearAll();
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: GameStateStore.clearAll() (all room state reset)');
-        }
+        
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error clearing GameStateStore: $e');
-        }
+        
       }
       try {
         GameRegistry.instance.clearAll();
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: GameRegistry.clearAll() (all rounds reset)');
-        }
+        
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error clearing GameRegistry: $e');
-        }
+        
       }
       
       // 4. Clear practice user data and settings synchronously so getCurrentUserId/_getSessionId use WS identity
@@ -1727,13 +1489,9 @@ class DutchGameHelpers {
           'practiceUser': null,
           'practiceSettings': null,
         });
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DutchGameHelpers: Cleared practice user data and settings (sync)');
-        }
+        
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameHelpers: Error clearing practice user data: $e');
-        }
+        
       }
       
       // 5. Clear all game state using existing clearGameState method
@@ -1768,13 +1526,9 @@ class DutchGameHelpers {
         'pending_start_match_source': null,
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameHelpers: All game state cleared successfully before new game');
-      }
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameHelpers: Error clearing all game state: $e', error: e, stackTrace: stackTrace);
-      }
+      
     }
   }
     

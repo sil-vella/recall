@@ -2,18 +2,15 @@ import '../../00_base/adapter_base.dart';
 import '../../ext_plugins/revenuecat/main.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
-import '../../../tools/logging/logger.dart';
-
-/// RevenueCat adapter tracing (enable-logging-switch.mdc).
-const bool LOGGING_SWITCH = false;
-
 /// RevenueCat Adapter - Seamlessly integrates RevenueCat with existing architecture
 /// This adapter acts as a bridge between RevenueCat and your existing StateManager
 /// without requiring changes to either system.
 class RevenueCatAdapter extends AdapterBase {
   static RevenueCatAdapter? _instance;
 
-  final Logger _logger = Logger();
+  /// Set when RevenueCat adapter init fails at startup (SDK configure, logIn, or post-setup); cleared when SDK phase starts.
+  /// Use this to explain Buy coins / paywall (e.g. missing `--dart-define` even if `.env.local` has keys).
+  static String? lastSdkInitFailure;
 
   // RevenueCat SDK instance (will be initialized when dependency is added)
   dynamic _purchases;
@@ -30,52 +27,35 @@ class RevenueCatAdapter extends AdapterBase {
 
   @override
   Future<void> _initializeAdapter() async {
+    // Do not swallow failures: if configure() never runs, Purchases.* crashes on native.
     try {
-      // Initialize RevenueCat SDK (when dependency is added)
       await _initializeRevenueCatSDK();
-
-      // Register subscription state in existing StateManager
       _registerWithStateManager();
-
-      // Set up listeners for automatic state updates
       _setupStateListeners();
-
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('RevenueCatAdapter: _initializeAdapter failed: $e');
-      }
-      // Continue without RevenueCat - app will work with free features
+    } catch (e, _) {
+      // [_initializeRevenueCatSDK] sets [lastSdkInitFailure] only for errors inside its try; failures
+      // in registration/listeners left it null — surface them for CoinPurchaseScreen.
+      lastSdkInitFailure ??= e.toString();
+      rethrow;
     }
   }
 
   /// Initialize RevenueCat SDK with user authentication
   Future<void> _initializeRevenueCatSDK() async {
+    lastSdkInitFailure = null;
+
     try {
-      // Initialize the RevenueCat plugin (real SDK)
       await configureRevenueCatSDK();
 
-      // Get user data from AuthManager (best approach)
       final userData = authManager.getCurrentUserData();
       final userId = userData['userId'];
       final isLoggedIn = userData['isLoggedIn'] ?? false;
 
       if (isLoggedIn && userId != null) {
-        if (LOGGING_SWITCH) {
-          _logger.info('RevenueCatAdapter: Purchases.logIn at init userId=$userId');
-        }
-        // Link RevenueCat to authenticated user
         await Purchases.logIn(userId);
-      } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('RevenueCatAdapter: anonymous RC user at init (not logged in)');
-        }
-        // Let RevenueCat create anonymous ID for guest users
       }
-
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('RevenueCatAdapter: _initializeRevenueCatSDK error: $e', error: e);
-      }
+    } catch (e, _) {
+      lastSdkInitFailure = e.toString();
       rethrow;
     }
   }
@@ -96,11 +76,6 @@ class RevenueCatAdapter extends AdapterBase {
   void _setupStateListeners() {
     // Set up real RevenueCat listener
     Purchases.addCustomerInfoUpdateListener((customerInfo) {
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'RevenueCatAdapter: customerInfo update entitlements=${customerInfo.entitlements.all.keys.toList()}',
-        );
-      }
       _updateStateManager({
         'isSubscribed': customerInfo.entitlements.all.isNotEmpty,
         'plan': customerInfo.entitlements.all.keys.firstOrNull ?? 'free',
@@ -129,10 +104,7 @@ class RevenueCatAdapter extends AdapterBase {
         "lastUpdated": DateTime.now().toIso8601String(),
       });
 
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('RevenueCatAdapter: _updateStateManager: $e');
-      }
+    } catch (_) {
     }
   }
 
@@ -152,10 +124,7 @@ class RevenueCatAdapter extends AdapterBase {
         });
       }
 
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('RevenueCatAdapter: _triggerHooks: $e');
-      }
+    } catch (_) {
     }
   }
 
@@ -200,12 +169,6 @@ class RevenueCatAdapter extends AdapterBase {
       // Get offerings from RevenueCat plugin
       final offerings = await Purchases.getOfferings();
       final offering = offerings.current;
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'RevenueCatAdapter: purchaseProduct currentOffering=${offering?.identifier} '
-          'packageIds=${offering?.availablePackages.map((p) => p.storeProduct.identifier).toList() ?? []}',
-        );
-      }
 
       if (offering == null) {
         return {"success": false, "error": "No offerings available"};
@@ -240,15 +203,9 @@ class RevenueCatAdapter extends AdapterBase {
         // Handle failed purchase
       }
 
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCatAdapter: purchaseProduct success productId=$productId');
-      }
       return {"success": true, "message": "Product purchased successfully"};
 
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('RevenueCatAdapter: purchaseProduct failed: $e');
-      }
       return {"success": false, "error": "Purchase failed: $e"};
     }
   }
@@ -266,15 +223,9 @@ class RevenueCatAdapter extends AdapterBase {
         'features': customerInfo.entitlements.all.keys.toList(),
       });
 
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCatAdapter: restorePurchases done');
-      }
       return {"success": true, "message": "Purchases restored"};
 
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('RevenueCatAdapter: restorePurchases failed: $e');
-      }
       return {"success": false, "error": "Restore failed: $e"};
     }
   }
@@ -300,9 +251,6 @@ class RevenueCatAdapter extends AdapterBase {
       }).toList();
 
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('RevenueCatAdapter: getProducts failed: $e');
-      }
       return [];
     }
   }
@@ -319,22 +267,13 @@ class RevenueCatAdapter extends AdapterBase {
       final isLoggedIn = userData['isLoggedIn'] ?? false;
       
       if (isLoggedIn && userId != null) {
-        if (LOGGING_SWITCH) {
-          _logger.info('RevenueCatAdapter: handleUserAuthChange logIn userId=$userId');
-        }
         // Link RevenueCat to authenticated user
         await Purchases.logIn(userId);
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('RevenueCatAdapter: handleUserAuthChange logOut');
-        }
         // Log out from RevenueCat (creates new anonymous ID)
         await Purchases.logOut();
       }
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('RevenueCatAdapter: handleUserAuthChange error: $e');
-      }
+    } catch (_) {
     }
   }
 
@@ -352,4 +291,4 @@ class RevenueCatAdapter extends AdapterBase {
       "userData": authManager.getCurrentUserData(),
     };
   }
-} 
+}

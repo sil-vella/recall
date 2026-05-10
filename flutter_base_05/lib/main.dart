@@ -13,13 +13,9 @@ import 'core/managers/module_registry.dart';
 import 'core/managers/navigation_manager.dart';
 import 'core/managers/provider_manager.dart';
 import 'modules/analytics_module/analytics_module.dart';
-import 'tools/logging/logger.dart';
 import 'utils/firebase_runtime_config.dart';
 import 'utils/consts/theme_consts.dart';
 import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
-
-// Logging switch for main.dart - enable for debugging init (see .cursor/rules/enable-logging-switch.mdc)
-const bool LOGGING_SWITCH = false; // App init + promotional loader — enable-logging-switch.mdc
 
 /// Hides the Android system navigation bar so the app uses the full screen height;
 /// the bar can be revealed briefly with an edge swipe. Status bar stays visible.
@@ -35,16 +31,11 @@ void _applyAndroidImmersiveBottomBar() {
 }
 
 Future<void> main() async {
-  final logger = Logger();
-  if (LOGGING_SWITCH) logger.info('main: start', isOn: true);
-
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
   _applyAndroidImmersiveBottomBar();
-  if (LOGGING_SWITCH) logger.info('main: WidgetsBinding done', isOn: true);
 
   await PromotionalAdsConfigLoader.initialize();
-  if (LOGGING_SWITCH) logger.info('main: promotional ads config loaded', isOn: true);
 
   // Initialize Firebase (Analytics, AdMob-ready) only when enabled.
   if (FirebaseRuntimeConfig.isEnabled) {
@@ -54,26 +45,19 @@ Future<void> main() async {
           options: DefaultFirebaseOptions.currentPlatform,
         );
       }
-      if (LOGGING_SWITCH) logger.info('main: Firebase.initializeApp done', isOn: true);
     } on FirebaseException catch (e) {
       if (e.code == 'duplicate-app') {
         // Native side already has default app (e.g. Android auto-init from google-services.json).
-        if (LOGGING_SWITCH) logger.info('main: Firebase already initialized (duplicate-app ignored)', isOn: true);
       } else {
-        if (LOGGING_SWITCH) logger.error('main: Firebase.initializeApp failed', error: e, stackTrace: e.stackTrace, isOn: true);
         rethrow;
       }
-    } catch (e, st) {
-      if (LOGGING_SWITCH) logger.error('main: Firebase.initializeApp failed', error: e, stackTrace: st, isOn: true);
+    } catch (_) {
       rethrow;
     }
-  } else {
-    if (LOGGING_SWITCH) logger.info('main: Firebase initialization skipped (FIREBASE_SWITCH=false)', isOn: true);
   }
 
   // Set up global error handlers for analytics tracking
   _setupErrorHandlers();
-  if (LOGGING_SWITCH) logger.info('main: error handlers set', isOn: true);
 
   // Initialize platform-specific implementations
   await Future.wait([
@@ -83,16 +67,13 @@ Future<void> main() async {
   // Initialize module registry and manager
   final moduleRegistry = ModuleRegistry();
   final moduleManager = ModuleManager();
-  if (LOGGING_SWITCH) logger.info('main: ModuleRegistry/ModuleManager created', isOn: true);
 
   // Initialize registry and register all modules
   moduleRegistry.initializeRegistry();
   moduleRegistry.registerAllModules(moduleManager);
-  if (LOGGING_SWITCH) logger.info('main: modules registered', isOn: true);
 
   // Register core providers
   ProviderManager().registerCoreProviders();
-  if (LOGGING_SWITCH) logger.info('main: calling runApp', isOn: true);
 
   // AdSense view factories (web only); no-op on mobile
   if (kIsWeb) adsense_placeholder.registerAdSenseViewFactories();
@@ -117,7 +98,6 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _isInitializing = false;
-  static final Logger _logger = Logger();
 
   @override
   void initState() {
@@ -145,7 +125,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (_isInitializing) {
       return;
     }
-    if (LOGGING_SWITCH) _logger.info('_initializeApp: start', isOn: true);
 
     setState(() {
       _isInitializing = true;
@@ -154,7 +133,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     try {
       final appManager = Provider.of<AppManager>(context, listen: false);
       final navigationManager = Provider.of<NavigationManager>(context, listen: false);
-      if (LOGGING_SWITCH) _logger.info('_initializeApp: got AppManager and NavigationManager', isOn: true);
 
       // Set up navigation callback first
       navigationManager.setNavigationCallback((route) {
@@ -170,9 +148,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       
       // Initialize the app and wait for completion
       if (!appManager.isInitialized) {
-        if (LOGGING_SWITCH) _logger.info('_initializeApp: calling appManager.initializeApp', isOn: true);
         await appManager.initializeApp(context);
-        if (LOGGING_SWITCH) _logger.info('_initializeApp: appManager.initializeApp done', isOn: true);
       }
 
       // Trigger rebuild after initialization is complete
@@ -180,11 +156,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         setState(() {
           _isInitializing = false;
         });
-        if (LOGGING_SWITCH) _logger.info('🚀 App fully loaded and initialized successfully!', isOn: true);
       }
 
-    } catch (e, st) {
-      if (LOGGING_SWITCH) _logger.error('_initializeApp: error', error: e, stackTrace: st, isOn: true);
+    } catch (_) {
       if (mounted) {
         setState(() {
           _isInitializing = false;
@@ -247,26 +221,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
 /// Set up global error handlers for analytics tracking
 void _setupErrorHandlers() {
-  final logger = Logger();
-  
   // Handle Flutter framework errors
   FlutterError.onError = (FlutterErrorDetails details) {
-    // Log to our logger system
-    if (LOGGING_SWITCH) {
-      logger.error(
-        'Flutter Framework Error: ${details.exception}',
-        error: details.exception,
-        stackTrace: details.stack,
-      );
-    }
-    
-    // Log additional context
-    if (LOGGING_SWITCH) {
-      logger.debug(
-        'Flutter Error Details - Library: ${details.library}, Context: ${details.context}',
-      );
-    }
-    
     // Present error (shows red screen in debug mode)
     FlutterError.presentError(details);
     
@@ -284,15 +240,6 @@ void _setupErrorHandlers() {
   
   // Handle platform errors (async errors not caught by Flutter)
   PlatformDispatcher.instance.onError = (error, stack) {
-    // Log to our logger system
-    if (LOGGING_SWITCH) {
-      logger.error(
-        'Platform Error: $error',
-        error: error,
-        stackTrace: stack,
-      );
-    }
-    
     // Track in analytics
     _trackError(
       error: error.toString(),

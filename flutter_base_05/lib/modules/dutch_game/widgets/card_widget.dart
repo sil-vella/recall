@@ -7,7 +7,6 @@ import '../utils/card_dimensions.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../../utils/consts/config.dart';
 import '../../../../core/managers/state_manager.dart';
-import '../../../../tools/logging/logger.dart';
 import '../utils/consumables_catalog_bootstrap.dart';
 
 /// A reusable card widget for the Dutch game
@@ -15,8 +14,6 @@ import '../utils/consumables_catalog_bootstrap.dart';
 /// Size is determined at the placement widget level and passed as dimensions.
 /// Config only controls appearance (displayMode, showPoints, etc.)
 class CardWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; set false after test
-  static final Logger _logger = Logger();
   final CardModel card;
   final Size dimensions; // Required - size determined at placement widget level
   final CardDisplayConfig config;
@@ -488,9 +485,7 @@ class CardWidget extends StatelessWidget {
         image: const AssetImage('assets/images/card_back.webp'),
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
-          if (LOGGING_SWITCH) {
-            _logger.error('🖼️ CardWidget: Asset load error for card_back.webp');
-          }
+          
           return Icon(
             Icons.broken_image,
             size: dimensions.width * 0.35,
@@ -528,16 +523,12 @@ class CardWidget extends StatelessWidget {
           );
         },
         errorBuilder: (context, error, stackTrace) {
-          if (LOGGING_SWITCH) {
-            _logger.error('🖼️ CardWidget: Network image load error, falling back to asset');
-          }
+          
           return Image(
             image: const AssetImage('assets/images/card_back.webp'),
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) {
-              if (LOGGING_SWITCH) {
-                _logger.error('🖼️ CardWidget: Asset fallback also failed');
-              }
+              
               return Icon(
                 Icons.broken_image,
                 size: dimensions.width * 0.35,

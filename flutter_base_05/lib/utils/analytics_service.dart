@@ -1,10 +1,8 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 
-import '../tools/logging/logger.dart';
 import 'firebase_runtime_config.dart';
 
 class AnalyticsService {
-  static const bool LOGGING_SWITCH = false;
 
   static final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
@@ -18,17 +16,9 @@ class AnalyticsService {
         screenName: screenName,
         screenClass: screenName,
       );
-      if (LOGGING_SWITCH) {
-        Logger().info('AnalyticsService: logScreenView $screenName');
-      }
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        Logger().error(
-          'AnalyticsService: logScreenView failed',
-          error: e,
-          stackTrace: stackTrace,
-        );
-      }
+      
     }
   }
 
@@ -40,13 +30,7 @@ class AnalyticsService {
     try {
       await _analytics.setUserId(id: id);
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        Logger().error(
-          'AnalyticsService: setUserId failed',
-          error: e,
-          stackTrace: stackTrace,
-        );
-      }
+      
     }
   }
 
@@ -55,11 +39,7 @@ class AnalyticsService {
     Map<String, Object>? parameters,
   }) async {
     if (!FirebaseRuntimeConfig.isEnabled) {
-      if (LOGGING_SWITCH) {
-        Logger().info(
-          'AnalyticsService: skipped event $name because FIREBASE_SWITCH=false',
-        );
-      }
+      
       return;
     }
 
@@ -81,20 +61,9 @@ class AnalyticsService {
       }
 
       await _analytics.logEvent(name: name, parameters: mergedParameters);
-      if (LOGGING_SWITCH) {
-        Logger().info(
-          'AnalyticsService: logged event $name'
-          ' params=$mergedParameters',
-        );
-      }
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        Logger().error(
-          'AnalyticsService: failed to log event $name',
-          error: e,
-          stackTrace: stackTrace,
-        );
-      }
+      
     }
   }
 }

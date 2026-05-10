@@ -1,4 +1,3 @@
-import 'package:dutch/tools/logging/logger.dart';
 
 /// Room information for practice mode
 class RoomInfoStub {
@@ -30,11 +29,9 @@ class RoomInfoStub {
 
 /// Stub implementation of RoomManager for practice mode
 class RoomManagerStub {
-  final Logger _logger = Logger();
   final Map<String, RoomInfoStub> _rooms = {};
   final Map<String, String> _sessionToRoom = {};
 
-  static const bool LOGGING_SWITCH = false; // Enabled for practice bridge / match start
 
   RoomManagerStub();
 
@@ -61,9 +58,7 @@ class RoomManagerStub {
     _rooms[roomId] = room;
     _sessionToRoom[creatorSessionId] = roomId;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('RoomManagerStub: Created practice room $roomId (phase-based timers enabled)');
-    }
+    
     return roomId;
   }
 
@@ -72,9 +67,7 @@ class RoomManagerStub {
     if (room == null) return false;
     
     _sessionToRoom[sessionId] = roomId;
-    if (LOGGING_SWITCH) {
-      _logger.info('RoomManagerStub: Joined practice room $roomId');
-    }
+    
     return true;
   }
 

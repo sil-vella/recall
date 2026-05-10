@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../../../utils/consts/config.dart';
 import '../../../backend_core/utils/level_matcher.dart';
@@ -1206,9 +1205,6 @@ class MessagesWidget extends StatefulWidget {
 }
 
 class _MessagesWidgetState extends State<MessagesWidget> {
-  static const bool LOGGING_SWITCH = false; // Enabled for winner modal debugging
-  static final Logger _logger = Logger();
-
   /// Immutable snapshot — modal UI reads only this, never live state.
   GameEndedModalData? _gameEndedData;
   bool _snapshotSchedulePending = false;
@@ -1297,10 +1293,7 @@ class _MessagesWidgetState extends State<MessagesWidget> {
         final autoClose = messagesData['autoClose'] ?? false;
         final autoCloseDelay = messagesData['autoCloseDelay'] ?? 3000;
 
-        if (LOGGING_SWITCH) {
-          final contentPreview = content.length > 50 ? '${content.substring(0, 50)}...' : content;
-          _logger.info('📬 MessagesWidget: Non-game-ended modal - title="$title", content="$contentPreview"');
-        }
+        
 
         return _GenericMessageModalLayer(
           title: title,
@@ -1317,9 +1310,7 @@ class _MessagesWidgetState extends State<MessagesWidget> {
 
   void _closeMessage(BuildContext context) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('MessagesWidget: Closing message modal');
-      }
+      
 
       final wasGameEnded = _gameEndedData != null ||
           StateManager().getModuleState<Map<String, dynamic>>('dutch_game')?['gamePhase']?.toString() ==
@@ -1351,9 +1342,7 @@ class _MessagesWidgetState extends State<MessagesWidget> {
         NavigationManager().navigateTo('/dutch/lobby');
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('MessagesWidget: Failed to close message: $e');
-      }
+      
     }
   }
 }

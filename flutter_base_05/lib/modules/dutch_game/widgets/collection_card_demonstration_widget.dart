@@ -6,7 +6,6 @@ import '../models/card_display_config.dart';
 import '../utils/card_dimensions.dart';
 import 'card_widget.dart';
 import '../../../utils/consts/theme_consts.dart';
-import '../../../tools/logging/logger.dart';
 
 /// Demonstration widget for collection card phase
 /// 
@@ -23,9 +22,6 @@ class CollectionCardDemonstrationWidget extends StatefulWidget {
 
 class _CollectionCardDemonstrationWidgetState extends State<CollectionCardDemonstrationWidget>
     with TickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
-  static final Logger _logger = Logger();
-  
   int _animationPhase = 0; // 0 = idle, 1 = animating
   late AnimationController _animationController;
   late Animation<Offset> _collectionCardAnimation;

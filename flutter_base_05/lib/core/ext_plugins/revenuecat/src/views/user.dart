@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter/services.dart';
 import '../components/native_dialog.dart';
-import '../../../../../tools/logging/logger.dart';
-
-/// RC user screen tracing (enable-logging-switch.mdc).
-const bool LOGGING_SWITCH = false;
 
 /// Generic User Management Widget for RevenueCat
 /// Handles user login, logout, and purchase restoration
@@ -26,8 +22,6 @@ class UserScreen extends StatefulWidget {
 }
 
 class _UserScreenState extends State<UserScreen> {
-  final Logger _logger = Logger();
-
   bool _isLoading = false;
   String _currentUserID = '';
   bool _isLoggedIn = false;
@@ -42,14 +36,8 @@ class _UserScreenState extends State<UserScreen> {
     try {
       _currentUserID = await Purchases.appUserID;
       _isLoggedIn = _currentUserID.isNotEmpty;
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCat UserScreen: appUserID loaded len=${_currentUserID.length}');
-      }
       setState(() {});
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('RevenueCat UserScreen: _loadCurrentUser error: $e');
-      }
+    } catch (_) {
     }
   }
 
@@ -59,16 +47,10 @@ class _UserScreenState extends State<UserScreen> {
     });
 
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCat UserScreen: logIn …');
-      }
       await Purchases.logIn(newAppUserID);
       _currentUserID = await Purchases.appUserID;
       _isLoggedIn = true;
       widget.onUserLogin?.call(_currentUserID);
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCat UserScreen: logIn ok');
-      }
     } on PlatformException catch (e) {
       await showDialog(
         context: context,
@@ -91,16 +73,10 @@ class _UserScreenState extends State<UserScreen> {
     });
 
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCat UserScreen: logOut …');
-      }
       await Purchases.logOut();
       _currentUserID = await Purchases.appUserID;
       _isLoggedIn = false;
       widget.onUserLogout?.call();
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCat UserScreen: logOut ok');
-      }
     } on PlatformException catch (e) {
       await showDialog(
         context: context,
@@ -123,14 +99,8 @@ class _UserScreenState extends State<UserScreen> {
     });
 
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCat UserScreen: restorePurchases …');
-      }
       await Purchases.restorePurchases();
       widget.onRestorePurchases?.call();
-      if (LOGGING_SWITCH) {
-        _logger.info('RevenueCat UserScreen: restorePurchases ok');
-      }
     } on PlatformException catch (e) {
       await showDialog(
         context: context,

@@ -1,12 +1,10 @@
 import 'dart:async';
 import '../../../../core/managers/state_manager.dart';
-import '../../../../tools/logging/logger.dart';
 import '../../../../utils/analytics_service.dart';
 import 'dutch_game_state_updater.dart';
 import 'player_action.dart';
 import '../utils/dutch_game_helpers.dart';
 
-const bool LOGGING_SWITCH = false; // Random join → start_match / game state (enable-logging-switch.mdc; set false after test)
 
 /// Game Coordinator for handling all player game actions
 /// 
@@ -18,7 +16,6 @@ class GameCoordinator {
   factory GameCoordinator() => _instance;
   GameCoordinator._internal();
   
-  final Logger _logger = Logger();
   Timer? _leaveGameTimer; // Track active leave timer (survives widget disposal)
   String? _pendingLeaveGameId; // Track which game has pending leave
   
@@ -54,24 +51,15 @@ class GameCoordinator {
   Future<bool> leaveGame({
     required String gameId,
   }) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('GameCoordinator.leaveGame: Called with gameId: $gameId');
-    }
+    
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameCoordinator.leaveGame: Creating PlayerAction.leaveGame for $gameId');
-        _logger.info('GameCoordinator.leaveGame: Executing leave_room event for $gameId');
-      }
+      
       final action = PlayerAction.leaveGame(gameId: gameId);
       await action.execute();
-      if (LOGGING_SWITCH) {
-        _logger.info('GameCoordinator.leaveGame: Successfully executed leave_room event for $gameId');
-      }
+      
       return true;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameCoordinator.leaveGame: Error leaving game $gameId: $e');
-      }
+      
       return false;
     }
   }
@@ -83,20 +71,14 @@ class GameCoordinator {
     // Cancel any existing timer first
     if (_leaveGameTimer != null) {
       _leaveGameTimer?.cancel();
-      if (LOGGING_SWITCH) {
-        _logger.info('GameCoordinator: Cancelled existing leave timer for $_pendingLeaveGameId');
-      }
+      
     }
     
     _pendingLeaveGameId = gameId;
-    if (LOGGING_SWITCH) {
-      _logger.info('GameCoordinator: Starting 30-second leave timer for game $gameId');
-    }
+    
     
     _leaveGameTimer = Timer(const Duration(seconds: 30), () {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameCoordinator: 30-second timer expired for game $gameId - executing leave');
-      }
+      
       _executeLeaveGame(gameId);
     });
   }
@@ -105,9 +87,7 @@ class GameCoordinator {
   /// Called when user returns to the same game within 30 seconds
   void cancelLeaveGameTimer(String? gameId) {
     if (_leaveGameTimer != null && (gameId == null || _pendingLeaveGameId == gameId)) {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameCoordinator: Cancelling leave timer for game $_pendingLeaveGameId');
-      }
+      
       _leaveGameTimer?.cancel();
       _leaveGameTimer = null;
       _pendingLeaveGameId = null;
@@ -121,17 +101,13 @@ class GameCoordinator {
       _leaveGameTimer = null;
     }
     _pendingLeaveGameId = null;
-    if (LOGGING_SWITCH) {
-      _logger.info('GameCoordinator: resetToInit() - cleared timer and pending leave');
-    }
+    
   }
   
   /// Execute leave game after timer expires
   /// Handles both multiplayer and practice mode
   void _executeLeaveGame(String gameId) {
-    if (LOGGING_SWITCH) {
-      _logger.info('GameCoordinator: Executing leave for game $gameId');
-    }
+    
     
     // Clear timer references
     _leaveGameTimer = null;
@@ -140,13 +116,9 @@ class GameCoordinator {
     // For multiplayer games (room_*), send leave_room event to backend
     // This removes the player from the game on the backend
     if (gameId.startsWith('room_')) {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameCoordinator: Sending leave_room event for multiplayer game $gameId');
-      }
+      
       leaveGame(gameId: gameId).catchError((e) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameCoordinator: Error leaving game: $e');
-        }
+        
         return false;
       });
     }
@@ -154,18 +126,14 @@ class GameCoordinator {
     // For practice games (practice_room_*), just clear state (no backend event needed)
     // Practice mode bridge handles its own cleanup
     if (gameId.startsWith('practice_room_')) {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameCoordinator: Clearing state for practice game $gameId');
-      }
+      
     }
     
     // Clear game state: remove player from games map and clear current game references
     // This triggers widget updates through StateManager
     DutchGameHelpers.removePlayerFromGame(gameId: gameId);
     
-    if (LOGGING_SWITCH) {
-      _logger.info('GameCoordinator: Leave completed for game $gameId');
-    }
+    
   }
   
   /// Create and execute a start match action
@@ -176,9 +144,7 @@ class GameCoordinator {
       final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
       
       if (currentGameId.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('GameCoordinator.startMatch: currentGameId is empty - cannot start match (state may not be set yet or was cleared)');
-        }
+        
         return false;
       }
       
@@ -220,9 +186,7 @@ class GameCoordinator {
       );
       return true;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameCoordinator.startMatch: Error: $e');
-      }
+      
       rethrow;
     }
   }

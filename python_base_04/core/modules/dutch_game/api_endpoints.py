@@ -273,18 +273,26 @@ def _validate_token_impl():
     
     try:
         data = request.get_json()
-        custom_log(f"📦 API: Request data: {data}", level="DEBUG", isOn=LOGGING_SWITCH)
-        
+        if not isinstance(data, dict):
+            data = {}
+        if LOGGING_SWITCH:
+            safe = {k: ("<redacted>" if k == "token" else v) for k, v in data.items()}
+            custom_log(f"📦 API: validate_token keys={list(data.keys())} body={safe}", level="DEBUG", isOn=True)
+
         token = data.get('token')
-        
+
         if not token:
             custom_log("❌ API: No token provided in request", level="WARNING", isOn=LOGGING_SWITCH)
             return jsonify({
                 'valid': False,
                 'error': 'No token provided'
             }), 400
-        
-        custom_log(f"🔍 API: Validating token: {token[:20]}...", level="INFO", isOn=LOGGING_SWITCH)
+
+        custom_log(
+            f"🔍 API: Validating token (length={len(str(token))})",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
         
         jwt_manager = JWTManager()
         # When Dart backend calls with valid X-Service-Key, skip Redis revoke check (token may not be in Redis)

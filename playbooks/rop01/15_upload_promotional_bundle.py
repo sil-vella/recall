@@ -140,7 +140,7 @@ def main() -> None:
     print(f"{Colors.BLUE}Media files:{Colors.NC} {len(media_files)} under {LOCAL_MEDIA_DIR} (excl. card_back/table_logo)")
     print(f"{Colors.BLUE}Remote JSON:{Colors.NC} {REMOTE_JSON}")
     print(f"{Colors.BLUE}Remote adverts:{Colors.NC} {REMOTE_ADVERTS}")
-    print(f"{Colors.BLUE}Expected manifest URL:{Colors.NC} https://dutch.mt/sponsors/promotional_ads.json")
+    print(f"{Colors.BLUE}Expected manifest URL:{Colors.NC} https://dutch.reignofplay.com/sponsors/promotional_ads.json")
     print()
 
     if not confirm("Proceed with upload? (y/n): "):
@@ -202,8 +202,8 @@ def main() -> None:
         )
 
     print(f"\n{Colors.GREEN}=== Done ==={Colors.NC}")
-    print(f"Manifest: https://dutch.mt/sponsors/promotional_ads.json")
-    print(f"Example media: https://dutch.mt/sponsors/adverts/<filename>")
+    print(f"Manifest: https://dutch.reignofplay.com/sponsors/promotional_ads.json")
+    print(f"Example media: https://dutch.reignofplay.com/sponsors/adverts/<filename>")
 
 
 if __name__ == '__main__':

@@ -20,10 +20,7 @@ import '../../modules/promotional_ads_module/ad_registry.dart';
 import '../../modules/promotional_ads_module/widgets/promotional_bottom_strip.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
-import '../../tools/logging/logger.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
-
-const bool LOGGING_SWITCH = false; // BaseScreen + promotional strip debug — enable-logging-switch.mdc; set false after test
 
 abstract class BaseScreen extends StatefulWidget {
   const BaseScreen({Key? key}) : super(key: key);
@@ -76,7 +73,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   late final AppManager appManager;
   final ModuleManager _moduleManager = ModuleManager();
   BannerAdModule? bannerAdModule;
-  final Logger _logger = Logger();
   Map<String, dynamic>? _cachedBottomPromo;
   String _cachedBottomSource = 'sponsors';
 
@@ -704,26 +700,12 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     //     ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
                     //     : (bannerAdModule != null ? 50.0 : 0.0);
                     
-                    if (LOGGING_SWITCH) {
-                      _logger.info(
-                        'BaseScreen LayoutBuilder: maxHeight=${constraints.maxHeight}, '
-                        'maxWidth=${constraints.maxWidth}, bottomPadding=${MediaQuery.of(context).padding.bottom}, '
-                        'bannerAdModule=${bannerAdModule != null}',
-                      );
-                    }
-                    
                     final bottomPromo = _cachedBottomPromo;
                     final bottomSource = _cachedBottomSource;
                     final useAdmobBottom =
                         bottomSource == 'admob' || bottomSource == 'admobs';
                     final promoHeight =
                         !useAdmobBottom && bottomPromo != null ? 44.0 : 0.0;
-                    if (LOGGING_SWITCH) {
-                      _logger.info(
-                        'BaseScreen promo strip: bottomSource=$bottomSource useAdmobBottom=$useAdmobBottom '
-                        'bottomPromo=${bottomPromo != null} promoHeight=$promoHeight',
-                      );
-                    }
                     final bottomBannerHeight = useAdmobBottom
                         ? (kIsWeb
                             ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
@@ -758,13 +740,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                       Expanded(
                         child: LayoutBuilder(
                           builder: (context, contentConstraints) {
-                            if (LOGGING_SWITCH) {
-                              _logger.info(
-                                'BaseScreen: Content area for ${widget.runtimeType}, '
-                                'contentConstraints.maxHeight=${contentConstraints.maxHeight}, '
-                                'contentConstraints.maxWidth=${contentConstraints.maxWidth}',
-                              );
-                            }
                             // Pass full constraints to content - screens take full size
                             return buildContent(context);
                           },

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../widgets/dutch_slice_builder.dart';
 
@@ -9,9 +8,6 @@ import '../../../widgets/dutch_slice_builder.dart';
 /// as an overlay at the bottom of the screen.
 /// Only visible when showInstructions is true and actionText is set in state.
 class ActionTextWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false;
-  static final Logger _logger = Logger();
-  
   const ActionTextWidget({Key? key}) : super(key: key);
 
   @override
@@ -41,9 +37,7 @@ class ActionTextWidget extends StatelessWidget {
         final gameState = gameData?['game_state'] as Map<String, dynamic>?;
         final showInstructions = gameState?['showInstructions'] as bool? ?? false;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('ActionTextWidget: isVisible=$isVisible, text=$text, showInstructions=$showInstructions');
-        }
+        
         
         // Don't render if not visible, text is empty, or instructions are disabled
         if (!isVisible || text.isEmpty || !showInstructions) {

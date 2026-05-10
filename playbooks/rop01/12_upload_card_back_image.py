@@ -2,7 +2,7 @@
 """
 Upload Card Back Image Script
 Reads the default card back image from sponsors/media/card_back.webp (relative to project root)
-and uploads it to the VPS at /var/www/dutch.reignofplay.com/sponsors/media/card_back.webp (served at https://dutch.mt/...).
+and uploads it to the VPS at /var/www/dutch.reignofplay.com/sponsors/media/card_back.webp (served at https://dutch.reignofplay.com/...).
 Creates the remote directory structure if it doesn't exist.
 """
 
@@ -134,7 +134,7 @@ def upload_image(local_image_path: Path):
     
     print(f"\n{Colors.GREEN}=== Upload Complete ==={Colors.NC}")
     print(f"Image available at: {Colors.BLUE}{REMOTE_IMAGE_PATH}{Colors.NC}")
-    print(f"Expected URL: {Colors.BLUE}https://dutch.mt/sponsors/media/card_back.webp{Colors.NC}")
+    print(f"Expected URL: {Colors.BLUE}https://dutch.reignofplay.com/sponsors/media/card_back.webp{Colors.NC}")
     print()
     
     return True

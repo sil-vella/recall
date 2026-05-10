@@ -1,4 +1,3 @@
-import 'package:dutch/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
@@ -32,18 +31,13 @@ class DutchGameEventEmitter {
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final DemoModeBridge _demoBridge = DemoModeBridge.instance;
-  final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // resume_room + multiplayer player_id canonical (disconnect rejoin; set false after test)
-  
   // Current transport mode (defaults to WebSocket for backward compatibility; unset after clear so practice/WS re-apply)
   EventTransportMode _transportMode = EventTransportMode.websocket;
   
   /// Set the transport mode
   void setTransportMode(EventTransportMode mode) {
     _transportMode = mode;
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchGameEventEmitter: Transport mode set to $mode');
-    }
+    
   }
   
   /// Get the current transport mode
@@ -362,38 +356,27 @@ class DutchGameEventEmitter {
         if (gameId.startsWith('practice_room_')) {
           if (_transportMode != EventTransportMode.practice) {
             _transportMode = EventTransportMode.practice;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎯 EventEmitter: Synced transport to practice from game_id $gameId');
-            }
+            
           }
         } else if (gameId.startsWith('room_')) {
           if (_transportMode != EventTransportMode.websocket) {
             _transportMode = EventTransportMode.websocket;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎯 EventEmitter: Synced transport to websocket from game_id $gameId');
-            }
+            
           }
         } else if (gameId.startsWith('demo_game_')) {
           if (_transportMode != EventTransportMode.demo) {
             _transportMode = EventTransportMode.demo;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎯 EventEmitter: Synced transport to demo from game_id $gameId');
-            }
+            
           }
         }
       }
       // When still unset (no game_id or unknown prefix), default to websocket so create_room/join_room/leave_room work
       if (_transportMode == EventTransportMode.unset) {
         _transportMode = EventTransportMode.websocket;
-        if (LOGGING_SWITCH) {
-          _logger.info('🎯 EventEmitter: Transport was unset, defaulting to websocket for $eventType');
-        }
+        
       }
 
-      if (LOGGING_SWITCH) {
-        _logger.info('Sending event to backend: $eventPayload');
-        _logger.info('🎯 EventEmitter: Transport mode is $_transportMode for event $eventType');
-      }
+      
 
       // SSOT: full clearance before join_room is handled by any transport (WS or bridge)
       if (eventType == 'join_room') {
@@ -402,34 +385,22 @@ class DutchGameEventEmitter {
       
       // Route based on transport mode
       if (_transportMode == EventTransportMode.practice) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎯 EventEmitter: Routing to PracticeModeBridge');
-        }
+        
         // Route to practice bridge
         await _practiceBridge.handleEvent(eventType, eventPayload);
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ EventEmitter: PracticeModeBridge handled event');
-        }
+        
         return {'success': true, 'mode': 'practice'};
       } else if (_transportMode == EventTransportMode.demo) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎯 EventEmitter: Routing to DemoModeBridge');
-        }
+        
         // Route to demo bridge
         final result = await _demoBridge.handleEvent(eventType, eventPayload);
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ EventEmitter: DemoModeBridge handled event');
-        }
+        
         return result;
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎯 EventEmitter: Routing to WebSocket');
-        }
+        
         // Send via WebSocket (default)
         final result = await _wsManager.sendCustomEvent(eventType, eventPayload);
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ EventEmitter: WebSocket sent event, result: $result');
-        }
+        
         return result;
       }
       
@@ -639,9 +610,7 @@ class DutchGameEventEmitter {
         final practiceUserId = practiceUser['userId']?.toString();
         if (practiceUserId != null && practiceUserId.isNotEmpty) {
           final practiceSessionId = 'practice_session_$practiceUserId';
-          if (LOGGING_SWITCH) {
-            _logger.debug('DutchGameEventEmitter._getSessionId: practice mode -> $practiceSessionId');
-          }
+          
           return practiceSessionId;
         }
       }

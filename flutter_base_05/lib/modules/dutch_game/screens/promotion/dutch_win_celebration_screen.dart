@@ -4,7 +4,6 @@ import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/managers/module_manager.dart';
-import '../../../../tools/logging/logger.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
 import '../../../audio_module/audio_module.dart';
@@ -28,8 +27,6 @@ class DutchWinCelebrationScreen extends StatefulWidget {
 
 class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
     with SingleTickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = false;
-  static final Logger _logger = Logger();
   static const Duration _secondaryBurstDelay = Duration(milliseconds: 1500);
 
   late final ConfettiController _leftConfetti;
@@ -55,9 +52,7 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
       _entryController.forward();
       _leftConfetti.play();
       _rightConfetti.play();
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchWinCelebrationScreen: opened');
-      }
+      
     });
   }
 
@@ -81,9 +76,7 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
       final audio = ModuleManager().getModuleByType<AudioModule>();
       audio?.playSound('level_up_1');
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchWinCelebrationScreen: sound failed: $e');
-      }
+      
     }
   }
 

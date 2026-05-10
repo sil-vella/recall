@@ -5,7 +5,7 @@ This directory contains helper scripts for running and building the Dutch Flutte
 Scripts:
 - `launch_chrome.sh` – run the Flutter web app in Chrome, pointing at either LOCAL or VPS backend.
 - `launch_oneplus.sh` – run the Flutter app on a physical Android device (OnePlus, id `84fbcf31`) with the same backend options.
-- `build_web.sh` – build Flutter web release and upload to VPS (dutch.mt). Optional `DEPLOY_SUBDIR=example` deploys to dutch.mt/example.
+- `build_web.sh` – build Flutter web release and upload to VPS (dutch.reignofplay.com). Optional `DEPLOY_SUBDIR=example` deploys to dutch.reignofplay.com/example.
 - `build_apk.sh` – build a release APK, bump the platform version, upload it to the VPS downloads directory, and update the mobile release manifest.
 - `optimize_logging_calls.py` – optimize logging calls by converting runtime checks to compile-time conditionals for better performance.
 
@@ -36,8 +36,8 @@ Scripts:
   - `API_URL="http://localhost:5001"`
   - `WS_URL="ws://localhost:8080"`
 - `vps`:
-  - `API_URL="https://dutch.mt"`
-  - `WS_URL="wss://dutch.mt/ws"`
+  - `API_URL="https://dutch.reignofplay.com"`
+  - `WS_URL="wss://dutch.reignofplay.com/ws"`
 
 **What it runs**:
 - `cd flutter_base_05`
@@ -79,8 +79,8 @@ This is the recommended way to run the **web** version against either the local 
 
 **Local vs VPS behavior**:
 - `vps`:
-  - `API_URL="https://dutch.mt"`
-  - `WS_URL="wss://dutch.mt/ws"`
+  - `API_URL="https://dutch.reignofplay.com"`
+  - `WS_URL="wss://dutch.reignofplay.com/ws"`
 - `local`:
   - Uses your LAN IP for the Python/Dart backend (currently `192.168.178.81:5001` for Flask and `:8080` for WebSockets).
 
@@ -148,8 +148,8 @@ Use this script for **manual testing on the physical device** against either loc
    - For `vps` (default):
 
      ```bash
-     API_URL="https://dutch.mt"
-     WS_URL="wss://dutch.mt/ws"
+     API_URL="https://dutch.reignofplay.com"
+     WS_URL="wss://dutch.reignofplay.com/ws"
      ```
 
    - For `local`: uses the LAN IP for the backend services.
@@ -206,7 +206,7 @@ Use this script for **manual testing on the physical device** against either loc
   - Returns `update_available` / `update_required` and a `download_link` pointing at:
 
     ```
-    https://dutch.mt/downloads/v<latest_version>/app.apk
+    https://dutch.reignofplay.com/downloads/v<latest_version>/app.apk
     ```
 
 **Usage examples**:
@@ -232,7 +232,7 @@ VPS_SSH_TARGET="rop01_user@65.181.125.135" ./playbooks/frontend/build_apk.sh
 ### 4. `build_web.sh`
 
 **Purpose**:
-- Builds the Flutter **web** release and uploads it to the VPS so the app is served at **https://dutch.mt** (and dutch.reignofplay.com). Nginx document root on the server is `/var/www/dutch.reignofplay.com`.
+- Builds the Flutter **web** release and uploads it to the VPS so the app is served at **https://dutch.reignofplay.com** (and dutch.reignofplay.com). Nginx document root on the server is `/var/www/dutch.reignofplay.com`.
 
 **Steps (high level)**:
 1. Sets production deck config (testing_mode=false, predefined_hands enabled=false), disables `LOGGING_SWITCH` in Dart sources.
@@ -240,19 +240,19 @@ VPS_SSH_TARGET="rop01_user@65.181.125.135" ./playbooks/frontend/build_apk.sh
 3. Output: `flutter_base_05/build/web/`. Cache-busts `index.html` with `?v=$APP_VERSION` for script/manifest/favicon.
 4. If backend target is `vps`: rsyncs build to a temp dir on the VPS, then (unless deploying to a subdir) backs up existing root, cleans web root (preserving `sponsors`, `sim_players`, `downloads`, `example`, `.well-known`), copies new files to `/var/www/dutch.reignofplay.com`, sets ownership to `www-data`.
 
-**Deploying to a subdirectory (dutch.mt/example)**:
-- Nginx is configured (see `rop01/templates/nginx-site.conf.j2`) to serve `location /example/` from `/var/www/dutch.reignofplay.com/example/` when `serve_example_subdir: true` for the domain.
-- To deploy a separate app or static content to **https://dutch.mt/example**:
+**Deploying to a subdirectory (`/example/`)**:
+- On the VPS, nginx must expose `location /example/` → `/var/www/dutch.reignofplay.com/example/` (configure manually on the server).
+- To deploy a separate app or static content to **https://dutch.reignofplay.com/example** (or the hostname your vhost uses):
   1. Build your Flutter app with **base-href** set to `/example/` (e.g. `flutter build web --base-href /example/`).
   2. Run: `DEPLOY_SUBDIR=example ./build_web.sh vps`
-- The script uploads the build to the VPS temp dir, then copies into `$REMOTE_WEB_ROOT/example/` (clearing only that subdir). The main site at dutch.mt is left unchanged.
+- The script uploads the build to the VPS temp dir, then copies into `$REMOTE_WEB_ROOT/example/` (clearing only that subdir). The main site docroot is left unchanged.
 
 **Usage**:
 ```bash
-# Build and deploy to main site (dutch.mt)
+# Build and deploy to main docroot
 ./playbooks/frontend/build_web.sh vps
 
-# Build and deploy to dutch.mt/example (build with base-href /example/ first)
+# Build and deploy to …/example (build with base-href /example/ first)
 DEPLOY_SUBDIR=example ./playbooks/frontend/build_web.sh vps
 ```
 

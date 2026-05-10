@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../managers/validated_event_emitter.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../widgets/dutch_slice_builder.dart';
 
@@ -22,8 +21,6 @@ class GameInfoWidget extends StatefulWidget {
 }
 
 class _GameInfoWidgetState extends State<GameInfoWidget> {
-  static const bool LOGGING_SWITCH = false; // Start / roster / effective size → server.log via Logger (enable-logging-switch.mdc; set false after test)
-  static final Logger _logger = Logger();
   bool _isStartingMatch = false;
 
   /// One-shot delayed rebuild when tournament [match_players] may arrive after first frame.
@@ -270,11 +267,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final showStartButton = gamePhase == 'waiting' &&
             (isPracticeGame || (isRoomOwner && !isRandomJoin && hasEnoughPlayersForStart));
         
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            '🔍 GameInfoWidget DEBUG: currentGameId: $currentGameId, gamePhase: $gamePhase, baseSize: $baseSize, rosterCompBonus: $rosterCompBonus, effectiveSize: $effectiveSize, minPlayers: $minPlayers, isRoomOwner: $isRoomOwner, isInGame: $isInGame, isPracticeGame: $isPracticeGame, isRandomJoin: $isRandomJoin, multiplayerType: $multiplayerType, gameInfo.is_random_join=${gameInfo['is_random_join']}, gameData.is_random_join=${gameData['is_random_join']}, gameState.is_random_join=${gameState['is_random_join']}, currentRoomInfo.is_random_join=${currentRoomInfo?['is_random_join']}, showStartButton: $showStartButton',
-          );
-        }
+        
         
         // Get additional game state for context
         final isGameActive = dutchGameState['isGameActive'] ?? false;
@@ -543,12 +536,8 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         _isStartingMatch = true;
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 GameInfoWidget: ===== START MATCH BUTTON PRESSED =====');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 GameInfoWidget: Initiating start match flow');
-      }
+      
+      
       
       // Get current game state to check if it's a dutch game
       final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -556,27 +545,19 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
       final currentGamePhase = gameInfo['gamePhase']?.toString() ?? 'unknown';
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 GameInfoWidget: Current game ID: $currentGameId');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 GameInfoWidget: Current game phase: $currentGamePhase');
-      }
+      
+      
       
       // Check if this is a practice game (practice games start with 'practice_room_')
       final isPracticeGame = currentGameId.startsWith('practice_room_');
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 GameInfoWidget: Dutch game check - isPracticeGame: $isPracticeGame');
-      }
+      
       
       // CRITICAL: Ensure transport is practice before Start Match when we're in a practice game.
       // clearAllGameStateBeforeNewGame() resets transport to WebSocket; if something else
       // reset it (e.g. lobby init), start_match would go to backend and hang.
       if (isPracticeGame) {
         DutchGameEventEmitter.instance.setTransportMode(EventTransportMode.practice);
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 GameInfoWidget: Set transport to practice before start_match');
-        }
+        
       }
       
       // Use GameCoordinator for both practice and multiplayer games
@@ -584,36 +565,24 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       final gameCoordinator = GameCoordinator();
       
       if (isPracticeGame) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 GameInfoWidget: Practice game detected - routing to GameCoordinator (will use practice bridge)');
-        }
+        
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator');
-        }
+        
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()');
-      }
+      
       // Timeout so we never hang indefinitely (e.g. after mode switch or backend not responding)
       const timeout = Duration(seconds: 12);
       final result = await gameCoordinator.startMatch().timeout(
         timeout,
         onTimeout: () {
-          if (LOGGING_SWITCH) {
-            _logger.warning('🎮 GameInfoWidget: startMatch timed out after ${timeout.inSeconds}s');
-          }
+          
           return false;
         },
       );
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result');
-      }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 GameInfoWidget: ===== START MATCH FLOW COMPLETED =====');
-      }
+      
+      
       
       // Reset loading immediately on failure; on success allow short delay for UI (gamePhase) to update
       if (!result) {
@@ -633,9 +602,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       }
       
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('🎮 GameInfoWidget: ❌ Error in _handleStartMatch: $e', error: e, stackTrace: stackTrace);
-      }
+      
       
       // Reset loading state on error
       if (mounted) {

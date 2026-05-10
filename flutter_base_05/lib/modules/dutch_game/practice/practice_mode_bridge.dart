@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:dutch/tools/logging/logger.dart';
 
 import '../../dutch_game/backend_core/dutch_game_main.dart';
 import '../backend_core/services/game_registry.dart';
@@ -8,7 +7,6 @@ import '../utils/platform/practice/stubs/websocket_server_stub.dart';
 import '../utils/platform/practice/stubs/room_manager_stub.dart';
 import '../../dutch_game/managers/dutch_event_manager.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for match start / transport / bridge
 
 /// Practice Mode Bridge
 /// 
@@ -24,7 +22,6 @@ class PracticeModeBridge {
 
   PracticeModeBridge._internal();
 
-  final Logger _logger = Logger();
   final RoomManagerStub _roomManager = RoomManagerStub();
   late final WebSocketServerStub _server;
   late final DutchGameModule _gameModule;
@@ -64,9 +61,7 @@ class PracticeModeBridge {
     _gameModule = DutchGameModule(_server, _roomManager, _hooksManager);
 
     _initialized = true;
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 PracticeModeBridge: Initialized with stubs');
-    }
+    
   }
 
   /// Handle a game event (called from event emitter in practice mode)
@@ -77,9 +72,7 @@ class PracticeModeBridge {
 
     // Ensure we have a session/room context (required for coordinator.handle)
     if (_currentSessionId == null || _currentRoomId == null) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ PracticeModeBridge: No active session/room for event $event');
-      }
+      
       throw StateError(
         'PracticeModeBridge: No active practice session. '
         'Start Match may have been pressed after clearing or without starting practice from lobby.',
@@ -87,18 +80,12 @@ class PracticeModeBridge {
     }
 
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('📨 PracticeModeBridge: Handling event $event for room $_currentRoomId');
-      }
+      
       // Route event to coordinator
       await _gameModule.coordinator.handle(_currentSessionId!, event, data);
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ PracticeModeBridge: Successfully handled event $event');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ PracticeModeBridge: Error handling event $event: $e');
-      }
+      
     }
   }
 
@@ -118,9 +105,7 @@ class PracticeModeBridge {
     _currentSessionId = 'practice_session_$userId';
     _currentUserId = userId;
 
-    if (LOGGING_SWITCH) {
-      _logger.info('🏗️ PracticeModeBridge: Creating practice room for user $userId with difficulty: $difficulty');
-    }
+    
     
     // Create a practice room
     _currentRoomId = _roomManager.createRoom(
@@ -132,14 +117,10 @@ class PracticeModeBridge {
       permission: 'private',
     );
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ PracticeModeBridge: Created practice room $_currentRoomId');
-    }
+    
 
     // Trigger room_created hook through hooksManager (matches backend behavior)
-    if (LOGGING_SWITCH) {
-      _logger.info('🎣 PracticeModeBridge: Triggering room_created hook for room $_currentRoomId');
-    }
+    
     _hooksManager.triggerHook('room_created', data: {
       'room_id': _currentRoomId,
       'owner_id': userId,
@@ -152,14 +133,10 @@ class PracticeModeBridge {
       'permission': 'private',
       'created_at': DateTime.now().toIso8601String(),
     });
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ PracticeModeBridge: room_created hook completed');
-    }
+    
 
     // Trigger room_joined hook through hooksManager (matches backend behavior)
-    if (LOGGING_SWITCH) {
-      _logger.info('🎣 PracticeModeBridge: Triggering room_joined hook for user $userId');
-    }
+    
     _hooksManager.triggerHook('room_joined', data: {
       'room_id': _currentRoomId,
       'user_id': userId,
@@ -167,13 +144,9 @@ class PracticeModeBridge {
       'owner_id': userId,
       'current_size': 1,
     });
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ PracticeModeBridge: room_joined hook completed');
-    }
+    
 
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 PracticeModeBridge: Practice session started successfully in room $_currentRoomId');
-    }
+    
     return _currentRoomId!;
   }
 
@@ -182,48 +155,32 @@ class PracticeModeBridge {
     try {
       final roomIdToDispose = _currentRoomId;
       if (roomIdToDispose != null) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🏁 PracticeModeBridge: Ending practice session for room: $roomIdToDispose');
-        }
+        
         try {
           _registry.dispose(roomIdToDispose);
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ PracticeModeBridge: Error disposing registry for $roomIdToDispose: $e');
-          }
+          
         }
         try {
           _store.clear(roomIdToDispose);
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ PracticeModeBridge: Error clearing store for $roomIdToDispose: $e');
-          }
+          
         }
         try {
           _roomManager.closeRoom(roomIdToDispose, 'practice_ended');
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ PracticeModeBridge: Error closing room $roomIdToDispose: $e');
-          }
+          
         }
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('🏁 PracticeModeBridge: No active practice session to end');
-        }
+        
       }
       _currentRoomId = null;
       _currentSessionId = null;
       _currentUserId = null;
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ PracticeModeBridge: Ended practice session successfully');
-      }
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ PracticeModeBridge: Error ending practice session: $e');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ PracticeModeBridge: Stack trace:\n$stackTrace');
-      }
+      
+      
       // Still clear state even if there was an error
       _currentRoomId = null;
       _currentSessionId = null;
@@ -254,9 +211,7 @@ class PracticeModeBridge {
         // Handle action error
         break;
       default:
-        if (LOGGING_SWITCH) {
-          _logger.info('ℹ️ PracticeModeBridge: Unhandled event: $event');
-        }
+        
     }
   }
 

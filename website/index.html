@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Dutch — a fast-paced card game. Rules overview and how to play." />
+  <title>Dutch — Card game</title>
+  <link rel="icon" href="/static_landing_images/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="/static_landing_images/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/static_landing_css/styles.css" />
+</head>
+<body>
+  <div class="bg-gradient" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="brand">
+      <div class="brand-logo">
+        <img src="/static_landing_images/logo.webp" alt="Dutch app logo" decoding="async" />
+      </div>
+      <div>
+        <p class="brand-kicker">ReignOfPlay</p>
+        <h1 class="brand-title">Dutch</h1>
+      </div>
+    </div>
+    <p class="tagline">A quick, tactical card game — empty your hand or own the lowest score when Dutch is called.</p>
+  </header>
+
+  <main class="content">
+    <section class="card" id="objective">
+      <h2>Objective</h2>
+      <p>You win by either <strong>playing all of your cards</strong>, or by having the <strong>fewest points with the fewest cards</strong> after someone calls <em>Dutch</em> and everyone finishes their last turn.</p>
+    </section>
+
+    <section class="card" id="setup">
+      <h2>Setup</h2>
+      <ul>
+        <li>Each player receives <strong>four face-down</strong> cards.</li>
+        <li>You may peek at <strong>two</strong> of them before play begins.</li>
+        <li>Draw and discard piles sit in the center.</li>
+      </ul>
+    </section>
+
+    <section class="card" id="turn">
+      <h2>On your turn</h2>
+      <ol>
+        <li>Draw from the <strong>draw pile</strong> or take the <strong>top discard</strong> (others see what you took from discard).</li>
+        <li>Play one card to the discard — from your hand <strong>or</strong> the card you just drew.</li>
+        <li>If you play from your hand, your drawn card usually <strong>replaces</strong> a face-down slot.</li>
+      </ol>
+    </section>
+
+    <section class="card" id="special">
+      <h2>Special ranks</h2>
+      <div class="grid-2">
+        <div>
+          <h3>Queen</h3>
+          <p>When played, you may <strong>peek at one</strong> face-down card — any player, any slot.</p>
+        </div>
+        <div>
+          <h3>Jack</h3>
+          <p>When played, you may <strong>swap any two</strong> face-down cards between players.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="dutch">
+      <h2>Calling Dutch</h2>
+      <p>After your play, you may call <strong>Dutch</strong> to signal the <strong>final round</strong>: every other player gets <strong>one more turn</strong>. Then hands are scored; lowest points wins, with ties broken by fewer cards, then Dutch-caller rules as in your house table.</p>
+    </section>
+
+    <section class="card" id="scoring">
+      <h2>Scoring snapshot</h2>
+      <ul class="compact">
+        <li><strong>2–10</strong> — face value</li>
+        <li><strong>Ace</strong> — 1 &nbsp;·&nbsp; <strong>Q / J / black K</strong> — 10</li>
+        <li><strong>Joker</strong> — 0 &nbsp;·&nbsp; <strong>Red king</strong> — 0</li>
+      </ul>
+      <p class="muted">Power cards may add effects — agree table rules before you deal.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p><a href="https://reignofplay.com">reignofplay.com</a> · <span id="year"></span></p>
+    <p class="muted small">This page is static information only. The live game runs in the mobile app.</p>
+  </footer>
+
+  <script src="/static_landing_js/main.js" defer></script>
+</body>
+</html>

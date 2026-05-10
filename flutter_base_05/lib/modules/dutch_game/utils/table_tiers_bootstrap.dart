@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../tools/logging/logger.dart';
 import '../backend_core/utils/level_matcher.dart';
 
 /// Persists declarative Dutch table tiers from [get-user-stats] and caches table back-graphics locally from `back_graphic_url`.
@@ -16,12 +15,9 @@ import '../backend_core/utils/level_matcher.dart';
 class TableTiersBootstrap {
   TableTiersBootstrap._();
 
-  static const bool LOGGING_SWITCH = false;
 
   static const String prefRevisionKey = 'dutch_table_tiers_revision';
   static const String prefDocKey = 'dutch_table_tiers_doc_json';
-
-  static final Logger _logger = Logger();
 
   /// Hydrate catalog from prefs before any authenticated stats call so cold starts use cached tiers.
   static Future<void> hydrateFromPrefsBeforeStats() async {
@@ -88,9 +84,7 @@ class TableTiersBootstrap {
         }
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('TableTiersBootstrap: mergeStatsEnvelope skip: $e');
-      }
+      
     }
   }
 

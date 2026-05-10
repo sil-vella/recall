@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/state/immutable_state.dart';
-import '../../../tools/logging/logger.dart';
 import '../../dutch_game/models/state/dutch_game_state.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 // ignore: unused_import
@@ -21,21 +20,13 @@ class DutchGameStateUpdater {
     return _instance!;
   }
   
-  // Logger and constants (must be declared before constructor)
-  final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Multi-human: currentPlayerStatus / SSOT slices (enable-logging-switch.mdc; set false after test)
-  
   // Dependencies
   final StateManager _stateManager = StateManager();
   
   DutchGameStateUpdater._internal() {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎬 DutchGameStateUpdater: Instance created (singleton initialization)');
-    }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎬 DutchGameStateUpdater: Initialization complete');
-    }
+    
+    
   }
   
   // State updates are applied directly (no validator queue).
@@ -66,9 +57,7 @@ class DutchGameStateUpdater {
       _applyValidatedUpdates(updates);
       
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameStateUpdater: State update failed: $e', error: e);
-      }
+      
       rethrow;
     }
   }
@@ -79,9 +68,7 @@ class DutchGameStateUpdater {
   /// (e.g., isRandomJoinInProgress before emitting WebSocket events)
   void updateStateSync(Map<String, dynamic> updates) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: Synchronous state update with keys: ${updates.keys.toList()}');
-      }
+      
       
       // Apply validated updates directly to StateManager (synchronous)
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -91,14 +78,10 @@ class DutchGameStateUpdater {
       };
       
       _stateManager.updateModuleState('dutch_game', newState);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: Synchronous state update completed successfully');
-      }
+      
       
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameStateUpdater: Synchronous state update failed: $e', error: e);
-      }
+      
       rethrow;
     }
   }
@@ -107,14 +90,10 @@ class DutchGameStateUpdater {
   /// This is the preferred method for new code
   void updateStateImmutable(DutchGameState newState) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: Immutable state update');
-      }
+      
       _stateManager.updateModuleState('dutch_game', newState);
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameStateUpdater: Immutable state update failed: $e', error: e);
-      }
+      
       rethrow;
     }
   }
@@ -122,18 +101,12 @@ class DutchGameStateUpdater {
   /// Apply updates with widget slice computation
   /// Supports both legacy map-based updates and immutable state updates
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎬 DutchGameStateUpdater: _applyValidatedUpdates START with keys: ${validatedUpdates.keys.toList()}');
-    }
+    
     try {
       // Get current state (legacy map-based for now)
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: Getting current state from StateManager');
-      }
+      
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: Current state keys: ${currentState.keys.toList()}');
-      }
+      
       
       // Check if there are actual changes (excluding lastUpdated)
       // Use reference equality for immutable objects, structural equality for legacy data
@@ -186,38 +159,26 @@ class DutchGameStateUpdater {
       
       // Only proceed if there are actual changes
       if (!hasActualChanges) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 DutchGameStateUpdater: No actual changes detected, skipping update');
-        }
+        
         return;
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: Has actual changes, proceeding with state update');
-      }
+      
       
       // Apply only the validated updates
       // Deep convert validatedUpdates to ensure all nested maps are Map<String, dynamic> (not LinkedMap from JSON decode)
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: Converting validated updates to Map<String, dynamic>');
-      }
+      
       final convertedValidatedUpdates = _deepConvertToMapStringDynamic(validatedUpdates) as Map<String, dynamic>;
       
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: Merging current state with validated updates');
-      }
+      
       final newState = {
         ...currentState,
         ...convertedValidatedUpdates,
       };
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: New state keys: ${newState.keys.toList()}');
-      }
+      
       
       // Rebuild dependent widget slices only if relevant fields changed
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: Updating widget slices for changed keys: ${validatedUpdates.keys.toSet()}');
-      }
+      
       final updatedStateWithSlices = _updateWidgetSlices(
         currentState,
         newState,
@@ -225,70 +186,17 @@ class DutchGameStateUpdater {
       );
       
       // Log state AFTER widget slices computed
-      if (LOGGING_SWITCH) {
-        final finalGameId = updatedStateWithSlices['currentGameId']?.toString() ?? '';
-        final finalGames = updatedStateWithSlices['games'] as Map<String, dynamic>? ?? {};
-        final finalGameCount = finalGames.length;
-        
-        // Log detailed widget slice state AFTER recomputation
-        final myHandAfter = updatedStateWithSlices['myHand'] as Map<String, dynamic>?;
-        final centerBoardAfter = updatedStateWithSlices['centerBoard'] as Map<String, dynamic>?;
-        final opponentsPanelAfter = updatedStateWithSlices['opponentsPanel'] as Map<String, dynamic>?;
-        
-        final afterSummary = {
-          'myHand': myHandAfter != null ? {
-            'cards': (myHandAfter['cards'] as List?)?.length ?? 0,
-            'selectedIndex': myHandAfter['selectedIndex'] ?? -1,
-            'playerStatus': myHandAfter['playerStatus'] ?? 'unknown',
-          } : null,
-          'centerBoard': centerBoardAfter != null ? {
-            'drawPileCount': centerBoardAfter['drawPileCount'] ?? 0,
-            'topDiscard': centerBoardAfter['topDiscard'] != null ? 'present' : 'null',
-            'topDraw': centerBoardAfter['topDraw'] != null ? 'present' : 'null',
-          } : null,
-          'opponentsPanel': opponentsPanelAfter != null ? {
-            'opponents': (opponentsPanelAfter['opponents'] as List?)?.length ?? 0,
-            'opponentsData': (opponentsPanelAfter['opponents'] as List?)?.map((opp) {
-              if (opp is Map<String, dynamic>) {
-                return {
-                  'id': opp['id']?.toString() ?? 'unknown',
-                  'handCount': (opp['hand'] as List?)?.length ?? 0,
-                  'status': opp['status']?.toString() ?? 'unknown',
-                  'score': opp['score'] ?? 0,
-                  'hasAction': opp['action'] != null ? opp['action'].toString() : null,
-                };
-              }
-              return null;
-            }).where((e) => e != null).toList(),
-            'currentTurnIndex': opponentsPanelAfter['currentTurnIndex'] ?? -1,
-            'turn_events': (opponentsPanelAfter['turn_events'] as List?)?.length ?? 0,
-            'currentPlayerStatus': opponentsPanelAfter['currentPlayerStatus']?.toString() ?? 'unknown',
-          } : null,
-          'joinedGamesSlice': updatedStateWithSlices['joinedGamesSlice'] != null ? 'present' : 'null',
-          'gameInfo': updatedStateWithSlices['gameInfo'] != null ? 'present' : 'null',
-        };
-        
-        _logger.info('🎬 DutchGameStateUpdater: Widget slices AFTER recomputation: $afterSummary');
-        _logger.info('🎬 DutchGameStateUpdater: State AFTER widget slices computed - currentGameId: $finalGameId, games: $finalGameCount');
-      }
       
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: Widget slices updated, final state keys: ${updatedStateWithSlices.keys.toList()}');
-      }
+      
+      
       
       // Update StateManager
-      if (LOGGING_SWITCH) {
-        _logger.debug('🎬 DutchGameStateUpdater: Updating StateManager with merged state');
-      }
+      
       _stateManager.updateModuleState('dutch_game', updatedStateWithSlices);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: StateManager updated successfully');
-      }
+      
 
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameStateUpdater: Failed to apply validated updates: $e', error: e);
-      }
+      
       rethrow;
     }
   }
@@ -322,9 +230,7 @@ class DutchGameStateUpdater {
     // Deep convert to ensure all nested maps are Map<String, dynamic> (not LinkedMap)
     final updatedState = _deepConvertToMapStringDynamic(newState) as Map<String, dynamic>;
     
-    if (LOGGING_SWITCH) {
-      _logger.debug('🎬 DutchGameStateUpdater: _updateWidgetSlices - Changed fields: $changedFields');
-    }
+    
     
     // CRITICAL: Always ensure joinedGamesSlice matches games map state
     // - If games map is empty, clear joinedGamesSlice
@@ -341,9 +247,7 @@ class DutchGameStateUpdater {
     if (gamesMap.isEmpty) {
       // Games map is empty - clear joinedGamesSlice to match
       if (existingJoinedGames.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 DutchGameStateUpdater: Games map is empty but joinedGamesSlice has ${existingJoinedGames.length} games - clearing slice');
-        }
+        
         updatedState['joinedGamesSlice'] = {
           'games': <Map<String, dynamic>>[],
           'totalGames': 0,
@@ -353,15 +257,11 @@ class DutchGameStateUpdater {
     } else if (gamesChanged) {
       // Games map changed - always recompute the slice to reflect current state
       // This ensures removed games are immediately removed from the slice
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: Games map changed - recomputing joinedGamesSlice (games map has ${gamesMap.length} games)');
-      }
+      
       updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
     } else if (existingJoinedGamesSlice.isEmpty || !existingJoinedGamesSlice.containsKey('games')) {
       // Games map has games but slice is missing/empty - compute it
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameStateUpdater: Games map has ${gamesMap.length} games but joinedGamesSlice missing/empty - computing it');
-      }
+      
       updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
     }
     
@@ -371,9 +271,7 @@ class DutchGameStateUpdater {
       final dependencies = entry.value;
       
       if (changedFields.any(dependencies.contains)) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎬 DutchGameStateUpdater: Recomputing slice "$sliceName" due to changed fields: ${changedFields.where(dependencies.contains).toList()}');
-        }
+        
         
         switch (sliceName) {
           case 'actionBar':
@@ -394,9 +292,7 @@ class DutchGameStateUpdater {
           case 'gameInfo':
             final gameInfoSlice = _computeGameInfoSlice(newState);
             updatedState['gameInfo'] = gameInfoSlice;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎬 DutchGameStateUpdater: gameInfo slice recomputed - gamePhase: ${gameInfoSlice['gamePhase']}, currentGameId: ${gameInfoSlice['currentGameId']}');
-            }
+            
             break;
           case 'messagesSlice':
             updatedState['messagesSlice'] = _computeMessagesSlice(newState);
@@ -804,12 +700,7 @@ class DutchGameStateUpdater {
     final currentSize = gameState['playerCount'] ?? 0;
     final maxSize = gameState['maxPlayers'] ?? 4;
     
-    if (LOGGING_SWITCH) {
-      final isRandom = multiplayerType?['isRandom'] == true;
-      final showStart = gamePhase == 'waiting' &&
-          (isPractice || (isRoomOwner && (multiplayerType == null || !isRandom)));
-      _logger.info('🎬 gameInfo slice: currentGameId=$currentGameId, gamePhase=$gamePhase, isRoomOwner=$isRoomOwner, isPractice=$isPractice, multiplayerType=$multiplayerType, showStart=$showStart');
-    }
+    
     
     return {
       'currentGameId': currentGameId,
@@ -830,9 +721,7 @@ class DutchGameStateUpdater {
   Map<String, dynamic> _computeJoinedGamesSlice(Map<String, dynamic> state) {
     final games = state['games'] as Map<String, dynamic>? ?? {};
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎬 DutchGameStateUpdater: Computing joinedGamesSlice - games map has ${games.length} games');
-    }
+    
     
     // Build joined games list from games map (single source of truth)
     // If a game is in the games map, the user has joined it - no need to check player IDs
@@ -850,29 +739,18 @@ class DutchGameStateUpdater {
       // CRITICAL: Skip games with null or empty game_id (these are stale/invalid entries)
       final gameIdFromData = gameData['game_id']?.toString();
       if (gameData.isNotEmpty && gameIdFromData != null && gameIdFromData.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎬 DutchGameStateUpdater: Adding game $gameId to joinedGamesSlice');
-        }
+        
         joinedGamesList.add(gameData);
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.warning('🎬 DutchGameStateUpdater: Game $gameId skipped - gameData empty: ${gameData.isEmpty}, game_id: $gameIdFromData (invalid entry, will be removed)');
-        }
+        
         invalidGameIds.add(gameId);
       }
     }
     
     // NOTE: Do not trigger nested updateState() from slice computation.
     // Nested writes create re-entrant update cycles for a single WS event.
-    if (invalidGameIds.isNotEmpty && LOGGING_SWITCH) {
-      _logger.warning(
-        '🎬 DutchGameStateUpdater: Found ${invalidGameIds.length} invalid game(s) while computing joinedGamesSlice: ${invalidGameIds.join(", ")} (deferred prune)',
-      );
-    }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎬 DutchGameStateUpdater: Computed joinedGamesSlice from games map - found ${joinedGamesList.length} games');
-    }
+    
     
     return {
       'games': joinedGamesList,
@@ -938,39 +816,28 @@ class DutchGameStateAccessor {
   
   // Dependencies
   final StateManager _stateManager = StateManager();
-  final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Game state accessor after join (enable-logging-switch.mdc; set false after test)
-  
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found
   Map<String, dynamic>? getGameStateForId(String gameId) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.debug('DutchGameStateAccessor: Getting game state for ID: $gameId');
-      }
+      
       
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final games = currentState['games'] as Map<String, dynamic>? ?? {};
       
       if (!games.containsKey(gameId)) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('DutchGameStateAccessor: Game ID "$gameId" not found in games map');
-        }
+        
         return null;
       }
       
       final gameState = games[gameId] as Map<String, dynamic>? ?? {};
       
-      if (LOGGING_SWITCH) {
-        _logger.debug('DutchGameStateAccessor: Successfully retrieved game state for ID: $gameId');
-      }
+      
       
       return gameState;
       
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchGameStateAccessor: Error getting game state for ID "$gameId": $e', error: e);
-      }
+      
       return null;
     }
   }

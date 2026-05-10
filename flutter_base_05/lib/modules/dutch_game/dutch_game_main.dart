@@ -8,7 +8,6 @@ import 'package:dutch/modules/dutch_game/screens/demo/video_tutorial_screen.dart
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/hooks_manager.dart';
-import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 
 // Import Dutch game components
@@ -28,9 +27,6 @@ import '../dutch_game/screens/achievements/achievements_screen.dart';
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
 class DutchGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Enabled for testing auto-guest creation flow (auth_login_complete hook)
-  final Logger _logger = Logger();
-  
   final navigationManager = NavigationManager();
   
   // Dutch game components
@@ -69,17 +65,13 @@ class DutchGameMain extends ModuleBase {
     try {
       // Step 0: Initialize singletons FIRST (before anything else)
       // This ensures they're ready before static fields or widgets access them
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameMain: Starting singleton initialization');
-      }
+      
       
       // Access singletons to trigger their initialization
       // ignore: unused_local_variable
       final _ = DutchGameStateUpdater.instance; // Triggers constructor and handler setup
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameMain: Singletons initialized successfully');
-      }
+      
       
       // Step 1: Register state with StateManager
       _registerState();
@@ -109,9 +101,7 @@ class DutchGameMain extends ModuleBase {
       await _performFinalVerification();
       
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('🎬 DutchGameMain: Error during initialization: $e');
-      }
+      
     }
   }
 
@@ -199,41 +189,29 @@ class DutchGameMain extends ModuleBase {
     
     // Interactive login / registration (LoginModule after tokens stored)
     hooksManager.registerHookWithData('auth_login_complete', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameMain: auth_login_complete hook triggered - fetching user stats');
-      }
+      
       _fetchUserStats();
     });
 
     // Session restore and any path that sets AuthStatus.loggedIn via handleAuthState
     // (HooksManager replays to late registrants via _triggeredHooksData.)
     hooksManager.registerHookWithData('auth_login_success', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameMain: auth_login_success hook triggered - fetching user stats');
-      }
+      
       _fetchUserStats();
     });
     
     // Register hook for home screen to register play button feature
     hooksManager.registerHookWithData('home_screen_main', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameMain: home_screen_main hook triggered - registering play button feature');
-      }
+      
       final context = data['context'] as BuildContext?;
       if (context != null) {
         _registerHomeScreenFeatures(context);
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameMain: home_screen_main hook triggered but no context provided');
-        }
+        
       }
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        '🎬 DutchGameMain: Registered auth_login_complete, auth_login_success, and home_screen_main hooks',
-      );
-    }
+    
   }
   
   /// Register home screen features (play button, etc.)
@@ -242,13 +220,9 @@ class DutchGameMain extends ModuleBase {
       final featureRegistrar = HomeScreenFeatureRegistrar();
       featureRegistrar.registerDutchGamePlayButton(context);
       featureRegistrar.registerDutchGameDemoButton(context);
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DutchGameMain: Home screen features registered successfully');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameMain: Error registering home screen features: $e');
-      }
+      
     }
   }
 
@@ -260,14 +234,10 @@ class DutchGameMain extends ModuleBase {
       final isLoggedIn = loginState['isLoggedIn'] == true;
       
       if (isLoggedIn) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 DutchGameMain: User is already logged in - fetching user stats');
-        }
+        
         _fetchUserStats();
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 DutchGameMain: User is not logged in - skipping user stats fetch');
-        }
+        
       }
     });
   }
@@ -275,23 +245,15 @@ class DutchGameMain extends ModuleBase {
   /// Fetch user dutch game stats from API and update state
   Future<void> _fetchUserStats() async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎬 DutchGameMain: Fetching user dutch game stats...');
-      }
+      
       final success = await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
       if (success) {
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DutchGameMain: User stats fetched and updated successfully');
-        }
+        
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DutchGameMain: Failed to fetch user stats');
-        }
+        
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DutchGameMain: Error fetching user stats: $e');
-      }
+      
     }
   }
 
@@ -378,15 +340,11 @@ class DutchGameMain extends ModuleBase {
     navigationManager.registerRoute(
       path: '/dutch-customize',
       screen: (BuildContext context) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🧭 DutchGameMain: opening /dutch-customize from drawer/navigation');
-        }
+        
         try {
           return const DutchCustomizeScreen();
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.error('❌ DutchGameMain: failed to build /dutch-customize: $e');
-          }
+          
           return Scaffold(
             body: Center(
               child: Text(

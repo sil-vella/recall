@@ -1,0 +1,90 @@
+---
+# Upload static landing to Dutch nginx docroot only (prefixed paths, not generic /css/ or /js/).
+# Replaces: index.html, files under static_landing_css/, static_landing_js/, static_landing_images/.
+# Does NOT modify: downloads/, sponsors/, sim_players/, or any other paths.
+#
+# Nginx on the VPS must serve these prefixes from disk (before regex proxy to Flask), e.g.:
+#   location ^~ /static_landing_css/ { alias /var/www/dutch.reignofplay.com/static_landing_css/; ... }
+#   location ^~ /static_landing_js/   { alias .../static_landing_js/; ... }
+#   location ^~ /static_landing_images/ { alias .../static_landing_images/; ... }
+# See website/README.md
+#
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/17_upload_dutch_landing_site.yml -e vm_name=rop01
+#
+- name: Upload Dutch static landing (index + static_landing_css + static_landing_js + static_landing_images)
+  hosts: "{{ vm_name | default('rop01') }}_user"
+  become: true
+  vars:
+    dutch_web_root: "{{ dutch_landing_web_root | default('/var/www/dutch.reignofplay.com') }}"
+    landing_src: "{{ playbook_dir }}/../../website"
+  tasks:
+    - name: Stat local website sources
+      ansible.builtin.stat:
+        path: "{{ landing_src }}/index.html"
+      register: landing_index
+      delegate_to: localhost
+      connection: local
+      become: false
+      run_once: true
+
+    - name: Fail if website/index.html missing on controller
+      ansible.builtin.fail:
+        msg: "Expected {{ landing_src }}/index.html — create the site under app_dev/website/ first."
+      when: not landing_index.stat.exists | default(false)
+      delegate_to: localhost
+      connection: local
+      become: false
+      run_once: true
+
+    - name: Ensure static landing asset directories exist (siblings untouched)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+      loop:
+        - "{{ dutch_web_root }}/static_landing_css"
+        - "{{ dutch_web_root }}/static_landing_js"
+        - "{{ dutch_web_root }}/static_landing_images"
+
+    - name: Install index.html
+      ansible.builtin.copy:
+        src: "{{ landing_src }}/index.html"
+        dest: "{{ dutch_web_root }}/index.html"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
+    - name: Install static landing CSS
+      ansible.builtin.copy:
+        src: "{{ landing_src }}/static_landing_css/{{ item }}"
+        dest: "{{ dutch_web_root }}/static_landing_css/{{ item }}"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+      loop:
+        - styles.css
+
+    - name: Install static landing JS
+      ansible.builtin.copy:
+        src: "{{ landing_src }}/static_landing_js/{{ item }}"
+        dest: "{{ dutch_web_root }}/static_landing_js/{{ item }}"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+      loop:
+        - main.js
+
+    - name: Install static landing images (logo + icon)
+      ansible.builtin.copy:
+        src: "{{ landing_src }}/static_landing_images/{{ item }}"
+        dest: "{{ dutch_web_root }}/static_landing_images/{{ item }}"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+      loop:
+        - logo.webp
+        - logo_icon.webp
+        - favicon.ico
+        - apple-touch-icon.png

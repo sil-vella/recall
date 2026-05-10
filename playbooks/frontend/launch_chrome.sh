@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Flutter app launcher for Chrome web with filtered Logger output only
-# Shows only your custom Logger calls, filters out all system logs
+# Flutter app launcher for Chrome web with filtered Logger output by default.
+# Set FLUTTER_SERVER_LOG_ALL=1 (or true) in the environment or .env.local to also append
+# every other Flutter stdout line to server.log as [FLUTTER_RAW].
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -25,7 +26,11 @@ else
   echo "   Create and fill the repo root .env.local file first."
 fi
 
-echo "🚀 Launching Flutter app on Chrome web with filtered Logger output..."
+if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
+    echo "🚀 Launching Flutter app on Chrome web — Logger + full stdout → server.log (FLUTTER_SERVER_LOG_ALL)..."
+else
+    echo "🚀 Launching Flutter app on Chrome web with filtered Logger output..."
+fi
 echo "ℹ️  Firebase Analytics DebugView:"
 echo "   • Android: use adb debug mode (see Firebase DebugView docs)."
 echo "   • Web: install the Google Analytics Debugger extension in THIS Chrome profile, enable it, reload the app."
@@ -36,8 +41,12 @@ echo "     (This script uses a dedicated user-data-dir so you install the extens
 cd "$SCRIPT_DIR/../../flutter_base_05" || cd flutter_base_05
 
 # Set up log file to write to Python server log
-SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log"
-echo "📝 Writing Logger output to: $SERVER_LOG_FILE"
+SERVER_LOG_FILE="$REPO_ROOT/python_base_04/tools/logger/server.log"
+if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
+    echo "📝 Writing AppLogger lines + all other Flutter stdout to: $SERVER_LOG_FILE (FLUTTER_SERVER_LOG_ALL)"
+else
+    echo "📝 Writing Logger output to: $SERVER_LOG_FILE"
+fi
 
 # Launch Flutter app with Chrome web configuration
 echo "🎯 Launching Flutter app with Chrome web configuration..."
@@ -46,8 +55,8 @@ echo "🎯 Launching Flutter app with Chrome web configuration..."
 BACKEND_TARGET="${1:-local}"
 
 if [ "$BACKEND_TARGET" = "vps" ]; then
-    API_URL="https://dutch.mt"
-    WS_URL="wss://dutch.mt/ws"
+    API_URL="https://dutch.reignofplay.com"
+    WS_URL="wss://dutch.reignofplay.com/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
     API_URL="http://localhost:5001"
@@ -110,6 +119,9 @@ filter_logs() {
         else
             # Critical: do not swallow Flutter / Dart output (compile errors, crash traces, etc.).
             echo "$line" >&2
+            if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
+                printf '%s [FLUTTER_RAW] %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$line" >> "$SERVER_LOG_FILE"
+            fi
         fi
     done
 }

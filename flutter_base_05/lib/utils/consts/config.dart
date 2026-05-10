@@ -2,8 +2,6 @@
 
 class Config {
 
-  static const bool loggerOn = true;
-
   static const String appTitle = "Dutch";
 
   // API URL

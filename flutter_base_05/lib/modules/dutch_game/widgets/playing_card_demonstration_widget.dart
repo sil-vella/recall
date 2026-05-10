@@ -6,7 +6,6 @@ import '../models/card_display_config.dart';
 import '../utils/card_dimensions.dart';
 import 'card_widget.dart';
 import '../../../utils/consts/theme_consts.dart';
-import '../../../tools/logging/logger.dart';
 
 /// Demonstration widget for playing card phase
 /// 
@@ -22,9 +21,6 @@ class PlayingCardDemonstrationWidget extends StatefulWidget {
 
 class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstrationWidget>
     with TickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
-  static final Logger _logger = Logger();
-  
   // Animation phases: 0 = idle, 1 = play animation, 2 = drawn card animation, 3 = flip
   int _animationPhase = 0;
   bool _drawnCardFlipped = false;

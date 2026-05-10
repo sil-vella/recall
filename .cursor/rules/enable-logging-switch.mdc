@@ -11,18 +11,21 @@ alwaysApply: false
 
 ## Purpose (for the AI)
 
-This rule is **for the AI**: when you work on logic that has a `LOGGING_SWITCH` constant, **you** should enable the relevant switch in the file(s) that implement that logic so the user can see debug output in `server.log` and verify behavior.
+This rule is **for the AI**: when you work on logic that has a `LOGGING_SWITCH` constant (where it still exists), **you** may enable the relevant switch so debug output goes to the configured log destination for that stack.
 
-## What to do
+## Flutter app (`flutter_base_05`)
 
-1. **Use only LOGGING_SWITCH**: Do **not** create new switch names (e.g. no `AUTH_LOGGING_SWITCH`, `TOKEN_LOGGING_SWITCH`, etc.). In **all** files there is exactly one constant: **`LOGGING_SWITCH`**. Use it for any logging you add or enable.
-2. **Enable the switch where needed**: Set `LOGGING _ SWITCH = true` in the file(s) that contain the logic you are changing or that are relevant to the task (e.g. game clearing, mode switching, Dutch game helpers, auth, Redis token ops, etc.). Do not enable everywhere—only where it helps trace the current task.
+The **custom `Logger` and per-file `LOGGING_SWITCH` pattern have been removed** from the Flutter client. Do not reintroduce `lib/tools/logging/logger.dart` or `LOGGING_SWITCH` in `flutter_base_05` unless the project explicitly adds a new logging design.
+
+## What to do (Python / Dart backend)
+
+1. **Use only LOGGING_SWITCH** (Dart backend only, where present): Do **not** create new switch names (e.g. no `AUTH_LOGGING_SWITCH`, `TOKEN_LOGGING_SWITCH`, etc.). Where the codebase uses **`LOGGING_SWITCH`**, use that single name.
+2. **Enable the switch where needed**: Set `LOGGING_SWITCH = true` in the file(s) that contain the logic you are changing or that are relevant to the task. Do not enable everywhere—only where it helps trace the current task.
 3. **Guard log calls**: Add or keep `if (LOGGING_SWITCH) { ... }` (Dart) or `custom_log(..., isOn=LOGGING_SWITCH)` (Python) for the paths you care about.
-4. **Log destination**: Logs go to `python_base_04/tools/logger/server.log` (or the configured logger output).
+4. **Log destination**: Python logs go to `python_base_04/tools/logger/server.log` (or the configured logger output).
 
-## Where LOGGING_SWITCH appears
+## Where LOGGING_SWITCH may still appear
 
-- Flutter/Dart: `flutter_base_05/lib/modules/dutch_game/**/*.dart` (helpers, coordinators, round, managers, event emitter, etc.)
-- Dart backend: `dart_bkend_base_01/**/*.dart`
+- Dart game server: `dart_bkend_base_01/**/*.dart` (where not yet refactored)
 - Python: `python_base_04/**/*.py` (e.g. app_manager, jwt_manager, redis_manager, user_management_module, etc.)
-- Match the switch to the logic: e.g. game clearing / mode switching / leave_room → helpers, game_coordinator, validated_event_emitter, player_action; auth → app_manager, jwt_manager, redis_manager.
+- Match the switch to the logic under test.

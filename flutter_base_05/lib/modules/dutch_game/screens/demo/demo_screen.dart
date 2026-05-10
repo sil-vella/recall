@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
-import '../../../../tools/logging/logger.dart';
 import '../../widgets/instructions_widget.dart';
 import '../practice_room/widgets/rules_modal_widget.dart';
 import 'demo_action_handler.dart';
@@ -19,10 +18,6 @@ class DemoScreen extends BaseScreen {
 }
 
 class DemoScreenState extends BaseScreenState<DemoScreen> {
-  // Logger for demo operations
-  final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for demo debugging
-  
   // Demo action handler
   final DemoActionHandler _demoActionHandler = DemoActionHandler.instance;
   
@@ -200,15 +195,11 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () async {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoScreen: Start Demo button tapped - starting sequential demos');
-            }
+            
             try {
               await _demoActionHandler.startSequentialDemos();
             } catch (e) {
-              if (LOGGING_SWITCH) {
-                _logger.error('❌ DemoScreen: Error starting sequential demos: $e');
-              }
+              
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -275,15 +266,11 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () async {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoScreen: Demo action button tapped: $actionType');
-            }
+            
             try {
               await _demoActionHandler.startDemoAction(actionType);
             } catch (e) {
-              if (LOGGING_SWITCH) {
-                _logger.error('❌ DemoScreen: Error starting demo action: $e');
-              }
+              
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

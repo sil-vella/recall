@@ -1,4 +1,5 @@
 ---
+# Non-interactive pull/up after template + compose copy: -e vps_deploy_skip_compose_confirm=true
 # Load env vars from app_dev/.env.prod on the controller so the deploy play can use them (no manual paste into vault).
 # Values from .env.prod are set as facts on localhost; the deploy play then uses hostvars['localhost'] with fallback to lookup('env').
 - name: Load app_dev/.env.prod for VPS deploy (optional)
@@ -57,7 +58,7 @@
         }
         result = { v: out.get(k, '') for k, v in mapping.items() }
         result.setdefault('app_version', '2.0.0')
-        result.setdefault('app_download_base_url', 'https://dutch.mt/downloads')
+        result.setdefault('app_download_base_url', 'https://dutch.reignofplay.com/downloads')
         print(json.dumps(result))
         PYEOF
       register: env_json
@@ -77,7 +78,7 @@
         google_client_id: "{{ (env_json.stdout | default('{}') | from_json).google_client_id | default('') }}"
         google_client_secret: "{{ (env_json.stdout | default('{}') | from_json).google_client_secret | default('') }}"
         app_version: "{{ (env_json.stdout | default('{}') | from_json).app_version | default('2.0.0') }}"
-        app_download_base_url: "{{ (env_json.stdout | default('{}') | from_json).app_download_base_url | default('https://dutch.mt/downloads') }}"
+        app_download_base_url: "{{ (env_json.stdout | default('{}') | from_json).app_download_base_url | default('https://dutch.reignofplay.com/downloads') }}"
         credit_system_api_key: "{{ (env_json.stdout | default('{}') | from_json).credit_system_api_key | default('') }}"
         dutch_wins_per_user_level: "{{ (env_json.stdout | default('{}') | from_json).dutch_wins_per_user_level | default('10') }}"
         dutch_levels_per_rank: "{{ (env_json.stdout | default('{}') | from_json).dutch_levels_per_rank | default('5') }}"
@@ -122,7 +123,7 @@
         google_client_id: "{{ (hostvars['localhost'] | default({})).get('google_client_id') or lookup('env', 'GOOGLE_CLIENT_ID') | default('') }}"
         google_client_secret: "{{ (hostvars['localhost'] | default({})).get('google_client_secret') or lookup('env', 'GOOGLE_CLIENT_SECRET') | default('') }}"
         app_version: "{{ (hostvars['localhost'] | default({})).get('app_version') or lookup('env', 'APP_VERSION') | default('2.0.0') }}"
-        app_download_base_url: "{{ (hostvars['localhost'] | default({})).get('app_download_base_url') or lookup('env', 'APP_DOWNLOAD_BASE_URL') | default('https://dutch.mt/downloads') }}"
+        app_download_base_url: "{{ (hostvars['localhost'] | default({})).get('app_download_base_url') or lookup('env', 'APP_DOWNLOAD_BASE_URL') | default('https://dutch.reignofplay.com/downloads') }}"
         credit_system_api_key: "{{ (hostvars['localhost'] | default({})).get('credit_system_api_key') or lookup('env', 'CREDIT_SYSTEM_API_KEY') | default('') }}"
         dutch_wins_per_user_level: "{{ (hostvars['localhost'] | default({})).get('dutch_wins_per_user_level') or lookup('env', 'DUTCH_WINS_PER_USER_LEVEL') | default('10') }}"
         dutch_levels_per_rank: "{{ (hostvars['localhost'] | default({})).get('dutch_levels_per_rank') or lookup('env', 'DUTCH_LEVELS_PER_RANK') | default('5') }}"
@@ -294,26 +295,25 @@
         msg: "{{ docker_compose_check.stdout }}"
       when: docker_compose_check.rc is defined and docker_compose_check.rc == 0
 
+    # config -q validates only; plain `config` dumps fully interpolated YAML (secrets) into logs.
     - name: Validate docker-compose.yml syntax
-      shell: sg docker -c "docker compose -f {{ app_dir }}/{{ compose_file }} config"
+      shell: sg docker -c "docker compose -f {{ app_dir }}/{{ compose_file }} config -q"
       register: compose_validate
       changed_when: false
       failed_when: false
       when: docker_compose_check.rc is defined and docker_compose_check.rc == 0
 
-    - name: Display validation result
+    - name: Display validation result (no compose output — avoids leaking .env into logs)
       debug:
-        msg: |
-          Docker Compose file validation:
-          {{ compose_validate.stdout if (compose_validate.rc is defined and compose_validate.rc == 0) else 'Validation failed - check the error above' }}
+        msg: "Docker Compose file validated successfully (docker compose config -q)."
       when: compose_validate is defined and compose_validate.rc is defined and compose_validate.rc == 0
 
     - name: Display warning if validation failed
       debug:
         msg: |
-          ⚠ WARNING: Docker Compose file validation failed.
-          Please check the docker-compose.yml file for errors.
-          Error: {{ compose_validate.stderr | default('Unknown error') }}
+          WARNING: docker compose config -q failed (syntax or compose errors).
+          Fix docker-compose.yml / .env on the controller, then redeploy. Stderr:
+          {{ compose_validate.stderr | default('(none)') }}
       when: compose_validate is defined and compose_validate.rc is defined and compose_validate.rc != 0
 
     - name: Prompt for interactive docker compose run
@@ -331,7 +331,17 @@
           Press Enter to continue, or Ctrl+C to cancel.
           ============================================
       register: start_prompt
-      when: ansible_check_mode == False
+      when:
+        - ansible_check_mode == False
+        - not (vps_deploy_skip_compose_confirm | default(false) | bool)
+
+    - name: Skip compose confirm (non-interactive pull/up)
+      set_fact:
+        start_prompt:
+          user_input: ""
+      when:
+        - ansible_check_mode == False
+        - vps_deploy_skip_compose_confirm | default(false) | bool
 
     - name: Pull latest Docker images
       shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} pull"

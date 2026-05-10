@@ -4,12 +4,10 @@ import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../modules/connections_api_module/connections_api_module.dart';
-import '../../../../tools/logging/logger.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 
 /// Enable for leaderboard testing (period-wins). See `.cursor/rules/enable-logging-switch.mdc`.
-const bool LOGGING_SWITCH = false;
 
 /// Route: `/dutch/leaderboard` — live period wins from public Dutch endpoints.
 class LeaderboardScreen extends BaseScreen {
@@ -34,8 +32,6 @@ class LeaderboardScreen extends BaseScreen {
 }
 
 class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
-  final Logger _logger = Logger();
-
   bool _loading = true;
   String? _monthlyError;
   String? _yearlyError;
@@ -54,9 +50,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   }
 
   Future<void> _load() async {
-    if (LOGGING_SWITCH) {
-      _logger.info('LeaderboardScreen: loading period-wins (monthly+yearly, limit 20)', isOn: LOGGING_SWITCH);
-    }
+    
     setState(() {
       _loading = true;
       _monthlyError = null;
@@ -78,17 +72,9 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
       ]);
       _applyResponse(results[0], isMonthly: true);
       _applyResponse(results[1], isMonthly: false);
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'LeaderboardScreen: period-wins ok monthly_rows=${_monthlyRows.length} yearly_rows=${_yearlyRows.length} '
-          'month_key=$_monthlyPeriodKey year_key=$_yearlyPeriodKey',
-          isOn: LOGGING_SWITCH,
-        );
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('LeaderboardScreen: load error', error: e, isOn: LOGGING_SWITCH);
-      }
+      
       final msg = e.toString();
       _monthlyError ??= msg;
       _yearlyError ??= msg;

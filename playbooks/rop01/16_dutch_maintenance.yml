@@ -1,5 +1,5 @@
 ---
-# dutch.mt maintenance:
+# dutch.reignofplay.com maintenance:
 #   ON  — Install snippet + includes, deploy maintenance.html, touch .maintenance.
 #         All traffic is redirected to /maintenance.html except that path and /downloads*.
 #   OFF — Same end state as 16_dutch_maintenance_revert.yml: remove includes, snippet, flag; reload nginx.
@@ -22,7 +22,7 @@
   hosts: "{{ vm_name | default('rop01') }}_user"
   become: true
   vars:
-    nginx_dutch_site: /etc/nginx/sites-available/dutch.mt
+    nginx_dutch_site: /etc/nginx/sites-available/dutch.reignofplay.com
     maintenance_snippet_path: /etc/nginx/snippets/dutch-mt-maintenance.conf
 
   tasks:
@@ -85,7 +85,7 @@
         mode: '0644'
       when: maintenance | lower == 'on'
 
-    - name: Ensure include directive exists after each dutch.mt server_name line
+    - name: Ensure include directive exists after each dutch.reignofplay.com server_name line
       ansible.builtin.replace:
         path: "{{ nginx_dutch_site }}"
         regexp: '(server_name\s+dutch\.mt[^;]*;\s*\n)(?!\s*include /etc/nginx/snippets/dutch-mt-maintenance\.conf;)'

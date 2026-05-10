@@ -5,7 +5,6 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
-import '../../../../tools/logging/logger.dart';
 import '../../managers/validated_event_emitter.dart';
 import '../../../dutch_game/managers/dutch_event_manager.dart';
 import '../../practice/practice_mode_bridge.dart';
@@ -42,7 +41,6 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false; // Lobby (incl. random join host) trace (enable-logging-switch.mdc; set false after test)
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -82,17 +80,13 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   /// Ensure joinedGamesSlice is computed from games map - ALWAYS recompute on lobby screen load/build/focus
   /// This ensures the widget always reflects the current games map state
   void _ensureJoinedGamesSliceComputed() {
-    final Logger _logger = Logger();
     final stateManager = StateManager();
     final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
     final joinedGamesSlice = dutchGameState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
     final currentJoinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
     
-    if (LOGGING_SWITCH) {
-      _logger.info('LobbyScreen: _ensureJoinedGamesSliceComputed - games map has ${games.length} games, joinedGamesSlice has ${currentJoinedGames.length} games');
-      _logger.info('LobbyScreen: Forcing joinedGamesSlice recomputation from games map (${games.length} games)');
-    }
+    
     
     // ALWAYS trigger recomputation when lobby screen loads/builds/becomes visible
     // This ensures the widget reflects the current games map state, even if stale data exists
@@ -104,29 +98,20 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   /// Ensures Dart WS (JWT + listeners) matches [AppManager] app-init path; idempotent.
   Future<void> _initializeWebSocket() async {
-    final Logger _logger = Logger();
-    if (LOGGING_SWITCH) {
-      _logger.info('LobbyScreen: _initializeWebSocket called, mounted: $mounted');
-    }
+    
 
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final isLoggedIn = loginState['isLoggedIn'] == true;
     if (!isLoggedIn) {
-      if (LOGGING_SWITCH) {
-        _logger.info('LobbyScreen: Not logged in, skipping WebSocket.');
-      }
+      
       return;
     }
 
     try {
       final ok = await _websocketManager.ensureInitializedAndConnected();
-      if (LOGGING_SWITCH) {
-        _logger.info('LobbyScreen: ensureInitializedAndConnected => $ok');
-      }
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('LobbyScreen: WebSocket error: $e', error: e, stackTrace: stackTrace);
-      }
+      
     }
   }
   
@@ -140,10 +125,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
  
   Future<Map<String, dynamic>> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
-      if (LOGGING_SWITCH) {
-        final Logger _log = Logger();
-        _log.info('LobbyScreen._createRoom: roomSettings=$roomSettings');
-      }
+      
       // 🎯 CRITICAL: Clear all existing game state before starting new game
       // This prevents overlapping or old game state from interfering
       await DutchGameHelpers.clearAllGameStateBeforeNewGame();
@@ -227,10 +209,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _startPracticeMatch(Map<String, dynamic> practiceSettings) async {
     try {
-      final Logger _logger = Logger();
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Starting practice match setup');
-      }
+      
       
       // 🎯 CRITICAL: Clear all existing game state before starting new game
       // This prevents overlapping or old game state from interfering
@@ -243,9 +222,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         'displayName': 'Practice Player',
         'isPracticeUser': true,
       };
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Generated practice user: $currentUserId');
-      }
+      
       
       // Force showInstructions to false for practice matches (instructions are only used in demo matches)
       final updatedPracticeSettings = Map<String, dynamic>.from(practiceSettings);
@@ -259,31 +236,22 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         'practiceUser': practiceUserData,
         'practiceSettings': updatedPracticeSettings,
       });
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Stored practice user data and settings in state (sync + queue)');
-        _logger.info('🎮 _startPracticeMatch: showInstructions = false (always disabled for practice matches)');
-      }
+      
       
       // Verify practice user data was stored (read back from state)
       final verifyState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final verifyPracticeUser = verifyState['practiceUser'] as Map<String, dynamic>?;
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Verified practice user in state: $verifyPracticeUser');
-      }
+      
       
       // Switch event emitter to practice mode
       final eventEmitter = DutchGameEventEmitter.instance;
       eventEmitter.setTransportMode(EventTransportMode.practice);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Switched to practice mode');
-      }
+      
       
       // Initialize and start practice session
       final practiceBridge = PracticeModeBridge.instance;
       await practiceBridge.initialize();
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Practice bridge initialized');
-      }
+      
       
       // Get difficulty from practice settings
       final practiceDifficulty = updatedPracticeSettings['difficulty'] as String? ?? 'medium';
@@ -295,16 +263,12 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         gameType: 'practice',
         difficulty: practiceDifficulty, // Pass difficulty from lobby selection
       );
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Practice room created: $practiceRoomId');
-      }
+      
       
       // Get game state from GameStateStore (after hooks have initialized it)
       final gameStateStore = GameStateStore.instance;
       final gameState = gameStateStore.getGameState(practiceRoomId);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Got game state, phase = ${gameState['phase']}');
-      }
+      
       
       // Create gameData structure matching multiplayer format
       final maxPlayersValue = practiceSettings['maxPlayers'] as int? ?? 4;
@@ -345,9 +309,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       // Update UI state to reflect practice game (matching multiplayer format)
       // Store normalized gamePhase in MAIN state (not in games map)
       // CRITICAL: Update currentGameId directly via StateManager first to ensure it's available for slice computation
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Updating UI state with currentGameId = $practiceRoomId');
-      }
+      
       
       // Get current state and update critical fields directly (bypasses queue for immediate availability)
       final dutchStateManager = StateManager();
@@ -368,9 +330,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       
       // Update StateManager directly to ensure immediate availability
       dutchStateManager.updateModuleState('dutch_game', updatedDutchState);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Critical state fields updated directly');
-      }
+      
       
       // Now trigger slice recomputation via the queue (this will use the updated currentGameId)
       DutchGameHelpers.updateUIState({
@@ -378,9 +338,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         'games': games,  // Trigger gameInfo slice recomputation
         'gamePhase': uiPhase,  // Trigger gameInfo slice recomputation
       });
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: UI state updated and slices triggered');
-      }
+      
       
       // Small delay to allow slice recomputation
       await Future.delayed(const Duration(milliseconds: 50));
@@ -389,10 +347,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final verifyCurrentGameId = verifyGameInfo['currentGameId']?.toString() ?? '';
       final verifyIsRoomOwner = verifyGameInfo['isRoomOwner'] ?? false;
       final verifyIsInGame = verifyGameInfo['isInGame'] ?? false;
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: Verified gameInfo - currentGameId: $verifyCurrentGameId, isRoomOwner: $verifyIsRoomOwner, isInGame: $verifyIsInGame');
-        _logger.info('🎮 _startPracticeMatch: Triggering handleGameStateUpdated for game_id = $practiceRoomId');
-      }
+      
       
       // 🎯 CRITICAL: Trigger game_state_updated event to sync widget slices
       // This ensures widget slices (myHand, centerBoard, opponentsPanel, etc.) are computed
@@ -404,10 +359,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         'owner_id': currentUserId,
         'timestamp': DateTime.now().toIso8601String(),
       });
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 _startPracticeMatch: handleGameStateUpdated completed');
-        _logger.info('🎮 _startPracticeMatch: Navigating to game play screen');
-      }
+      
       
       // Navigate to game play screen
       NavigationManager().navigateToPush('/dutch/game-play');

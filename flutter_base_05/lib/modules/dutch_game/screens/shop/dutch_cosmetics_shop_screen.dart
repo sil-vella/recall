@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../../core/00_base/screen_base.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../../../utils/widgets/felt_texture_widget.dart';
 import '../../models/card_display_config.dart';
@@ -41,14 +40,12 @@ class DutchCustomizeScreen extends BaseScreen {
 }
 
 class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
-  static const bool LOGGING_SWITCH = false;
   /// Dark scrim behind title / price only.
   static final Color _kTextScrimFill = AppColors.darkGray.withValues(alpha: 0.92);
 
   /// Cosmetic overlay on felt — must match [GamePlayScreen] table overlay (`Opacity` child).
   static const double _kShopTableOverlayOpacity = 0.22;
 
-  final Logger _logger = Logger();
   bool _loading = true;
   List<Map<String, dynamic>> _catalog = const [];
   Map<String, dynamic> _inventory = const {};
@@ -57,16 +54,12 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   @override
   void initState() {
     super.initState();
-    if (LOGGING_SWITCH) {
-      _logger.info('🎨 DutchCustomizeScreen: initState equipOnly=${widget.equipOnly}');
-    }
+    
     _loadData();
   }
 
   Future<void> _loadData() async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎨 DutchCustomizeScreen: _loadData start');
-    }
+    
     setState(() => _loading = true);
     final catalog = await DutchGameHelpers.getShopCatalog();
     final inventory = await DutchGameHelpers.fetchInventory() ?? {};
@@ -76,9 +69,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
       _inventory = inventory;
       _loading = false;
     });
-    if (LOGGING_SWITCH) {
-      _logger.info('🎨 DutchCustomizeScreen: _loadData done catalog=${_catalog.length}');
-    }
+    
   }
 
   bool _isOwned(Map<String, dynamic> item) {
@@ -102,9 +93,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   }
 
   Future<void> _purchase(Map<String, dynamic> item) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎨 DutchCustomizeScreen: purchase tap item=${item['item_id']}');
-    }
+    
     final result = await DutchGameHelpers.purchaseShopItem(item['item_id']?.toString() ?? '');
     final ok = result['success'] == true;
     if (!mounted) return;
@@ -194,9 +183,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   }
 
   Future<void> _equip(Map<String, dynamic> item) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎨 DutchCustomizeScreen: equip tap item=${item['item_id']} type=${item['item_type']}');
-    }
+    
     final type = item['item_type']?.toString() ?? '';
     final slot = type == 'card_back' ? 'card_back' : 'table_design';
     final result = await DutchGameHelpers.equipCosmetic(
@@ -212,9 +199,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   }
 
   Future<void> _unequip(String slot) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎨 DutchCustomizeScreen: unequip tap slot=$slot');
-    }
+    
     final result = await DutchGameHelpers.equipCosmetic(
       slot: slot,
       cosmeticId: '',
@@ -229,9 +214,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎨 DutchCustomizeScreen: buildContent loading=$_loading equipOnly=${widget.equipOnly}');
-    }
+    
     if (_loading) {
       return Center(child: CircularProgressIndicator(color: AppColors.accentColor));
     }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../tools/logging/logger.dart';
 import 'app_manager.dart';
 import 'module_manager.dart';
 import 'services_manager.dart';
@@ -11,7 +10,6 @@ import 'auth_manager.dart';
 /// Provider Manager - Centralized provider registration system
 /// Allows modules to register their own providers dynamically
 class ProviderManager {
-  static final Logger _logger = Logger();
   static final ProviderManager _instance = ProviderManager._internal();
   
   factory ProviderManager() => _instance;

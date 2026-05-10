@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "revenuecat_products": {
+    "starter_pack_100_coin": 100,
+    "coins_100": 100,
+    "coins_500": 500,
+    "coins_1000": 1000,
+    "coins_2500": 2500,
+    "coins_5000": 5000,
+    "coins_10000": 10000
+  },
+  "stripe_packages": [
+    { "key": "starter", "label": "Starter", "coins": 100, "stripe_price_env": "STRIPE_PRICE_COIN_STARTER" },
+    { "key": "casual", "label": "Casual", "coins": 300, "stripe_price_env": "STRIPE_PRICE_COIN_CASUAL" },
+    { "key": "popular", "label": "Popular", "coins": 700, "stripe_price_env": "STRIPE_PRICE_COIN_POPULAR" },
+    { "key": "grinder", "label": "Grinder", "coins": 1500, "stripe_price_env": "STRIPE_PRICE_COIN_GRINDER" },
+    { "key": "pro", "label": "Pro", "coins": 3500, "stripe_price_env": "STRIPE_PRICE_COIN_PRO" }
+  ],
+  "recommended_ui_packages": [
+    { "key": "starter", "label": "Starter", "coins": 100, "priceLabel": "$0.99" },
+    { "key": "casual", "label": "Casual", "coins": 300, "priceLabel": "$2.49" },
+    { "key": "popular", "label": "Popular", "coins": 700, "priceLabel": "$4.99", "isPopular": true },
+    { "key": "grinder", "label": "Grinder", "coins": 1500, "priceLabel": "$9.99" },
+    { "key": "pro", "label": "Pro", "coins": 3500, "priceLabel": "$19.99" }
+  ]
+}

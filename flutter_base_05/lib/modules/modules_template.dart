@@ -8,7 +8,6 @@ import 'package:dutch/modules/dutch_game/screens/lobby_room/lobby_screen.dart';
 import '../core/00_base/module_base.dart';
 import '../core/managers/module_manager.dart';
 import '../core/managers/services_manager.dart';
-import '../tools/logging/logger.dart';
 
 /// Template for creating new modules
 /// 
@@ -18,7 +17,6 @@ import '../tools/logging/logger.dart';
 /// 3. Implement required methods
 /// 4. Add your module-specific functionality
 class DutchGameMain extends ModuleBase {
-  static final Logger _logger = Logger();
   late ModuleManager _localModuleManager;
   late ServicesManager _servicesManager;
   SharedPrefManager? _sharedPref;
@@ -33,7 +31,6 @@ class DutchGameMain extends ModuleBase {
     super.initialize(context, moduleManager);
     _localModuleManager = moduleManager;
     _initDependencies(context);
-    _logger.info('✅ DutchGameMain initialized with context.');
     _registerState();
 
   }
@@ -52,7 +49,6 @@ class DutchGameMain extends ModuleBase {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final stateManager = StateManager();
       if (!stateManager.isModuleStateRegistered('dutch_game')) {
-        _logger.info('📊 Creating new dutch_game state registration...');
         stateManager.registerModuleState('dutch_game', {
           // Connection state
           'isLoading': false,
@@ -100,9 +96,7 @@ class DutchGameMain extends ModuleBase {
           // Metadata
           'lastUpdated': DateTime.now().toIso8601String(),
         });
-        _logger.info('✅ Dutch game state registered with widget slices');
       } else {
-        _logger.info('📊 Dutch game state already registered');
       }
     });
   }
@@ -112,10 +106,7 @@ class DutchGameMain extends ModuleBase {
     // Screens no longer require a notifier – nothing to guard here
     
     final navigationManager = NavigationManager();
-    _logger.info('🗺️ NavigationManager obtained for screen registration');
-
     // Register Dutch Game Lobby Screen (Room Management)
-    _logger.info('🗺️ Registering LobbyScreen route: /dutch/lobby');
     navigationManager.registerRoute(
       path: '/dutch/lobby',
       screen: (context) => const LobbyScreen(),
@@ -123,10 +114,7 @@ class DutchGameMain extends ModuleBase {
       drawerIcon: Icons.games,
       drawerPosition: 1, // After Home
     );
-    _logger.info('✅ LobbyScreen route registered');
-
     // Register Game Play Screen - ALWAYS with notifier
-    _logger.info('🗺️ Registering GamePlayScreen route: /dutch/game-play');
     navigationManager.registerRoute(
       path: '/dutch/game-play',
       screen: (BuildContext context) => const GamePlayScreen(),
@@ -134,8 +122,6 @@ class DutchGameMain extends ModuleBase {
       drawerIcon: null,
       drawerPosition: 999,
     );
-    _logger.info('✅ GamePlayScreen route registered');
-
     // navigationManager.registerRoute(
     //   path: '/dutch/game-results',
     //   screen: (context) => const GameResultsScreen(),
@@ -144,23 +130,19 @@ class DutchGameMain extends ModuleBase {
     //   drawerPosition: 999,
     // );
 
-    _logger.info('✅ Dutch game screens registered with NavigationManager');
   }
 
   /// ✅ Cleanup resources when module is disposed
   @override
   void dispose() {
-    _logger.info('🗑 DutchGameMain disposed.');
     super.dispose();
   }
 
   /// ✅ Example method - add your module-specific methods below
   Future<Map<String, dynamic>> exampleMethod(BuildContext context) async {
     try {
-      _logger.info('🔧 DutchGameMain example method called');
       return {"success": "Example method executed successfully"};
     } catch (e) {
-      _logger.error('❌ Error in example method: $e');
       return {"error": "Example method failed: $e"};
     }
   }

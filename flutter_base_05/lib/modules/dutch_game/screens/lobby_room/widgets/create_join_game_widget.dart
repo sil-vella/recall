@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../../core/managers/state_manager.dart' hide LOGGING_SWITCH;
+import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/module_manager.dart';
-import '../../../../../core/managers/navigation_manager.dart' hide LOGGING_SWITCH;
+import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../core/managers/hooks_manager.dart';
-import '../../../../../core/managers/websockets/websocket_manager.dart' hide LOGGING_SWITCH;
+import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../backend_core/utils/level_matcher.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
 import '../../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../../modules/user_management_module/user_management_module.dart';
-import '../../../../../tools/logging/logger.dart';
 
 /// Unified widget for creating and joining games
 class CreateJoinGameWidget extends StatefulWidget {
@@ -682,9 +681,6 @@ class _CreateRoomModal extends StatefulWidget {
 }
 
 class _CreateRoomModalState extends State<_CreateRoomModal> {
-  static const bool LOGGING_SWITCH = false; // accepted_players payload (enable-logging-switch.mdc)
-  static final Logger _log = Logger();
-
   late String _selectedGameType;
   /// Room table tier (1–4) for `game_level` on create_room.
   late int _selectedTableLevel;
@@ -755,13 +751,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
         })
         .where((e) => (e['user_id'] as String).isNotEmpty)
         .toList();
-    if (LOGGING_SWITCH) {
-      final nComp = out.where((e) => e['is_comp_player'] == true).length;
-      _log.info(
-        'CreateJoinGame: accepted_players count=${out.length} comp_slots=$nComp',
-        isOn: true,
-      );
-    }
+    
     return out;
   }
 

@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'package:dutch/tools/logging/logger.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../managers/dutch_game_state_updater.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for demo debugging
 
 /// Demo Phase Instructions
 /// 
@@ -41,8 +39,6 @@ class DemoFunctionality {
   }
 
   DemoFunctionality._internal();
-
-  final Logger _logger = Logger();
 
   // Track selected card IDs for initial peek
   final Set<String> _initialPeekSelectedCardIds = {};
@@ -123,21 +119,11 @@ class DemoFunctionality {
     Map<String, dynamic> payload,
   ) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: ========== HANDLING ACTION ==========');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Action type: "$actionType"');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Payload: $payload');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Action type check - play_card match: ${actionType == 'play_card'}');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Action type length: ${actionType.length}, play_card length: ${'play_card'.length}');
-      }
+      
+      
+      
+      
+      
 
       // Route to specific action handlers
       switch (actionType) {
@@ -168,15 +154,11 @@ class DemoFunctionality {
         case 'same_rank_play':
           return await _handleSameRankPlay(payload);
         default:
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DemoFunctionality: Unknown action type: $actionType');
-          }
+          
           return {'success': false, 'error': 'Unknown action type'};
       }
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Error handling action $actionType: $e', error: e, stackTrace: stackTrace);
-      }
+      
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -187,12 +169,8 @@ class DemoFunctionality {
   /// - game_id: gameId
   /// - player_id: auto-added by event emitter
   Future<Map<String, dynamic>> _handleDrawCard(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Draw card action intercepted');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Payload: $payload');
-    }
+    
+    
     
     // PlayerAction.playerDraw() sends 'source' as 'deck' or 'discard'
     // Also check for 'pile_type' or 'pileType' for backward compatibility
@@ -209,9 +187,7 @@ class DemoFunctionality {
       actualPileType = 'draw_pile'; // Default to draw pile
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Drawing from pile: $actualPileType (source: $source, pileType: $pileType)');
-    }
+    
     
     final stateManager = StateManager();
     final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -219,9 +195,7 @@ class DemoFunctionality {
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     
     if (currentGameId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No currentGameId found');
-      }
+      
       return {'success': false, 'error': 'No active game'};
     }
     
@@ -235,9 +209,7 @@ class DemoFunctionality {
       // Draw from draw pile
       final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
       if (drawPile.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: Draw pile is empty');
-        }
+        
         return {'success': false, 'error': 'Draw pile is empty'};
       }
       
@@ -245,16 +217,12 @@ class DemoFunctionality {
       final idOnlyCard = drawPile.removeLast() as Map<String, dynamic>;
       final cardId = idOnlyCard['cardId']?.toString() ?? '';
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Drew ID-only card $cardId from draw pile');
-      }
+      
       
       // Get full card data from originalDeck
       drawnCard = _getCardById(cardId);
       if (drawnCard == null) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId');
-        }
+        
         return {'success': false, 'error': 'Failed to get card data'};
       }
       
@@ -265,9 +233,7 @@ class DemoFunctionality {
       // Take from discard pile
       final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
       if (discardPile.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: Discard pile is empty');
-        }
+        
         return {'success': false, 'error': 'Discard pile is empty'};
       }
       
@@ -275,16 +241,12 @@ class DemoFunctionality {
       drawnCard = Map<String, dynamic>.from(discardPile.removeLast() as Map<String, dynamic>);
       final cardId = drawnCard['cardId']?.toString() ?? '';
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Drew card $cardId from discard pile');
-      }
+      
       
       // Update discard pile in game state
       gameState['discardPile'] = discardPile;
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Invalid pile type: $actualPileType');
-      }
+      
       return {'success': false, 'error': 'Invalid pile type'};
     }
     
@@ -308,9 +270,7 @@ class DemoFunctionality {
     }
     
     if (playerIndex == -1 || player == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Human player not found in players list');
-      }
+      
       return {'success': false, 'error': 'Human player not found'};
     }
     final hand = player['hand'] as List<dynamic>? ?? [];
@@ -368,18 +328,10 @@ class DemoFunctionality {
       'myHand': myHand, // Update myHand slice with new status and cards
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Card drawn successfully: ${drawnCard['rank']} of ${drawnCard['suit']}');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Added card to hand (now ${hand.length} cards)');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Updated player status to playing_card');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Transitioned to playing phase');
-    }
+    
+    
+    
+    
     
     return {'success': true, 'mode': 'demo', 'drawnCard': drawnCard};
   }
@@ -390,24 +342,14 @@ class DemoFunctionality {
   /// - game_id: Current game ID
   /// - player_id: Auto-added by event emitter
   Future<Map<String, dynamic>> _handlePlayCard(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: ========== PLAY CARD ACTION INTERCEPTED ==========');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Play card action intercepted');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Payload: $payload');
-    }
+    
+    
+    
     
     final cardId = payload['card_id']?.toString() ?? payload['cardId']?.toString() ?? '';
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Extracted cardId: "$cardId"');
-    }
+    
     if (cardId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Invalid card_id in play card payload');
-      }
+      
       return {'success': false, 'error': 'Invalid card_id'};
     }
     
@@ -417,9 +359,7 @@ class DemoFunctionality {
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     
     if (currentGameId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No currentGameId found');
-      }
+      
       return {'success': false, 'error': 'No active game'};
     }
     
@@ -441,9 +381,7 @@ class DemoFunctionality {
     }
     
     if (playerIndex == -1 || player == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Human player not found');
-      }
+      
       return {'success': false, 'error': 'Human player not found'};
     }
     
@@ -455,75 +393,51 @@ class DemoFunctionality {
     final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
     
     // Find card index in hand (matches practice mode logic)
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Searching for card $cardId in hand (hand length: ${hand.length})');
-    }
+    
     int cardIndex = -1;
     for (int i = 0; i < hand.length; i++) {
       final card = hand[i];
       if (card != null && card is Map<String, dynamic>) {
         final cardIdInHand = card['cardId']?.toString() ?? '';
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Hand[$i]: cardId=$cardIdInHand, searching for=$cardId, match=${cardIdInHand == cardId}');
-        }
+        
         // Check for null first (blank slots), then check if it's a map, then compare cardId
         // Matches practice mode: if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId)
         if (cardIdInHand == cardId) {
           cardIndex = i;
-          if (LOGGING_SWITCH) {
-            _logger.info('✅ DemoFunctionality: Found card $cardId at index $cardIndex');
-          }
+          
           break;
         }
       } else if (card == null) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Hand[$i]: null (blank slot)');
-        }
+        
       }
     }
     
     if (cardIndex == -1) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Card $cardId not found in hand');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Hand contents: ${hand.map((c) => c is Map ? c['cardId'] : 'null').toList()}');
-      }
+      
+      
       return {'success': false, 'error': 'Card not found in hand'};
     }
     
     // Get full card data for discard pile
     final cardToPlayFullData = _getCardById(cardId);
     if (cardToPlayFullData == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId');
-      }
+      
       return {'success': false, 'error': 'Failed to get card data'};
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Card data retrieved: ${cardToPlayFullData.toString()}');
-    }
+    
     
     // Check if played card is a queen - if so, route to queen-specific logic
     final cardRank = cardToPlayFullData['rank']?.toString() ?? '';
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Card rank: "$cardRank" (checking for "queen" or "jack")');
-    }
+    
     if (cardRank == 'queen') {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Queen detected, routing to queen play logic');
-      }
+      
       return await _handleQueenPlay(payload, cardToPlayFullData, player, hand, gameState, games, currentGameId, dutchGameState);
     } else if (cardRank == 'jack') {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Jack detected, routing to jack play logic');
-      }
+      
       return await _handleJackPlay(payload, cardToPlayFullData, player, hand, gameState, games, currentGameId, dutchGameState);
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Not a queen or jack (rank: "$cardRank"), continuing with regular play logic');
-      }
+      
     }
     
     // Check if played card is the drawn card
@@ -545,14 +459,10 @@ class DemoFunctionality {
     // Remove card from hand (matches practice mode behavior)
     if (shouldCreateBlankSlot) {
       hand[cardIndex] = null; // Create blank slot to maintain structure
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Created blank slot at index $cardIndex');
-      }
+      
     } else {
       hand.removeAt(cardIndex); // Remove entirely and shift remaining cards
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Removed card entirely from index $cardIndex');
-      }
+      
     }
     
     // Handle drawn card repositioning if it wasn't played
@@ -581,14 +491,10 @@ class DemoFunctionality {
         
         if (shouldKeepOriginalSlot) {
           hand[drawnCardOriginalIndex] = null; // Create blank slot
-          if (LOGGING_SWITCH) {
-            _logger.info('✅ DemoFunctionality: Created blank slot at original position $drawnCardOriginalIndex');
-          }
+          
         } else {
           hand.removeAt(drawnCardOriginalIndex); // Remove entirely
-          if (LOGGING_SWITCH) {
-            _logger.info('✅ DemoFunctionality: Removed drawn card entirely from original position $drawnCardOriginalIndex');
-          }
+          
           // Adjust cardIndex if we removed a card before it
           if (drawnCardOriginalIndex < cardIndex) {
             cardIndex -= 1;
@@ -618,21 +524,15 @@ class DemoFunctionality {
           // Place in blank slot left by played card
           if (cardIndex < hand.length) {
             hand[cardIndex] = drawnCardIdOnly;
-            if (LOGGING_SWITCH) {
-              _logger.info('✅ DemoFunctionality: Placed drawn card in blank slot at index $cardIndex');
-            }
+            
           } else {
             hand.insert(cardIndex, drawnCardIdOnly);
-            if (LOGGING_SWITCH) {
-              _logger.info('✅ DemoFunctionality: Inserted drawn card at index $cardIndex');
-            }
+            
           }
         } else {
           // Append to end if slot shouldn't exist
           hand.add(drawnCardIdOnly);
-          if (LOGGING_SWITCH) {
-            _logger.info('✅ DemoFunctionality: Appended drawn card to end of hand');
-          }
+          
         }
       }
     }
@@ -697,15 +597,9 @@ class DemoFunctionality {
       'gamePhase': 'same_rank_window', // Set game phase to same_rank_window
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Card $cardId played successfully');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Updated all players status to same_rank_window');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Transitioned to same_rank phase');
-    }
+    
+    
+    
     
     // Cancel any existing same rank window timer - user controls when to proceed
     // Timer will only be set when opponents play same rank cards
@@ -714,32 +608,22 @@ class DemoFunctionality {
     // After user plays, automatically play same rank cards from opponents (demo mode)
     // Read fresh gameState from games map to ensure we have the latest state
     final playedRank = cardToPlayFullData['rank']?.toString() ?? '';
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: About to check opponents for same rank plays (rank: $playedRank)');
-    }
+    
     
     final freshGameId = dutchGameState['currentGameId']?.toString() ?? '';
     if (freshGameId.isNotEmpty) {
       final currentGame = games[freshGameId] as Map<String, dynamic>? ?? {};
       final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
       final freshGameState = currentGameData['game_state'] as Map<String, dynamic>? ?? gameState;
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Calling _handleOpponentSameRankPlays with freshGameState');
-      }
+      
       // Fire and forget - don't await to avoid blocking the response
       _handleOpponentSameRankPlays(freshGameState, playedRank).catchError((error, stackTrace) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: Error in opponent same rank plays: $error', error: error, stackTrace: stackTrace);
-        }
+        
       });
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Calling _handleOpponentSameRankPlays with original gameState (no freshGameId)');
-      }
+      
       _handleOpponentSameRankPlays(gameState, playedRank).catchError((error, stackTrace) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: Error in opponent same rank plays: $error', error: error, stackTrace: stackTrace);
-        }
+        
       });
     }
     
@@ -757,9 +641,7 @@ class DemoFunctionality {
     String currentGameId,
     Map<String, dynamic> dutchGameState,
   ) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Queen play intercepted');
-    }
+    
     
     final cardId = payload['card_id']?.toString() ?? payload['cardId']?.toString() ?? '';
     final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
@@ -786,9 +668,7 @@ class DemoFunctionality {
     }
     
     if (userPlayer == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: User player not found in latest players');
-      }
+      
       return {'success': false, 'error': 'User player not found'};
     }
     
@@ -809,9 +689,7 @@ class DemoFunctionality {
     }
     
     if (cardIndex == -1) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Queen card $cardId not found in hand');
-      }
+      
       return {'success': false, 'error': 'Card not found in hand'};
     }
     
@@ -834,14 +712,10 @@ class DemoFunctionality {
     
     if (shouldCreateBlankSlot) {
       mutableHand[cardIndex] = null;
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Created blank slot at index $cardIndex for queen');
-      }
+      
     } else {
       mutableHand.removeAt(cardIndex);
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Removed queen entirely from index $cardIndex');
-      }
+      
     }
     
     // Handle drawn card repositioning if it wasn't played (same logic as regular play)
@@ -942,13 +816,9 @@ class DemoFunctionality {
         'points': 10,
         'specialPower': 'peek_at_card',
       };
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ DemoFunctionality: Queen not found in originalDeck, created fallback queen of $playedSuit');
-      }
+      
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Using original queen card ID: ${originalQueenCard['cardId']}, suit: ${originalQueenCard['suit']}');
-      }
+      
     }
     
     // Restore original hand and update piles
@@ -1026,15 +896,9 @@ class DemoFunctionality {
       // Removed lastUpdated - causes unnecessary state updates
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Updated user status to queen_peek in SSOT');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Updated state - widget slices will be recomputed with playerStatus=queen_peek');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Queen played successfully, showing queen peek instructions');
-    }
+    
+    
+    
     
     return {'success': true, 'mode': 'demo', 'cardId': cardId};
   }
@@ -1050,9 +914,7 @@ class DemoFunctionality {
     String currentGameId,
     Map<String, dynamic> dutchGameState,
   ) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Jack play intercepted');
-    }
+    
     
     final cardId = payload['card_id']?.toString() ?? payload['cardId']?.toString() ?? '';
     final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
@@ -1079,9 +941,7 @@ class DemoFunctionality {
     }
     
     if (userPlayer == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: User player not found in latest players');
-      }
+      
       return {'success': false, 'error': 'User player not found'};
     }
     
@@ -1102,9 +962,7 @@ class DemoFunctionality {
     }
     
     if (cardIndex == -1) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Jack card $cardId not found in hand');
-      }
+      
       return {'success': false, 'error': 'Card not found in hand'};
     }
     
@@ -1127,14 +985,10 @@ class DemoFunctionality {
     
     if (shouldCreateBlankSlot) {
       mutableHand[cardIndex] = null;
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Created blank slot at index $cardIndex for jack');
-      }
+      
     } else {
       mutableHand.removeAt(cardIndex);
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Removed jack entirely from index $cardIndex');
-      }
+      
     }
     
     // Handle drawn card repositioning if it wasn't played (same logic as regular play)
@@ -1235,13 +1089,9 @@ class DemoFunctionality {
         'points': 10,
         'specialPower': 'swap_cards',
       };
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ DemoFunctionality: Jack not found in originalDeck, created fallback jack of $playedSuit');
-      }
+      
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Using original jack card ID: ${originalJackCard['cardId']}, suit: ${originalJackCard['suit']}');
-      }
+      
     }
     
     // Restore original hand and update piles
@@ -1320,15 +1170,9 @@ class DemoFunctionality {
       // Removed lastUpdated - causes unnecessary state updates
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Updated user status to jack_swap in SSOT');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Updated state - widget slices will be recomputed with playerStatus=jack_swap');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Jack played successfully, showing jack swap instructions (skipped same rank window)');
-    }
+    
+    
+    
     
     return {'success': true, 'mode': 'demo', 'cardId': cardId};
   }
@@ -1339,12 +1183,8 @@ class DemoFunctionality {
   /// - game_id: gameId
   /// - player_id: auto-added by event emitter
   Future<Map<String, dynamic>> _handleSameRankPlay(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Same rank play action intercepted');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Payload: $payload');
-    }
+    
+    
     
     // Cancel any pending same rank instructions timer (player is playing, not waiting)
     _sameRankInstructionsTimer?.cancel();
@@ -1354,9 +1194,7 @@ class DemoFunctionality {
     
     final cardId = payload['card_id']?.toString() ?? '';
     if (cardId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No card_id provided for same rank play');
-      }
+      
       return {'success': false, 'error': 'No card_id provided'};
     }
     
@@ -1366,9 +1204,7 @@ class DemoFunctionality {
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     
     if (currentGameId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No currentGameId found');
-      }
+      
       return {'success': false, 'error': 'No active game'};
     }
     
@@ -1381,9 +1217,7 @@ class DemoFunctionality {
                            dutchGameState['playerId']?.toString() ?? '';
     
     if (currentPlayerId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No current player ID found');
-      }
+      
       return {'success': false, 'error': 'No current player'};
     }
     
@@ -1398,9 +1232,7 @@ class DemoFunctionality {
     }
     
     if (player == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Player $currentPlayerId not found');
-      }
+      
       return {'success': false, 'error': 'Player not found'};
     }
     
@@ -1420,31 +1252,23 @@ class DemoFunctionality {
     }
     
     if (playedCard == null) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ DemoFunctionality: Card $cardId not found in player $currentPlayerId hand');
-      }
+      
       return {'success': false, 'error': 'Card not found in hand'};
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Found card $cardId at index $cardIndex');
-    }
+    
     
     // Get full card data
     final playedCardFullData = _getCardById(cardId);
     if (playedCardFullData == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId');
-      }
+      
       return {'success': false, 'error': 'Failed to get card data'};
     }
     
     final cardRank = playedCardFullData['rank']?.toString() ?? '';
     final cardSuit = playedCardFullData['suit']?.toString() ?? '';
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Playing card $cardId (rank: $cardRank, suit: $cardSuit)');
-    }
+    
     
     // Validate same rank play (check if rank matches discard pile top card)
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
@@ -1455,26 +1279,20 @@ class DemoFunctionality {
       if (lastCard != null) {
         final lastCardRank = lastCard['rank']?.toString() ?? '';
         isValidSameRank = cardRank.toLowerCase() == lastCardRank.toLowerCase();
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Same rank validation - played: $cardRank, required: $lastCardRank, valid: $isValidSameRank');
-        }
+        
       }
     }
     
     if (!isValidSameRank) {
       // Apply penalty: draw a card from the draw pile and add to player's hand
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Same rank validation failed - applying penalty card');
-      }
+      
       
       final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
       
       // Check if draw pile is empty and reshuffle if needed
       if (drawPile.isEmpty) {
         if (discardPile.length <= 1) {
-          if (LOGGING_SWITCH) {
-            _logger.error('❌ DemoFunctionality: Cannot apply penalty - draw pile is empty and discard pile has ${discardPile.length} card(s)');
-          }
+          
           return {'success': false, 'error': 'Cannot apply penalty - no cards available'};
         }
         
@@ -1482,9 +1300,7 @@ class DemoFunctionality {
         final topCard = discardPile.last as Map<String, dynamic>;
         final cardsToReshuffle = discardPile.sublist(0, discardPile.length - 1);
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Draw pile empty during penalty - reshuffling ${cardsToReshuffle.length} cards from discard pile');
-        }
+        
         
         // Convert full card data to ID-only for reshuffled cards
         final idOnlyCards = cardsToReshuffle.map((card) {
@@ -1509,17 +1325,13 @@ class DemoFunctionality {
         gameState['discardPile'] = [topCard];
         gameState['drawPile'] = drawPile;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Reshuffled ${idOnlyCards.length} cards into draw pile for penalty');
-        }
+        
       }
       
       // Re-fetch drawPile in case it was reshuffled
       final currentDrawPile = gameState['drawPile'] as List<dynamic>? ?? [];
       if (currentDrawPile.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: Draw pile is empty after reshuffle check - cannot apply penalty');
-        }
+        
         return {'success': false, 'error': 'Draw pile is empty'};
       }
       
@@ -1529,15 +1341,11 @@ class DemoFunctionality {
       if (penaltyCardRaw is Map<String, dynamic>) {
         penaltyCard = penaltyCardRaw;
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: Penalty card is not a Map');
-        }
+        
         return {'success': false, 'error': 'Invalid penalty card format'};
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Drew penalty card ${penaltyCard['cardId']} from draw pile');
-      }
+      
       
       // Add penalty card to player's hand as ID-only (same format as regular hand cards)
       final penaltyCardIdOnly = {
@@ -1548,9 +1356,7 @@ class DemoFunctionality {
       };
       
       hand.add(penaltyCardIdOnly);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Added penalty card ${penaltyCard['cardId']} to player $currentPlayerId hand');
-      }
+      
       
       // Update player's hand and draw pile in game state
       player['hand'] = hand;
@@ -1598,17 +1404,13 @@ class DemoFunctionality {
       
       final handCount = hand.where((c) => c != null).length;
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Penalty applied successfully - player $currentPlayerId now has $handCount cards');
-      }
+      
       
       return {'success': true, 'mode': 'demo', 'penalty': true, 'cardId': cardId};
     }
     
     // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Same rank validation passed - removing card from hand');
-    }
+    
     
     // Check if we should create a blank slot or remove the card entirely
     bool shouldCreateBlankSlot = cardIndex <= 3;
@@ -1625,14 +1427,10 @@ class DemoFunctionality {
     // Remove card from hand
     if (shouldCreateBlankSlot) {
       hand[cardIndex] = null; // Create blank slot to maintain structure
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Created blank slot at index $cardIndex for same rank play');
-      }
+      
     } else {
       hand.removeAt(cardIndex); // Remove entirely and shift remaining cards
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Removed same rank card entirely from index $cardIndex');
-      }
+      
     }
     
     // Update player's hand
@@ -1705,9 +1503,7 @@ class DemoFunctionality {
     // Timer will only be set when opponents play same rank cards
     _sameRankWindowTimer?.cancel();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Same rank play successful - card $cardId (rank: $cardRank) added to discard pile');
-    }
+    
     
     return {'success': true, 'mode': 'demo', 'cardId': cardId};
   }
@@ -1715,34 +1511,24 @@ class DemoFunctionality {
   /// Handle automatic same rank plays from opponents (demo mode)
   /// Simulates computer opponents playing same rank cards after user plays
   Future<void> _handleOpponentSameRankPlays(Map<String, dynamic> gameState, String playedRank) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: _handleOpponentSameRankPlays ENTRY - rank: $playedRank');
-    }
+    
     
     if (playedRank.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ DemoFunctionality: No rank provided for opponent same rank plays');
-      }
+      
       return;
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Checking opponents for same rank cards (rank: $playedRank)');
-    }
+    
     
     final players = gameState['players'] as List<dynamic>? ?? [];
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Found ${players.length} players to check');
-    }
+    
     
     final stateManager = StateManager();
     final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     
     if (currentGameId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No currentGameId found for opponent same rank plays');
-      }
+      
       return;
     }
     
@@ -1756,22 +1542,16 @@ class DemoFunctionality {
       
       // Skip human player
       if (isHuman) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Skipping human player $playerId');
-        }
+        
         continue;
       }
       
       opponentCount++;
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Checking opponent $opponentCount: $playerId');
-      }
+      
       
       // Add delay before each opponent plays (3 seconds for demo)
       const delayMs = 3000;
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Waiting ${delayMs}ms before checking opponent $playerId');
-      }
+      
       await Future.delayed(const Duration(milliseconds: delayMs));
       
       // Re-read gameState after delay to avoid stale references
@@ -1781,9 +1561,7 @@ class DemoFunctionality {
       final currentGameIdAfterDelay = dutchGameStateAfterDelay['currentGameId']?.toString() ?? '';
       
       if (currentGameIdAfterDelay.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DemoFunctionality: No currentGameId after delay, skipping opponent $playerId');
-        }
+        
         continue;
       }
       
@@ -1792,9 +1570,7 @@ class DemoFunctionality {
       final gameStateAfterDelay = gameDataAfterDelay['game_state'] as Map<String, dynamic>? ?? {};
       
       if (gameStateAfterDelay.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DemoFunctionality: No gameState after delay, skipping opponent $playerId');
-        }
+        
         continue;
       }
       
@@ -1809,18 +1585,14 @@ class DemoFunctionality {
       }
       
       if (playerDataAfterDelay == null) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DemoFunctionality: Player $playerId not found after delay, skipping');
-        }
+        
         continue;
       }
       
       final handRaw = playerDataAfterDelay['hand'] as List<dynamic>? ?? [];
       // Create a mutable list that allows null values (dynamic is nullable)
       final hand = List<dynamic>.from(handRaw);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Opponent $playerId has ${hand.length} cards in hand');
-      }
+      
       
       // Find cards with matching rank in opponent's hand
       List<Map<String, dynamic>> sameRankCards = [];
@@ -1828,28 +1600,20 @@ class DemoFunctionality {
         final card = hand[i];
         if (card != null && card is Map<String, dynamic>) {
           final cardId = card['cardId']?.toString() ?? '';
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Checking card $cardId at index $i');
-          }
+          
           
           // Get full card data to check rank
           final fullCardData = _getCardById(cardId);
           if (fullCardData == null) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DemoFunctionality: Could not get full card data for $cardId');
-            }
+            
             continue;
           }
           
           final cardRank = fullCardData['rank']?.toString() ?? '';
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Card $cardId has rank: $cardRank (target: $playedRank)');
-          }
+          
           
           if (cardRank == playedRank) {
-            if (LOGGING_SWITCH) {
-              _logger.info('✅ DemoFunctionality: Found matching rank card! $cardId (rank: $cardRank)');
-            }
+            
             sameRankCards.add({
               'card': card,
               'cardId': cardId,
@@ -1860,14 +1624,10 @@ class DemoFunctionality {
         }
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Opponent $playerId has ${sameRankCards.length} matching rank card(s)');
-      }
+      
       
       if (sameRankCards.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Opponent $playerId has ${sameRankCards.length} same rank card(s) (rank: $playedRank)');
-        }
+        
         
         // Play the first matching card (simplified for demo)
         final cardToPlay = sameRankCards[0];
@@ -1876,57 +1636,33 @@ class DemoFunctionality {
         final opponentCardFullDataRaw = cardToPlay['fullData'] as Map<String, dynamic>?;
         
         if (opponentCardFullDataRaw == null) {
-          if (LOGGING_SWITCH) {
-            _logger.error('❌ DemoFunctionality: opponentCardFullData is null for card $opponentCardId');
-          }
+          
           continue; // Skip this opponent if we can't get full card data
         }
         
         // At this point, opponentCardFullDataRaw is guaranteed to be non-null
         final opponentCardFullData = opponentCardFullDataRaw;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Auto-playing card $opponentCardId from opponent $playerId');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: playerDataAfterDelay type: ${playerDataAfterDelay.runtimeType}');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: hand type: ${hand.runtimeType}, length: ${hand.length}');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: cardIndex: $cardIndex');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: gameStateAfterDelay type: ${gameStateAfterDelay.runtimeType}');
-        }
+        
+        
+        
+        
+        
         
         List<dynamic> discardPile;
         try {
           // Remove card from opponent's hand (create blank slot or remove)
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Starting hand manipulation');
-          }
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Checking hand[cardIndex] before manipulation');
-          }
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: hand[cardIndex] type: ${hand[cardIndex]?.runtimeType}, is null: ${hand[cardIndex] == null}');
-          }
+          
+          
+          
           
           bool shouldCreateBlankSlot = cardIndex <= 3;
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: shouldCreateBlankSlot (initial): $shouldCreateBlankSlot');
-          }
+          
           
           if (cardIndex > 3) {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoFunctionality: Checking for cards after index $cardIndex');
-            }
+            
             for (int i = cardIndex + 1; i < hand.length; i++) {
-              if (LOGGING_SWITCH) {
-                _logger.info('🎮 DemoFunctionality: Checking hand[$i], type: ${hand[i]?.runtimeType}, is null: ${hand[i] == null}');
-              }
+              
               if (hand[i] != null) {
                 shouldCreateBlankSlot = true;
                 break;
@@ -1934,71 +1670,43 @@ class DemoFunctionality {
             }
           }
           
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: shouldCreateBlankSlot (final): $shouldCreateBlankSlot');
-          }
+          
           
           if (shouldCreateBlankSlot) {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoFunctionality: Creating blank slot at index $cardIndex');
-            }
+            
             hand[cardIndex] = null; // Create blank slot
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoFunctionality: Removing card entirely at index $cardIndex');
-            }
+            
             hand.removeAt(cardIndex); // Remove entirely
           }
           
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Updating playerDataAfterDelay hand');
-          }
+          
           playerDataAfterDelay['hand'] = hand;
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Updated playerDataAfterDelay hand successfully');
-          }
+          
           
           // Add card to discard pile
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Getting discardPile from gameStateAfterDelay');
-          }
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: gameStateAfterDelay type: ${gameStateAfterDelay.runtimeType}');
-          }
+          
+          
           final discardPileRaw = gameStateAfterDelay['discardPile'];
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: discardPileRaw type: ${discardPileRaw?.runtimeType}, is null: ${discardPileRaw == null}');
-          }
+          
           discardPile = (discardPileRaw as List<dynamic>?) ?? [];
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Adding card to discardPile');
-          }
+          
           discardPile.add(Map<String, dynamic>.from(opponentCardFullData));
           gameStateAfterDelay['discardPile'] = discardPile;
         } catch (e, stackTrace) {
-          if (LOGGING_SWITCH) {
-            _logger.error('❌ DemoFunctionality: Error in auto-play section: $e', error: e, stackTrace: stackTrace);
-          }
+          
           rethrow;
         }
         
         // Update state immediately after each opponent plays (for visual feedback)
         // Align with other demo state updates - use DutchGameStateUpdater
         if (currentGameIdAfterDelay.isNotEmpty) {
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Getting currentGame from gamesAfterDelay');
-          }
+          
           final currentGame = gamesAfterDelay[currentGameIdAfterDelay] as Map<String, dynamic>? ?? {};
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: currentGame is not null: ${currentGame.isNotEmpty}');
-          }
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Getting currentGameData');
-          }
+          
+          
           final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: currentGameData is not null: ${currentGameData.isNotEmpty}');
-          }
+          
           currentGameData['game_state'] = gameStateAfterDelay;
           currentGame['gameData'] = currentGameData;
           gamesAfterDelay[currentGameIdAfterDelay] = currentGame;
@@ -2053,55 +1761,41 @@ class DemoFunctionality {
             'opponentsPanel': opponentsPanel, // Updated opponents panel slice
           });
           
-          if (LOGGING_SWITCH) {
-            _logger.info('✅ DemoFunctionality: State updated for opponent $playerId play');
-          }
+          
           
           // Cancel any existing same rank instructions timer
           _sameRankInstructionsTimer?.cancel();
           
           // Set timer to show same rank instructions 3 seconds after opponent plays
           _sameRankInstructionsTimer = Timer(const Duration(seconds: 3), () {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoFunctionality: Showing same rank instructions after 3 seconds');
-            }
+            
             
             final stateUpdaterForTimer = DutchGameStateUpdater.instance;
             stateUpdaterForTimer.updateStateSync({
               'demoInstructionsPhase': 'same_rank',
             });
             
-            if (LOGGING_SWITCH) {
-              _logger.info('✅ DemoFunctionality: Same rank instructions shown');
-            }
+            
           });
         }
         
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Opponent $playerId played ${opponentCardFullData['rank']} of ${opponentCardFullData['suit']}');
-        }
+        
       }
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Completed opponent same rank plays');
-    }
+    
   }
 
   /// Handle replace drawn card action in demo mode
   Future<Map<String, dynamic>> _handleReplaceDrawnCard(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Replace drawn card action (demo mode - no-op)');
-    }
+    
     // TODO: Implement demo replace drawn card logic
     return {'success': true, 'mode': 'demo'};
   }
 
   /// Handle play drawn card action in demo mode
   Future<Map<String, dynamic>> _handlePlayDrawnCard(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Play drawn card action (demo mode - no-op)');
-    }
+    
     // TODO: Implement demo play drawn card logic
     return {'success': true, 'mode': 'demo'};
   }
@@ -2109,15 +1803,11 @@ class DemoFunctionality {
   /// Handle initial peek action in demo mode
   /// This is called when a card is selected during initial peek phase
   Future<Map<String, dynamic>> _handleInitialPeek(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Initial peek action');
-    }
+    
     
     final cardId = payload['cardId']?.toString() ?? '';
     if (cardId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ DemoFunctionality: Invalid cardId in initial peek payload');
-      }
+      
       return {'success': false, 'error': 'Invalid cardId'};
     }
 
@@ -2135,30 +1825,22 @@ class DemoFunctionality {
   /// This is called when 2 cards have been selected
   /// Note: Drawing instructions are shown via timer in addCardToInitialPeek, not here
   Future<Map<String, dynamic>> _handleCompletedInitialPeek(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Completed initial peek action');
-    }
+    
     
     final cardIds = (payload['card_ids'] as List<dynamic>?)?.cast<String>() ?? [];
     if (cardIds.length != 2) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ DemoFunctionality: Invalid card_ids count: ${cardIds.length}');
-      }
+      
       return {'success': false, 'error': 'Expected exactly 2 card IDs'};
     }
 
     // Clear only the tracking set (not myCardsToPeek - cards should remain visible)
     _initialPeekSelectedCardIds.clear();
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Cleared initial peek tracking (cards remain visible in myCardsToPeek)');
-    }
+    
     
     // Note: Drawing instructions will be shown via the 5-second timer started in addCardToInitialPeek
     // Don't transition here - let the timer handle it
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Initial peek completed (drawing instructions will show after 5 seconds)');
-    }
+    
     
     return {'success': true, 'mode': 'demo'};
   }
@@ -2168,12 +1850,8 @@ class DemoFunctionality {
   /// Sets finalRoundActive flag and marks player as having called final round
   /// Player can still play cards after calling Dutch
   Future<Map<String, dynamic>> _handleCallFinalRound(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Call final round action intercepted');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Payload: $payload');
-    }
+    
+    
     
     // Re-read latest state from SSOT to ensure we have the most up-to-date data
     final stateManager = StateManager();
@@ -2182,9 +1860,7 @@ class DemoFunctionality {
     final currentGameId = latestDutchGameState['currentGameId']?.toString() ?? '';
     
     if (currentGameId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No currentGameId found');
-      }
+      
       return {'success': false, 'error': 'No active game'};
     }
     
@@ -2207,23 +1883,17 @@ class DemoFunctionality {
     }
     
     if (userPlayer == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: User player not found');
-      }
+      
       return {'success': false, 'error': 'User player not found'};
     }
     
     final userId = userPlayer['id']?.toString() ?? '';
     if (userId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: User player ID is empty');
-      }
+      
       return {'success': false, 'error': 'User player ID is empty'};
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Found user player: ${userPlayer['name']} ($userId)');
-    }
+    
     
     // Update game state to indicate final round is active
     final updatedGameState = Map<String, dynamic>.from(latestGameState);
@@ -2280,27 +1950,21 @@ class DemoFunctionality {
       // Removed lastUpdated - causes unnecessary state updates
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Final round called successfully - player can still play cards');
-    }
+    
     
     return {'success': true, 'mode': 'demo', 'finalRoundActive': true, 'finalRoundCalledBy': userId};
   }
 
   /// Handle collect from discard action in demo mode
   Future<Map<String, dynamic>> _handleCollectFromDiscard(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Collect from discard action (demo mode - no-op)');
-    }
+    
     // TODO: Implement demo collect from discard logic
     return {'success': true, 'mode': 'demo'};
   }
 
   /// Handle use special power action in demo mode
   Future<Map<String, dynamic>> _handleUseSpecialPower(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Use special power action (demo mode - no-op)');
-    }
+    
     // TODO: Implement demo use special power logic
     return {'success': true, 'mode': 'demo'};
   }
@@ -2313,12 +1977,8 @@ class DemoFunctionality {
   /// - second_player_id: ID of the player who owns the second card
   /// - game_id: Current game ID
   Future<Map<String, dynamic>> _handleJackSwap(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Jack swap action intercepted');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Payload: $payload');
-    }
+    
+    
     
     final firstCardId = payload['first_card_id']?.toString() ?? '';
     final firstPlayerId = payload['first_player_id']?.toString() ?? '';
@@ -2326,15 +1986,11 @@ class DemoFunctionality {
     final secondPlayerId = payload['second_player_id']?.toString() ?? '';
     
     if (firstCardId.isEmpty || firstPlayerId.isEmpty || secondCardId.isEmpty || secondPlayerId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Missing required fields for jack swap');
-      }
+      
       return {'success': false, 'error': 'Missing required fields'};
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Swapping cards - First: $firstCardId (player: $firstPlayerId), Second: $secondCardId (player: $secondPlayerId)');
-    }
+    
     
     // Re-read latest state from SSOT to ensure we have the most up-to-date data
     final stateManager = StateManager();
@@ -2343,9 +1999,7 @@ class DemoFunctionality {
     final currentGameId = latestDutchGameState['currentGameId']?.toString() ?? '';
     
     if (currentGameId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No currentGameId found');
-      }
+      
       return {'success': false, 'error': 'No active game'};
     }
     
@@ -2376,15 +2030,11 @@ class DemoFunctionality {
     }
     
     if (firstPlayer == null || secondPlayer == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: One or both players not found. firstPlayerId: $firstPlayerId (found: ${firstPlayer != null}), secondPlayerId: $secondPlayerId (found: ${secondPlayer != null})');
-      }
+      
       return {'success': false, 'error': 'Player not found'};
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Both players found - firstPlayer: ${firstPlayer['name']} (${firstPlayer['id']}), secondPlayer: ${secondPlayer['name']} (${secondPlayer['id']})');
-    }
+    
     
     // Get player hands (convert to mutable lists)
     final firstPlayerHand = List<dynamic>.from(firstPlayer['hand'] as List<dynamic>? ?? []);
@@ -2424,24 +2074,18 @@ class DemoFunctionality {
     
     // Validate cards found
     if (firstCard == null || secondCard == null || firstCardIndex == null || secondCardIndex == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: One or both cards not found in players\' hands');
-      }
+      
       return {'success': false, 'error': 'Card not found in hand'};
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand');
-    }
+    
     
     // Get full card data for both cards to ensure we have the correct cardId
     final firstCardFullData = _getCardById(firstCardId);
     final secondCardFullData = _getCardById(secondCardId);
     
     if (firstCardFullData == null || secondCardFullData == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Failed to get full card data for swap - firstCard: ${firstCardFullData != null}, secondCard: ${secondCardFullData != null}');
-      }
+      
       return {'success': false, 'error': 'Failed to get card data'};
     }
     
@@ -2465,15 +2109,9 @@ class DemoFunctionality {
     firstPlayerHand[firstCardIndex] = secondCardIdOnly;
     secondPlayerHand[secondCardIndex] = firstCardIdOnly;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Successfully swapped cards: $firstCardId <-> $secondCardId');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex');
-    }
+    
+    
+    
     
     // Update player hands in player objects
     firstPlayer['hand'] = firstPlayerHand;
@@ -2635,9 +2273,7 @@ class DemoFunctionality {
     // Single atomic update to ensure all state changes happen together and widget rebuilds
     stateUpdater.updateStateSync(stateUpdates);
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Jack swap completed - cards swapped successfully');
-    }
+    
     
     return {'success': true, 'mode': 'demo', 'firstCardId': firstCardId, 'secondCardId': secondCardId};
   }
@@ -2649,33 +2285,23 @@ class DemoFunctionality {
   /// - game_id: Current game ID
   /// - player_id: Auto-added by event emitter
   Future<Map<String, dynamic>> _handleQueenPeek(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Queen peek action intercepted');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Payload: $payload');
-    }
+    
+    
     
     final cardId = payload['card_id']?.toString() ?? payload['cardId']?.toString() ?? '';
     if (cardId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No card_id provided for queen peek');
-      }
+      
       return {'success': false, 'error': 'No card_id provided'};
     }
     
     // Get full card data from originalDeck (similar to initial peek)
     final fullCardData = _getCardById(cardId);
     if (fullCardData == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId');
-      }
+      
       return {'success': false, 'error': 'Failed to get card data'};
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Peeking at card: ${fullCardData['rank']} of ${fullCardData['suit']}');
-    }
+    
     
     // Re-read latest state from SSOT to ensure we have the most up-to-date data
     final stateManager = StateManager();
@@ -2684,9 +2310,7 @@ class DemoFunctionality {
     final currentGameId = latestDutchGameState['currentGameId']?.toString() ?? '';
     
     if (currentGameId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: No currentGameId found');
-      }
+      
       return {'success': false, 'error': 'No active game'};
     }
     
@@ -2708,9 +2332,7 @@ class DemoFunctionality {
     }
     
     if (userPlayer == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: User player not found in latest players');
-      }
+      
       return {'success': false, 'error': 'User player not found'};
     }
     
@@ -2769,21 +2391,15 @@ class DemoFunctionality {
       // Removed lastUpdated - causes unnecessary state updates
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Queen peek card selected, showing card and setting status to waiting');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Card data added to myCardsToPeek: ${fullCardData['rank']} of ${fullCardData['suit']}');
-    }
+    
+    
     
     // Cancel any existing queen peek timer
     _queenPeekTimer?.cancel();
     
     // Start 3-second timer before updating hand to jacks and changing to playing_card
     _queenPeekTimer = Timer(Duration(seconds: 3), () {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Queen peek timer expired, updating hand to 4 jacks and setting status to playing_card');
-      }
+      
       
       // Re-read latest state from SSOT
       final timerStateManager = StateManager();
@@ -2792,9 +2408,7 @@ class DemoFunctionality {
       final timerCurrentGameId = timerDutchGameState['currentGameId']?.toString() ?? '';
       
       if (timerCurrentGameId.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: No currentGameId found in timer callback');
-        }
+        
         return;
       }
       
@@ -2816,9 +2430,7 @@ class DemoFunctionality {
       }
       
       if (timerUserPlayer == null) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: User player not found in timer callback');
-        }
+        
         return;
       }
       
@@ -2848,9 +2460,7 @@ class DemoFunctionality {
             'points': 10,
             'specialPower': 'swap_cards',
           };
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DemoFunctionality: Jack of $suit not found in originalDeck, created fallback');
-          }
+          
         }
         
         // Convert to ID-only format (as stored in hands) using the actual card ID
@@ -2861,9 +2471,7 @@ class DemoFunctionality {
           'points': 0,      // Face-down: hide points
         };
         jacksHand.add(idOnlyCard);
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Added jack of $suit to hand with ID: ${jackCard['cardId']}');
-        }
+        
       }
       
       // Update user's hand to 4 jacks and status to playing_card
@@ -2926,12 +2534,8 @@ class DemoFunctionality {
         // Removed lastUpdated - causes unnecessary state updates
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Queen peek timer expired - updated hand to 4 jacks and status to playing_card');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Showing special plays instructions');
-      }
+      
+      
       _queenPeekTimer = null;
     });
     
@@ -2940,9 +2544,7 @@ class DemoFunctionality {
 
   /// Handle play out of turn action in demo mode
   Future<Map<String, dynamic>> _handlePlayOutOfTurn(Map<String, dynamic> payload) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Play out of turn action (demo mode - no-op)');
-    }
+    
     // TODO: Implement demo play out of turn logic
     return {'success': true, 'mode': 'demo'};
   }
@@ -2980,9 +2582,7 @@ class DemoFunctionality {
   /// Transition from initial phase to initial_peek phase
   /// Updates the demoInstructionsPhase in StateManager (separate from game phase)
   void transitionToInitialPeek() {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Transitioning demo instructions from initial to initial_peek');
-    }
+    
     
     // Clear any previous selection (including myCardsToPeek since we're starting fresh)
     clearInitialPeekSelection();
@@ -2993,9 +2593,7 @@ class DemoFunctionality {
       'demoInstructionsPhase': 'initial_peek',
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Demo instructions phase transitioned to initial_peek');
-    }
+    
   }
 
   /// Restore original hand (Ace hearts, 5 diamonds, 8 clubs, 4 hearts) and update piles
@@ -3006,9 +2604,7 @@ class DemoFunctionality {
     List<dynamic> currentDiscardPile,
     Map<String, dynamic> playedCard,
   ) {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Restoring original hand (Ace hearts, 5 diamonds, 8 clubs, 4 hearts)');
-    }
+    
     
     // Helper to find card by rank and suit
     Map<String, dynamic>? _findCard(String rank, String suit) {
@@ -3029,9 +2625,7 @@ class DemoFunctionality {
     final fourHearts = _findCard('4', 'hearts');
     
     if (aceHearts == null || fiveDiamonds == null || eightClubs == null || fourHearts == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Could not find all original cards in deck');
-      }
+      
       return {
         'hand': <Map<String, dynamic>>[],
         'drawPile': currentDrawPile,
@@ -3054,9 +2648,7 @@ class DemoFunctionality {
       _cardToIdOnly(fourHearts),
     ];
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Restored original hand with ${restoredHand.length} cards');
-    }
+    
     
     // Create mutable copies of piles
     final updatedDrawPile = List<dynamic>.from(currentDrawPile);
@@ -3102,13 +2694,9 @@ class DemoFunctionality {
     
     // Add played card to the TOP of discard pile (last item = top of stack)
     updatedDiscardPile.add(playedCard);
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Added played card to TOP of discard pile');
-    }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Updated draw pile (${updatedDrawPile.length} cards), discard pile (${updatedDiscardPile.length} cards)');
-    }
+    
+    
     
     return {
       'hand': restoredHand,
@@ -3128,9 +2716,7 @@ class DemoFunctionality {
       final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
       final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
       if (currentGameId.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DemoFunctionality: No currentGameId found');
-        }
+        
         return null;
       }
       
@@ -3146,36 +2732,26 @@ class DemoFunctionality {
         if (card is Map<String, dynamic>) {
           final cardIdInDeck = card['cardId']?.toString() ?? '';
           if (cardIdInDeck == cardId) {
-            if (LOGGING_SWITCH) {
-              _logger.info('✅ DemoFunctionality: Found card $cardId in originalDeck');
-            }
+            
             return Map<String, dynamic>.from(card);
           }
         }
       }
       
       // Check if this is a queen card - try to find it by ID first, then by suit
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Checking if cardId contains queen pattern: $cardId');
-      }
+      
       final hasQueen = cardId.toLowerCase().contains('queen');
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: hasQueen=$hasQueen');
-      }
+      
       
       if (hasQueen) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: ✅ Detected queen card: $cardId');
-        }
+        
         
         // First, try to find the queen by exact cardId match in originalDeck
         for (final card in originalDeck) {
           if (card is Map<String, dynamic> && 
               card['cardId']?.toString() == cardId) {
             final queenCard = Map<String, dynamic>.from(card);
-            if (LOGGING_SWITCH) {
-              _logger.info('✅ DemoFunctionality: Found queen by ID in originalDeck: ${queenCard['cardId']}, suit: ${queenCard['suit']}');
-            }
+            
             return queenCard;
           }
         }
@@ -3197,9 +2773,7 @@ class DemoFunctionality {
                 card['rank']?.toString() == 'queen' && 
                 card['suit']?.toString() == suit) {
               final queenCard = Map<String, dynamic>.from(card);
-              if (LOGGING_SWITCH) {
-                _logger.info('✅ DemoFunctionality: Found queen by suit in originalDeck: ${queenCard['cardId']}, suit: ${queenCard['suit']}');
-              }
+              
               return queenCard;
             }
           }
@@ -3214,20 +2788,14 @@ class DemoFunctionality {
           'points': 10,
           'specialPower': 'peek_at_card',
         };
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DemoFunctionality: Queen not found in originalDeck, created fallback queen of $fallbackSuit');
-        }
+        
         return fallbackQueenCard;
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ DemoFunctionality: Card $cardId not found in originalDeck');
-      }
+      
       return null;
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Error getting card by ID: $e', error: e, stackTrace: stackTrace);
-      }
+      
       return null;
     }
   }
@@ -3237,24 +2805,18 @@ class DemoFunctionality {
   /// Returns the number of cards currently selected
   /// Note: State is only updated when both cards are selected (batched update)
   Future<int> addCardToInitialPeek(String cardId) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Adding card $cardId to initial peek');
-    }
+    
     
     // Check if already selected
     if (_initialPeekSelectedCardIds.contains(cardId)) {
-      if (LOGGING_SWITCH) {
-        _logger.info('⚠️ DemoFunctionality: Card $cardId already selected');
-      }
+      
       return _initialPeekSelectedCardIds.length;
     }
     
     // Get full card data from game state
     final fullCardData = _getCardById(cardId);
     if (fullCardData == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId');
-      }
+      
       return _initialPeekSelectedCardIds.length;
     }
     
@@ -3267,9 +2829,7 @@ class DemoFunctionality {
     if (selectedCount == 1) {
       // First card selected - hide instructions but don't update myCardsToPeek yet
       updates['demoInstructionsPhase'] = '';
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Hiding initial peek instructions (first card selected, waiting for second card)');
-      }
+      
       
       // Update state to hide instructions only using state updater
       final stateUpdater = DutchGameStateUpdater.instance;
@@ -3277,9 +2837,7 @@ class DemoFunctionality {
       
     } else if (selectedCount == 2) {
       // Both cards selected - now update state with both cards at once
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Both cards selected, updating state with both cards');
-      }
+      
       
       // Get full card data for both cards
       final cardsToPeek = <Map<String, dynamic>>[];
@@ -3294,18 +2852,14 @@ class DemoFunctionality {
       updates['myCardsToPeek'] = cardsToPeek;
       
       // Start 5-second timer before showing drawing instructions
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Starting 5-second timer for drawing instructions');
-      }
+      
       
       // Cancel any existing timer
       _drawingInstructionsTimer?.cancel();
       
       // Start 5-second timer
       _drawingInstructionsTimer = Timer(Duration(seconds: 5), () {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: 5-second timer expired, showing drawing instructions and converting cards to ID-only');
-        }
+        
         final stateManager = StateManager();
         final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final currentCardsToPeek = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
@@ -3367,12 +2921,8 @@ class DemoFunctionality {
           'myHand': myHand, // Update myHand slice so widget shows correct status chip
         });
         
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Converted ${idOnlyCards.length} cards to ID-only format and set player status to drawing_card');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Updated myHand slice with playerStatus=drawing_card for status chip display');
-        }
+        
+        
       });
       
       // Update state with both cards using state updater
@@ -3380,9 +2930,7 @@ class DemoFunctionality {
       stateUpdater.updateStateSync(updates);
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ DemoFunctionality: Added card $cardId to initial peek. Selected: $selectedCount/2');
-    }
+    
     
     return selectedCount;
   }
@@ -3396,9 +2944,7 @@ class DemoFunctionality {
   /// This clears both the tracking set and myCardsToPeek from state
   /// Use this when you want to completely reset the initial peek (e.g., when transitioning phases)
   void clearInitialPeekSelection() {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Clearing initial peek selection');
-    }
+    
     _initialPeekSelectedCardIds.clear();
     
     // Cancel any pending timer
@@ -3415,9 +2961,7 @@ class DemoFunctionality {
   /// Clear only the tracking set (keeps cards visible in myCardsToPeek)
   /// Use this when completing initial peek - cards should remain visible
   void clearInitialPeekTracking() {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 DemoFunctionality: Clearing initial peek tracking (keeping cards visible)');
-    }
+    
     _initialPeekSelectedCardIds.clear();
   }
   
@@ -3426,9 +2970,7 @@ class DemoFunctionality {
   /// Can be called from instructions widget "Let's go" button or from timer
   Future<void> endSameRankWindowAndSimulateOpponents() async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Ending same rank window and simulating opponents');
-      }
+      
       
       final stateManager = StateManager();
       final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -3436,9 +2978,7 @@ class DemoFunctionality {
       final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
       
       if (currentGameId.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoFunctionality: No currentGameId found');
-        }
+        
         return;
       }
       
@@ -3480,17 +3020,13 @@ class DemoFunctionality {
       gamesCopy[currentGameId] = currentGameCopy;
       
       // Log all player statuses before update
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Resetting all players to waiting:');
-      }
+      
       for (var p in playersCopy) {
         if (p is Map<String, dynamic>) {
           final playerId = p['id']?.toString() ?? '';
           final playerName = p['name']?.toString() ?? 'Unknown';
           final status = p['status']?.toString() ?? 'unknown';
-          if (LOGGING_SWITCH) {
-            _logger.info('  - Player $playerName ($playerId): $status');
-          }
+          
         }
       }
       
@@ -3506,9 +3042,7 @@ class DemoFunctionality {
         // Removed lastUpdated - causes unnecessary state updates
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Same rank window ended, reset all players to waiting in SSOT');
-      }
+      
       
       // CRITICAL: Re-read from SSOT after update to verify all players are waiting
       await Future.delayed(const Duration(milliseconds: 100)); // Allow state to propagate
@@ -3526,14 +3060,10 @@ class DemoFunctionality {
           final playerId = p['id']?.toString() ?? '';
           final playerName = p['name']?.toString() ?? 'Unknown';
           final status = p['status']?.toString() ?? 'unknown';
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoFunctionality: Verified Player $playerName ($playerId) status: $status');
-          }
+          
           
           if (status != 'waiting') {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DemoFunctionality: Player $playerName ($playerId) still has status $status, fixing...');
-            }
+            
             needsUpdate = true;
             final playerCopy = Map<String, dynamic>.from(p);
             playerCopy['status'] = 'waiting';
@@ -3561,9 +3091,7 @@ class DemoFunctionality {
           // Removed lastUpdated - causes unnecessary state updates
         });
         
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Re-updated SSOT with all players confirmed as waiting');
-        }
+        
       }
       
       // Simulate each opponent's turn (draw and play)
@@ -3575,9 +3103,7 @@ class DemoFunctionality {
         return false;
       }).toList();
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoFunctionality: Simulating ${opponents.length} opponents');
-      }
+      
       
       // Predefined play indices: Opponent 1 -> index 3, Opponent 2 -> index 2, Opponent 3 -> index 4 (drawn card)
       final playIndices = [3, 2, 4];
@@ -3591,9 +3117,7 @@ class DemoFunctionality {
         final opponentName = opponent['name']?.toString() ?? 'Opponent';
         final playIndex = playIndices[opponentIndex % playIndices.length];
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: Simulating turn for $opponentName ($opponentId) - will play index $playIndex');
-        }
+        
         
         // 2 second delay before drawing
         await Future.delayed(const Duration(seconds: 2));
@@ -3616,9 +3140,7 @@ class DemoFunctionality {
         }
         
         if (freshOpponent == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DemoFunctionality: Opponent $opponentId not found in fresh state');
-          }
+          
           continue;
         }
         
@@ -3641,9 +3163,7 @@ class DemoFunctionality {
         // 1. Draw a card from draw pile
         final drawPile = freshGameState['drawPile'] as List<dynamic>? ?? [];
         if (drawPile.isEmpty) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DemoFunctionality: Draw pile is empty, cannot draw for $opponentName');
-          }
+          
           continue;
         }
         
@@ -3657,17 +3177,13 @@ class DemoFunctionality {
           final cardId = drawnCardRaw['cardId']?.toString() ?? '';
           final fullCard = _getCardById(cardId);
           if (fullCard == null) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DemoFunctionality: Could not get full card data for $cardId');
-            }
+            
             continue;
           }
           drawnCard = fullCard;
         }
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: $opponentName drew ${drawnCard['rank']} of ${drawnCard['suit']}');
-        }
+        
         
         // Add drawn card to opponent's hand as ID-only (temporarily at the end)
         final opponentHandRaw = freshOpponent['hand'] as List<dynamic>? ?? [];
@@ -3715,33 +3231,25 @@ class DemoFunctionality {
         if (playIndex == 4) {
           // Play the drawn card (last card in hand, which is the one we just added)
           if (opponentHand.isEmpty) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DemoFunctionality: $opponentName cannot play index 4 (drawn card) - hand is empty');
-            }
+            
             continue;
           }
           actualCardIndex = opponentHand.length - 1; // Last card is the drawn one
           final cardAtIndex = opponentHand[actualCardIndex];
           if (cardAtIndex == null || cardAtIndex is! Map<String, dynamic>) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DemoFunctionality: $opponentName has no valid drawn card at index $actualCardIndex');
-            }
+            
             continue;
           }
           cardToPlay = cardAtIndex;
         } else {
           // Play card at predefined index (use actual array index)
           if (opponentHand.isEmpty || playIndex >= opponentHand.length) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DemoFunctionality: $opponentName cannot play index $playIndex (hand size: ${opponentHand.length})');
-            }
+            
             continue;
           }
           final cardAtIndex = opponentHand[playIndex];
           if (cardAtIndex == null || cardAtIndex is! Map<String, dynamic>) {
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DemoFunctionality: $opponentName has no valid card at index $playIndex');
-            }
+            
             continue;
           }
           cardToPlay = cardAtIndex;
@@ -3751,15 +3259,11 @@ class DemoFunctionality {
         final cardId = cardToPlay['cardId']?.toString() ?? '';
         final fullCardData = _getCardById(cardId);
         if (fullCardData == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ DemoFunctionality: Could not get full card data for $cardId');
-          }
+          
           continue;
         }
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoFunctionality: $opponentName playing ${fullCardData['rank']} of ${fullCardData['suit']} from index $actualCardIndex');
-        }
+        
         
         // Update opponent status to 'playing_card' (match practice mode)
         freshOpponent['status'] = 'playing_card';
@@ -3817,9 +3321,7 @@ class DemoFunctionality {
             freshGameData['game_state'] = freshGameState;
             freshCurrentGame['gameData'] = freshGameData;
             freshGames[currentGameId] = freshCurrentGame;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoFunctionality: Moved drawn card from index $drawnCardIndex to index $actualCardIndex for $opponentName (removed empty slot)');
-            }
+            
           }
         } else {
           // The played card was the drawn card itself, no reposition needed
@@ -3831,13 +3333,9 @@ class DemoFunctionality {
             freshGameData['game_state'] = freshGameState;
             freshCurrentGame['gameData'] = freshGameData;
             freshGames[currentGameId] = freshCurrentGame;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoFunctionality: $opponentName played the drawn card at index $actualCardIndex, removed empty slot');
-            }
+            
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoFunctionality: $opponentName played the drawn card at index $actualCardIndex, no reposition needed');
-            }
+            
           }
         }
         
@@ -3872,9 +3370,7 @@ class DemoFunctionality {
           // Removed lastUpdated - causes unnecessary state updates
         });
         
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: $opponentName played card, same rank window started');
-        }
+        
         
         // Don't start timer during simulation - only start after all opponents have played
         // Cancel any existing timer to prevent multiple triggers
@@ -3884,9 +3380,7 @@ class DemoFunctionality {
         // Continue to next opponent (don't break)
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Completed opponent simulation');
-      }
+      
       
       // Re-read state to get fresh references before updating user's hand
       final latestDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -3901,9 +3395,7 @@ class DemoFunctionality {
       for (var p in playersWithWaitingOpponents) {
         if (p is Map<String, dynamic> && p['isHuman'] != true) {
           p['status'] = 'waiting';
-          if (LOGGING_SWITCH) {
-            _logger.info('✅ DemoFunctionality: Set opponent ${p['id']} status to waiting');
-          }
+          
         }
       }
       
@@ -3924,9 +3416,7 @@ class DemoFunctionality {
         // Removed lastUpdated - causes unnecessary state updates
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Set all opponents to waiting status');
-      }
+      
       
       // Re-read state again after setting opponents to waiting (to get fresh references for user hand update)
       final finalDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -3975,9 +3465,7 @@ class DemoFunctionality {
               'points': 10,
               'specialPower': 'peek_at_card',
             };
-            if (LOGGING_SWITCH) {
-              _logger.warning('⚠️ DemoFunctionality: Queen of $suit not found in originalDeck, created fallback');
-            }
+            
           }
           
           // Convert to ID-only format (as stored in hands) using the actual card ID
@@ -3988,9 +3476,7 @@ class DemoFunctionality {
             'points': 0,      // Face-down: hide points
           };
           queensHand.add(idOnlyCard);
-          if (LOGGING_SWITCH) {
-            _logger.info('✅ DemoFunctionality: Added queen of $suit to hand with ID: ${queenCard['cardId']}');
-          }
+          
         }
         
         // Update user's hand and status
@@ -4014,12 +3500,8 @@ class DemoFunctionality {
         final updatedGames = Map<String, dynamic>.from(finalGames);
         updatedGames[currentGameId] = updatedCurrentGame;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Updated user hand to 4 queens (one of each suit), status set to playing_card in SSOT');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: User player status in SSOT: ${userPlayer['status']}');
-        }
+        
+        
         
         // After all opponents have played, show special plays instruction
         // The widget slices will be recomputed automatically by _updateWidgetSlices
@@ -4033,25 +3515,17 @@ class DemoFunctionality {
           // Removed lastUpdated - causes unnecessary state updates
         });
         
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Updated state - widget slices will be recomputed with playerStatus=playing_card');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Showing special plays instruction');
-        }
+        
+        
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DemoFunctionality: User player not found when updating hand');
-        }
+        
         
         // Still show instruction even if user not found
         stateUpdater.updateState({
           'demoInstructionsPhase': 'special_plays',
           // Removed lastUpdated - causes unnecessary state updates
         });
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoFunctionality: Showing special plays instruction (user not found)');
-        }
+        
       }
       
       // CRITICAL: Cancel ALL timers after opponent simulation completes
@@ -4064,14 +3538,10 @@ class DemoFunctionality {
       _drawingInstructionsTimer = null;
       _queenPeekTimer?.cancel();
       _queenPeekTimer = null;
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoFunctionality: Cancelled all timers after opponent simulation completed');
-      }
+      
       
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoFunctionality: Error in _endSameRankWindowAndSimulateOpponents: $e', error: e, stackTrace: stackTrace);
-      }
+      
     }
   }
 }

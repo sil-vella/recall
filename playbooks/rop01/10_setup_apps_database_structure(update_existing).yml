@@ -413,6 +413,26 @@
             }
           });
 
+          // RevenueCat coin ledger + webhook dedup (unique indexes for idempotency)
+          print("\n💳 Step 6b: revenuecat_coin_purchases + revenuecat_webhook_events indexes...");
+          ["revenuecat_coin_purchases", "revenuecat_webhook_events"].forEach(function (collName) {
+            if (db.getCollectionNames().indexOf(collName) === -1) {
+              db.createCollection(collName);
+              print("  ✅ Created collection: " + collName);
+            }
+          });
+          try {
+            db.revenuecat_coin_purchases.createIndex(
+              { store_transaction_id: 1 },
+              { unique: true, name: "store_transaction_id_unique" }
+            );
+            print("  ✅ revenuecat_coin_purchases.store_transaction_id unique");
+          } catch (e) {
+            if (e.code !== 85 && e.code !== 86) { throw e; }
+            print("  ✓ revenuecat_coin_purchases index already exists");
+          }
+          print("  ✓ revenuecat_webhook_events: event id stored as _id (unique by default)");
+
           // ========================================
           // 7. TOURNAMENTS INDEXES — align with local (drop indexes present on VPS but not on local dev)
           // ========================================

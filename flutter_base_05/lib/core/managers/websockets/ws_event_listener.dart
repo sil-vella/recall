@@ -2,10 +2,7 @@ import '../state_manager.dart';
 import '../module_manager.dart';
 import 'ws_event_handler.dart';
 import 'native_websocket_adapter.dart';
-import '../../../tools/logging/logger.dart';
 import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
-
-const bool LOGGING_SWITCH = false; // resume_room_error handling (disconnect rejoin; set false after test)
 
 /// WebSocket Event Listener
 /// Centralized Socket.IO event listener registration and management
@@ -14,7 +11,6 @@ class WSEventListener {
   final WSEventHandler _eventHandler;
   final StateManager _stateManager;
   final ModuleManager _moduleManager;
-  static final Logger _logger = Logger();
 
   WSEventListener({
     required NativeWebSocketAdapter? socket,
@@ -28,10 +24,6 @@ class WSEventListener {
 
   /// Register all Socket.IO event listeners
   void registerAllListeners() {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎧 Registering all WebSocket event listeners');
-    }
-    
     // Connection events
     _registerConnectListener();
     _registerDisconnectListener();
@@ -74,34 +66,18 @@ class WSEventListener {
     _registerAuthenticationListeners();
 
     _registerResumeRoomListeners();
-    
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ All WebSocket event listeners registered successfully');
-    }
   }
 
   /// Register connection event listener
   void _registerConnectListener() {
-    if (LOGGING_SWITCH) {
-      _logger.debug('🎧 Registering connect event listener');
-    }
     _socket?.on('connected', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.debug('📡 Connected event received');
-      }
       _eventHandler.handleConnect(data);
     });
   }
 
   /// Register disconnect event listener
   void _registerDisconnectListener() {
-    if (LOGGING_SWITCH) {
-      _logger.debug('🎧 Registering disconnect event listener');
-    }
     _socket?.on('disconnect', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.debug('📡 Disconnect event received');
-      }
       _eventHandler.handleDisconnect(data);
     });
   }
@@ -129,16 +105,7 @@ class WSEventListener {
 
   /// Register join room success listener
   void _registerJoinRoomSuccessListener() {
-    if (LOGGING_SWITCH) {
-      _logger.debug('🎧 Registering join_room_success event listener');
-    }
     _socket?.on('join_room_success', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.info('📡 join_room_success event received in WSEventListener');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.debug('join_room_success data: $data');
-      }
       _eventHandler.handleJoinRoomSuccess(data);
     });
   }
@@ -254,13 +221,7 @@ class WSEventListener {
 
   /// Register rooms list listener
   void _registerRoomsListListener() {
-    if (LOGGING_SWITCH) {
-      _logger.debug('🎧 Registering rooms_list event listener');
-    }
     _socket?.on('rooms_list', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.debug('📡 rooms_list event received');
-      }
       _eventHandler.handleRoomsList(data);
     });
   }
@@ -296,10 +257,6 @@ class WSEventListener {
   
   /// Register game event acknowledgment listeners
   void _registerGameEventAcknowledgmentListeners() {
-    if (LOGGING_SWITCH) {
-      _logger.debug('🎧 Registering game event acknowledgment listeners');
-    }
-    
     final gameEvents = [
       'start_match', 'draw_card', 'play_card', 'discard_card',
       'take_from_discard', 'call_dutch', 'same_rank_play',
@@ -308,9 +265,6 @@ class WSEventListener {
     
     for (final event in gameEvents) {
       _socket?.on('${event}_acknowledged', (data) {
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ Acknowledged: $event');
-        }
         _eventHandler.handleCustomEvent(event, data);
       });
     }
@@ -318,28 +272,15 @@ class WSEventListener {
   
   /// Register authentication event listeners
   void _registerAuthenticationListeners() {
-    if (LOGGING_SWITCH) {
-      _logger.debug('🎧 Registering authentication event listeners');
-    }
-    
     _socket?.on('authenticated', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔐 Authentication successful');
-      }
       _eventHandler.handleAuthenticationSuccess(data);
     });
     
     _socket?.on('authentication_failed', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Authentication failed');
-      }
       _eventHandler.handleAuthenticationFailed(data);
     });
     
     _socket?.on('authentication_error', (data) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Authentication error');
-      }
       _eventHandler.handleAuthenticationError(data);
     });
   }
@@ -349,4 +290,4 @@ class WSEventListener {
       DutchGameHelpers.clearLastMultiplayerRoomId();
     });
   }
-} 
+}

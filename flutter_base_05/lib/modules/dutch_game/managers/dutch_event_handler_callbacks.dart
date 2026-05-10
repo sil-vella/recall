@@ -23,13 +23,6 @@ import '../utils/dutch_achievement_catalog.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  /// When true, logs verbose Dutch WS/state paths including payload-size lines for `game_state_updated`.
-  /// Enable while tracing initial-peek vs visible table (`[peek-ui-trace]`); set false after.
-  static const bool LOGGING_SWITCH = false; // kick/leave + game_state + widget sync (enable-logging-switch.mdc; set false after test)
-  static final Logger _logger = Logger();
-
-  /// Counter for `game_state_updated` receives (only incremented when LOGGING_SWITCH is true).
-  static int _gameStateReceiveCount = 0;
   static final Map<String, int> _lastStateVersionByGameId = <String, int>{};
   static final Map<String, String> _lastEventSignatureByGameId = <String, String>{};
   static String? _cachedCurrentUserId;
@@ -53,9 +46,7 @@ class DutchEventHandlerCallbacks {
         final moduleManager = ModuleManager();
         _analyticsModule = moduleManager.getModuleByType<AnalyticsModule>();
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.error('Error getting analytics module: $e');
-        }
+        
       }
     }
     return _analyticsModule;
@@ -72,13 +63,7 @@ class DutchEventHandlerCallbacks {
     final statsBefore = DutchRankLevelChangeChecker.snapshotRankLevelWins(userStatsBefore);
     final achievementIdsBefore = _achievementIdsFromUserStats(userStatsBefore);
     DutchGameHelpers.fetchAndUpdateUserDutchGameData().then((success) async {
-      if (LOGGING_SWITCH) {
-        if (success) {
-          _logger.info('✅ $logContext: Successfully refreshed user stats after game end');
-        } else {
-          _logger.warning('⚠️ $logContext: Failed to refresh user stats after game end');
-        }
-      }
+      
       if (!success) return;
       if (afterModalGate != null) {
         await afterModalGate;
@@ -101,14 +86,7 @@ class DutchEventHandlerCallbacks {
       }
       if (change.hadBeforeSnapshot && change.anyStoredFieldChanged) {
         await _showPromotionNotification(change, logContext);
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            '📊 $logContext: rank/level changed after match — rank: ${change.rankBefore}->${change.rankAfter} '
-            '(${change.storedRankTrend}), level: ${change.levelBefore}->${change.levelAfter} '
-            '(${change.storedLevelTrend}), matcher: ${change.matcherRankBefore}->${change.matcherRankAfter} '
-            '(${change.matcherTrend})',
-          );
-        }
+        
       }
     });
   }
@@ -140,9 +118,7 @@ class DutchEventHandlerCallbacks {
       final title = entry?.title ?? 'Achievement';
       final body = entry?.description ?? id;
       try {
-        if (LOGGING_SWITCH) {
-          _logger.info('🏅 $logContext: pushing achievement celebration id=$id');
-        }
+        
         await Navigator.of(ctx, rootNavigator: true).push<void>(
           MaterialPageRoute<void>(
             fullscreenDialog: true,
@@ -154,9 +130,7 @@ class DutchEventHandlerCallbacks {
           ),
         );
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.error('⚠️ $logContext: achievement celebration failed for $id: $e');
-        }
+        
         final fallback = NavigationManager().navigatorKey.currentContext;
         if (fallback != null && fallback.mounted) {
           InstantMessageModal.showFrontendOnlyInstant(
@@ -184,9 +158,7 @@ class DutchEventHandlerCallbacks {
 
     final context = NavigationManager().navigatorKey.currentContext;
     if (context == null) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ $logContext: cannot show promotion screen (no active navigator context)');
-      }
+      
       return;
     }
 
@@ -213,9 +185,7 @@ class DutchEventHandlerCallbacks {
 
     final context = NavigationManager().navigatorKey.currentContext;
     if (context == null) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ $logContext: cannot show win celebration (no active navigator context)');
-      }
+      
       return;
     }
 
@@ -225,18 +195,14 @@ class DutchEventHandlerCallbacks {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = NavigationManager().navigatorKey.currentContext;
       if (ctx == null) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ $logContext: win celebration deferred push skipped (no context)');
-        }
+        
         if (!completer.isCompleted) completer.complete();
         return;
       }
       unawaited(() async {
         try {
           if (!ctx.mounted) return;
-          if (LOGGING_SWITCH) {
-            _logger.info('🏆 $logContext: pushing win celebration screen');
-          }
+          
           await Navigator.of(ctx, rootNavigator: true).push<void>(
             MaterialPageRoute<void>(
               fullscreenDialog: true,
@@ -246,9 +212,7 @@ class DutchEventHandlerCallbacks {
             ),
           );
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.error('⚠️ $logContext: failed to push win celebration screen: $e');
-          }
+          
         } finally {
           if (!completer.isCompleted) completer.complete();
         }
@@ -281,11 +245,7 @@ class DutchEventHandlerCallbacks {
           ),
         );
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.error(
-            '⚠️ $logContext: failed to push DutchPromotionScreen(${kind.name}): $e',
-          );
-        }
+        
         // Re-resolve a fresh context after the async gap; the original context
         // may no longer be mounted.
         final fallbackContext = NavigationManager().navigatorKey.currentContext;
@@ -299,23 +259,14 @@ class DutchEventHandlerCallbacks {
       }
     }
 
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        '🚀 $logContext: promotion sequence start levelPromoted=$levelPromoted rankPromoted=$rankPromoted '
-        'rank=${change.rankBefore}->${change.rankAfter} level=${change.levelBefore}->${change.levelAfter}',
-      );
-    }
+    
 
     if (levelPromoted) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🚀 $logContext: pushing LevelUp promotion screen');
-      }
+      
       await push(DutchPromotionKind.levelUp);
     }
     if (rankPromoted) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🚀 $logContext: pushing RankUp promotion screen');
-      }
+      
       await push(DutchPromotionKind.rankUp);
     }
   }
@@ -369,9 +320,7 @@ class DutchEventHandlerCallbacks {
       }
     } catch (e) {
       // Silently fail - don't block game events if analytics fails
-      if (LOGGING_SWITCH) {
-        _logger.error('Error tracking game event: $e');
-      }
+      
     }
   }
 
@@ -433,16 +382,12 @@ class DutchEventHandlerCallbacks {
   }) {
     final lastVersion = _lastStateVersionByGameId[gameId];
     if (stateVersion != null && lastVersion != null && stateVersion <= lastVersion) {
-      if (LOGGING_SWITCH) {
-        _logger.info('⏭️ $eventType: dropping stale state_version=$stateVersion (last=$lastVersion) for $gameId');
-      }
+      
       return true;
     }
     final lastSignature = _lastEventSignatureByGameId[gameId];
     if (lastSignature == signature) {
-      if (LOGGING_SWITCH) {
-        _logger.info('⏭️ $eventType: dropping duplicate signature for $gameId');
-      }
+      
       return true;
     }
     if (stateVersion != null) {
@@ -452,43 +397,6 @@ class DutchEventHandlerCallbacks {
     return false;
   }
 
-  /// One-line snapshot after `game_state_updated` is merged (grep `[peek-ui-trace]` in Flutter console).
-  static void _logPeekUiTraceAfterPatch({
-    required String gameId,
-    String? eventPhase,
-    required String uiPhase,
-    int? stateVersion,
-  }) {
-    if (!LOGGING_SWITCH) return;
-    try {
-      final post = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      final cid = post['currentGameId']?.toString() ?? '';
-      final mainPhase = post['gamePhase']?.toString() ?? '';
-      final games = post['games'] as Map<String, dynamic>? ?? {};
-      final lookupId = cid.isNotEmpty ? cid : gameId;
-      final g = games[lookupId] as Map<String, dynamic>?;
-      final gd = g?['gameData'] as Map<String, dynamic>?;
-      final gs = gd?['game_state'] as Map<String, dynamic>?;
-      final ssotPhase = gs?['phase']?.toString();
-      final showInstr = gs?['showInstructions'] == true;
-      final instr = post['instructions'] as Map<String, dynamic>? ?? {};
-      final myHand = post['myHand'] as Map<String, dynamic>? ?? {};
-      final handLen = (myHand['cards'] as List?)?.length ?? 0;
-      final opp = post['opponentsPanel'] as Map<String, dynamic>? ?? {};
-      final oppCount = (opp['opponents'] as List?)?.length ?? 0;
-      final peekRoot = (post['myCardsToPeek'] as List?)?.length ?? 0;
-      _logger.info(
-        '[peek-ui-trace] PATCH_APPLIED gameId=$gameId state_version=$stateVersion '
-        'event.phase=$eventPhase uiPhase=$uiPhase post.currentGameId=$lookupId main.gamePhase=$mainPhase '
-        'ssot.phase=$ssotPhase showInstructions=$showInstr '
-        'instructions.visible=${instr['isVisible'] == true} instructions.key=${instr['key']} '
-        'myHand.cards=$handLen myCardsToPeek(root)=$peekRoot opponents=$oppCount playerStatus=${post['playerStatus']}',
-      );
-    } catch (e, st) {
-      _logger.error('[peek-ui-trace] PATCH_APPLIED log failed: $e', error: e, stackTrace: st);
-    }
-  }
-  
   /// Get current games map from state manager
   static Map<String, dynamic> _getCurrentGamesMap() {
     if (_isBatchingGamesMapUpdates && _batchedGamesMap != null) {
@@ -561,9 +469,7 @@ class DutchEventHandlerCallbacks {
         // If updates includes gameData, ensure it has game_id set
         final updatedGameData = updates['gameData'] as Map<String, dynamic>? ?? {};
         if (updatedGameData.isNotEmpty && (updatedGameData['game_id'] == null || updatedGameData['game_id'].toString().isEmpty)) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️  _updateGameInMap: Updated gameData missing game_id for game $gameId - setting it');
-          }
+          
           updatedGameData['game_id'] = gameId;
           mergedGame['gameData'] = updatedGameData;
         }
@@ -572,9 +478,7 @@ class DutchEventHandlerCallbacks {
       // CRITICAL: Validate that gameData still has game_id after merge
       final finalGameData = mergedGame['gameData'] as Map<String, dynamic>? ?? {};
       if (finalGameData.isEmpty || finalGameData['game_id'] == null || finalGameData['game_id'].toString().isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ _updateGameInMap: Game $gameId has invalid gameData after update - gameData empty: ${finalGameData.isEmpty}, game_id: ${finalGameData['game_id']}');
-        }
+        
         // Don't update if gameData is invalid - this prevents corrupting the games map
         return;
       }
@@ -586,18 +490,14 @@ class DutchEventHandlerCallbacks {
       if (_isBatchingGamesMapUpdates) {
         _batchedGamesMap = currentGames;
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('📊 game_state REBUILD triggered for gameId=$gameId (updateUIState with games)');
-        }
+        
         // Update global state
         DutchGameHelpers.updateUIState({
           'games': currentGames,
         });
       }
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️  _updateGameInMap: Game $gameId not found in games map - cannot update');
-      }
+      
     }
   }
   
@@ -637,18 +537,14 @@ class DutchEventHandlerCallbacks {
     // First check for practice user data (practice mode)
     final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final practiceUser = dutchGameState['practiceUser'] as Map<String, dynamic>?;
-    if (LOGGING_SWITCH) {
-      _logger.debug('🔍 getCurrentUserId: Checking practiceUser: $practiceUser');
-    }
+    
     if (practiceUser != null && practiceUser['isPracticeUser'] == true) {
       final practiceUserId = practiceUser['userId']?.toString();
       if (practiceUserId != null && practiceUserId.isNotEmpty) {
         // In practice mode, player ID is the sessionId, not the userId
         // SessionId format: practice_session_<userId>
         final practiceSessionId = 'practice_session_$practiceUserId';
-        if (LOGGING_SWITCH) {
-          _logger.debug('🔍 getCurrentUserId: Returning practice session ID: $practiceSessionId');
-        }
+        
         _cachedCurrentUserId = practiceSessionId;
         _cachedCurrentUserIdAt = DateTime.now();
         return practiceSessionId;
@@ -663,11 +559,7 @@ class DutchEventHandlerCallbacks {
     final wsAuthMongoId = websocketState['user_id']?.toString().trim() ?? '';
     if (wsAuthMongoId.isNotEmpty) {
       final stableSeat = 'hum_$wsAuthMongoId';
-      if (LOGGING_SWITCH) {
-        _logger.debug(
-          '🔍 getCurrentUserId: multiplayer stable seat from websocket.user_id -> $stableSeat',
-        );
-      }
+      
       _cachedCurrentUserId = stableSeat;
       _cachedCurrentUserIdAt = DateTime.now();
       return stableSeat;
@@ -679,15 +571,11 @@ class DutchEventHandlerCallbacks {
     final sessionId = sessionData?['session_id']?.toString() ?? 
                       sessionData?['sessionId']?.toString();
     final normalizedSessionId = sessionId?.trim();
-    if (LOGGING_SWITCH) {
-      _logger.debug('🔍 getCurrentUserId: Checking sessionId from websocket state (sessionData keys: ${sessionData?.keys.toList()}): $sessionId');
-    }
+    
     if (normalizedSessionId != null &&
         normalizedSessionId.isNotEmpty &&
         normalizedSessionId.toLowerCase() != 'unknown') {
-      if (LOGGING_SWITCH) {
-        _logger.debug('🔍 getCurrentUserId: Found sessionId in state: $normalizedSessionId');
-      }
+      
       _cachedCurrentUserId = normalizedSessionId;
       _cachedCurrentUserIdAt = DateTime.now();
       return normalizedSessionId;
@@ -697,34 +585,26 @@ class DutchEventHandlerCallbacks {
     try {
       final wsManager = WebSocketManager.instance;
       final directSessionId = wsManager.socket?.id;
-      if (LOGGING_SWITCH) {
-        _logger.debug('🔍 getCurrentUserId: Checking direct socket ID: $directSessionId');
-      }
+      
       final normalizedSocketId = directSessionId?.trim();
       if (normalizedSocketId != null &&
           normalizedSocketId.isNotEmpty &&
           normalizedSocketId.toLowerCase() != 'unknown') {
-        if (LOGGING_SWITCH) {
-          _logger.debug('🔍 getCurrentUserId: Using direct socket ID: $normalizedSocketId');
-        }
+        
         _cachedCurrentUserId = normalizedSocketId;
         _cachedCurrentUserIdAt = DateTime.now();
         return normalizedSocketId;
       }
     } catch (e) {
       // WebSocketManager might not be initialized, continue to fallback
-      if (LOGGING_SWITCH) {
-        _logger.debug('🔍 getCurrentUserId: WebSocketManager not available: $e');
-      }
+      
     }
     
     // Last resort: use login userId (for backward compatibility)
     // Note: This may not match player IDs in multiplayer mode where player.id = sessionId
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final loginUserId = loginState['userId']?.toString() ?? '';
-    if (LOGGING_SWITCH) {
-      _logger.warning('⚠️  getCurrentUserId: Falling back to login user ID (this may cause issues in multiplayer): $loginUserId');
-    }
+    
     _cachedCurrentUserId = loginUserId;
     _cachedCurrentUserIdAt = DateTime.now();
     return loginUserId;
@@ -798,9 +678,7 @@ class DutchEventHandlerCallbacks {
     if (currentUserId.startsWith('practice_session_')) {
       final extractedUserId = currentUserId.replaceFirst('practice_session_', '');
       if (ownerId == extractedUserId) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('🔍 _isCurrentUserRoomOwner: Practice mode match - ownerId: $ownerId, extractedUserId: $extractedUserId');
-        }
+        
         return true;
       }
     }
@@ -828,17 +706,13 @@ class DutchEventHandlerCallbacks {
     
     // CRITICAL: Validate gameData has required fields before adding
     if (gameData.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️  _addGameToMap: Attempted to add game $gameId with empty gameData - skipping');
-      }
+      
       return;
     }
     
     // CRITICAL: Ensure game_id is set in gameData (required for joinedGamesSlice computation)
     if (gameData['game_id'] == null || gameData['game_id'].toString().isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️  _addGameToMap: gameData missing game_id for game $gameId - setting it');
-      }
+      
       gameData['game_id'] = gameId; // Ensure game_id is set
     }
     
@@ -878,9 +752,7 @@ class DutchEventHandlerCallbacks {
     _denormalizeSpecialEventIdOnGameEntry(gameEntry);
     currentGames[gameId] = gameEntry;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ _addGameToMap: Added game $gameId with gameData.game_id=${gameData['game_id']}');
-    }
+    
     
     if (_isBatchingGamesMapUpdates) {
       _batchedGamesMap = currentGames;
@@ -909,24 +781,18 @@ class DutchEventHandlerCallbacks {
     bool isMyTurn = false,
   }) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('📚 _triggerInstructionsIfNeeded: Called for gameId=$gameId, phase=${gameState['phase']}');
-      }
+      
       
       // Skip automatic instruction triggering if a demo action is active
       // Demo logic will handle showing instructions manually
       if (DemoActionHandler.isDemoActionActive()) {
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 _triggerInstructionsIfNeeded: Demo action active, skipping automatic instruction triggering');
-        }
+        
         return;
       }
       
       // Get showInstructions flag from game state
       final showInstructions = gameState['showInstructions'] as bool? ?? false;
-      if (LOGGING_SWITCH) {
-        _logger.info('📚 _triggerInstructionsIfNeeded: showInstructions from gameState=$showInstructions');
-      }
+      
       
       if (!showInstructions) {
         // Instructions disabled, ensure they're hidden
@@ -963,20 +829,14 @@ class DutchEventHandlerCallbacks {
           final practiceSettings = currentState['practiceSettings'] as Map<String, dynamic>?;
           final practiceShowInstructions = practiceSettings?['showInstructions'] as bool? ?? false;
           if (practiceShowInstructions) {
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 _triggerInstructionsIfNeeded: Using showInstructions from practiceSettings=$practiceShowInstructions');
-            }
+            
             effectiveShowInstructions = true;
           }
         }
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 _triggerInstructionsIfNeeded: In waiting phase, showInstructions=$showInstructions, effectiveShowInstructions=$effectiveShowInstructions');
-        }
+        
         
         if (!effectiveShowInstructions) {
-          if (LOGGING_SWITCH) {
-            _logger.info('📚 _triggerInstructionsIfNeeded: Instructions disabled, skipping');
-          }
+          
           return;
         }
         
@@ -986,9 +846,7 @@ class DutchEventHandlerCallbacks {
           instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
         );
         
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 _triggerInstructionsIfNeeded: dontShowAgain[initial]=${dontShowAgain[GameInstructionsProvider.KEY_INITIAL]}');
-        }
+        
         
         // Show initial instructions if not already marked as "don't show again"
         if (dontShowAgain[GameInstructionsProvider.KEY_INITIAL] != true) {
@@ -1010,18 +868,12 @@ class DutchEventHandlerCallbacks {
                 'dontShowAgain': dontShowAgain,
               },
             });
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 Initial instructions triggered and state updated');
-            }
+            
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 Initial instructions skipped - already showing');
-            }
+            
           }
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('📚 Initial instructions skipped - already marked as dontShowAgain');
-          }
+          
         }
         return;
       }
@@ -1038,13 +890,9 @@ class DutchEventHandlerCallbacks {
             (player) => player['id'] == currentUserId,
           );
           currentUserPlayerStatus = myPlayer['status']?.toString();
-          if (LOGGING_SWITCH) {
-            _logger.info('📚 _triggerInstructionsIfNeeded: Found current user player status=$currentUserPlayerStatus');
-          }
+          
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('📚 _triggerInstructionsIfNeeded: Current user player not found in players list');
-          }
+          
           // Player not found, continue without status
         }
       }
@@ -1065,9 +913,7 @@ class DutchEventHandlerCallbacks {
 
       // Track same rank window triggers for collection card instruction
       int sameRankTriggerCount = currentState['sameRankTriggerCount'] as int? ?? 0;
-      if (LOGGING_SWITCH) {
-        _logger.info('📚 _triggerInstructionsIfNeeded: Current sameRankTriggerCount=$sameRankTriggerCount, gamePhase=$gamePhase, previousPhase=$previousPhase');
-      }
+      
       
       // Check if this is a same rank window phase
       if (gamePhase == 'same_rank_window') {
@@ -1078,25 +924,17 @@ class DutchEventHandlerCallbacks {
           StateManager().updateModuleState('dutch_game', {
             'sameRankTriggerCount': sameRankTriggerCount,
           });
-          if (LOGGING_SWITCH) {
-            _logger.info('📚 _triggerInstructionsIfNeeded: Incremented same rank window trigger count=$sameRankTriggerCount (transitioned from $previousPhase to same_rank_window)');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('📚 _triggerInstructionsIfNeeded: Already in same_rank_window phase, not incrementing counter');
-          }
+          
         }
         
         // On 5th trigger, show collection card instruction instead of same rank window
         if (sameRankTriggerCount >= 5) {
-          if (LOGGING_SWITCH) {
-            _logger.info('📚 _triggerInstructionsIfNeeded: Same rank trigger count >= 5, checking collection card instruction');
-          }
+          
           // Check if collection card instruction is already dismissed
           if (dontShowAgain[GameInstructionsProvider.KEY_COLLECTION_CARD] != true) {
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 _triggerInstructionsIfNeeded: Collection card instruction not dismissed, constructing instruction');
-            }
+            
             
             // Construct collection card instruction directly (no playerStatus 'collection_card' exists)
             final collectionInstructions = {
@@ -1121,9 +959,7 @@ When anyone has played a card with the **same rank** as your **collection card**
             final currentlyVisible = currentInstructions['isVisible'] == true;
             final currentKey = currentInstructions['key']?.toString();
             
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 _triggerInstructionsIfNeeded: Collection instruction key=$instructionKey, currentlyVisible=$currentlyVisible, currentKey=$currentKey');
-            }
+            
             
             // Only update if not already showing this instruction
             if (!currentlyVisible || currentKey != instructionKey) {
@@ -1137,30 +973,20 @@ When anyone has played a card with the **same rank** as your **collection card**
                   'dontShowAgain': dontShowAgain,
                 },
               });
-              if (LOGGING_SWITCH) {
-                _logger.info('📚 Collection card instruction triggered (5th same rank window, count=$sameRankTriggerCount)');
-              }
+              
               return; // Exit early, don't show same rank window instruction
             } else {
-              if (LOGGING_SWITCH) {
-                _logger.info('📚 Collection card instruction skipped - already showing');
-              }
+              
             }
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 Collection card instruction already dismissed, showing same rank window instead');
-            }
+            
           }
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('📚 Same rank trigger count ($sameRankTriggerCount) < 5, showing same rank window instruction');
-          }
+          
         }
       }
 
-      if (LOGGING_SWITCH) {
-        _logger.info('📚 _triggerInstructionsIfNeeded: Current user status=$currentUserPlayerStatus, previous=$previousUserPlayerStatus, isMyTurn=$isMyTurn');
-      }
+      
 
       // Check if instructions should be shown
       final shouldShow = GameInstructionsProvider.shouldShowInstructions(
@@ -1173,9 +999,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         dontShowAgain: dontShowAgain,
       );
       
-      if (LOGGING_SWITCH) {
-        _logger.info('📚 _triggerInstructionsIfNeeded: shouldShow=$shouldShow for status=$currentUserPlayerStatus');
-      }
+      
 
       if (shouldShow) {
         // Get instructions content
@@ -1209,13 +1033,9 @@ When anyone has played a card with the **same rank** as your **collection card**
               },
             });
             
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 Instructions triggered: phase=$gamePhase, status=$currentUserPlayerStatus, isMyTurn=$isMyTurn, key=$instructionKey');
-            }
+            
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 Instructions skipped: same instruction already showing (key=$instructionKey)');
-            }
+            
           }
         }
       } else {
@@ -1223,9 +1043,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         // (let user close them manually)
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error triggering instructions: $e');
-      }
+      
     }
   }
 
@@ -1286,9 +1104,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       );
 
       if (isCompleted) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 _checkDemoActionCompletion: Demo action $activeDemoAction completed (status: $previousPlayerStatus → $currentUserPlayerStatus)');
-        }
+        
         
         // Clear previous status
         StateManager().updateModuleState('dutch_game', {
@@ -1296,9 +1112,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         });
 
         // Show after-action instruction for all demo actions
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 _checkDemoActionCompletion: Demo action completed - showing after-action instruction');
-        }
+        
         demoHandler.showAfterActionInstruction(activeDemoAction);
       } else {
         // Update previous status for next check
@@ -1309,9 +1123,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         }
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error checking demo action completion: $e');
-      }
+      
     }
   }
 
@@ -1332,9 +1144,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       // This prevents stale state updates when user has left the game
       final currentGames = _getCurrentGamesMap();
       if (!currentGames.containsKey(gameId)) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️  _syncWidgetStatesFromGameState: Game $gameId not found in games map - user may have left. Skipping widget state sync.');
-        }
+        
         return;
       }
       
@@ -1342,25 +1152,17 @@ When anyone has played a card with the **same rank** as your **collection card**
       // In multiplayer mode, this should return sessionId (which is the player ID)
       final currentUserId = getCurrentUserId();
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 _syncWidgetStatesFromGameState: gameId=$gameId, currentUserId=$currentUserId');
-      }
+      
       
       if (currentUserId.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️  _syncWidgetStatesFromGameState: No current user ID found');
-        }
+        
         return;
       }
       
       // Find player in gameState['players'] matching current user ID
       final players = gameState['players'] as List<dynamic>? ?? [];
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 _syncWidgetStatesFromGameState: Found ${players.length} players');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 _syncWidgetStatesFromGameState: Player IDs: ${players.map((p) => p is Map ? p['id']?.toString() : 'unknown').join(', ')}');
-      }
+      
+      
       
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
       final loginUserId = loginState['userId']?.toString() ?? '';
@@ -1383,9 +1185,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         }
       }
       if (myPlayer != null) {
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ _syncWidgetStatesFromGameState: Found matching player with ID: ${myPlayer['id']}');
-        }
+        
       } else {
         bool _matchesCurrentUser(dynamic p) {
           if (p is! Map<String, dynamic>) return false;
@@ -1407,9 +1207,7 @@ When anyone has played a card with the **same rank** as your **collection card**
             (phase != 'waiting_for_players' || wasInGame) &&
             isOnCurrentMatch &&
             gameId.startsWith('room_')) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('🚪 _syncWidgetStatesFromGameState: Current user removed from $gameId — showing kicked modal');
-          }
+          
           StateManager().updateModuleState('dutch_game', {'kickedModalShownFor': gameId});
           _addSessionMessage(
             level: 'warning',
@@ -1442,9 +1240,7 @@ When anyone has played a card with the **same rank** as your **collection card**
           }
         }
         if (myPlayer == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️  _syncWidgetStatesFromGameState: Current user ($currentUserId) not found in players list. Player IDs: ${players.map((p) => p is Map ? p['id']?.toString() : 'unknown').join(', ')}');
-          }
+          
           return;
         }
       }
@@ -1464,13 +1260,9 @@ When anyone has played a card with the **same rank** as your **collection card**
         return false;
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 _syncWidgetStatesFromGameState: cardsToPeek.length: ${cardsToPeek.length}, hasFullCardData: $hasFullCardData');
-      }
+      
       if (cardsToPeek.isNotEmpty && hasFullCardData) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 _syncWidgetStatesFromGameState: Full card data detected - storing in protectedCardsToPeek');
-        }
+        
         // Store protected data in main state so widgets can access it
         // This persists even when cardsToPeek is cleared
         // Use widget-level timer instead of timestamp in state
@@ -1485,9 +1277,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       } else if (cardsToPeek.isEmpty) {
         // CRITICAL: Clear protectedCardsToPeek when cardsToPeek is empty
         // This ensures the widget doesn't show stale protected data
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 _syncWidgetStatesFromGameState: cardsToPeek is empty - clearing protectedCardsToPeek');
-        }
+        
         if (mainStatePatch != null) {
           mainStatePatch['protectedCardsToPeek'] = null;
         } else {
@@ -1550,13 +1340,9 @@ When anyone has played a card with the **same rank** as your **collection card**
       // Apply widget updates to games map
       _updateGameInMap(gameId, widgetUpdates);
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ _syncWidgetStatesFromGameState: Synced widget states for game $gameId - hand: ${hand.length} cards, status: $status, isMyTurn: $isCurrentPlayer${turnEvents != null ? ', turn_events: ${turnEvents.length}' : ''}');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ _syncWidgetStatesFromGameState: Error syncing widget states: $e');
-      }
+      
     }
   }
 
@@ -1589,12 +1375,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     final wsSessionMatchesKick =
         leftSessionId.isNotEmpty && _leaveRoomSuccessSessionIsThisClient(leftSessionId);
     if (leftSessionId.isEmpty || !wsSessionMatchesKick) {
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '[kick-trace] handleKickedForInactivityLeaveSuccess skip: leftSession=$leftSessionId '
-          'matchesWs=$wsSessionMatchesKick reason=${data['reason']} room=${data['room_id']}',
-        );
-      }
+      
       return;
     }
     final roomId = data['room_id']?.toString() ?? '';
@@ -1603,17 +1384,10 @@ When anyone has played a card with the **same rank** as your **collection card**
     final currentGameId = dg['currentGameId']?.toString() ?? '';
     final currentRoomId = dg['currentRoomId']?.toString() ?? '';
     if (roomId != currentGameId && roomId != currentRoomId) {
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '[kick-trace] handleKickedForInactivityLeaveSuccess skip: roomId=$roomId '
-          'currentGameId=$currentGameId currentRoomId=$currentRoomId',
-        );
-      }
+      
       return;
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('[kick-trace] handleKickedForInactivityLeaveSuccess APPLY room=$roomId kickedModalShownFor set');
-    }
+    
     StateManager().updateModuleState('dutch_game', {'kickedModalShownFor': roomId});
     _addSessionMessage(
       level: 'warning',
@@ -1628,9 +1402,7 @@ When anyone has played a card with the **same rank** as your **collection card**
   /// [showModal] - If true, displays the modal. Only set to true for game end messages.
   /// [isCurrentUserWinner] - When showModal is true for game end, store in messages so UI can show trophy/coin stream in standings.
   static void _addSessionMessage({required String? level, required String? title, required String? message, Map<String, dynamic>? data, bool showModal = false, bool? isCurrentUserWinner}) {
-    if (LOGGING_SWITCH) {
-      _logger.info('📨 _addSessionMessage: Called with level=$level, title="$title", message="$message", showModal=$showModal');
-    }
+    
     final entry = {
       'level': (level ?? 'info'),
       'title': title ?? '',
@@ -1675,14 +1447,10 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (isCurrentUserWinner != null) {
         messagesUpdate['isCurrentUserWinner'] = isCurrentUserWinner;
       }
-      if (LOGGING_SWITCH) {
-        _logger.info('📨 _addSessionMessage: Setting modal visible - title="$title", content="$message", type=$level, isCurrentUserWinner=$isCurrentUserWinner');
-      }
+      
     } else {
       // Don't modify modal fields for non-game-end messages - preserve existing state
-      if (LOGGING_SWITCH) {
-        _logger.info('📨 _addSessionMessage: Not showing modal (showModal=false) - message added to session only, modal fields preserved');
-      }
+      
     }
     
     // If showing modal, also ensure gamePhase is set to game_ended in the same update
@@ -1690,9 +1458,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentGamePhase = currentState['gamePhase']?.toString() ?? '';
       if (currentGamePhase != 'game_ended') {
-        if (LOGGING_SWITCH) {
-          _logger.info('📨 _addSessionMessage: Also updating gamePhase to game_ended in same update');
-        }
+        
         DutchGameHelpers.updateUIState({
           'messages': messagesUpdate,
           'gamePhase': 'game_ended', // Ensure gamePhase is set in same update as modal
@@ -1707,9 +1473,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         'messages': messagesUpdate,
       });
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ _addSessionMessage: State updated successfully');
-    }
+    
   }
 
   // ========================================
@@ -1726,9 +1490,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     // This prevents stale state updates when user has left the game
     final currentGames = _getCurrentGamesMap();
     if (!currentGames.containsKey(roomId)) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️  handleDutchNewPlayerJoined: Game $roomId not found in games map - user may have left. Skipping player join update.');
-      }
+      
       return;
     }
 
@@ -1786,9 +1548,7 @@ When anyone has played a card with the **same rank** as your **collection card**
 
   /// Handle game_started event
   static void handleGameStarted(Map<String, dynamic> data) {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 handleGameStarted: Called for gameId=${data['game_id']}');
-    }
+    
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final startedBy = data['started_by']?.toString() ?? '';
@@ -1798,9 +1558,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     // This prevents stale state updates when user has left the game
     final currentGames = _getCurrentGamesMap();
     if (!currentGames.containsKey(gameId)) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️  handleGameStarted: Game $gameId not found in games map - user may have left. Skipping game started update.');
-      }
+      
       return;
     }
     
@@ -1892,9 +1650,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       // Keep kicked-user modal visible: `_addSessionMessage(showModal:true)` sets `gamePhase=game_ended`,
       // but this normal update path could otherwise overwrite it back to `playing`.
       uiPhase = 'game_ended';
-      if (LOGGING_SWITCH) {
-        _logger.info('🚪 handleGameStarted: preserving game_ended uiPhase for kicked modal gameId=$gameId');
-      }
+      
     }
     
     final dutchBeforeGameStarted = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -1959,9 +1715,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     // This prevents stale state updates when user has left the game
     final currentGames = _getCurrentGamesMap();
     if (!currentGames.containsKey(gameId)) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️  handleTurnStarted: Game $gameId not found in games map - user may have left. Skipping turn started update.');
-      }
+      
       return;
     }
     
@@ -2051,30 +1805,20 @@ When anyone has played a card with the **same rank** as your **collection card**
         handIdxBrief = ' hand_index=[${parts.join(',')}]';
       }
     }
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        '🎬 game_animation RECV gameId=$gameId action_type=$actionType${source.isNotEmpty ? ' source=$source' : ''} cards=$n$handIdxBrief$ctxBrief',
-      );
-    }
+    
     DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));
   }
 
   /// Handle game_state_updated event
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';
-    if (LOGGING_SWITCH) {
-      _gameStateReceiveCount++;
-      final sizeBytes = utf8.encode(jsonEncode(data)).length;
-      _logger.info('📊 game_state_updated RECV #$_gameStateReceiveCount size=$sizeBytes bytes gameId=$gameId');
-    }
+    
     // 🎯 CRITICAL (WS → Practice): When in practice mode, ignore WebSocket game_state_updated
     // so late WS events cannot overwrite practice state or block Start Match.
     final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final practiceUser = dutchState['practiceUser'];
     if (practiceUser != null && gameId.startsWith('room_')) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 handleGameStateUpdated: Ignoring WebSocket game_state_updated for $gameId (in practice mode)');
-      }
+      
       return;
     }
     var gameState = data['game_state'] as Map<String, dynamic>? ?? {};
@@ -2100,12 +1844,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       stateVersion: stateVersion,
       signature: signature,
     )) {
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '[peek-ui-trace] game_state_updated DROPPED gameId=$gameId state_version=$stateVersion '
-          'event.phase=${gameState['phase']} signature=$signature',
-        );
-      }
+      
       return;
     }
     final myCardsToPeekFromEvent = data['myCardsToPeek'] as List<dynamic>?; // Extract root-level myCardsToPeek if present
@@ -2113,9 +1852,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     // 🔍 DEBUG: Check drawnCard data in received game_state
     final players = gameState['players'] as List<dynamic>? ?? [];
     final currentUserId = getCurrentUserId();
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 DRAW DEBUG - handleGameStateUpdated: Received game_state_updated for gameId: $gameId, currentUserId: $currentUserId');
-    }
+    
     for (final player in players) {
       if (player is Map<String, dynamic>) {
         final playerId = player['id']?.toString() ?? 'unknown';
@@ -2125,25 +1862,13 @@ When anyone has played a card with the **same rank** as your **collection card**
           final suit = drawnCard['suit']?.toString() ?? 'null';
           final isIdOnly = rank == '?' && suit == '?';
           final isCurrentUser = playerId == currentUserId;
-          if (LOGGING_SWITCH) {
-            _logger.info('🔍 DRAW DEBUG - handleGameStateUpdated: Player $playerId (isCurrentUser: $isCurrentUser) drawnCard - rank: $rank, suit: $suit, isIdOnly: $isIdOnly');
-          }
+          
         }
       }
     }
     
     // 🔍 DEBUG: Log the extracted values
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 handleGameStateUpdated DEBUG:');
-      _logger.info('  gameId: $gameId');
-      _logger.info('  ownerId: $ownerId');
-      _logger.info('  data keys: ${data.keys.toList()}');
-      _logger.info('  turn_events count: ${turnEvents.length}');
-      _logger.info('  myCardsToPeekFromEvent: ${myCardsToPeekFromEvent != null ? "${myCardsToPeekFromEvent.length} items" : "null"}');
-      if (turnEvents.isNotEmpty) {
-        _logger.info('  🔍 JACK SWAP DEBUG - turn_events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
-      }
-    }
+    
     final roundNumber = data['round_number'] as int? ?? 1;
     final currentPlayer = data['current_player'];
     final currentPlayerStatus = deriveWireCurrentPlayerStatus(
@@ -2190,18 +1915,14 @@ When anyone has played a card with the **same rank** as your **collection card**
     // 🎯 CRITICAL: If games map is empty but currentGameId is set, this might be a stale event
     // from a game that was just cleared. Only accept events for the current game or if currentGameId is empty.
     if (currentGames.isEmpty && currentGameId.isNotEmpty && gameId != currentGameId) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️  handleGameStateUpdated: Ignoring stale game_state_updated for $gameId - games map is empty and currentGameId is $currentGameId (likely from cleared game)');
-      }
+      
       return; // Ignore stale events from games that were just cleared
     }
     
     // 🎯 CRITICAL: After clear we have games empty and currentGameId empty. A stale game_state_updated
     // from a room we just left would re-add that room. Only ignore if this gameId was recently left.
     if (currentGames.isEmpty && currentGameId.isEmpty && DutchGameHelpers.wasGameRecentlyLeft(gameId)) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 handleGameStateUpdated: Ignoring stale game_state_updated for $gameId (recently left).');
-      }
+      
       return;
     }
     _beginGamesMapBatch(currentGames);
@@ -2221,9 +1942,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         kickedAlreadyShownFor != gameId &&
         phaseAllowsKickFallback &&
         !userStillInPlayers) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('🚪 handleGameStateUpdated: Current user missing from players for active match $gameId — forcing kicked modal');
-      }
+      
       StateManager().updateModuleState('dutch_game', {'kickedModalShownFor': gameId});
       _addSessionMessage(
         level: 'warning',
@@ -2240,9 +1959,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       // 🎯 CRITICAL: Only one game should exist in the games map at a time
       // Remove all other games when adding a new game
       if (currentGames.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️  handleGameStateUpdated: Removing ${currentGames.length} old game(s) before adding new game $gameId');
-        }
+        
         currentGames.clear(); // Remove all existing games
       }
       // Add the game to the games map with the complete game state.
@@ -2266,9 +1983,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         base['is_random_join'] = true;
       }
       _addGameToMap(gameId, base);
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 handleGameStateUpdated: Added new game to map: $gameId (players: ${players.length})');
-      }
+      
       
       // 🎯 CRITICAL: Immediately update the newly added game with additional information
       // This ensures the game has all the data it needs before widget sync
@@ -2291,9 +2006,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       // This prevents stale state updates when user has left the game
       final currentGamesForCheck = _getCurrentGamesMap();
       if (!currentGamesForCheck.containsKey(gameId)) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️  handleGameStateUpdated: Game $gameId not found in games map - user may have left. Skipping game state update.');
-        }
+        
         _endGamesMapBatch(commit: false);
         return;
       }
@@ -2305,9 +2018,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       
       if (currentGameIdForCheck.isNotEmpty && currentGameIdForCheck != gameId) {
         // This is a stale game - remove it and keep only the current game
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️  handleGameStateUpdated: Removing stale game $gameId - currentGameId is $currentGameIdForCheck');
-        }
+        
         final gamesToUpdate = _getCurrentGamesMap();
         gamesToUpdate.remove(gameId);
         // If the current game is still in the map, keep only that one
@@ -2326,9 +2037,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
       
       // Update existing game's game_state
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 Updating existing game: $gameId');
-      }
+      
       final mapBeforeStateUpdate = _getCurrentGamesMap();
       final prevEntryKick = mapBeforeStateUpdate[gameId] as Map<String, dynamic>?;
       final prevGdKick = prevEntryKick?['gameData'] as Map<String, dynamic>?;
@@ -2356,19 +2065,14 @@ When anyone has played a card with the **same rank** as your **collection card**
         final currentUserId = getCurrentUserId();
         final gameDataForOwnerCheck = {'owner_id': ownerId};
         final isOwner = _isCurrentUserRoomOwner(gameDataForOwnerCheck);
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 Updating owner_id: $ownerId, currentUserId: $currentUserId');
-          _logger.info('🔍 Setting isRoomOwner: $isOwner');
-        }
+        
         _updateGameData(gameId, {'owner_id': ownerId});  // So gameData has owner_id for slices
         _updateGameInMap(gameId, {
           'owner_id': ownerId,
           'isRoomOwner': isOwner,
         });
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 ownerId is null, preserving previous ownership');
-        }
+        
         // Preserve main state's isRoomOwner when ownerId is missing
         final currentMain = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final prevIsOwner = currentMain['isRoomOwner'] as bool? ?? false;
@@ -2463,19 +2167,11 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
     }
     final currentUserPlayerStatus = myPlayerForInstructions?['status']?.toString();
-    if (LOGGING_SWITCH) {
-      if (myPlayerForInstructions != null) {
-        _logger.info('📚 handleGameStateUpdated: Current user player status=$currentUserPlayerStatus, currentPlayerStatus=$currentPlayerStatus');
-      } else {
-        _logger.warning('📚 handleGameStateUpdated: Current user player not found for instructions');
-      }
-    }
+    
     
     // Normalize backend phase to UI phase
     final rawPhase = gameState['phase']?.toString();
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 handleGameStateUpdated: rawPhase=$rawPhase for gameId=$gameId');
-    }
+    
     String uiPhase;
     if (rawPhase == 'waiting_for_players') {
       uiPhase = 'waiting';
@@ -2484,15 +2180,11 @@ When anyone has played a card with the **same rank** as your **collection card**
     } else {
       uiPhase = rawPhase ?? 'playing';
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 handleGameStateUpdated: normalized uiPhase=$uiPhase for gameId=$gameId');
-    }
+    
 
     // Extract winners list if game has ended - check both data and gameState
     final winners = data['winners'] as List<dynamic>? ?? gameState['winners'] as List<dynamic>?;
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 handleGameStateUpdated: Winners extraction - data.winners=${data['winners']}, gameState.winners=${gameState['winners']}, final winners=${winners?.length ?? 0}');
-    }
+    
 
     // 🎯 CRITICAL: Always ensure currentGameId is set (even for existing games)
     // This is essential for the game play screen to update correctly when match starts
@@ -2501,12 +2193,8 @@ When anyone has played a card with the **same rank** as your **collection card**
     // Only reset anim queue when switching to a *different* game. If currentGameId is still empty,
     // `game_animation` may have already enqueued — resetting here would drop those flights (intermittent "no anim").
     if (existingCurrentGameId.isNotEmpty && existingCurrentGameId != gameId) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 handleGameStateUpdated: Switching game $existingCurrentGameId → $gameId (anim queue reset)');
-      }
+      
       DutchAnimRuntime.instance.reset();
-    } else if (LOGGING_SWITCH && existingCurrentGameId != gameId) {
-      _logger.info('🔍 handleGameStateUpdated: Setting currentGameId to $gameId (was empty, anim queue preserved)');
     }
 
     // Entry-fee deduction is server-side (Dart WS → Python) on start_match; do not deduct from the client.
@@ -2536,9 +2224,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     final seatIdForTurn = myPlayerForInstructions?['id']?.toString() ?? currentUserId;
     final isMyTurn = currentPlayerFromState?['id']?.toString() == seatIdForTurn ||
         (currentPlayer is Map && currentPlayer['id']?.toString() == seatIdForTurn);
-    if (LOGGING_SWITCH) {
-      _logger.info('📚 handleGameStateUpdated: Triggering instructions - isMyTurn=$isMyTurn, currentUserStatus=$currentUserPlayerStatus');
-    }
+    
     _triggerInstructionsIfNeeded(
       gameId: gameId,
       gameState: gameState,
@@ -2565,9 +2251,7 @@ When anyone has played a card with the **same rank** as your **collection card**
         
         if (existingIndex < 0) {
           // Game not in joinedGames - add it (one-time addition)
-          if (LOGGING_SWITCH) {
-            _logger.info('DutchEventHandlerCallbacks: Adding game $gameId to joinedGames list (first time)');
-          }
+          
           currentJoinedGames.add(gameData);
           
           // Update joinedGames state
@@ -2580,15 +2264,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
     }
     _updateMainGameState(consolidatedMainStatePatch);
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 handleGameStateUpdated: Applied consolidated main state patch with keys=${consolidatedMainStatePatch.keys.toList()}');
-      _logPeekUiTraceAfterPatch(
-        gameId: gameId,
-        eventPhase: gameState['phase']?.toString(),
-        uiPhase: uiPhase,
-        stateVersion: stateVersion,
-      );
-    }
+    
     
     // Check for demo action completion
     _checkDemoActionCompletion(
@@ -2598,13 +2274,9 @@ When anyone has played a card with the **same rank** as your **collection card**
     );
     
     // Add session message about game state update or game end
-    if (LOGGING_SWITCH) {
-      _logger.info('🎯 handleGameStateUpdated: Checking game end - uiPhase=$uiPhase, winners=${winners?.length ?? 0}');
-    }
+    
     if (uiPhase == 'game_ended' && winners != null && winners.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🏆 handleGameStateUpdated: Game ended with ${winners.length} winner(s) - triggering winner modal');
-      }
+      
       // Winners list is ordered: actual winners first (winType != null), then rest by points
       final actualWinners = winners.where((w) => w is Map<String, dynamic> && w['winType'] != null).toList();
       final winnerMessages = actualWinners.map((w) {
@@ -2670,9 +2342,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       
       // Refresh user stats (including coins) after game ends to update app bar display
       // This ensures the coins display shows the updated balance after winning/losing
-      if (LOGGING_SWITCH) {
-        _logger.info('🔄 handleGameStateUpdated: Refreshing user stats after game end to update coins display');
-      }
+      
       _refreshUserStatsAfterGameEnd(
         'handleGameStateUpdated',
         afterModalGate: winCelebrationGate,
@@ -2682,9 +2352,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (uiPhase != 'game_ended') {
         final currentMessages = StateManager().getModuleState<Map<String, dynamic>>('dutch_game')?['messages'] as Map<String, dynamic>? ?? {};
         if (currentMessages['isVisible'] == true) {
-          if (LOGGING_SWITCH) {
-            _logger.info('🎯 handleGameStateUpdated: Hiding modal - game phase is not game_ended (uiPhase=$uiPhase)');
-          }
+          
           DutchGameHelpers.updateUIState({
             'messages': {
               ...currentMessages,
@@ -2704,9 +2372,7 @@ When anyone has played a card with the **same rank** as your **collection card**
 
   /// Handle game_state_partial_update event
   static void handleGameStatePartialUpdate(Map<String, dynamic> data) {
-    if (LOGGING_SWITCH) {
-      _logger.info("handleGameStatePartialUpdate: $data");
-    }
+    
     final gameId = data['game_id']?.toString() ?? '';
     final changedProperties = data['changed_properties'] as List<dynamic>? ?? [];
     final partialGameState = data['partial_game_state'] as Map<String, dynamic>? ?? {};
@@ -2808,9 +2474,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
     }
 
-    if (LOGGING_SWITCH) {
-      _logger.info("updates: $updates");
-    }
+    
     // Apply UI updates if any
     if (updates.isNotEmpty) {
       _updateGameInMap(gameId, updates);
@@ -2839,14 +2503,10 @@ When anyone has played a card with the **same rank** as your **collection card**
     // Extract winners list if game has ended
     final winners = data['winners'] as List<dynamic>? ?? updatedGameState['winners'] as List<dynamic>?;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🎯 handleGameStatePartialUpdate: Checking game end - uiPhase=$uiPhase, winners=${winners?.length ?? 0}');
-    }
+    
     // Add session message about partial update or game end
     if (uiPhase == 'game_ended' && winners != null && winners.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🏆 handleGameStatePartialUpdate: Game ended with ${winners.length} winner(s) - triggering winner modal');
-      }
+      
       // Winners list is ordered: actual winners first (winType != null), then rest by points
       final actualWinnersPartial = winners.where((w) => w is Map<String, dynamic> && w['winType'] != null).toList();
       final winnerMessages = actualWinnersPartial.map((w) {
@@ -2884,22 +2544,16 @@ When anyone has played a card with the **same rank** as your **collection card**
       });
       
       // Update gamePhase and show modal in the same state update to avoid race condition
-      if (LOGGING_SWITCH) {
-        _logger.info('🏆 handleGameStatePartialUpdate: Updating gamePhase and showing winner modal');
-      }
+      
       DutchGameHelpers.updateUIState({
         'gamePhase': 'game_ended', // Ensure gamePhase is set before showing modal
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🏆 handleGameStatePartialUpdate: Calling _addSessionMessage with winner info - title="Game Ended", message="Winner(s): $winnerMessages"');
-      }
+      
       
       // Refresh user stats (including coins) after game ends to update app bar display
       // This ensures the coins display shows the updated balance after winning/losing
-      if (LOGGING_SWITCH) {
-        _logger.info('🔄 handleGameStatePartialUpdate: Refreshing user stats after game end to update coins display');
-      }
+      
       Future<void>? winCelebrationGate;
       
       _addSessionMessage(
@@ -2929,9 +2583,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (uiPhase != 'game_ended') {
         final currentMessages = StateManager().getModuleState<Map<String, dynamic>>('dutch_game')?['messages'] as Map<String, dynamic>? ?? {};
         if (currentMessages['isVisible'] == true) {
-          if (LOGGING_SWITCH) {
-            _logger.info('🎯 handleGameStatePartialUpdate: Hiding modal - game phase is not game_ended (uiPhase=$uiPhase)');
-          }
+          
           DutchGameHelpers.updateUIState({
             'messages': {
               ...currentMessages,
@@ -2956,9 +2608,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     // This prevents stale state updates when user has left the game
     final currentGames = _getCurrentGamesMap();
     if (!currentGames.containsKey(gameId)) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️  handlePlayerStateUpdated: Game $gameId not found in games map - user may have left. Skipping player state update.');
-      }
+      
       return;
     }
     
@@ -3125,8 +2775,6 @@ When anyone has played a card with the **same rank** as your **collection card**
       },
     });
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch Error: $message');
-    }
+    
   }
 }

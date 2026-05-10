@@ -20,7 +20,7 @@ These `Config` attributes read from the **secrets directory** first (or Vault fo
 | APP_ID | app_id | APP_ID | external_app_001 |
 | APP_NAME | app_name | APP_NAME | External Application |
 | APP_VERSION | app_version | APP_VERSION | 2.0.0 |
-| APP_DOWNLOAD_BASE_URL | app_download_base_url | APP_DOWNLOAD_BASE_URL | https://dutch.mt/downloads |
+| APP_DOWNLOAD_BASE_URL | app_download_base_url | APP_DOWNLOAD_BASE_URL | https://dutch.reignofplay.com/downloads |
 | APP_URL | app_url | APP_URL | http://localhost:5001 |
 
 ### Flask & service

@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Flutter app launcher with filtered Logger output only
-# Shows only your custom Logger calls, filters out all system logs
+# Flutter app launcher with filtered Logger output by default.
+# Set FLUTTER_SERVER_LOG_ALL=1 (or true) in the environment or .env.local to also append
+# every other Flutter stdout line to server.log as [FLUTTER_RAW] (Gradle/tool noise still stderr-only).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -81,7 +82,11 @@ DEVICE_LABEL="$(get_device_label "$DEVICE_ID")"
 ANDROID_APP_ID="com.reignofplay.dutch"
 FIREBASE_DEBUGVIEW_ENABLED=false
 
-echo "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) with filtered Logger output..."
+if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
+    echo "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) — Logger + full stdout → server.log (FLUTTER_SERVER_LOG_ALL)..."
+else
+    echo "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) with filtered Logger output..."
+fi
 
 # Check if adb is available
 if ! command -v adb &> /dev/null; then
@@ -115,8 +120,12 @@ fi
 cd "$SCRIPT_DIR/../../flutter_base_05" 2>/dev/null || cd flutter_base_05
 
 # Set up log file to write to Python server log
-SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log"
-echo "📝 Writing Logger output to: $SERVER_LOG_FILE (do not redirect script stdout to this file)"
+SERVER_LOG_FILE="$REPO_ROOT/python_base_04/tools/logger/server.log"
+if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
+    echo "📝 Writing AppLogger lines + all other Flutter stdout to: $SERVER_LOG_FILE (FLUTTER_SERVER_LOG_ALL; do not redirect script stdout here)"
+else
+    echo "📝 Writing Logger output to: $SERVER_LOG_FILE (do not redirect script stdout to this file)"
+fi
 
 # Ensure log file directory exists and is writable
 LOG_DIR=$(dirname "$SERVER_LOG_FILE")
@@ -136,8 +145,8 @@ echo "🎯 Launching Flutter app for $DEVICE_LABEL..."
 BACKEND_TARGET="${1:-local}"
 
 if [ "$BACKEND_TARGET" = "vps" ]; then
-    API_URL="https://dutch.mt"
-    WS_URL="wss://dutch.mt/ws"
+    API_URL="https://dutch.reignofplay.com"
+    WS_URL="wss://dutch.reignofplay.com/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
     # Local LAN IP for Python & Dart services
@@ -170,6 +179,9 @@ filter_logs() {
             echo -e "${color}[$timestamp] [$level] $message\033[0m"
         else
             echo "$line" >&2
+            if [ "${FLUTTER_SERVER_LOG_ALL:-}" = "1" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "true" ] || [ "${FLUTTER_SERVER_LOG_ALL:-}" = "yes" ]; then
+                printf '%s [FLUTTER_RAW] %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$line" >> "$SERVER_LOG_FILE"
+            fi
         fi
     done
 }
@@ -208,6 +220,23 @@ DART_DEFINE_ARGS+=( \
   --dart-define=DEBUG_MODE=true \
   --dart-define=ENABLE_REMOTE_LOGGING=true \
 )
+
+# Same diagnostics idea as launch_chrome.sh (GOOGLE_CLIENT_ID): RevenueCat Play Store key must be in dart-defines.
+RC_GOOGLE_IN_DEFINES=false
+for arg in "${DART_DEFINE_ARGS[@]}"; do
+  if [[ "$arg" == --dart-define=REVENUECAT_GOOGLE_API_KEY=* ]]; then
+    RC_GOOGLE_IN_DEFINES=true
+    VAL="${arg#--dart-define=REVENUECAT_GOOGLE_API_KEY=}"
+    VAL="${VAL%\"}"
+    VAL="${VAL#\"}"
+    echo "   Dart-define REVENUECAT_GOOGLE_API_KEY: prefix=${VAL:0:8}… (length=${#VAL})"
+    break
+  fi
+done
+if [ "$RC_GOOGLE_IN_DEFINES" = false ]; then
+  echo "   ❌ REVENUECAT_GOOGLE_API_KEY not in dart-defines — set REVENUECAT_GOOGLE_API_KEY in $FRONTEND_ENV (Android IAP)."
+fi
+echo "   Total dart-defines: ${#DART_DEFINE_ARGS[@]}"
 
 # Logger lines mirror launch_chrome.sh: same filter_logs on flutter stdout (strip tool prefix first).
 flutter run \

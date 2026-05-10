@@ -359,27 +359,7 @@ UI Navigation
 
 ## Logging Architecture
 
-### Logger System
-
-The application implements a structured logging system:
-
-#### Features
-
-- **Configurable Logging**: Enable/disable logging via configuration
-- **Log Levels**: Different log levels for different types of messages
-- **Structured Logging**: Consistent log format across the application
-- **Performance**: Efficient logging that doesn't impact performance
-
-#### Usage
-
-```dart
-class Logger {
-  void info(String message) => log(message, level: 800);
-  void debug(String message) => log(message, level: 500);
-  void error(String message, {Object? error, StackTrace? stackTrace}) =>
-      log(message, level: 1000, error: error, stackTrace: stackTrace);
-}
-```
+The legacy in-app `Logger` / `LOGGING_SWITCH` stack has been **removed** from the Flutter client. See [LOGGING_SYSTEM.md](LOGGING_SYSTEM.md). Diagnostics should use user-visible errors, analytics, and (when a standard is adopted) a single documented logging approach.
 
 ## Configuration Architecture
 

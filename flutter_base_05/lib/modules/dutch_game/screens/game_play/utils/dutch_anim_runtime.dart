@@ -15,9 +15,6 @@ class DutchAnimRuntime extends ChangeNotifier {
   DutchAnimRuntime._();
   static final DutchAnimRuntime instance = DutchAnimRuntime._();
 
-  static const bool LOGGING_SWITCH = false; // Anim queue / layout (enable-logging-switch.mdc; set false after test)
-  final Logger _logger = Logger();
-
   static const String eventDataKey = 'eventData';
   static const String cardPositionsKey = 'cardPositions';
   static const String pileRectsKey = 'pileRects';
@@ -59,20 +56,14 @@ class DutchAnimRuntime extends ChangeNotifier {
     _animMaskedHandSlots
       ..clear()
       ..addAll(next);
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        'DutchAnimRuntime: setAnimMaskedHandSlots count=${next.length} keys=${next.join(",")}',
-      );
-    }
+    
     notifyListeners();
   }
 
   void clearAnimMaskedHandSlots() {
     if (_animMaskedHandSlots.isEmpty) return;
     _animMaskedHandSlots.clear();
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchAnimRuntime: clearAnimMaskedHandSlots');
-    }
+    
     notifyListeners();
   }
 
@@ -97,9 +88,7 @@ class DutchAnimRuntime extends ChangeNotifier {
     _cardPositionsVersion = 0;
     _lastLayoutSignature = null;
     _animMaskedHandSlots.clear();
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchAnimRuntime: reset (queue + layout cleared)');
-    }
+    
     notifyListeners();
   }
 
@@ -109,26 +98,14 @@ class DutchAnimRuntime extends ChangeNotifier {
     entry['_seq'] = _eventSeq;
     entry['_receivedAt'] = DateTime.now().millisecondsSinceEpoch;
     _eventData.add(entry);
-    if (LOGGING_SWITCH) {
-      final action = entry['action_type']?.toString() ?? '';
-      final gid = entry['game_id']?.toString() ?? '';
-      _logger.info(
-        'DutchAnimRuntime: enqueue seq=$_eventSeq action=$action gameId=$gid queueLen=${_eventData.length}',
-      );
-    }
+    
     notifyListeners();
   }
 
   void dequeueHead() {
     if (_eventData.isEmpty) return;
     final removed = _eventData.removeAt(0);
-    if (LOGGING_SWITCH) {
-      final seq = removed['_seq'];
-      final action = removed['action_type']?.toString() ?? '';
-      _logger.info(
-        'DutchAnimRuntime: dequeueHead seq=$seq action=$action remaining=${_eventData.length}',
-      );
-    }
+    
     notifyListeners();
   }
 
@@ -163,11 +140,7 @@ class DutchAnimRuntime extends ChangeNotifier {
     final sig =
         '${jsonEncode(mergedPlayers)}|${jsonEncode(pileRects ?? _pileRects)}|${jsonEncode(_playerTableOrientations)}';
     if (sig == _lastLayoutSignature) {
-      if (LOGGING_SWITCH && _eventData.isNotEmpty) {
-        _logger.debug(
-          'DutchAnimRuntime: mergeLayout skipped (unchanged sig) queueLen=${_eventData.length}',
-        );
-      }
+      
       return;
     }
     _lastLayoutSignature = sig;
@@ -176,12 +149,7 @@ class DutchAnimRuntime extends ChangeNotifier {
       _pileRects = Map<String, dynamic>.from(pileRects);
     }
     _cardPositionsVersion++;
-    if (LOGGING_SWITCH) {
-      final nPlayers = _cardPositions.length;
-      _logger.info(
-        'DutchAnimRuntime: mergeLayout applied version=$_cardPositionsVersion players=$nPlayers',
-      );
-    }
+    
     notifyListeners();
   }
 

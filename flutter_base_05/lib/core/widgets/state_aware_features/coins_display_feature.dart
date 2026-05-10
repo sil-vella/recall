@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../managers/state_manager.dart';
 import '../../managers/navigation_manager.dart';
-import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/theme_consts.dart';
-
-// Logging switch for this file
-const bool LOGGING_SWITCH = false; // App bar → /coin-purchase (enable-logging-switch.mdc)
 
 /// State-aware coins display feature widget
 /// 
@@ -15,8 +11,6 @@ const bool LOGGING_SWITCH = false; // App bar → /coin-purchase (enable-logging
 /// when the coins value changes.
 class StateAwareCoinsDisplayFeature extends StatelessWidget {
   const StateAwareCoinsDisplayFeature({Key? key}) : super(key: key);
-  
-  static final Logger _logger = Logger();
 
   @override
   Widget build(BuildContext context) {
@@ -27,30 +21,12 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final userStats = dutchGameState['userStats'] as Map<String, dynamic>?;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 Coins Display: Building widget - dutchGameState keys: ${dutchGameState.keys.toList()}');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 Coins Display: userStats=$userStats');
-        }
-        
         // Get coins from userStats, default to 0 if not available
         final coins = userStats?['coins'] as int? ?? 0;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 Coins Display: coins=$coins');
-        }
-        
         // Return empty widget if userStats is not available (user not logged in or stats not loaded)
         if (userStats == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('⚠️ Coins Display: userStats is null - hiding widget');
-          }
           return const SizedBox.shrink();
-        }
-        
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ Coins Display: Rendering coins chip with value: $coins');
         }
         
         // Tappable coins display — same navigation pattern as notifications / profile app bar features.

@@ -1,6 +1,5 @@
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../core/managers/state_manager.dart';
-import '../../../../tools/logging/logger.dart';
 import '../../managers/dutch_event_manager.dart';
 import '../../managers/dutch_game_state_updater.dart';
 import '../../managers/player_action.dart';
@@ -12,7 +11,6 @@ import '../../backend_core/services/game_state_store.dart';
 import 'demo_state_setup.dart';
 import 'demo_functionality.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for match start / demo start_match flow
 
 /// Demo Action Handler
 /// 
@@ -26,7 +24,6 @@ class DemoActionHandler {
   static DemoActionHandler get instance => _instance;
   DemoActionHandler._internal();
 
-  final Logger _logger = Logger();
   final DemoStateSetup _stateSetup = DemoStateSetup();
   
   /// Track the currently active demo action type
@@ -64,9 +61,7 @@ class DemoActionHandler {
   /// from one to the next when each completes.
   Future<void> startSequentialDemos() async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Starting sequential demo mode');
-      }
+      
       
       // Define the order of demos
       _sequentialDemoActions = [
@@ -86,16 +81,11 @@ class DemoActionHandler {
       
       // Start the first demo
       final firstActionType = _sequentialDemoActions[_currentSequentialDemoIndex];
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Starting first demo in sequence: $firstActionType');
-      }
+      
       
       await startDemoAction(firstActionType);
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoActionHandler: Sequential demo mode started'); } } catch (e, stackTrace) { if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoActionHandler: Error starting sequential demos: $e',  error: e, stackTrace: stackTrace);
-        }
+      } catch (e, stackTrace) { 
       // Reset sequential mode on error
       _isSequentialDemoMode = false;
       _currentSequentialDemoIndex = 0;
@@ -110,9 +100,7 @@ class DemoActionHandler {
   ///                 'queen_peek', 'jack_swap', 'call_dutch', 'collect_rank'
   Future<void> startDemoAction(String actionType) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Starting demo action: $actionType');
-      }
+      
       
       // 1. Clear all state FIRST (before setting active demo action)
       // This ensures no leftover state from previous demos can interfere
@@ -140,9 +128,7 @@ class DemoActionHandler {
       final gameStateStore = GameStateStore.instance;
       final gameState = gameStateStore.getGameState(practiceRoomId);
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Got initial game state, phase = ${gameState['phase']}');
-      }
+      
 
       // 6. Advance game state to action-specific state
       final updatedGameState = await _stateSetup.setupActionState(
@@ -164,15 +150,10 @@ class DemoActionHandler {
       _showDemoInstructions(actionType);
 
       // 9. Navigate to game play screen
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Navigating to game play screen');
-      }
+      
       NavigationManager().navigateToPush('/dutch/game-play');
 
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoActionHandler: Demo action $actionType started successfully'); } } catch (e, stackTrace) { if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoActionHandler: Error starting demo action $actionType: $e',  error: e, stackTrace: stackTrace);
-        }
+      } catch (e, stackTrace) { 
       rethrow;
     }
   }
@@ -183,9 +164,7 @@ class DemoActionHandler {
   /// complete cleanup when switching from any mode (practice, WebSocket, or another demo) to a demo
   Future<void> _clearAllState() async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🧹 DemoActionHandler: Clearing all state before starting demo');
-      }
+      
 
       // 1. Clear active demo action type FIRST to prevent completion detection
       // This must happen before calling clearAllGameStateBeforeNewGame() to prevent false detection
@@ -223,13 +202,9 @@ class DemoActionHandler {
         'previousPlayerStatus': null, // CRITICAL: Clear to prevent false completion detection
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoActionHandler: All state cleared successfully before starting demo');
-      }
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoActionHandler: Error clearing state: $e', error: e, stackTrace: stackTrace);
-      }
+      
       // Don't rethrow - continue with demo setup
     }
   }
@@ -240,9 +215,7 @@ class DemoActionHandler {
     required bool isClearAndCollect,
   }) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Starting practice match (showInstructions: $showInstructions, isClearAndCollect: $isClearAndCollect)');
-      }
+      
 
       // Generate practice mode user data
       final currentUserId = 'demo_user_${DateTime.now().millisecondsSinceEpoch}';
@@ -282,9 +255,7 @@ class DemoActionHandler {
         difficulty: 'medium', // Demo matches use medium difficulty
       );
 
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Practice room created: $practiceRoomId');
-      }
+      
 
       // Start match with showInstructions and test deck
       // Note: testingModeOverride is handled in backend when showInstructions is true
@@ -296,15 +267,11 @@ class DemoActionHandler {
       );
 
       await startMatchAction.execute();
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Match started with showInstructions: $showInstructions');
-      }
+      
 
       return practiceRoomId;
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoActionHandler: Error starting practice match: $e',  error: e, stackTrace: stackTrace);
-      }
+      
       rethrow;
     }
   }
@@ -312,9 +279,7 @@ class DemoActionHandler {
   /// Sync game state and trigger widget updates
   Future<void> _syncGameState(String gameId, Map<String, dynamic> gameState) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Syncing game state for $gameId');
-      }
+      
 
       // Get current user ID
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -391,9 +356,7 @@ class DemoActionHandler {
       // Setting it here could cause false completion detection if there's leftover state
 
       // Trigger game_state_updated event to sync widget slices
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Triggering handleGameStateUpdated for game_id = $gameId');
-      }
+      
       DutchEventManager().handleGameStateUpdated({
         'game_id': gameId,
         'game_state': gameState,
@@ -401,10 +364,7 @@ class DemoActionHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoActionHandler: Game state synced successfully'); } } catch (e, stackTrace) { if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoActionHandler: Error syncing game state: $e',  error: e, stackTrace: stackTrace);
-        }
+      } catch (e, stackTrace) { 
       rethrow;
     }
   }
@@ -415,18 +375,14 @@ class DemoActionHandler {
   Future<void> endDemoAction(String actionType) async {
     // Prevent multiple calls to endDemoAction
     if (_isEndingDemoAction) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Already ending demo action, skipping duplicate call');
-      }
+      
       return;
     }
     
     _isEndingDemoAction = true;
     
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Ending demo action: $actionType');
-      }
+      
       
       // IMPORTANT: Keep _activeDemoActionType set until after navigation
       // This prevents _triggerInstructionsIfNeeded from showing instructions
@@ -460,9 +416,7 @@ class DemoActionHandler {
         // Clear from GameStateStore
         final gameStateStore = GameStateStore.instance;
         gameStateStore.clear(currentGameId);
-        if (LOGGING_SWITCH) {
-          _logger.info('🧹 DemoActionHandler: Cleared GameStateStore for ended demo: $currentGameId');
-        }
+        
       }
       
       // 3. End practice session
@@ -478,9 +432,7 @@ class DemoActionHandler {
         // Clear active demo action type before starting next
         _activeDemoActionType = null;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 DemoActionHandler: Continuing sequential demo - moving to: $nextActionType (${_currentSequentialDemoIndex + 1}/${_sequentialDemoActions.length})');
-        }
+        
         
         // Wait a bit before starting next demo
         await Future.delayed(const Duration(milliseconds: 500));
@@ -488,38 +440,28 @@ class DemoActionHandler {
         // Start the next demo
         await startDemoAction(nextActionType);
         
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ DemoActionHandler: Sequential demo continued to: $nextActionType');
-        }
+        
       } else {
         // End of sequence or not in sequential mode - navigate back to demo screen
         if (_isSequentialDemoMode) {
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 DemoActionHandler: Sequential demo sequence completed (${_sequentialDemoActions.length} demos)');
-          }
+          
           _isSequentialDemoMode = false;
           _currentSequentialDemoIndex = 0;
           _sequentialDemoActions = [];
         }
       
       // 5. Navigate back to demo screen (non-sequential mode)
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 DemoActionHandler: Navigating back to demo screen');
-      }
+      
       NavigationManager().navigateTo('/dutch/demo');
       
       // 6. NOW clear active demo action type AFTER navigation
       // This ensures instructions won't show during or after the demo action ends
       _activeDemoActionType = null;
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoActionHandler: Demo action $actionType ended successfully');
-      }
+      
       }
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoActionHandler: Error ending demo action $actionType: $e',  error: e, stackTrace: stackTrace);
-      }
+      
       // Clear active demo action type even on error
       _activeDemoActionType = null;
     } finally {
@@ -580,9 +522,7 @@ class DemoActionHandler {
             // CRITICAL: If initial hand count hasn't been set yet, don't check for completion
             // This prevents false positives during initial state setup
             if (_collectRankInitialHandCount == null) {
-              if (LOGGING_SWITCH) {
-                _logger.info('🔍 DemoActionHandler: Initial hand count not set yet, skipping collect_rank completion check');
-              }
+              
               return false;
             }
             
@@ -601,65 +541,47 @@ class DemoActionHandler {
             }
             
             if (currentUserId.isEmpty) {
-              if (LOGGING_SWITCH) {
-                _logger.warning('⚠️ DemoActionHandler: No current user ID found for collect_rank completion check');
-              }
+              
               return false;
             }
             
-            if (LOGGING_SWITCH) {
-              _logger.info('🔍 DemoActionHandler: Checking collect_rank completion - currentUserId: $currentUserId');
-            }
+            
             
             // Get players from game state
             final players = gameState['players'] as List<dynamic>? ?? [];
-            if (LOGGING_SWITCH) {
-              _logger.info('🔍 DemoActionHandler: Found ${players.length} players in game state');
-            }
+            
             
             // Find the current user's player
             Map<String, dynamic>? currentPlayer;
             for (final player in players) {
               if (player is Map<String, dynamic>) {
                 final playerId = player['id']?.toString() ?? '';
-                if (LOGGING_SWITCH) {
-                  _logger.info('🔍 DemoActionHandler: Checking player ID: $playerId');
-                }
+                
                 if (playerId == currentUserId) {
                   currentPlayer = player;
-                  if (LOGGING_SWITCH) {
-                    _logger.info('✅ DemoActionHandler: Found matching player: $playerId');
-                  }
+                  
                   break;
                 }
               }
             }
             
             if (currentPlayer == null) {
-              if (LOGGING_SWITCH) {
-                _logger.warning('⚠️ DemoActionHandler: Current user ($currentUserId) not found in players list');
-              }
+              
               return false;
             }
             
             // Get hand from player
             final hand = currentPlayer['hand'] as List<dynamic>? ?? [];
             final currentHandCount = hand.length;
-            if (LOGGING_SWITCH) {
-              _logger.info('🔍 DemoActionHandler: Current hand count: $currentHandCount, Initial hand count: $_collectRankInitialHandCount');
-            }
+            
             
             // Check if hand count has increased (card was collected)
             if (currentHandCount > _collectRankInitialHandCount!) {
-              if (LOGGING_SWITCH) {
-                _logger.info('🎮 DemoActionHandler: Collect rank demo completed - hand count increased from $_collectRankInitialHandCount to $currentHandCount');
-              }
+              
               return true;
             }
           } catch (e, stackTrace) {
-            if (LOGGING_SWITCH) {
-              _logger.error('❌ DemoActionHandler: Error checking collect_rank completion: $e',  error: e, stackTrace: stackTrace);
-            }
+            
           }
         }
         return false;
@@ -686,9 +608,7 @@ class DemoActionHandler {
       }
       
       if (currentUserId.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('⚠️ DemoActionHandler: No current user ID found for setting initial hand count');
-        }
+        
         return;
       }
       
@@ -702,21 +622,15 @@ class DemoActionHandler {
           if (playerId == currentUserId) {
             final hand = player['hand'] as List<dynamic>? ?? [];
             _collectRankInitialHandCount = hand.length;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 DemoActionHandler: Set initial hand count for collect_rank demo: $_collectRankInitialHandCount');
-            }
+            
             return;
           }
         }
       }
       
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ DemoActionHandler: Current user ($currentUserId) not found in players list for setting initial hand count');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ DemoActionHandler: Error setting initial hand count: $e');
-      }
+      
     }
   }
 
@@ -784,9 +698,7 @@ class DemoActionHandler {
   /// [actionType] - The demo action type that was completed
   Future<void> showAfterActionInstruction(String actionType) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('📚 DemoActionHandler: Showing after-action instruction for: $actionType');
-      }
+      
       
       // Wait 2 seconds before showing instruction
       await Future.delayed(const Duration(seconds: 2));
@@ -796,9 +708,7 @@ class DemoActionHandler {
       
       // Create callback that will execute endDemoAction when instruction is closed
       void onCloseCallback() {
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 DemoActionHandler: After-action instruction closed - executing endDemoAction');
-        }
+        
         endDemoAction(actionType);
       }
       
@@ -815,10 +725,7 @@ class DemoActionHandler {
         },
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoActionHandler: After-action instruction shown for $actionType'); } } catch (e, stackTrace) { if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoActionHandler: Error showing after-action instruction: $e',  error: e, stackTrace: stackTrace);
-        }
+      } catch (e, stackTrace) { 
       // Fallback: end demo action if instruction fails
       endDemoAction(actionType);
     }
@@ -829,9 +736,7 @@ class DemoActionHandler {
   /// [actionType] - The demo action type
   void _showDemoInstructions(String actionType) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('📚 DemoActionHandler: Showing instructions for demo action: $actionType');
-      }
+      
 
       // Map demo action types to instruction keys and get instructions
       Map<String, dynamic>? instructions;
@@ -896,23 +801,17 @@ class DemoActionHandler {
               'hasDemonstration': false,
             };
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.warning('📚 DemoActionHandler: call_dutch instructions not available');
-            }
+            
           return;
           }
           break;
         default:
-          if (LOGGING_SWITCH) {
-            _logger.warning('📚 DemoActionHandler: Unknown demo action type: $actionType');
-          }
+          
           return;
       }
 
       if (instructions == null) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('📚 DemoActionHandler: No instructions found for demo action: $actionType');
-        }
+        
         return;
       }
 
@@ -941,10 +840,7 @@ class DemoActionHandler {
         },
       });
 
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ DemoActionHandler: Instructions shown for demo action: $actionType'); } } catch (e, stackTrace) { if (LOGGING_SWITCH) {
-          _logger.error('❌ DemoActionHandler: Error showing instructions for demo action $actionType: $e',  error: e, stackTrace: stackTrace);
-        }
+      } catch (e, stackTrace) { 
     }
   }
 }

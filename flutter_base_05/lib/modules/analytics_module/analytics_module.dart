@@ -10,11 +10,9 @@ import '../../core/managers/services_manager.dart';
 import '../../core/services/shared_preferences.dart';
 import '../../core/managers/auth_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
-import '../../tools/logging/logger.dart';
 import 'package:uuid/uuid.dart';
 
 class AnalyticsModule extends ModuleBase {
-  static const bool LOGGING_SWITCH = false;
   
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -69,9 +67,7 @@ class AnalyticsModule extends ModuleBase {
         if (difference.inMinutes < _sessionTimeoutMinutes) {
           _currentSessionId = storedSessionId;
           _sessionStartTime = sessionTime;
-          if (LOGGING_SWITCH) {
-            Logger().info("AnalyticsModule: Reusing existing session: $_currentSessionId");
-          }
+          
           return;
         }
       }
@@ -79,9 +75,7 @@ class AnalyticsModule extends ModuleBase {
       // Generate new session
       _generateNewSession();
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        Logger().error("AnalyticsModule: Error initializing session: $e");
-      }
+      
       _generateNewSession();
     }
   }
@@ -96,9 +90,7 @@ class AnalyticsModule extends ModuleBase {
     _sharedPref?.setString('analytics_session_id', _currentSessionId!);
     _sharedPref?.setString('analytics_session_time', _sessionStartTime!.toIso8601String());
     
-    if (LOGGING_SWITCH) {
-      Logger().info("AnalyticsModule: Generated new session: $_currentSessionId");
-    }
+    
   }
   
   /// Refresh session if needed
@@ -139,9 +131,7 @@ class AnalyticsModule extends ModuleBase {
       // Fallback to SharedPreferences
       return _sharedPref?.getString('user_id');
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        Logger().error("AnalyticsModule: Error getting user ID: $e");
-      }
+      
       return null;
     }
   }
@@ -172,9 +162,7 @@ class AnalyticsModule extends ModuleBase {
       // If no user ID, queue event for later
       if (userId == null) {
         _queueEvent(eventType, eventData ?? {});
-        if (LOGGING_SWITCH) {
-          Logger().info("AnalyticsModule: Queued event (no user): $eventType");
-        }
+        
         return;
       }
       
@@ -188,14 +176,10 @@ class AnalyticsModule extends ModuleBase {
       if (!success) {
         // Queue for retry if send failed
         _queueEvent(eventType, eventData ?? {}, userId: userId);
-        if (LOGGING_SWITCH) {
-          Logger().info("AnalyticsModule: Queued event (send failed): $eventType");
-        }
+        
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        Logger().error("AnalyticsModule: Error tracking event: $e");
-      }
+      
       // Queue event even on error
       _queueEvent(eventType, eventData ?? {});
     }
@@ -262,9 +246,7 @@ class AnalyticsModule extends ModuleBase {
       final queueJson = jsonEncode(_eventQueue);
       _sharedPref?.setString('analytics_event_queue', queueJson);
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        Logger().error("AnalyticsModule: Error saving event queue: $e");
-      }
+      
     }
   }
   
@@ -276,14 +258,10 @@ class AnalyticsModule extends ModuleBase {
         final decoded = jsonDecode(queueJson) as List;
         _eventQueue.clear();
         _eventQueue.addAll(decoded.map((e) => e as Map<String, dynamic>));
-        if (LOGGING_SWITCH) {
-          Logger().info("AnalyticsModule: Loaded ${_eventQueue.length} queued events");
-        }
+        
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        Logger().error("AnalyticsModule: Error loading event queue: $e");
-      }
+      
     }
   }
   
@@ -320,15 +298,11 @@ class AnalyticsModule extends ModuleBase {
       }
       
       if (successCount > 0) {
-        if (LOGGING_SWITCH) {
-          Logger().info("AnalyticsModule: Flushed $successCount/${eventsToSend.length} queued events");
-        }
+        
         _saveEventQueue();
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        Logger().error("AnalyticsModule: Error flushing event queue: $e");
-      }
+      
     }
   }
   
@@ -340,9 +314,7 @@ class AnalyticsModule extends ModuleBase {
   }) async {
     try {
       if (_connectionModule == null) {
-        if (LOGGING_SWITCH) {
-          Logger().warning("AnalyticsModule: ConnectionsApiModule not available");
-        }
+        
         return false;
       }
       
@@ -361,23 +333,17 @@ class AnalyticsModule extends ModuleBase {
       if (response is Map<String, dynamic>) {
         final success = response['success'] as bool? ?? false;
         if (success) {
-          if (LOGGING_SWITCH) {
-            Logger().info("AnalyticsModule: Event tracked successfully: $eventType");
-          }
+          
           return true;
         } else {
-          if (LOGGING_SWITCH) {
-            Logger().warning("AnalyticsModule: Event tracking failed: ${response['error']}");
-          }
+          
           return false;
         }
       }
       
       return false;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        Logger().error("AnalyticsModule: Error sending event to backend: $e");
-      }
+      
       return false;
     }
   }

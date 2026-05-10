@@ -176,11 +176,8 @@ Create a new file in `lib/core/widgets/state_aware_features/`:
 // lib/core/widgets/state_aware_features/custom_feature.dart
 import 'package:flutter/material.dart';
 import '../../managers/state_manager.dart';
-import '../../../tools/logging/logger.dart';
 
 class StateAwareCustomFeature extends StatelessWidget {
-  static final Logger _logger = Logger();
-  
   const StateAwareCustomFeature({Key? key}) : super(key: key);
 
   @override
@@ -199,7 +196,6 @@ class StateAwareCustomFeature extends StatelessWidget {
           ),
           onPressed: () {
             // Handle tap
-            _logger.info('Custom feature tapped');
           },
           tooltip: isEnabled ? 'Enabled' : 'Disabled',
         );

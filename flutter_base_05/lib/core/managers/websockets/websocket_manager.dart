@@ -1,5 +1,4 @@
 import 'dart:async';
-import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/config.dart';
 import '../../../modules/login_module/login_module.dart';
 import '../module_manager.dart';
@@ -12,7 +11,6 @@ import 'websocket_events.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 
-const bool LOGGING_SWITCH = false; // Multi-human: sessionData / seat id after connect (enable-logging-switch.mdc; set false after test)
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();
@@ -33,8 +31,6 @@ class WebSocketManager {
     WebSocketManager.instance.resetTransportState(reason: data['reason']?.toString());
   }
 
-  static final Logger _logger = Logger();
-  
   NativeWebSocketAdapter? _socket;
   bool _isInitialized = false;
   bool _isConnected = false; // Track connection state explicitly
@@ -149,26 +145,16 @@ class WebSocketManager {
     try {
       WebSocketStateUpdater.clearState();
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('WebSocketManager: WebSocketStateUpdater.clearState during reset: $e');
-      }
+      
     }
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        'WebSocketManager: resetTransportState${reason != null ? " ($reason)" : ""} — next init uses fresh credentials',
-      );
-    }
+    
   }
 
   /// Initialize the WebSocket manager
   Future<bool> initialize() async {
     // Half-open session: still "initialized" but channel is dead → [connect] would time out on stale adapter.
     if (_isInitialized && (_socket == null || !(_socket?.connected ?? false))) {
-      if (LOGGING_SWITCH) {
-        _logger.warning(
-          'WebSocketManager: initialize() clearing stale transport (was init=true, no live socket)',
-        );
-      }
+      
       resetTransportState(reason: 'stale_initialize');
     }
     if (_isInitialized) {
@@ -251,17 +237,13 @@ class WebSocketManager {
       }
       
       // Update connection state in StateManager since connection is established
-      if (LOGGING_SWITCH) {
-        _logger.info('🔌 Connection established in initialize(), updating StateManager');
-      }
+      
       _isConnected = true;
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: true,
         sessionData: _sessionPayloadForConnect(),
       );
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ StateManager updated with connection status in initialize()');
-      }
+      
       
       // Token refresh is now handled by AuthManager
       // No need to setup token refresh here
@@ -288,9 +270,7 @@ class WebSocketManager {
       return true;
       
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('WebSocketManager.initialize exception: $e');
-      }
+      
       resetTransportState(reason: 'initialize_exception');
       return false;
     }
@@ -588,24 +568,18 @@ class WebSocketManager {
       
       // Check if connection is already established (from initialize())
       if (_socket!.connected) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🔌 Connection already established, updating state immediately');
-        }
+        
         // Connection already established, update state immediately
         _isConnected = true;
         _isConnecting = false;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus() for pre-established connection');
-        }
+        
         // Update StateManager for UI indicators
         WebSocketStateHelpers.updateConnectionStatus(
           isConnected: true,
           sessionData: _sessionPayloadForConnect(),
         );
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed for pre-established connection');
-        }
+        
         
         // 🎣 Trigger websocket_connected hook for other modules
         HooksManager().triggerHookWithData('websocket_connected', {
@@ -624,33 +598,23 @@ class WebSocketManager {
       
       // Set up a one-time listener for the connect event
       void onConnect(dynamic data) {
-        if (LOGGING_SWITCH) {
-          _logger.info('🔌 onConnect callback executing with data: $data');
-        }
+        
         
         // Update our tracked connection state
-        if (LOGGING_SWITCH) {
-          _logger.info('🔄 Updating _isConnected to true');
-        }
+        
         _isConnected = true;
         _isConnecting = false; // Reset connecting state
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus()');
-        }
+        
         // Update StateManager for UI indicators
         WebSocketStateHelpers.updateConnectionStatus(
           isConnected: true,
           sessionData: _sessionPayloadForConnect(data),
         );
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed');
-        }
+        
         
         // 🎣 Trigger websocket_connected hook for other modules
-        if (LOGGING_SWITCH) {
-          _logger.info('🎣 Triggering websocket_connected hook');
-        }
+        
         HooksManager().triggerHookWithData('websocket_connected', {
           'websocket_manager': this,
           'socket_id': _socket!.id,
@@ -659,25 +623,19 @@ class WebSocketManager {
           'timestamp': DateTime.now().toIso8601String(),
         });
         
-        if (LOGGING_SWITCH) {
-          _logger.info('✅ Completing completer with true');
-        }
+        
         completer.complete(true);
       }
       
       // Set up a one-time listener for connection errors
       void onConnectError(dynamic error) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ onConnectError callback executing with error: $error');
-        }
+        
         
         // Update our tracked connection state
         _isConnected = false;
         _isConnecting = false;
         
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ Completing completer with false due to error');
-        }
+        
         completer.complete(false);
       }
       

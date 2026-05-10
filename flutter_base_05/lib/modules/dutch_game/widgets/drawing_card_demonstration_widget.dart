@@ -6,7 +6,6 @@ import '../models/card_display_config.dart';
 import '../utils/card_dimensions.dart';
 import 'card_widget.dart';
 import '../../../utils/consts/theme_consts.dart';
-import '../../../tools/logging/logger.dart';
 
 /// Demonstration widget for drawing card phase
 /// 
@@ -23,9 +22,6 @@ class DrawingCardDemonstrationWidget extends StatefulWidget {
 
 class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstrationWidget>
     with TickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
-  static final Logger _logger = Logger();
-  
   bool _animationStarted = false;
   bool _animationComplete = false;
   bool _cardRevealed = false;
@@ -305,12 +301,8 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
         final availableWidth = constraints.maxWidth;
         final needsScroll = contentWidth > availableWidth;
         
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎴 DrawDemo: _buildHand - cardsToShow.length: ${cardsToShow.length}, cardDimensions: ${cardDimensions.width}x${cardDimensions.height}, spacing: $spacing');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎴 DrawDemo: _buildHand - contentWidth: $contentWidth, availableWidth: $availableWidth, needsScroll: $needsScroll');
-        }
+        
+        
         
         final cardWidgets = List.generate(cardsToShow.length, (index) {
           final cardData = cardsToShow[index];
@@ -325,9 +317,7 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
           final cardKey = isLastCard ? _lastHandCardKey : null;
           
           final paddingRight = index < cardsToShow.length - 1 ? spacing : 0.0;
-          if (LOGGING_SWITCH) {
-            _logger.debug('🎴 DrawDemo: _buildHand - card[$index]: isDrawnCard=$isDrawnCard, isLastCard=$isLastCard, paddingRight=$paddingRight');
-          }
+          
 
           return Padding(
             padding: EdgeInsets.only(
@@ -345,9 +335,7 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
           );
         });
         
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎴 DrawDemo: _buildHand - Returning SizedBox with height: ${cardDimensions.height}, needsScroll: $needsScroll');
-        }
+        
         
         return SizedBox(
           height: cardDimensions.height,

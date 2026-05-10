@@ -1,6 +1,5 @@
 import 'dart:async' show StreamController, unawaited;
 import 'package:flutter/material.dart';
-import 'package:dutch/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/hooks_manager.dart';
@@ -25,12 +24,10 @@ typedef _NotificationSuccessHandler = Future<void> Function(
 );
 
 class DutchEventManager {
-  static const bool LOGGING_SWITCH = false; // leave_room_success hook / kick trace (enable-logging-switch.mdc; set false after test)
   static final DutchEventManager _instance = DutchEventManager._internal();
   factory DutchEventManager() => _instance;
   DutchEventManager._internal();
 
-  final Logger _logger = Logger();
   final StateManager _stateManager = StateManager();
 
   /// Map msg_id -> success handler (same idea as backend: msg_id + action_identifier -> handler).
@@ -42,7 +39,6 @@ class DutchEventManager {
   // In-memory boards (roomId -> list), session board (global for this client)
   final Map<String, List<Map<String, dynamic>>> _roomBoards = {};
   final List<Map<String, dynamic>> _sessionBoard = [];
-
 
 
   Stream<List<Map<String, dynamic>>> roomMessages(String roomId) {
@@ -116,9 +112,7 @@ class DutchEventManager {
 
   /// Handle game_state_partial_update event
   void handleGameStatePartialUpdate(Map<String, dynamic> data) {
-    if (LOGGING_SWITCH) {
-      _logger.info("handleGameStatePartialUpdate: $data");
-    }
+    
     DutchEventHandlerCallbacks.handleGameStatePartialUpdate(data);
   }
 
@@ -184,11 +178,7 @@ class DutchEventManager {
     // but reason is set so we show the removed-from-game modal without relying on game_state.
     HooksManager().registerHookWithData('leave_room_success', (data) {
       final reason = data['reason']?.toString() ?? '';
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '[kick-trace] leave_room_success hook reason=$reason room=${data['room_id']} session=${data['session_id']}',
-        );
-      }
+      
       if (reason != 'removed_inactivity') return;
       DutchEventHandlerCallbacks.handleKickedForInactivityLeaveSuccess(
         Map<String, dynamic>.from(data),
@@ -233,9 +223,7 @@ class DutchEventManager {
           // Auto-navigate only when this room was created by join_random_game (new room path).
           // Lobby create_room_success sets is_random_join: false — stay on lobby to invite / manage.
           if (isRandomJoin) {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 Random join room created, navigating to game play screen');
-            }
+            
             DutchGameHelpers.updateUIState({
               'isRandomJoinInProgress': false,
             });
@@ -322,11 +310,7 @@ class DutchEventManager {
         if (!insufficientCoins) {
           return;
         }
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            '💰 websocket_join_room_error (insufficient coins): hookData keys=${hookData.keys.toList()} msg=$msg',
-          );
-        }
+        
         final rawPayload = hookData['payload'];
         final payload = rawPayload is Map
             ? Map<String, dynamic>.from(rawPayload)
@@ -344,11 +328,7 @@ class DutchEventManager {
           'game_level': gameLevel,
           'required_coins': requiredCoins,
         };
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            '💰 Stashing lastCoinPurchaseJoinContext room_id=$roomId game_level=$gameLevel required_coins=$requiredCoins payloadKeys=${payload.keys.toList()}',
-          );
-        }
+        
         unawaited(
           DutchGameHelpers.stashLastCoinPurchaseContextAndShowBuyModal(
             stash: stash,
@@ -356,25 +336,19 @@ class DutchEventManager {
           ),
         );
       } catch (e, st) {
-        if (LOGGING_SWITCH) {
-          _logger.error('💰 websocket_join_room_error hook failed: $e\n$st');
-        }
+        
       }
     });
     
     // Register websocket_join_room hook callback (for joining existing rooms)
     HooksManager().registerHookWithData('websocket_join_room', (data) {
       try {
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 websocket_join_room hook triggered with data: $data');
-        }
+        
         
         final status = data['status']?.toString() ?? 'unknown';
         final roomId = data['room_id']?.toString() ?? '';
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 websocket_join_room: status=$status, roomId=$roomId');
-        }
+        
         
         // 🎯 CRITICAL: For any successful room join, set currentGameId and currentRoomId
         // This ensures player 2 (and any joining player) has the game ID set before receiving game_state_updated
@@ -384,9 +358,7 @@ class DutchEventManager {
           
           // Set currentGameId if not already set (important for player 2 joining)
           if (currentGameId != roomId) {
-            if (LOGGING_SWITCH) {
-              _logger.info('🔍 websocket_join_room: Setting currentGameId to $roomId (was: $currentGameId)');
-            }
+            
             DutchGameHelpers.updateUIState({
               'currentGameId': roomId,
               'currentRoomId': roomId,
@@ -396,16 +368,12 @@ class DutchEventManager {
 
           final currentRoute = NavigationManager().getCurrentRoute();
           if (currentRoute != '/dutch/game-play') {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 websocket_join_room: Navigating to /dutch/game-play from $currentRoute');
-            }
+            
             Future.delayed(const Duration(milliseconds: 250), () {
               NavigationManager().navigateToPush('/dutch/game-play');
             });
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 websocket_join_room: Already on /dutch/game-play, skipping navigation');
-            }
+            
           }
         }
         
@@ -413,14 +381,10 @@ class DutchEventManager {
         final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final isRandomJoinInProgress = dutchState['isRandomJoinInProgress'] == true;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🔍 websocket_join_room: isRandomJoinInProgress=$isRandomJoinInProgress, dutchState keys: ${dutchState.keys.toList()}');
-        }
+        
         
         if (status == 'success' && isRandomJoinInProgress && roomId.isNotEmpty) {
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 Random join: joined existing room, waiting for game_state_updated before navigating');
-          }
+          
           
           // Clear the random join flag
           DutchGameHelpers.updateUIState({
@@ -430,18 +394,12 @@ class DutchEventManager {
           // CRITICAL: Don't navigate immediately - wait for game_state_updated event
           // This ensures the game has actual player data before showing the screen
           // Navigation will be handled by handleGameStateUpdated when it receives valid game state
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 Random join: Deferring navigation until game_state_updated is received');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('🔍 websocket_join_room: Navigation skipped - status=$status, isRandomJoinInProgress=$isRandomJoinInProgress, roomId=$roomId');
-          }
+          
         }
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ Error in websocket_join_room hook callback: $e');
-        }
+        
       }
     });
     
@@ -490,7 +448,6 @@ class DutchEventManager {
     }
     roomId ??= response['room_id']?.toString().trim();
     if (roomId == null || roomId.isEmpty) {
-      if (LOGGING_SWITCH) _logger.error('Match invite Join: no room_id in message data');
       return;
     }
 
@@ -528,7 +485,6 @@ class DutchEventManager {
 
     final result = await DutchGameHelpers.joinRoom(roomId: roomId);
     if (result['success'] != true) {
-      if (LOGGING_SWITCH) _logger.error('Match invite joinRoom failed: ${result['error']}');
       if (context != null && context.mounted) {
         ScaffoldMessenger.maybeOf(context)!.showSnackBar(
           SnackBar(

@@ -51,7 +51,7 @@ services:
       - "5001:5001"
     environment:
       - DEBUG_MODE=false
-      - APP_URL=https://dutch.mt
+      - APP_URL=https://dutch.reignofplay.com
       - MONGODB_SERVICE_NAME=dutch_mongodb-external
       - MONGODB_PORT=27017
       - MONGODB_ROOT_USER=mongodb_admin
@@ -69,7 +69,7 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - APP_VERSION=${APP_VERSION:-2.0.0}
-      - APP_DOWNLOAD_BASE_URL=${APP_DOWNLOAD_BASE_URL:-https://dutch.mt/downloads}
+      - APP_DOWNLOAD_BASE_URL=${APP_DOWNLOAD_BASE_URL:-https://dutch.reignofplay.com/downloads}
       - CREDIT_SYSTEM_API_KEY=${CREDIT_SYSTEM_API_KEY:-}
       - DUTCH_WINS_PER_USER_LEVEL=${DUTCH_WINS_PER_USER_LEVEL:-10}
       - DUTCH_LEVELS_PER_RANK=${DUTCH_LEVELS_PER_RANK:-5}

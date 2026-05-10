@@ -4,7 +4,6 @@ import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/managers/module_manager.dart';
-import '../../../../tools/logging/logger.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
 import '../../../audio_module/audio_module.dart';
@@ -36,8 +35,6 @@ class DutchAchievementCelebrationScreen extends StatefulWidget {
 
 class _DutchAchievementCelebrationScreenState extends State<DutchAchievementCelebrationScreen>
     with SingleTickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = false;
-  static final Logger _logger = Logger();
   static const Duration _secondaryBurstDelay = Duration(milliseconds: 1500);
 
   late final ConfettiController _leftConfetti;
@@ -63,9 +60,7 @@ class _DutchAchievementCelebrationScreenState extends State<DutchAchievementCele
       _entryController.forward();
       _leftConfetti.play();
       _rightConfetti.play();
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchAchievementCelebrationScreen: opened id=${widget.achievementId}');
-      }
+      
     });
   }
 
@@ -89,9 +84,7 @@ class _DutchAchievementCelebrationScreenState extends State<DutchAchievementCele
       final audio = ModuleManager().getModuleByType<AudioModule>();
       audio?.playSound('level_up_1');
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('DutchAchievementCelebrationScreen: sound failed: $e');
-      }
+      
     }
   }
 

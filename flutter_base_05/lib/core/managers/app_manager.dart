@@ -11,7 +11,7 @@ import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
 import 'websockets/websocket_manager.dart';
-import '../../tools/logging/logger.dart';
+
 class AppManager extends ChangeNotifier {
   static final AppManager _instance = AppManager._internal();
   static late BuildContext globalContext;
@@ -25,8 +25,6 @@ class AppManager extends ChangeNotifier {
   final HooksManager _hooksManager = HooksManager();
   final AuthManager _authManager = AuthManager();
   final AdaptersManager _adaptersManager = AdaptersManager();
-  final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Set true to trace app init + WebSocket ensureInitializedAndConnected (enable-logging-switch.mdc)
 
   Future<void> _initializeModules(BuildContext context) async {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
@@ -39,78 +37,48 @@ class AppManager extends ChangeNotifier {
   Future<void> _initWebSocketInBackground() async {
     try {
       final webSocketManager = WebSocketManager.instance;
-      final ok = await webSocketManager.ensureInitializedAndConnected();
-      if (LOGGING_SWITCH) {
-        _logger.info('AppManager: WebSocket ensureInitializedAndConnected result: $ok');
-      }
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('AppManager: Error initializing WebSocketManager: $e');
-      }
+      await webSocketManager.ensureInitializedAndConnected();
+    } catch (_) {
+      // Non-fatal; connection retries elsewhere as needed.
     }
   }
 
   Future<void> initializeApp(BuildContext context) async {
     if (!_isInitialized) {
       try {
-        if (LOGGING_SWITCH) _logger.info('AppManager: initializeApp start');
         // Register core providers
         _registerCoreProviders();
 
         // Initialize ServicesManager and register core services
         final servicesManager = Provider.of<ServicesManager>(context, listen: false);
         await servicesManager.autoRegisterAllServices();
-        if (LOGGING_SWITCH) _logger.info('AppManager: autoRegisterAllServices done');
 
         // Initialize AuthManager first
         _authManager.initialize(context);
-        if (LOGGING_SWITCH) _logger.info('AppManager: AuthManager initialized');
 
         // Initialize AdaptersManager (automatically registers all adapters)
         _adaptersManager.initialize(this);
-        if (LOGGING_SWITCH) _logger.info('AppManager: AdaptersManager initialized');
 
         // Initialize adapters
         await _initializeAdapters();
-        if (LOGGING_SWITCH) _logger.info('AppManager: _initializeAdapters done');
 
         // Initialize modules (StateManager, NavigationManager, etc.)
         await _initializeModules(context);
-        if (LOGGING_SWITCH) _logger.info('AppManager: _initializeModules done');
         
         // Register global hooks
         _registerGlobalHooks();
         
         // Validate session on startup
-        if (LOGGING_SWITCH) {
-          _logger.info('AppManager: Validating session on startup');
-        }
         final authStatus = await _authManager.validateSessionOnStartup();
-        if (LOGGING_SWITCH) {
-          _logger.info('AppManager: Session validation result: $authStatus');
-        }
         
         // WebSocket (Dart game server): init in background so cold start is not blocked when WS is down.
         // NativeWebSocketAdapter already uses a short connect timeout, but awaiting here still delayed UI.
         if (authStatus == AuthStatus.loggedIn) {
-          if (LOGGING_SWITCH) {
-            _logger.info('AppManager: User is authenticated, scheduling WebSocketManager init (non-blocking)');
-          }
           unawaited(_initWebSocketInBackground());
-        } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('AppManager: User is not authenticated (status: $authStatus), skipping WebSocket initialization');
-          }
         }
         
         // Handle authentication state
-        if (LOGGING_SWITCH) {
-          _logger.info('AppManager: Handling authentication state');
-        }
         await _authManager.handleAuthState(context, authStatus);
-        if (LOGGING_SWITCH) {
-          _logger.info('AppManager: Authentication state handled');
-        }
         
         _isInitialized = true;
         notifyListeners();

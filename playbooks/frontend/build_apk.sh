@@ -63,8 +63,8 @@ if [ "$BACKEND_TARGET" = "local" ]; then
     WS_URL="ws://192.168.178.81:8080"
     echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
-    API_URL="https://dutch.mt"
-    WS_URL="wss://dutch.mt/ws"
+    API_URL="https://dutch.reignofplay.com"
+    WS_URL="wss://dutch.reignofplay.com/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
@@ -228,7 +228,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   fi
 
   echo "✅ APK uploaded to VPS: $REMOTE_APK_PATH"
-  echo "🔗 Expected download URL: https://dutch.mt/downloads/v$APP_VERSION/app.apk"
+  echo "🔗 Expected download URL: https://dutch.reignofplay.com/downloads/v$APP_VERSION/app.apk"
 
   # Update mobile_release.json manifest on the VPS so Flask can serve
   # correct version info without needing a restart.

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../game_play/widgets/game_phase_chip_widget.dart';
 import '../../../managers/dutch_game_state_updater.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
@@ -9,7 +8,6 @@ import '../../../../../utils/consts/theme_consts.dart';
 import '../../../widgets/ui_kit/dutch_empty_state_card.dart';
 import '../../../widgets/ui_kit/dutch_section_header.dart';
 
-const bool LOGGING_SWITCH = false; // Start flow: _enterGameRoom, isRoomOwner (enable-logging-switch.mdc)
 
 /// Widget to display all joined rooms with join functionality
 /// 
@@ -20,7 +18,6 @@ const bool LOGGING_SWITCH = false; // Start flow: _enterGameRoom, isRoomOwner (e
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class CurrentRoomWidget extends StatelessWidget {
-  static final Logger _logger = Logger();
   final Function(String)? onJoinRoom;
   
   const CurrentRoomWidget({
@@ -37,9 +34,7 @@ class CurrentRoomWidget extends StatelessWidget {
       final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
       
-      if (LOGGING_SWITCH) {
-        _logger.info('CurrentRoomWidget: build() - Forcing joinedGamesSlice recomputation (games map has ${games.length} games)');
-      }
+      
       
       // Trigger recomputation by updating games (even if unchanged, this will recompute the slice)
       DutchGameHelpers.updateUIState({
@@ -62,9 +57,7 @@ class CurrentRoomWidget extends StatelessWidget {
         final joinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
         final totalJoinedGames = joinedGamesSlice['totalGames'] ?? 0;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('CurrentRoomWidget: Rendering with ${totalJoinedGames} games from joinedGamesSlice');
-        }
+        
         // Removed joinedGamesTimestamp - causes unnecessary state updates
 
         // If not in any games, show empty state
@@ -343,9 +336,7 @@ class CurrentRoomWidget extends StatelessWidget {
         'joinedAt': existingEntry?['joinedAt'] ?? DateTime.now().toIso8601String(),
       };
       
-      if (LOGGING_SWITCH) {
-        _logger.info('🚪 _enterGameRoom: gameId=$gameId, existingIsOwner=$existingIsOwner, derivedIsOwner=$derivedIsOwner, isRoomOwner=$isRoomOwner, multiplayerType=$multiplayerType');
-      }
+      
       
       // Set current game state synchronously so game play screen sees it on first build
       DutchGameHelpers.setCurrentGameSync(gameId, games);

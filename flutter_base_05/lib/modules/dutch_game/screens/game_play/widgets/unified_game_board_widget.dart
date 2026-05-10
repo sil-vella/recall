@@ -14,14 +14,12 @@ import 'dutch_card_anim_overlay.dart';
 import 'player_status_chip_widget.dart';
 import 'circular_timer_widget.dart';
 import '../../../managers/player_action.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
 import '../../../utils/dutch_game_helpers.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = false; // Multi-human: TurnHighlight / board slice (enable-logging-switch.mdc; set false after test)
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;
@@ -203,11 +201,6 @@ class UnifiedGameBoardWidget extends StatefulWidget {
 }
 
 class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with TickerProviderStateMixin {
-  final Logger _logger = Logger();
-
-  /// Rebuild count when this file's LOGGING_SWITCH is enabled.
-  static int _unifiedWidgetRebuildCount = 0;
-  
   // ========== Opponents Panel State ==========
   String? _clickedCardId;
   bool _isCardsToPeekProtected = false;
@@ -436,20 +429,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final orientKeys = _playerTableOrientationKeys(board);
     final sig = '${jsonEncode(hands)}|${jsonEncode(piles)}|${jsonEncode(orientKeys)}';
     if (sig == _lastAnimLayoutSignature) {
-      if (LOGGING_SWITCH) {
-        _logger.debug(
-          'DutchAnimLayout: flush skipped (signature unchanged) slotKeys=${slotPathToKey.length}',
-        );
-      }
+      
       return;
     }
     _lastAnimLayoutSignature = sig;
-    if (LOGGING_SWITCH) {
-      final sample = slotPathToKey.keys.take(12).join(',');
-      _logger.info(
-        'DutchAnimLayout: flush mergeLayout slotKeys=${slotPathToKey.length} sample=[$sample]',
-      );
-    }
+    
     DutchAnimRuntime.instance.mergeLayout(
       cardPositions: hands,
       pileRects: piles,
@@ -469,8 +453,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   @override
   Widget build(BuildContext context) {
-    final stopwatch = LOGGING_SWITCH ? (Stopwatch()..start()) : null;
-
     final result = DutchSliceBuilder<Map<String, dynamic>>(
       selector: _unifiedBoardViewSlice,
       builder: (context, board, child) {
@@ -482,31 +464,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           children: [
             LayoutBuilder(
               builder: (context, constraints) {
-                if (LOGGING_SWITCH) {
-                  _logger.info('[GameBoard overflow] build: root constraints maxW=${constraints.maxWidth} maxH=${constraints.maxHeight} minW=${constraints.minWidth} minH=${constraints.minHeight}');
-                }
+                
                 // Top strip (intrinsic height) → middle (fills) → my hand (intrinsic height)
                 final ctx = _prepareOppBoardContext(board);
-                if (LOGGING_SWITCH) {
-                  final mh = board['myHand'] as Map<String, dynamic>? ?? {};
-                  final myCards = mh['cards'] as List<dynamic>? ?? [];
-                  final bgs = board['boardGameState'] as Map<String, dynamic>? ?? {};
-                  String oppIds(List<Map<String, dynamic>> xs) =>
-                      xs.map((e) => e['id']?.toString() ?? '?').join(',');
-                  final rawPanel = board['opponentsPanel'] as Map<String, dynamic>? ?? {};
-                  final rawList = rawPanel['opponents'] as List<dynamic>? ?? [];
-                  _logger.info(
-                    '[UnifiedGameBoard] slice gameId=${board['currentGameId']} gamePhase=${board['gamePhase']} '
-                    'ssotPhase=${bgs['phase']} opps=${ctx.opponents.length} '
-                    'bucketsTop/Left/Right=${ctx.buckets.top.length}/${ctx.buckets.left.length}/${ctx.buckets.right.length} '
-                    'myHandCards=${myCards.length} isGameActive=${board['isGameActive']}',
-                  );
-                  _logger.info(
-                    '[OppWidgets] opponentsPanel.rawCount=${rawList.length} '
-                    'idsTop=[${oppIds(ctx.buckets.top)}] idsLeft=[${oppIds(ctx.buckets.left)}] idsRight=[${oppIds(ctx.buckets.right)}] '
-                    'clockwiseOrder=[${ctx.opponents.map((e) => e is Map<String, dynamic> ? (e['id']?.toString() ?? '?') : '?').join(',')}]',
-                  );
-                }
+                
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -535,11 +496,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         );
       },
     );
-    if (LOGGING_SWITCH && stopwatch != null) {
-      stopwatch.stop();
-      _unifiedWidgetRebuildCount++;
-      _logger.info('📊 UnifiedGameBoardWidget REBUILD #$_unifiedWidgetRebuildCount duration=${stopwatch.elapsedMilliseconds} ms');
-    }
+    
     return result;
   }
 
@@ -658,18 +615,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Full width, height from content, aligned to top of the play area.
   Widget _buildTopOppStrip(Map<String, dynamic> board, _OppBoardContext ctx) {
     if (ctx.buckets.top.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('[OppWidgets] _buildTopOppStrip → SizedBox.shrink (buckets.top empty; oppCount=${ctx.opponents.length})');
-      }
+      
       return const SizedBox.shrink();
     }
-    if (LOGGING_SWITCH) {
-      final ids = ctx.buckets.top.map((e) => e['id']?.toString() ?? '?').join(',');
-      _logger.info(
-        '[OppWidgets] _buildTopOppStrip building Row n=${ctx.buckets.top.length} topPlayerIds=[$ids] '
-        '(Center + Row mainAxisSize.min; intrinsic width per seat)',
-      );
-    }
+    
     return SizedBox(
       width: double.infinity,
       child: Padding(
@@ -683,12 +632,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 ? constraints.maxWidth
                 : MediaQuery.sizeOf(context).width;
             final seatWidth = (rowWidth - totalGap) / (topCount <= 0 ? 1 : topCount);
-            if (LOGGING_SWITCH) {
-              _logger.info(
-                '[OppWidgets] top-row constraints rowW=${rowWidth.toStringAsFixed(1)} '
-                'topCount=$topCount seatW=${seatWidth.toStringAsFixed(1)}',
-              );
-            }
+            
             return Row(
               mainAxisSize: MainAxisSize.max,
               mainAxisAlignment: MainAxisAlignment.start,
@@ -723,12 +667,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Do **not** wrap [_buildGameBoard] in [IntrinsicWidth]: its inner [LayoutBuilder] plus
   /// intrinsic passes caused `shifted_box.dart` `child!.hasSize` / unbounded layout failures.
   Widget _buildMiddlePlayRow(Map<String, dynamic> board, _OppBoardContext ctx) {
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        '[UnifiedGameBoard] _buildMiddlePlayRow: opponentsEmpty=${ctx.opponents.isEmpty} '
-        'left=${ctx.buckets.left.length} right=${ctx.buckets.right.length}',
-      );
-    }
+    
     return LayoutBuilder(
       builder: (context, constraints) {
         final rowW = constraints.maxWidth.isFinite && constraints.maxWidth > 0
@@ -846,12 +785,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final isInitialPeekPhase = gamePhase == 'initial_peek';
     final currentPlayerStatus = _getCurrentUserStatus();
 
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        '[OppWidgets] _paddedOpponentSlot build playerId=$playerId orientation=$cardTableOrientation '
-        'isCurrentTurn=$isCurrentTurn handLen=${(player['hand'] as List?)?.length ?? 0}',
-      );
-    }
+    
 
     final sideColumnOpp = cardTableOrientation == CardTableOrientation.landscapeFromLeft ||
         cardTableOrientation == CardTableOrientation.landscapeFromRight;
@@ -1013,14 +947,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Do not gate on isCurrentPlayer here, otherwise highlights never appear.
     final isOpponentTurn = isCurrentTurn;
     final highlightOpponentSeat = isOpponentTurn && isGameActive;
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        '[TurnHighlight] oppId=${player['id']} '
-        'isCurrentTurn=$isCurrentTurn turnActorIdMatchesSeat=$isCurrentPlayer '
-        'isGameActive=$isGameActive highlight=$highlightOpponentSeat '
-        'status=$playerStatus phase=$phase',
-      );
-    }
+    
 
     final Widget? opponentHandHudBar = hand.isEmpty
         ? null
@@ -1118,13 +1045,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           ),
           child: handPanel,
         );
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            '[TurnHighlight] render oppId=${player['id']} '
-            'orientation=$cardTableOrientation highlighted=$highlightOpponentSeat '
-            'hand=${hand.length}',
-          );
-        }
+        
 
         return Column(
           crossAxisAlignment: columnAlignment,
@@ -1659,9 +1580,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final currentPlayerStatus = _getCurrentUserStatus();
     
     if (currentPlayerStatus == 'jack_swap') {
-      if (LOGGING_SWITCH) {
-        _logger.info('🃏 OpponentsPanelWidget: Status is jack_swap - opponent cards are interactive');
-      }
+      
     }
     if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {
       final cardId = card['cardId']?.toString();
@@ -1684,21 +1603,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           }
         } else if (currentPlayerStatus == 'jack_swap') {
           try {
-            if (LOGGING_SWITCH) {
-              _logger.info('🃏 OpponentsPanelWidget: Card tapped during jack_swap - Card: $cardId, Player: $cardOwnerId, Game: $currentGameId');
-            }
-            if (LOGGING_SWITCH) {
-              _logger.info('🃏 OpponentsPanelWidget: Current jack swap selection count: ${PlayerAction.getJackSwapSelectionCount()}');
-            }
+            
+            
             await PlayerAction.selectCardForJackSwap(
               cardId: cardId,
               playerId: cardOwnerId,
               gameId: currentGameId,
             );
             final selectionCount = PlayerAction.getJackSwapSelectionCount();
-            if (LOGGING_SWITCH) {
-              _logger.info('🃏 OpponentsPanelWidget: After selection, jack swap count: $selectionCount');
-            }
+            
             if (selectionCount == 1) {
               // Game feedback: snackbars removed
             } else if (selectionCount == 2) {
@@ -1826,9 +1739,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           // Draw + discard centered in stretch space; match pot anchored to bottom of middle column.
           final gameboardRowWidth = constraints.maxWidth;
           final gameboardMaxHeight = constraints.maxHeight;
-          if (LOGGING_SWITCH) {
-            _logger.info('[GameBoard overflow] _buildGameBoard: constraints maxW=$gameboardRowWidth maxH=$gameboardMaxHeight');
-          }
+          
           return Column(
             mainAxisSize: MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1886,9 +1797,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   /// Draw pile card size: scales with [availableWidth] (like opponent hand cards), clamped to [CardDimensions.MAX_CARD_WIDTH].
   Widget _buildDrawPile({double? availableWidth, required Map<String, dynamic> board}) {
-    if (LOGGING_SWITCH) {
-      _logger.info('[GameBoard overflow] _buildDrawPile: availableWidth=$availableWidth');
-    }
+    
     final drawPile = board['drawPile'] as List<dynamic>? ?? [];
     
     // Check if player is in drawing status (similar to myHand logic)
@@ -1909,9 +1818,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 final Size cardDimensions = availableWidth != null && availableWidth > 0
                     ? _gameBoardPileCardDimensions(availableWidth)
                     : CardDimensions.getUnifiedDimensions();
-                if (LOGGING_SWITCH) {
-                  _logger.info('[GameBoard overflow] _buildDrawPile: cardDimensions=${cardDimensions.width}x${cardDimensions.height} (with padding 2 total 4)');
-                }
+                
                 Widget drawPileContent;
               
               if (drawPile.isEmpty) {
@@ -2103,9 +2010,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   /// Discard pile card size: scales with [availableWidth] (like opponent hand cards), clamped to [CardDimensions.MAX_CARD_WIDTH].
   Widget _buildDiscardPile({double? availableWidth, required Map<String, dynamic> board}) {
-    if (LOGGING_SWITCH) {
-      _logger.info('[GameBoard overflow] _buildDiscardPile: availableWidth=$availableWidth');
-    }
+    
     final discardPile = board['discardPile'] as List<dynamic>? ?? [];
     final hasCards = discardPile.isNotEmpty;
     
@@ -2312,9 +2217,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Icon slightly larger than prior inline layout; amount below, smaller than icon scale.
     final iconSize = (rowWidth * 0.072).clamp(32.0, 76.0);
     final amountFontSize = (rowWidth * 0.045).clamp(18.0, 34.0);
-    if (LOGGING_SWITCH) {
-      _logger.info('[GameBoard overflow] _buildMatchPotRow: rowWidth=$rowWidth amountFontSize=$amountFontSize iconSize=$iconSize');
-    }
+    
 
     // Dedicated gold so it is not overridden by theme (e.g. Dutch theme accentColor2 is green)
     const potColor = AppColors.matchPotGold;
@@ -2554,9 +2457,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Reset selectedIndex and jack swap selections only when state shows this player moved from jack_swap to waiting
     // (swap succeeded or timer expired — same as queen peek; do NOT advance on jack_swap_error / fail)
     if (_previousPlayerStatus == 'jack_swap' && playerStatus == 'waiting') {
-      if (LOGGING_SWITCH) {
-        _logger.info('🃏 UnifiedGameBoardWidget: Status changed from jack_swap to waiting - resetting selectedIndex');
-      }
+      
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
@@ -3114,16 +3015,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             }
           }
 
-          if (LOGGING_SWITCH) {
-            final approxTotalRowW =
-                cardWidgets.length * (cardDimensions.width + cardPadding);
-            _logger.info(
-              '[MyHandLayout] realRow isMyTurn=$isMyTurn cardsLen=${cards.length} '
-              'slots=${cardWidgets.length} '
-              'approxTotalRowW=${approxTotalRowW.toStringAsFixed(1)} containerW=${containerWidth.toStringAsFixed(1)} '
-              'cardW=${cardDimensions.width.toStringAsFixed(1)}',
-            );
-          }
+          
 
           return SizedBox(
             width: containerWidth,
@@ -3190,21 +3082,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       );
       return;
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('🧭 UnifiedGameBoardWidget: opening in-play customize modal');
-    }
+    
     List<Map<String, dynamic>> catalog = const [];
     Map<String, dynamic> inventory = const {};
 
     Future<void> refresh(StateSetter setModalState) async {
-      if (LOGGING_SWITCH) {
-        _logger.info('🧭 UnifiedGameBoardWidget: refresh in-play customize modal data');
-      }
+      
       catalog = await DutchGameHelpers.getShopCatalog();
       inventory = await DutchGameHelpers.fetchInventory() ?? {};
-      if (LOGGING_SWITCH) {
-        _logger.info('🧭 UnifiedGameBoardWidget: modal data loaded catalog=${catalog.length}');
-      }
+      
       setModalState(() {});
     }
 
@@ -3422,19 +3308,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   Future<void> _handleCallFinalRound(BuildContext context, String gameId) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎯 MyHandWidget - _handleCallFinalRound called with gameId: $gameId');
-    }
+    
     if (_isProcessingAction) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🚫 MyHandWidget - Action already in progress, ignoring call final round');
-      }
+      
       return;
     }
     if (gameId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ MyHandWidget - gameId is empty');
-      }
+      
       return;
     }
     try {
@@ -3442,28 +3322,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         _isProcessingAction = true;
         _callFinalRoundTappedPending = true; // Show "Final Round Active" immediately
       });
-      if (LOGGING_SWITCH) {
-        _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true (call final round)');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🎯 MyHandWidget - Creating PlayerAction.callFinalRound with gameId: $gameId');
-      }
+      
+      
       final callFinalRoundAction = PlayerAction.callFinalRound(gameId: gameId);
-      if (LOGGING_SWITCH) {
-        _logger.info('🎯 MyHandWidget - Executing callFinalRoundAction...');
-      }
+      
       await callFinalRoundAction.execute();
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ MyHandWidget - callFinalRoundAction.execute() completed');
-      }
+      
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
           setState(() {
             _isProcessingAction = false;
           });
-          if (LOGGING_SWITCH) {
-            _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round)');
-          }
+          
         }
       });
     } catch (e) {
@@ -3472,40 +3342,30 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           _isProcessingAction = false;
           _callFinalRoundTappedPending = false; // Restore button on failure
         });
-        if (LOGGING_SWITCH) {
-          _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round error)');
-        }
+        
       }
     }
   }
 
   void _handleMyHandCardSelection(BuildContext context, int index, Map<String, dynamic> card) async {
     if (_isProcessingAction) {
-      if (LOGGING_SWITCH) {
-        _logger.info('🚫 MyHandWidget - Action already in progress, ignoring card selection');
-      }
+      
       return;
     }
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
     final currentPlayerStatus = _getCurrentUserStatus();
-    if (LOGGING_SWITCH) {
-      _logger.info('🎯 MyHandWidget - Card tapped: ${card['cardId']}, Status: $currentPlayerStatus');
-    }
+    
       
     if (currentPlayerStatus == 'jack_swap') {
-      if (LOGGING_SWITCH) {
-        _logger.info('🃏 MyHandWidget: Status is jack_swap - cards are interactive');
-      }
+      
     }
     if (currentPlayerStatus == 'playing_card' || 
         currentPlayerStatus == 'jack_swap' || 
         currentPlayerStatus == 'queen_peek' ||
         currentPlayerStatus == 'same_rank_window' ||
         currentPlayerStatus == 'initial_peek') {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 MyHandWidget - Status matches allowed statuses: $currentPlayerStatus');
-      }
+      
       final updatedMyHand = {
         ...currentMyHand,
         'selectedIndex': index,
@@ -3516,20 +3376,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       });
       _startSelectedOverlayClearTimer();
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 MyHandWidget - currentGameId: $currentGameId');
-      }
+      
       if (currentGameId.isEmpty) {
         return;
       }
       try {
-        if (LOGGING_SWITCH) {
-          _logger.info('🎮 MyHandWidget - Inside try block, checking status: $currentPlayerStatus');
-        }
+        
         if (currentPlayerStatus == 'same_rank_window') {
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 MyHandWidget - Status is same_rank_window');
-          }
+          
           final sameRankAction = PlayerAction.sameRankPlay(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',
@@ -3537,21 +3391,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           await sameRankAction.execute();
         } else if (currentPlayerStatus == 'jack_swap') {
           final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-          if (LOGGING_SWITCH) {
-            _logger.info('🃏 MyHandWidget: Card tapped during jack_swap - Card: ${card['cardId']}, Player: $currentUserId, Game: $currentGameId');
-          }
-          if (LOGGING_SWITCH) {
-            _logger.info('🃏 MyHandWidget: Current jack swap selection count: ${PlayerAction.getJackSwapSelectionCount()}');
-          }
+          
+          
           await PlayerAction.selectCardForJackSwap(
             cardId: card['cardId']?.toString() ?? '',
             playerId: currentUserId,
             gameId: currentGameId,
           );
           final selectionCount = PlayerAction.getJackSwapSelectionCount();
-          if (LOGGING_SWITCH) {
-            _logger.info('🃏 MyHandWidget: After selection, jack swap count: $selectionCount');
-          }
+          
           if (selectionCount == 1) {
             // Game feedback: snackbars removed
           } else if (selectionCount == 2) {
@@ -3581,9 +3429,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
           if (isDemoMode) {
             // Demo mode: use DemoFunctionality to show card details
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 MyHandWidget: Demo mode - adding card to initial peek via DemoFunctionality');
-            }
+            
             
             // Check if already selected (using DemoFunctionality's tracking)
             final demoSelectedIds = DemoFunctionality.instance.getInitialPeekSelectedCardIds();
@@ -3628,47 +3474,31 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             }
           }
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 MyHandWidget - Entering else block for playing_card status');
-          }
+          
           setState(() {
             _isProcessingAction = true;
           });
-          if (LOGGING_SWITCH) {
-            _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true');
-          }
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 MyHandWidget - About to execute playerPlayCard: cardId=${card['cardId']}, gameId=$currentGameId');
-          }
+          
+          
           try {
           final playAction = PlayerAction.playerPlayCard(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',
           );
-            if (LOGGING_SWITCH) {
-              _logger.info('🎮 MyHandWidget - Calling playAction.execute()');
-            }
+            
           await playAction.execute();
           } catch (e, stackTrace) {
-            if (LOGGING_SWITCH) {
-              _logger.error('❌ MyHandWidget - Error executing playAction: $e');
-            }
-            if (LOGGING_SWITCH) {
-              _logger.error('❌ MyHandWidget - Stack trace: $stackTrace');
-            }
+            
+            
             rethrow;
           }
-          if (LOGGING_SWITCH) {
-            _logger.info('🎮 MyHandWidget - playAction.execute() completed');
-          }
+          
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               setState(() {
                 _isProcessingAction = false;
               });
-              if (LOGGING_SWITCH) {
-                _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false');
-              }
+              
             }
           });
         }
@@ -3677,9 +3507,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           setState(() {
             _isProcessingAction = false;
           });
-          if (LOGGING_SWITCH) {
-            _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (error case)');
-          }
+          
         }
       }
     } else {

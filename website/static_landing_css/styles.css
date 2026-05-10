@@ -1,0 +1,185 @@
+/* Mirrors ThemePreset.dutch in theme_consts.dart (primary / accents / scaffold family) */
+:root {
+  --color-primary: #6b9950;
+  --color-accent: #8bc34a;
+  --color-accent-2: #aed581;
+  --color-plum: #5c3f54;
+  --bg-deep: #1a1218;
+  --bg-mid: #2e1f2a;
+  --text: #ece6ea;
+  --text-muted: #b8aeb4;
+  --card-bg: rgba(44, 34, 40, 0.72);
+  --card-border: rgba(139, 195, 74, 0.28);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --radius: 14px;
+  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg-deep);
+  line-height: 1.55;
+}
+
+.bg-gradient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(1200px 600px at 20% -10%, rgba(107, 153, 80, 0.22), transparent 55%),
+    radial-gradient(900px 500px at 95% 20%, rgba(139, 195, 74, 0.12), transparent 50%),
+    linear-gradient(165deg, var(--bg-mid) 0%, var(--bg-deep) 55%, #0f0a0e 100%);
+}
+
+.site-header {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2.25rem 1.25rem 1.25rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.brand-logo {
+  flex-shrink: 0;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background: linear-gradient(145deg, rgba(107, 153, 80, 0.35), rgba(44, 34, 40, 0.9));
+  border: 1px solid var(--card-border);
+}
+
+.brand-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.brand-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-accent-2);
+  font-weight: 600;
+}
+
+.brand-title {
+  margin: 0.1rem 0 0;
+  font-size: clamp(2rem, 5vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.tagline {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+}
+
+.content {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 1.25rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.35rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+}
+
+.card h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  letter-spacing: 0.02em;
+}
+
+.card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  color: var(--color-accent-2);
+}
+
+.card p,
+.card li {
+  margin: 0.35rem 0;
+  color: var(--text);
+}
+
+.card ul,
+.card ol {
+  margin: 0.35rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.grid-2 {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.compact li {
+  margin: 0.2rem 0;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.site-footer {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 2.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.site-footer a {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+  color: var(--color-accent-2);
+}

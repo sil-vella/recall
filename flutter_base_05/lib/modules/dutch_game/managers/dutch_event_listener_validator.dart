@@ -3,7 +3,6 @@ import 'dart:async';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/websockets/websocket_events.dart';
 import '../../../core/managers/hooks_manager.dart';
-import '../../../tools/logging/logger.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
 
@@ -18,15 +17,12 @@ class EventConfig {
 /// Dutch Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class DutchGameEventListenerValidator {
-  static const bool LOGGING_SWITCH = false; // kick/leave + game_state gate (enable-logging-switch.mdc; set false after test)
   static DutchGameEventListenerValidator? _instance;
   
   static DutchGameEventListenerValidator get instance {
     _instance ??= DutchGameEventListenerValidator._internal();
     return _instance!;
   }
-  
-  final Logger _logger = Logger();
   
   DutchGameEventListenerValidator._internal();
   
@@ -255,15 +251,11 @@ class DutchGameEventListenerValidator {
   void _handleDirectEvent(String eventType, Map<String, dynamic> data) {
     try {
         // Log incoming event
-        if (LOGGING_SWITCH) {
-          _logger.info("📥 Received event: $eventType with data: $data");
-        }
+        
         
         // Validate event type
       if (!_eventConfigs.containsKey(eventType)) {
-          if (LOGGING_SWITCH) {
-            _logger.warning("❌ Unknown event type: $eventType");
-          }
+          
           return;
         }
 
@@ -288,24 +280,15 @@ class DutchGameEventListenerValidator {
         final inState = DutchGameHelpers.isGameStillInState(gameId);
         final randomJoinInProgress = DutchGameHelpers.isRandomJoinInProgress;
         if (!inState && !randomJoinInProgress) {
-          if (LOGGING_SWITCH) {
-            _logger.info(
-              '[kick-trace] Ignoring Dutch WS event: $eventType game_id=$gameId '
-              'inState=$inState randomJoinInProgress=$randomJoinInProgress',
-            );
-          }
+          
           return;
         }
       }
 
       // Route directly to DutchEventManager based on event type
-      if (LOGGING_SWITCH) {
-        _logger.info("🔄 Routing event: $eventType to manager");
-      }
+      
       _routeEventToManager(eventType, eventPayload);
-      if (LOGGING_SWITCH) {
-        _logger.info("✅ Successfully processed event: $eventType");
-      }
+      
 
       } catch (e) {
     }
@@ -316,9 +299,7 @@ class DutchGameEventListenerValidator {
     final eventConfig = _eventConfigs[eventType];
     final handlerMethod = eventConfig?.handlerMethod;
     
-    if (LOGGING_SWITCH) {
-      _logger.info("🎯 Calling handler method: $handlerMethod for event: $eventType");
-    }
+    
     
     if (handlerMethod == null) {
       return;

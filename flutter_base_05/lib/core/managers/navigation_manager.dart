@@ -9,7 +9,6 @@ import '../../screens/auth_test_screen/auth_test_screen.dart';
 import '../../screens/notifications_screen/notifications_screen.dart';
 // In-app purchases screens removed - switching to RevenueCat
 import '../00_base/module_base.dart';
-import '../../tools/logging/logger.dart';
 import 'hooks_manager.dart';
 import '../../modules/analytics_module/analytics_module.dart';
 import '../../utils/analytics_service.dart';
@@ -17,24 +16,12 @@ import '../../modules/promotional_ads_module/ads_navigator_observer.dart';
 import 'module_manager.dart';
 
 /// Hash URLs: `http://host/#/path?query`. Path URLs: `http://host/path?query`.
-const bool LOGGING_SWITCH = false; // Stripe return routing trace (enable-logging-switch.mdc)
-
 String computeWebInitialLocation() {
   if (!kIsWeb) return '/';
-  final logger = Logger();
-  if (LOGGING_SWITCH) {
-    logger.info(
-      'NavigationManager.computeWebInitialLocation: href=${Uri.base.toString()} '
-      'path=${Uri.base.path} query=${Uri.base.query} fragment=${Uri.base.fragment}',
-    );
-  }
 
   final fragment = Uri.base.fragment;
   if (fragment.isNotEmpty) {
     final fromFragment = fragment.startsWith('/') ? fragment : '/$fragment';
-    if (LOGGING_SWITCH) {
-      logger.info('NavigationManager.computeWebInitialLocation: using fragment route=$fromFragment');
-    }
     return fromFragment;
   }
 
@@ -46,25 +33,13 @@ String computeWebInitialLocation() {
       Uri.base.queryParameters.containsKey('stripe_checkout');
   if (path == '/coin-purchase' || path.endsWith('/coin-purchase')) {
     final fromPath = q.isEmpty ? '/coin-purchase' : '/coin-purchase?$q';
-    if (LOGGING_SWITCH) {
-      logger.info('NavigationManager.computeWebInitialLocation: using path route=$fromPath');
-    }
     return fromPath;
   }
   if (hasStripeReturnSignals) {
     final fromSignal = q.isEmpty ? '/coin-purchase' : '/coin-purchase?$q';
-    if (LOGGING_SWITCH) {
-      logger.warning(
-        'NavigationManager.computeWebInitialLocation: stripe return params without coin path; '
-        'forcing route=$fromSignal',
-      );
-    }
     return fromSignal;
   }
 
-  if (LOGGING_SWITCH) {
-    logger.info('NavigationManager.computeWebInitialLocation: defaulting to "/"');
-  }
   return '/';
 }
 

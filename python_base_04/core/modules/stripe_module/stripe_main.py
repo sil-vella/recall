@@ -15,20 +15,17 @@ from bson import ObjectId
 import urllib.parse
 
 import requests
+from pymongo.errors import DuplicateKeyError, OperationFailure
 
 # Coin purchase: Stripe Checkout + webhooks + RevenueCat verify-coin-purchase (enable-logging-switch.mdc)
 LOGGING_SWITCH = False  # Set True to trace RC verify + Stripe coin paths in tools/logger/server.log
 
-# Play / App Store product id → Dutch game coins (must match client display mapping).
-REVENUECAT_COIN_PRODUCT_COINS = {
-    "starter_pack_100_coin": 100,
-    "coins_100": 100,
-    "coins_500": 500,
-    "coins_1000": 1000,
-    "coins_2500": 2500,
-    "coins_5000": 5000,
-    "coins_10000": 10000,
-}
+
+def _revenuecat_coin_product_map():
+    """Play/App Store product id → coins (SSOT: flutter_base_05/assets/dutch_coin_catalog.json)."""
+    from utils.coin_catalog import get_revenuecat_product_coins
+
+    return get_revenuecat_product_coins()
 
 
 class StripeModule(BaseModule):
@@ -100,6 +97,11 @@ class StripeModule(BaseModule):
         self._register_route_helper(
             "/userauth/revenuecat/verify-coin-purchase",
             self.verify_revenuecat_coin_purchase,
+            methods=["POST"],
+        )
+        self._register_route_helper(
+            "/public/revenuecat/webhook",
+            self.handle_revenuecat_webhook,
             methods=["POST"],
         )
         self._register_route_helper("/stripe/customers", self.create_customer, methods=["POST"])
@@ -419,20 +421,11 @@ class StripeModule(BaseModule):
 
     @staticmethod
     def _coin_package_rows():
-        """SSOT for Dutch coin pack keys, labels, coin amounts, and configured Stripe Price IDs."""
+        """Dutch coin pack keys, labels, coin amounts, Stripe Price IDs (SSOT: dutch_coin_catalog.json)."""
+        from utils.coin_catalog import get_stripe_package_rows
         from utils.config.config import Config
 
-        def _pid(v):
-            s = (v or "").strip()
-            return s if s else None
-
-        return (
-            {"key": "starter", "label": "Starter", "coins": 100, "price_id": _pid(Config.STRIPE_PRICE_COIN_STARTER)},
-            {"key": "casual", "label": "Casual", "coins": 300, "price_id": _pid(Config.STRIPE_PRICE_COIN_CASUAL)},
-            {"key": "popular", "label": "Popular", "coins": 700, "price_id": _pid(Config.STRIPE_PRICE_COIN_POPULAR)},
-            {"key": "grinder", "label": "Grinder", "coins": 1500, "price_id": _pid(Config.STRIPE_PRICE_COIN_GRINDER)},
-            {"key": "pro", "label": "Pro", "coins": 3500, "price_id": _pid(Config.STRIPE_PRICE_COIN_PRO)},
-        )
+        return get_stripe_package_rows(Config)
 
     def list_coin_packages_public(self):
         """Which coin packages exist and whether Stripe price IDs are configured (no secrets)."""
@@ -628,142 +621,101 @@ class StripeModule(BaseModule):
                 isOn=LOGGING_SWITCH,
             )
 
-            coins = REVENUECAT_COIN_PRODUCT_COINS.get(product_identifier)
-            if coins is None or coins <= 0:
-                return jsonify({"success": False, "error": "Unknown or unsupported coin product"}), 400
-
-            existing = self.db_manager.find_one(
-                "revenuecat_coin_purchases", {"store_transaction_id": store_transaction_id}
-            )
-            if existing:
-                if str(existing.get("user_id") or "") != str(user_id):
-                    custom_log(
-                        f"verify_revenuecat_coin_purchase: store_transaction_id reused by different user",
-                        level="WARNING",
-                        isOn=LOGGING_SWITCH,
-                    )
-                    return jsonify({"success": False, "error": "Transaction already recorded"}), 403
-                custom_log(
-                    "verify_revenuecat_coin_purchase: idempotent hit (already credited) "
-                    f"user_id={user_id} product={product_identifier!r}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
-                return jsonify({"success": True, "message": "Already credited", "coins": coins}), 200
-
-            url = "https://api.revenuecat.com/v1/subscribers/{}".format(
-                urllib.parse.quote(str(user_id), safe="")
-            )
             try:
-                rc_resp = requests.get(
-                    url,
-                    headers={"Authorization": f"Bearer {secret}"},
-                    timeout=20,
-                )
-            except requests.RequestException as e:
-                custom_log(f"verify_revenuecat_coin_purchase RC request: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-                return jsonify({"success": False, "error": "Could not reach RevenueCat"}), 502
-
-            if rc_resp.status_code == 404:
-                custom_log(
-                    "verify_revenuecat_coin_purchase: RC HTTP 404 subscriber not found "
-                    f"user_id={user_id}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
-                return jsonify(
-                    {
-                        "success": False,
-                        "error": "Subscriber not found",
-                        "code": "RC_NOT_FOUND",
-                        "message": "Try again in a few seconds after the purchase completes.",
-                    }
-                ), 404
-
-            if rc_resp.status_code != 200:
-                custom_log(
-                    f"verify_revenuecat_coin_purchase RC HTTP {rc_resp.status_code} body={rc_resp.text[:500]!r}",
-                    level="ERROR",
-                    isOn=LOGGING_SWITCH,
-                )
-                return jsonify({"success": False, "error": "RevenueCat verification failed"}), 502
-
-            try:
-                payload = rc_resp.json()
-            except Exception:
-                return jsonify({"success": False, "error": "Invalid RevenueCat response"}), 502
-
-            subscriber = payload.get("subscriber") or {}
-            non_subs = subscriber.get("non_subscriptions") or {}
-            tx_list = non_subs.get(product_identifier)
-            if not isinstance(tx_list, list):
-                tx_list = []
-
-            custom_log(
-                "verify_revenuecat_coin_purchase: RC payload "
-                f"non_subs_keys={list(non_subs.keys())!r} "
-                f"tx_count_for_product={len(tx_list)}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
-
-            matched = False
-            for tx in tx_list:
-                if not isinstance(tx, dict):
-                    continue
-                rc_id = str(tx.get("id") or "")
-                stid = tx.get("store_transaction_id")
-                if stid is not None:
-                    stid = str(stid)
-                else:
-                    stid = ""
-                if stid == store_transaction_id or rc_id == store_transaction_id:
-                    matched = True
-                    break
-
-            if not matched:
-                custom_log(
-                    "verify_revenuecat_coin_purchase: no matching transaction "
-                    f"user_id={user_id} product={product_identifier!r} "
-                    f"store_transaction_id_prefix={store_transaction_id[:16]!r}…",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
-                return jsonify(
-                    {
-                        "success": False,
-                        "error": "Transaction not found for this user",
-                        "code": "RC_TXN_PENDING",
-                        "message": "RevenueCat may still be syncing. Try again shortly.",
-                    }
-                ), 404
-
-            try:
-                oid = ObjectId(str(user_id))
+                ObjectId(str(user_id))
             except Exception:
                 return jsonify({"success": False, "error": "Invalid user id"}), 400
 
-            self._credit_dutch_game_coins(oid, coins)
-            self.db_manager.insert(
-                "revenuecat_coin_purchases",
-                {
-                    "store_transaction_id": store_transaction_id,
-                    "user_id": str(user_id),
-                    "product_identifier": product_identifier,
-                    "coins": coins,
-                    "created_at": datetime.utcnow().isoformat(),
-                },
+            return self._revenuecat_complete_purchase_impl(
+                secret, str(user_id), product_identifier, store_transaction_id
             )
-            custom_log(
-                f"RevenueCat coin purchase credited user_id={user_id} coins={coins} product={product_identifier}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
-            return jsonify({"success": True, "message": "Coins credited", "coins": coins}), 200
 
         except Exception as e:
             custom_log(f"verify_revenuecat_coin_purchase error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    def handle_revenuecat_webhook(self):
+        """
+        RevenueCat server webhook (configure Authorization header in dashboard to match REVENUECAT_WEBHOOK_AUTH).
+        Idempotent via revenuecat_coin_purchases + short-lived dedup in revenuecat_webhook_events.
+        """
+        try:
+            from utils.config.config import Config
+
+            expected = (Config.REVENUECAT_WEBHOOK_AUTH or "").strip()
+            if not expected:
+                return jsonify(
+                    {
+                        "error": "REVENUECAT_WEBHOOK_AUTH is not set",
+                        "message": "Set the same value in RevenueCat → Webhooks → Authorization header.",
+                    }
+                ), 503
+
+            auth_hdr = (request.headers.get("Authorization") or "").strip()
+            ok_auth = auth_hdr == expected or auth_hdr == f"Bearer {expected}"
+            if not ok_auth:
+                return jsonify({"error": "Unauthorized"}), 401
+
+            body = request.get_json(silent=True) or {}
+            event = body.get("event") or {}
+            event_id = str(event.get("id") or "").strip()
+            if not event_id:
+                return jsonify({"error": "missing event id"}), 400
+
+            wh = self.db_manager.db["revenuecat_webhook_events"]
+            try:
+                wh.insert_one(
+                    {
+                        "_id": event_id,
+                        "created_at": datetime.utcnow().isoformat(),
+                        "status": "pending",
+                    }
+                )
+            except DuplicateKeyError:
+                return jsonify({"received": True, "deduped": True}), 200
+
+            etype = str(event.get("type") or "")
+            if etype not in ("NON_RENEWING_PURCHASE", "INITIAL_PURCHASE"):
+                wh.delete_one({"_id": event_id})
+                return jsonify({"received": True, "skipped_type": etype}), 200
+
+            app_user_id = str(event.get("app_user_id") or "").strip()
+            product_id = str(event.get("product_id") or "").strip()
+            store_txn = str(
+                event.get("transaction_id")
+                or event.get("original_transaction_id")
+                or event.get("store_transaction_id")
+                or ""
+            ).strip()
+            if not app_user_id or not product_id or not store_txn:
+                wh.delete_one({"_id": event_id})
+                return jsonify({"received": True, "ignored": True}), 200
+
+            if _revenuecat_coin_product_map().get(product_id) is None:
+                wh.delete_one({"_id": event_id})
+                return jsonify({"received": True, "skipped_non_coin_product": product_id}), 200
+
+            secret = (Config.REVENUECAT_SECRET_API_KEY or "").strip()
+            if not secret:
+                wh.delete_one({"_id": event_id})
+                return jsonify({"error": "REVENUECAT_SECRET_API_KEY not configured"}), 503
+
+            try:
+                resp = self._revenuecat_complete_purchase_impl(secret, app_user_id, product_id, store_txn)
+                tup = resp if isinstance(resp, tuple) else (resp, 200)
+                status_code = tup[1]
+                if status_code >= 400:
+                    wh.delete_one({"_id": event_id})
+                else:
+                    wh.update_one({"_id": event_id}, {"$set": {"status": "processed"}})
+                return tup
+            except Exception:
+                wh.delete_one({"_id": event_id})
+                raise
+
+        except Exception as e:
+            custom_log(f"handle_revenuecat_webhook error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({"error": "Internal server error"}), 500
 
     def _handle_checkout_session_completed(self, session_obj):
         """Credit Dutch game coins after successful Checkout (idempotent per session id)."""
@@ -833,20 +785,231 @@ class StripeModule(BaseModule):
         except Exception as e:
             custom_log(f"_handle_checkout_session_completed error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
 
-    def _credit_dutch_game_coins(self, user_oid: ObjectId, coins: int):
+    def _credit_dutch_game_coins(self, user_oid: ObjectId, coins: int, session=None):
         """Increment modules.dutch_game.coins (same field as match economy)."""
         if coins <= 0:
             return
         ts = datetime.utcnow().isoformat()
+        kwargs = {}
+        if session is not None:
+            kwargs["session"] = session
         result = self.db_manager.db["users"].update_one(
             {"_id": user_oid},
             {
                 "$inc": {"modules.dutch_game.coins": coins},
                 "$set": {"modules.dutch_game.last_updated": ts, "updated_at": ts},
             },
+            **kwargs,
         )
         if result.matched_count == 0:
             raise ValueError(f"user not found: {user_oid}")
+
+    @staticmethod
+    def _revenuecat_transaction_unsupported(exc: OperationFailure) -> bool:
+        code = getattr(exc, "code", None)
+        if code in (20, 303):  # IllegalOperation / transactions unsupported on standalone
+            return True
+        msg = str(exc).lower()
+        return "replica set" in msg or "mongos" in msg or "multi-document" in msg
+
+    def _revenuecat_fetch_and_match_transaction(
+        self, secret: str, user_id: str, product_identifier: str, store_transaction_id: str
+    ):
+        """
+        Call RevenueCat REST and confirm subscriber has this non-subscription transaction.
+        Returns None if matched, or (jsonify dict, http_status) on failure.
+        """
+        url = "https://api.revenuecat.com/v1/subscribers/{}".format(
+            urllib.parse.quote(str(user_id), safe="")
+        )
+        try:
+            rc_resp = requests.get(
+                url,
+                headers={"Authorization": f"Bearer {secret}"},
+                timeout=20,
+            )
+        except requests.RequestException as e:
+            custom_log(f"verify_revenuecat_coin_purchase RC request: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return ({"success": False, "error": "Could not reach RevenueCat"}, 502)
+
+        if rc_resp.status_code == 404:
+            custom_log(
+                "verify_revenuecat_coin_purchase: RC HTTP 404 subscriber not found " f"user_id={user_id}",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+            return (
+                {
+                    "success": False,
+                    "error": "Subscriber not found",
+                    "code": "RC_NOT_FOUND",
+                    "message": "Try again in a few seconds after the purchase completes.",
+                },
+                404,
+            )
+
+        if rc_resp.status_code != 200:
+            custom_log(
+                f"verify_revenuecat_coin_purchase RC HTTP {rc_resp.status_code} body={rc_resp.text[:500]!r}",
+                level="ERROR",
+                isOn=LOGGING_SWITCH,
+            )
+            return ({"success": False, "error": "RevenueCat verification failed"}, 502)
+
+        try:
+            payload = rc_resp.json()
+        except Exception:
+            return ({"success": False, "error": "Invalid RevenueCat response"}, 502)
+
+        subscriber = payload.get("subscriber") or {}
+        non_subs = subscriber.get("non_subscriptions") or {}
+        tx_list = non_subs.get(product_identifier)
+        if not isinstance(tx_list, list):
+            tx_list = []
+
+        custom_log(
+            "verify_revenuecat_coin_purchase: RC payload "
+            f"non_subs_keys={list(non_subs.keys())!r} "
+            f"tx_count_for_product={len(tx_list)}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+
+        matched = False
+        for tx in tx_list:
+            if not isinstance(tx, dict):
+                continue
+            rc_id = str(tx.get("id") or "")
+            stid = tx.get("store_transaction_id")
+            if stid is not None:
+                stid = str(stid)
+            else:
+                stid = ""
+            if stid == store_transaction_id or rc_id == store_transaction_id:
+                matched = True
+                break
+
+        if not matched:
+            custom_log(
+                "verify_revenuecat_coin_purchase: no matching transaction "
+                f"user_id={user_id} product={product_identifier!r} "
+                f"store_transaction_id_prefix={store_transaction_id[:16]!r}…",
+                level="INFO",
+                isOn=LOGGING_SWITCH,
+            )
+            return (
+                {
+                    "success": False,
+                    "error": "Transaction not found for this user",
+                    "code": "RC_TXN_PENDING",
+                    "message": "RevenueCat may still be syncing. Try again shortly.",
+                },
+                404,
+            )
+        return None
+
+    def _revenuecat_insert_ledger_and_credit(
+        self, user_id: str, product_identifier: str, store_transaction_id: str, coins: int
+    ):
+        """
+        Idempotent ledger row + coin credit. Uses a multi-document transaction when the deployment
+        supports it; otherwise falls back to credit-then-insert (small double-credit window on crash).
+        """
+        coll = self.db_manager.db["revenuecat_coin_purchases"]
+        now = datetime.utcnow().isoformat()
+        ledger_doc = {
+            "store_transaction_id": store_transaction_id,
+            "user_id": str(user_id),
+            "product_identifier": product_identifier,
+            "coins": coins,
+            "status": "completed",
+            "created_at": now,
+        }
+        oid = ObjectId(str(user_id))
+        client = self.db_manager.client
+
+        try:
+            with client.start_session() as s:
+                with s.start_transaction():
+                    coll.insert_one(ledger_doc, session=s)
+                    self._credit_dutch_game_coins(oid, coins, session=s)
+        except DuplicateKeyError:
+            ex2 = coll.find_one({"store_transaction_id": store_transaction_id})
+            if ex2 and str(ex2.get("user_id") or "") == str(user_id):
+                custom_log(
+                    "verify_revenuecat_coin_purchase: idempotent after duplicate key "
+                    f"user_id={user_id} product={product_identifier!r}",
+                    level="INFO",
+                    isOn=LOGGING_SWITCH,
+                )
+                return jsonify({"success": True, "message": "Already credited", "coins": coins}), 200
+            custom_log(
+                "verify_revenuecat_coin_purchase: store_transaction_id reused by different user (duplicate)",
+                level="WARNING",
+                isOn=LOGGING_SWITCH,
+            )
+            return jsonify({"success": False, "error": "Transaction already recorded"}), 403
+        except OperationFailure as oe:
+            if self._revenuecat_transaction_unsupported(oe):
+                custom_log(
+                    "revenuecat_coin_purchase: MongoDB transaction unavailable (use replica set for "
+                    "strong idempotency); using legacy credit-then-insert",
+                    level="WARNING",
+                    isOn=True,
+                )
+                self._credit_dutch_game_coins(oid, coins)
+                try:
+                    coll.insert_one(ledger_doc)
+                except DuplicateKeyError:
+                    pass
+            else:
+                raise
+        custom_log(
+            f"RevenueCat coin purchase credited user_id={user_id} coins={coins} product={product_identifier}",
+            level="INFO",
+            isOn=LOGGING_SWITCH,
+        )
+        return jsonify({"success": True, "message": "Coins credited", "coins": coins}), 200
+
+    def _revenuecat_complete_purchase_impl(
+        self, secret: str, user_id: str, product_identifier: str, store_transaction_id: str
+    ):
+        """JWT verify + webhook: RC REST check then atomic ledger + credit."""
+        rc_map = _revenuecat_coin_product_map()
+        coins = rc_map.get(product_identifier)
+        if coins is None or coins <= 0:
+            return jsonify({"success": False, "error": "Unknown or unsupported coin product"}), 400
+
+        coll = self.db_manager.db["revenuecat_coin_purchases"]
+        existing = coll.find_one({"store_transaction_id": store_transaction_id})
+        if existing:
+            if str(existing.get("user_id") or "") != str(user_id):
+                custom_log(
+                    "verify_revenuecat_coin_purchase: store_transaction_id reused by different user",
+                    level="WARNING",
+                    isOn=LOGGING_SWITCH,
+                )
+                return jsonify({"success": False, "error": "Transaction already recorded"}), 403
+            st = existing.get("status")
+            if st == "completed" or st is None:
+                custom_log(
+                    "verify_revenuecat_coin_purchase: idempotent hit (already credited) "
+                    f"user_id={user_id} product={product_identifier!r}",
+                    level="INFO",
+                    isOn=LOGGING_SWITCH,
+                )
+                return jsonify({"success": True, "message": "Already credited", "coins": coins}), 200
+
+        verr = self._revenuecat_fetch_and_match_transaction(
+            secret, user_id, product_identifier, store_transaction_id
+        )
+        if verr is not None:
+            err_body, err_code = verr
+            return jsonify(err_body), err_code
+
+        return self._revenuecat_insert_ledger_and_credit(
+            user_id, product_identifier, store_transaction_id, coins
+        )
 
     def get_payment_status(self, payment_intent_id):
         """Get payment status from Stripe."""

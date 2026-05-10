@@ -8,7 +8,6 @@ import '../../../../utils/widgets/felt_texture_widget.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../backend_core/utils/level_matcher.dart';
-import '../../../../tools/logging/logger.dart';
 import 'widgets/game_info_widget.dart';
 import 'widgets/unified_game_board_widget.dart';
 import '../../widgets/instructions_widget.dart';
@@ -22,7 +21,6 @@ import '../demo/demo_action_handler.dart';
 import 'utils/table_design_style_helpers.dart';
 
 /// When true, logs screen build and rebuild timing for this screen.
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; one switch per file
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -428,15 +426,11 @@ class GamePlayScreen extends BaseScreen {
 
 class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     with WidgetsBindingObserver {
-  final Logger _logger = Logger();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   String? _previousGameId;
   bool _cardBackPrecached = false;
   final Set<String> _coinStreamShownGameIds = {};
 
-  /// Rebuild count when LOGGING_SWITCH is enabled.
-  static int _playScreenRebuildCount = 0;
-  
   // GlobalKey for the main Stack
   final GlobalKey _mainStackKey = GlobalKey(); // Track game ID to detect navigation away
 
@@ -488,16 +482,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     final currentGameId = dutchGameState['currentGameId']?.toString();
     _previousGameId = currentGameId;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('GamePlay: Screen loaded with game ID: $_previousGameId');
-    }
+    
     
     // Check if returning to same game and cancel pending leave timer
     if (currentGameId != null && 
         currentGameId == GameCoordinator().pendingLeaveGameId) {
-      if (LOGGING_SWITCH) {
-        _logger.info('GamePlay: Returning to same game $currentGameId - cancelling leave timer');
-      }
+      
       GameCoordinator().cancelLeaveGameTimer(currentGameId);
     }
     
@@ -521,17 +511,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
   Future<void> _initializeWebSocket() async {
     try {
       final ok = await _websocketManager.ensureInitializedAndConnected();
-      if (LOGGING_SWITCH) {
-        _logger.info('GamePlay: ensureInitializedAndConnected => $ok');
-      }
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error(
-          'GamePlay: WebSocket initialization error',
-          error: e,
-          stackTrace: stackTrace,
-        );
-      }
+      
     }
   }
   
@@ -546,9 +528,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     WidgetsBinding.instance.removeObserver(this);
     unawaited(WakelockPlus.disable());
     StateManager().removeListener(_onStateManagerForTableStyle);
-    if (LOGGING_SWITCH) {
-      _logger.info('GamePlay: Disposing');
-    }
+    
     super.dispose();
   }
 
@@ -582,9 +562,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
       // Skip automatic instruction triggering if a demo action is active
       // Demo logic will handle showing instructions manually
       if (DemoActionHandler.isDemoActionActive()) {
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 _checkAndShowInitialInstructions: Demo action active, skipping automatic instruction triggering');
-        }
+        
         return;
       }
       
@@ -615,14 +593,10 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
         // Fallback to practice settings if not in game state
         final practiceSettings = dutchGameState['practiceSettings'] as Map<String, dynamic>?;
         showInstructions = practiceSettings?['showInstructions'] as bool? ?? false;
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 _checkAndShowInitialInstructions: showInstructions not in gameState, checking practiceSettings=$showInstructions');
-        }
+        
       }
       if (!showInstructions) {
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 _checkAndShowInitialInstructions: Instructions disabled, skipping');
-        }
+        
         return;
       }
       
@@ -633,18 +607,14 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
           : (rawPhase ?? 'playing');
       
       if (gamePhase == 'waiting') {
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 _checkAndShowInitialInstructions: In waiting phase, showInstructions=$showInstructions');
-        }
+        
         // Check if initial instructions haven't been dismissed
         final instructionsData = dutchGameState['instructions'] as Map<String, dynamic>? ?? {};
         final dontShowAgain = Map<String, bool>.from(
           instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
         );
         
-        if (LOGGING_SWITCH) {
-          _logger.info('📚 _checkAndShowInitialInstructions: dontShowAgain[initial]=${dontShowAgain['initial']}');
-        }
+        
         
         if (dontShowAgain['initial'] != true) {
           // Check if initial instructions are already showing
@@ -666,24 +636,16 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                 'dontShowAgain': dontShowAgain,
               },
             });
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions triggered from screen init');
-            }
+            
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already showing');
-            }
+            
           }
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already marked as dontShowAgain');
-          }
+          
         }
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error checking initial instructions: $e');
-      }
+      
     }
   }
 
@@ -696,11 +658,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
 
   @override
   Widget buildContent(BuildContext context) {
-    final stopwatch = LOGGING_SWITCH ? (Stopwatch()..start()) : null;
-    if (LOGGING_SWITCH) {
-      _logger.info('GamePlayScreen: buildContent called');
-    }
-
     final dutchSnapshot = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final playTableLevel = resolveDutchGamePlayTableLevel(dutchSnapshot);
     final userStats = dutchSnapshot['userStats'] as Map<String, dynamic>? ?? {};
@@ -710,14 +667,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     final resolvedSpecialEventId = resolveDutchGamePlaySpecialEventId(dutchSnapshot);
     final bool isSpecialEventMatch =
         resolvedSpecialEventId != null && resolvedSpecialEventId.trim().isNotEmpty;
-    if (LOGGING_SWITCH) {
-      _logger.info(
-        'GamePlayScreen: event-state '
-        'currentGameId=${dutchSnapshot['currentGameId']?.toString() ?? ''} '
-        'resolvedSpecialEventId=${resolvedSpecialEventId ?? ''} '
-        'isSpecialEventMatch=$isSpecialEventMatch',
-      );
-    }
+    
     String eventOverlayUrl = '';
     if (isSpecialEventMatch) {
       final row = LevelMatcher.specialEventRowById(resolvedSpecialEventId);
@@ -728,22 +678,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
         // Backward-compatible fallback: if overlay URL is not present in payload yet,
         // reuse event back graphic so special-events still replace felt.
         eventOverlayUrl = overlayUrl.isNotEmpty ? overlayUrl : backGraphicUrl;
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            'GamePlayScreen: special-event style resolved '
-            'eventId=$resolvedSpecialEventId '
-            'rowKeys=${row?.keys.toList()} '
-            'styleKeys=${Map<String, dynamic>.from(styleMap).keys.toList()} '
-            'overlayImageUrl=$overlayUrl '
-            'backGraphicUrl=$backGraphicUrl '
-            'effectiveOverlayUrl=$eventOverlayUrl',
-          );
-        }
-      } else if (LOGGING_SWITCH) {
-        _logger.warning(
-          'GamePlayScreen: special-event style missing or invalid '
-          'eventId=$resolvedSpecialEventId rowFound=${row != null}',
-        );
       }
     }
     // Special-event matches own the table cosmetics; ignore user equipped table design.
@@ -780,12 +714,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
             constraints: const BoxConstraints(maxWidth: 1000),
             child: LayoutBuilder(
               builder: (context, constraints) {
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            'GamePlayScreen: LayoutBuilder - maxHeight=${constraints.maxHeight}, '
-            'maxWidth=${constraints.maxWidth}',
-          );
-        }
+        
         // Outer border (customizable): doubled thickness from previous sizing.
         final tableWidth = constraints.maxWidth;
         final outerBorderWidth = (tableWidth * 0.04).clamp(0.0, 50.0);
@@ -866,17 +795,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                             equippedTableDesignId: equippedTableDesignId,
                             imageVersion: 1,
                           );
-                          if (LOGGING_SWITCH) {
-                            _logger.info(
-                              'GamePlayScreen: render-decision '
-                              'eventId=${specialEventId ?? ''} '
-                              'isSpecialEventMatch=$isSpecialEventMatch '
-                              'eventOverlayUrlPresent=${eventOverlayUrl.isNotEmpty} '
-                              'eventOverlayUrl=$eventOverlayUrl '
-                              'feltEnabled=${!isSpecialEventMatch} '
-                              'tableDesignOverlayUrl=$overlayUrl',
-                            );
-                          }
+                          
                           return Stack(
                             children: [
                               Positioned.fill(
@@ -1050,11 +969,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
         ),
       ],
     );
-    if (LOGGING_SWITCH && stopwatch != null) {
-      stopwatch.stop();
-      _playScreenRebuildCount++;
-      _logger.info('📊 GamePlayScreen REBUILD #$_playScreenRebuildCount duration=${stopwatch.elapsedMilliseconds} ms');
-    }
+    
     return content;
   }
 }

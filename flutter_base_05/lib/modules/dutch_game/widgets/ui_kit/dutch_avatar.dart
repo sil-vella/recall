@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-import '../../../../tools/logging/logger.dart';
 import '../../../../utils/consts/config.dart';
 import '../../../../utils/consts/theme_consts.dart';
 
@@ -17,9 +16,6 @@ import '../../../../utils/consts/theme_consts.dart';
 /// The initials background is hashed from `displayName` so the same player
 /// always gets the same shade — useful for leaderboard rows / opponent chips.
 class DutchAvatar extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // Avatar render/fallback trace (enable-logging-switch.mdc) — set false after debugging
-  static final Logger _logger = Logger();
-
   const DutchAvatar({
     super.key,
     required this.displayName,
@@ -148,9 +144,7 @@ class DutchAvatar extends StatelessWidget {
 
   Widget _buildInner() {
     if (imageBytes != null && imageBytes!.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchAvatar: rendering Image.memory bytes=${imageBytes!.length} semantic="$semanticIdentifier"');
-      }
+      
       return Image.memory(
         imageBytes!,
         fit: BoxFit.cover,
@@ -159,40 +153,28 @@ class DutchAvatar extends StatelessWidget {
     }
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       final resolvedUrl = _effectiveImageUrl(imageUrl!);
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'DutchAvatar: rendering Image.network raw="$imageUrl" resolved="$resolvedUrl" semantic="$semanticIdentifier"',
-        );
-      }
+      
       return Image.network(
         resolvedUrl,
         fit: BoxFit.cover,
         errorBuilder: (_, error, stack) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('DutchAvatar: Image.network failed url="$resolvedUrl" error=$error');
-          }
+          
           return _buildInitials();
         },
       );
     }
     if (assetPath != null && assetPath!.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('DutchAvatar: rendering Image.asset path="$assetPath" semantic="$semanticIdentifier"');
-      }
+      
       return Image.asset(
         assetPath!,
         fit: BoxFit.cover,
         errorBuilder: (_, error, stack) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('DutchAvatar: Image.asset failed path="$assetPath" error=$error');
-          }
+          
           return _buildInitials();
         },
       );
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchAvatar: no image source provided, using initials fallback semantic="$semanticIdentifier"');
-    }
+    
     return _buildInitials();
   }
 
@@ -200,9 +182,7 @@ class DutchAvatar extends StatelessWidget {
     final bg = _bgFor(displayName);
     final initials = _initialsFor(displayName);
     final fontSize = size * 0.38;
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchAvatar: initials fallback initials="$initials" displayName="$displayName" semantic="$semanticIdentifier"');
-    }
+    
     return Container(
       alignment: Alignment.center,
       decoration: BoxDecoration(

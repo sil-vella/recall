@@ -9,12 +9,10 @@ import 'package:http_parser/http_parser.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/auth_manager.dart';
-import '../../tools/logging/logger.dart';
 import '../../utils/consts/config.dart';
 import 'interceptor.dart';
 
 class ConnectionsApiModule extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Profile avatar multipart + API trace (enable-logging-switch.mdc) — set false after debugging
 
   /// Retry once after this delay when a request fails with a transient error (e.g. public WiFi).
   static const Duration _retryDelay = Duration(milliseconds: 1500);
@@ -22,8 +20,6 @@ class ConnectionsApiModule extends ModuleBase {
 
   final String baseUrl;
   AuthManager? _authManager;
-  final Logger _logger = Logger();
-
   /// ✅ Use InterceptedClient instead of normal `http`
   final InterceptedClient client = InterceptedClient.build(
     interceptors: [AuthInterceptor()],
@@ -64,7 +60,6 @@ class ConnectionsApiModule extends ModuleBase {
             details.contains('timeout') ||
             details.contains('socket');
         if (attempt < _maxAttempts && isTransient) {
-          if (LOGGING_SWITCH) _logger.info('ConnectionsApi: retrying after transient error (attempt $attempt)');
           await Future.delayed(_retryDelay);
           continue;
         }
@@ -89,11 +84,10 @@ class ConnectionsApiModule extends ModuleBase {
   /// ✅ GET Request without manually adding tokens (with retry on transient failures)
   Future<dynamic> sendGetRequest(String route) async {
     final url = Uri.parse('$baseUrl$route');
-    if (LOGGING_SWITCH) _logger.info('ConnectionsApi: GET $route');
 
     try {
       final response = await _withRetry(() => client.get(url));
-      return _processResponse(response, route: route);
+      return _processResponse(response);
     } catch (e) {
       return _handleError('GET', url, e);
     }
@@ -108,7 +102,6 @@ class ConnectionsApiModule extends ModuleBase {
     String mimeType = 'application/octet-stream',
   }) async {
     final url = Uri.parse('$baseUrl$route');
-    if (LOGGING_SWITCH) _logger.info('ConnectionsApi: MULTIPART POST $route');
 
     try {
       MediaType? contentType;
@@ -134,12 +127,8 @@ class ConnectionsApiModule extends ModuleBase {
 
       final streamed = await _withRetry(doSend);
       final response = await http.Response.fromStream(streamed);
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'ConnectionsApi: MULTIPART done $route → ${response.statusCode} (${fileBytes.length} bytes)',
-        );
-      }
-      return _processResponse(response, route: route);
+      
+      return _processResponse(response);
     } catch (e) {
       return _handleError('POST(multipart)', url, e);
     }
@@ -148,7 +137,6 @@ class ConnectionsApiModule extends ModuleBase {
   /// ✅ POST Request without manually adding tokens (with retry on transient failures)
   Future<dynamic> sendPostRequest(String route, Map<String, dynamic> data) async {
     final url = Uri.parse('$baseUrl$route');
-    if (LOGGING_SWITCH) _logger.info('ConnectionsApi: POST $route');
 
     try {
       final response = await _withRetry(() => client.post(
@@ -156,7 +144,7 @@ class ConnectionsApiModule extends ModuleBase {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(data),
       ));
-      return _processResponse(response, route: route);
+      return _processResponse(response);
     } catch (e) {
       return _handleError('POST', url, e);
     }
@@ -165,7 +153,6 @@ class ConnectionsApiModule extends ModuleBase {
   /// ✅ Unified Request Method (with retry on transient failures)
   Future<dynamic> sendRequest(String route, {required String method, Map<String, dynamic>? data}) async {
     final url = Uri.parse('$baseUrl$route');
-    if (LOGGING_SWITCH) _logger.info('ConnectionsApi: ${method.toUpperCase()} $route');
     http.Response response;
 
     try {
@@ -187,24 +174,19 @@ class ConnectionsApiModule extends ModuleBase {
       }
 
       response = await _withRetry(doRequest);
-      return _processResponse(response, route: route);
+      return _processResponse(response);
     } catch (e) {
       return _handleError(method, url, e);
     }
   }
 
   /// ✅ Process Server Response
-  dynamic _processResponse(http.Response response, {String? route}) {
-    final routeLabel = route ?? response.request?.url.path ?? '';
-
+  dynamic _processResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (LOGGING_SWITCH) _logger.info('ConnectionsApi: $routeLabel → ${response.statusCode}');
       return jsonDecode(response.body);
     }
 
-    if (LOGGING_SWITCH) {
-      _logger.warning('ConnectionsApi: $routeLabel → ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) + "…" : response.body}');
-    }
+    
 
     if (response.statusCode == 401) {
       // Don't clear tokens here - let AuthManager handle it through its own logic
@@ -236,8 +218,6 @@ class ConnectionsApiModule extends ModuleBase {
   /// ✅ Handle Errors with Detailed Logging
   /// Returns a user-facing [message] and [details] for debugging.
   Map<String, dynamic> _handleError(String method, Uri url, Object e) {
-    if (LOGGING_SWITCH) _logger.error('ConnectionsApi: $method ${url.path} failed: $e', error: e);
-
     const String message =
         "Cannot reach server. If you're on public WiFi, try mobile data or a different network.";
 
@@ -250,10 +230,6 @@ class ConnectionsApiModule extends ModuleBase {
 
   /// ✅ Send test request to verify connection
   void _sendTestRequest() {
-    sendGetRequest('/health').then((response) {
-      if (LOGGING_SWITCH) _logger.info('ConnectionsApi: health check OK');
-    }).catchError((error) {
-      if (LOGGING_SWITCH) _logger.error('ConnectionsApi: health check failed', error: error);
-    });
+    sendGetRequest('/health').then((response) {}).catchError((_) {});
   }
 }

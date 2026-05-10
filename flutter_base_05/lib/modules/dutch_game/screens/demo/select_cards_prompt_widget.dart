@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../../core/managers/state_manager.dart';
-import '../../../../tools/logging/logger.dart';
 
 /// Select Cards Prompt Widget
 /// 
@@ -15,9 +14,6 @@ class SelectCardsPromptWidget extends StatefulWidget {
 }
 
 class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with SingleTickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = false;
-  static final Logger _logger = Logger();
-  
   late AnimationController _animationController;
   late Animation<double> _glowAnimation;
 
@@ -98,9 +94,7 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
           shouldShow = true;
         }
         
-        if (LOGGING_SWITCH) {
-          _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, hasDrawnCard=$hasDrawnCard, shouldShow=$shouldShow');
-        }
+        
         
         if (!shouldShow || promptText.isEmpty) {
           return const SizedBox.shrink();

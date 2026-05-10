@@ -311,14 +311,7 @@ AppManager().hooksManager.registerHookWithData('app_version_checked', (data) {
 
 ## Logging
 
-All components include logging switches for debugging:
-
-- `VersionCheckService.LOGGING_SWITCH`
-- `AppManager.LOGGING_SWITCH`
-- `UpdateRequiredScreen.LOGGING_SWITCH`
-- `SystemActionsModule.LOGGING_SWITCH` (Python)
-
-Enable logging by setting switches to `true` in respective files.
+Per-component `LOGGING_SWITCH` tracing in the Flutter update flow has been removed with the rest of the client logging cleanup. Python-side switches (e.g. `SystemActionsModule.LOGGING_SWITCH`) may still exist where applicable.
 
 ## Testing
 

@@ -83,63 +83,23 @@ This ensures the VPS exposes only the necessary services.
 
 ---
 
-### 4. Nginx + SSL + Domains (`04_setup_nginx.yml` + `templates/nginx-site.conf.j2`)
+### 4. Nginx + SSL (manual on VPS)
 
-- **Playbook**: `playbooks/rop01/04_setup_nginx.yml`
-- **Template**: `playbooks/rop01/templates/nginx-site.conf.j2`
-- **Hosts**: `{{ vm_name }}_user`
+Production **nginx vhosts, TLS, and routing** are maintained **on the server over SSH** (repo playbooks `04_setup_nginx.yml`, `04b_update_nginx_site_templates.yml`, template `templates/nginx-site.conf.j2`, and `scripts/nginx_wipe_remote.sh` were removed).
 
-**Domains configuration** (default when `vm_name=rop01`):
-- `reignofplay.com` and `www.reignofplay.com` → static root `/var/www/reignofplay.com`.
-- `dutch.mt` (production) and `dutch.reignofplay.com` → app root `/var/www/dutch.reignofplay.com`, backed by:
-  - Flask backend on **port 5001** (`backend_port: 5001`)
-  - Dart WebSocket server on **port 8080** (`backend_ws_port: 8080`).
-- Production is **dutch.mt**; both dutch.mt and dutch.reignofplay.com use the same app root and backend.
+**Ansible retained for Dutch web** (hosts `{{ vm_name }}_user`):
+- `playbooks/rop01/16_dutch_maintenance.yml` — toggles maintenance snippet + nginx includes; deploys `templates/maintenance.html` into the Dutch docroot.
+- `playbooks/rop01/16_dutch_maintenance_revert.yml` — removes those nginx changes.
+- `playbooks/rop01/17_upload_dutch_landing_site.yml` — copies **only** `app_dev/website/index.html` and files under `website/static_landing_css/`, `website/static_landing_js/`, and `website/static_landing_images/` into `/var/www/dutch.reignofplay.com/` (does not touch `downloads/`, `sponsors/`, `sim_players/`). Nginx must serve those three URL prefixes from disk — see `website/README.md`.
 
-**What the playbook does**:
-- Installs Nginx + Certbot.
-- Creates site directories under `/var/www/` and default `index.html` pages.
-- Renders and enables Nginx site configs from `nginx-site.conf.j2`.
-- Obtains and configures **Let’s Encrypt** certificates for the domains.
-- Adds security headers into `nginx.conf`.
-- Sets up a daily Certbot renewal cron job.
-
-**Key Nginx behavior for `dutch.mt` / `dutch.reignofplay.com`** (from `nginx-site.conf.j2`):
-- Reverse proxy API requests:
-
-  ```nginx
-  location / {
-      proxy_pass http://127.0.0.1:5001;
-      proxy_http_version 1.1;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-  }
-  ```
-
-- WebSocket proxy at `/ws` → Dart server on `127.0.0.1:8080`.
-- **Static downloads** directory we added:
-
-  ```nginx
-  location /downloads/ {
-      alias {{ item.root_dir | default('/var/www/' + item.domain) }}/downloads/;
-      autoindex off;
-      default_type application/octet-stream;
-      add_header Content-Disposition "attachment";
-  }
-  ```
-
-This serves `https://dutch.mt/downloads/...` (and dutch.reignofplay.com) directly from the filesystem.
+**Reference layout** when editing nginx by hand: static landing + preserved trees under `/var/www/dutch.reignofplay.com`; proxy API routes to Flask `127.0.0.1:5001`; `/ws` to Dart `127.0.0.1:8080`; `/downloads/` from disk. Short cache on `index.html` helps landing updates.
 
 #### Promotional ads (Flutter, static JSON + media)
 
 The app loads promotional ad definitions from nginx under `/sponsors/` (same static tree as card-back images):
 
-- **Manifest:** `https://dutch.mt/sponsors/promotional_ads.json` (JSON converted from `sponsors/promotional_ads.yaml` at repo root during upload).
-- **Media:** `https://dutch.mt/sponsors/adverts/<filename>` (images/videos referenced in the manifest).
+- **Manifest:** `https://dutch.reignofplay.com/sponsors/promotional_ads.json` (JSON converted from `sponsors/promotional_ads.yaml` at repo root during upload).
+- **Media:** `https://dutch.reignofplay.com/sponsors/adverts/<filename>` (images/videos referenced in the manifest).
 
 **Update production** after editing the YAML and/or files in `sponsors/media/` (see `sponsors/media/README.txt`):
 
@@ -305,8 +265,8 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
    - For `vps` (default):
 
      ```bash
-     API_URL="https://dutch.mt"
-     WS_URL="wss://dutch.mt/ws"
+     API_URL="https://dutch.reignofplay.com"
+     WS_URL="wss://dutch.reignofplay.com/ws"
      ```
 
    - For `local`: uses your LAN IP for the Python and Dart services.
@@ -340,7 +300,7 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 - A new APK is available at:
 
   ```
-  https://dutch.mt/downloads/v<APP_VERSION>/app.apk
+  https://dutch.reignofplay.com/downloads/v<APP_VERSION>/app.apk
   ```
 
 - The backend’s update endpoint `/public/check-updates` will advertise this version and download link without needing a Flask restart.
@@ -395,7 +355,7 @@ cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
     "current_version": "2.0.0",
     "update_available": true,
     "update_required": true,
-    "download_link": "https://dutch.mt/downloads/v2.1.0/app.apk",
+    "download_link": "https://dutch.reignofplay.com/downloads/v2.1.0/app.apk",
     "manifest_path": "...",
     ...
   }
@@ -548,7 +508,7 @@ To perform a full **mobile app + backend** release with versioned updates:
 7. **Sanity-check version endpoint**:
 
    ```bash
-   curl "https://dutch.mt/public/check-updates?current_version=2.1.0"
+   curl "https://dutch.reignofplay.com/public/check-updates?current_version=2.1.0"
    ```
 
    - Expect `server_version: "2.2.0"`.

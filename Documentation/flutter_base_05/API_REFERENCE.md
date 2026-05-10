@@ -720,71 +720,9 @@ final json = creditBucket.toJson();
 
 ## Utilities
 
-### Logger
+### Logging (removed)
 
-**File**: `lib/tools/logging/logger.dart`
-
-#### Class Definition
-```dart
-class Logger
-```
-
-#### Key Methods
-
-##### `void info(String message)`
-Logs an informational message.
-
-**Parameters**:
-- `message` (String): Message to log
-
-**Example**:
-```dart
-final logger = Logger();
-logger.info("User logged in successfully");
-```
-
-##### `void debug(String message)`
-Logs a debug message.
-
-**Parameters**:
-- `message` (String): Message to log
-
-**Example**:
-```dart
-logger.debug("Processing user data");
-```
-
-##### `void error(String message, {Object? error, StackTrace? stackTrace})`
-Logs an error message.
-
-**Parameters**:
-- `message` (String): Error message
-- `error` (Object?): Error object (optional)
-- `stackTrace` (StackTrace?): Stack trace (optional)
-
-**Example**:
-```dart
-try {
-  // Some operation
-} catch (e, stackTrace) {
-  logger.error("Operation failed", error: e, stackTrace: stackTrace);
-}
-```
-
-##### `void forceLog(String message, {String name = 'AppLogger', Object? error, StackTrace? stackTrace, int level = 0})`
-Forces a log message regardless of configuration.
-
-**Parameters**:
-- `message` (String): Message to log
-- `name` (String): Logger name (default: 'AppLogger')
-- `error` (Object?): Error object (optional)
-- `stackTrace` (StackTrace?): Stack trace (optional)
-- `level` (int): Log level (default: 0)
-
-**Example**:
-```dart
-logger.forceLog("Critical error occurred", level: 1000);
-```
+The previous app-wide `Logger` (`lib/tools/logging/logger.dart`), `Config.loggerOn`, and `LOGGING_SWITCH` usage in the Flutter client have been **removed**. Any new logging approach should be documented here when adopted.
 
 ## Configuration
 
@@ -798,16 +736,6 @@ class Config
 ```
 
 #### Static Properties
-
-##### `static const bool loggerOn`
-Controls whether logging is enabled.
-
-**Example**:
-```dart
-if (Config.loggerOn) {
-  logger.info("This will be logged");
-}
-```
 
 ##### `static const String appTitle`
 Application title.
@@ -1079,7 +1007,6 @@ Map<String, dynamic> healthCheck() {
 
 ```dart
 class UserModule extends ModuleBase {
-  static final Logger _logger = Logger();
   late ConnectionsApiModule _apiModule;
   
   UserModule() : super("user_module", dependencies: ["connections_api_module"]);
@@ -1098,8 +1025,6 @@ class UserModule extends ModuleBase {
       "userData": null,
       "error": null,
     });
-    
-    _logger.info('✅ UserModule initialized');
   }
   
   Future<void> loadUserProfile() async {
@@ -1129,7 +1054,6 @@ class UserModule extends ModuleBase {
   
   @override
   void dispose() {
-    _logger.info('🗑 UserModule disposed');
     super.dispose();
   }
   
@@ -1317,11 +1241,8 @@ try {
 - Handle authentication errors gracefully
 - Use secure storage for sensitive data
 
-### 5. Logging
-- Use the Logger class for all logging
-- Include appropriate log levels
-- Add context to error messages
-- Use structured logging for debugging
+### 5. Diagnostics
+- Surface errors to the user or analytics as appropriate; the legacy app `Logger` has been removed.
 
 ## Dutch Game Helpers
 

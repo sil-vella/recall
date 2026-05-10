@@ -9,9 +9,7 @@ import '../../../modules/notifications_module/notifications_module.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
-import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // authenticated resumable_room hint + resume path (disconnect rejoin; set false after test)
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -20,8 +18,6 @@ class WSEventHandler {
   final WSEventManager _eventManager;
   final StateManager _stateManager;
   final ModuleManager _moduleManager;
-  static final Logger _logger = Logger();
-
   WSEventHandler({
     required NativeWebSocketAdapter? socket,
     required WSEventManager eventManager,
@@ -35,29 +31,19 @@ class WSEventHandler {
   /// Handle connection event
   void handleConnect(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔌 WebSocket connection established');
-      }
+      
       if (data is Map<String, dynamic>) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('Connection data: ${data.keys.toList()}');
-        }
-        if (LOGGING_SWITCH) {
-          _logger.debug('Session ID: ${data['session_id']}');
-        }
+        
+        
       }
       
       // Use validated state updater
-      if (LOGGING_SWITCH) {
-        _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus()');
-      }
+      
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: true,
         sessionData: data is Map<String, dynamic> ? data : null,
       );
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed');
-      }
+      
       
       // 🎣 Trigger websocket_connect hook for other modules
       HooksManager().triggerHookWithData('websocket_connect', {
@@ -66,26 +52,18 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ WebSocket connection handled successfully');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error handling WebSocket connection: $e');
-      }
+      
     }
   }
 
   /// Handle disconnection event
   void handleDisconnect(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔌 WebSocket connection lost');
-      }
+      
       if (data is Map<String, dynamic>) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('Disconnect data: ${data.keys.toList()}');
-        }
+        
       }
       
       // Use validated state updater
@@ -100,26 +78,18 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ WebSocket disconnection handled successfully');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error handling WebSocket disconnection: $e');
-      }
+      
     }
   }
 
   /// Handle connection error event
   void handleConnectError(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ WebSocket connection error occurred');
-      }
+      
       if (data is Map<String, dynamic>) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('Error data: ${data.keys.toList()}');
-        }
+        
       }
       
       // Use validated state updater
@@ -134,26 +104,18 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ WebSocket connection error handled successfully');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error handling WebSocket connection error: $e');
-      }
+      
     }
   }
 
   /// Handle session data event
   void handleSessionData(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('📊 WebSocket session data received');
-      }
+      
       if (data is Map<String, dynamic>) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('Session data keys: ${data.keys.toList()}');
-        }
+        
       }
       
       // Use validated state updater
@@ -161,22 +123,16 @@ class WSEventHandler {
         data is Map<String, dynamic> ? data : null,
       );
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ WebSocket session data handled successfully');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error handling WebSocket session data: $e');
-      }
+      
     }
   }
 
     /// Handle room joined event
   void handleRoomJoined(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🚪 WebSocket room joined event received');
-      }
+      
       
       // Convert LinkedMap to Map<String, dynamic> if needed
       final Map<String, dynamic> convertedData;
@@ -196,9 +152,7 @@ class WSEventHandler {
       
       // Check if current user is the room owner
       final isRoomOwner = currentUserId == ownerId;
-      if (LOGGING_SWITCH) {
-        _logger.info('📥 room_joined received: roomId=$roomId, owner_id=$ownerId, currentUserId=$currentUserId, isRoomOwner=$isRoomOwner');
-      }
+      
       
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
@@ -221,9 +175,7 @@ class WSEventHandler {
         current['isInGame'] = true;
         games[roomId] = current;
         DutchGameHelpers.updateUIState({'games': games});
-        if (LOGGING_SWITCH) {
-          _logger.info('📥 room_joined: games[$roomId] updated, isRoomOwner=$isRoomOwner, owner_id=$ownerId');
-        }
+        
       } catch (_) {}
       
       // Trigger event callbacks for room management screen
@@ -264,25 +216,17 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ WebSocket room joined event handled successfully');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error handling WebSocket room joined event: $e');
-      }
+      
     }
   }
 
   /// Handle join room success event
   void handleJoinRoomSuccess(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ WebSocket join_room_success event received');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.debug('Join room success data: $data');
-      }
+      
+      
       
       // Convert LinkedMap to Map<String, dynamic> if needed
       final Map<String, dynamic> convertedData;
@@ -335,13 +279,9 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ WebSocket join_room_success event handled successfully');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error handling join_room_success: $e');
-      }
+      
     }
   }
 
@@ -405,11 +345,7 @@ class WSEventHandler {
           ? Map<String, dynamic>.from(data)
           : <String, dynamic>{};
       final message = payload['message']?.toString() ?? '';
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '📛 join_room_error message=$message keys=${payload.keys.toList()} room_id=${payload['room_id']} game_level=${payload['game_level']} required_coins=${payload['required_coins']}',
-        );
-      }
+      
 
       // Trigger error callbacks
       _eventManager.triggerCallbacks('error', {
@@ -443,11 +379,7 @@ class WSEventHandler {
       final roomId = data['room_id'] ?? '';
       final roomData = data;  // Use the entire data object since it's simplified
       final ownerId = data['owner_id'] ?? '';
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '🏟 create_room_success — room_id=$roomId owner_id=$ownerId is_tournament=${data['is_tournament']} is_random_join=${data['is_random_join']} min_players=${data['min_players']} accepted_players=${data['accepted_players']}',
-        );
-      }
+      
       
       // Get current user ID from login module state
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -538,9 +470,7 @@ class WSEventHandler {
   /// Handle create room error event
   void handleCreateRoomError(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🏟 create_room_error received — data=$data');
-      }
+      
       // Same modal path as ws_instant_notification / rematch invite ([NotificationsModule.addPendingWsInstant]).
       final map =
           data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
@@ -609,11 +539,7 @@ class WSEventHandler {
         roomInfo: null,
       );
 
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          '[kick-trace] handleLeaveRoomSuccess room=$roomId reason=${map['reason']} session=${map['session_id']} keys=${map.keys.toList()}',
-        );
-      }
+      
 
       final last = DutchGameHelpers.getLastMultiplayerRoomIdSync();
       if (last != null && last == '$roomId') {
@@ -829,7 +755,6 @@ class WSEventHandler {
   }
 
 
-
   /// Handle unified event (for custom events)
   void handleUnifiedEvent(String eventName, dynamic data) {
     try {
@@ -892,14 +817,10 @@ class WSEventHandler {
   /// Handle rooms_list event (response to list_rooms request)
   void handleRoomsList(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('📋 Rooms list received');
-      }
+      
       
       if (data is! Map<String, dynamic>) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('Invalid rooms_list data format');
-        }
+        
         return;
       }
       
@@ -934,9 +855,7 @@ class WSEventHandler {
         'lastUpdated': DateTime.now().toIso8601String(),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ Updated available games: ${availableGames.length} games');
-      }
+      
       
       // Trigger custom event callback
       _eventManager.triggerCallbacks('rooms_list', {
@@ -947,18 +866,14 @@ class WSEventHandler {
       });
       
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error handling rooms_list: $e');
-      }
+      
     }
   }
   
   /// Handle authentication success
   void handleAuthenticationSuccess(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔐 User authenticated');
-      }
+      
       
       WebSocketStateHelpers.updateAuthenticationStatus(
         isAuthenticated: true,
@@ -975,18 +890,14 @@ class WSEventHandler {
         }
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error handling authentication success: $e');
-      }
+      
     }
   }
   
   /// Handle authentication failure
   void handleAuthenticationFailed(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Authentication failed');
-      }
+      
       
       WebSocketStateHelpers.updateAuthenticationStatus(
         isAuthenticated: false,
@@ -1000,18 +911,14 @@ class WSEventHandler {
       
       // Authentication failure - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error handling authentication failure: $e');
-      }
+      
     }
   }
   
   /// Handle authentication error
   void handleAuthenticationError(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.error('Authentication error');
-      }
+      
       
       WebSocketStateHelpers.updateAuthenticationStatus(
         isAuthenticated: false,
@@ -1024,9 +931,7 @@ class WSEventHandler {
       
       // Authentication error - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error handling authentication error: $e');
-      }
+      
     }
   }
   /// Handle core ws_instant_notification event (Dart backend pushes instant notification to session).
@@ -1037,24 +942,18 @@ class WSEventHandler {
       final mod = _moduleManager.getModuleByType<NotificationsModule>();
       mod?.addPendingWsInstant(payload);
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error handling ws_instant_notification: $e');
-      }
+      
     }
   }
 
   /// Dart backend pushed [inbox_changed] after Python created a notification — refresh inbox from API.
   void handleInboxChanged(dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('inbox_changed: refresh inbox (payload keys: ${data is Map ? (data as Map).keys.toList() : []})');
-      }
+      
       final mod = _moduleManager.getModuleByType<NotificationsModule>();
       mod?.notifyInboxRefreshRequested();
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error handling inbox_changed: $e');
-      }
+      
     }
   }
 
@@ -1105,18 +1004,14 @@ class WSEventHandler {
         'rematch_waiting_game_id': roomId,
       });
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error handling restart_invite: $e');
-      }
+      
     }
   }
 
   /// Handle custom events (like game event acknowledgments)
   void handleCustomEvent(String eventType, dynamic data) {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🎮 Custom event received: $eventType');
-      }
+      
       
       // Trigger event callbacks
       _eventManager.triggerCallbacks(eventType, data);
@@ -1129,9 +1024,7 @@ class WSEventHandler {
       });
       
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Error handling custom event $eventType: $e');
-      }
+      
     }
   }
 } 

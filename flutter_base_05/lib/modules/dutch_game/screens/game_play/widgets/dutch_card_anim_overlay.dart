@@ -9,7 +9,6 @@ import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../utils/dutch_anim_runtime.dart';
 
-const bool LOGGING_SWITCH = false; // enable-logging-switch.mdc; set false after test
 
 /// Same angles as [CardWidget]'s [RotatedBox] quarter-turns (radians, clockwise).
 double _tableOrientationToRadians(CardTableOrientation o) {
@@ -113,7 +112,6 @@ class DutchCardAnimOverlay extends StatefulWidget {
 
 class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     with SingleTickerProviderStateMixin {
-  final Logger _logger = Logger();
   final DutchAnimRuntime _runtime = DutchAnimRuntime.instance;
 
   AnimationController? _controller;
@@ -203,11 +201,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_controller == null || _controller!.status != AnimationStatus.completed) return;
-      if (LOGGING_SWITCH) {
-        _logger.info(
-          'DutchCardAnimOverlay: flight complete seq=$_runningSeq value=${_controller!.value.toStringAsFixed(3)}',
-        );
-      }
+      
       // Dequeue first; do not clear frozen rects here — [_kick] -> [_applyPlan] replaces them
       // in the same frame so the draw ghost does not vanish for a frame before play starts.
       _runtime.dequeueHead();
@@ -377,11 +371,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         final c0 = cards != null && cards.isNotEmpty && cards.first is Map ? cards.first as Map : null;
         final hasFrom = c0 != null &&
             (_parseHandIndex(c0['from_hand_index']) != null || _parseHandIndex(c0['fromHandIndex']) != null);
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            'DutchCardAnimOverlay: skip reposition seq=$seq reason=${hasFrom ? 'unresolved_rects' : 'missing_from_index'}',
-          );
-        }
+        
         _runtime.dequeueHead();
         _stallFrames = 0;
         if (mounted) setState(() {});
@@ -400,9 +390,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       }
       _stallFrames++;
       if (_stallFrames > _maxStallFrames) {
-        if (LOGGING_SWITCH) {
-          _logger.warning('DutchCardAnimOverlay: stall skip action=$action seq=$seq');
-        }
+        
         _runtime.dequeueHead();
         _stallFrames = 0;
         if (mounted) setState(() {});
@@ -416,9 +404,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     _stallFrames = 0;
     _runningSeq = seq;
     _applyPlan(plan, head as Map<String, dynamic>);
-    if (LOGGING_SWITCH) {
-      _logger.info('DutchCardAnimOverlay: start flight action=$action seq=$seq plan=${plan.tag}');
-    }
+    
     if (mounted) setState(() {});
     _controller!.forward(from: 0.0);
   }
@@ -444,26 +430,10 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
           if (ghostRect != null && _flightModel != null) {
             _playDeckGhostRect = ghostRect;
             _playDeckGhostModel = _placeholderFaceDown;
-            if (LOGGING_SWITCH) {
-              final events = animSnap[DutchAnimRuntime.eventDataKey] as List? ?? [];
-              final src = events.length >= 2 &&
-                      (events[1] is Map) &&
-                      ((events[1] as Map)['action_type']?.toString() == 'reposition')
-                  ? 'reposition_from'
-                  : 'draw_pile';
-              _logger.info(
-                'DutchCardAnimOverlay: play static ghost src=$src left=${ghostRect['left']} '
-                'top=${ghostRect['top']}',
-              );
-            }
+            
           }
         }
-        if (LOGGING_SWITCH && action == 'reposition') {
-          _logger.info(
-            'DutchCardAnimOverlay: reposition linear from=(${_flightFromRect?['left']},${_flightFromRect?['top']}) '
-            'to=(${_flightToRect?['left']},${_flightToRect?['top']})',
-          );
-        }
+        
         break;
       case _PlanTag.jackSwap:
         final a = plan.a!;

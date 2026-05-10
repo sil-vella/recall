@@ -2,7 +2,6 @@ from core.modules.base_module import BaseModule
 from core.managers.database_manager import DatabaseManager
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.managers.redis_manager import RedisManager
-from tools.logger.custom_logging import custom_log
 from flask import request, jsonify
 from datetime import datetime
 from typing import Dict, Any

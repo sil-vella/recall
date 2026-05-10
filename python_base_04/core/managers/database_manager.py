@@ -6,7 +6,6 @@ from pymongo.read_concern import ReadConcern
 from pymongo.write_concern import WriteConcern
 from pymongo.errors import OperationFailure, ConnectionFailure
 from urllib.parse import quote_plus
-from tools.logger.custom_logging import custom_log
 import logging
 import os
 import queue

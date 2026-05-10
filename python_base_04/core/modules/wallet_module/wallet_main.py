@@ -1,5 +1,4 @@
 from core.modules.base_module import BaseModule
-from tools.logger.custom_logging import custom_log
 from flask import jsonify
 from typing import Dict, Any
 

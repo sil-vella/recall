@@ -17,15 +17,18 @@ This rule is **for the AI**: when you work on logic that has a `LOGGING_SWITCH` 
 
 The **custom `Logger` and per-file `LOGGING_SWITCH` pattern have been removed** from the Flutter client. Do not reintroduce `lib/tools/logging/logger.dart` or `LOGGING_SWITCH` in `flutter_base_05` unless the project explicitly adds a new logging design.
 
-## What to do (Python / Dart backend)
+## Dart game server (`dart_bkend_base_01`)
 
-1. **Use only LOGGING_SWITCH** (Dart backend only, where present): Do **not** create new switch names (e.g. no `AUTH_LOGGING_SWITCH`, `TOKEN_LOGGING_SWITCH`, etc.). Where the codebase uses **`LOGGING_SWITCH`**, use that single name.
+The **custom `Logger` (`server_logger.dart`), `LOGGING_SWITCH`, and `_logger` guarded calls have been removed** from the Dart WebSocket/game server. Do not reintroduce that pattern unless the project explicitly adds a new logging design. Use `print` sparingly if needed for local debugging only.
+
+## What to do (Python only)
+
+1. **Use only LOGGING_SWITCH** (Python only, where present): Do **not** create new switch names (e.g. no `AUTH_LOGGING_SWITCH`, `TOKEN_LOGGING_SWITCH`, etc.). Where the codebase uses **`LOGGING_SWITCH`**, use that single name.
 2. **Enable the switch where needed**: Set `LOGGING_SWITCH = true` in the file(s) that contain the logic you are changing or that are relevant to the task. Do not enable everywhere—only where it helps trace the current task.
-3. **Guard log calls**: Add or keep `if (LOGGING_SWITCH) { ... }` (Dart) or `custom_log(..., isOn=LOGGING_SWITCH)` (Python) for the paths you care about.
+3. **Guard log calls**: Add or keep `custom_log(..., isOn=LOGGING_SWITCH)` (Python) for the paths you care about.
 4. **Log destination**: Python logs go to `python_base_04/tools/logger/server.log` (or the configured logger output).
 
 ## Where LOGGING_SWITCH may still appear
 
-- Dart game server: `dart_bkend_base_01/**/*.dart` (where not yet refactored)
 - Python: `python_base_04/**/*.py` (e.g. app_manager, jwt_manager, redis_manager, user_management_module, etc.)
 - Match the switch to the logic under test.

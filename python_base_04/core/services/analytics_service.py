@@ -6,13 +6,11 @@ This service handles tracking and storing user events in MongoDB for analytics p
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-from tools.logger.custom_logging import custom_log
 
 
 class AnalyticsService:
     """Service for tracking and querying user analytics events."""
     
-    LOGGING_SWITCH = False  # Enabled for debugging
     
     def __init__(self, app_manager=None):
         """Initialize Analytics Service."""
@@ -45,10 +43,8 @@ class AnalyticsService:
         Returns:
             True if event was tracked successfully, False otherwise
         """
-        custom_log(f"AnalyticsService.track_event: Called - event_type={event_type}, user_id={user_id}, metrics_enabled={metrics_enabled}", level="DEBUG", isOn=AnalyticsService.LOGGING_SWITCH)
         
         if not self.db_manager:
-            custom_log("AnalyticsService: Database manager not available", level="WARNING", isOn=AnalyticsService.LOGGING_SWITCH)
             return False
         
         try:
@@ -64,20 +60,13 @@ class AnalyticsService:
             
             result = self.db_manager.insert("user_events", event)
             if result:
-                custom_log(f"AnalyticsService: Event inserted to MongoDB - event_type={event_type}, user_id={user_id}", level="INFO", isOn=AnalyticsService.LOGGING_SWITCH)
                 # Automatically update Prometheus metrics for relevant events
                 if metrics_enabled:
-                    custom_log(f"AnalyticsService: Metrics enabled, calling _update_metrics_from_event for {event_type}", level="DEBUG", isOn=AnalyticsService.LOGGING_SWITCH)
                     self._update_metrics_from_event(event_type, event_data)
-                else:
-                    custom_log(f"AnalyticsService: Metrics disabled (metrics_enabled=False), skipping metric update for {event_type}", level="DEBUG", isOn=AnalyticsService.LOGGING_SWITCH)
                 return True
-            else:
-                custom_log(f"AnalyticsService: Failed to insert event: {event_type}", level="ERROR", isOn=AnalyticsService.LOGGING_SWITCH)
-                return False
+            return False
                 
         except Exception as e:
-            custom_log(f"AnalyticsService: Error tracking event {event_type}: {e}", level="ERROR", isOn=AnalyticsService.LOGGING_SWITCH)
             return False
     
     def _update_metrics_from_event(self, event_type: str, event_data: Dict[str, Any]):
@@ -90,18 +79,14 @@ class AnalyticsService:
             event_type: Type of event
             event_data: Event data dictionary
         """
-        custom_log(f"AnalyticsService._update_metrics_from_event: Called - event_type={event_type}, event_data={event_data}", level="DEBUG", isOn=AnalyticsService.LOGGING_SWITCH)
         
         if not self.app_manager:
-            custom_log("AnalyticsService._update_metrics_from_event: app_manager not available", level="WARNING", isOn=AnalyticsService.LOGGING_SWITCH)
             return
         
         metrics_collector = self.app_manager.get_metrics_collector()
         if not metrics_collector:
-            custom_log("AnalyticsService._update_metrics_from_event: metrics_collector not available", level="WARNING", isOn=AnalyticsService.LOGGING_SWITCH)
             return
         
-        custom_log(f"AnalyticsService._update_metrics_from_event: metrics_collector obtained, looking up mapping for {event_type}", level="DEBUG", isOn=AnalyticsService.LOGGING_SWITCH)
         
         # Map event types to metric types and extract payload
         event_to_metric_map = {
@@ -165,22 +150,17 @@ class AnalyticsService:
         # Check if this event type should update metrics
         metric_config = event_to_metric_map.get(event_type)
         if metric_config:
-            custom_log(f"AnalyticsService._update_metrics_from_event: Found mapping - event_type={event_type} → metric_type={metric_config['metric_type']}, payload={metric_config['payload']}", level="INFO", isOn=AnalyticsService.LOGGING_SWITCH)
             try:
                 # Metrics are enabled at track_event() level via metrics_enabled parameter
                 # This respects the module's METRICS_SWITCH when passed
-                custom_log(f"AnalyticsService._update_metrics_from_event: Calling metrics_collector.collect_metric(metric_type={metric_config['metric_type']}, payload={metric_config['payload']})", level="DEBUG", isOn=AnalyticsService.LOGGING_SWITCH)
                 metrics_collector.collect_metric(
                     metric_config['metric_type'],
                     metric_config['payload'],
                     isOn=True  # Already checked at track_event() level
                 )
-                custom_log(f"AnalyticsService._update_metrics_from_event: Successfully called collect_metric for {metric_config['metric_type']}", level="DEBUG", isOn=AnalyticsService.LOGGING_SWITCH)
-            except Exception as e:
-                custom_log(f"AnalyticsService: Error updating metrics for event {event_type}: {e}", level="ERROR", isOn=AnalyticsService.LOGGING_SWITCH)
-        else:
-            custom_log(f"AnalyticsService._update_metrics_from_event: No metric mapping found for event_type={event_type} (not a metric-tracked event)", level="DEBUG", isOn=AnalyticsService.LOGGING_SWITCH)
-    
+            except Exception:
+                pass
+
     def get_user_events(
         self,
         user_id: str,
@@ -222,7 +202,6 @@ class AnalyticsService:
             return events if events else []
             
         except Exception as e:
-            custom_log(f"AnalyticsService: Error querying events: {e}", level="ERROR")
             return []
     
     def get_event_summary(
@@ -270,7 +249,6 @@ class AnalyticsService:
             }
             
         except Exception as e:
-            custom_log(f"AnalyticsService: Error getting event summary: {e}", level="ERROR")
             return {'count': 0, 'unique_users': 0}
     
     def health_check(self) -> Dict[str, Any]:

@@ -3,7 +3,6 @@ from core.modules.user_management_module import tier_rank_level_matcher as match
 from core.managers.database_manager import DatabaseManager
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.managers.redis_manager import RedisManager
-from tools.logger.custom_logging import custom_log
 from utils.config.config import Config
 from flask import request, jsonify, send_file, abort
 from datetime import datetime
@@ -29,7 +28,6 @@ try:
 except ImportError as e:
     GOOGLE_AUTH_AVAILABLE = False
     GoogleAuthService = None
-    # Log at module level (before LOGGING_SWITCH is available)
     print(f"⚠️ UserManagement: Failed to import GoogleAuthService - ImportError: {e}")
 except Exception as e:
     GOOGLE_AUTH_AVAILABLE = False
@@ -43,7 +41,6 @@ from core.services.analytics_service import AnalyticsService
 
 class UserManagementModule(BaseModule):
     # Logging switch: /public/register, /public/register-guest, login, Google sign-in, invite search, etc.
-    LOGGING_SWITCH = False  # Registration + auth paths → server.log (see .cursor/rules/enable-logging-switch.mdc)
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):
@@ -120,11 +117,6 @@ class UserManagementModule(BaseModule):
         try:
             data = request.get_json()
             if data is None:
-                custom_log(
-                    "UserManagement: create_user rejected — empty or non-JSON body",
-                    level="WARNING",
-                    isOn=UserManagementModule.LOGGING_SWITCH,
-                )
                 return jsonify({
                     "success": False,
                     "error": "Request body must be JSON with username, email, and password",
@@ -148,13 +140,7 @@ class UserManagementModule(BaseModule):
             guest_email = data.get("guest_email")
             guest_password = data.get("guest_password")
             guest_user = None
-            
-            # Log registration attempt
-            if convert_from_guest:
-                custom_log(f"UserManagement: Registration request received (with guest conversion) - Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-            else:
-                custom_log(f"UserManagement: Regular registration request received - Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-            
+
             # Validate guest account if conversion requested
             if convert_from_guest:
                 if not guest_email or not guest_password:
@@ -186,7 +172,6 @@ class UserManagementModule(BaseModule):
                         "error": "Invalid guest account password"
                     }), 401
                 
-                custom_log(f"UserManagement: Guest account conversion requested - Guest Email: {guest_email}, New Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             # Validate email format
             if not self._is_valid_email(email):
@@ -217,11 +202,6 @@ class UserManagementModule(BaseModule):
                     "error": "Username already taken"
                 }), 409
 
-            custom_log(
-                "UserManagement: create_user — validations passed, no duplicate email/username",
-                level="DEBUG",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
             
             # Hash password
             hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
@@ -275,7 +255,6 @@ class UserManagementModule(BaseModule):
                 user_data['modules']['dutch_game']['subscription_tier'] = matcher.TIER_REGULAR
                 user_data['modules']['dutch_game']['coins'] = Config.REGISTRATION_COIN_BONUS
                 
-                custom_log(f"UserManagement: Copied guest account data for conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}, rank: {user_data['modules'].get('dutch_game', {}).get('rank')}, level: {user_data['modules'].get('dutch_game', {}).get('level')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             else:
                 # Prepare user data with comprehensive structure (new account)
                 user_data = {
@@ -355,17 +334,11 @@ class UserManagementModule(BaseModule):
                 }
             }
 
-            custom_log(
-                f"UserManagement: create_user — inserting into users (convert_from_guest={convert_from_guest})",
-                level="INFO",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
             
             # Insert user using database manager
             user_id = self.db_manager.insert("users", user_data)
             
             if not user_id:
-                custom_log(f"UserManagement: Regular registration - insert returned no user_id for email={email}, username={username}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Failed to create user account"
@@ -376,14 +349,10 @@ class UserManagementModule(BaseModule):
                 try:
                     guest_user_id = guest_user.get("_id")
                     if guest_user_id:
-                        delete_result = self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
-                        if delete_result:
-                            custom_log(f"UserManagement: Successfully deleted guest account after conversion - Guest ID: {guest_user_id}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-                        else:
-                            custom_log(f"UserManagement: Warning - Failed to delete guest account after conversion - Guest ID: {guest_user_id}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
-                except Exception as e:
+                        self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
+                except Exception:
                     # Log error but don't fail registration (data integrity maintained)
-                    custom_log(f"UserManagement: Error deleting guest account after conversion: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+                    pass
             
             # Remove password from response
             user_data.pop('password', None)
@@ -402,16 +371,10 @@ class UserManagementModule(BaseModule):
                     'source': 'external_app',
                     'account_type': 'normal' if not convert_from_guest else 'converted_from_guest'
                 }
-                custom_log(
-                    "UserManagement: create_user — firing user_created hook",
-                    level="DEBUG",
-                    isOn=UserManagementModule.LOGGING_SWITCH,
-                )
                 self.app_manager.trigger_hook("user_created", hook_data)
             
             # Log successful registration
             if convert_from_guest:
-                custom_log(f"UserManagement: Guest account conversion completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 # Track event in analytics service (automatically updates metrics)
                 analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
                 if analytics_service:
@@ -433,7 +396,6 @@ class UserManagementModule(BaseModule):
                         }
                     )
             else:
-                custom_log(f"UserManagement: Regular registration completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 # Track event in analytics service (automatically updates metrics)
                 analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
                 if analytics_service:
@@ -448,18 +410,8 @@ class UserManagementModule(BaseModule):
                     )
             
             # Send confirmation email (non-blocking: failure does not fail registration)
-            custom_log(
-                "UserManagement: create_user — sending confirmation email (errors are non-fatal)",
-                level="DEBUG",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
             self._send_confirmation_email(email, username)
 
-            custom_log(
-                f"UserManagement: create_user — returning 201 for user_id={user_id}",
-                level="INFO",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
             
             return jsonify({
                 "success": True,
@@ -470,16 +422,6 @@ class UserManagementModule(BaseModule):
             }), 201
             
         except Exception as e:
-            custom_log(
-                f"UserManagement: create_user FAILED — {type(e).__name__}: {e}",
-                level="ERROR",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
-            custom_log(
-                f"UserManagement: create_user traceback:\n{traceback.format_exc()}",
-                level="ERROR",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -487,25 +429,18 @@ class UserManagementModule(BaseModule):
 
     def _generate_guest_username(self):
         """Generate unique guest username in format Guest_*******"""
-        custom_log("UserManagement: Starting guest username generation", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
         max_attempts = 10
         for attempt in range(max_attempts):
             random_id = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(8))
             username = f"Guest_{random_id}"
-            custom_log(f"UserManagement: Generated candidate username: {username} (attempt {attempt + 1}/{max_attempts})", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
             # Check uniqueness
             existing = self.db_manager.find_one("users", {"username": username})
             if not existing:
-                custom_log(f"UserManagement: Unique guest username generated: {username}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 return username
-            else:
-                custom_log(f"UserManagement: Username collision detected: {username}, retrying...", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
-        custom_log("UserManagement: Failed to generate unique guest username after 10 attempts", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
         raise Exception("Failed to generate unique guest username")
 
     def create_guest_user(self):
         """Create a new guest user account with auto-generated credentials."""
-        custom_log("UserManagement: Guest registration request received", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
         try:
             # Generate unique guest username
             username = self._generate_guest_username()
@@ -516,11 +451,9 @@ class UserManagementModule(BaseModule):
             # Use username as password
             password = username
             
-            custom_log(f"UserManagement: Generated guest credentials - Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             # Hash password
             hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-            custom_log("UserManagement: Password hashed successfully", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
             
             # Get current timestamp for consistent date formatting
             current_time = datetime.utcnow()
@@ -605,17 +538,14 @@ class UserManagementModule(BaseModule):
             }
             
             # Insert user using database manager
-            custom_log(f"UserManagement: Inserting guest user into database: {username}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
             user_id = self.db_manager.insert("users", user_data)
             
             if not user_id:
-                custom_log(f"UserManagement: Failed to insert guest user into database: {username}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Failed to create guest account"
                 }), 500
             
-            custom_log(f"UserManagement: Guest user created successfully - User ID: {user_id}, Username: {username}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             # Remove password from response
             user_data.pop('password', None)
@@ -634,10 +564,8 @@ class UserManagementModule(BaseModule):
                     'source': 'external_app',
                     'account_type': 'guest'
                 }
-                custom_log(f"UserManagement: Triggering user_created hook for guest user: {user_id}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
                 self.app_manager.trigger_hook("user_created", hook_data)
             
-            custom_log(f"UserManagement: Guest registration completed successfully - User ID: {user_id}, Username: {username}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             # Track event in analytics service (automatically updates metrics)
             analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
@@ -665,7 +593,6 @@ class UserManagementModule(BaseModule):
             }), 201
             
         except Exception as e:
-            custom_log(f"Error creating guest user: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -734,7 +661,6 @@ class UserManagementModule(BaseModule):
         """Internal: search users by username or email (partial, case-insensitive). Same doc appears once if it matches both. Returns (list of user dicts with user_id, no password), or ([], error_msg)."""
         try:
             q = (username or '').strip()
-            custom_log(f"UserManagement: search_users_by_username username={q!r} limit={limit}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             if len(q) < 2:
                 return [], 'username must be at least 2 characters'
             escaped = re.escape(q)
@@ -759,10 +685,8 @@ class UserManagementModule(BaseModule):
                 out.append(u)
                 if len(out) >= limit:
                     break
-            custom_log(f"UserManagement: search_users_by_username found {len(out)} users (deduped)", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             return out, None
         except Exception as e:
-            custom_log(f"UserManagement: search_users_by_username error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
             return [], str(e)
 
     def search_users(self):
@@ -770,9 +694,7 @@ class UserManagementModule(BaseModule):
         try:
             data = request.get_json(silent=True) or {}
             username = (data.get('username') or '').strip()
-            custom_log(f"UserManagement: search_users request body={data!r} username={username!r}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             if len(username) < 2:
-                custom_log("UserManagement: search_users username too short", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 return jsonify({
                     'success': False,
                     'error': 'username is required and must be at least 2 characters',
@@ -786,10 +708,8 @@ class UserManagementModule(BaseModule):
                     query['email'] = {'$regex': email_escaped, '$options': 'i'}
             if data.get('status'):
                 query['status'] = data['status']
-            custom_log(f"UserManagement: search_users query={query} limit={limit} analytics_db={getattr(self, 'analytics_db', None)}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             users_raw = self.analytics_db.find("users", query)
             users_raw = list(users_raw)[:limit] if users_raw else []
-            custom_log(f"UserManagement: search_users found {len(users_raw)} users", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             out = []
             for user in users_raw:
                 user.pop('password', None)
@@ -799,7 +719,6 @@ class UserManagementModule(BaseModule):
                 out.append(user)
             return jsonify({'success': True, 'users': out}), 200
         except Exception as e:
-            custom_log(f"UserManagement: search_users error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
             return jsonify({'success': False, 'error': 'Failed to search users', 'users': []}), 500
 
     def _prepare_single_session_login(
@@ -817,26 +736,11 @@ class UserManagementModule(BaseModule):
             redis_ok = False
 
         if not redis_ok:
-            custom_log(
-                "UserManagement: single-session skipped (Redis unavailable); tokens omit auth_gen",
-                level="WARNING",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
             return -1, None
 
         uid = str(user_id)
         active = redis_mgr.is_user_login_session_active(uid)
-        custom_log(
-            f"UserManagement: single-session check user_id={uid} session:active={active} force_new_session={force_new_session}",
-            level="INFO",
-            isOn=UserManagementModule.LOGGING_SWITCH,
-        )
         if active and not force_new_session:
-            custom_log(
-                f"UserManagement: single-session -> 409 SESSION_ACTIVE_ELSEWHERE user_id={uid}",
-                level="INFO",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
             return None, (
                 {
                     "success": False,
@@ -858,11 +762,6 @@ class UserManagementModule(BaseModule):
                 redis_mgr.set_user_auth_generation(uid, 1)
                 gen = 1
 
-        custom_log(
-            f"UserManagement: single-session -> issue tokens user_id={uid} auth_gen={gen} (force_new_session={force_new_session})",
-            level="INFO",
-            isOn=UserManagementModule.LOGGING_SWITCH,
-        )
         return gen, None
 
     def login_user(self):
@@ -901,20 +800,13 @@ class UserManagementModule(BaseModule):
             stored_password = user.get("password", "")
             account_type = user.get("account_type", "normal")  # Default to 'normal' to match registration
             is_guest = account_type == "guest"
-            
-            if is_guest:
-                custom_log(f"UserManagement: Guest account login attempt - Email: {email}, Username: {user.get('username')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-            else:
-                custom_log(f"UserManagement: Regular account login attempt - Email: {email}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
-            
+
             try:
                 check_result = bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8'))
             except Exception as e:
-                custom_log(f"UserManagement: Password verification error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                 check_result = False
             
             if not check_result:
-                custom_log(f"UserManagement: Login failed - Invalid password for email: {email}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Invalid email or password"
@@ -958,12 +850,6 @@ class UserManagementModule(BaseModule):
             redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
             if redis_mgr and auth_gen is not None and auth_gen >= 0:
                 redis_mgr.set_user_login_session_active(str(user["_id"]), Config.JWT_REFRESH_TOKEN_EXPIRES)
-                custom_log(
-                    f"UserManagement: session:active SET user_id={user['_id']} ttl_s={Config.JWT_REFRESH_TOKEN_EXPIRES} "
-                    f"force_new_session={force_new_session}",
-                    level="INFO",
-                    isOn=UserManagementModule.LOGGING_SWITCH,
-                )
             
             # Remove password from response
             user.pop('password', None)
@@ -974,13 +860,7 @@ class UserManagementModule(BaseModule):
             # Ensure role is included (default: player)
             if 'role' not in user:
                 user['role'] = 'player'
-            
-            # Log successful login with account type
-            if is_guest:
-                custom_log(f"UserManagement: Guest account login successful - User ID: {user['_id']}, Username: {user.get('username')}, Account Type: {account_type}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-            else:
-                custom_log(f"UserManagement: Regular account login successful - User ID: {user['_id']}, Email: {email}, Account Type: {account_type}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-            
+
             # Track event in analytics service (automatically updates metrics)
             analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
             if analytics_service:
@@ -1008,7 +888,6 @@ class UserManagementModule(BaseModule):
             }), 200
             
         except Exception as e:
-            custom_log(f"UserManagement: Login error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -1035,26 +914,17 @@ class UserManagementModule(BaseModule):
             
             if id_token_string:
                 # Preferred: Verify ID token (requires GoogleAuthService)
-                custom_log(f"UserManagement: Google Sign-In - GOOGLE_AUTH_AVAILABLE={GOOGLE_AUTH_AVAILABLE}, GoogleAuthService={GoogleAuthService}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
                 
                 if not GOOGLE_AUTH_AVAILABLE or GoogleAuthService is None:
-                    custom_log(f"UserManagement: GoogleAuthService not available - GOOGLE_AUTH_AVAILABLE={GOOGLE_AUTH_AVAILABLE}, GoogleAuthService={GoogleAuthService}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                     return jsonify({
                         "success": False,
                         "error": "Google Sign-In with ID token requires google-auth package. Please install it."
                     }), 503
                 
-                custom_log("UserManagement: Google Sign-In - Using ID token", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 google_auth_service = GoogleAuthService()
-                custom_log(f"UserManagement: GoogleAuthService initialized with client_id: {google_auth_service.client_id[:20] if google_auth_service.client_id else 'None'}...", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 user_info = google_auth_service.get_user_info(id_token_string)
-                if not user_info:
-                    custom_log("UserManagement: Google Sign-In - get_user_info returned None (token verification failed)", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
-                else:
-                    custom_log(f"UserManagement: Google Sign-In - User info obtained: email={user_info.get('email')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             elif access_token and user_info_from_client:
                 # Fallback for web: Verify access token and use provided user info
-                custom_log("UserManagement: Google Sign-In - Using access token (web fallback)", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 
                 # Verify access token by calling Google's tokeninfo endpoint
                 try:
@@ -1065,7 +935,6 @@ class UserManagementModule(BaseModule):
                     
                     if token_info_response.status_code == 200:
                         token_info = token_info_response.json()
-                        custom_log(f"UserManagement: Token info received: {token_info}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
                         
                         # Verify the token is valid
                         # For web tokens, we check if the email matches and token is valid
@@ -1074,7 +943,6 @@ class UserManagementModule(BaseModule):
                         
                         # Verify email matches (if both are present)
                         if token_email and client_email and token_email != client_email:
-                            custom_log(f"UserManagement: Email mismatch - token: {token_email}, client: {client_email}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
                             return jsonify({
                                 "success": False,
                                 "error": "Token email mismatch"
@@ -1084,9 +952,9 @@ class UserManagementModule(BaseModule):
                         if Config.GOOGLE_CLIENT_ID:
                             token_audience = token_info.get('audience') or token_info.get('issued_to')
                             if token_audience and token_audience != Config.GOOGLE_CLIENT_ID:
-                                custom_log(f"UserManagement: Client ID mismatch - token: {token_audience}, config: {Config.GOOGLE_CLIENT_ID}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
                                 # Still proceed if email matches - web tokens might have different audience format
-                        
+                                pass
+
                         # Use user info from client (already fetched from userinfo endpoint)
                         user_info = {
                             'google_id': user_info_from_client.get('id'),
@@ -1097,18 +965,14 @@ class UserManagementModule(BaseModule):
                             'given_name': user_info_from_client.get('given_name'),
                             'family_name': user_info_from_client.get('family_name')
                         }
-                        custom_log(f"UserManagement: Access token verified, user info: {user_info.get('email')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                     else:
                         error_text = token_info_response.text[:200] if token_info_response.text else "Unknown error"
-                        custom_log(f"UserManagement: Access token verification failed: {token_info_response.status_code} - {error_text}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
                         return jsonify({
                             "success": False,
                             "error": f"Invalid access token: {token_info_response.status_code}"
                         }), 401
                 except Exception as e:
-                    custom_log(f"UserManagement: Error verifying access token: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                     import traceback
-                    custom_log(f"UserManagement: Traceback: {traceback.format_exc()}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                     return jsonify({
                         "success": False,
                         "error": f"Error verifying token: {str(e)}"
@@ -1171,7 +1035,6 @@ class UserManagementModule(BaseModule):
                         "error": "Invalid guest account password"
                     }), 401
                 
-                custom_log(f"UserManagement: Google Sign-In with guest account conversion requested - Guest Email: {guest_email}, Google Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             # Check if user exists by email
             existing_user = self.db_manager.find_one("users", {"email": email})
@@ -1183,7 +1046,6 @@ class UserManagementModule(BaseModule):
                 # Check if Google is already linked
                 if 'google' in auth_providers:
                     # Normal Google login - update profile picture if provided
-                    custom_log(f"UserManagement: Google Sign-In - Existing user with Google auth - Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                     
                     # Update profile picture if provided (always update to get latest from Google)
                     update_data = {
@@ -1192,7 +1054,6 @@ class UserManagementModule(BaseModule):
                     
                     if picture:
                         update_data['profile.picture'] = picture
-                        custom_log(f"UserManagement: Google Sign-In - Updating profile picture for existing user", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                     
                     # Also update name fields if provided and missing
                     if 'profile' not in existing_user:
@@ -1206,7 +1067,6 @@ class UserManagementModule(BaseModule):
                         self.db_manager.update("users", {"_id": existing_user["_id"]}, update_data)
                 else:
                     # Link Google account to existing account
-                    custom_log(f"UserManagement: Google Sign-In - Linking Google to existing account - Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                     
                     # Update auth_providers to include Google
                     if not auth_providers:
@@ -1230,14 +1090,12 @@ class UserManagementModule(BaseModule):
                         update_data['profile.last_name'] = family_name
                     if picture:
                         update_data['profile.picture'] = picture
-                        custom_log(f"UserManagement: Google Sign-In - Saving profile picture when linking Google account", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                     
                     self.db_manager.update("users", {"_id": existing_user["_id"]}, update_data)
                 
                 user = existing_user
             else:
                 # New user - create account with Google info
-                custom_log(f"UserManagement: Google Sign-In - Creating new user - Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 
                 # Generate username from email or name
                 if given_name and family_name:
@@ -1328,7 +1186,6 @@ class UserManagementModule(BaseModule):
                     user_data['modules']['dutch_game']['subscription_tier'] = matcher.TIER_REGULAR
                     user_data['modules']['dutch_game']['coins'] = Config.REGISTRATION_COIN_BONUS
                     
-                    custom_log(f"UserManagement: Copied guest account data for Google Sign-In conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}, rank: {user_data['modules'].get('dutch_game', {}).get('rank')}, level: {user_data['modules'].get('dutch_game', {}).get('level')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 else:
                     # Prepare user data with comprehensive structure (new account)
                     user_data = {
@@ -1415,7 +1272,6 @@ class UserManagementModule(BaseModule):
                 user_id = self.db_manager.insert("users", user_data)
                 
                 if not user_id:
-                    custom_log(f"UserManagement: Google Sign-In - insert returned no user_id for email={email}, username={username}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                     return jsonify({
                         "success": False,
                         "error": "Failed to create user account"
@@ -1426,14 +1282,10 @@ class UserManagementModule(BaseModule):
                     try:
                         guest_user_id = guest_user.get("_id")
                         if guest_user_id:
-                            delete_result = self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
-                            if delete_result:
-                                custom_log(f"UserManagement: Successfully deleted guest account after Google Sign-In conversion - Guest ID: {guest_user_id}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-                            else:
-                                custom_log(f"UserManagement: Warning - Failed to delete guest account after Google Sign-In conversion - Guest ID: {guest_user_id}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
-                    except Exception as e:
+                            self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
+                    except Exception:
                         # Log error but don't fail registration (data integrity maintained)
-                        custom_log(f"UserManagement: Error deleting guest account after Google Sign-In conversion: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+                        pass
                 
                 # Get the created user
                 user = self.db_manager.find_one("users", {"_id": user_id})
@@ -1457,7 +1309,6 @@ class UserManagementModule(BaseModule):
                     self.app_manager.trigger_hook("user_created", hook_data)
                     
                     if convert_from_guest:
-                        custom_log(f"UserManagement: Google Sign-In with guest account conversion completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                         # Track events in analytics service (automatically updates metrics)
                         analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
                         if analytics_service:
@@ -1538,12 +1389,6 @@ class UserManagementModule(BaseModule):
             redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
             if redis_mgr and auth_gen is not None and auth_gen >= 0:
                 redis_mgr.set_user_login_session_active(str(user["_id"]), Config.JWT_REFRESH_TOKEN_EXPIRES)
-                custom_log(
-                    f"UserManagement: session:active SET (google) user_id={user['_id']} ttl_s={Config.JWT_REFRESH_TOKEN_EXPIRES} "
-                    f"force_new_session={force_new_session}",
-                    level="INFO",
-                    isOn=UserManagementModule.LOGGING_SWITCH,
-                )
             
             # Remove password from response
             user.pop('password', None)
@@ -1555,7 +1400,6 @@ class UserManagementModule(BaseModule):
             if 'role' not in user:
                 user['role'] = 'player'
             
-            custom_log(f"UserManagement: Google Sign-In successful - User ID: {user['_id']}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             # Track event in analytics service (automatically updates metrics)
             account_type = user.get('account_type', 'normal')
@@ -1596,8 +1440,6 @@ class UserManagementModule(BaseModule):
             
         except Exception as e:
             import traceback
-            custom_log(f"UserManagement: Google Sign-In error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
-            custom_log(f"UserManagement: Google Sign-In traceback: {traceback.format_exc()}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -1650,12 +1492,6 @@ class UserManagementModule(BaseModule):
                 # Invalidate any other copies of access/refresh (other tabs / stale storage)
                 bumped_gen = redis_mgr.bump_user_auth_generation(uid_str)
 
-            custom_log(
-                f"UserManagement: logout user_id={uid_str} access_revoked={success} refresh_revoked={refresh_revoked} "
-                f"session:active_cleared auth_gen_bumped_to={bumped_gen}",
-                level="INFO",
-                isOn=UserManagementModule.LOGGING_SWITCH,
-            )
 
             if success:
                 return jsonify({
@@ -1742,11 +1578,6 @@ class UserManagementModule(BaseModule):
             redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
             if redis_mgr and user_id:
                 redis_mgr.set_user_login_session_active(str(user_id), Config.JWT_REFRESH_TOKEN_EXPIRES)
-                custom_log(
-                    f"UserManagement: session:active REFRESH user_id={user_id} ttl_s={Config.JWT_REFRESH_TOKEN_EXPIRES} auth_gen={auth_gen}",
-                    level="INFO",
-                    isOn=UserManagementModule.LOGGING_SWITCH,
-                )
             
             # Remove password from response
             user.pop('password', None)
@@ -1869,7 +1700,6 @@ class UserManagementModule(BaseModule):
         Returns True if sent successfully, False otherwise. Does not raise.
         """
         if not Config.MAIL_SMTP_HOST or not Config.MAIL_SMTP_USER or not Config.MAIL_SMTP_PASSWORD:
-            custom_log("UserManagement: SMTP not configured, skipping confirmation email", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
             return False
         try:
             from_name = Config.MAIL_FROM_NAME or "ReignOfPlay"
@@ -1907,10 +1737,8 @@ class UserManagementModule(BaseModule):
                         server.starttls(context=context)
                     server.login(Config.MAIL_SMTP_USER, Config.MAIL_SMTP_PASSWORD)
                     server.sendmail(from_addr, to_email, msg.as_string())
-            custom_log(f"UserManagement: Confirmation email sent to {to_email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             return True
         except Exception as e:
-            custom_log(f"UserManagement: Failed to send confirmation email to {to_email}: {e}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
             return False
 
     def test_debug(self):
@@ -1954,16 +1782,8 @@ class UserManagementModule(BaseModule):
             plain_username = payload.get('username') if isinstance(payload.get('username'), str) else None
             
             role_from_db = user.get('role', 'player')
-            if UserManagementModule.LOGGING_SWITCH:
-                custom_log(f"UserManagement: get_user_profile user_id={user_id} role_from_db={role_from_db!r} (JWT has no role)", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
             profile = user.get('profile', {}) or {}
             picture = profile.get('picture')
-            if UserManagementModule.LOGGING_SWITCH:
-                custom_log(
-                    f"UserManagement: get_user_profile user_id={user_id} picture_present={bool(picture)} picture={picture!r}",
-                    level="INFO",
-                    isOn=UserManagementModule.LOGGING_SWITCH,
-                )
             profile_data = {
                 'user_id': user_id,
                 'email': plain_email or user.get('email'),
@@ -2017,7 +1837,6 @@ class UserManagementModule(BaseModule):
             if first_name or last_name:
                 full_name = f"{first_name} {last_name}".strip()
             
-            custom_log(f"UserManagement: get_user_profile_by_id - userId={user_id}, username={username}, account_type={account_type}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             return jsonify({
                 'success': True,
@@ -2049,12 +1868,6 @@ class UserManagementModule(BaseModule):
             max_b = Config.AVATAR_MAX_UPLOAD_BYTES
             cl = request.content_length
             if cl is not None and cl > max_b:
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: upload_profile_avatar user_id={user_id} rejected content_length={cl} > max={max_b}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({
                     "success": False,
                     "error": "file_too_large",
@@ -2062,12 +1875,6 @@ class UserManagementModule(BaseModule):
                 }), 413
 
             if "file" not in request.files:
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: upload_profile_avatar user_id={user_id} missing multipart file",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({
                     "success": False,
                     "error": "missing_file",
@@ -2078,21 +1885,7 @@ class UserManagementModule(BaseModule):
             if not f or not f.filename:
                 return jsonify({"success": False, "error": "empty_file", "message": "No file selected"}), 400
 
-            if avu.LOGGING_SWITCH:
-                custom_log(
-                    f"UserManagement: upload_profile_avatar user_id={user_id} filename={f.filename!r} "
-                    f"content_type={f.content_type!r} content_length={cl}",
-                    level="INFO",
-                    isOn=avu.LOGGING_SWITCH,
-                )
-
             if not avu.allowed_upload_extension(f.filename):
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: upload_profile_avatar invalid_extension filename={f.filename!r}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({
                     "success": False,
                     "error": "invalid_extension",
@@ -2100,12 +1893,6 @@ class UserManagementModule(BaseModule):
                 }), 400
 
             if not avu.declared_mime_allowed(f.content_type):
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: upload_profile_avatar invalid_content_type={f.content_type!r}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({
                     "success": False,
                     "error": "invalid_content_type",
@@ -2120,22 +1907,10 @@ class UserManagementModule(BaseModule):
                     "message": f"File must be at most {max_b} bytes",
                 }), 413
             if err:
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: upload_profile_avatar read error={err}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({"success": False, "error": err, "message": "Invalid upload"}), 400
 
             magic_fmt = avu.detect_format_from_magic(raw)
             if not magic_fmt or not avu.mime_matches_magic(f.content_type, magic_fmt):
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: upload_profile_avatar mime_mismatch magic={magic_fmt!r} declared={f.content_type!r}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({
                     "success": False,
                     "error": "mime_mismatch",
@@ -2149,12 +1924,6 @@ class UserManagementModule(BaseModule):
                 max_image_pixels=Config.AVATAR_MAX_IMAGE_PIXELS,
             )
             if perr:
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: upload_profile_avatar process failed perr={perr}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({
                     "success": False,
                     "error": perr,
@@ -2171,12 +1940,6 @@ class UserManagementModule(BaseModule):
 
             base = (Config.AVATAR_PUBLIC_BASE_URL or Config.APP_URL or "").rstrip("/")
             if not base:
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        "UserManagement: upload_profile_avatar server_misconfigured (no APP_URL / AVATAR_PUBLIC_BASE_URL)",
-                        level="ERROR",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({
                     "success": False,
                     "error": "server_misconfigured",
@@ -2199,24 +1962,11 @@ class UserManagementModule(BaseModule):
             modified_count = self.db_manager.update("users", {"_id": oid}, update_data)
 
             if modified_count > 0:
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: upload_profile_avatar ok user_id={user_id} url={public_url} "
-                        f"storage={dest} webp_bytes={len(webp_bytes)}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 return jsonify({
                     "success": True,
                     "message": "Avatar updated",
                     "profile_picture": public_url,
                 }), 200
-            if avu.LOGGING_SWITCH:
-                custom_log(
-                    f"UserManagement: upload_profile_avatar update_failed user_id={user_id}",
-                    level="WARNING",
-                    isOn=avu.LOGGING_SWITCH,
-                )
             return jsonify({
                 "success": False,
                 "error": "update_failed",
@@ -2224,11 +1974,6 @@ class UserManagementModule(BaseModule):
             }), 500
 
         except Exception as e:
-            custom_log(
-                f"UserManagement: upload_profile_avatar error: {e}",
-                level="ERROR",
-                isOn=avu.LOGGING_SWITCH,
-            )
             return jsonify({"success": False, "error": "server_error", "message": "Upload failed"}), 500
 
     def serve_profile_avatar(self, filename):
@@ -2237,29 +1982,11 @@ class UserManagementModule(BaseModule):
         from core.modules.user_management_module.avatar_upload_utils import STORED_NAME_RE, safe_join_under_root
         try:
             if not filename or not STORED_NAME_RE.match(filename):
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: serve_profile_avatar 404 bad_filename={filename!r}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 abort(404)
             storage_root = os.path.abspath(os.path.expanduser(Config.AVATAR_STORAGE_DIR))
             path = safe_join_under_root(storage_root, filename)
             if not path or not os.path.isfile(path):
-                if avu.LOGGING_SWITCH:
-                    custom_log(
-                        f"UserManagement: serve_profile_avatar 404 missing path={path!r} root={storage_root!r}",
-                        level="INFO",
-                        isOn=avu.LOGGING_SWITCH,
-                    )
                 abort(404)
-            if avu.LOGGING_SWITCH:
-                custom_log(
-                    f"UserManagement: serve_profile_avatar 200 filename={filename}",
-                    level="INFO",
-                    isOn=avu.LOGGING_SWITCH,
-                )
             return send_file(path, mimetype="image/webp", max_age=86400)
         except Exception:
             abort(404)

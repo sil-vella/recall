@@ -6,7 +6,6 @@ This module provides API endpoints for tracking and querying user analytics even
 
 from core.modules.base_module import BaseModule
 from core.services.analytics_service import AnalyticsService
-from tools.logger.custom_logging import custom_log
 from flask import request, jsonify
 from datetime import datetime
 
@@ -14,7 +13,6 @@ from datetime import datetime
 class AnalyticsModule(BaseModule):
     """Module for tracking and querying user analytics events."""
     
-    LOGGING_SWITCH = False  # Enabled for debugging
     
     def __init__(self, app_manager=None):
         """Initialize the AnalyticsModule."""
@@ -95,11 +93,6 @@ class AnalyticsModule(BaseModule):
             if success:
                 # Update Prometheus metrics (optional - can track event counts)
                 # For now, we'll rely on the detailed event storage
-                custom_log(
-                    f"AnalyticsModule: Tracked event - user_id: {user_id}, event_type: {event_type}",
-                    level="DEBUG",
-                    isOn=AnalyticsModule.LOGGING_SWITCH
-                )
                 
                 return jsonify({
                     "success": True,
@@ -112,7 +105,6 @@ class AnalyticsModule(BaseModule):
                 }), 500
                 
         except Exception as e:
-            custom_log(f"AnalyticsModule: Error tracking event: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -177,7 +169,6 @@ class AnalyticsModule(BaseModule):
             }), 200
             
         except Exception as e:
-            custom_log(f"AnalyticsModule: Error getting user events: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"

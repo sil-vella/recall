@@ -7,7 +7,6 @@ from core.modules.base_module import BaseModule
 from .notification_routes import notification_api, set_app_manager, register_response_handler
 from .notification_service import NotificationService
 
-LOGGING_SWITCH = False
 
 
 class NotificationMain(BaseModule):

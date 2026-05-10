@@ -3,7 +3,6 @@ import yaml
 import json
 from typing import Dict, Any, List, Optional, Callable
 from flask import request, jsonify
-from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
 from datetime import datetime
 

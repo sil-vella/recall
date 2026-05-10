@@ -8,10 +8,8 @@ import os
 import re
 from typing import Optional, Tuple
 
-from tools.logger.custom_logging import custom_log
 
 # Profile avatar pipeline trace → server.log (see .cursor/rules/enable-logging-switch.mdc)
-LOGGING_SWITCH = False
 
 # Allowed client filename extensions (case-insensitive).
 ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
@@ -80,12 +78,6 @@ def read_upload_bytes(stream, max_bytes: int) -> Tuple[Optional[bytes], Optional
             break
         buf.extend(chunk)
         if len(buf) > max_bytes:
-            if LOGGING_SWITCH:
-                custom_log(
-                    f"avatar_upload: read_upload_bytes rejected file_too_large (>{max_bytes} bytes)",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
             return None, "file_too_large"
     if not buf:
         return None, "empty_file"
@@ -106,14 +98,10 @@ def process_avatar_image(
     try:
         from PIL import Image, ImageOps
     except ImportError:
-        if LOGGING_SWITCH:
-            custom_log("avatar_upload: Pillow not available", level="ERROR", isOn=LOGGING_SWITCH)
         return None, "pillow_unavailable"
 
     fmt = detect_format_from_magic(data)
     if fmt is None:
-        if LOGGING_SWITCH:
-            custom_log("avatar_upload: invalid_image_signature (magic bytes)", level="INFO", isOn=LOGGING_SWITCH)
         return None, "invalid_image_signature"
 
     old_max = getattr(Image, "MAX_IMAGE_PIXELS", None)
@@ -123,12 +111,6 @@ def process_avatar_image(
         img.load()
         w, h = img.size
         if w > max_dimension_px or h > max_dimension_px:
-            if LOGGING_SWITCH:
-                custom_log(
-                    f"avatar_upload: dimensions_too_large {w}x{h}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
             return None, "dimensions_too_large"
         img = ImageOps.exif_transpose(img)
         if img.mode not in ("RGB", "RGBA"):
@@ -138,16 +120,8 @@ def process_avatar_image(
         # WebP; no EXIF in fresh encode
         img.save(out, format="WEBP", quality=85, method=4)
         out_bytes = out.getvalue()
-        if LOGGING_SWITCH:
-            custom_log(
-                f"avatar_upload: normalized WebP ok input_fmt={fmt} out_bytes={len(out_bytes)}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         return out_bytes, None
     except Exception as ex:
-        if LOGGING_SWITCH:
-            custom_log(f"avatar_upload: image_decode_failed: {ex}", level="INFO", isOn=LOGGING_SWITCH)
         return None, "image_decode_failed"
     finally:
         if old_max is not None:

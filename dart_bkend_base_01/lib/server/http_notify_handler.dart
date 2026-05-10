@@ -5,10 +5,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../utils/config.dart';
-import '../utils/server_logger.dart';
 import 'websocket_server.dart';
-
-const bool LOGGING_SWITCH = false; // Python→Dart /service/notify-inbox (enable-logging-switch.mdc)
 
 /// POST `/service/notify-inbox` (Python → Dart, [X-Service-Key]); other requests → WebSocket upgrade.
 Handler createHttpAndWebSocketHandler({
@@ -28,14 +25,10 @@ Handler createHttpAndWebSocketHandler({
 }
 
 Future<Response> _handleNotifyInbox(Request request, WebSocketServer wsServer) async {
-  final logger = Logger()..initialize();
   try {
     final headerKey = request.headers['x-service-key'] ?? '';
     final expected = Config.pythonServiceKey;
     if (expected.isEmpty || headerKey != expected) {
-      if (LOGGING_SWITCH) {
-        logger.auth('notify-inbox: forbidden (missing or invalid X-Service-Key)');
-      }
       return Response.forbidden(
         jsonEncode({'ok': false, 'error': 'invalid_service_key'}),
         headers: {'Content-Type': 'application/json'},
@@ -66,17 +59,11 @@ Future<Response> _handleNotifyInbox(Request request, WebSocketServer wsServer) a
     }
 
     final sent = wsServer.notifyInboxChangedForUser(userId);
-    if (LOGGING_SWITCH) {
-      logger.info('notify-inbox: user_id=$userId sessions_notified=$sent');
-    }
     return Response.ok(
       jsonEncode({'ok': true, 'sessions_notified': sent}),
       headers: {'Content-Type': 'application/json'},
     );
-  } catch (e, st) {
-    if (LOGGING_SWITCH) {
-      logger.error('notify-inbox error: $e\n$st');
-    }
+  } catch (_) {
     return Response.internalServerError(
       body: jsonEncode({'ok': false, 'error': 'internal'}),
       headers: {'Content-Type': 'application/json'},

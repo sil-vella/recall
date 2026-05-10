@@ -10,14 +10,12 @@ from flask import Blueprint, request, jsonify
 from bson import ObjectId
 
 from core.managers.jwt_manager import TokenType
-from tools.logger.custom_logging import custom_log
 
 from .notification_service import NOTIFICATIONS_COLLECTION
 
 notification_api = Blueprint("notification_api", __name__)
 
 _app_manager = None
-LOGGING_SWITCH = False  # Trace list_messages for inbox debugging
 
 # Source reserved for core-built-in notifications (e.g. generic Close).
 CORE_SOURCE = "core"
@@ -89,21 +87,9 @@ def list_messages():
         if unread_only:
             query["read_at"] = None
         cursor = db_manager.find(NOTIFICATIONS_COLLECTION, query)
-        if LOGGING_SWITCH:
-            custom_log(
-                f"list_messages: user_id={user_id} query_keys={list(query.keys())} raw_count={len(cursor) if cursor else 0}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         if not cursor:
             return jsonify({"success": True, "data": []}), 200
         items = list(cursor)[offset : offset + limit]
-        if LOGGING_SWITCH:
-            custom_log(
-                f"list_messages: returning {len(items)} items (offset={offset} limit={limit})",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         out = []
         for doc in items:
             created = doc.get("created_at")
@@ -136,7 +122,6 @@ def list_messages():
             })
         return jsonify({"success": True, "data": out}), 200
     except Exception as e:
-        custom_log(f"notification list_messages error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -170,8 +155,6 @@ def mark_read():
             try:
                 doc_id = ObjectId(mid)
             except Exception:
-                if LOGGING_SWITCH:
-                    custom_log(f"mark_read: skip invalid message_id={mid!r}", level="WARNING", isOn=LOGGING_SWITCH)
                 continue
             # Filter: doc by _id and user_id (same as playbook filter by user; we also require _id for security)
             query = {"_id": doc_id, "user_id": user_oid}
@@ -182,15 +165,8 @@ def mark_read():
             )
             if result:
                 updated += 1
-        if LOGGING_SWITCH:
-            custom_log(
-                f"mark_read: user_id={user_id} message_ids_count={len(message_ids)} updated={updated}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         return jsonify({"success": True, "updated": updated}), 200
     except Exception as e:
-        custom_log(f"notification mark_read error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -271,7 +247,6 @@ def handle_response():
         try:
             result = handler(normalized_doc, action_identifier, user_id)
         except Exception as e:
-            custom_log(f"notification response handler error source={source} action={action_identifier}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": str(e)}), 500
         if not isinstance(result, dict):
             return jsonify({"success": False, "error": "Invalid handler result"}), 500
@@ -287,5 +262,4 @@ def handle_response():
                 pass
         return jsonify(result), 200
     except Exception as e:
-        custom_log(f"notification handle_response error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500

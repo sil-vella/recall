@@ -1,5 +1,4 @@
 from core.managers.redis_manager import RedisManager
-from tools.logger.custom_logging import custom_log
 from datetime import datetime, timedelta
 import time
 from typing import Optional, Dict, Any, List, Union

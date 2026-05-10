@@ -1,5 +1,4 @@
 from typing import Dict, Any, Optional, Set, List, Callable
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 from enum import Enum
 from core.managers.redis_manager import RedisManager

@@ -1,5 +1,4 @@
 from typing import Dict, Any, Set, Optional
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 from flask_socketio import emit
 

@@ -7,7 +7,6 @@ from urllib.parse import unquote
 from flask import Blueprint, request, jsonify, send_file
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.modules.user_management_module import tier_rank_level_matcher as matcher
-from tools.logger.custom_logging import custom_log
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 import time
@@ -30,7 +29,6 @@ from .dutch_achievement_catalog import (
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Dutch API + leaderboards (period-wins, snapshots, match_win_outcomes) — see .cursor/rules/enable-logging-switch.mdc
 
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
@@ -107,8 +105,8 @@ def _ensure_consumable_indexes(db_manager) -> None:
         coll = db_manager.db[CONSUMABLE_TX_COLL]
         coll.create_index([("user_id", 1), ("created_at", -1)])
         coll.create_index([("idempotency_key", 1)], unique=True, sparse=True)
-    except Exception as e:
-        custom_log(f"📊 DutchGame: consumable index ensure (non-fatal): {e}", level="WARNING", isOn=LOGGING_SWITCH)
+    except Exception:
+        pass
 
 
 def _default_inventory() -> Dict[str, Any]:
@@ -268,42 +266,27 @@ def validate_token():
 
 def _validate_token_impl():
     """Shared JWT validation logic. POST body: { token: userJwt }. Returns JSON response."""
-    custom_log("🔐 API: Token validation request received", level="INFO", isOn=LOGGING_SWITCH)
-    custom_log("🔐 API: Blueprint loaded and endpoint hit!", level="INFO", isOn=LOGGING_SWITCH)
     
     try:
         data = request.get_json()
         if not isinstance(data, dict):
             data = {}
-        if LOGGING_SWITCH:
-            safe = {k: ("<redacted>" if k == "token" else v) for k, v in data.items()}
-            custom_log(f"📦 API: validate_token keys={list(data.keys())} body={safe}", level="DEBUG", isOn=True)
-
         token = data.get('token')
 
         if not token:
-            custom_log("❌ API: No token provided in request", level="WARNING", isOn=LOGGING_SWITCH)
             return jsonify({
                 'valid': False,
                 'error': 'No token provided'
             }), 400
 
-        custom_log(
-            f"🔍 API: Validating token (length={len(str(token))})",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         
         jwt_manager = JWTManager()
         # When Dart backend calls with valid X-Service-Key, skip Redis revoke check (token may not be in Redis)
         skip_revoke = getattr(request, 'service_authenticated', False)
-        if skip_revoke:
-            custom_log("🔐 API: Service-authenticated request, skipping Redis revoke check", level="INFO", isOn=LOGGING_SWITCH)
         try:
             payload = jwt_manager.verify_token(token, skip_revoke=skip_revoke)
             
             if payload is None:
-                custom_log("❌ API: Token validation returned None (invalid/expired/revoked)", level="WARNING", isOn=LOGGING_SWITCH)
                 return jsonify({
                     'valid': False,
                     'error': 'Invalid or expired token'
@@ -311,7 +294,6 @@ def _validate_token_impl():
             
             user_id = payload.get('user_id')
             
-            custom_log(f"✅ API: Token validation successful for user: {user_id}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Fetch user rank, level, account_type, and role from database
             rank = None
@@ -334,17 +316,15 @@ def _validate_token_impl():
                             account_type = user_data.get('account_type', 'regular')
                             username = user_data.get('username', 'unknown')
                             user_role = user_data.get('role', 'player')
-                            custom_log(f"✅ API: Fetched user info - userId={user_id}, username={username}, account_type={account_type}", level="INFO", isOn=LOGGING_SWITCH)
                             
                             # Get rank and level from dutch_game module
                             if user_data.get("modules", {}).get("dutch_game"):
                                 dutch_game_data = user_data['modules']['dutch_game']
                                 rank = dutch_game_data.get('rank') or matcher.DEFAULT_RANK
                                 level = dutch_game_data.get('level', matcher.DEFAULT_LEVEL)
-                                custom_log(f"✅ API: Fetched rank={rank}, level={level} for user {user_id}", level="INFO", isOn=LOGGING_SWITCH)
-                except Exception as e:
-                    custom_log(f"⚠️ API: Error fetching user data for user {user_id}: {e}", level="WARNING", isOn=LOGGING_SWITCH)
-            
+                except Exception:
+                    pass
+
             return jsonify({
                 'valid': True,
                 'user_id': user_id,
@@ -356,14 +336,12 @@ def _validate_token_impl():
                 'payload': payload
             })
         except Exception as e:
-            custom_log(f"❌ API: Token validation failed: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({
                 'valid': False,
                 'error': 'Invalid or expired token'
             }), 401
             
     except Exception as e:
-        custom_log(f"❌ API: Unexpected error in validate_token: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({
             'valid': False,
             'error': str(e)
@@ -421,7 +399,6 @@ def create_tournament_in_db(creator_id, data, db_manager):
             return (None, None, "Failed to create tournament")
         return (tournament_id, created_at, None)
     except Exception as e:
-        custom_log(f"❌ Dutch: create_tournament_in_db error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return (None, None, str(e))
 
 
@@ -432,12 +409,10 @@ def create_tournaments():
     Returns tournament id and created_at."""
     try:
         data = request.get_json() or {}
-        custom_log("📋 Dutch: create-tournaments request received", level="INFO", isOn=LOGGING_SWITCH)
         creator_id_raw = data.get("creator_id")
         if not creator_id_raw:
             return jsonify({"success": False, "error": "creator_id is required"}), 400
         if not _app_manager:
-            custom_log("❌ Dutch: create_tournaments - app_manager not set", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         db_manager = _app_manager.get_db_manager(role="read_write")
         if not db_manager:
@@ -446,10 +421,8 @@ def create_tournaments():
         if err:
             status = 400 if "required" in err or "valid" in err else 500
             return jsonify({"success": False, "error": err}), status
-        custom_log(f"📋 Dutch: tournament created id={tournament_id} creator_id={creator_id_raw}", level="INFO", isOn=LOGGING_SWITCH)
         return jsonify({"success": True, "tournament_id": tournament_id, "created_at": created_at}), 200
     except Exception as e:
-        custom_log(f"❌ Dutch: create_tournaments error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -473,7 +446,6 @@ def get_tournaments_service():
             out.append(j)
         return jsonify({"success": True, "tournaments": out}), 200
     except Exception as e:
-        custom_log(f"DutchGame: get_tournaments_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
 
 
@@ -492,14 +464,8 @@ def get_tournaments_public():
             j = _tournament_doc_to_json(d)
             j["id"] = str(d.get("_id", ""))
             out.append(_tournament_json_for_public(j))
-        custom_log(
-            f"DutchGame: get_tournaments_public ok count={len(out)}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         return jsonify({"success": True, "tournaments": out}), 200
     except Exception as e:
-        custom_log(f"DutchGame: get_tournaments_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
 
 
@@ -628,11 +594,6 @@ def _insert_initial_completed_match_single_room_league(
     if not user_id_strs:
         user_id_strs = [str(u).strip() for u in (roster_user_id_strs or []) if u]
     if not user_id_strs:
-        custom_log(
-            "📊 Python: _insert_initial_completed_match no user_ids",
-            level="WARNING",
-            isOn=LOGGING_SWITCH,
-        )
         return False
 
     user_oids = []
@@ -696,27 +657,11 @@ def _insert_initial_completed_match_single_room_league(
             {"$push": {"matches": new_match}, "$set": {"updated_at": updated_at}},
         )
     except Exception as db_err:
-        custom_log(
-            f"📊 Python: _insert_initial_completed_match db error: {db_err}",
-            level="ERROR",
-            isOn=LOGGING_SWITCH,
-        )
         return False
 
     if not result or result.modified_count == 0:
-        custom_log(
-            "📊 Python: _insert_initial_completed_match failed (no document modified)",
-            level="WARNING",
-            isOn=LOGGING_SWITCH,
-        )
         return False
 
-    custom_log(
-        f"📊 Python: single_room_league — inserted initial completed match tournament_id={tournament_id} "
-        f"match_id={match_id_str} match_index=1 room_id={room_id} winner={winner_str}",
-        level="INFO",
-        isOn=LOGGING_SWITCH,
-    )
     return True
 
 
@@ -745,11 +690,6 @@ def _append_single_room_league_completed_match(
             if s not in user_id_strs:
                 user_id_strs.append(s)
     if not user_id_strs:
-        custom_log(
-            "📊 Python: _append_single_room_league_completed_match no user_ids from game_results or tournament",
-            level="WARNING",
-            isOn=LOGGING_SWITCH,
-        )
         return False
 
     user_oids = []
@@ -824,7 +764,6 @@ def _append_single_room_league_completed_match(
             {"$pull": {"matches": pull_spec}, "$set": {"updated_at": updated_at}},
         )
     except Exception as db_err:
-        custom_log(f"📊 Python: _append_single_room_league_completed_match pull db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
         return False
 
     try:
@@ -833,23 +772,11 @@ def _append_single_room_league_completed_match(
             {"$push": {"matches": new_match}, "$set": {"updated_at": updated_at}},
         )
     except Exception as db_err:
-        custom_log(f"📊 Python: _append_single_room_league_completed_match push db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
         return False
 
     if not result or result.modified_count == 0:
-        custom_log(
-            "📊 Python: _append_single_room_league_completed_match failed (no document modified)",
-            level="WARNING",
-            isOn=LOGGING_SWITCH,
-        )
         return False
 
-    custom_log(
-        f"📊 Python: single_room_league — appended completed match tournament_id={tournament_id} "
-        f"match_id={match_id_str} match_index={next_index} room_id={room_id} winner={winner_str}",
-        level="INFO",
-        isOn=LOGGING_SWITCH,
-    )
     return True
 
 
@@ -867,20 +794,16 @@ def _record_tournament_match_result(
     Other formats: match is found by tournament_id + room_id (room_id was set on the match at creation/attach).
     Winner is the user_id of game_result rows with is_winner=True; if multiple winners, comma-separated."""
     if not room_id:
-        custom_log("📊 Python: _record_tournament_match_result skipped - no room_id", level="WARNING", isOn=LOGGING_SWITCH)
         return
     tournament_id = (tournament_data.get("tournament_id") or "").strip()
     if not tournament_id:
-        custom_log("📊 Python: _record_tournament_match_result skipped - no tournament_id in tournament_data", level="WARNING", isOn=LOGGING_SWITCH)
         return
     try:
         tournament_oid = ObjectId(tournament_id)
     except Exception:
-        custom_log(f"📊 Python: _record_tournament_match_result invalid tournament_id format: {tournament_id}", level="WARNING", isOn=LOGGING_SWITCH)
         return
     tournament = db_manager.find_one("tournaments", {"_id": tournament_oid})
     if not tournament:
-        custom_log(f"📊 Python: _record_tournament_match_result tournament not found: {tournament_id}", level="WARNING", isOn=LOGGING_SWITCH)
         return
 
     fmt = (tournament.get("format") or "").strip().lower()
@@ -897,7 +820,6 @@ def _record_tournament_match_result(
             match_idx = i
             break
     if match_idx is None:
-        custom_log(f"📊 Python: _record_tournament_match_result no match with room_id={room_id} in tournament {tournament_id}", level="WARNING", isOn=LOGGING_SWITCH)
         return
     winner_str = _winner_str_from_game_results(game_results)
     matches[match_idx] = dict(matches[match_idx])
@@ -941,15 +863,10 @@ def _record_tournament_match_result(
             {"_id": tournament_oid},
             {"$set": {"matches": matches, "updated_at": updated_at}},
         )
-        custom_log(
-            f"📊 Python: Tournament match updated - tournament_id={tournament_id} room_id={room_id} winner={winner_str}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
     except Exception as db_err:
-        custom_log(f"📊 Python: _record_tournament_match_result db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
 
 
+        pass
 def _ensure_match_win_outcomes_indexes(db_manager) -> None:
     """Idempotent indexes: range queries on ended_at; unique (room_id, user_id) for insert-only idempotency."""
     try:
@@ -961,9 +878,9 @@ def _ensure_match_win_outcomes_indexes(db_manager) -> None:
             name="room_user_unique",
         )
     except Exception as e:
-        custom_log(f"📊 Python: match_win_outcomes index ensure (non-fatal): {e}", level="WARNING", isOn=LOGGING_SWITCH)
 
 
+        pass
 def _insert_match_win_outcome_additive(
     db_manager,
     *,
@@ -985,19 +902,10 @@ def _insert_match_win_outcome_additive(
     }
     try:
         db_manager.db[MATCH_WIN_OUTCOMES_COLL].insert_one(doc)
-        custom_log(
-            f"📊 Python: match_win_outcome inserted room_id={room_id} user_id={user_id} ended_at={ended_at_utc.isoformat()}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
     except DuplicateKeyError:
-        custom_log(
-            f"📊 Python: match_win_outcome duplicate skip room_id={room_id} user_id={user_id}",
-            level="DEBUG",
-            isOn=LOGGING_SWITCH,
-        )
 
 
+        pass
 def _utc_bounds_calendar_month(now_utc: datetime) -> Tuple[datetime, datetime]:
     """Inclusive start, exclusive end for the calendar month containing now_utc (UTC)."""
     if now_utc.tzinfo is None:
@@ -1029,7 +937,6 @@ def update_game_stats():
     unique ``(room_id, user_id)``) so period leaderboards can aggregate without races or double counts.
     """
     try:
-        custom_log("📊 Python: Received game statistics update request", level="INFO", isOn=LOGGING_SWITCH)
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "message": "Request body is required", "error": "Missing request body"}), 400
@@ -1038,7 +945,6 @@ def update_game_stats():
             return jsonify({"success": False, "message": "game_results array is required", "error": "Missing or invalid game_results"}), 400
         if len(game_results) == 0:
             return jsonify({"success": False, "message": "game_results array cannot be empty", "error": "No game results provided"}), 400
-        custom_log(f"📊 Python: Processing {len(game_results)} player result(s)", level="INFO", isOn=LOGGING_SWITCH)
 
         _raw_coin_req = data.get("is_coin_required", data.get("isCoinRequired"))
         game_coin_required = True if _raw_coin_req is None else bool(_raw_coin_req)
@@ -1250,11 +1156,10 @@ def update_game_stats():
                                 "matches": tj.get("matches") or [],
                             }
                     except Exception as e_td:
-                        custom_log(f"📊 Python: update_game_stats tournament_data attach skipped: {e_td}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        pass
             return jsonify(response_data), 200
         return jsonify({"success": False, "message": "Failed to update any player statistics", "error": "All updates failed", "errors": errors}), 500
     except Exception as e:
-        custom_log(f"❌ Python: Error in update_game_stats: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "message": "Failed to update game statistics", "error": str(e)}), 500
 
 
@@ -1286,9 +1191,9 @@ def _ensure_leaderboards_indexes(db_manager) -> None:
         )
         coll.create_index([("date_time", -1)])
     except Exception as e:
-        custom_log(f"📊 Python: leaderboards index ensure (non-fatal): {e}", level="WARNING", isOn=LOGGING_SWITCH)
 
 
+        pass
 def snapshot_wins_leaderboard_service():
     """Service: record top player(s) by cumulative ``modules.dutch_game.wins`` into ``leaderboards``.
 
@@ -1340,11 +1245,6 @@ def snapshot_wins_leaderboard_service():
             }
         )
         if existing:
-            custom_log(
-                f"📊 Python: snapshot_wins_leaderboard skip (exists) type={lb_type} period={period_key}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
             return (
                 jsonify(
                     {
@@ -1396,11 +1296,6 @@ def snapshot_wins_leaderboard_service():
             "metric_note": "modules.dutch_game.wins at snapshot time; not wins-only-within-period",
         }
         ins = coll.insert_one(doc)
-        custom_log(
-            f"📊 Python: snapshot_wins_leaderboard inserted type={lb_type} period={period_key} id={ins.inserted_id}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         return (
             jsonify(
                 {
@@ -1415,7 +1310,6 @@ def snapshot_wins_leaderboard_service():
             200,
         )
     except Exception as e:
-        custom_log(f"❌ Python: snapshot_wins_leaderboard: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "message": "Failed to snapshot leaderboard", "error": str(e)}), 500
 
 
@@ -1479,12 +1373,6 @@ def get_user_stats():
             stats_data['last_match_date'] = stats_data['last_match_date'].isoformat()
         if stats_data.get('last_updated') and isinstance(stats_data['last_updated'], datetime):
             stats_data['last_updated'] = stats_data['last_updated'].isoformat()
-        if LOGGING_SWITCH:
-            custom_log(
-                f"📊 DutchGame: get_user_stats (JWT) user_id={user_id} coins={stats_data.get('coins')} subscription_tier={stats_data.get('subscription_tier')}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         client_rev = (request.args.get("client_table_tiers_revision") or "").strip()
         client_cons_rev = (request.args.get("client_consumables_catalog_revision") or "").strip()
         rev = ttc.TABLE_TIERS_REVISION
@@ -1505,7 +1393,6 @@ def get_user_stats():
             response_body["consumables_catalog"] = cc.build_client_consumables_payload()
         return jsonify(response_body), 200
     except Exception as e:
-        custom_log(f"❌ DutchGame: Error in get_user_stats: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to retrieve user statistics", "message": str(e)}), 500
 
 
@@ -1514,13 +1401,10 @@ def get_user_stats_service():
     try:
         data = request.get_json()
         if not data:
-            custom_log("📊 DutchGame: get_user_stats_service missing body", level="WARNING", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Request body required", "message": "Missing request body"}), 400
         user_id = (data.get("user_id") or data.get("userid") or "").strip()
         if not user_id:
-            custom_log("📊 DutchGame: get_user_stats_service missing user_id", level="WARNING", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "user_id required", "message": "user_id is required in body"}), 400
-        custom_log(f"📊 DutchGame: get_user_stats_service request user_id={user_id}", level="INFO", isOn=LOGGING_SWITCH)
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         db_manager = _app_manager.get_db_manager(role="read_write")
@@ -1529,16 +1413,13 @@ def get_user_stats_service():
         try:
             user_id_obj = ObjectId(user_id)
         except Exception:
-            custom_log(f"📊 DutchGame: get_user_stats_service invalid user_id={user_id}", level="WARNING", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Invalid user_id", "message": "user_id must be a valid ObjectId"}), 400
         user = db_manager.find_one("users", {"_id": user_id_obj})
         if not user:
-            custom_log(f"📊 DutchGame: get_user_stats_service user not found user_id={user_id}", level="INFO", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found", "data": None}), 404
         modules = user.get("modules", {})
         dutch_game = modules.get("dutch_game", {})
         if not dutch_game:
-            custom_log(f"📊 DutchGame: get_user_stats_service user_id={user_id} no dutch_game module -> coins=0 tier=promotional", level="INFO", isOn=LOGGING_SWITCH)
             return jsonify({"success": True, "message": "User has no dutch_game module", "data": {"coins": 0, "subscription_tier": matcher.TIER_PROMOTIONAL}, "user_id": user_id, "timestamp": datetime.utcnow().isoformat()}), 200
         stats_data = {
             "coins": dutch_game.get("coins", 0),
@@ -1550,10 +1431,8 @@ def get_user_stats_service():
             "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
             "inventory": _normalize_inventory(dutch_game.get("inventory")),
         }
-        custom_log(f"📊 DutchGame: get_user_stats_service user_id={user_id} coins={stats_data['coins']} subscription_tier={stats_data['subscription_tier']}", level="INFO", isOn=LOGGING_SWITCH)
         return jsonify({"success": True, "message": "User statistics retrieved", "data": stats_data, "user_id": user_id, "timestamp": datetime.utcnow().isoformat()}), 200
     except Exception as e:
-        custom_log(f"❌ DutchGame: Error in get_user_stats_service: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to retrieve user statistics", "message": str(e)}), 500
 
 
@@ -1567,7 +1446,6 @@ def get_shop_catalog_service():
             "timestamp": datetime.utcnow().isoformat(),
         }), 200
     except Exception as e:
-        custom_log(f"❌ DutchGame: get_shop_catalog_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to fetch shop catalog", "message": str(e)}), 500
 
 
@@ -1593,7 +1471,6 @@ def get_inventory_service():
         dutch_game = _dutch_game_with_inventory(user)
         return jsonify({"success": True, "inventory": dutch_game.get("inventory", _default_inventory()), "user_id": user_id}), 200
     except Exception as e:
-        custom_log(f"❌ DutchGame: get_inventory_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to fetch inventory", "message": str(e)}), 500
 
 
@@ -1683,7 +1560,6 @@ def purchase_item_service():
             "tx_id": tx_res.get("tx_id"),
         }), 200
     except Exception as e:
-        custom_log(f"❌ DutchGame: purchase_item_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to purchase item", "message": str(e)}), 500
 
 
@@ -1748,7 +1624,6 @@ def equip_cosmetic_service():
         )
         return jsonify({"success": True, "equipped": inv["cosmetics"]["equipped"]}), 200
     except Exception as e:
-        custom_log(f"❌ DutchGame: equip_cosmetic_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to equip cosmetic", "message": str(e)}), 500
 
 
@@ -1786,7 +1661,6 @@ def consume_win_booster_service():
         )
         return jsonify({"success": True, "remaining": inv["boosters"][BOOSTER_ITEM_ID], "tx_id": tx.get("tx_id")}), 200
     except Exception as e:
-        custom_log(f"❌ DutchGame: consume_win_booster_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to consume booster", "message": str(e)}), 500
 
 
@@ -1801,34 +1675,15 @@ def get_table_design_overlay_media():
             fallback_webp = SPONSORS_MEDIA_DIR / "table_logo.webp"
             fallback_png = SPONSORS_MEDIA_DIR / "table_logo.png"
             if fallback_webp.exists():
-                if LOGGING_SWITCH:
-                    custom_log(
-                        f"🖼️ DutchGame: table overlay fallback used skinId={skin_id} missing={media_path}",
-                        level="WARNING",
-                        isOn=LOGGING_SWITCH,
-                    )
                 return send_file(fallback_webp, mimetype="image/webp")
             if fallback_png.exists():
-                if LOGGING_SWITCH:
-                    custom_log(
-                        f"🖼️ DutchGame: png table overlay fallback used skinId={skin_id} missing={media_path}",
-                        level="WARNING",
-                        isOn=LOGGING_SWITCH,
-                    )
                 return send_file(fallback_png, mimetype="image/png")
             return jsonify({"success": False, "error": "media_not_found", "message": f"Missing media file: {media_path}"}), 404
 
-        if LOGGING_SWITCH:
-            custom_log(
-                f"🖼️ DutchGame: table overlay served skinId={skin_id} file={media_path}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         if media_path.suffix.lower() == ".webp":
             return send_file(media_path, mimetype="image/webp")
         return send_file(media_path, mimetype="image/png")
     except Exception as e:
-        custom_log(f"❌ DutchGame: get_table_design_overlay_media error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "failed_to_serve_table_overlay", "message": str(e)}), 500
 
 
@@ -1854,7 +1709,6 @@ def serve_table_tier_background_public(filename: str):
         suf = media_path.suffix.lower()
         return send_file(media_path, mimetype=_BG_EXT_TO_MIME.get(suf, "application/octet-stream"))
     except Exception as e:
-        custom_log(f"❌ DutchGame: serve_table_tier_background_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "failed_to_serve", "message": str(e)}), 500
 
 
@@ -1870,34 +1724,15 @@ def get_card_back_media():
             fallback_webp = SPONSORS_MEDIA_DIR / "card_back.webp"
             fallback_png = SPONSORS_MEDIA_DIR / "card_back.png"
             if fallback_webp.exists():
-                if LOGGING_SWITCH:
-                    custom_log(
-                        f"🖼️ DutchGame: card back fallback used skinId={skin_id} missing={media_path}",
-                        level="WARNING",
-                        isOn=LOGGING_SWITCH,
-                    )
                 return send_file(fallback_webp, mimetype="image/webp")
             if fallback_png.exists():
-                if LOGGING_SWITCH:
-                    custom_log(
-                        f"🖼️ DutchGame: png card back fallback used skinId={skin_id} missing={media_path}",
-                        level="WARNING",
-                        isOn=LOGGING_SWITCH,
-                    )
                 return send_file(fallback_png, mimetype="image/png")
             return jsonify({"success": False, "error": "media_not_found", "message": f"Missing media file: {media_path}"}), 404
 
-        if LOGGING_SWITCH:
-            custom_log(
-                f"🖼️ DutchGame: card back served skinId={skin_id} file={media_path}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         if media_path.suffix.lower() == ".webp":
             return send_file(media_path, mimetype="image/webp")
         return send_file(media_path, mimetype="image/png")
     except Exception as e:
-        custom_log(f"❌ DutchGame: get_card_back_media error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "failed_to_serve_card_back", "message": str(e)}), 500
 
 
@@ -1914,12 +1749,6 @@ def _deduct_game_coins_from_body(data: Dict[str, Any]):
         return jsonify({"success": False, "error": "Invalid player_ids", "message": "player_ids must be a non-empty array"}), 400
 
     if not game_coin_required:
-        if LOGGING_SWITCH:
-            custom_log(
-                f"📊 DutchGame: deduct_game_coins skipped (is_coin_required=false) game_id={game_id} players={len(player_ids)}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         db_manager = _app_manager.get_db_manager(role="read_write")
@@ -2008,12 +1837,6 @@ def _deduct_game_coins_from_body(data: Dict[str, Any]):
     if not db_manager:
         return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
     current_timestamp = datetime.utcnow().isoformat()
-    if LOGGING_SWITCH:
-        custom_log(
-            f"📊 DutchGame: deduct_game_coins start game_id={game_id} fee={coins} game_table_level={table_level_for_gate} players={len(player_ids)}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
     updated_players = []
     errors = []
     for player_id_str in player_ids:
@@ -2065,22 +1888,10 @@ def _deduct_game_coins_from_body(data: Dict[str, Any]):
         except Exception as e:
             errors.append(f"Error processing coin deduction for player {player_id_str}: {str(e)}")
     if len(updated_players) > 0:
-        if LOGGING_SWITCH:
-            custom_log(
-                f"📊 DutchGame: deduct_game_coins ok game_id={game_id} fee={coins} updated={len(updated_players)} error_lines={len(errors)}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         response_data = {"success": True, "message": f"Coins deducted successfully for {len(updated_players)} player(s)", "game_id": game_id, "coins_deducted": coins, "updated_players": updated_players}
         if errors:
             response_data["warnings"] = errors
         return jsonify(response_data), 200
-    if LOGGING_SWITCH:
-        custom_log(
-            f"📊 DutchGame: deduct_game_coins failed game_id={game_id} fee={coins} errors={errors!r}",
-            level="WARNING",
-            isOn=LOGGING_SWITCH,
-        )
     return jsonify({"success": False, "message": "Failed to deduct coins for any player", "error": "All deductions failed", "errors": errors}), 500
 
 
@@ -2106,7 +1917,6 @@ def deduct_game_coins():
             return jsonify({"success": False, "error": "Request body is required", "message": "Missing request body"}), 400
         return _deduct_game_coins_from_body(data)
     except Exception as e:
-        custom_log(f"❌ DutchGame: Error in deduct_game_coins: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "message": "Failed to deduct game coins", "error": str(e)}), 500
 
 
@@ -2118,7 +1928,6 @@ def deduct_game_coins_service():
             return jsonify({"success": False, "error": "Request body is required", "message": "Missing request body"}), 400
         return _deduct_game_coins_from_body(data)
     except Exception as e:
-        custom_log(f"❌ DutchGame: Error in deduct_game_coins_service: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "message": "Failed to deduct game coins", "error": str(e)}), 500
 
 
@@ -2139,10 +1948,8 @@ def create_tournament():
         if err:
             status = 400 if "required" in err or "valid" in err else 500
             return jsonify({"success": False, "error": err}), status
-        custom_log(f"DutchGame: create_tournament id={tournament_id} creator_id={creator_id}", level="INFO", isOn=LOGGING_SWITCH)
         return jsonify({"success": True, "tournament_id": tournament_id, "created_at": created_at}), 200
     except Exception as e:
-        custom_log(f"DutchGame: create_tournament error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2164,14 +1971,8 @@ def get_tournaments():
             j = _tournament_doc_to_json(d)
             j["id"] = str(d.get("_id", ""))
             out.append(j)
-        custom_log(
-            f"DutchGame: get_tournaments admin ok count={len(out)}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         return jsonify({"success": True, "tournaments": out}), 200
     except Exception as e:
-        custom_log(f"DutchGame: get_tournaments error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
 
 
@@ -2279,7 +2080,6 @@ def _append_match_row_to_tournament(
             update_op,
         )
     except Exception as db_err:
-        custom_log(f"DutchGame: _append_match_row_to_tournament db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
         return None, "Failed to update tournament"
 
     if not result or result.modified_count == 0:
@@ -2335,11 +2135,6 @@ def add_tournament_match():
             status = 404 if err == "Tournament not found" else 500
             return jsonify({"success": False, "error": err or "append failed"}), status
 
-        custom_log(
-            f"DutchGame: add_tournament_match tournament_id={tournament_id} match_index={res['match_index']} players={len(user_id_strs)}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         return jsonify({
             "success": True,
             "message": "Match added",
@@ -2349,7 +2144,6 @@ def add_tournament_match():
             "user_ids": user_id_strs,
         }), 200
     except Exception as e:
-        custom_log(f"DutchGame: add_tournament_match error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2436,13 +2230,11 @@ def update_tournament_match():
         try:
             result = db_manager.db["tournaments"].update_one({"_id": tournament_oid}, update_op)
         except Exception as db_err:
-            custom_log(f"DutchGame: update_tournament_match db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Failed to update tournament"}), 500
 
         if not result or result.modified_count == 0:
             return jsonify({"success": False, "error": "Failed to update match (no document modified)"}), 500
 
-        custom_log(f"DutchGame: update_tournament_match tournament_id={tournament_id} match_index={match_index} added={len(user_id_strs)}", level="INFO", isOn=LOGGING_SWITCH)
         return jsonify({
             "success": True,
             "message": "Match updated",
@@ -2451,7 +2243,6 @@ def update_tournament_match():
             "user_ids_added": user_id_strs,
         }), 200
     except Exception as e:
-        custom_log(f"DutchGame: update_tournament_match error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2572,7 +2363,6 @@ def start_tournament_match():
             "create_room_payload": create_room_payload,
         }), 200
     except Exception as e:
-        custom_log(f"DutchGame: start_tournament_match error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2624,9 +2414,7 @@ def _attach_tournament_match_room_impl(tournament_id, match_index, room_id):
             {"$set": {"matches": matches, "updated_at": updated_at}},
         )
     except Exception as db_err:
-        custom_log(f"DutchGame: attach_tournament_match_room db error: {db_err}", level="ERROR", isOn=LOGGING_SWITCH)
         return {"success": False, "error": "Failed to update tournament"}, 500
-    custom_log(f"DutchGame: attach_tournament_match_room tournament_id={tournament_id} match_index={match_index} room_id={room_id}", level="INFO", isOn=LOGGING_SWITCH)
     # Enriched roster for Dart: comp vs human so start_match can add tournament comps before random Flask CPUs
     match_row = matches[match_idx]
     players_raw = match_row.get("players") or []
@@ -2680,7 +2468,6 @@ def attach_tournament_match_room():
         result, status = _attach_tournament_match_room_impl(tournament_id, match_index, room_id)
         return jsonify(result), status
     except Exception as e:
-        custom_log(f"DutchGame: attach_tournament_match_room error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2692,15 +2479,9 @@ def attach_tournament_match_room_service():
         tournament_id = (data.get("tournament_id") or "").strip()
         match_index = data.get("match_index") or data.get("match_id")
         room_id = (data.get("room_id") or "").strip()
-        custom_log(
-            f"DutchGame: attach_tournament_match_room_service request tournament_id={tournament_id!r} match_index={match_index!r} room_id={room_id!r}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         result, status = _attach_tournament_match_room_impl(tournament_id, match_index, room_id)
         return jsonify(result), status
     except Exception as e:
-        custom_log(f"DutchGame: attach_tournament_match_room_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2720,11 +2501,6 @@ def rematch_tournament_snapshot_service():
         initial_match_game_results = data.get("initial_match_game_results")
         if not isinstance(initial_match_game_results, list):
             initial_match_game_results = []
-        custom_log(
-            f"DutchGame: rematch_tournament_snapshot_service room_id={room_id!r}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         if not room_id:
             return jsonify({"success": False, "error": "room_id is required"}), 400
         if not _app_manager:
@@ -2768,11 +2544,6 @@ def rematch_tournament_snapshot_service():
                 "match_index": res["match_index"],
             }
             td_out = _enrich_td_out_from_tournament_doc(db_manager, tournament_oid, td_out)
-            custom_log(
-                f"DutchGame: rematch_tournament_snapshot extended tournament_id={existing_tid} match_index={res['match_index']}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
             return jsonify({"success": True, "tournament_id": existing_tid, "tournament_data": td_out}), 200
 
         create_data = {
@@ -2822,15 +2593,8 @@ def rematch_tournament_snapshot_service():
             "match_index": res["match_index"],
         }
         td_out = _enrich_td_out_from_tournament_doc(db_manager, new_oid, td_out)
-        custom_log(
-            f"DutchGame: rematch_tournament_snapshot created tournament_id={tid_str} format=single_room_league "
-            f"pending_match_index={res['match_index']} initial_completed_sent={bool(initial_match_game_results)}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         return jsonify({"success": True, "tournament_id": tid_str, "tournament_data": td_out}), 200
     except Exception as e:
-        custom_log(f"DutchGame: rematch_tournament_snapshot_service error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2858,7 +2622,6 @@ def get_tournaments_list_public():
             out.append(item)
         return jsonify({"success": True, "tournaments": out}), 200
     except Exception as e:
-        custom_log(f"DutchGame: get_tournaments_list_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
 
 
@@ -2959,12 +2722,6 @@ def get_period_wins_leaderboard_public():
                         "in_period": False,
                     }
 
-        custom_log(
-            f"📊 Python: GET leaderboard-period-wins period={raw_period} period_key={period_key} limit={limit} "
-            f"row_count={len(rows)} viewer={'yes' if viewer_out else 'no'}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         payload: Dict[str, Any] = {
             "success": True,
             "period": raw_period,
@@ -2977,7 +2734,6 @@ def get_period_wins_leaderboard_public():
             payload["viewer"] = viewer_out
         return jsonify(payload), 200
     except Exception as e:
-        custom_log(f"DutchGame: get_period_wins_leaderboard_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e), "rows": []}), 500
 
 
@@ -3027,14 +2783,8 @@ def get_leaderboards_list_public():
                 "winners": d.get("winners") or [],
             }
             out.append(item)
-        custom_log(
-            f"📊 Python: GET leaderboards list type={lb_filter or 'all'} limit={limit} doc_count={len(out)}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         return jsonify({"success": True, "leaderboards": out}), 200
     except Exception as e:
-        custom_log(f"DutchGame: get_leaderboards_list_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e), "leaderboards": []}), 500
 
 
@@ -3058,7 +2808,6 @@ def tournament_signup():
             "tournament_id": tournament_id,
         }), 200
     except Exception as e:
-        custom_log(f"DutchGame: tournament_signup error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3115,11 +2864,6 @@ def invite_players_to_match():
         room_id = (data.get("room_id") or "").strip() or None
         title = (data.get("title") or "Match invite").strip()
         body = (data.get("body") or "You're invited to a match.").strip()
-        custom_log(
-            f"DutchGame: invite_players_to_match requested={len(user_ids)} match_id={match_id!r} room_id={room_id!r}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         notification_data = {"match_id": match_id}
@@ -3142,14 +2886,8 @@ def invite_players_to_match():
             )
             if nid:
                 notified += 1
-        custom_log(
-            f"DutchGame: invite_players_to_match ok notified={notified} requested={len(user_ids)}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         return jsonify({"success": True, "notified": notified, "requested": len(user_ids)}), 200
     except Exception as e:
-        custom_log(f"DutchGame: invite_players_to_match error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3221,5 +2959,4 @@ def get_comp_players():
             response_data["message"] = f"Successfully retrieved {selected_count} comp player(s)"
         return jsonify(response_data), 200
     except Exception as e:
-        custom_log(f"❌ DutchGame: Error in get_comp_players: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         return jsonify({"success": False, "error": "Failed to retrieve comp players", "message": str(e)}), 500

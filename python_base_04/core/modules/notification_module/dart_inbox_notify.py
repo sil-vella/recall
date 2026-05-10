@@ -7,9 +7,7 @@ from __future__ import annotations
 
 import threading
 
-from tools.logger.custom_logging import custom_log
 
-LOGGING_SWITCH = False  # POST Dart /service/notify-inbox (enable-logging-switch.mdc; set False after verify)
 
 
 def notify_dart_inbox_changed_async(user_id: str) -> None:
@@ -21,21 +19,9 @@ def notify_dart_inbox_changed_async(user_id: str) -> None:
 
             base = (getattr(Config, "DART_BACKEND_NOTIFY_URL", None) or "").strip()
             if not base:
-                if LOGGING_SWITCH:
-                    custom_log(
-                        "notify_dart_inbox_changed: DART_BACKEND_NOTIFY_URL empty, skip",
-                        level="DEBUG",
-                        isOn=LOGGING_SWITCH,
-                    )
                 return
             key = (getattr(Config, "DART_BACKEND_SERVICE_KEY", None) or "").strip()
             if not key:
-                if LOGGING_SWITCH:
-                    custom_log(
-                        "notify_dart_inbox_changed: DART_BACKEND_SERVICE_KEY empty, skip",
-                        level="WARNING",
-                        isOn=LOGGING_SWITCH,
-                    )
                 return
             import requests
 
@@ -46,13 +32,7 @@ def notify_dart_inbox_changed_async(user_id: str) -> None:
                 headers={"X-Service-Key": key},
                 timeout=3,
             )
-            if LOGGING_SWITCH:
-                custom_log(
-                    f"notify_dart_inbox_changed: POST {url} user_id={user_id} http_status={r.status_code}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
         except Exception as e:
-            custom_log(f"notify_dart_inbox_changed: {e}", level="WARNING", isOn=LOGGING_SWITCH)
 
+            pass
     threading.Thread(target=_run, daemon=True).start()

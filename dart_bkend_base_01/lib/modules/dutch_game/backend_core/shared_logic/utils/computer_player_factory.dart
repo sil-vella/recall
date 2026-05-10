@@ -4,13 +4,11 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for computer same-rank decision process (getSameRankPlayDecisionByIndex, _selectSameRankCard)
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
   final ComputerPlayerConfig config;
   final Random _random = Random();
-  final Logger _logger = Logger();
 
   ComputerPlayerFactory(this.config);
   
@@ -34,31 +32,18 @@ class ComputerPlayerFactory {
 
   /// Create factory from YAML file
   static Future<ComputerPlayerFactory> fromFile(String configPath) async {
-    final logger = Logger();
-    if (LOGGING_SWITCH) {
-      logger.info('🏭 ComputerPlayerFactory.fromFile() START - configPath: $configPath');
-    }
-    
     try {
       final config = await ComputerPlayerConfig.fromFile(configPath);
       
-      if (LOGGING_SWITCH) {
-        logger.info('🏭 ComputerPlayerFactory: Config loaded successfully');
-        final summary = config.getSummary();
-        logger.info('🏭 ComputerPlayerFactory: Config summary - difficulties: ${summary['total_difficulties']}, events: ${summary['supported_events']}, version: ${summary['config_version']}');
-      }
+      
       
       final factory = ComputerPlayerFactory(config);
       
-      if (LOGGING_SWITCH) {
-        logger.info('🏭 ComputerPlayerFactory.fromFile() SUCCESS');
-      }
+      
       
       return factory;
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        logger.error('🏭 ComputerPlayerFactory.fromFile() ERROR: $e', error: e, stackTrace: stackTrace);
-      }
+      
       rethrow;
     }
   }
@@ -110,16 +95,12 @@ class ComputerPlayerFactory {
     // Calculate timer-based delay (0.4 to 0.8 of timer)
     final decisionDelay = _calculateTimerBasedDelay(playingCardTimeLimit);
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getPlayCardDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, AvailableCards: ${availableCards.length}, TimeLimit: ${playingCardTimeLimit}s, Delay: ${decisionDelay.toStringAsFixed(2)}s');
-    };
+    ;
     
     // Check miss chance first (before selecting card)
     if (_checkMissChance(difficulty)) {
       final missChance = config.getMissChanceToPlay(difficulty);
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: ⚠️ MISS CHANCE - Player $playerName missed play action (${(missChance * 100).toStringAsFixed(1)}% miss chance)');
-      };
+      ;
       return {
         'action': 'play_card',
         'card_id': null,
@@ -133,14 +114,10 @@ class ComputerPlayerFactory {
     final cardSelection = config.getCardSelectionStrategy(difficulty);
     final evaluationWeights = config.getCardEvaluationWeights();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: 📋 YAML Config Loaded - Difficulty: $difficulty, DecisionDelay: ${decisionDelay.toStringAsFixed(2)}s, Strategy: ${cardSelection['strategy']}, Weights: $evaluationWeights');
-    };
+    ;
     
     if (availableCards.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - No cards available to play');
-      };
+      ;
       return {
         'action': 'play_card',
         'card_id': null,
@@ -150,17 +127,13 @@ class ComputerPlayerFactory {
       };
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Available cards: $availableCards');
-    };
+    ;
     
     // Select card based on strategy
     // Pass timerConfig to _selectCard so it can adjust strategy based on time pressure
     final selectedCard = _selectCard(availableCards, cardSelection, evaluationWeights, gameState, timerConfig: timerConfig);
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: ✅ AFTER YAML PARSING (getPlayCardDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, SelectedCard: $selectedCard, Strategy: ${cardSelection['strategy']}');
-    };
+    ;
     
     return {
       'action': 'play_card',
@@ -184,9 +157,7 @@ class ComputerPlayerFactory {
     // Check miss chance first (before checking play probability)
     if (_checkMissChance(difficulty)) {
       final missChance = config.getMissChanceToPlay(difficulty);
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: ⚠️ MISS CHANCE - Same rank play missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)');
-      };
+      ;
       return {
         'action': 'same_rank_play',
         'play': false,
@@ -277,9 +248,7 @@ class ComputerPlayerFactory {
 
     if (_checkMissChance(difficulty)) {
       final missChance = config.getMissChanceToPlay(difficulty);
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: ⚠️ MISS CHANCE - Same rank play missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)');
-      }
+      
       return {
         'action': 'same_rank_play',
         'play': false,
@@ -356,16 +325,12 @@ class ComputerPlayerFactory {
     // Calculate timer-based delay (0.4 to 0.8 of timer)
     final decisionDelay = _calculateTimerBasedDelay(jackSwapTimeLimit);
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getJackSwapDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, TimeLimit: ${jackSwapTimeLimit}s, Delay: ${decisionDelay.toStringAsFixed(2)}s');
-    };
+    ;
     
     // Check miss chance first
     if (_checkMissChance(difficulty)) {
       final missChance = config.getMissChanceToPlay(difficulty);
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: ⚠️ MISS CHANCE - Jack swap missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)');
-      };
+      ;
       return {
         'action': 'jack_swap',
         'use': false,
@@ -397,15 +362,11 @@ class ComputerPlayerFactory {
       final percent = _jackSwapStrategyPercent(s as Map<String, dynamic>, difficulty);
       final roll = _random.nextDouble() * 100;
       if (roll >= percent) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Jack swap strategy skipped: $strategyId (roll $roll >= $percent)');
-        };
+        ;
         continue;
       }
       selectedStrategyId = strategyId;
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: Jack swap strategy selected: $selectedStrategyId (difficulty: $difficulty, %: $percent, roll: ${roll.toStringAsFixed(1)})');
-      };
+      ;
       final raw = _selectJackSwapTargets(gameData, selectedStrategyId!);
       firstCardId = raw['first_card_id']?.toString();
       firstPlayerId = raw['first_player_id']?.toString();
@@ -424,26 +385,16 @@ class ComputerPlayerFactory {
         final allowRepeatPercent = _jackSwapAllowRepeatHistoryPercent(difficulty);
         final repeatRoll = _random.nextDouble() * 100;
         if (repeatRoll < allowRepeatPercent) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: Jack swap repeat allowed by difficulty ($difficulty: $allowRepeatPercent%) - using same pair [$firstCardId, $secondCardId]');
-          }
+          
           break;
         }
       }
-      if (LOGGING_SWITCH) {
-        if (alreadySwapped) {
-          _logger.info('Dutch: Jack swap pair [$firstCardId, $secondCardId] already used by $playerId - trying next strategy');
-        } else {
-          _logger.info('Dutch: Jack swap strategy $selectedStrategyId produced no valid swap - trying next strategy');
-        }
-      };
+      ;
     }
 
     if (firstCardId == null || firstCardId.isEmpty || firstPlayerId == null || firstPlayerId.isEmpty ||
         secondCardId == null || secondCardId.isEmpty || secondPlayerId == null || secondPlayerId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: No Jack swap strategy produced a valid swap - skipping');
-      };
+      ;
       return {
         'action': 'jack_swap',
         'use': false,
@@ -528,16 +479,12 @@ class ComputerPlayerFactory {
     // Calculate timer-based delay (0.4 to 0.8 of timer)
     final decisionDelay = _calculateTimerBasedDelay(queenPeekTimeLimit);
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getQueenPeekDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, TimeLimit: ${queenPeekTimeLimit}s, Delay: ${decisionDelay.toStringAsFixed(2)}s');
-    };
+    ;
     
     // Check miss chance first
     if (_checkMissChance(difficulty)) {
       final missChance = config.getMissChanceToPlay(difficulty);
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: ⚠️ MISS CHANCE - Queen peek missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)');
-      };
+      ;
       return {
         'action': 'queen_peek',
         'use': false,
@@ -555,13 +502,9 @@ class ComputerPlayerFactory {
     final queenPeekConfig = config.getEventConfig('queen_peek');
     final strategyRules = queenPeekConfig['strategy_rules'] as List<dynamic>? ?? [];
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: 📋 YAML Config Loaded (queen_peek) - Difficulty: $difficulty, RulesCount: ${strategyRules.length}');
-    };
+    ;
     if (strategyRules.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}');
-      };
+      ;
     }
     
     // Determine shouldPlayOptimal based on difficulty (same pattern as getPlayCardDecision)
@@ -569,15 +512,11 @@ class ComputerPlayerFactory {
     final shouldPlayOptimal = cardSelection['should_play_optimal'] as bool? ?? 
       (difficulty == 'hard' || difficulty == 'expert');
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - shouldPlayOptimal: $shouldPlayOptimal');
-    };
+    ;
     
     // If no strategy rules defined, fallback to simple decision
     if (strategyRules.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - No YAML rules defined, using fallback logic');
-      };
+      ;
       return {
         'action': 'queen_peek',
         'use': false,
@@ -590,9 +529,7 @@ class ComputerPlayerFactory {
     // Evaluate rules using YAML rules engine
     final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'queen_peek');
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: ✅ AFTER YAML PARSING (getQueenPeekDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Use: ${decision['use']}, Reasoning: ${decision['reasoning']}');
-    };
+    ;
     
     // Merge decision with timer-based delay and difficulty
     return {
@@ -610,9 +547,7 @@ class ComputerPlayerFactory {
   /// Note: Rank matching is done in Dart before this method is called
   /// This method only handles AI decision (collect or not)
   Map<String, dynamic> getCollectFromDiscardDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - getCollectFromDiscardDecision called with difficulty: $difficulty, playerId: $playerId');
-    };
+    ;
     
     // Get timer config from gameState (collect uses same_rank_window timer since it's part of collection phase)
     final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
@@ -625,9 +560,7 @@ class ComputerPlayerFactory {
     // Check miss chance first
     if (_checkMissChance(difficulty)) {
       final missChance = config.getMissChanceToPlay(difficulty);
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: ⚠️ MISS CHANCE - Collect from discard missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)');
-      };
+      ;
       return {
         'action': 'collect_from_discard',
         'collect': false,
@@ -649,9 +582,7 @@ class ComputerPlayerFactory {
         gameData['discard_pile'] = {
           'top_card': Map<String, dynamic>.from(topCard),
         };
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: DEBUG - Added discard pile top card: ${topCard['rank']} of ${topCard['suit']}');
-        };
+        ;
       }
     }
     
@@ -659,13 +590,9 @@ class ComputerPlayerFactory {
     final collectConfig = config.getEventConfig('collect_from_discard');
     final strategyRules = collectConfig['strategy_rules'] as List<dynamic>? ?? [];
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - YAML strategy rules count: ${strategyRules.length}');
-    };
+    ;
     if (strategyRules.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}');
-      };
+      ;
     }
     
     // Determine shouldPlayOptimal based on difficulty (same pattern as other decisions)
@@ -673,15 +600,11 @@ class ComputerPlayerFactory {
     final shouldPlayOptimal = cardSelection['should_play_optimal'] as bool? ?? 
       (difficulty == 'hard' || difficulty == 'expert');
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - shouldPlayOptimal: $shouldPlayOptimal');
-    };
+    ;
     
     // If no strategy rules defined, fallback to simple decision
     if (strategyRules.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - No YAML rules defined, using fallback logic');
-      };
+      ;
       return {
         'action': 'collect_from_discard',
         'collect': false,
@@ -694,9 +617,7 @@ class ComputerPlayerFactory {
     // Evaluate rules using YAML rules engine
     final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'collect_from_discard');
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - YAML rules engine returned decision: $decision');
-    };
+    ;
     
     // Convert 'use' to 'collect' for consistency with existing code
     final shouldCollect = decision['use'] as bool? ?? false;
@@ -714,9 +635,7 @@ class ComputerPlayerFactory {
   /// Select a card based on strategy and evaluation weights
   /// [timerConfig] Optional timer configuration to influence decisions based on time pressure
   String _selectCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState, {Map<String, int>? timerConfig}) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - _selectCard called with ${availableCards.length} available cards');
-    };
+    ;
     
     // Use timer config to influence decision-making based on time pressure
     // If time is short, prefer simpler/faster strategies
@@ -724,67 +643,41 @@ class ComputerPlayerFactory {
     final isTimePressure = playingCardTimeLimit < 10; // Less than 10 seconds = time pressure
     
     if (isTimePressure) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - Time pressure detected (${playingCardTimeLimit}s) - using faster decision strategy');
-      };
+      ;
     }
     
     final strategy = cardSelection['strategy'] ?? 'random';
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Strategy: $strategy, TimeLimit: ${playingCardTimeLimit}s, TimePressure: $isTimePressure');
-    };
+    ;
     
     // Get current player from game state
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
     if (currentPlayer == null) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - No current player found, using random fallback');
-      };
+      ;
       return availableCards[_random.nextInt(availableCards.length)];
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Current player: ${currentPlayer['name']}');
-    };
+    ;
     
     // Prepare game data for YAML rules engine
     final gameData = _prepareGameDataForYAML(availableCards, currentPlayer, gameState);
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Game data prepared: ${gameData.keys.join(', ')}');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Available cards: ${gameData['available_cards']}');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Playable cards: ${gameData['playable_cards']}');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Unknown cards: ${gameData['unknown_cards']}');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Known cards: ${gameData['known_cards']}');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Collection cards: ${gameData['collection_cards']}');
-    };
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
     
     // Get YAML rules from config
     final playCardConfig = config.getEventConfig('play_card');
     final strategyRules = playCardConfig['strategy_rules'] as List<dynamic>? ?? [];
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - YAML strategy rules count: ${strategyRules.length}');
-    };
+    ;
     if (strategyRules.isNotEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}');
-      };
+      ;
     }
     
     if (strategyRules.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - No YAML rules defined, using legacy logic');
-      };
+      ;
       // Fallback to old logic if no YAML rules defined
       return _selectCardLegacy(availableCards, cardSelection, evaluationWeights, gameState, timerConfig: timerConfig);
     }
@@ -795,15 +688,11 @@ class ComputerPlayerFactory {
     if (isTimePressure) {
       // Reduce optimal play probability under time pressure (favor simpler/faster decisions)
       optimalPlayProb = optimalPlayProb * 0.7; // 30% reduction in optimal play probability
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - Time pressure: Reduced optimal play probability from ${_getOptimalPlayProbability(strategy)} to $optimalPlayProb');
-      };
+      ;
     }
     final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Optimal play probability: $optimalPlayProb, Should play optimal: $shouldPlayOptimal');
-    };
+    ;
     
     // Add timer config to gameData so YAML rules engine can access it
     gameData['timer_config'] = timerConfig;
@@ -814,9 +703,7 @@ class ComputerPlayerFactory {
     final rulesEngine = YamlRulesEngine();
     final result = rulesEngine.executeRules(strategyRules, gameData, shouldPlayOptimal);
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - YAML rules engine returned: $result');
-    };
+    ;
     
     return result;
   }
@@ -825,9 +712,7 @@ class ComputerPlayerFactory {
   Map<String, dynamic> _prepareGameDataForYAML(List<String> availableCards, 
                                                 Map<String, dynamic> currentPlayer, 
                                                 Map<String, dynamic> gameState) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - _prepareGameDataForYAML called with ${availableCards.length} available cards');
-    };
+    ;
     
     // Get player's known_cards and collection_rank_cards
     final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
@@ -839,21 +724,13 @@ class ComputerPlayerFactory {
       return c.toString();
     }).where((id) => id.isNotEmpty).toSet();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Player known_cards: $knownCards');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Player collection_rank_cards: ${collectionRankCards.length} cards');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Collection card IDs: $collectionCardIds');
-    };
+    ;
+    ;
+    ;
     
     // Filter out collection rank cards
     final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Playable cards (after filtering collection): ${playableCards.length}');
-    };
+    ;
     
     // Extract player's own known card IDs (card-ID-based structure)
     final knownCardIds = <String>{};
@@ -870,30 +747,22 @@ class ComputerPlayerFactory {
         }
       }
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Known card IDs: $knownCardIds');
-    };
+    ;
     
     // Get unknown cards
     final unknownCards = playableCards.where((cardId) => !knownCardIds.contains(cardId)).toList();
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Unknown cards: ${unknownCards.length}');
-    };
+    ;
     
     // Get known playable cards
     final knownPlayableCards = playableCards.where((cardId) => knownCardIds.contains(cardId)).toList();
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Known playable cards: ${knownPlayableCards.length}');
-    };
+    ;
     
     // Filter out null cards and collection cards from all lists
     availableCards.removeWhere((card) => card.toString() == 'null');
     playableCards.removeWhere((card) => card.toString() == 'null');
     unknownCards.removeWhere((card) => card.toString() == 'null');
     knownPlayableCards.removeWhere((card) => card.toString() == 'null');
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - After null filtering - Available: ${availableCards.length}, Playable: ${playableCards.length}, Unknown: ${unknownCards.length}, Known: ${knownPlayableCards.length}');
-    };
+    ;
     
     // Get all cards data for filters
     final allCardsData = <Map<String, dynamic>>[];
@@ -906,9 +775,7 @@ class ComputerPlayerFactory {
         }
       }
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - All cards data: ${allCardsData.length} cards');
-    };
+    ;
     
     // Return comprehensive game data
     final result = {
@@ -922,9 +789,7 @@ class ComputerPlayerFactory {
       'game_state': gameState,
     };
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Prepared game data with keys: ${result.keys.join(', ')}');
-    };
+    ;
     
     return result;
   }
@@ -936,9 +801,7 @@ class ComputerPlayerFactory {
     // Get current player from game state
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
     if (currentPlayer == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('Dutch: No current player found in game state');
-      };
+      ;
         return availableCards[_random.nextInt(availableCards.length)];
     }
     
@@ -955,14 +818,10 @@ class ComputerPlayerFactory {
     // Filter out collection rank cards from available cards
     final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Available cards: ${availableCards.length}, Playable cards: ${playableCards.length}, Collection cards: ${collectionCardIds.length}');
-    };
+    ;
     
     if (playableCards.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: All available cards are collection rank cards, using fallback');
-      };
+      ;
       return availableCards[_random.nextInt(availableCards.length)]; // Fallback if all are collection cards
     }
     
@@ -981,43 +840,33 @@ class ComputerPlayerFactory {
     // Strategy 2: Get known cards with points (exclude Jacks)
     final knownPlayableCards = playableCards.where((cardId) => knownCardIds.contains(cardId)).toList();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Unknown cards: ${unknownCards.length}, Known playable cards: ${knownPlayableCards.length}');
-    };
+    ;
     
     // Determine if we should play optimally based on difficulty
     final optimalPlayProb = _getOptimalPlayProbability(strategy);
     final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Strategy: $strategy, Optimal prob: $optimalPlayProb, Should play optimal: $shouldPlayOptimal');
-    };
+    ;
     
     if (shouldPlayOptimal) {
       // Best option: Random unknown card
       if (unknownCards.isNotEmpty) {
         final selectedCard = unknownCards[_random.nextInt(unknownCards.length)];
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: DEBUG - Selected unknown card: $selectedCard');
-        };
+        ;
         return selectedCard;
       }
       
       // Fallback: Highest points from known cards (exclude Jacks)
       if (knownPlayableCards.isNotEmpty) {
         final selectedCard = _selectHighestPointsCard(knownPlayableCards, gameState);
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: DEBUG - Selected highest points card: $selectedCard');
-        };
+        ;
         return selectedCard;
       }
     }
     
     // Random fallback (for non-optimal play or if strategies fail)
     final selectedCard = playableCards[_random.nextInt(playableCards.length)];
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selected random fallback card: $selectedCard');
-    };
+    ;
     return selectedCard;
   }
   
@@ -1034,9 +883,7 @@ class ComputerPlayerFactory {
   
   /// Select card with highest points from given card IDs, excluding Jacks
   String _selectHighestPointsCard(List<String> cardIds, Map<String, dynamic> gameState) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - _selectHighestPointsCard called with ${cardIds.length} card IDs');
-    };
+    ;
     
     // Get all cards from game state (drawPile, discardPile, or player hands)
     final allCards = <Map<String, dynamic>>[];
@@ -1052,36 +899,26 @@ class ComputerPlayerFactory {
       }
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Found ${allCards.length} total cards in game state');
-    };
+    ;
     
     // Filter to only the cards we're considering
     final candidateCards = allCards.where((card) => cardIds.contains(card['id'])).toList();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Found ${candidateCards.length} candidate cards');
-    };
+    ;
     
     if (candidateCards.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: No candidate cards found, using random fallback');
-      };
+      ;
       return cardIds[_random.nextInt(cardIds.length)];
     }
     
     // Filter out Jacks
     final nonJackCards = candidateCards.where((card) => card['rank'] != 'jack').toList();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Found ${nonJackCards.length} non-Jack cards');
-    };
+    ;
     
     if (nonJackCards.isEmpty) {
       // If all are Jacks, return random
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: All candidate cards are Jacks, using random fallback');
-      };
+      ;
       return cardIds[_random.nextInt(cardIds.length)];
     }
     
@@ -1098,9 +935,7 @@ class ComputerPlayerFactory {
     }
     
     final selectedCard = highestCard?['id'] ?? cardIds[_random.nextInt(cardIds.length)];
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selected highest points card: $selectedCard (points: $highestPoints)');
-    };
+    ;
     return selectedCard;
   }
 
@@ -1161,9 +996,7 @@ class ComputerPlayerFactory {
     availableCards.removeWhere((card) => card.toString() == 'null');
     knownSameRankCards.removeWhere((card) => card.toString() == 'null');
     unknownSameRankCards.removeWhere((card) => card.toString() == 'null');
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - After null filtering same rank - Available: ${availableCards.length}, Known: ${knownSameRankCards.length}, Unknown: ${unknownSameRankCards.length}');
-    };
+    ;
     
     // Get all cards data for point calculations
     final allCardsData = <Map<String, dynamic>>[];
@@ -1191,9 +1024,7 @@ class ComputerPlayerFactory {
     String actingPlayerId,
     String difficulty,
   ) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - _prepareSpecialPlayGameData called for player $actingPlayerId, difficulty: $difficulty');
-    };
+    ;
     
     final players = gameState['players'] as List<dynamic>? ?? [];
     
@@ -1204,9 +1035,7 @@ class ComputerPlayerFactory {
     ) as Map<String, dynamic>?;
     
     if (actingPlayer == null || actingPlayer.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - Acting player $actingPlayerId not found');
-      };
+      ;
       return {
         'difficulty': difficulty,
         'acting_player_id': actingPlayerId,
@@ -1234,9 +1063,7 @@ class ComputerPlayerFactory {
     final actingPlayerKnownCards = <String, Map<String, dynamic>>{};
     final knownCards = actingPlayer['known_cards'] as Map<String, dynamic>? ?? {};
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Acting player known_cards structure: ${knownCards.keys.toList()}');
-    };
+    ;
     
     Map<String, dynamic>? actingPlayerKnownCardsRaw;
     final nestedKnown = knownCards[actingPlayerId];
@@ -1257,33 +1084,23 @@ class ComputerPlayerFactory {
     }
     
     if (actingPlayerKnownCardsRaw != null) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - Found known_cards entry for acting player $actingPlayerId with ${actingPlayerKnownCardsRaw.length} cards');
-      };
+      ;
       for (final entry in actingPlayerKnownCardsRaw.entries) {
         final cardId = entry.key.toString();
         if (cardId.isNotEmpty && cardId != 'null') {
           if (entry.value is Map<String, dynamic>) {
             actingPlayerKnownCards[cardId] = Map<String, dynamic>.from(entry.value as Map);
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: DEBUG - Added known card: $cardId');
-            };
+            ;
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.warning('Dutch: DEBUG - Known card entry value is not a Map: ${entry.value.runtimeType}');
-            };
+            ;
           }
         }
       }
     } else {
       // Stabilize strategy input by treating missing own known-cards as empty known set.
       // This happens legitimately after same-rank/jack chains where remembered cards are consumed.
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - No known_cards entry found for acting player $actingPlayerId; using empty known-card set');
-      };
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - Known_cards structure keys: ${knownCards.keys.toList()}');
-      };
+      ;
+      ;
     }
     
     // Extract acting player's collection cards (full data) - only if collection mode is enabled
@@ -1392,21 +1209,11 @@ class ComputerPlayerFactory {
       'isClearAndCollect': isClearAndCollect,
     };
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Prepared special play game data:');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG -   Acting player hand: ${actingPlayerHand.length} cards');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG -   Acting player known cards: ${actingPlayerKnownCards.length} cards');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG -   Acting player collection cards: ${actingPlayerCollectionCards.length} cards');
-    };
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG -   All players data: ${allPlayersData.length} players');
-    };
+    ;
+    ;
+    ;
+    ;
+    ;
     
     return result;
   }
@@ -1508,14 +1315,10 @@ class ComputerPlayerFactory {
     bool shouldPlayOptimal,
     String eventName,
   ) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - _evaluateSpecialPlayRules called with ${strategyRules.length} rules, shouldPlayOptimal: $shouldPlayOptimal, eventName: $eventName');
-    };
+    ;
     
     if (strategyRules.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - No strategy rules defined, returning use: false');
-      };
+      ;
       return {
         'use': false,
         'reasoning': 'No strategy rules defined',
@@ -1526,9 +1329,7 @@ class ComputerPlayerFactory {
     final sortedRules = List<Map<String, dynamic>>.from(strategyRules)
       ..sort((a, b) => (a['priority'] ?? 999).compareTo(b['priority'] ?? 999));
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Sorted rules by priority: ${sortedRules.map((r) => '${r['name']} (${r['priority']})').join(', ')}');
-    };
+    ;
     
     // Get difficulty for probability-based execution
     final difficulty = gameData['difficulty']?.toString() ?? 'medium';
@@ -1539,16 +1340,12 @@ class ComputerPlayerFactory {
     // Evaluate rules in priority order
     for (final rule in sortedRules) {
       final ruleName = rule['name']?.toString() ?? 'unnamed';
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - Evaluating rule: $ruleName');
-      };
+      ;
       
       final condition = rule['condition'] as Map<String, dynamic>?;
       if (condition != null) {
         final conditionResult = _evaluateSpecialPlayCondition(condition, gameData);
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: DEBUG - Rule $ruleName condition result: $conditionResult');
-        };
+        ;
         
         if (conditionResult) {
           // Check execution probability based on difficulty
@@ -1556,32 +1353,24 @@ class ComputerPlayerFactory {
           if (executionProb != null) {
             final prob = (executionProb[difficulty] as num?)?.toDouble() ?? 1.0;
             final shouldExecute = _random.nextDouble() < prob;
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: DEBUG - Rule $ruleName execution probability for $difficulty: $prob, shouldExecute: $shouldExecute');
-            };
+            ;
             
             if (!shouldExecute) {
-              if (LOGGING_SWITCH) {
-                _logger.info('Dutch: DEBUG - Rule $ruleName skipped due to execution probability');
-              };
+              ;
               continue; // Skip this rule and try next one
             }
           }
           
           final action = rule['action'] as Map<String, dynamic>?;
           if (action != null) {
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: DEBUG - Rule $ruleName condition passed, executing action');
-            };
+            ;
             final result = _executeSpecialPlayAction(action, gameData, eventName, ruleName);
             
             // Check if result is valid (has valid targets)
             if (_isValidSpecialPlayResult(result, eventName)) {
               return result;
             } else {
-              if (LOGGING_SWITCH) {
-                _logger.info('Dutch: DEBUG - Rule $ruleName returned invalid result (no valid targets), trying next rule');
-              };
+              ;
               continue; // Try next rule
             }
           }
@@ -1593,41 +1382,31 @@ class ComputerPlayerFactory {
         if (executionProb != null) {
           final prob = (executionProb[difficulty] as num?)?.toDouble() ?? 1.0;
           final shouldExecute = _random.nextDouble() < prob;
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Rule $ruleName execution probability for $difficulty: $prob, shouldExecute: $shouldExecute');
-          };
+          ;
           
           if (!shouldExecute) {
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: DEBUG - Rule $ruleName skipped due to execution probability');
-            };
+            ;
             continue; // Skip this rule and try next one
           }
         }
         
         final action = rule['action'] as Map<String, dynamic>?;
         if (action != null) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Rule $ruleName has no condition, executing action');
-          };
+          ;
           final result = _executeSpecialPlayAction(action, gameData, eventName, ruleName);
           
           // Check if result is valid (has valid targets)
           if (_isValidSpecialPlayResult(result, eventName)) {
             return result;
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.info('Dutch: DEBUG - Rule $ruleName returned invalid result (no valid targets), trying next rule');
-            };
+            ;
             continue; // Try next rule
           }
         }
       }
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - No rules matched, returning use: false');
-    };
+    ;
     
     // Ultimate fallback: return use: false
     return {
@@ -1777,9 +1556,7 @@ class ComputerPlayerFactory {
   ) {
     final actionType = action['type']?.toString() ?? 'skip_special_play';
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - _executeSpecialPlayAction called with actionType: $actionType, eventName: $eventName, ruleName: $ruleName');
-    };
+    ;
     
     switch (actionType) {
       case 'use_special_play':
@@ -1787,16 +1564,12 @@ class ComputerPlayerFactory {
           // Get target strategy from action
           final targetStrategy = action['target_strategy']?.toString() ?? 'random';
           
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Executing jack_swap with target strategy: $targetStrategy');
-          };
+          ;
           
           // Select targets based on strategy
           final targets = _selectJackSwapTargets(gameData, targetStrategy);
           
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Target selection result: $targets');
-          };
+          ;
           
           return {
             'use': true,
@@ -1810,16 +1583,12 @@ class ComputerPlayerFactory {
           // Get target strategy from action
           final targetStrategy = action['target_strategy']?.toString() ?? 'random';
           
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Executing queen_peek with target strategy: $targetStrategy');
-          };
+          ;
           
           // Select targets based on strategy
           final targets = _selectQueenPeekTargets(gameData, targetStrategy);
           
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Target selection result: $targets');
-          };
+          ;
           
           return {
             'use': true,
@@ -1837,9 +1606,7 @@ class ComputerPlayerFactory {
         // Check if collection mode is enabled
         final isClearAndCollect = gameData['isClearAndCollect'] as bool? ?? false;
         if (!isClearAndCollect) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Collection disabled - isClearAndCollect is false');
-          };
+          ;
           return {
             'use': false,
             'reasoning': 'collection_disabled',
@@ -1857,9 +1624,7 @@ class ComputerPlayerFactory {
         final actingPlayerCollectionRank = actingPlayer['collection_rank']?.toString() ?? '';
         
         if (topCard == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('Dutch: DEBUG - No discard pile top card found, skipping collection');
-          };
+          ;
           return {
             'use': false,
             'reasoning': ruleName,
@@ -1870,9 +1635,7 @@ class ComputerPlayerFactory {
         
         // Check if rank matches collection rank
         if (topCardRank.toLowerCase() != actingPlayerCollectionRank.toLowerCase()) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Top card rank $topCardRank does not match collection rank $actingPlayerCollectionRank');
-          };
+          ;
           return {
             'use': false,
             'reasoning': ruleName,
@@ -1881,9 +1644,7 @@ class ComputerPlayerFactory {
         
         // Rule 1: If player has 3 collection cards and rank matches, collect it (will complete 4 of a kind)
         if (ruleName == 'collect_if_completes_set' && actingPlayerCollectionCards.length == 3) {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Player has 3 collection cards, collecting 4th card to complete set');
-          };
+          ;
           return {
             'use': true,
             'reasoning': ruleName,
@@ -1892,9 +1653,7 @@ class ComputerPlayerFactory {
         
         // Rule 2: If same rank as collection rank, collect it
         if (ruleName == 'collect_if_same_rank') {
-          if (LOGGING_SWITCH) {
-            _logger.info('Dutch: DEBUG - Top card rank matches collection rank, collecting it');
-          };
+          ;
           return {
             'use': true,
             'reasoning': ruleName,
@@ -1937,9 +1696,7 @@ class ComputerPlayerFactory {
     final allPlayers = gameData['all_players'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - _selectJackSwapTargets called with strategy: $targetStrategy');
-    };
+    ;
     
     switch (targetStrategy) {
       case 'collection_three_swap':
@@ -1976,21 +1733,15 @@ class ComputerPlayerFactory {
   /// Rule 1: When isClearAndCollect, swap last collection card(s): 2+ players with 3 in collection -> swap last from each; else swap last from one with any non-collection from another
   Map<String, dynamic> _selectCollectionThreeSwap(String actingPlayerId, Map<String, dynamic> gameData) {
     final isClearAndCollect = gameData['isClearAndCollect'] as bool? ?? false;
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: collection_three_swap - entry actingPlayerId=$actingPlayerId isClearAndCollect=$isClearAndCollect');
-    };
+    ;
     final allPlayers = gameData['all_players'] as Map<String, dynamic>? ?? {};
     final threeInColIds = (gameData['other_players_with_three_in_collection'] as List<dynamic>? ?? [])
         .map((e) => e.toString())
         .where((id) => id.isNotEmpty && id != 'null')
         .toList();
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: collection_three_swap - ${threeInColIds.length} players with 3+ in collection: $threeInColIds');
-    };
+    ;
     if (threeInColIds.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: collection_three_swap - no players with 3+ in collection, skipping');
-      };
+      ;
       return {
         'first_card_id': null,
         'first_player_id': actingPlayerId,
@@ -2003,18 +1754,12 @@ class ComputerPlayerFactory {
       threeInColIds.shuffle(_random);
       final firstPlayerId = threeInColIds[0];
       final secondPlayerId = threeInColIds[1];
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: collection_three_swap - 2-player path: selected players $firstPlayerId, $secondPlayerId');
-      };
+      ;
       final firstCol = (allPlayers[firstPlayerId] as Map<String, dynamic>? ?? {})['collection_cards'] as List<dynamic>? ?? [];
       final secondCol = (allPlayers[secondPlayerId] as Map<String, dynamic>? ?? {})['collection_cards'] as List<dynamic>? ?? [];
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: collection_three_swap - collection sizes: $firstPlayerId=${firstCol.length}, $secondPlayerId=${secondCol.length}');
-      };
+      ;
       if (firstCol.isEmpty || secondCol.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: collection_three_swap - one or both collections empty, skipping');
-        };
+        ;
         return {
           'first_card_id': null,
           'first_player_id': actingPlayerId,
@@ -2027,9 +1772,7 @@ class ComputerPlayerFactory {
       final firstCardId = firstCard is Map ? (firstCard['cardId'] ?? firstCard['id'] ?? '').toString() : firstCard.toString();
       final secondCardId = secondCard is Map ? (secondCard['cardId'] ?? secondCard['id'] ?? '').toString() : secondCard.toString();
       if (firstCardId.isEmpty || secondCardId.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: collection_three_swap - failed to resolve card ids, skipping');
-        };
+        ;
         return {
           'first_card_id': null,
           'first_player_id': actingPlayerId,
@@ -2037,9 +1780,7 @@ class ComputerPlayerFactory {
           'second_player_id': null,
         };
       }
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: collection_three_swap (2 players): $firstCardId ($firstPlayerId) <-> $secondCardId ($secondPlayerId)');
-      };
+      ;
       return {
         'first_card_id': firstCardId,
         'first_player_id': firstPlayerId,
@@ -2051,13 +1792,9 @@ class ComputerPlayerFactory {
     final firstPlayerId = threeInColIds[0];
     final firstPlayerData = allPlayers[firstPlayerId] as Map<String, dynamic>? ?? {};
     final firstCol = firstPlayerData['collection_cards'] as List<dynamic>? ?? [];
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: collection_three_swap - 1-player path: player $firstPlayerId collection size=${firstCol.length}');
-    };
+    ;
     if (firstCol.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: collection_three_swap - single player collection empty, skipping');
-      };
+      ;
       return {
         'first_card_id': null,
         'first_player_id': actingPlayerId,
@@ -2094,13 +1831,9 @@ class ComputerPlayerFactory {
         }
       }
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: collection_three_swap - candidate cards from other players: ${fromOtherPlayer.length}');
-    };
+    ;
     if (fromOtherPlayer.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: collection_three_swap - no playable card from other players, skipping');
-      };
+      ;
       return {
         'first_card_id': null,
         'first_player_id': actingPlayerId,
@@ -2109,9 +1842,7 @@ class ComputerPlayerFactory {
       };
     }
     final second = fromOtherPlayer[_random.nextInt(fromOtherPlayer.length)];
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: collection_three_swap (1 player): $firstCardId ($firstPlayerId) <-> ${second.value} (${second.key})');
-    };
+    ;
     return {
       'first_card_id': firstCardId,
       'first_player_id': firstPlayerId,
@@ -2128,9 +1859,7 @@ class ComputerPlayerFactory {
         .where((id) => id.isNotEmpty && id != 'null')
         .toList();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - One-card player priority: ${oneCardPlayerIds.length} players with 1 card');
-    };
+    ;
     
     if (oneCardPlayerIds.isEmpty) {
       return {
@@ -2150,9 +1879,7 @@ class ComputerPlayerFactory {
       final firstPlayable = _getPlayableCardIds(firstPlayerData);
       final secondPlayable = _getPlayableCardIds(secondPlayerData);
       if (firstPlayable.isNotEmpty && secondPlayable.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: one_card_player_priority - 2 players with 1 card: ${firstPlayable[0]} ($firstPlayerId) <-> ${secondPlayable[0]} ($secondPlayerId)');
-        };
+        ;
         return {
           'first_card_id': firstPlayable[0],
           'first_player_id': firstPlayerId,
@@ -2217,9 +1944,7 @@ class ComputerPlayerFactory {
     }
     final second = fromOtherPlayer[_random.nextInt(fromOtherPlayer.length)];
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - One-card priority swap: $firstCardId ($firstPlayerId) <-> ${second.value} (${second.key})');
-    };
+    ;
     return {
       'first_card_id': firstCardId,
       'first_player_id': firstPlayerId,
@@ -2255,24 +1980,18 @@ class ComputerPlayerFactory {
     final finalRoundActive = gameState['finalRoundActive'] as bool? ?? false;
     final callerId = gameState['finalRoundCalledBy']?.toString();
     if (!finalRoundActive || callerId == null || callerId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: final_round_caller_swap - final round not active or no caller, skipping');
-      }
+      
       return _emptyJackSwapResult(actingPlayerId);
     }
     if (callerId == actingPlayerId) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: final_round_caller_swap - we are the caller, skipping');
-      }
+      
       return _emptyJackSwapResult(actingPlayerId);
     }
 
     // Our known cards (own hand) — from gameData acting_player.known_cards
     final ourKnownCards = actingPlayer['known_cards'] as Map<String, dynamic>? ?? {};
     if (ourKnownCards.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: final_round_caller_swap - no known cards for ourselves, skipping');
-      }
+      
       return _emptyJackSwapResult(actingPlayerId);
     }
 
@@ -2322,9 +2041,7 @@ class ComputerPlayerFactory {
       if (theirLowestCardId != null &&
           theirLowestCardId.isNotEmpty &&
           ourHighestPoints > theirLowestPoints) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: final_round_caller_swap - swapping our $ourHighestCardId ($ourHighestPoints pts) with caller $callerId card $theirLowestCardId ($theirLowestPoints pts)');
-        }
+        
         return {
           'first_card_id': ourHighestCardId,
           'first_player_id': actingPlayerId,
@@ -2347,15 +2064,11 @@ class ComputerPlayerFactory {
         .where((id) => id.isNotEmpty && id != 'null' && !collectionIds.contains(id))
         .toList();
     if (playableCallerHand.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: final_round_caller_swap - caller $callerId has no playable card in hand, skipping');
-      }
+      
       return _emptyJackSwapResult(actingPlayerId);
     }
     final theirCardId = playableCallerHand[_random.nextInt(playableCallerHand.length)];
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: final_round_caller_swap - no caller cards in known_cards; swapping our $ourHighestCardId with caller $callerId any card $theirCardId');
-    }
+    
     return {
       'first_card_id': ourHighestCardId,
       'first_player_id': actingPlayerId,
@@ -2380,9 +2093,7 @@ class ComputerPlayerFactory {
     Map<String, dynamic> allPlayers,
     Map<String, dynamic> gameState,
   ) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selecting lowest opponent card and higher own card');
-    };
+    ;
     
     // Get acting player's known cards (full data)
     final actingPlayerKnownCards = actingPlayer['known_cards'] as Map<String, dynamic>? ?? {};
@@ -2391,9 +2102,7 @@ class ComputerPlayerFactory {
     Map<String, dynamic>? highestOwnCard;
     int highestOwnPoints = -1;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Searching for highest point card in acting player\'s known cards (${actingPlayerKnownCards.length} cards)');
-    };
+    ;
     
     for (final entry in actingPlayerKnownCards.entries) {
       final card = entry.value as Map<String, dynamic>?;
@@ -2407,15 +2116,11 @@ class ComputerPlayerFactory {
     }
     
     if (highestOwnCard == null) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - No known cards for acting player, using fallback');
-      };
+      ;
       return _selectRandomExceptOwn(actingPlayerId, allPlayers, gameState);
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Found highest own card: ${highestOwnCard['cardId']} (${highestOwnPoints} points)');
-    };
+    ;
     
     // Find lowest point card from OUR known_cards about opponents (not opponents' own known_cards).
     // Prepared actingPlayer.known_cards is only our hand; get full known_cards from gameState.
@@ -2423,9 +2128,7 @@ class ComputerPlayerFactory {
     String? lowestOpponentPlayerId;
     int lowestOpponentPoints = 999;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Searching for lowest point card from our known_cards (opponents we know about)');
-    };
+    ;
     
     final players = gameState['players'] as List<dynamic>? ?? [];
     Map<String, dynamic>? actingPlayerFromState;
@@ -2461,14 +2164,10 @@ class ComputerPlayerFactory {
     
     // Check if we found a beneficial swap (opponent card has lower points than own highest card)
     if (lowestOpponentCard != null && lowestOpponentPlayerId != null) {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - Found lowest opponent card: ${lowestOpponentCard['cardId']} (${lowestOpponentPoints} points) from player $lowestOpponentPlayerId');
-      };
+      ;
       
       if (lowestOpponentPoints < highestOwnPoints) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: DEBUG - Beneficial swap found: own card (${highestOwnCard['cardId']}, ${highestOwnPoints} pts) <-> opponent card (${lowestOpponentCard['cardId']}, ${lowestOpponentPoints} pts) from player $lowestOpponentPlayerId');
-        };
+        ;
         
         return {
           'first_card_id': highestOwnCard['cardId']?.toString(),
@@ -2477,19 +2176,13 @@ class ComputerPlayerFactory {
           'second_player_id': lowestOpponentPlayerId,
         };
       } else {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: DEBUG - Opponent card (${lowestOpponentPoints} pts) is not lower than own card (${highestOwnPoints} pts), not beneficial');
-        };
+        ;
       }
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - No opponent cards found in known cards');
-      };
+      ;
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - No beneficial swap found, using fallback');
-    };
+    ;
     return _selectRandomExceptOwn(actingPlayerId, allPlayers, gameState);
   }
   
@@ -2499,9 +2192,7 @@ class ComputerPlayerFactory {
     Map<String, dynamic> allPlayers,
     Map<String, dynamic> gameState,
   ) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selecting random 2 cards from other players only (except own hand)');
-    };
+    ;
     
     // Collect (playerId, cardId) for all playable cards from other players (excl. collection)
     final pool = <MapEntry<String, String>>[];
@@ -2524,9 +2215,7 @@ class ComputerPlayerFactory {
     }
     
     if (pool.length < 2) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - Fewer than 2 playable cards from other players, cannot swap except own');
-      };
+      ;
       return {
         'first_card_id': null,
         'first_player_id': actingPlayerId,
@@ -2540,9 +2229,7 @@ class ComputerPlayerFactory {
     final first = pool[0];
     final fromOtherPlayer = pool.where((e) => e.key != first.key).toList();
     if (fromOtherPlayer.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - Only one other player has playable cards, need 2 different players for random_except_own');
-      };
+      ;
       return {
         'first_card_id': null,
         'first_player_id': actingPlayerId,
@@ -2552,9 +2239,7 @@ class ComputerPlayerFactory {
     }
     final second = fromOtherPlayer[_random.nextInt(fromOtherPlayer.length)];
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Random except own: ${first.value} (${first.key}) <-> ${second.value} (${second.key})');
-    };
+    ;
     return {
       'first_card_id': first.value,
       'first_player_id': first.key,
@@ -2573,9 +2258,7 @@ class ComputerPlayerFactory {
     final allPlayers = gameData['all_players'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - _selectQueenPeekTargets called with strategy: $targetStrategy');
-    };
+    ;
     
     switch (targetStrategy) {
       case 'own_unknown_cards':
@@ -2598,9 +2281,7 @@ class ComputerPlayerFactory {
     Map<String, dynamic> actingPlayer,
     Map<String, dynamic> gameState,
   ) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selecting own unknown card (excluding collection)');
-    };
+    ;
     
     // Get acting player's collection card IDs (to exclude)
     final actingPlayerCollectionCards = actingPlayer['collection_cards'] as List<dynamic>? ?? [];
@@ -2609,9 +2290,7 @@ class ComputerPlayerFactory {
         .where((id) => id.isNotEmpty)
         .toSet();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Acting player has ${collectionCardIds.length} collection cards to exclude');
-    };
+    ;
     
     // Get acting player's hand (excluding collection cards)
     final actingPlayerHand = actingPlayer['hand'] as List<dynamic>? ?? [];
@@ -2619,14 +2298,10 @@ class ComputerPlayerFactory {
         .where((cardId) => !collectionCardIds.contains(cardId.toString()))
         .toList();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Acting player hand: ${actingPlayerHand.length} total, ${playableHand.length} playable (excluding collection)');
-    };
+    ;
     
     if (playableHand.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - No playable cards in hand (all are collection cards), returning invalid result');
-      };
+      ;
       return {
         'target_card_id': null,
         'target_player_id': null,
@@ -2640,23 +2315,17 @@ class ComputerPlayerFactory {
         .where((id) => id.isNotEmpty)
         .toSet();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Acting player has ${knownCardIds.length} known cards');
-    };
+    ;
     
     // Find cards in hand that are NOT in known cards
     final unknownCards = playableHand
         .where((cardId) => !knownCardIds.contains(cardId.toString()))
         .toList();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Found ${unknownCards.length} unknown cards in hand (out of ${playableHand.length} playable)');
-    };
+    ;
     
     if (unknownCards.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - All playable cards are already known, returning invalid result');
-      };
+      ;
       return {
         'target_card_id': null,
         'target_player_id': null,
@@ -2666,9 +2335,7 @@ class ComputerPlayerFactory {
     // Select a random unknown card
     final selectedCardId = unknownCards[_random.nextInt(unknownCards.length)].toString();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selected own unknown card: $selectedCardId');
-    };
+    ;
     
     return {
       'target_card_id': selectedCardId,
@@ -2682,17 +2349,13 @@ class ComputerPlayerFactory {
     Map<String, dynamic> allPlayers,
     Map<String, dynamic> gameState,
   ) {
-    if (LOGGING_SWITCH) {
-      _logger.info('Dutch: DEBUG - Selecting random other player card (excluding collection)');
-    };
+    ;
     
     // Get all players (including acting player, but we'll prefer others)
     final allPlayerEntries = allPlayers.entries.toList();
     
     if (allPlayerEntries.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('Dutch: DEBUG - No players found, returning invalid result');
-      };
+      ;
       return {
         'target_card_id': null,
         'target_player_id': null,
@@ -2710,9 +2373,7 @@ class ComputerPlayerFactory {
       final playerHand = playerData['hand'] as List<dynamic>? ?? [];
       
       if (playerHand.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: DEBUG - Player $playerId has no cards, skipping');
-        };
+        ;
         continue;
       }
       
@@ -2729,18 +2390,14 @@ class ComputerPlayerFactory {
           .toList();
       
       if (playableCards.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info('Dutch: DEBUG - Player $playerId has no playable cards (all are collection), skipping');
-        };
+        ;
         continue;
       }
       
       // Select a random playable card from this player
       final selectedCardId = playableCards[_random.nextInt(playableCards.length)].toString();
       
-      if (LOGGING_SWITCH) {
-        _logger.info('Dutch: DEBUG - Selected random card: $selectedCardId from player $playerId');
-      };
+      ;
       
       return {
         'target_card_id': selectedCardId,
@@ -2749,9 +2406,7 @@ class ComputerPlayerFactory {
     }
     
     // If we get here, no player had playable cards
-    if (LOGGING_SWITCH) {
-      _logger.warning('Dutch: DEBUG - No players with playable cards found, returning invalid result');
-    };
+    ;
     return {
       'target_card_id': null,
       'target_player_id': null,

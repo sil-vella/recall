@@ -1,9 +1,5 @@
 import 'dart:async';
 import '../utils/config.dart';
-import '../utils/server_logger.dart';
-
-/// Set to true to log Room TTL events to server.log for testing (plan: Room TTL implementation).
-const bool LOGGING_SWITCH = false; // seat/session bindings / join (disconnect rejoin tracing; set false after test)
 
 /// Stable multiplayer human seat id derived from authenticated user (`hum_<userId>`).
 /// Guests / missing user reuse [sessionId] as the canonical id.
@@ -167,7 +163,6 @@ class Room {
 class RoomManager {
   final Map<String, Room> _rooms = {};
   final Map<String, String> _sessionToRoom = {}; // sessionId -> roomId
-  static final Logger _logger = Logger();
 
   // Callback for room closure events
   Function(String roomId, String reason)? onRoomClosed;
@@ -235,9 +230,6 @@ class RoomManager {
     // Set/extend TTL when room is created (or first join)
     reinstateRoomTtl(roomId);
 
-    if (LOGGING_SWITCH) {
-      _logger.info('RoomManager: Room created $roomId by $userId (max: ${room.maxSize}, permission: ${room.permission}, TTL: ${Config.WS_ROOM_TTL}s, expires: ${room.ttlExpiresAt.toIso8601String()})');
-    }
     print('🏠 Room created: $roomId by $userId (max: ${room.maxSize}, permission: ${room.permission}, TTL: ${Config.WS_ROOM_TTL}s)');
     return roomId;
   }
@@ -366,9 +358,6 @@ class RoomManager {
 
     final ttlDuration = ttl ?? Duration(seconds: Config.WS_ROOM_TTL);
     room.extendTtl(ttlDuration);
-    if (LOGGING_SWITCH) {
-      _logger.info('RoomManager: TTL extended for room $roomId (${Config.WS_ROOM_TTL}s), new expires: ${room.ttlExpiresAt.toIso8601String()}');
-    }
   }
   
   /// Start TTL monitor for automatic room expiration
@@ -381,9 +370,6 @@ class RoomManager {
       _cleanupExpiredRooms();
     });
 
-    if (LOGGING_SWITCH) {
-      _logger.info('RoomManager: TTL monitor started (check interval: ${intervalSeconds}s, room TTL: ${Config.WS_ROOM_TTL}s)');
-    }
     print('⏰ Room TTL monitor started (check interval: ${intervalSeconds}s, room TTL: ${Config.WS_ROOM_TTL}s)');
   }
 
@@ -401,16 +387,10 @@ class RoomManager {
 
     // Close expired rooms
     for (final roomId in expiredRooms) {
-      if (LOGGING_SWITCH) {
-        _logger.info('RoomManager: Room $roomId expired (TTL: ${Config.WS_ROOM_TTL}s), closing with reason ttl_expired');
-      }
       print('⏰ Room $roomId expired (TTL: ${Config.WS_ROOM_TTL}s)');
       closeRoom(roomId, 'ttl_expired');
     }
 
-    if (expiredRooms.isNotEmpty && LOGGING_SWITCH) {
-      _logger.info('RoomManager: Cleaned up ${expiredRooms.length} expired room(s)');
-    }
     if (expiredRooms.isNotEmpty) {
       print('🧹 Cleaned up ${expiredRooms.length} expired room(s)');
     }

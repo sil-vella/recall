@@ -1,5 +1,4 @@
 from typing import Dict, Any, List, Callable, Optional
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 import json
 from enum import Enum

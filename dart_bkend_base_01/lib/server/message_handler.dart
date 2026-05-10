@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:math';
 import 'room_manager.dart';
 import 'websocket_server.dart';
-import '../utils/server_logger.dart';
 import '../utils/config.dart';
 import 'random_join_timer_manager.dart';
 import '../modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart';
@@ -14,7 +13,6 @@ import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // resume_room + room WS handlers (disconnect rejoin; set false after test)
 
 /// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
 /// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.
@@ -68,7 +66,6 @@ List<Map<String, dynamic>>? buildInitialMatchGameResultsForRematchSnapshot(
 class MessageHandler {
   final RoomManager _roomManager;
   final WebSocketServer _server;
-  final Logger _logger = Logger();
   late final GameEventCoordinator _gameCoordinator;
 
   MessageHandler(this._roomManager, this._server) {
@@ -116,35 +113,25 @@ class MessageHandler {
     try {
       final result = await _server.pythonClient.getUserStatsForJoin(userId);
       if (result['success'] != true) {
-        if (LOGGING_SWITCH) {
-          _logger.room('📊 Coins check: getUserStatsForJoin failed for $userId: ${result['error']}');
-        }
+        
         return false;
       }
       final tier = (result['subscription_tier'] as String?)?.trim().toLowerCase() ?? '';
       if (tier == 'promotional') {
-        if (LOGGING_SWITCH) {
-          _logger.room('📊 Coins check: userId=$userId tier=promotional -> allow (skip coins)');
-        }
+        
         return true;
       }
       final coins = result['coins'] as int?;
       if (coins == null) {
-        if (LOGGING_SWITCH) {
-          _logger.room('📊 Coins check: no tier and no coins for $userId -> fail');
-        }
+        
         return false;
       }
       final required = LevelMatcher.tableLevelToCoinFee(roomGameTableLevel, defaultFee: 25);
       final ok = coins >= required;
-      if (LOGGING_SWITCH) {
-        _logger.room('📊 Coins check: userId=$userId roomTable=$roomGameTableLevel required=$required coins=$coins -> ${ok ? "ok" : "insufficient"}');
-      }
+      
       return ok;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Coins check error for $userId: $e');
-      }
+      
       return false;
     }
   }
@@ -210,24 +197,16 @@ class MessageHandler {
     final event = data['event'] as String?;
 
     if (event == null) {
-      if (LOGGING_SWITCH) {
-        _logger.websocket('❌ Event validation failed: Missing event field from session: $sessionId, data keys: ${data.keys.toList()}');
-      }
+      
       _sendError(sessionId, 'Missing event field');
       return;
     }
 
     // Event validation logging
-    if (LOGGING_SWITCH) {
-      _logger.websocket('📨 Event validation: Received event "$event" from session: $sessionId');
-      _logger.websocket('📦 Event validation: Event data keys: ${data.keys.join(', ')}');
-      _logger.websocket('📦 Event validation: Event data: $data');
-    }
+    
     
     if (event == 'leave_room') {
-      if (LOGGING_SWITCH) {
-        _logger.websocket('🎯 LEAVE_ROOM: Received leave_room event from session: $sessionId, data keys: ${data.keys.toList()}');
-      }
+      
     }
 
     // Events that don't require authentication
@@ -236,19 +215,13 @@ class MessageHandler {
     // Check authentication for room/game events
     if (!publicEvents.contains(event)) {
       if (!_server.isSessionAuthenticated(sessionId)) {
-        if (LOGGING_SWITCH) {
-          _logger.auth('❌ Event validation failed: Event $event requires authentication but session $sessionId is not authenticated');
-        }
+        
         _sendError(sessionId, 'Authentication required. Please wait for authentication to complete.');
         return;
       }
-      if (LOGGING_SWITCH) {
-        _logger.auth('✅ Event validation: Event $event authentication check passed for session: $sessionId');
-      }
+      
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.auth('✅ Event validation: Event $event is a public event, skipping authentication');
-      }
+      
     }
 
     // Unified switch for ALL events
@@ -280,9 +253,7 @@ class MessageHandler {
       case 'join_random_game':
         // Fire and forget - async operation for account type logging
         _handleJoinRandomGame(sessionId, data).catchError((e) {
-          if (LOGGING_SWITCH) {
-            _logger.error('❌ Error in _handleJoinRandomGame: $e');
-          }
+          
         });
         break;
 
@@ -303,11 +274,7 @@ class MessageHandler {
               _sendError(sessionId, 'Only the room owner can start the match remotely');
               break;
             }
-            if (LOGGING_SWITCH) {
-              _logger.room(
-                '🏟 Remote start_match (dashboard owner): room=$remoteRoomId userId=$userId',
-              );
-            }
+            
             _startMatchForRoom(remoteRoomId);
             break;
           }
@@ -403,9 +370,7 @@ class MessageHandler {
 
     _verifyCoinsForJoin(resolvedUserId, joinLevel).then((ok) {
       if (!ok) {
-        if (LOGGING_SWITCH) {
-          _logger.room('📊 Coins check: rematch failed for $resolvedUserId room=$gameId');
-        }
+        
         _server.sendToSession(
           sessionId,
           _joinRoomCoinErrorPayload(
@@ -438,11 +403,7 @@ class MessageHandler {
       });
       r.hasMatchRestarted = true;
 
-      if (LOGGING_SWITCH) {
-        _logger.websocket(
-          '🔄 rematch: sessionId=$sessionId user_id=$resolvedUserId game_id=$gameId keys=${data.keys.toList()}',
-        );
-      }
+      
 
       print('[rematch] sessionId=$sessionId user_id=$resolvedUserId game_id=$gameId — broadcasting restart_invite to others');
       try {
@@ -551,9 +512,7 @@ class MessageHandler {
       final joinLevel = room.gameLevel ?? 1;
       _verifyCoinsForJoin(userId, joinLevel).then((ok) {
         if (!ok) {
-          if (LOGGING_SWITCH) {
-            _logger.room('📊 Coins check: rematch_accepted failed for $userId room=$gameId');
-          }
+          
           _server.sendToSession(
             sessionId,
             _joinRoomCoinErrorPayload(
@@ -631,9 +590,7 @@ class MessageHandler {
       final storeRoot = GameStateStore.instance.getState(roomId);
       storeSnapshot = jsonDecode(jsonEncode(storeRoot)) as Map<String, dynamic>;
     } catch (e, st) {
-      if (LOGGING_SWITCH) {
-        _logger.error('rematch tournament snapshot: store JSON encode failed: $e\n$st');
-      }
+      
       storeSnapshot = {
         'error': 'store_encode_failed',
         'detail': e.toString(),
@@ -685,11 +642,7 @@ class MessageHandler {
         room.tournamentData = merged;
       }
     }
-    if (LOGGING_SWITCH) {
-      _logger.room(
-        '📤 rematch-tournament-snapshot room=$roomId success=${result['success']}',
-      );
-    }
+    
   }
 
   /// Drop prior round + store; recreate [DutchGameRound] and a fresh `waiting_for_players` blob matching
@@ -810,9 +763,7 @@ class MessageHandler {
   /// After [Room.rematchAccepted] lists every in-room session (post coin-check) and none declined:
   /// [GameRegistry] reset, fresh lobby state, then [_startMatchForRoom].
   Future<void> _handleStartRematch(String sessionId, Map<String, dynamic> data) async {
-    if (LOGGING_SWITCH) {
-      _logger.websocket('start_rematch sessionId=$sessionId keys=${data.keys.toList()}');
-    }
+    
     final trigger = data['trigger'] as String?;
     final gameId = data['game_id'] as String? ?? data['room_id'] as String?;
     print(
@@ -860,9 +811,7 @@ class MessageHandler {
   // ========= ROOM MANAGEMENT HANDLERS =========
   
   void _handleCreateRoom(String sessionId, Map<String, dynamic> data) {
-    if (LOGGING_SWITCH) {
-      _logger.room('📥 create_room received: sessionId=$sessionId, data keys=${data.keys.toList()}, game_type=${data['game_type'] ?? data['gameType']}, permission=${data['permission']}, auto_start=${data['auto_start'] ?? data['autoStart']}, tournamentName=${data['tournament_name'] ?? data['tournamentName']}, tournamentFormat=${data['tournament_format'] ?? data['tournamentFormat']}');
-    }
+    
     // UserId: session mapping is SSOT (set at authenticate). Payload user_id is fallback when session is null (e.g. race).
     var userId = _server.getUserIdForSession(sessionId);
     if (userId == null) {
@@ -870,15 +819,11 @@ class MessageHandler {
       if (payloadUserId != null && payloadUserId.isNotEmpty) {
         userId = payloadUserId;
         _server.updateSessionUserId(sessionId, userId);
-        if (LOGGING_SWITCH) {
-          _logger.room('📥 _handleCreateRoom: Using payload user_id (session was null): $userId');
-        }
+        
       }
     }
     if (userId == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ _handleCreateRoom: Session $sessionId has no userId (session or payload)');
-      }
+      
       _sendError(sessionId, 'User ID not available. Please reconnect.');
       return;
     }
@@ -1001,9 +946,7 @@ class MessageHandler {
         final tid = (effectiveTournamentData['tournament_id']?.toString() ?? '').trim();
         final mid = effectiveTournamentData['match_index'] ?? effectiveTournamentData['match_id'];
         if (tid.isNotEmpty && mid != null) {
-          if (LOGGING_SWITCH) {
-            _logger.room('🏟 Tournament room: attach-tournament-match-room (await) tournament_id=$tid match_id=$mid room_id=$roomId');
-          }
+          
           final result = await _server.pythonClient.attachTournamentMatchRoom(
             tournamentId: tid,
             roomId: roomId,
@@ -1014,23 +957,13 @@ class MessageHandler {
             if (mp is List && mp.isNotEmpty) {
               effectiveTournamentData['match_players'] = mp;
               room.tournamentData = effectiveTournamentData;
-              if (LOGGING_SWITCH) {
-                _logger.room('🏟 Merged match_players into tournament_data count=${mp.length}');
-              }
+              
             }
-          } else if (LOGGING_SWITCH) {
-            _logger.game('⚠️ attach-tournament-match-room failed: ${result['error']}');
-          }
+          } 
         }
       }
 
-      if (LOGGING_SWITCH) {
-        final roomData = Map<String, dynamic>.from(room.toJson())
-          ..['session_ids'] = room.sessionIds
-          ..['is_random_join'] = room.isRandomJoin;
-        if (room.acceptedPlayers != null) roomData['accepted_players'] = room.acceptedPlayers;
-        _logger.room('📋 _handleCreateRoom room data: $roomData');
-      }
+      
 
       // Send create_room_success (primary event matching Python)
       final createSuccessPayload = {
@@ -1084,9 +1017,7 @@ class MessageHandler {
       if (createRoomSpecialModal != null && createRoomSpecialModal.isNotEmpty) {
         roomCreatedData['special_event_end_match_modal'] = createRoomSpecialModal;
       }
-      if (LOGGING_SWITCH) {
-        _logger.room('🎣 Triggering room_created hook: roomId=$roomId add_creator_to_room=$addCreatorToRoom is_tournament=$isTournament is_coin_required=$isCoinRequired');
-      }
+      
       _server.triggerHook('room_created', data: roomCreatedData);
       
       // When addCreatorToRoom is true, send room_joined and trigger hook (auto-join creator like Python does)
@@ -1143,23 +1074,15 @@ class MessageHandler {
         final effectiveMax = room.maxSize - compCount;
         print('[create_room] at create: roomId=$roomId currentSize=${room.currentSize} compCount=$compCount effectiveMax=$effectiveMax (start=${room.currentSize >= effectiveMax})');
         if (room.currentSize >= effectiveMax) {
-          if (LOGGING_SWITCH) {
-            _logger.room('🚀 Effective max reached at create ($room.currentSize >= $effectiveMax, compCount=$compCount), starting match for create-room: $roomId');
-          }
+          
           _startMatchForRoom(roomId);
         }
       }
 
-      if (LOGGING_SWITCH) {
-        _logger.room(addCreatorToRoom
-            ? '✅ Room created and creator auto-joined: $roomId'
-            : '✅ Room created (creator not in room): $roomId');
-      }
+      
       
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ Failed to create room: $e');
-        }
+        
         _server.sendToSession(sessionId, {
           'event': 'create_room_error',
           'message': 'Failed to create room: $e',
@@ -1178,19 +1101,13 @@ class MessageHandler {
               'Your level ($creatorUserLevel) is too low for this table (requires level $createGameLevel or higher). Win more games to increase your level.',
           'timestamp': DateTime.now().toIso8601String(),
         });
-        if (LOGGING_SWITCH) {
-          _logger.room('❌ create_room: table gate userLevel=$creatorUserLevel gameLevel=$createGameLevel');
-        }
+        
         return;
       }
-      if (LOGGING_SWITCH) {
-        _logger.room('📊 Coins check: create_room (creator auto-join) -> verifying userId=$userId level=$createGameLevel');
-      }
+      
       _verifyCoinsForJoin(userId, createGameLevel).then((ok) {
         if (!ok) {
-          if (LOGGING_SWITCH) {
-            _logger.room('📊 Coins check: create_room failed for $userId -> sending create_room_error');
-          }
+          
           _server.sendToSession(sessionId, {
             'event': 'create_room_error',
             'message': 'Insufficient coins to create a game. Check your balance.',
@@ -1218,15 +1135,11 @@ class MessageHandler {
       if (payloadUserId != null && payloadUserId.isNotEmpty) {
         userId = payloadUserId;
         _server.updateSessionUserId(sessionId, userId);
-        if (LOGGING_SWITCH) {
-          _logger.room('📥 _handleJoinRoom: Using payload user_id (session was null): $userId');
-        }
+        
       }
     }
     if (userId == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ _handleJoinRoom: Session $sessionId has no userId (session or payload)');
-      }
+      
       _sendError(sessionId, 'User ID not available. Please reconnect.');
       return;
     }
@@ -1250,13 +1163,7 @@ class MessageHandler {
       });
       return;
     }
-    if (LOGGING_SWITCH) {
-      final roomData = Map<String, dynamic>.from(room.toJson())
-        ..['session_ids'] = room.sessionIds
-        ..['is_random_join'] = room.isRandomJoin;
-      if (room.acceptedPlayers != null) roomData['accepted_players'] = room.acceptedPlayers;
-      _logger.room('📋 _handleJoinRoom room data: $roomData');
-    }
+    
 
     // Check if user is already in room
     if (_roomManager.isUserInRoom(sessionId, roomId)) {
@@ -1273,9 +1180,7 @@ class MessageHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.room('⚠️  User $userId already in room $roomId');
-      }
+      
       return;
     }
     
@@ -1302,9 +1207,7 @@ class MessageHandler {
           'message': 'Your rank ($userRank) is not compatible with this room\'s difficulty ($roomDifficulty). You can only join rooms within ±1 rank of your own.',
           'timestamp': DateTime.now().toIso8601String(),
         });
-        if (LOGGING_SWITCH) {
-          _logger.room('❌ Rank mismatch: user rank=$userRank, room difficulty=$roomDifficulty');
-        }
+        
         return;
       }
     }
@@ -1319,9 +1222,7 @@ class MessageHandler {
             'Your level ($joinerUserLevel) is too low for this table (requires level $joinLevel or higher). Win more games to increase your level.',
         'timestamp': DateTime.now().toIso8601String(),
       });
-      if (LOGGING_SWITCH) {
-        _logger.room('❌ join_room: table gate userLevel=$joinerUserLevel joinLevel=$joinLevel');
-      }
+      
       return;
     }
     final String jr = roomId;
@@ -1332,15 +1233,10 @@ class MessageHandler {
         joinCoinReqRaw is bool ? joinCoinReqRaw : true;
 
     void completeJoinAfterOptionalCoinCheck() {
-      if (LOGGING_SWITCH) {
-        _logger.room('🔍 _handleJoinRoom: About to join room with sessionId=$sessionId, userId=$ju, roomId=$jr');
-      }
+      
       if (_roomManager.joinRoom(jr, sessionId, ju)) {
       // Send join_room_success (primary event matching Python)
-      if (LOGGING_SWITCH) {
-        _logger.room('📤 Sending join_room_success to session: $sessionId (userId=$ju)');
-        _logger.room('🔍 VERIFY: Using sessionId=$sessionId for sendToSession, NOT userId=$ju');
-      }
+      
       final joinSuccessPayload = {
         'event': 'join_room_success',
         'room_id': jr,
@@ -1359,9 +1255,7 @@ class MessageHandler {
       _server.sendToSession(sessionId, joinSuccessPayload);
       
       // Also send room_joined for backward compatibility
-      if (LOGGING_SWITCH) {
-        _logger.room('📤 Sending room_joined to session: $sessionId');
-      }
+      
       final roomJoinedPayload = {
         'event': 'room_joined',
         'room_id': jr,
@@ -1399,17 +1293,13 @@ class MessageHandler {
       if (RandomJoinTimerManager.instance.isTimerActive(jr)) {
         // Random join rooms: cancel timer and start
         if (room.currentSize >= Config.RANDOM_JOIN_MAX_PLAYERS) {
-          if (LOGGING_SWITCH) {
-            _logger.room('🚀 Max players reached, starting match immediately for random join room: $jr');
-          }
+          
           RandomJoinTimerManager.instance.cancelTimer(jr);
           _startMatchForRandomJoin(jr);
         }
         // Create-room with timer (legacy): cancel and start
         else if (room.currentSize >= room.maxSize) {
-          if (LOGGING_SWITCH) {
-            _logger.room('🚀 Max players reached, starting match immediately for room: $jr');
-          }
+          
           RandomJoinTimerManager.instance.cancelTimer(jr);
           _startMatchForRoom(jr);
         }
@@ -1423,9 +1313,7 @@ class MessageHandler {
         final effectiveMax = room.maxSize - compCount;
         print('[join_room] autoStart check: roomId=$jr currentSize=${room.currentSize} compCount=$compCount effectiveMax=$effectiveMax (start=${room.currentSize >= effectiveMax})');
         if (room.currentSize >= effectiveMax) {
-          if (LOGGING_SWITCH) {
-            _logger.room('🚀 Effective max reached ($room.currentSize >= $effectiveMax, compCount=$compCount), starting match for create-room: $jr');
-          }
+          
           _startMatchForRoom(jr);
         }
       }
@@ -1439,9 +1327,7 @@ class MessageHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.room('✅ User $ju joined room $jr');
-      }
+      
       } else {
         _server.sendToSession(sessionId, {
           'event': 'join_room_error',
@@ -1452,20 +1338,14 @@ class MessageHandler {
     }
 
     if (!matchRequiresCoinsForJoin) {
-      if (LOGGING_SWITCH) {
-        _logger.room('📊 Coins check: join_room skipped (game_state isCoinRequired=false) roomId=$jr');
-      }
+      
       completeJoinAfterOptionalCoinCheck();
       return;
     }
-    if (LOGGING_SWITCH) {
-      _logger.room('📊 Coins check: join_room -> verifying userId=$ju roomId=$jr level=$joinLevel');
-    }
+    
     _verifyCoinsForJoin(ju, joinLevel).then((ok) {
       if (!ok) {
-        if (LOGGING_SWITCH) {
-          _logger.room('📊 Coins check: join_room failed for $ju -> sending join_room_error');
-        }
+        
         _server.sendToSession(
           sessionId,
           _joinRoomCoinErrorPayload(
@@ -1481,18 +1361,12 @@ class MessageHandler {
   }
   
   void _handleLeaveRoom(String sessionId) {
-    if (LOGGING_SWITCH) {
-      _logger.room('🎯 LEAVE_ROOM: _handleLeaveRoom called for session: $sessionId');
-    }
+    
     final roomId = _roomManager.getRoomForSession(sessionId);
-    if (LOGGING_SWITCH) {
-      _logger.room('🎯 LEAVE_ROOM: getRoomForSession returned roomId: $roomId for session: $sessionId');
-    }
+    
     if (roomId != null) {
       _server.forceSessionLeaveRoom(sessionId);
-      if (LOGGING_SWITCH) {
-        _logger.room('✅ Session $sessionId left room $roomId');
-      }
+      
     } else {
       _server.sendToSession(sessionId, {
         'event': 'leave_room_error',
@@ -1506,15 +1380,9 @@ class MessageHandler {
   void _handleResumeRoom(String sessionId, Map<String, dynamic> data) {
     final roomId = (data['room_id'] ?? data['game_id'])?.toString() ?? '';
     final userId = _server.getUserIdForSession(sessionId);
-    if (LOGGING_SWITCH) {
-      _logger.room(
-        'resume_room: session=$sessionId room=$roomId user=${userId ?? "(null)"}',
-      );
-    }
+    
     if (roomId.isEmpty || !roomId.startsWith('room_')) {
-      if (LOGGING_SWITCH) {
-        _logger.room('resume_room_error: invalid room_id for session=$sessionId');
-      }
+      
       _server.sendToSession(sessionId, {
         'event': 'resume_room_error',
         'message': 'Invalid or missing room_id',
@@ -1523,9 +1391,7 @@ class MessageHandler {
       return;
     }
     if (userId == null || userId.trim().isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.room('resume_room_error: not authenticated session=$sessionId');
-      }
+      
       _server.sendToSession(sessionId, {
         'event': 'resume_room_error',
         'message': 'User not authenticated',
@@ -1538,13 +1404,7 @@ class MessageHandler {
       roomId: roomId,
       userId: userId,
     );
-    if (LOGGING_SWITCH) {
-      _logger.room(
-        ok
-            ? 'resume_room OK session=$sessionId room=$roomId user=$userId'
-            : 'resume_room FAILED session=$sessionId room=$roomId user=$userId',
-      );
-    }
+    
     if (!ok) {
       _server.sendToSession(sessionId, {
         'event': 'resume_room_error',
@@ -1575,9 +1435,7 @@ class MessageHandler {
     // mapping hasn't been updated yet but the event has the correct new user_id
     final eventUserId = data['user_id'] as String?;
     if (eventUserId != null && eventUserId != userId) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ _handleJoinRandomGame: Event user_id ($eventUserId) differs from session mapping ($userId) - using event user_id (likely account conversion)');
-      }
+      
       userId = eventUserId;
       // Update session mapping to match event (session should be re-authenticated, but this is a safety measure)
       // Note: This is a temporary fix - ideally the session should be re-authenticated with new token
@@ -1585,9 +1443,7 @@ class MessageHandler {
     }
     
     if (userId == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ _handleJoinRandomGame: Session $sessionId is authenticated but userId is null');
-      }
+      
       _sendError(sessionId, 'User ID not available. Please reconnect.');
       return;
     }
@@ -1595,9 +1451,7 @@ class MessageHandler {
     // Extract isClearAndCollect from event data (default to true for backward compatibility)
     // Handle both bool and string values (JSON serialization can convert bools to strings)
     final isClearAndCollectValue = data['isClearAndCollect'];
-    if (LOGGING_SWITCH) {
-      _logger.room('🔍 _handleJoinRandomGame: raw isClearAndCollect from event data: value=$isClearAndCollectValue (type: ${isClearAndCollectValue.runtimeType})');
-    }
+    
     final isClearAndCollect = isClearAndCollectValue is bool 
         ? isClearAndCollectValue 
         : (isClearAndCollectValue is String 
@@ -1619,10 +1473,7 @@ class MessageHandler {
     if (rawSpecialEventId is String && rawSpecialEventId.trim().isNotEmpty) {
       parsedSpecialEventId = rawSpecialEventId.trim();
     }
-    if (LOGGING_SWITCH) {
-      _logger.room('✅ _handleJoinRandomGame: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
-      _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId, isClearAndCollect=$isClearAndCollect, requestedGameLevel=$requestedGameLevel');
-    }
+    
     
     // Log user account type for registration differences testing
     try {
@@ -1630,51 +1481,34 @@ class MessageHandler {
       if (profileResult['success'] == true) {
         final accountType = profileResult['account_type'] as String? ?? 'unknown';
         final username = profileResult['username'] as String? ?? 'unknown';
-        if (LOGGING_SWITCH) {
-          _logger.room('👤 _handleJoinRandomGame: User account info - userId=$userId, username=$username, account_type=$accountType');
-        }
+        
       }
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('⚠️ _handleJoinRandomGame: Could not fetch user profile for account type logging: $e');
-      }
+      
     }
     
     try {
       // Get available rooms for random join
       var availableRooms = _getAvailableRoomsForRandomJoin();
-      if (LOGGING_SWITCH) {
-        _logger.room('🔍 _handleJoinRandomGame: availableRooms (before rank filter): ${availableRooms.length}');
-      }
+      
       
       // Filter by rank compatibility
       final userRank = _server.getUserRankForSession(sessionId);
       availableRooms = _filterRoomsByRank(availableRooms, userRank);
-      if (LOGGING_SWITCH) {
-        _logger.room('🔍 _handleJoinRandomGame: availableRooms (after rank filter), userRank=$userRank: ${availableRooms.length}');
-      }
+      
       availableRooms = _filterRoomsByTableLevel(availableRooms, requestedGameLevel);
-      if (LOGGING_SWITCH) {
-        _logger.room('🔍 _handleJoinRandomGame: availableRooms (after table filter), requestedGameLevel=$requestedGameLevel: ${availableRooms.length}');
-      }
+      
 
       // Vanilla random join must not land in special-event lanes; event join must only pool matching `special_event_id`.
       availableRooms = _filterRoomsBySpecialEventLane(availableRooms, parsedSpecialEventId);
-      if (LOGGING_SWITCH) {
-        _logger.room(
-          '🔍 _handleJoinRandomGame: availableRooms (after special-event lane filter), requestedSpecialEventId=$parsedSpecialEventId: ${availableRooms.length}',
-        );
-      }
+      
 
       if (availableRooms.isNotEmpty) {
         // Pick a random room
         final random = Random();
         final selectedRoom = availableRooms[random.nextInt(availableRooms.length)];
         
-        if (LOGGING_SWITCH) {
-          _logger.room('🎲 Joining random room: ${selectedRoom.roomId}');
-          _logger.room('🔍 About to call _handleJoinRoom with sessionId=$sessionId, userId=$userId');
-        }
+        
         
         // Use existing join room logic
         _handleJoinRoom(sessionId, {
@@ -1689,11 +1523,7 @@ class MessageHandler {
       }
       
       // No pooled room in this tier + event lane — create new and auto-start after coin check
-      if (LOGGING_SWITCH) {
-        _logger.room(
-          '🎲 join_random_game: creating new room (pooledAfterFilters=${availableRooms.length}, requestedSpecialEventId=$parsedSpecialEventId)',
-        );
-      }
+      
 
       final uid = userId;
       final joinerUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
@@ -1704,19 +1534,13 @@ class MessageHandler {
               'Your level ($joinerUserLevel) is too low for this table (requires level $requestedGameLevel or higher). Win more games to increase your level.',
           'timestamp': DateTime.now().toIso8601String(),
         });
-        if (LOGGING_SWITCH) {
-          _logger.room('❌ join_random_game(create new): table gate userLevel=$joinerUserLevel requestedGameLevel=$requestedGameLevel');
-        }
+        
         return;
       }
-      if (LOGGING_SWITCH) {
-        _logger.room('📊 Coins check: join_random_game (create new room) -> verifying userId=$uid level=$requestedGameLevel');
-      }
+      
       _verifyCoinsForJoin(uid, requestedGameLevel).then((ok) {
         if (!ok) {
-          if (LOGGING_SWITCH) {
-            _logger.room('📊 Coins check: join_random_game failed for $uid -> sending join_room_error');
-          }
+          
           _server.sendToSession(
             sessionId,
             _joinRoomCoinErrorPayload(
@@ -1760,13 +1584,9 @@ class MessageHandler {
       // Store isClearAndCollect in game state store for later use when starting match
       final store = GameStateStore.instance;
       final roomState = store.ensure(roomId);
-      if (LOGGING_SWITCH) {
-        _logger.room('💾 Storing isClearAndCollect in roomState: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
-      }
+      
       roomState['isClearAndCollect'] = isClearAndCollect;
-      if (LOGGING_SWITCH) {
-        _logger.room('✅ Stored isClearAndCollect in roomState[$roomId]: ${roomState['isClearAndCollect']} (type: ${roomState['isClearAndCollect'].runtimeType})');
-      }
+      
       
       // Get room info
       final room = _roomManager.getRoomInfo(roomId);
@@ -1843,9 +1663,7 @@ class MessageHandler {
       
       // Schedule delayed match start instead of immediate start
       final delaySeconds = Config.RANDOM_JOIN_DELAY_SECONDS;
-      if (LOGGING_SWITCH) {
-        _logger.room('⏱️  Scheduling delayed match start for random join room: $roomId (delay: ${delaySeconds}s, isClearAndCollect=$isClearAndCollect)');
-      }
+      
       
       RandomJoinTimerManager.instance.scheduleStartMatch(
         roomId,
@@ -1853,14 +1671,10 @@ class MessageHandler {
         (roomId) => _startMatchForRandomJoin(roomId),
       );
       
-      if (LOGGING_SWITCH) {
-        _logger.room('✅ Random join room created with ${delaySeconds}s delay: $roomId');
-      }
+      
       });
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error in _handleJoinRandomGame: $e');
-      }
+      
       _server.sendToSession(sessionId, {
         'event': 'join_room_error',
         'message': 'Failed to join random game: $e',
@@ -1876,9 +1690,7 @@ class MessageHandler {
       // Check if match is already starting or started
       // This prevents race conditions when called from multiple paths (timer + early start)
       if (RandomJoinTimerManager.instance.isStarting(roomId)) {
-        if (LOGGING_SWITCH) {
-          _logger.game('⚠️  Match already starting for room: $roomId');
-        }
+        
         return;
       }
 
@@ -1889,9 +1701,7 @@ class MessageHandler {
       // Check if room still exists
       final room = _roomManager.getRoomInfo(roomId);
       if (room == null) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ Room not found when starting match: $roomId');
-        }
+        
         RandomJoinTimerManager.instance.cleanup(roomId);
         return;
       }
@@ -1902,9 +1712,7 @@ class MessageHandler {
         final gameState = stateStore.getGameState(roomId);
         final phase = gameState['phase'] as String?;
         if (phase != null && phase != 'waiting_for_players') {
-          if (LOGGING_SWITCH) {
-            _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)');
-          }
+          
           RandomJoinTimerManager.instance.cleanup(roomId);
           return;
         }
@@ -1915,9 +1723,7 @@ class MessageHandler {
       // Get a session ID from the room (use first available session)
       final sessions = _roomManager.getSessionsInRoom(roomId);
       if (sessions.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ No sessions in room when starting match: $roomId');
-        }
+        
         RandomJoinTimerManager.instance.cleanup(roomId);
         return;
       }
@@ -1927,20 +1733,14 @@ class MessageHandler {
       // Get isClearAndCollect from game state store (stored when room was created)
       final roomState = stateStore.getState(roomId);
       final isClearAndCollectValue = roomState['isClearAndCollect'];
-      if (LOGGING_SWITCH) {
-        _logger.game('🔍 Retrieved isClearAndCollect from roomState: value=$isClearAndCollectValue (type: ${isClearAndCollectValue.runtimeType})');
-      }
+      
       // Handle both bool and string values (JSON serialization can convert bools to strings)
       final isClearAndCollect = isClearAndCollectValue is bool 
           ? isClearAndCollectValue 
           : (isClearAndCollectValue is String 
               ? (isClearAndCollectValue.toLowerCase() == 'true')
               : true); // Default to true for backward compatibility
-      if (LOGGING_SWITCH) {
-        _logger.game('✅ Parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
-        _logger.game('🎮 Starting match for random join room: $roomId (isClearAndCollect=$isClearAndCollect)');
-        _logger.game('📤 Passing isClearAndCollect to start_match: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
-      }
+      
       room.hasMatchRestarted = false;
       _gameCoordinator.handle(sessionId, 'start_match', {
         'game_id': roomId,
@@ -1948,20 +1748,14 @@ class MessageHandler {
         'max_players': room.maxSize,
         'isClearAndCollect': isClearAndCollect,
       });
-      if (LOGGING_SWITCH) {
-        _logger.game('✅ Called _gameCoordinator.handle with isClearAndCollect=$isClearAndCollect');
-      }
+      
 
       // Cleanup timer state
       RandomJoinTimerManager.instance.cleanup(roomId);
       
-      if (LOGGING_SWITCH) {
-        _logger.room('✅ Match started for random join room: $roomId');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error starting match for random join room $roomId: $e');
-      }
+      
       RandomJoinTimerManager.instance.cleanup(roomId);
     }
   }
@@ -1973,9 +1767,7 @@ class MessageHandler {
       // Check if match is already starting or started
       // This prevents race conditions when called from multiple paths (timer + early start)
       if (RandomJoinTimerManager.instance.isStarting(roomId)) {
-        if (LOGGING_SWITCH) {
-          _logger.game('⚠️  Match already starting for room: $roomId');
-        }
+        
         return;
       }
 
@@ -1986,9 +1778,7 @@ class MessageHandler {
       // Check if room still exists
       final room = _roomManager.getRoomInfo(roomId);
       if (room == null) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ Room not found when starting match: $roomId');
-        }
+        
         RandomJoinTimerManager.instance.cleanup(roomId);
         return;
       }
@@ -1999,9 +1789,7 @@ class MessageHandler {
         final gameState = store.getGameState(roomId);
         final phase = gameState['phase'] as String?;
         if (phase != null && phase != 'waiting_for_players') {
-          if (LOGGING_SWITCH) {
-            _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)');
-          }
+          
           RandomJoinTimerManager.instance.cleanup(roomId);
           return;
         }
@@ -2012,9 +1800,7 @@ class MessageHandler {
       // Get a session ID from the room (use first available session)
       final sessions = _roomManager.getSessionsInRoom(roomId);
       if (sessions.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('❌ No sessions in room when starting match: $roomId');
-        }
+        
         RandomJoinTimerManager.instance.cleanup(roomId);
         return;
       }
@@ -2027,11 +1813,7 @@ class MessageHandler {
       final isClearAndCollect = roomState.containsKey('isClearAndCollect')
           ? _coerceBool(roomState['isClearAndCollect'], ifNull: defaultFromGameType)
           : defaultFromGameType;
-      if (LOGGING_SWITCH) {
-        _logger.game(
-          '🎮 Starting match for room: $roomId (gameType=${room.gameType}, isClearAndCollect=$isClearAndCollect)',
-        );
-      }
+      
       final Map<String, dynamic> startMatchData = {
         'game_id': roomId,
         'min_players': room.minPlayers,
@@ -2064,13 +1846,9 @@ class MessageHandler {
       // Cleanup timer state (this also clears isStarting flag)
       RandomJoinTimerManager.instance.cleanup(roomId);
       
-      if (LOGGING_SWITCH) {
-        _logger.room('✅ Match started for room: $roomId');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ Error starting match for room $roomId: $e');
-      }
+      
       RandomJoinTimerManager.instance.cleanup(roomId);
     }
   }
@@ -2180,13 +1958,7 @@ class MessageHandler {
     String event,
     Map<String, dynamic> data,
   ) {
-    if (LOGGING_SWITCH) {
-      _logger.game('🎮 Game event: $event');
-      _logger.game('📦 Data: $data');
-      if (event == 'jack_swap') {
-        _logger.game('🃏 _handleGameEvent: jack_swap event received - routing to GameEventCoordinator');
-      }
-    }
+    
     if (event == 'start_match') {
       final gid = data['game_id'] as String? ?? data['room_id'] as String?;
       if (gid != null && gid.isNotEmpty) {
@@ -2205,9 +1977,7 @@ class MessageHandler {
       return;
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.auth('🔐 Authenticate event received for session: $sessionId');
-    }
+    
     
     // Await so the next WS message (e.g. join_random_game) runs only after session is marked authenticated.
     await _server.validateAndAuthenticate(sessionId, token);

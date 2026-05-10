@@ -7,11 +7,9 @@ All endpoint handlers live in api_endpoints.py; this module registers routes and
 """
 
 from typing import Optional
-from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
 
 # Logging switch for route registration (see .cursor/rules/enable-logging-switch.mdc)
-LOGGING_SWITCH = True
 
 
 class DutchGameMain(BaseModule):
@@ -58,10 +56,8 @@ class DutchGameMain(BaseModule):
         """Register all Dutch game routes. Handlers live in api_endpoints.py."""
         try:
             from . import api_endpoints
-            custom_log("🔐 DutchGame: Starting route registration", level="INFO", isOn=LOGGING_SWITCH)
             api_endpoints.set_app_manager(self.app_manager)
             self.app.register_blueprint(api_endpoints.dutch_api)
-            custom_log("🔐 DutchGame: API blueprint registered successfully", level="INFO", isOn=LOGGING_SWITCH)
 
             self._register_route_helper("/userauth/dutch/get-available-games", api_endpoints.get_available_games, methods=["GET"], auth="jwt")
             self._register_route_helper("/userauth/dutch/find-room", api_endpoints.find_room, methods=["POST"], auth="jwt")
@@ -115,10 +111,8 @@ class DutchGameMain(BaseModule):
             )
             self._register_route_helper("/userauth/dutch/tournament-signup", api_endpoints.tournament_signup, methods=["POST"], auth="jwt")
 
-            custom_log("🔐 DutchGame: All routes registered successfully", level="INFO", isOn=LOGGING_SWITCH)
             return True
         except Exception as e:
-            custom_log(f"❌ DutchGame: Error registering routes: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
 
     def get_game_event_coordinator(self) -> Optional[None]:

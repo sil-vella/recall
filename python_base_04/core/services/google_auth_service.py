@@ -8,7 +8,6 @@ from typing import Dict, Any, Optional
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from utils.config.config import Config
-from tools.logger.custom_logging import custom_log
 
 
 class GoogleAuthService:
@@ -39,7 +38,6 @@ class GoogleAuthService:
         """
         try:
             if not self.client_id:
-                custom_log("GoogleAuthService: GOOGLE_CLIENT_ID not configured", level="ERROR")
                 return None
             
             # Verify the token
@@ -52,24 +50,18 @@ class GoogleAuthService:
             
             # Verify the issuer
             if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-                custom_log(f"GoogleAuthService: Invalid token issuer: {idinfo.get('iss')}", level="WARNING")
                 return None
             
             # Token is valid, return user info
-            custom_log(f"GoogleAuthService: Token verified successfully for email: {idinfo.get('email')}", level="DEBUG")
             return idinfo
             
         except ValueError as e:
             # Invalid token
-            custom_log(f"GoogleAuthService: Token verification failed - Invalid token: {e}", level="ERROR")
             import traceback
-            custom_log(f"GoogleAuthService: ValueError traceback: {traceback.format_exc()}", level="ERROR")
             return None
         except Exception as e:
             # Other errors (network, etc.)
-            custom_log(f"GoogleAuthService: Token verification error: {e}", level="ERROR")
             import traceback
-            custom_log(f"GoogleAuthService: Exception traceback: {traceback.format_exc()}", level="ERROR")
             return None
     
     def get_user_info(self, id_token_string: str) -> Optional[Dict[str, Any]]:

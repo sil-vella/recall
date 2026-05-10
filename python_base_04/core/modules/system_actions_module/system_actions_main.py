@@ -1,5 +1,4 @@
 from core.modules.base_module import BaseModule
-from tools.logger.custom_logging import custom_log
 from typing import Dict, Any
 from flask import request, jsonify
 from datetime import datetime
@@ -8,7 +7,6 @@ import os
 import json
 
 # Logging switch for this module
-LOGGING_SWITCH = False  # Enabled for debugging
 
 
 class SystemActionsModule(BaseModule):
@@ -35,10 +33,9 @@ class SystemActionsModule(BaseModule):
         try:
             # Register the check-updates endpoint as public (no authentication)
             self._register_route_helper("/public/check-updates", self.check_updates, methods=["GET"])
-            custom_log("SystemActions: Registered check-updates endpoint", level="INFO", isOn=LOGGING_SWITCH)
         except Exception as e:
-            custom_log(f"SystemActions: Error registering routes: {e}", level="ERROR", isOn=LOGGING_SWITCH)
 
+            pass
     def _register_module_actions(self):
         """Register this module's actions with the UserActionsManager."""
         try:
@@ -226,7 +223,6 @@ class SystemActionsModule(BaseModule):
         mobile app versions are decoupled from the Flask backend version.
         """
         try:
-            custom_log("SystemActions: Check updates request received", level="INFO", isOn=LOGGING_SWITCH)
             
             app_name = Config.APP_NAME
             app_id = Config.APP_ID
@@ -246,10 +242,9 @@ class SystemActionsModule(BaseModule):
                         with open(path, "r", encoding="utf-8") as f:
                             manifest = json.load(f)
                             manifest_path_used = path
-                            custom_log(f"SystemActions: Loaded mobile_release manifest from {path}", level="INFO", isOn=LOGGING_SWITCH)
                             break
-                except Exception as e:
-                    custom_log(f"SystemActions: Failed to read mobile_release manifest at {path}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+                except Exception:
+                    pass
 
             # Determine mobile app versions from manifest (fallback to backend Config if missing)
             if manifest:
@@ -291,9 +286,7 @@ class SystemActionsModule(BaseModule):
                     f"MinSupported: {min_supported_version} ({min_supported_tuple}), "
                     f"UpdateAvailable: {update_available}, UpdateRequired: {update_required}"
                 )
-                custom_log(version_msg, level="INFO", isOn=LOGGING_SWITCH)
             except Exception as e:
-                custom_log(f"SystemActions: Error comparing versions: {e}", level="WARNING", isOn=LOGGING_SWITCH)
                 # Safe fallback: only indicate that an update is available if versions differ
                 update_available = client_version != server_version
                 update_required = False
@@ -303,7 +296,6 @@ class SystemActionsModule(BaseModule):
             if update_available:
                 # Format: {base_url}/v{version}/app.apk
                 download_link = f"{download_base_url}/v{server_version}/app.apk"
-                custom_log(f"SystemActions: Generated download link: {download_link}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Build response payload
             response_data = {
@@ -329,11 +321,9 @@ class SystemActionsModule(BaseModule):
                 f"Client: {client_version}, Latest: {server_version}, "
                 f"UpdateAvailable: {update_available}, UpdateRequired: {update_required}"
             )
-            custom_log(summary_msg, level="INFO", isOn=LOGGING_SWITCH)
             return jsonify(response_data), 200
             
         except Exception as e:
-            custom_log(f"SystemActions: Error in check_updates: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify(
                 {
                 "success": False,

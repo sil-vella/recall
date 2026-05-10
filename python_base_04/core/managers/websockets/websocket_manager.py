@@ -1,7 +1,6 @@
 from flask_socketio import SocketIO, join_room, leave_room
 from flask import request
 from typing import Dict, Any, Set, Callable, Optional, List
-from tools.logger.custom_logging import custom_log
 from core.managers.redis_manager import RedisManager
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.managers.websockets.ws_event_manager import WSEventManager
@@ -18,7 +17,6 @@ from datetime import datetime
 from functools import wraps
 import json
 
-LOGGING_SWITCH = False  # WS room create/search/join flow debugging (enable-logging-switch.mdc; set False after verify)
 
 class WebSocketManager:
     def __init__(self):
@@ -716,10 +714,9 @@ class WebSocketManager:
         try:
             # Use socketio.emit instead of direct emit to work from background threads
             self.socketio.emit(event, data, room=room_id)
-            custom_log("Broadcasted event: " + event + " to room: " + room_id + " data: " + str(data), isOn=LOGGING_SWITCH)
         except Exception as e:
-            custom_log(f"Error broadcasting to room {room_id}: {e}", isOn=LOGGING_SWITCH)
 
+            pass
     async def send_to_session(self, session_id: str, event: str, data: Any):
         """Send message to a specific session."""
         try:

@@ -1,4 +1,3 @@
-from tools.logger.custom_logging import custom_log, function_log, game_play_log, log_function_call
 from utils.config.config import Config
 
 class ServicesManager:
@@ -6,7 +5,6 @@ class ServicesManager:
         # A dictionary to hold all registered services
         self.services = {}
 
-    @log_function_call
     def register_service(self, service_key, service_instance):
         """
         Register a service with a unique key.
@@ -18,7 +16,6 @@ class ServicesManager:
         
         self.services[service_key] = service_instance
 
-    @log_function_call
     def initialize_services(self):
         """
         Initialize all registered services that have an 'initialize' method.
@@ -27,7 +24,6 @@ class ServicesManager:
             if hasattr(service, "initialize") and callable(service.initialize):
                 service.initialize()
 
-    @log_function_call
     def get_service(self, service_key):
         """
         Retrieve a registered service by its key.
@@ -37,7 +33,6 @@ class ServicesManager:
         service = self.services.get(service_key)
         return service
 
-    @log_function_call
     def call_service_method(self, service_key, method_name, *args, **kwargs):
         """
         Dynamically call a method on a registered service.
@@ -56,7 +51,6 @@ class ServicesManager:
         result = getattr(service, method_name)(*args, **kwargs)
         return result
 
-    @log_function_call
     def dispose(self):
         """
         Dispose of all registered services, calling their cleanup methods if available.

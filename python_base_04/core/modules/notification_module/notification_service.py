@@ -8,12 +8,10 @@ from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 
-from tools.logger.custom_logging import custom_log
 
 from .dart_inbox_notify import notify_dart_inbox_changed_async
 
 NOTIFICATIONS_COLLECTION = "notifications"
-LOGGING_SWITCH = False  # Set True to trace notification create (e.g. tournament invite)
 
 # Core predefined types: modules must use one of these. Determines core behaviour (e.g. instant = modal).
 NOTIFICATION_TYPE_INSTANT = "instant"
@@ -58,28 +56,16 @@ class NotificationService:
         :return: Inserted document _id as string, or None on failure.
         """
         if not self.app_manager:
-            if LOGGING_SWITCH:
-                custom_log("NotificationService.create: app_manager not set", level="WARNING", isOn=LOGGING_SWITCH)
             return None
         db_manager = self.app_manager.get_db_manager(role="read_write")
         if not db_manager:
-            if LOGGING_SWITCH:
-                custom_log("NotificationService.create: db_manager not available", level="WARNING", isOn=LOGGING_SWITCH)
             return None
         try:
             user_oid = ObjectId(user_id)
         except Exception:
-            if LOGGING_SWITCH:
-                custom_log(f"NotificationService.create: invalid user_id={user_id}", level="WARNING", isOn=LOGGING_SWITCH)
             return None
         type_str = (type or "").strip()
         if type_str and type_str not in NOTIFICATION_TYPES_PREDEFINED:
-            if LOGGING_SWITCH:
-                custom_log(
-                    f"NotificationService.create: type '{type_str}' not in predefined {NOTIFICATION_TYPES_PREDEFINED}; rejecting",
-                    level="WARNING",
-                    isOn=LOGGING_SWITCH,
-                )
             return None
         if not type_str:
             type_str = NOTIFICATION_TYPE_INSTANT
@@ -110,15 +96,8 @@ class NotificationService:
         }
         try:
             msg_id = db_manager.insert(NOTIFICATIONS_COLLECTION, doc)
-            if LOGGING_SWITCH:
-                custom_log(
-                    f"NotificationService.create: created notification for user={user_id} source={source} type={type} id={msg_id}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
             notify_dart_inbox_changed_async(user_id)
             return msg_id
         except Exception as e:
-            custom_log(f"NotificationService.create: insert failed: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             print(f"[NotificationService] create insert failed for user_id={user_id}: {e}", flush=True)
             return None

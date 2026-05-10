@@ -3,15 +3,12 @@ import time
 import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError, InvalidSignatureError, InvalidAudienceError, InvalidIssuerError
 from typing import Dict, Any, Optional, Union
-from tools.logger.custom_logging import custom_log
 from utils.config.config import Config
 from core.managers.redis_manager import RedisManager
 from enum import Enum
 import hashlib
 from flask import request, jsonify
 
-# Logging switch for this module
-LOGGING_SWITCH = False  # Enabled for auth (verify/revoke/login/create token) - see .cursor/rules/enable-logging-switch.mdc
 
 class TokenType(Enum):
     ACCESS = "access"
@@ -48,13 +45,10 @@ class JWTManager:
                 ip = ip.split(',')[0].strip()
             user_agent = request.headers.get('User-Agent', '')
             
-            custom_log(f"🔐 JWT Fingerprint: IP: '{ip}', User-Agent: '{user_agent}'", level="DEBUG", isOn=LOGGING_SWITCH)
             
             fingerprint = hashlib.sha256(f"{ip}-{user_agent}".encode()).hexdigest()
-            custom_log(f"🔐 JWT Fingerprint: Generated fingerprint: '{fingerprint[:10]}...'", level="DEBUG", isOn=LOGGING_SWITCH)
             return fingerprint
         except Exception as e:
-            custom_log(f"❌ JWT Fingerprint: Exception generating fingerprint: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return ""
 
     def create_token(self, data: Dict[str, Any], token_type: TokenType, expires_in: Optional[int] = None) -> str:
@@ -99,28 +93,17 @@ class JWTManager:
     def verify_token(self, token: str, expected_type: Optional[TokenType] = None, skip_revoke: bool = False) -> Optional[Dict[str, Any]]:
         """Verify a JWT token and return its payload if valid.
         When skip_revoke=True (e.g. Dart backend calling with X-Service-Key), Redis revoke check is skipped."""
-        custom_log(f"🔐 JWT: Starting token verification (skip_revoke={skip_revoke})", level="INFO", isOn=LOGGING_SWITCH)
-        custom_log(f"🔐 JWT: Token preview: {token[:20]}...", level="DEBUG", isOn=LOGGING_SWITCH)
-        custom_log(f"🔐 JWT: Expected type: {expected_type}", level="DEBUG", isOn=LOGGING_SWITCH)
         
         try:
             # First decode the token to get its type
             try:
                 payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-                custom_log(f"🔐 JWT: Token decoded successfully", level="INFO", isOn=LOGGING_SWITCH)
-                custom_log(f"🔐 JWT: Payload keys: {list(payload.keys())}", level="DEBUG", isOn=LOGGING_SWITCH)
             except InvalidTokenError as e:
-                custom_log(f"❌ JWT: Invalid token error: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
                 return None
                 
             # Check if token is revoked (skip when service-authenticated: Dart backend already trusted via X-Service-Key)
             if not skip_revoke and self._is_token_revoked(token):
-                custom_log(f"❌ JWT: Token is revoked", level="WARNING", isOn=LOGGING_SWITCH)
                 return None
-            elif skip_revoke:
-                custom_log(f"🔐 JWT: Skipping revoke check (service-authenticated request)", level="DEBUG", isOn=LOGGING_SWITCH)
-            else:
-                custom_log(f"✅ JWT: Token not revoked", level="DEBUG", isOn=LOGGING_SWITCH)
 
             # Single-session / takeover: auth_gen must match Redis (tokens without claim are legacy)
             user_id_for_gen = payload.get("user_id")
@@ -130,110 +113,64 @@ class JWTManager:
                     token_gen_int = int(token_auth_gen)
                     server_gen = self.redis_manager.get_user_auth_generation(str(user_id_for_gen))
                     if token_gen_int != server_gen:
-                        custom_log(
-                            f"❌ JWT: auth_gen mismatch (token={token_gen_int}, server={server_gen}) user_id={user_id_for_gen}",
-                            level="WARNING",
-                            isOn=LOGGING_SWITCH,
-                        )
                         return None
-                except (TypeError, ValueError) as e:
-                    custom_log(f"❌ JWT: Invalid auth_gen claim: {e}", level="WARNING", isOn=LOGGING_SWITCH)
+                except (TypeError, ValueError):
                     return None
-                
+
             # Verify fingerprint if present in token
             token_fingerprint = payload.get("fingerprint")
             if token_fingerprint:
                 current_fingerprint = self._get_client_fingerprint()
-                custom_log(f"🔐 JWT: Checking fingerprint - token: {token_fingerprint[:10]}..., current: '{current_fingerprint}' (len: {len(current_fingerprint) if current_fingerprint else 0})", level="DEBUG", isOn=LOGGING_SWITCH)
-                
-                # For development: Skip fingerprint validation for server-to-server calls
-                # Check if this is a Dart server call (User-Agent contains 'Dart')
                 user_agent = request.headers.get('User-Agent', '')
                 is_server_to_server = 'Dart' in user_agent
-                
-                if is_server_to_server:
-                    custom_log(f"🔐 JWT: Server-to-server call detected (User-Agent: {user_agent}), skipping fingerprint validation", level="DEBUG", isOn=LOGGING_SWITCH)
-                elif not current_fingerprint or current_fingerprint == "":
-                    custom_log(f"🔐 JWT: No current fingerprint, skipping fingerprint validation", level="DEBUG", isOn=LOGGING_SWITCH)
-                elif current_fingerprint and token_fingerprint != current_fingerprint:
-                    custom_log(f"❌ JWT: Fingerprint mismatch", level="WARNING", isOn=LOGGING_SWITCH)
-                    return None
-                else:
-                    custom_log(f"✅ JWT: Fingerprint valid", level="DEBUG", isOn=LOGGING_SWITCH)
-            else:
-                custom_log(f"🔐 JWT: No fingerprint in token", level="DEBUG", isOn=LOGGING_SWITCH)
-                
+                if not is_server_to_server:
+                    if current_fingerprint and token_fingerprint != current_fingerprint:
+                        return None
+
             # Verify token type if specified
             if expected_type:
                 token_type = payload.get("type")
-                custom_log(f"🔐 JWT: Checking token type - expected: {expected_type.value}, actual: {token_type}", level="DEBUG", isOn=LOGGING_SWITCH)
                 if not token_type:
-                    custom_log(f"❌ JWT: No token type in payload", level="WARNING", isOn=LOGGING_SWITCH)
                     return None
-                    
                 if token_type != expected_type.value:
-                    custom_log(f"❌ JWT: Token type mismatch", level="WARNING", isOn=LOGGING_SWITCH)
                     return None
-                else:
-                    custom_log(f"✅ JWT: Token type valid", level="DEBUG", isOn=LOGGING_SWITCH)
-            
+
             # Comprehensive claims validation
-            custom_log(f"🔐 JWT: Validating token claims", level="DEBUG", isOn=LOGGING_SWITCH)
             if not self._validate_token_claims(payload):
-                custom_log(f"❌ JWT: Token claims validation failed", level="WARNING", isOn=LOGGING_SWITCH)
                 return None
-            else:
-                custom_log(f"✅ JWT: Token claims validation passed", level="DEBUG", isOn=LOGGING_SWITCH)
-            
-            custom_log(f"✅ JWT: Token verification successful for user: {payload.get('user_id', 'unknown')}", level="INFO", isOn=LOGGING_SWITCH)
+
             return payload
             
         except ExpiredSignatureError:
-            custom_log(f"❌ JWT: Token expired", level="WARNING", isOn=LOGGING_SWITCH)
             return None
         except InvalidSignatureError:
-            custom_log(f"❌ JWT: Invalid signature", level="WARNING", isOn=LOGGING_SWITCH)
             return None
         except InvalidAudienceError:
-            custom_log(f"❌ JWT: Invalid audience", level="WARNING", isOn=LOGGING_SWITCH)
             return None
         except InvalidIssuerError:
-            custom_log(f"❌ JWT: Invalid issuer", level="WARNING", isOn=LOGGING_SWITCH)
             return None
         except Exception as e:
-            custom_log(f"❌ JWT: Unexpected error during verification: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return None
 
     def _validate_token_claims(self, payload: Dict[str, Any]) -> bool:
         """Validate JWT token claims comprehensively."""
-        custom_log(f"🔐 JWT Claims: Starting claims validation", level="DEBUG", isOn=LOGGING_SWITCH)
-        custom_log(f"🔐 JWT Claims: Payload: {payload}", level="DEBUG", isOn=LOGGING_SWITCH)
         
         try:
             # Check required claims
             required_claims = ['exp', 'iat', 'type']
-            custom_log(f"🔐 JWT Claims: Checking required claims: {required_claims}", level="DEBUG", isOn=LOGGING_SWITCH)
             for claim in required_claims:
                 if claim not in payload:
-                    custom_log(f"❌ JWT Claims: Missing required claim: {claim}", level="WARNING", isOn=LOGGING_SWITCH)
                     return False
-                else:
-                    custom_log(f"✅ JWT Claims: Found required claim: {claim} = {payload[claim]}", level="DEBUG", isOn=LOGGING_SWITCH)
-            
+
             # Validate expiration (exp)
             exp = payload.get('exp')
             if exp:
                 try:
                     exp_timestamp = int(exp)
                     current_timestamp = int(time.time())
-                    custom_log(f"🔐 JWT Claims: Checking expiration - exp: {exp_timestamp}, current: {current_timestamp}", level="DEBUG", isOn=LOGGING_SWITCH)
                     if exp_timestamp <= current_timestamp:
-                        custom_log(f"❌ JWT Claims: Token expired", level="WARNING", isOn=LOGGING_SWITCH)
                         return False
-                    else:
-                        custom_log(f"✅ JWT Claims: Token not expired", level="DEBUG", isOn=LOGGING_SWITCH)
-                except (ValueError, TypeError) as e:
-                    custom_log(f"❌ JWT Claims: Invalid exp format: {e}", level="WARNING", isOn=LOGGING_SWITCH)
+                except (ValueError, TypeError):
                     return False
             
             # Validate issued at (iat)
@@ -242,25 +179,10 @@ class JWTManager:
                 try:
                     iat_timestamp = int(iat)
                     current_timestamp = int(time.time())
-                    custom_log(f"🔐 JWT Claims: Checking issued at - iat: {iat_timestamp}, current: {current_timestamp}", level="DEBUG", isOn=LOGGING_SWITCH)
                     # Reject only if iat is far in the future (clock skew / bad token); 10 min leeway
                     if iat_timestamp > (current_timestamp + 600):
-                        custom_log(
-                            f"❌ JWT Claims: Token iat far in the future (iat={iat_timestamp}, now={current_timestamp})",
-                            level="WARNING",
-                            isOn=LOGGING_SWITCH,
-                        )
                         return False
-                    if iat_timestamp > (current_timestamp + 120):
-                        custom_log(
-                            f"🔐 JWT Claims: Token iat slightly ahead of server (skew ~{iat_timestamp - current_timestamp}s), accepting",
-                            level="DEBUG",
-                            isOn=LOGGING_SWITCH,
-                        )
-                    else:
-                        custom_log(f"✅ JWT Claims: Token issued at valid time", level="DEBUG", isOn=LOGGING_SWITCH)
-                except (ValueError, TypeError) as e:
-                    custom_log(f"❌ JWT Claims: Invalid iat format: {e}", level="WARNING", isOn=LOGGING_SWITCH)
+                except (ValueError, TypeError):
                     return False
             
             # Validate not before (nbf) if present
@@ -285,85 +207,51 @@ class JWTManager:
                 pass
             
             # Validate custom claims
-            custom_log(f"🔐 JWT Claims: Validating custom claims", level="DEBUG", isOn=LOGGING_SWITCH)
             if not self._validate_custom_claims(payload):
-                custom_log(f"❌ JWT Claims: Custom claims validation failed", level="WARNING", isOn=LOGGING_SWITCH)
                 return False
-            else:
-                custom_log(f"✅ JWT Claims: Custom claims validation passed", level="DEBUG", isOn=LOGGING_SWITCH)
-            
-            custom_log(f"✅ JWT Claims: All claims validation passed", level="DEBUG", isOn=LOGGING_SWITCH)
+
             return True
             
         except Exception as e:
-            custom_log(f"❌ JWT Claims: Exception during validation: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
 
     def _validate_custom_claims(self, payload: Dict[str, Any]) -> bool:
         """Validate custom JWT claims."""
-        custom_log(f"🔐 JWT Custom: Starting custom claims validation", level="DEBUG", isOn=LOGGING_SWITCH)
         
         try:
             # Validate user_id if present
             user_id = payload.get('user_id')
             if user_id:
-                custom_log(f"🔐 JWT Custom: Validating user_id: {user_id}", level="DEBUG", isOn=LOGGING_SWITCH)
                 if not isinstance(user_id, (str, int)):
-                    custom_log(f"❌ JWT Custom: Invalid user_id type: {type(user_id)}", level="WARNING", isOn=LOGGING_SWITCH)
                     return False
-                else:
-                    custom_log(f"✅ JWT Custom: user_id valid", level="DEBUG", isOn=LOGGING_SWITCH)
-            else:
-                custom_log(f"🔐 JWT Custom: No user_id in payload", level="DEBUG", isOn=LOGGING_SWITCH)
-            
+
             # Validate username if present
             username = payload.get('username')
             if username:
-                custom_log(f"🔐 JWT Custom: Validating username: {username}", level="DEBUG", isOn=LOGGING_SWITCH)
                 if not isinstance(username, str):
-                    custom_log(f"❌ JWT Custom: Invalid username type: {type(username)}", level="WARNING", isOn=LOGGING_SWITCH)
                     return False
-                else:
-                    custom_log(f"✅ JWT Custom: username valid", level="DEBUG", isOn=LOGGING_SWITCH)
-            else:
-                custom_log(f"🔐 JWT Custom: No username in payload", level="DEBUG", isOn=LOGGING_SWITCH)
-            
+
             # Validate email if present
             email = payload.get('email')
             if email:
-                custom_log(f"🔐 JWT Custom: Validating email: {email}", level="DEBUG", isOn=LOGGING_SWITCH)
                 if not isinstance(email, str):
-                    custom_log(f"❌ JWT Custom: Invalid email type: {type(email)}", level="WARNING", isOn=LOGGING_SWITCH)
                     return False
                 # Basic email format validation
                 if '@' not in email or '.' not in email:
-                    custom_log(f"❌ JWT Custom: Invalid email format", level="WARNING", isOn=LOGGING_SWITCH)
                     return False
-                else:
-                    custom_log(f"✅ JWT Custom: email valid", level="DEBUG", isOn=LOGGING_SWITCH)
-            else:
-                custom_log(f"🔐 JWT Custom: No email in payload", level="DEBUG", isOn=LOGGING_SWITCH)
-            
+
             # Validate roles if present
             roles = payload.get('roles')
             if roles:
-                custom_log(f"🔐 JWT Custom: Validating roles: {roles}", level="DEBUG", isOn=LOGGING_SWITCH)
                 if not isinstance(roles, (list, set)):
-                    custom_log(f"❌ JWT Custom: Invalid roles type: {type(roles)}", level="WARNING", isOn=LOGGING_SWITCH)
                     return False
                 for role in roles:
                     if not isinstance(role, str):
-                        custom_log(f"❌ JWT Custom: Invalid role type: {type(role)}", level="WARNING", isOn=LOGGING_SWITCH)
                         return False
-                custom_log(f"✅ JWT Custom: roles valid", level="DEBUG", isOn=LOGGING_SWITCH)
-            else:
-                custom_log(f"🔐 JWT Custom: No roles in payload", level="DEBUG", isOn=LOGGING_SWITCH)
-            
-            custom_log(f"✅ JWT Custom: All custom claims validation passed", level="DEBUG", isOn=LOGGING_SWITCH)
+
             return True
             
         except Exception as e:
-            custom_log(f"❌ JWT Custom: Exception during custom claims validation: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
 
     def validate_token(self, token: str, expected_type: Optional[TokenType] = None) -> Optional[Dict[str, Any]]:
@@ -420,29 +308,23 @@ class JWTManager:
 
     def _is_token_revoked(self, token: str) -> bool:
         """Check if a token is revoked using prefix-based lookup."""
-        custom_log(f"🔐 JWT Revoke: Checking if token is revoked", level="DEBUG", isOn=LOGGING_SWITCH)
         
         try:
             # First decode the token to get its type
             try:
                 payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
                 token_type = payload.get("type")
-                custom_log(f"🔐 JWT Revoke: Token type: {token_type}", level="DEBUG", isOn=LOGGING_SWITCH)
                 if not token_type:
-                    custom_log(f"❌ JWT Revoke: No token type found", level="WARNING", isOn=LOGGING_SWITCH)
                     return True
             except InvalidTokenError as e:
                 # If we can't decode the token, consider it revoked
-                custom_log(f"❌ JWT Revoke: Cannot decode token: {str(e)}", level="WARNING", isOn=LOGGING_SWITCH)
                 return True
                 
             # Check if token is valid in Redis
             is_valid = self.redis_manager.is_token_valid(token_type, token)
-            custom_log(f"🔐 JWT Revoke: Redis check result: {is_valid}", level="DEBUG", isOn=LOGGING_SWITCH)
             return not is_valid
             
         except Exception as e:
-            custom_log(f"❌ JWT Revoke: Exception during revocation check: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return True  # Fail safe: consider token revoked on error
 
     def cleanup_expired_tokens(self):

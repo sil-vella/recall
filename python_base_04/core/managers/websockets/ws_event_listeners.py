@@ -5,7 +5,6 @@ Centralized Socket.IO event listener registration
 
 from flask_socketio import emit, join_room, leave_room
 from flask import request
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 import json
 

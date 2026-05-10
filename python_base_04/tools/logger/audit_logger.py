@@ -4,7 +4,12 @@ import glob
 import gzip
 from datetime import datetime
 from typing import Dict, Any, Optional
-from .custom_logging import custom_log, sanitize_log_message
+
+
+def _sanitize_log_message(message: str) -> str:
+    """Hook for redacting sensitive substrings before writing audit lines."""
+    return message
+
 
 class AuditLogger:
     """Class for handling audit logging of credit system transactions."""
@@ -69,7 +74,7 @@ class AuditLogger:
         AuditLogger.rotate_log()
         
         # Sanitize and format the entry
-        sanitized_entry = sanitize_log_message(json.dumps(entry))
+        sanitized_entry = _sanitize_log_message(json.dumps(entry))
         log_message = f"[{prefix}] {sanitized_entry}"
         
         # Write to log file
@@ -78,10 +83,7 @@ class AuditLogger:
         
         # Check for old logs to compress
         AuditLogger.compress_old_logs()
-        
-        # Also log to custom_log
-        custom_log(log_message)
-    
+
     @staticmethod
     def log_transaction(
         transaction_id: str,

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-from tools.logger.custom_logging import custom_log
 import logging
 
 

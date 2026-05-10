@@ -1,5 +1,4 @@
 from typing import Dict, Any, Optional, Set, List
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 from core.managers.redis_manager import RedisManager
 from core.managers.jwt_manager import JWTManager, TokenType
@@ -58,14 +57,12 @@ class WSSessionManager:
         """Fetch user's rank and level from database and add to session data."""
         try:
             if not self._app_manager:
-                custom_log("⚠️ WSSessionManager: App manager not available, skipping rank/level fetch", level="WARNING")
                 session_data['rank'] = None
                 session_data['level'] = None
                 return
             
             db_manager = self._app_manager.get_db_manager(role="read_only")
             if not db_manager:
-                custom_log("⚠️ WSSessionManager: Database manager not available, skipping rank/level fetch", level="WARNING")
                 session_data['rank'] = None
                 session_data['level'] = None
                 return
@@ -81,14 +78,11 @@ class WSSessionManager:
                 dutch_game_data = user_data['modules']['dutch_game']
                 session_data['rank'] = dutch_game_data.get('rank') or matcher.DEFAULT_RANK
                 session_data['level'] = dutch_game_data.get('level', matcher.DEFAULT_LEVEL)
-                custom_log(f"✅ WSSessionManager: Fetched rank={session_data['rank']}, level={session_data['level']} for user {user_id}", level="INFO")
             else:
                 session_data['rank'] = None
                 session_data['level'] = None
-                custom_log(f"⚠️ WSSessionManager: No dutch_game data found for user {user_id}", level="WARNING")
                 
         except Exception as e:
-            custom_log(f"❌ WSSessionManager: Error fetching rank/level for user {user_id}: {e}", level="ERROR")
             session_data['rank'] = None
             session_data['level'] = None
 

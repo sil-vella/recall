@@ -298,10 +298,8 @@ class DeckUtils {
   }
 
   /// Print deck statistics for debugging
-  /// Note: This method is kept for API compatibility but does not output anything
-  /// when LOGGING_SWITCH is false. Use Logger with LOGGING_SWITCH for actual logging.
+  /// Note: This method is kept for API compatibility; it performs no I/O.
   static void printDeckStats(List<Card> cards) {
-    // Method kept for API compatibility - no output when logging is disabled
-    // Use Logger with LOGGING_SWITCH for actual logging if needed
+    // Method kept for API compatibility — no output.
   }
 }

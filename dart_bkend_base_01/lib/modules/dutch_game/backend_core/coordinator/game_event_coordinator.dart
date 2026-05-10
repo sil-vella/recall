@@ -8,7 +8,6 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // session→player id resolution under rebind (disconnect rejoin; set false after test)
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -16,7 +15,6 @@ class GameEventCoordinator {
   final WebSocketServer server;
   final _registry = GameRegistry.instance;
   final _store = GameStateStore.instance;
-  final Logger _logger = Logger();
   final Map<String, Timer?> _initialPeekTimers = {};
 
   /// Serialize game events per room so async handlers never interleave (race on shared state).
@@ -41,9 +39,7 @@ class GameEventCoordinator {
         },
       };
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Failed to get current games map: $e');
-      }
+      
       return {};
     }
   }
@@ -72,37 +68,23 @@ class GameEventCoordinator {
         if (ok) return cid;
       }
 
-      if (LOGGING_SWITCH) {
-        _logger.warning(
-          'GameEventCoordinator: No player found for WS session $sessionId in room $roomId (binding=$stableFromBinding)',
-        );
-      }
+      
       return null;
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Failed to get player ID from session: $e');
-      }
+      
       return null;
     }
   }
 
   /// Handle a unified game event from a session
   Future<void> handle(String sessionId, String event, Map<String, dynamic> data) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 GameEventCoordinator: Event validation - Received event "$event" from session: $sessionId');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('📦 GameEventCoordinator: Event validation - Event data keys: ${data.keys.join(', ')}');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('📦 GameEventCoordinator: Event validation - Event data: $data');
-    }
+    
+    
+    
     
     final roomId = roomManager.getRoomForSession(sessionId);
     if (roomId == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ GameEventCoordinator: Event validation failed - Session $sessionId is not in a room');
-      }
+      
       server.sendToSession(sessionId, {
         'event': 'error',
         'message': 'Not in a room',
@@ -110,9 +92,7 @@ class GameEventCoordinator {
       return;
     }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ GameEventCoordinator: Event validation - Session $sessionId is in room: $roomId');
-    }
+    
 
     // Get or create the game round for this room
     final round = _registry.getOrCreate(roomId, server);
@@ -132,12 +112,8 @@ class GameEventCoordinator {
         'timestamp': DateTime.now().toIso8601String(),
       });
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: error on $event -> $e');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace');
-      }
+      
+      
       server.sendToSession(sessionId, {
         'event': '${event}_error',
         'room_id': roomId,
@@ -158,9 +134,7 @@ class GameEventCoordinator {
     String event,
     Map<String, dynamic> data,
   ) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎯 GameEventCoordinator: Event validation - Processing event "$event" for room: $roomId');
-    }
+    
     switch (event) {
         case 'start_match':
           await _handleStartMatch(roomId, round, sessionId, data);
@@ -239,18 +213,14 @@ class GameEventCoordinator {
           }
           break;
         case 'jack_swap':
-          if (LOGGING_SWITCH) {
-            _logger.info('🃏 GameEventCoordinator: jack_swap case reached');
-          }
+          
           final actingPlayerId = _getPlayerIdFromSession(sessionId, roomId);
           final firstCardId = (data['first_card_id'] as String?) ?? (data['firstCardId'] as String?);
           final firstPlayerId = (data['first_player_id'] as String?) ?? (data['firstPlayerId'] as String?);
           final secondCardId = (data['second_card_id'] as String?) ?? (data['secondCardId'] as String?);
           final secondPlayerId = (data['second_player_id'] as String?) ?? (data['secondPlayerId'] as String?);
           
-          if (LOGGING_SWITCH) {
-            _logger.info('🃏 GameEventCoordinator: jack_swap event received - firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId');
-          }
+          
           
           if (actingPlayerId == null || actingPlayerId.isEmpty) {
             server.sendToSession(sessionId, {
@@ -275,9 +245,7 @@ class GameEventCoordinator {
               gamesMap: gamesMap,
             );
           } else {
-            if (LOGGING_SWITCH) {
-              _logger.error('GameEventCoordinator: jack_swap validation failed - missing required fields. firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId');
-            }
+            
             server.sendToSession(sessionId, {
               'event': 'jack_swap_error',
               'room_id': roomId,
@@ -315,12 +283,8 @@ class GameEventCoordinator {
 
   /// Initialize match: create base state, players (human/computers), deck, then initialize round
   Future<void> _handleStartMatch(String roomId, DutchGameRound round, String sessionId, Map<String, dynamic> data) async {
-    if (LOGGING_SWITCH) {
-      _logger.info('🎮 _handleStartMatch: Starting match for room $roomId, data keys: ${data.keys.toList()}');
-    }
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 _handleStartMatch: data[\'isClearAndCollect\'] = ${data['isClearAndCollect']} (type: ${data['isClearAndCollect']?.runtimeType})');
-    }
+    
+    
     // Prepare initial state compatible with DutchGameRound
     final stateRoot = _store.getState(roomId);
     final current = Map<String, dynamic>.from(stateRoot['game_state'] as Map<String, dynamic>? ?? {});
@@ -328,9 +292,7 @@ class GameEventCoordinator {
     // Guard: only start when phase is waiting_for_players (matches _startMatchForRoom behavior; prevents double start when start_match is sent directly to coordinator)
     final phase = current['phase'] as String?;
     if (phase != null && phase != 'waiting_for_players') {
-      if (LOGGING_SWITCH) {
-        _logger.info('⚠️ _handleStartMatch: Match already started or invalid phase for room $roomId (phase: $phase), ignoring start_match');
-      }
+      
       server.sendToSession(sessionId, {
         'event': 'action_error',
         'message': 'Match already started or invalid phase',
@@ -363,30 +325,20 @@ class GameEventCoordinator {
     // For regular multiplayer: only fill to minPlayers (wait for real players to join)
     final isPracticeMode = roomId.startsWith('practice_room_');
     final isRandomJoinRaw = data['is_random_join'];
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 _handleStartMatch: is_random_join from data: value=$isRandomJoinRaw (type: ${isRandomJoinRaw.runtimeType})');
-    }
+    
     final isRandomJoin = _parseBoolValue(isRandomJoinRaw, defaultValue: false);
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ _handleStartMatch: parsed isRandomJoin: value=$isRandomJoin');
-    }
+    
     
     final autoStartRaw = roomInfo?.autoStart;
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 _handleStartMatch: autoStart from roomInfo: value=$autoStartRaw (type: ${autoStartRaw.runtimeType})');
-    }
+    
     final isAutoStart = _parseBoolValue(autoStartRaw, defaultValue: false);
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ _handleStartMatch: parsed isAutoStart: value=$isAutoStart');
-    }
+    
     int needed = (isPracticeMode || isRandomJoin || isAutoStart)
         ? maxPlayers - players.length  // Practice mode, random join, or autoStart: fill to maxPlayers
         : minPlayers - players.length; // Regular multiplayer: only fill to minPlayers
     if (needed < 0) needed = 0;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('GameEventCoordinator: CPU player creation - isPracticeMode: $isPracticeMode, isRandomJoin: $isRandomJoin, isAutoStart: $isAutoStart, currentPlayers: ${players.length}, needed: $needed, target: ${(isPracticeMode || isRandomJoin || isAutoStart) ? maxPlayers : minPlayers}');
-    }
+    
     
     // Get existing player names to avoid duplicates
     final existingNames = players.map((p) => (p['name'] ?? '').toString()).toSet();
@@ -399,30 +351,22 @@ class GameEventCoordinator {
       final roomDifficulty = roomInfo?.difficulty;
       if (roomDifficulty != null && roomDifficulty.isNotEmpty) {
         practiceDifficulty = roomDifficulty.toLowerCase();
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Practice mode - using room difficulty: $practiceDifficulty');
-        }
+        
       } else {
         // Fallback to state
         final stateDifficulty = stateRoot['roomDifficulty'] as String?;
         if (stateDifficulty != null && stateDifficulty.isNotEmpty) {
           practiceDifficulty = stateDifficulty.toLowerCase();
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Practice mode - using state difficulty: $practiceDifficulty');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.warning('GameEventCoordinator: Practice mode - no difficulty found, defaulting to medium');
-          }
+          
         }
       }
     }
     
     // Skip comp player fetching for practice mode - use simulated CPU players
     if (isPracticeMode) {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Practice mode detected - using simulated CPU players with difficulty: $practiceDifficulty');
-      }
+      
       // Create simulated CPU players (existing logic)
       while (needed > 0 && players.length < maxPlayers) {
         String name;
@@ -487,11 +431,7 @@ class GameEventCoordinator {
       ];
 
       if (allCompPrefill.isNotEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.info(
-            'GameEventCoordinator: Prefill comps — tournament roster=${tournamentRosterComps.length}, accepted_players=${acceptedCompList.length} (from start_match data or Room.acceptedPlayers)',
-          );
-        }
+        
         const defaultRank = 'beginner';
         const defaultDifficulty = 'medium';
         final seenCompUserIds = <String>{};
@@ -529,29 +469,21 @@ class GameEventCoordinator {
             'username': username,
           });
           compPlayersAdded++;
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Added roster/accepted comp — id=$playerId name=$uniqueName userId=$userId');
-          }
+          
         }
         remainingNeeded = needed - compPlayersAdded;
       }
 
       if (remainingNeeded > 0) {
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Fetching $remainingNeeded comp player(s) from Flask backend');
-        }
+        
         // Get room difficulty from roomInfo or state, and calculate compatible ranks
         final roomDifficulty = roomInfo?.difficulty ?? stateRoot['roomDifficulty'] as String?;
         List<String>? rankFilter;
         if (roomDifficulty != null) {
           rankFilter = RankMatcher.getCompatibleRanks(roomDifficulty);
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Room has no difficulty set, will fetch comp players without rank filter');
-          }
+          
         }
 
       try {
@@ -562,9 +494,7 @@ class GameEventCoordinator {
         final returnedCount = compPlayersResponse['count'] as int? ?? 0;
         
         if (success && compPlayersList.isNotEmpty) {
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Retrieved $returnedCount comp player(s) from Flask backend');
-          }
+          
           
           // Add comp players to players list
           for (final compPlayerData in compPlayersList) {
@@ -617,24 +547,16 @@ class GameEventCoordinator {
             compPlayersAdded++;
             remainingNeeded--;
             
-            if (LOGGING_SWITCH) {
-              _logger.info('GameEventCoordinator: Added comp player - id: $playerId, name: $uniqueName, userId: $userId, rank: $rank, difficulty: $difficulty');
-            }
+            
           }
           
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Added $compPlayersAdded comp player(s) from database');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.warning('GameEventCoordinator: No comp players returned from Flask backend (success: $success, count: $returnedCount)');
-          }
+          
           
           // If rank filter was used and no players found, retry without filter
           if (rankFilter != null && rankFilter.isNotEmpty && remainingNeeded > 0) {
-            if (LOGGING_SWITCH) {
-              _logger.info('GameEventCoordinator: No comp players found with rank filter, retrying without filter');
-            }
+            
             try {
               final fallbackResponse = await server.pythonClient.getCompPlayers(remainingNeeded);
               final fallbackSuccess = fallbackResponse['success'] as bool? ?? false;
@@ -642,9 +564,7 @@ class GameEventCoordinator {
               final fallbackCount = fallbackResponse['count'] as int? ?? 0;
               
               if (fallbackSuccess && fallbackPlayersList.isNotEmpty) {
-                if (LOGGING_SWITCH) {
-                  _logger.info('GameEventCoordinator: Retrieved $fallbackCount comp player(s) without rank filter');
-                }
+                
                 
                 // Add comp players to players list
                 for (final compPlayerData in fallbackPlayersList) {
@@ -696,25 +616,19 @@ class GameEventCoordinator {
                 }
               }
             } catch (fallbackError) {
-              if (LOGGING_SWITCH) {
-                _logger.error('GameEventCoordinator: Error in fallback comp player fetch: $fallbackError');
-              }
+              
             }
           }
         }
       } catch (e) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameEventCoordinator: Error fetching comp players from Flask backend: $e');
-        }
+        
         // Continue to fallback logic below
       }
       }
 
       // Fallback: Create simulated CPU players for any remaining slots
       if (remainingNeeded > 0) {
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Creating $remainingNeeded simulated CPU player(s) as fallback');
-        }
+        
         
         while (remainingNeeded > 0 && players.length < maxPlayers) {
           String name;
@@ -739,22 +653,16 @@ class GameEventCoordinator {
           remainingNeeded--;
         }
         
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Created ${needed - remainingNeeded} simulated CPU player(s) as fallback');
-        }
+        
       }
     }
 
     // Extract showInstructions from data (practice mode) or default to false
     // This is extracted early so we can use it for deck selection
     final showInstructionsRaw = data['showInstructions'];
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 _handleStartMatch: raw showInstructions from data: value=$showInstructionsRaw (type: ${showInstructionsRaw.runtimeType})');
-    }
+    
     final showInstructions = _parseBoolValue(showInstructionsRaw, defaultValue: false);
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ _handleStartMatch: parsed showInstructions: value=$showInstructions (type: ${showInstructions.runtimeType})');
-    }
+    
     
     // Build deck and deal 4 cards per player (as in practice)
     // showInstructions=true → use demo_deck
@@ -763,24 +671,18 @@ class GameEventCoordinator {
     if (showInstructions) {
       // Instructions ON → use demo deck
       deckTypeOverride = 'demo';
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Demo mode with instructions ON - using demo deck');
-      }
+      
     } else {
       // Instructions OFF or not set → no override, use YAML config default
       deckTypeOverride = null;
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: No deck override - using YAML config default deck');
-      }
+      
     }
     
     final deckFactory = await YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH, deckTypeOverride: deckTypeOverride);
     final List<Card> fullDeck = deckFactory.buildDeck();
     final summary = deckFactory.getSummary();
     
-    if (LOGGING_SWITCH) {
-      _logger.info('GameEventCoordinator: Built deck with ${fullDeck.length} cards (deck_type: ${summary['deck_type']}, testing_mode: ${summary['testing_mode']})');
-    }
+    
 
     // Helper to convert Card to Map (full data for originalDeck lookup)
     Map<String, dynamic> _cardToMap(Card c) => {
@@ -804,24 +706,16 @@ class GameEventCoordinator {
     final predefinedHandsLoader = PredefinedHandsLoader();
     final predefinedHandsConfig = await predefinedHandsLoader.loadConfig();
     final enabledRaw = predefinedHandsConfig['enabled'];
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 _handleStartMatch: predefinedHandsConfig[\'enabled\']: value=$enabledRaw (type: ${enabledRaw.runtimeType})');
-    }
+    
     final enabledParsed = _parseBoolValue(enabledRaw, defaultValue: false);
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ _handleStartMatch: parsed predefinedHands enabled: value=$enabledParsed');
-    }
+    
     // Use predefined hands when YAML enabled: true (for testing e.g. jack swap), regardless of showInstructions
     bool usePredefinedHands = enabledParsed;
     
     if (usePredefinedHands) {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Predefined hands enabled (config enabled: true)');
-      }
+      
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Predefined hands disabled (config enabled: false or missing)');
-      }
+      
     }
     
     // Validate predefined hands compatibility with current deck
@@ -840,9 +734,7 @@ class GameEventCoordinator {
                 final rank = cardSpec['rank']?.toString();
                 if (rank != null && !availableRanks.contains(rank)) {
                   allCardsCompatible = false;
-                  if (LOGGING_SWITCH) {
-                    _logger.warning('GameEventCoordinator: Predefined hands contain card ($rank) not in current deck - disabling predefined hands');
-                  }
+                  
                   break;
                 }
               }
@@ -853,25 +745,17 @@ class GameEventCoordinator {
         
         if (!allCardsCompatible) {
           usePredefinedHands = false;
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Predefined hands incompatible with current deck - falling back to random dealing');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Predefined hands validated - compatible with current deck (testing_mode: ${deckFactory.getSummary()['testing_mode']})');
-          }
+          
         }
       }
     }
     
     if (usePredefinedHands) {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Predefined hands enabled - using predefined hands for dealing');
-      }
+      
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Predefined hands disabled - using random dealing');
-      }
+      
     }
 
     // Deal 4 to each player in order
@@ -887,9 +771,7 @@ class GameEventCoordinator {
         final predefinedHand = predefinedHandsLoader.getHandForPlayer(predefinedHandsConfig, playerIndex);
         
         if (predefinedHand != null && predefinedHand.length == 4) {
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Using predefined hand for player $playerIndex: $predefinedHand');
-          }
+          
           
           // Find and deal the predefined cards from the deck
           for (final cardSpec in predefinedHand) {
@@ -897,9 +779,7 @@ class GameEventCoordinator {
             final suit = cardSpec['suit']?.toString();
             
             if (rank == null || suit == null) {
-              if (LOGGING_SWITCH) {
-                _logger.warning('GameEventCoordinator: Invalid card spec in predefined hand: $cardSpec');
-              }
+              
               continue;
             }
             
@@ -915,13 +795,9 @@ class GameEventCoordinator {
             if (cardIndex >= 0) {
               final c = drawStack.removeAt(cardIndex);
               hand.add(_cardToIdOnly(c));
-              if (LOGGING_SWITCH) {
-                _logger.info('GameEventCoordinator: Dealt predefined card: $rank of $suit (${c.cardId}) to player $playerIndex');
-              }
+              
             } else {
-              if (LOGGING_SWITCH) {
-                _logger.warning('GameEventCoordinator: Predefined card not found in deck: $rank of $suit for player $playerIndex');
-              }
+              
               // Fallback: deal a random card if predefined card not found
               if (drawStack.isNotEmpty) {
                 final c = drawStack.removeAt(0);
@@ -934,15 +810,11 @@ class GameEventCoordinator {
           while (hand.length < 4 && drawStack.isNotEmpty) {
             final c = drawStack.removeAt(0);
             hand.add(_cardToIdOnly(c));
-            if (LOGGING_SWITCH) {
-              _logger.warning('GameEventCoordinator: Added fallback card to player $playerIndex to complete hand');
-            }
+            
           }
         } else {
           // No predefined hand for this player, deal randomly
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: No predefined hand for player $playerIndex, dealing randomly');
-          }
+          
       for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
         final c = drawStack.removeAt(0);
             hand.add(_cardToIdOnly(c));
@@ -965,9 +837,7 @@ class GameEventCoordinator {
     if (drawStack.isNotEmpty) {
       final firstCard = drawStack.removeAt(0);
       discardPile.add(_cardToMap(firstCard)); // Full data for discard pile (face-up)
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Moved first card ${firstCard.cardId} to discard pile');
-      }
+      
     }
 
     // Remaining draw pile as ID-only card maps (matches dutch game format)
@@ -981,20 +851,14 @@ class GameEventCoordinator {
     final activePlayerCount = players.length;
     final pot = coinCost * activePlayerCount;
     
-    if (LOGGING_SWITCH) {
-      _logger.info('GameEventCoordinator: Calculated pot for game $roomId - coin_cost: $coinCost, players: $activePlayerCount, pot: $pot');
-    }
     
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 _handleStartMatch: About to create gameState map with isClearAndCollect');
-    }
+    
+    
     // Build updated game_state - set to initial_peek phase
     // Add timer configuration to game_state (game-specific, not room-specific)
     Map<String, dynamic> gameState;
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 _handleStartMatch: Starting gameState map creation...');
-      }
+      
       gameState = <String, dynamic>{
         'gameId': roomId,
         'gameName': 'Dutch Game $roomId',
@@ -1017,21 +881,13 @@ class GameEventCoordinator {
         'isClearAndCollect': () {
           try {
             final rawValue = data['isClearAndCollect'];
-            if (LOGGING_SWITCH) {
-              _logger.info('🔍 _handleStartMatch: raw isClearAndCollect from data: value=$rawValue (type: ${rawValue.runtimeType})');
-            }
+            
             final parsedValue = _parseBoolValue(rawValue, defaultValue: true);
-            if (LOGGING_SWITCH) {
-              _logger.info('✅ _handleStartMatch: parsed isClearAndCollect: value=$parsedValue (type: ${parsedValue.runtimeType})');
-            }
+            
             return parsedValue;
           } catch (e, stackTrace) {
-            if (LOGGING_SWITCH) {
-              _logger.error('❌ _handleStartMatch: Error in isClearAndCollect IIFE: $e');
-            }
-            if (LOGGING_SWITCH) {
-              _logger.error('❌ _handleStartMatch: Stack trace:\n$stackTrace');
-            }
+            
+            
             rethrow;
           }
         }(), // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
@@ -1052,22 +908,12 @@ class GameEventCoordinator {
         gameState['special_event_end_match_modal'] =
             Map<String, dynamic>.from(persistedSeModal.map((k, v) => MapEntry(k.toString(), v)));
       }
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ _handleStartMatch: Created gameState map successfully');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 _handleStartMatch: gameState[\'isClearAndCollect\'] in map: value=${gameState['isClearAndCollect']} (type: ${gameState['isClearAndCollect'].runtimeType})');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Added timerConfig to game_state for room $roomId: ${gameState['timerConfig']}');
-      }
+      
+      
+      
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ _handleStartMatch: Error creating gameState map: $e');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.error('❌ _handleStartMatch: Stack trace:\n$stackTrace');
-      }
+      
+      
       rethrow;
     }
 
@@ -1120,19 +966,13 @@ class GameEventCoordinator {
       _initialPeekTimers[roomId] = Timer(Duration(seconds: initialPeekTimerDuration), () {
         _onInitialPeekTimerExpired(roomId, round); // Fire and forget - async handled internally
       });
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Initial peek phase started - ${initialPeekTimerDuration}-second timer started (from game_state timerConfig)');
-      }
+      
     } else {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Initial peek phase started - timer disabled (showInstructions=true)');
-      }
+      
     }
 
     // DO NOT call initializeRound() yet - wait for timer expiry or all players complete
-    if (LOGGING_SWITCH) {
-      _logger.info('GameEventCoordinator: Initial peek phase started - waiting for human player');
-    }
+    
   }
 
   /// Authoritative entry-fee deduction via Python (promotional tier skips; [isCoinRequired] false skips economy).
@@ -1221,13 +1061,9 @@ class GameEventCoordinator {
 
       // Update store with modified game state
       _store.setGameState(roomId, gameState);
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Processed AI initial peeks for all computer players');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Failed to process AI initial peeks: $e');
-      }
+      
     }
   }
 
@@ -1251,9 +1087,7 @@ class GameEventCoordinator {
     }
 
     if (validHandEntries.length < 2) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('GameEventCoordinator: Player ${computerPlayer['name']} has less than 2 valid cards, skipping peek');
-      }
+      
       return;
     }
 
@@ -1273,9 +1107,7 @@ class GameEventCoordinator {
     ];
     final playerId = computerPlayer['id']?.toString() ?? '';
     if (playerId.isEmpty) {
-      if (LOGGING_SWITCH) {
-        _logger.warning('GameEventCoordinator: Player missing id during auto peek, skipping');
-      }
+      
       return;
     }
 
@@ -1299,21 +1131,15 @@ class GameEventCoordinator {
     }
 
     if (card1 == null || card2 == null) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Failed to get full card data for peeked cards');
-      }
+      
       return;
     }
 
     // Check if collection mode is enabled
     final isClearAndCollectRaw = gameState['isClearAndCollect'];
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 _processAIInitialPeek: raw isClearAndCollect from gameState: value=$isClearAndCollectRaw (type: ${isClearAndCollectRaw.runtimeType})');
-    }
+    
     final isClearAndCollect = _parseBoolValue(isClearAndCollectRaw, defaultValue: false);
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ _processAIInitialPeek: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
-    }
+    
 
     // Initialize known_cards structure with robust dynamic conversions.
     final knownCardsRaw = computerPlayer['known_cards'];
@@ -1346,12 +1172,8 @@ class GameEventCoordinator {
       computerPlayer['collection_rank_cards'] = [selectedCardForCollection];
       computerPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
 
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} peeked at cards at positions $indices');
-      }
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)');
-      }
+      
+      
     } else {
       // Clear mode: Store BOTH cards in known_cards (no collection) with handIndex
       final card1Id = card1['cardId'] as String;
@@ -1369,9 +1191,7 @@ class GameEventCoordinator {
       computerPlayer['collection_rank_cards'] = <Map<String, dynamic>>[];
       computerPlayer.remove('collection_rank');
 
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} peeked at cards at positions $indices (clear mode - both cards stored in known_cards)');
-      }
+      
     }
 
     // Add ID-only cardsToPeek for CPU players (for tracking/logic purposes)
@@ -1380,9 +1200,7 @@ class GameEventCoordinator {
       {'cardId': card1Id, 'suit': '?', 'rank': '?', 'points': 0},
       {'cardId': card2Id, 'suit': '?', 'rank': '?', 'points': 0},
     ];
-    if (LOGGING_SWITCH) {
-      _logger.info('GameEventCoordinator: Added ID-only cardsToPeek for CPU player ${computerPlayer['name']}: [$card1Id, $card2Id]');
-    }
+    
   }
 
   /// AI Decision Logic: Select which card should be marked as collection rank
@@ -1459,25 +1277,17 @@ class GameEventCoordinator {
   /// Parse a value that might be bool or string to a bool
   /// Handles JSON serialization where bools can become strings
   bool _parseBoolValue(dynamic value, {bool defaultValue = false}) {
-    if (LOGGING_SWITCH) {
-      _logger.info('🔍 _parseBoolValue: input value=$value (type: ${value.runtimeType}), defaultValue=$defaultValue');
-    }
+    
     if (value is bool) {
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ _parseBoolValue: value is bool, returning: $value');
-      }
+      
       return value;
     }
     if (value is String) {
       final result = value.toLowerCase() == 'true';
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ _parseBoolValue: value is String "$value", converted to bool: $result');
-      }
+      
       return result;
     }
-    if (LOGGING_SWITCH) {
-      _logger.info('✅ _parseBoolValue: value is neither bool nor String, using defaultValue: $defaultValue');
-    }
+    
     return defaultValue;
   }
 
@@ -1505,9 +1315,7 @@ class GameEventCoordinator {
   /// Handle the completed_initial_peek event from frontend
   Future<void> _handleCompletedInitialPeek(String roomId, DutchGameRound round, String sessionId, Map<String, dynamic> data) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Handling completed initial peek with data: $data');
-      }
+      
 
       // Get current game state
       final gameState = _store.getGameState(roomId);
@@ -1525,16 +1333,12 @@ class GameEventCoordinator {
         if (foundPlayer.isNotEmpty && foundPlayer['isHuman'] == true) {
           humanPlayer = foundPlayer as Map<String, dynamic>;
         } else if (foundPlayer.isNotEmpty) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('GameEventCoordinator: Player $playerIdFromSession found but is not human');
-          }
+          
         }
       }
 
       if (humanPlayer == null || humanPlayer.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameEventCoordinator: Human player with sessionId $sessionId not found for completed_initial_peek');
-        }
+        
         server.sendToSession(sessionId, {
           'event': 'completed_initial_peek_error',
           'room_id': roomId,
@@ -1548,12 +1352,7 @@ class GameEventCoordinator {
       final currentPhase = gameState['phase']?.toString() ?? '';
       final playerStatus = humanPlayer['status']?.toString() ?? '';
       if (currentPhase != 'initial_peek' || playerStatus != 'initial_peek') {
-        if (LOGGING_SWITCH) {
-          _logger.warning(
-            'GameEventCoordinator: Ignoring late completed_initial_peek for session=$sessionId '
-            '(phase=$currentPhase, playerStatus=$playerStatus)',
-          );
-        }
+        
         server.sendToSession(sessionId, {
           'event': 'completed_initial_peek_acknowledged',
           'room_id': roomId,
@@ -1577,9 +1376,7 @@ class GameEventCoordinator {
         }
       }
       if (cardIds.length != 2) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameEventCoordinator: Invalid card_ids: $cardIdsRaw. Expected exactly 2 card IDs.');
-        }
+        
         server.sendToSession(sessionId, {
           'event': 'completed_initial_peek_error',
           'room_id': roomId,
@@ -1589,9 +1386,7 @@ class GameEventCoordinator {
         return;
       }
 
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Human player ${humanPlayer['name']} peeked at cards: $cardIds');
-      }
+      
 
       // Clear any existing cards from previous peeks
       humanPlayer['cardsToPeek'] = <Map<String, dynamic>>[];
@@ -1601,18 +1396,14 @@ class GameEventCoordinator {
       for (final cardId in cardIds) {
         final cardData = _getCardById(gameState, cardId);
         if (cardData == null) {
-          if (LOGGING_SWITCH) {
-            _logger.error('GameEventCoordinator: Card $cardId not found in game');
-          }
+          
           continue;
         }
         cardsToPeek.add(cardData);
       }
 
       if (cardsToPeek.length != 2) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameEventCoordinator: Only found ${cardsToPeek.length} out of 2 cards');
-        }
+        
         server.sendToSession(sessionId, {
           'event': 'completed_initial_peek_error',
           'room_id': roomId,
@@ -1629,9 +1420,7 @@ class GameEventCoordinator {
       // Get player from games map structure (matching draw card pattern)
       final gameData = currentGames[roomId]?['gameData']?['game_state'] as Map<String, dynamic>?;
       if (gameData == null) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameEventCoordinator: Failed to get game data from games map');
-        }
+        
         return;
       }
       final playersInGamesMap = gameData['players'] as List<dynamic>? ?? [];
@@ -1641,9 +1430,7 @@ class GameEventCoordinator {
       ) as Map<String, dynamic>;
       
       if (playerInGamesMap.isEmpty) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameEventCoordinator: Player $playerId not found in games map');
-        }
+        
         return;
       }
 
@@ -1675,13 +1462,9 @@ class GameEventCoordinator {
 
       // Check if collection mode is enabled
       final isClearAndCollectRaw = gameState['isClearAndCollect'];
-      if (LOGGING_SWITCH) {
-        _logger.info('🔍 _handleCompletedInitialPeek: raw isClearAndCollect from gameState: value=$isClearAndCollectRaw (type: ${isClearAndCollectRaw.runtimeType})');
-      }
+      
       final isClearAndCollect = _parseBoolValue(isClearAndCollectRaw, defaultValue: false);
-      if (LOGGING_SWITCH) {
-        _logger.info('✅ _handleCompletedInitialPeek: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})');
-      }
+      
 
       // Initialize known_cards structure
       final humanKnownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};
@@ -1729,13 +1512,9 @@ class GameEventCoordinator {
           playerInGamesMap['collection_rank_cards'] = collectionRankCards;
           playerInGamesMap['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
 
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Human player selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)');
-          }
+          
         } else {
-          if (LOGGING_SWITCH) {
-            _logger.error('GameEventCoordinator: Failed to get full card data for human collection rank card');
-          }
+          
         }
       } else {
         // Clear mode: Store BOTH cards in known_cards (no collection) with handIndex
@@ -1767,9 +1546,7 @@ class GameEventCoordinator {
         playerInGamesMap['collection_rank_cards'] = <Map<String, dynamic>>[];
         playerInGamesMap.remove('collection_rank');
 
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Human player peeked at cards (clear mode - both cards stored in known_cards)');
-        }
+        
       }
 
       // Set human player status to WAITING
@@ -1790,21 +1567,15 @@ class GameEventCoordinator {
         },
       );
 
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Completed initial peek - human player set to WAITING status');
-      }
+      
 
       // Phase completion (clearing cardsToPeek, transition to player_turn) happens only when
       // the initial peek timer expires - same for both clear and clear-and-collect modes.
       // cardsToPeek stays visible until timer expiry so the UI can show the peeked cards.
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Player completed initial peek, waiting for timer expiry');
-      }
+      
 
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Failed to handle completed initial peek: $e');
-      }
+      
       server.sendToSession(sessionId, {
         'event': 'completed_initial_peek_error',
         'room_id': roomId,
@@ -1828,9 +1599,7 @@ class GameEventCoordinator {
         // Check if player has already completed manually (has cardsToPeek set)
         final cardsToPeek = player['cardsToPeek'] as List<dynamic>? ?? [];
         if (cardsToPeek.length == 2) {
-          if (LOGGING_SWITCH) {
-            _logger.info('GameEventCoordinator: Human player ${player['name']} already has cardsToPeek set (manually completed), skipping auto-completion');
-          }
+          
           continue; // Player already completed manually
         }
         
@@ -1843,9 +1612,7 @@ class GameEventCoordinator {
         }
         
         // Player hasn't completed - apply auto logic
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Auto-completing initial peek for human player ${player['name']}');
-        }
+        
         _selectAndStoreAIPeekCards(player, gameState, random);
         
         // Set status to waiting (same as when human completes manually)
@@ -1861,22 +1628,16 @@ class GameEventCoordinator {
         'games': _getCurrentGamesMap(roomId),
       });
       
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Auto-completed initial peek for remaining human players');
-      }
+      
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Failed to auto-complete remaining human players: $e');
-      }
+      
     }
   }
 
   /// Handle initial peek timer expiration
   Future<void> _onInitialPeekTimerExpired(String roomId, DutchGameRound round) async {
     try {
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Initial peek timer expired for room $roomId');
-      }
+      
       
       // Clear timer reference
       _initialPeekTimers[roomId] = null;
@@ -1888,9 +1649,7 @@ class GameEventCoordinator {
       
       // Check if all players have completed
       if (!_allPlayersCompletedInitialPeek(roomId)) {
-        if (LOGGING_SWITCH) {
-          _logger.info('GameEventCoordinator: Not all players completed initial peek, applying auto logic');
-        }
+        
         
         // Apply auto logic to remaining human players
         _autoCompleteRemainingHumanPlayers(roomId, gameState);
@@ -1899,9 +1658,7 @@ class GameEventCoordinator {
       // Now complete initial peek phase (all players should be done)
       await _completeInitialPeek(roomId, round);
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Failed to handle initial peek timer expiry: $e');
-      }
+      
     }
   }
 
@@ -1922,9 +1679,7 @@ class GameEventCoordinator {
       final currentGames = _getCurrentGamesMap(roomId);
       final gameData = currentGames[roomId]?['gameData']?['game_state'] as Map<String, dynamic>?;
       if (gameData == null) {
-        if (LOGGING_SWITCH) {
-          _logger.error('GameEventCoordinator: Failed to get game data from games map in _completeInitialPeek');
-        }
+        
         return;
       }
       final playersInGamesMap = gameData['players'] as List<dynamic>? ?? [];
@@ -1938,13 +1693,9 @@ class GameEventCoordinator {
         
         // Get cardsToPeek data before clearing
         final cardsToPeek = player['cardsToPeek'] as List<dynamic>? ?? [];
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 ACTION_DATA: Player $playerId - cardsToPeek length: ${cardsToPeek.length}, contents: ${cardsToPeek.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}');
-        }
+        
         if (cardsToPeek.length != 2) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('GameEventCoordinator: Player $playerId has ${cardsToPeek.length} cards in cardsToPeek, expected 2');
-          }
+          
           continue;
         }
         
@@ -1955,9 +1706,7 @@ class GameEventCoordinator {
         
         final card1Id = card1Data['cardId']?.toString();
         final card2Id = card2Data['cardId']?.toString();
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 ACTION_DATA: Player $playerId - Extracted card IDs from cardsToPeek - card1Id: $card1Id, card2Id: $card2Id');
-        }
+        
         if (card1Id == null || card2Id == null) continue;
         
         // Find player in games map FIRST (we need to use the hand from games map, not gameState)
@@ -1967,9 +1716,7 @@ class GameEventCoordinator {
         ) as Map<String, dynamic>;
         
         if (playerInGamesMap.isEmpty) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('GameEventCoordinator: Player $playerId not found in games map');
-          }
+          
           continue;
         }
         
@@ -1980,10 +1727,7 @@ class GameEventCoordinator {
         int? card1Index;
         int? card2Index;
         
-        if (LOGGING_SWITCH) {
-          _logger.info('🎬 ACTION_DATA: Looking for card indices in hand for player $playerId - card1Id: $card1Id, card2Id: $card2Id, hand length: ${hand.length}');
-          _logger.info('🎬 ACTION_DATA: Hand contents in games map for player $playerId: ${hand.asMap().entries.map((e) => 'Index ${e.key}: ${e.value is Map ? e.value['cardId'] : e.value.toString()}').toList()}');
-        }
+        
         
         // Search through THIS player's hand to find the card indices
         for (int i = 0; i < hand.length; i++) {
@@ -1992,35 +1736,24 @@ class GameEventCoordinator {
             final cardId = card['cardId']?.toString();
             if (cardId == card1Id) {
               card1Index = i;
-              if (LOGGING_SWITCH) {
-                _logger.info('🎬 ACTION_DATA: Found card1Id $card1Id at index $i');
-              }
+              
             } else if (cardId == card2Id) {
               card2Index = i;
-              if (LOGGING_SWITCH) {
-                _logger.info('🎬 ACTION_DATA: Found card2Id $card2Id at index $i');
-              }
+              
             }
           } else if (card is String && card == card1Id) {
             card1Index = i;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎬 ACTION_DATA: Found card1Id $card1Id at index $i (string format)');
-            }
+            
           } else if (card is String && card == card2Id) {
             card2Index = i;
-            if (LOGGING_SWITCH) {
-              _logger.info('🎬 ACTION_DATA: Found card2Id $card2Id at index $i (string format)');
-            }
+            
           }
           
           if (card1Index != null && card2Index != null) break;
         }
         
         if (card1Index == null || card2Index == null) {
-          if (LOGGING_SWITCH) {
-            _logger.warning('GameEventCoordinator: Could not find card indices for player $playerId - card1Id: $card1Id, card2Id: $card2Id');
-            _logger.warning('GameEventCoordinator: Hand contents: ${hand.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}');
-          }
+          
           continue;
         }
         
@@ -2056,17 +1789,7 @@ class GameEventCoordinator {
           'data': actionData,
         });
         
-        if (LOGGING_SWITCH) {
-          // Verify the card IDs at the calculated indices
-          final card1AtIndex = card1Index < hand.length ? (hand[card1Index] is Map ? hand[card1Index]['cardId'] : hand[card1Index].toString()) : 'OUT_OF_BOUNDS';
-          final card2AtIndex = card2Index < hand.length ? (hand[card2Index] is Map ? hand[card2Index]['cardId'] : hand[card2Index].toString()) : 'OUT_OF_BOUNDS';
-          _logger.info('🎬 ACTION_DATA: Added initial_peek action to queue for player $playerId');
-          _logger.info('🎬 ACTION_DATA:   card1Data: {cardIndex: $card1Index, playerId: $playerId} - Expected cardId: $card1Id, Actual at index: $card1AtIndex');
-          _logger.info('🎬 ACTION_DATA:   card2Data: {cardIndex: $card2Index, playerId: $playerId} - Expected cardId: $card2Id, Actual at index: $card2AtIndex');
-          if (card1Id != card1AtIndex || card2Id != card2AtIndex) {
-            _logger.warning('🎬 ACTION_DATA: ⚠️ MISMATCH DETECTED - Card IDs at calculated indices do not match expected card IDs!');
-          }
-        }
+        
       }
 
       // Clear cardsToPeek for all players (store + games map SSOT)
@@ -2099,16 +1822,12 @@ class GameEventCoordinator {
         'cards_to_peek': <dynamic>[],
       });
 
-      if (LOGGING_SWITCH) {
-        _logger.info('GameEventCoordinator: Initial peek phase completed - transitioning to player_turn');
-      }
+      
 
       // NOW initialize the round (starts actual gameplay) - await to ensure factory is loaded
       await round.initializeRound();
     } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Failed to complete initial peek: $e');
-      }
+      
     }
   }
 

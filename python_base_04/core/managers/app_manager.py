@@ -5,7 +5,6 @@ from core.managers.hooks_manager import HooksManager
 from core.managers.module_manager import ModuleManager
 from core.managers.rate_limiter_manager import RateLimiterManager
 from jinja2 import ChoiceLoader, FileSystemLoader
-from tools.logger.custom_logging import custom_log, function_log, game_play_log, log_function_call
 import os
 from flask import request, jsonify
 import time
@@ -24,7 +23,6 @@ from core.managers.websockets.websocket_manager import WebSocketManager
 
 class AppManager:
     METRICS_SWITCH = True
-    LOGGING_SWITCH = False  # Rank-based matching, auth middleware (see .cursor/rules/enable-logging-switch.mdc)
     
     def __init__(self):
         # Plugin system removed - ModuleManager is now primary orchestrator
@@ -103,7 +101,6 @@ class AppManager:
 
 
 
-    @log_function_call
     def initialize(self, app):
         """
         Initialize all components and plugins.
@@ -186,7 +183,6 @@ class AppManager:
         """Run the Flask application."""
         app.run(**kwargs)
 
-    @log_function_call
     def register_template_dir(self, template_dir):
         """
         Register a template directory with the Flask app.
@@ -195,7 +191,6 @@ class AppManager:
         if template_dir not in self.template_dirs:
             self.template_dirs.append(template_dir)
 
-    @log_function_call
     def _update_jinja_loader(self):
         """
         Update the Flask app's Jinja2 loader to include all registered template directories.
@@ -379,8 +374,6 @@ class AppManager:
             if auth_required == 'jwt':
                 auth_header = request.headers.get('Authorization')
                 if not auth_header or not auth_header.startswith('Bearer '):
-                    if AppManager.LOGGING_SWITCH:
-                        custom_log(f"Auth: 401 path={request.path!r} code=JWT_REQUIRED (missing or invalid Authorization header)", level="INFO", isOn=AppManager.LOGGING_SWITCH)
                     return jsonify({
                         'error': 'Missing or invalid authorization header',
                         'message': 'JWT token required for this endpoint.',
@@ -393,8 +386,6 @@ class AppManager:
                     from core.managers.jwt_manager import TokenType
                     payload = self.jwt_manager.verify_token(token, TokenType.ACCESS)
                     if not payload:
-                        if AppManager.LOGGING_SWITCH:
-                            custom_log(f"Auth: 401 path={request.path!r} code=TOKEN_INVALID (verify_token returned None)", level="INFO", isOn=AppManager.LOGGING_SWITCH)
                         return jsonify({
                             'error': 'Invalid or expired token',
                             'message': 'Please login again to get a fresh token.',
@@ -404,13 +395,9 @@ class AppManager:
                     # Set user context for the request
                     request.user_id = payload.get('user_id')
                     request.user_payload = payload
-                    if AppManager.LOGGING_SWITCH:
-                        custom_log(f"Auth: 200 path={request.path!r} user_id={request.user_id}", level="INFO", isOn=AppManager.LOGGING_SWITCH)
                     return None
                     
                 except Exception as e:
-                    if AppManager.LOGGING_SWITCH:
-                        custom_log(f"Auth: 401 path={request.path!r} code=TOKEN_VALIDATION_ERROR exception={e!r}", level="INFO", isOn=AppManager.LOGGING_SWITCH)
                     return jsonify({
                         'error': 'Token validation failed',
                         'message': 'Please login again.',
@@ -457,8 +444,6 @@ class AppManager:
                 valid_keys = [k for k in (dart_key, dashboard_key) if k]
                 match_dart = bool(dart_key and service_key and service_key == dart_key)
                 match_dashboard = bool(dashboard_key and service_key and service_key == dashboard_key)
-                # Safe verification log: never log key values
-                custom_log("Service auth: dart_configured=%s, dashboard_configured=%s, X-Service-Key present=%s, match_dart=%s, match_dashboard=%s" % (bool(dart_key), bool(dashboard_key), bool(service_key), match_dart, match_dashboard), level="INFO")
                 if not valid_keys:
                     return jsonify({
                         'error': 'Service auth not configured',
@@ -474,7 +459,6 @@ class AppManager:
                 request.service_authenticated = True
                 return None
 
-    @log_function_call
     def register_hook(self, hook_name):
         """
         Register a new hook by delegating to the HooksManager.
@@ -482,7 +466,6 @@ class AppManager:
         """
         self.hooks_manager.register_hook(hook_name)
 
-    @log_function_call
     def register_hook_callback(self, hook_name, callback, priority=10, context=None):
         """
         Register a callback for a specific hook by delegating to the HooksManager.
@@ -494,7 +477,6 @@ class AppManager:
         self.hooks_manager.register_hook_callback(hook_name, callback, priority, context)
         callback_name = callback.__name__ if hasattr(callback, "__name__") else str(callback)
 
-    @log_function_call
     def trigger_hook(self, hook_name, data=None, context=None):
         """
         Trigger a specific hook by delegating to the HooksManager.

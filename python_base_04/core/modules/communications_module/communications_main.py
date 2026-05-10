@@ -1,6 +1,5 @@
 import os
 import json
-from tools.logger.custom_logging import custom_log, log_function_call
 from utils.config.config import Config
 from core.managers.redis_manager import RedisManager
 from core.managers.jwt_manager import JWTManager, TokenType

@@ -5,7 +5,6 @@ Centralized event handler functions for WebSocket operations
 
 from flask_socketio import emit, join_room, leave_room
 from flask import request
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 import json
 import uuid
@@ -149,9 +148,8 @@ class WSEventHandlers:
             
             # Check rate limits (skip for now to allow connections)
             # if not self.websocket_manager.check_rate_limit(client_id, 'connections'):
-            #     custom_log(f"Rate limit exceeded for connection: {client_id}")
             #     return False
-            
+
             # Update rate limit
             self.websocket_manager.update_rate_limit(client_id, 'connections')
             

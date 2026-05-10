@@ -1,6 +1,5 @@
 from core.modules.base_module import BaseModule
 from core.managers.database_manager import DatabaseManager
-from tools.logger.custom_logging import custom_log
 from flask import request, jsonify, current_app
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -18,7 +17,6 @@ import requests
 from pymongo.errors import DuplicateKeyError, OperationFailure
 
 # Coin purchase: Stripe Checkout + webhooks + RevenueCat verify-coin-purchase (enable-logging-switch.mdc)
-LOGGING_SWITCH = False  # Set True to trace RC verify + Stripe coin paths in tools/logger/server.log
 
 
 def _revenuecat_coin_product_map():
@@ -298,9 +296,7 @@ class StripeModule(BaseModule):
     def handle_webhook(self):
         """Handle Stripe webhooks securely."""
         try:
-            custom_log("Stripe webhook: request received", level="INFO", isOn=LOGGING_SWITCH)
             if not self.webhook_secret:
-                custom_log("Stripe webhook: missing STRIPE_WEBHOOK_SECRET", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Webhook secret not configured"
@@ -309,14 +305,8 @@ class StripeModule(BaseModule):
             # Get the webhook payload
             payload = request.get_data()
             sig_header = request.headers.get('Stripe-Signature')
-            custom_log(
-                f"Stripe webhook: payload_bytes={len(payload)} has_signature={bool(sig_header)}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
 
             if not sig_header:
-                custom_log("Stripe webhook: missing Stripe-Signature header", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Missing Stripe signature"
@@ -327,16 +317,9 @@ class StripeModule(BaseModule):
                 event = stripe.Webhook.construct_event(
                     payload, sig_header, self.webhook_secret
                 )
-                custom_log(
-                    f"Stripe webhook: signature verified event_type={event.get('type')}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
             except ValueError as e:
-                custom_log(f"Stripe webhook: invalid payload ({e})", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({"error": "Invalid payload"}), 400
             except stripe.error.SignatureVerificationError as e:
-                custom_log(f"Stripe webhook: signature verification failed ({e})", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({"error": "Invalid signature"}), 400
 
             # Handle the event
@@ -349,17 +332,11 @@ class StripeModule(BaseModule):
             elif event['type'] == 'checkout.session.completed':
                 self._handle_checkout_session_completed(event['data']['object'])
             else:
-                custom_log(
-                    f"Stripe webhook: unhandled event_type={event['type']}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
+                pass
 
-            custom_log(f"Stripe webhook: processed event_type={event['type']}", level="INFO", isOn=LOGGING_SWITCH)
             return jsonify({"success": True}), 200
 
         except Exception as e:
-            custom_log(f"Stripe webhook: processing error {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({
                 "success": False,
                 "error": "Webhook processing error"
@@ -442,7 +419,6 @@ class StripeModule(BaseModule):
                 )
             return jsonify({"success": True, "packages": packages}), 200
         except Exception as e:
-            custom_log(f"Stripe list_coin_packages_public error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Failed to list packages"}), 500
 
     def create_coin_checkout_session(self):
@@ -461,11 +437,6 @@ class StripeModule(BaseModule):
             package_key = (body.get("package_key") or "").strip().lower()
             if not package_key:
                 return jsonify({"success": False, "error": "package_key is required"}), 400
-            custom_log(
-                f"create_coin_checkout_session: user_id={user_id} package_key={package_key}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
 
             selected = None
             for row in self._coin_package_rows():
@@ -477,11 +448,6 @@ class StripeModule(BaseModule):
 
             success_url = (Config.STRIPE_COIN_CHECKOUT_SUCCESS_URL or "").strip()
             cancel_url = (Config.STRIPE_COIN_CHECKOUT_CANCEL_URL or "").strip()
-            custom_log(
-                f"create_coin_checkout_session: success_url={success_url} cancel_url={cancel_url}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
             if not success_url or not cancel_url:
                 return jsonify(
                     {
@@ -504,19 +470,12 @@ class StripeModule(BaseModule):
                     "purchase_type": "dutch_coins",
                 },
             )
-            custom_log(
-                f"create_coin_checkout_session: created session_id={session.id} package_key={package_key}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
 
             return jsonify({"success": True, "url": session.url, "session_id": session.id}), 200
 
         except stripe.error.StripeError as e:
-            custom_log(f"Stripe create_coin_checkout_session: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": str(e)}), 400
         except Exception as e:
-            custom_log(f"create_coin_checkout_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     def verify_coin_checkout_session(self):
@@ -537,16 +496,10 @@ class StripeModule(BaseModule):
             if not session_id:
                 return jsonify({"success": False, "error": "session_id is required"}), 400
 
-            custom_log(
-                f"verify_coin_checkout_session: user_id={user_id} session_id={session_id}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
 
             try:
                 session = self.stripe.checkout.Session.retrieve(session_id)
             except stripe.error.StripeError as e:
-                custom_log(f"verify_coin_checkout_session Stripe retrieve: {e}", level="ERROR", isOn=LOGGING_SWITCH)
                 return jsonify({"success": False, "error": str(e)}), 400
 
             if isinstance(session, dict):
@@ -562,24 +515,13 @@ class StripeModule(BaseModule):
 
             uid_meta = str(meta_dict.get("user_id") or sd.get("client_reference_id") or "")
             if uid_meta != str(user_id):
-                custom_log(
-                    f"verify_coin_checkout_session: user mismatch jwt={user_id!r} session={uid_meta!r}",
-                    level="WARNING",
-                    isOn=LOGGING_SWITCH,
-                )
                 return jsonify({"success": False, "error": "Session does not belong to this user"}), 403
 
             self._handle_checkout_session_completed(session)
 
-            custom_log(
-                f"verify_coin_checkout_session: handled session_id={session_id}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
             return jsonify({"success": True, "message": "Checkout verified"}), 200
 
         except Exception as e:
-            custom_log(f"verify_coin_checkout_session error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     def verify_revenuecat_coin_purchase(self):
@@ -613,13 +555,6 @@ class StripeModule(BaseModule):
                     {"success": False, "error": "product_identifier and store_transaction_id are required"}
                 ), 400
 
-            custom_log(
-                "verify_revenuecat_coin_purchase: request "
-                f"user_id={user_id} product={product_identifier!r} "
-                f"store_transaction_id_len={len(store_transaction_id)}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
 
             try:
                 ObjectId(str(user_id))
@@ -631,7 +566,6 @@ class StripeModule(BaseModule):
             )
 
         except Exception as e:
-            custom_log(f"verify_revenuecat_coin_purchase error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     def handle_revenuecat_webhook(self):
@@ -714,7 +648,6 @@ class StripeModule(BaseModule):
                 raise
 
         except Exception as e:
-            custom_log(f"handle_revenuecat_webhook error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify({"error": "Internal server error"}), 500
 
     def _handle_checkout_session_completed(self, session_obj):
@@ -732,11 +665,6 @@ class StripeModule(BaseModule):
             if not session_id:
                 return
             if session.get("payment_status") != "paid":
-                custom_log(
-                    f"Stripe checkout.session.completed: session {session_id} payment_status={session.get('payment_status')}",
-                    level="WARNING",
-                    isOn=LOGGING_SWITCH,
-                )
                 return
 
             meta = session.get("metadata") or {}
@@ -749,20 +677,17 @@ class StripeModule(BaseModule):
 
             user_id_str = meta.get("user_id") or session.get("client_reference_id")
             if not user_id_str:
-                custom_log("checkout.session.completed: missing user_id", level="ERROR", isOn=LOGGING_SWITCH)
                 return
             try:
                 coins = int(meta.get("coins", "0"))
             except (TypeError, ValueError):
                 coins = 0
             if coins <= 0:
-                custom_log(f"checkout.session.completed: invalid coins for session {session_id}", level="ERROR", isOn=LOGGING_SWITCH)
                 return
 
             try:
                 oid = ObjectId(user_id_str)
             except Exception:
-                custom_log(f"checkout.session.completed: bad user_id {user_id_str!r}", level="ERROR", isOn=LOGGING_SWITCH)
                 return
 
             self._credit_dutch_game_coins(oid, coins)
@@ -777,14 +702,9 @@ class StripeModule(BaseModule):
                     "created_at": datetime.utcnow().isoformat(),
                 },
             )
-            custom_log(
-                f"Stripe coin purchase credited user_id={user_id_str} coins={coins} session={session_id}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
         except Exception as e:
-            custom_log(f"_handle_checkout_session_completed error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
 
+            pass
     def _credit_dutch_game_coins(self, user_oid: ObjectId, coins: int, session=None):
         """Increment modules.dutch_game.coins (same field as match economy)."""
         if coins <= 0:
@@ -829,15 +749,9 @@ class StripeModule(BaseModule):
                 timeout=20,
             )
         except requests.RequestException as e:
-            custom_log(f"verify_revenuecat_coin_purchase RC request: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return ({"success": False, "error": "Could not reach RevenueCat"}, 502)
 
         if rc_resp.status_code == 404:
-            custom_log(
-                "verify_revenuecat_coin_purchase: RC HTTP 404 subscriber not found " f"user_id={user_id}",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
             return (
                 {
                     "success": False,
@@ -849,11 +763,6 @@ class StripeModule(BaseModule):
             )
 
         if rc_resp.status_code != 200:
-            custom_log(
-                f"verify_revenuecat_coin_purchase RC HTTP {rc_resp.status_code} body={rc_resp.text[:500]!r}",
-                level="ERROR",
-                isOn=LOGGING_SWITCH,
-            )
             return ({"success": False, "error": "RevenueCat verification failed"}, 502)
 
         try:
@@ -867,13 +776,6 @@ class StripeModule(BaseModule):
         if not isinstance(tx_list, list):
             tx_list = []
 
-        custom_log(
-            "verify_revenuecat_coin_purchase: RC payload "
-            f"non_subs_keys={list(non_subs.keys())!r} "
-            f"tx_count_for_product={len(tx_list)}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
 
         matched = False
         for tx in tx_list:
@@ -890,13 +792,6 @@ class StripeModule(BaseModule):
                 break
 
         if not matched:
-            custom_log(
-                "verify_revenuecat_coin_purchase: no matching transaction "
-                f"user_id={user_id} product={product_identifier!r} "
-                f"store_transaction_id_prefix={store_transaction_id[:16]!r}…",
-                level="INFO",
-                isOn=LOGGING_SWITCH,
-            )
             return (
                 {
                     "success": False,
@@ -936,27 +831,10 @@ class StripeModule(BaseModule):
         except DuplicateKeyError:
             ex2 = coll.find_one({"store_transaction_id": store_transaction_id})
             if ex2 and str(ex2.get("user_id") or "") == str(user_id):
-                custom_log(
-                    "verify_revenuecat_coin_purchase: idempotent after duplicate key "
-                    f"user_id={user_id} product={product_identifier!r}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
                 return jsonify({"success": True, "message": "Already credited", "coins": coins}), 200
-            custom_log(
-                "verify_revenuecat_coin_purchase: store_transaction_id reused by different user (duplicate)",
-                level="WARNING",
-                isOn=LOGGING_SWITCH,
-            )
             return jsonify({"success": False, "error": "Transaction already recorded"}), 403
         except OperationFailure as oe:
             if self._revenuecat_transaction_unsupported(oe):
-                custom_log(
-                    "revenuecat_coin_purchase: MongoDB transaction unavailable (use replica set for "
-                    "strong idempotency); using legacy credit-then-insert",
-                    level="WARNING",
-                    isOn=True,
-                )
                 self._credit_dutch_game_coins(oid, coins)
                 try:
                     coll.insert_one(ledger_doc)
@@ -964,11 +842,6 @@ class StripeModule(BaseModule):
                     pass
             else:
                 raise
-        custom_log(
-            f"RevenueCat coin purchase credited user_id={user_id} coins={coins} product={product_identifier}",
-            level="INFO",
-            isOn=LOGGING_SWITCH,
-        )
         return jsonify({"success": True, "message": "Coins credited", "coins": coins}), 200
 
     def _revenuecat_complete_purchase_impl(
@@ -984,20 +857,9 @@ class StripeModule(BaseModule):
         existing = coll.find_one({"store_transaction_id": store_transaction_id})
         if existing:
             if str(existing.get("user_id") or "") != str(user_id):
-                custom_log(
-                    "verify_revenuecat_coin_purchase: store_transaction_id reused by different user",
-                    level="WARNING",
-                    isOn=LOGGING_SWITCH,
-                )
                 return jsonify({"success": False, "error": "Transaction already recorded"}), 403
             st = existing.get("status")
             if st == "completed" or st is None:
-                custom_log(
-                    "verify_revenuecat_coin_purchase: idempotent hit (already credited) "
-                    f"user_id={user_id} product={product_identifier!r}",
-                    level="INFO",
-                    isOn=LOGGING_SWITCH,
-                )
                 return jsonify({"success": True, "message": "Already credited", "coins": coins}), 200
 
         verr = self._revenuecat_fetch_and_match_transaction(

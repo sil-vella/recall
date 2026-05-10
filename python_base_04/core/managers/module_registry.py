@@ -4,12 +4,10 @@ This replaces the plugin registry system with a more direct module approach.
 """
 
 from typing import Dict, List, Type, Any
-from tools.logger.custom_logging import custom_log
 import os
 import importlib
 import inspect
 
-LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
 
 class ModuleRegistry:
     """
@@ -35,7 +33,6 @@ class ModuleRegistry:
             # Scan the modules directory
             for item in os.listdir(modules_dir):
                 item_path = os.path.join(modules_dir, item)
-                custom_log(f"DEBUG: Scanning module: {item_path}", level="INFO", isOn=LOGGING_SWITCH)
 
                 # Allow disabling specific modules purely via registry logic.
                 # Credit system is currently not used in the dutch stack, so skip it.
@@ -50,30 +47,23 @@ class ModuleRegistry:
                         module_module = importlib.import_module(module_package)
                         
                         # Look for the main module class in __all__ or inspect the module
-                        custom_log(f"DEBUG: Looking for module class in {item}", level="INFO", isOn=LOGGING_SWITCH)
                         
                         if hasattr(module_module, '__all__') and module_module.__all__:
                             # Get the first class from __all__
                             class_name = module_module.__all__[0]
-                            custom_log(f"DEBUG: Found __all__ with class: {class_name}", level="INFO", isOn=LOGGING_SWITCH)
                             module_class = getattr(module_module, class_name)
                         else:
                             # Fallback: look for classes that inherit from BaseModule
-                            custom_log(f"DEBUG: No __all__ found, searching for BaseModule subclasses", level="INFO", isOn=LOGGING_SWITCH)
                             module_class = None
                             for name, obj in inspect.getmembers(module_module):
                                 if inspect.isclass(obj):
-                                    custom_log(f"DEBUG: Found class {name}: {obj}", level="INFO", isOn=LOGGING_SWITCH)
-                                    custom_log(f"DEBUG: Class bases: {obj.__bases__}", level="INFO", isOn=LOGGING_SWITCH)
                                     
                                     # Check if it inherits from BaseModule
                                     is_base_module = False
                                     for base in obj.__bases__:
                                         base_name = getattr(base, '__name__', str(base))
-                                        custom_log(f"DEBUG: Checking base {base_name} for BaseModule", level="INFO", isOn=LOGGING_SWITCH)
                                         if base_name == 'BaseModule' or 'BaseModule' in str(base):
                                             is_base_module = True
-                                            custom_log(f"DEBUG: Found BaseModule subclass: {name}", level="INFO", isOn=LOGGING_SWITCH)
                                             break
                                     
                                     if is_base_module:
@@ -84,15 +74,11 @@ class ModuleRegistry:
                             # Use directory name as module key (keep full name)
                             module_key = item
                             modules[module_key] = module_class
-                            custom_log(f"DEBUG: Successfully discovered module: {module_key} -> {module_class.__name__}", level="INFO", isOn=LOGGING_SWITCH)
                             print(f"DEBUG: Discovered module: {module_key} -> {module_class.__name__}")
                         else:
-                            custom_log(f"WARNING: No module class found in {item}", level="WARNING", isOn=LOGGING_SWITCH)
                             print(f"DEBUG: No module class found in {item}")
                     except Exception as e:
                         import traceback
-                        custom_log(f"ERROR: Failed to import module {item}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-                        custom_log(f"ERROR: Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
                         # Always print so container logs show why a module was skipped (e.g. dutch_game)
                         print(f"ERROR: Failed to import module {item}: {e}")
                         print(traceback.format_exc())
@@ -190,13 +176,10 @@ class ModuleRegistry:
         :return: True if registry is valid, False otherwise
         """
         try:
-            custom_log("DEBUG: Starting module registry validation", level="INFO", isOn=LOGGING_SWITCH)
             
             modules = ModuleRegistry.get_modules()
-            custom_log(f"DEBUG: Discovered modules: {list(modules.keys())}", level="INFO", isOn=LOGGING_SWITCH)
             
             dependencies = ModuleRegistry.get_module_dependencies()
-            custom_log(f"DEBUG: Module dependencies: {dependencies}", level="INFO", isOn=LOGGING_SWITCH)
             
             print(f"DEBUG: Found modules: {list(modules.keys())}")
             print(f"DEBUG: Dependencies: {dependencies}")
@@ -205,14 +188,9 @@ class ModuleRegistry:
             # (do not require every key in dependencies to be discovered - allows app to start if a module fails to load)
             for module_key in modules:
                 deps = dependencies.get(module_key, [])
-                custom_log(f"DEBUG: Checking module {module_key} and dependencies {deps}", level="INFO", isOn=LOGGING_SWITCH)
                 for dep in deps:
-                    custom_log(f"DEBUG: Checking dependency {dep} for module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
                     if dep not in modules:
-                        custom_log(f"ERROR: Dependency {dep} not found in discovered modules for module {module_key}", level="ERROR", isOn=LOGGING_SWITCH)
-                        custom_log(f"ERROR: Available modules: {list(modules.keys())}", level="ERROR", isOn=LOGGING_SWITCH)
                         return False
-                    custom_log(f"DEBUG: Dependency {dep} found for module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Check for circular dependencies (only among discovered modules)
             discovered_deps = {k: [d for d in v if d in modules] for k, v in dependencies.items() if k in modules}

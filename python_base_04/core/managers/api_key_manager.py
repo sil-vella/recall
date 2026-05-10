@@ -4,7 +4,6 @@ import time
 import os
 import requests
 from typing import Dict, Any, Optional, List
-from tools.logger.custom_logging import custom_log
 from utils.config.config import Config
 from core.managers.redis_manager import RedisManager
 from flask import request, jsonify

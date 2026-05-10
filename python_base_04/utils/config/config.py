@@ -1,5 +1,4 @@
 import os
-from tools.logger.custom_logging import custom_log
 
 # Global VaultManager instance (initialized once)
 _vault_manager = None

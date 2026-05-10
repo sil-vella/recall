@@ -3,7 +3,6 @@ import redis
 from redis import Redis
 from redis.connection import ConnectionPool
 from typing import Optional, Any, Union, List, Dict
-from tools.logger.custom_logging import custom_log
 import hashlib
 from utils.config.config import Config
 import json
@@ -25,7 +24,6 @@ except ImportError:
 class RedisManager:
     _instance = None
     _initialized = False
-    LOGGING_SWITCH = False  # Token store/validity (see .cursor/rules/enable-logging-switch.mdc)
 
     def __new__(cls):
         if cls._instance is None:
@@ -684,8 +682,6 @@ class RedisManager:
         """Store a token with proper key generation and expiration."""
         try:
             if not self._ensure_connection():
-                if RedisManager.LOGGING_SWITCH:
-                    custom_log(f"Redis token: store_token type={token_type!r} expire={expire} -> connection failed", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
                 return False
 
             # Store token with expiration using direct Redis operations
@@ -698,30 +694,20 @@ class RedisManager:
             
             # Set expiration on the set as well
             self.redis.expire(set_key, expire)
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis token: store_token type={token_type!r} expire={expire} -> ok", level="DEBUG", isOn=RedisManager.LOGGING_SWITCH)
             return True
         except Exception as e:
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis token: store_token type={token_type!r} -> exception {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return False
 
     def is_token_valid(self, token_type: str, token: str) -> bool:
         """Check if a token exists and is valid."""
         try:
             if not self._ensure_connection():
-                if RedisManager.LOGGING_SWITCH:
-                    custom_log(f"Redis token: is_token_valid type={token_type!r} -> connection failed", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
                 return False
 
             token_key = self._generate_token_key(token_type, token)
             result = bool(self.redis.exists(token_key))
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis token: is_token_valid type={token_type!r} -> {result}", level="DEBUG", isOn=RedisManager.LOGGING_SWITCH)
             return result
         except Exception as e:
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis token: is_token_valid type={token_type!r} -> exception {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return False
 
     def revoke_token(self, token_type: str, token: str) -> bool:
@@ -798,8 +784,6 @@ class RedisManager:
             key = self._session_active_key(user_id)
             return bool(self.redis.exists(key))
         except Exception as e:
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis session: is_user_login_session_active error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return False
 
     def set_user_login_session_active(self, user_id: str, ttl_seconds: int) -> bool:
@@ -811,8 +795,6 @@ class RedisManager:
             self.redis.setex(key, max(1, int(ttl_seconds)), "1")
             return True
         except Exception as e:
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis session: set_user_login_session_active error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return False
 
     def clear_user_login_session_active(self, user_id: str) -> bool:
@@ -823,8 +805,6 @@ class RedisManager:
             self.redis.delete(self._session_active_key(user_id))
             return True
         except Exception as e:
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis session: clear_user_login_session_active error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return False
 
     def get_user_auth_generation(self, user_id: str) -> int:
@@ -839,8 +819,6 @@ class RedisManager:
                 raw = raw.decode()
             return int(raw)
         except Exception as e:
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis session: get_user_auth_generation error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return 0
 
     def set_user_auth_generation(self, user_id: str, generation: int) -> bool:
@@ -850,8 +828,6 @@ class RedisManager:
             self.redis.set(self._session_auth_gen_key(user_id), str(int(generation)))
             return True
         except Exception as e:
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis session: set_user_auth_generation error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return False
 
     def bump_user_auth_generation(self, user_id: str) -> int:
@@ -862,8 +838,6 @@ class RedisManager:
             new_val = self.redis.incr(self._session_auth_gen_key(user_id))
             return int(new_val)
         except Exception as e:
-            if RedisManager.LOGGING_SWITCH:
-                custom_log(f"Redis session: bump_user_auth_generation error: {e!r}", level="WARNING", isOn=RedisManager.LOGGING_SWITCH)
             return 1
 
     def ping(self):

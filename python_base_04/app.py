@@ -6,10 +6,6 @@ import os
 import importlib
 from core.metrics import init_metrics
 from utils.config.config import Config
-from tools.logger.custom_logging import custom_log
-
-# Logging switch for optional verbose metrics/logging
-LOGGING_SWITCH = Config.DEBUG
 
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()
@@ -74,73 +70,12 @@ def metrics_endpoint():
     from prometheus_client import generate_latest, REGISTRY
     
     try:
-        custom_log(
-            f"Flask /metrics endpoint: Request from {request.remote_addr}, "
-            f"User-Agent: {request.headers.get('User-Agent', 'unknown')}",
-            isOn=LOGGING_SWITCH
-        )
-        
-        # Generate metrics from current process's REGISTRY
         metrics_output = generate_latest(REGISTRY)
-        
-        # Optional detailed logging in debug mode
-        if LOGGING_SWITCH:
-            output_str = metrics_output.decode('utf-8')
-            user_logins_lines = [
-                l for l in output_str.split('\n')
-                if 'user_logins_total' in l and not l.startswith('#') and l.strip()
-            ]
-            user_regs_lines = [
-                l for l in output_str.split('\n')
-                if 'user_registrations_total' in l and not l.startswith('#') and l.strip()
-            ]
-            flask_reqs_lines = [
-                l for l in output_str.split('\n')
-                if 'flask_app_requests_total' in l and not l.startswith('#') and l.strip()
-            ]
-            
-            custom_log(
-                f"Flask /metrics endpoint: REGISTRY id={id(REGISTRY)}, "
-                f"output size={len(output_str)} bytes",
-                isOn=LOGGING_SWITCH
-            )
-            custom_log(
-                "Flask /metrics endpoint: "
-                f"user_logins_total={len(user_logins_lines)} lines, "
-                f"user_registrations_total={len(user_regs_lines)} lines, "
-                f"flask_app_requests_total={len(flask_reqs_lines)} lines",
-                isOn=LOGGING_SWITCH
-            )
-            
-            if user_logins_lines:
-                custom_log(
-                    "Flask /metrics endpoint: Sample user_logins_total line: "
-                    f"{user_logins_lines[0][:100]}",
-                    isOn=LOGGING_SWITCH
-                )
-            if flask_reqs_lines:
-                custom_log(
-                    "Flask /metrics endpoint: Sample flask_app_requests_total line: "
-                    f"{flask_reqs_lines[0][:100]}",
-                    isOn=LOGGING_SWITCH
-                )
-        
         return Response(
             metrics_output,
             mimetype='text/plain; version=0.0.4; charset=utf-8'
         )
     except Exception as e:
-        custom_log(
-            f"Flask /metrics endpoint: Error generating metrics: {e}",
-            level="ERROR",
-            isOn=LOGGING_SWITCH
-        )
-        import traceback
-        custom_log(
-            f"Flask /metrics endpoint: Traceback: {traceback.format_exc()}",
-            level="ERROR",
-            isOn=LOGGING_SWITCH
-        )
         return jsonify({
             'success': False,
             'error': f'Failed to generate metrics: {str(e)}'
@@ -425,8 +360,6 @@ def list_authenticated_actions():
 #     
 #     # WebSocket functionality is now handled by app_manager
 #     if app_manager.websocket_manager:
-#         custom_log("🚀 Starting Flask app with WebSocket support")
 #         app_manager.websocket_manager.run(app, host=host, port=port)
 #     else:
-#         custom_log("🚀 Starting Flask app without WebSocket support")
 #         app_manager.run(app, host=host, port=port)

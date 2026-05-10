@@ -1,4 +1,3 @@
-from tools.logger.custom_logging import custom_log, function_log, game_play_log, log_function_call
 
 class HooksManager:
     def __init__(self):
@@ -7,7 +6,6 @@ class HooksManager:
             "app_startup": [],  # Predefined default hook
         }
 
-    @log_function_call
     def register_hook(self, hook_name):
         """
         Register a new hook with the given name.
@@ -18,7 +16,6 @@ class HooksManager:
         
         self.hooks[hook_name] = []
 
-    @log_function_call
     def register_hook_callback(self, hook_name, callback, priority=10, context=None):
         """
         Register a callback function to a specific hook with a priority and optional context.
@@ -44,7 +41,6 @@ class HooksManager:
         context_info = f" (context: {context})" if context else ""
         callback_name = callback.__name__ if hasattr(callback, "__name__") else str(callback)
 
-    @log_function_call
     def trigger_hook(self, hook_name, data=None, context=None):
         """
         Trigger a specific hook, executing only callbacks matching the context.
@@ -62,7 +58,6 @@ class HooksManager:
             if context is None or entry["context"] == context:
                 entry["callback"](data)
 
-    @log_function_call
     def clear_hook(self, hook_name):
         """
         Clear all callbacks registered to a specific hook.
@@ -73,7 +68,6 @@ class HooksManager:
         else:
             pass
 
-    @log_function_call
     def dispose(self):
         """
         Dispose of all hooks and their callbacks.

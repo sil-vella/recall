@@ -26,7 +26,7 @@ class AdEventTypeConfig {
   /// Paths that do not increment the screen-change counter when navigated **to** (see YAML).
   final List<String> excludeFromScreenChangeCount;
 
-  /// YAML key `switch`. For `bottom_banner_promo`: `sponsors` (YAML strip) or `admob` (AdMob / AdSense).
+  /// YAML key `switch` (legacy). Bottom slot is always AdMob on native; this field is ignored by the shell.
   final String? bannerSwitch;
 
   static AdEventTypeConfig fromYamlMap(Map<dynamic, dynamic> m) {

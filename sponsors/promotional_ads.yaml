@@ -1,15 +1,11 @@
-# Promotional ads (in-app links). Types are registered first; ads reference ad_type_id.
+# Promotional / gating manifest (uploaded as JSON; Flutter loads from API only).
 #
 # Source of truth for VPS upload: run playbooks/rop01/15_upload_promotional_bundle.py
-# (converts this file to JSON on the server). The Flutter app loads only from the network.
 #
-# Media: put files under sponsors/media/ and reference by file name only, e.g. image: promo.png
-# Optional video: video: clip.mp4 (fullscreen overlay prefers video over image when both set).
-# switch_screen:
-#   show_after_screen_changes = PageRoute navigations before interstitial (counter resets after show).
+# switch_screen: AdMob interstitial after [show_after_screen_changes] navigations.
+#   delay_before_skip_seconds = countdown before Skip (black screen), then interstitial on native.
 #   exclude_from_screen_change_count = destination paths that do NOT increment the counter.
-#   Identify screens by GoRouter path (same as URL path on web), e.g. /account, /notifications
-#   Optional prefix: /dutch* matches /dutch and /dutch/...
+#   Screen paths match GoRouter paths (e.g. /account). Optional prefix: /dutch* matches /dutch/...
 
 ad_event_types:
   - id: switch_screen
@@ -21,37 +17,17 @@ ad_event_types:
       - /dutch/game-play
       - /coin-purchase
       - /admin*
-      # - /dutch*
 
-  # switch: sponsors = YAML strip (PromotionalBottomStrip); admob = AdMob / AdSense bottom slot.
-  - id: bottom_banner_promo
-    hook_name: bottom_banner_bar_loaded
-    selection_strategy: round_robin
-    switch: sponsors
-
+# Optional catalog rows (e.g. switch_screen) — not shown in UI; kept for server parity / future use.
 ads:
   - id: mixta_promo
     ad_type_id: switch_screen
     link: "https://mixta.mt"
     title: "Mixta"
     image: mixta_promo.png
-    # video: switch_promo.mp4
 
   - id: fittruck_promo_002
     ad_type_id: switch_screen
     link: "https://www.facebook.com/fittruckmalta"
     title: "Fit Truck"
     image: fittruck_promo_002.jpg
-    # video: switch_promo.mp4
-
-  - id: bottom_promo_one
-    ad_type_id: bottom_banner_promo
-    link: "https://www.facebook.com/fittruckmalta"
-    title: "Fit Truck promo"
-    image: fittruck_promo.png
-
-  # - id: bottom_promo_two
-  #   ad_type_id: bottom_banner_promo
-  #   link: "https://dart.dev"
-  #   title: "Banner promo 2"
-  #   image: banner_two.png

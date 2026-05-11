@@ -179,15 +179,16 @@ while IFS= read -r line; do
 done < <(build_dart_defines_from_env "$FRONTEND_ENV")
 # Overrides (script-set API_URL, WS_URL, APP_VERSION)
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
-# Build-only (not in .env)
+# Build-only (not in .env). Logging: off for Play — disables dbg()/remote log pipeline (see lib/utils/dbg.dart).
 DART_DEFINE_ARGS+=( \
   --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
   --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
   --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
   --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
   --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
-  --dart-define=DEBUG_MODE=true \
-  --dart-define=ENABLE_REMOTE_LOGGING=true \
+  --dart-define=DEBUG_MODE=false \
+  --dart-define=VERBOSE_DEV_LOGS=false \
+  --dart-define=ENABLE_REMOTE_LOGGING=false \
 )
 
 # Build the release App Bundle (AAB) for Play Store

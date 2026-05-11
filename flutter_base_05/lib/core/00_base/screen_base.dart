@@ -1,9 +1,7 @@
 import 'package:dutch/modules/admobs/banner/banner_ad.dart';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
-import 'package:dutch/core/widgets/adsense_placeholder_stub.dart' if (dart.library.html) 'package:dutch/core/widgets/adsense_placeholder_web.dart' as adsense_placeholder;
 import '../managers/app_manager.dart';
 import '../managers/module_manager.dart';
 import '../../utils/consts/theme_consts.dart';
@@ -16,8 +14,6 @@ import '../widgets/instant_message_modal.dart';
 import '../widgets/instant_notification_response.dart';
 import '../managers/state_manager.dart';
 import '../managers/navigation_manager.dart';
-import '../../modules/promotional_ads_module/ad_registry.dart';
-import '../../modules/promotional_ads_module/widgets/promotional_bottom_strip.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
@@ -73,8 +69,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   late final AppManager appManager;
   final ModuleManager _moduleManager = ModuleManager();
   BannerAdModule? bannerAdModule;
-  Map<String, dynamic>? _cachedBottomPromo;
-  String _cachedBottomSource = 'sponsors';
 
   /// Drains pending `instant_ws` rows (same modal path as periodic check) when [NotificationsModule] signals new items.
   void _onPendingWsInstantQueued() {
@@ -426,7 +420,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   @override
   void dispose() {
-    StateManager().removeListener(_onStateManagerForPromotionalStrip);
     _moduleManager.getModuleByType<NotificationsModule>()?.removePendingWsInstantListener(_onPendingWsInstantQueued);
     _moduleManager.getModuleByType<NotificationsModule>()?.removeInboxRefreshListener(_onInboxRefreshFromWs);
     // Note: State-aware features are automatically managed by StateManager
@@ -439,15 +432,13 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     super.initState();
     appManager = Provider.of<AppManager>(context, listen: false);
     bannerAdModule = _moduleManager.getModuleByType<BannerAdModule>();
-    _syncPromotionalStripFromState();
-    StateManager().addListener(_onStateManagerForPromotionalStrip);
 
     // Trigger hooks after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Register global app bar features for this screen (ALWAYS)
       _registerGlobalAppBarFeatures();
       
-      // Bottom hook: YAML promotional ads on all platforms; AdMob also listens on native.
+      // Bottom hook: AdMob banner preload on native.
       appManager.triggerBottomBannerBarHook(context);
       if (!kIsWeb && bannerAdModule != null) {
         appManager.triggerTopBannerBarHook(context);
@@ -459,34 +450,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       notifMod?.addInboxRefreshListener(_onInboxRefreshFromWs);
       _checkAndShowInstantMessages();
     });
-  }
-
-  void _onStateManagerForPromotionalStrip() {
-    if (!mounted) return;
-    final previousPromo = _cachedBottomPromo;
-    final previousSource = _cachedBottomSource;
-    _syncPromotionalStripFromState();
-    final sourceChanged = previousSource != _cachedBottomSource;
-    final promoChanged = !_jsonDeepEquals(previousPromo, _cachedBottomPromo);
-    if (sourceChanged || promoChanged) {
-      setState(() {});
-    }
-  }
-
-  void _syncPromotionalStripFromState() {
-    final promoRaw = StateManager().getModuleState<Map<String, dynamic>>('promotional_ads');
-    final b = promoRaw?['bottom'];
-    _cachedBottomPromo = b is Map ? Map<String, dynamic>.from(b) : null;
-    final bottomCfg = AdRegistry.instance.typeById('bottom_banner_promo');
-    _cachedBottomSource = (bottomCfg?.bannerSwitch ?? 'sponsors').trim().toLowerCase();
-  }
-
-  bool _jsonDeepEquals(dynamic a, dynamic b) {
-    try {
-      return jsonEncode(a) == jsonEncode(b);
-    } catch (_) {
-      return a == b;
-    }
   }
 
   void _onInboxRefreshFromWs() {
@@ -691,26 +654,13 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     // final bottomPadding = MediaQuery.of(context).padding.bottom;
                     // final totalBottomSpace = snackBarHeight + bottomPadding;
                     
-                    // Top banner space commented out
-                    // final topBannerHeight = kIsWeb
-                    //     ? (adsense_placeholder.hasTopAdSlot ? 50.0 : 0.0)
-                    //     : (bannerAdModule != null ? 50.0 : 0.0);
-                    // TEMP: AdSense / AdMob bottom slot disabled — re-enable [bottomBannerHeight] + block below.
-                    // final bottomBannerHeight = kIsWeb
-                    //     ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
-                    //     : (bannerAdModule != null ? 50.0 : 0.0);
-                    
-                    final bottomPromo = _cachedBottomPromo;
-                    final bottomSource = _cachedBottomSource;
-                    final useAdmobBottom =
-                        bottomSource == 'admob' || bottomSource == 'admobs';
-                    final promoHeight =
-                        !useAdmobBottom && bottomPromo != null ? 44.0 : 0.0;
-                    final bottomBannerHeight = useAdmobBottom
-                        ? (kIsWeb
-                            ? (adsense_placeholder.hasBottomAdSlot ? 50.0 : 0.0)
-                            : (bannerAdModule != null ? 50.0 : 0.0))
-                        : 0.0;
+                    // Top banner (AdMob) — left commented out for future use.
+                    // final topBannerHeight =
+                    //     kIsWeb ? 0.0 : (bannerAdModule != null ? 50.0 : 0.0);
+
+                    // Bottom: AdMob banner on Android/iOS only (no web slot).
+                    final bottomBannerHeight =
+                        kIsWeb ? 0.0 : (bannerAdModule != null ? 50.0 : 0.0);
 
                     return Column(
                       mainAxisSize: MainAxisSize.max,
@@ -724,14 +674,12 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                         title: 'Notices',
                       ),
 
-                      // Top banner: AdSense on web, AdMob on APK — commented out
+                      // Top banner (AdMob) — commented out
                       // if (topBannerHeight > 0)
                       //   SizedBox(
                       //     height: topBannerHeight,
                       //     child: Center(
-                      //       child: kIsWeb
-                      //           ? adsense_placeholder.buildAdSensePlaceholder('top')
-                      //           : bannerAdModule!.getTopBannerWidget(context),
+                      //       child: bannerAdModule!.getTopBannerWidget(context),
                       //     ),
                       //   ),
 
@@ -746,26 +694,12 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                         ),
                       ),
 
-                      // YAML promotional strip (round-robin between registered ads)
-                      if (promoHeight > 0 && bottomPromo != null)
-                        SizedBox(
-                          height: promoHeight,
-                          child: PromotionalBottomStrip(
-                            title: bottomPromo['title']?.toString() ?? '',
-                            link: bottomPromo['link']?.toString() ?? '',
-                            imageAssetPath: bottomPromo['image_asset']?.toString(),
-                            imageNetworkUrl: bottomPromo['image_network']?.toString(),
-                          ),
-                        ),
-
-                      // Bottom banner: AdSense on web, AdMob on APK (YAML `switch: admob` on bottom_banner_promo)
+                      // Bottom banner: AdMob (native only)
                       if (bottomBannerHeight > 0)
                         SizedBox(
                           height: bottomBannerHeight,
                           child: Center(
-                            child: kIsWeb
-                                ? adsense_placeholder.buildAdSensePlaceholder('bottom')
-                                : bannerAdModule!.getBottomBannerWidget(context),
+                            child: bannerAdModule!.getBottomBannerWidget(context),
                           ),
                         ),
                       

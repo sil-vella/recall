@@ -181,15 +181,6 @@ if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/index.html" ]; then
   echo "✅ Web build completed: $OUTPUT_DIR"
   INDEX_HTML="$OUTPUT_DIR/index.html"
 
-  # Verify AdSense snippet is in built index.html (for Google verification)
-  if grep -q "adsbygoogle.js" "$INDEX_HTML" && grep -q "ca-pub-" "$INDEX_HTML"; then
-    echo "✅ AdSense code snippet present in index.html (ready for Google verification)"
-  else
-    echo "❌ AdSense code snippet missing from built index.html."
-    echo "   Add the script tag to flutter_base_05/web/index.html and rebuild."
-    exit 1
-  fi
-
   # Cache-bust: add ?v=$APP_VERSION so entry shell + bootstrap + linked shell assets get new URLs each release.
   # (Flutter's service worker still hashes main.dart.js/canvaskit/assets; this fixes stale index.html/bootstrap.)
   # Production nginx should serve index.html with Cache-Control: no-cache so the HTML revalidates (configure on server).

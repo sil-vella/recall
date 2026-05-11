@@ -1,11 +1,11 @@
 {
-    "name": "DutchMT",
-    "short_name": "DutchMT",
+    "name": "Dutch Card Game",
+    "short_name": "Dutch Card Game",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "DutchMT - Card game.",
+    "description": "Dutch Card Game — online Dutch card game.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

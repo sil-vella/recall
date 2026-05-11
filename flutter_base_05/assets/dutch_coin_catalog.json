@@ -1,26 +1,36 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "coin_pack_description_template": "Adds {coins} coins to your balance. Coins are used for table fees and in-game purchases.",
   "in_app_products": {
-    "starter_pack_100_coin": 100,
     "coins_100": 100,
-    "coins_500": 500,
-    "coins_1000": 1000,
-    "coins_2500": 2500,
-    "coins_5000": 5000,
-    "coins_10000": 10000
+    "coins_300": 300,
+    "coin_500": 500,
+    "coins_700": 700,
+    "coins_1500": 1500,
+    "coins_3500": 3500
   },
   "stripe_packages": [
-    { "key": "starter", "label": "Starter", "coins": 100, "stripe_price_env": "STRIPE_PRICE_COIN_STARTER" },
-    { "key": "casual", "label": "Casual", "coins": 300, "stripe_price_env": "STRIPE_PRICE_COIN_CASUAL" },
-    { "key": "popular", "label": "Popular", "coins": 700, "stripe_price_env": "STRIPE_PRICE_COIN_POPULAR" },
-    { "key": "grinder", "label": "Grinder", "coins": 1500, "stripe_price_env": "STRIPE_PRICE_COIN_GRINDER" },
-    { "key": "pro", "label": "Pro", "coins": 3500, "stripe_price_env": "STRIPE_PRICE_COIN_PRO" }
+    { "key": "starter", "label": "Coin pack — 100", "coins": 100, "stripe_price_env": "STRIPE_PRICE_COIN_STARTER", "description": "Adds 100 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "casual", "label": "Coin pack — 300", "coins": 300, "stripe_price_env": "STRIPE_PRICE_COIN_CASUAL", "description": "Adds 300 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "standard", "label": "Coin pack — 500", "coins": 500, "stripe_price_env": "STRIPE_PRICE_COIN_STANDARD", "description": "Adds 500 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "popular", "label": "Coin pack — 700", "coins": 700, "stripe_price_env": "STRIPE_PRICE_COIN_POPULAR", "description": "Adds 700 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "grinder", "label": "Coin pack — 1500", "coins": 1500, "stripe_price_env": "STRIPE_PRICE_COIN_GRINDER", "description": "Adds 1500 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "pro", "label": "Coin pack — 3500", "coins": 3500, "stripe_price_env": "STRIPE_PRICE_COIN_PRO", "description": "Adds 3500 coins to your balance. Coins are used for table fees and in-game purchases." }
   ],
   "recommended_ui_packages": [
-    { "key": "starter", "label": "Starter", "coins": 100, "priceLabel": "$0.99" },
-    { "key": "casual", "label": "Casual", "coins": 300, "priceLabel": "$2.49" },
-    { "key": "popular", "label": "Popular", "coins": 700, "priceLabel": "$4.99", "isPopular": true },
-    { "key": "grinder", "label": "Grinder", "coins": 1500, "priceLabel": "$9.99" },
-    { "key": "pro", "label": "Pro", "coins": 3500, "priceLabel": "$19.99" }
+    { "key": "starter", "label": "Coin pack — 100", "coins": 100, "priceLabel": "$0.99", "description": "Adds 100 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "casual", "label": "Coin pack — 300", "coins": 300, "priceLabel": "$2.49", "description": "Adds 300 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "standard", "label": "Coin pack — 500", "coins": 500, "priceLabel": "$3.99", "description": "Adds 500 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "popular", "label": "Coin pack — 700", "coins": 700, "priceLabel": "$4.99", "isPopular": true, "description": "Adds 700 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "grinder", "label": "Coin pack — 1500", "coins": 1500, "priceLabel": "$9.99", "description": "Adds 1500 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "key": "pro", "label": "Coin pack — 3500", "coins": 3500, "priceLabel": "$19.99", "description": "Adds 3500 coins to your balance. Coins are used for table fees and in-game purchases." }
+  ],
+  "play_recommended_packages": [
+    { "product_id": "coins_100", "label": "Coin pack — 100", "coins": 100, "priceLabel": "", "description": "Adds 100 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "product_id": "coins_300", "label": "Coin pack — 300", "coins": 300, "priceLabel": "", "description": "Adds 300 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "product_id": "coin_500", "label": "Coin pack — 500", "coins": 500, "priceLabel": "", "description": "Adds 500 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "product_id": "coins_700", "label": "Coin pack — 700", "coins": 700, "priceLabel": "", "isPopular": true, "description": "Adds 700 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "product_id": "coins_1500", "label": "Coin pack — 1500", "coins": 1500, "priceLabel": "", "description": "Adds 1500 coins to your balance. Coins are used for table fees and in-game purchases." },
+    { "product_id": "coins_3500", "label": "Coin pack — 3500", "coins": 3500, "priceLabel": "", "description": "Adds 3500 coins to your balance. Coins are used for table fees and in-game purchases." }
   ]
 }

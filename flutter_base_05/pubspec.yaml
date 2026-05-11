@@ -1,5 +1,5 @@
 name: dutch
-description: "DutchMT - A Flutter application."
+description: "Dutch Card Game — Flutter client for the online Dutch card game."
 publish_to: 'none'
 version: 1.0.1+2
 
@@ -47,6 +47,7 @@ dependencies:
   # Firebase (Analytics, AdMob-ready)
   firebase_core: ^3.8.0
   firebase_analytics: ^11.3.3
+  in_app_purchase: ^3.2.0
 
 dev_dependencies:
   flutter_test:

@@ -402,9 +402,9 @@
           // 6. STRIPE + WALLETS COLLECTIONS (parity with local docker-compose dev DB)
           // ========================================
           // Local external_system includes empty stripe_coin_purchases + wallets with _id index only.
-          print("\n💳 Step 6: Ensuring stripe_coin_purchases and wallets collections (local structure parity)...");
+          print("\n💳 Step 6: Ensuring stripe_coin_purchases, play_coin_purchases, wallets collections (local structure parity)...");
           var allColls = db.getCollectionNames();
-          ["stripe_coin_purchases", "wallets"].forEach(function (collName) {
+          ["stripe_coin_purchases", "play_coin_purchases", "wallets"].forEach(function (collName) {
             if (allColls.indexOf(collName) === -1) {
               db.createCollection(collName);
               print("  ✅ Created collection: " + collName + " (_id only)");
@@ -412,6 +412,16 @@
               print("  ✓ Collection already exists: " + collName);
             }
           });
+          try {
+            db.play_coin_purchases.createIndex(
+              { "purchase_token": 1 },
+              { unique: true, name: "play_purchase_token_unique" }
+            );
+            print("  ✅ play_coin_purchases.purchase_token unique");
+          } catch (e) {
+            if (e.code !== 85 && e.code !== 86) { throw e; }
+            print("  ✓ play_coin_purchases purchase_token index already exists");
+          }
 
           // ========================================
           // 7. TOURNAMENTS INDEXES — align with local (drop indexes present on VPS but not on local dev)
@@ -511,6 +521,7 @@
           print("- Users skipped (already up-to-date): " + usersSkipped);
           print("- Tournaments collection: " + (db.tournaments ? db.tournaments.countDocuments() : 0) + " docs");
           print("- stripe_coin_purchases: " + db.stripe_coin_purchases.countDocuments() + " docs");
+          print("- play_coin_purchases: " + db.play_coin_purchases.countDocuments() + " docs");
           print("- wallets: " + db.wallets.countDocuments() + " docs");
           print("- Leaderboards collection: " + db.leaderboards.countDocuments() + " docs");
           print("- dutch_match_win_outcomes: " + db.dutch_match_win_outcomes.countDocuments() + " docs");
@@ -607,7 +618,7 @@
           - Added role field to all users (default: player); created index on role
           - Ensured notifications collection exists (if missing)
           - Ensured tournaments collection exists (if missing)
-          - Ensured stripe_coin_purchases + wallets collections exist (local DB parity; _id index only)
+          - Ensured stripe_coin_purchases + play_coin_purchases (unique purchase_token) + wallets collections exist (local DB parity)
           - Dropped VPS-only tournaments indexes if present (creator_id, user_ids, created_at, updated_at) to match local index set
           - Ensured leaderboards collection exists (daily / monthly / yearly / tournament by type+format; winners + date_time UTC)
           - Ensured dutch_match_win_outcomes exists (insert-only per win human or comp; indexes on ended_at and unique room_id+user_id)

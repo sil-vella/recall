@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart'
     show kIsWeb, PlatformDispatcher, defaultTargetPlatform, TargetPlatform;
 import 'dart:async';
 import 'package:provider/provider.dart';
-import 'package:dutch/core/widgets/adsense_placeholder_stub.dart' if (dart.library.html) 'package:dutch/core/widgets/adsense_placeholder_web.dart' as adsense_placeholder;
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/managers/app_manager.dart';
@@ -74,9 +73,6 @@ Future<void> main() async {
 
   // Register core providers
   ProviderManager().registerCoreProviders();
-
-  // AdSense view factories (web only); no-op on mobile
-  if (kIsWeb) adsense_placeholder.registerAdSenseViewFactories();
 
   runApp(
     MultiProvider(

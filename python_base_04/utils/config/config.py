@@ -387,6 +387,7 @@ class Config:
     # Price IDs from Stripe Dashboard → Product "Coin Packages" (one per tier)
     STRIPE_PRICE_COIN_STARTER = get_file_first_config_value("stripe_price_coin_starter", "STRIPE_PRICE_COIN_STARTER", "")
     STRIPE_PRICE_COIN_CASUAL = get_file_first_config_value("stripe_price_coin_casual", "STRIPE_PRICE_COIN_CASUAL", "")
+    STRIPE_PRICE_COIN_STANDARD = get_file_first_config_value("stripe_price_coin_standard", "STRIPE_PRICE_COIN_STANDARD", "")
     STRIPE_PRICE_COIN_POPULAR = get_file_first_config_value("stripe_price_coin_popular", "STRIPE_PRICE_COIN_POPULAR", "")
     STRIPE_PRICE_COIN_GRINDER = get_file_first_config_value("stripe_price_coin_grinder", "STRIPE_PRICE_COIN_GRINDER", "")
     STRIPE_PRICE_COIN_PRO = get_file_first_config_value("stripe_price_coin_pro", "STRIPE_PRICE_COIN_PRO", "")
@@ -395,11 +396,14 @@ class Config:
     GOOGLE_CLIENT_ID = get_config_value("flask-app/google-oauth", "client_id", "google_client_id", "GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = get_sensitive_config_value("flask-app/google-oauth", "client_secret", "google_client_secret", "GOOGLE_CLIENT_SECRET", "")
 
-    # Google Play Developer API — optional for future direct Play Billing / voided purchases APIs
-    # GOOGLE_PLAY_PACKAGE_NAME = get_file_first_config_value("google_play_package_name", "GOOGLE_PLAY_PACKAGE_NAME", "com.yourcompany.yourapp")
-    # GOOGLE_PLAY_SERVICE_ACCOUNT_FILE = get_file_first_config_value("google_play_service_account", "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", "secrets/google_play_service_account")
-    # GOOGLE_PLAY_API_QUOTA_LIMIT = int(get_file_first_config_value("google_play_api_quota_limit", "GOOGLE_PLAY_API_QUOTA_LIMIT", "1000"))
-    # GOOGLE_PLAY_SYNC_INTERVAL_HOURS = int(get_file_first_config_value("google_play_sync_interval_hours", "GOOGLE_PLAY_SYNC_INTERVAL_HOURS", "24"))
+    # Google Play Developer API (server-side verify + consume for Dutch coin IAP)
+    GOOGLE_PLAY_PACKAGE_NAME = get_file_first_config_value(
+        "google_play_package_name", "GOOGLE_PLAY_PACKAGE_NAME", ""
+    )
+    # Path to service account JSON with Android Publisher API access (Play Console linked).
+    GOOGLE_PLAY_SERVICE_ACCOUNT_FILE = get_file_first_config_value(
+        "google_play_service_account_file", "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", ""
+    )
 
     # JWT Configuration
     JWT_SECRET_KEY = get_sensitive_config_value("flask-app/app", "secret_key", "jwt_secret_key", "JWT_SECRET_KEY", "your-super-secret-key-change-in-production")

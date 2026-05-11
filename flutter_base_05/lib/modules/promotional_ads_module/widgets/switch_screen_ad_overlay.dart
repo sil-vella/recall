@@ -1,33 +1,28 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/managers/module_manager.dart';
 import '../../../utils/consts/theme_consts.dart';
-import '../models/ad_registration.dart';
-import 'advert_media_panel.dart';
+import '../../admobs/interstitial/interstitial_ad.dart';
 
-/// enable-logging-switch.mdc
-
-/// Full-screen promotional overlay with optional delay before Skip is enabled.
+/// Full-screen gate before an AdMob interstitial: countdown, then Skip (or dismiss if no ad / web).
 class SwitchScreenAdOverlay {
   SwitchScreenAdOverlay._();
 
   static Future<void> show(
     BuildContext context, {
-    required AdRegistration ad,
     required int delayBeforeSkipSeconds,
   }) {
-    
     return showGeneralDialog<void>(
       context: context,
       barrierDismissible: false,
-      barrierLabel: 'Promotional ad',
+      barrierLabel: 'Interstitial ad',
       barrierColor: Colors.black,
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (ctx, animation, secondaryAnimation) {
         return _SwitchScreenAdDialog(
-          ad: ad,
           delayBeforeSkipSeconds: delayBeforeSkipSeconds,
         );
       },
@@ -37,11 +32,9 @@ class SwitchScreenAdOverlay {
 
 class _SwitchScreenAdDialog extends StatefulWidget {
   const _SwitchScreenAdDialog({
-    required this.ad,
     required this.delayBeforeSkipSeconds,
   });
 
-  final AdRegistration ad;
   final int delayBeforeSkipSeconds;
 
   @override
@@ -56,6 +49,10 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ModuleManager().getModuleByType<InterstitialAdModule>()?.loadAd();
+    });
     final totalSecs = widget.delayBeforeSkipSeconds;
     if (totalSecs <= 0) {
       _canSkip = true;
@@ -82,19 +79,25 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
     super.dispose();
   }
 
-  Future<void> _openLink() async {
-    final uri = Uri.tryParse(widget.ad.link);
-    if (uri == null) return;
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  void _onSkipOrFinish() {
+    if (!_canSkip) return;
+    void close() {
+      if (mounted) Navigator.of(context).pop();
     }
+
+    final mod = ModuleManager().getModuleByType<InterstitialAdModule>();
+    if (mod == null || kIsWeb) {
+      close();
+      return;
+    }
+    mod.showOrFinish(context, close);
   }
 
   Widget _buildSkipOrTimer() {
     final secs = widget.delayBeforeSkipSeconds;
     if (_canSkip || secs <= 0) {
       return TextButton(
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: _onSkipOrFinish,
         child: Text(
           'Skip',
           style: AppTextStyles.bodyMedium().copyWith(
@@ -104,8 +107,7 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
       );
     }
 
-    final remaining =
-        (secs * (1 - _progress)).ceil().clamp(0, secs);
+    final remaining = (secs * (1 - _progress)).ceil().clamp(0, secs);
     return SizedBox(
       width: 52,
       height: 52,
@@ -139,46 +141,18 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Positioned.fill(
-              child: AdvertFullscreenCoverMedia(
-                imageAssetPath: widget.ad.imageAssetPath,
-                videoAssetPath: widget.ad.videoAssetPath,
-                imageNetworkUrl: widget.ad.networkImageUrl,
-                videoNetworkUrl: widget.ad.networkVideoUrl,
-              ),
-            ),
+            const ColoredBox(color: Colors.black),
             SafeArea(
-              child: Stack(
-                children: [
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Material(
-                        color: Colors.black45,
-                        borderRadius: BorderRadius.circular(8),
-                        child: _buildSkipOrTimer(),
-                      ),
-                    ),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Material(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(8),
+                    child: _buildSkipOrTimer(),
                   ),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: AppPadding.defaultPadding,
-                      child: FilledButton(
-                        onPressed: _openLink,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primaryColor,
-                          foregroundColor: AppColors.white,
-                        ),
-                        child: Text(
-                          'Open link',
-                          style: AppTextStyles.bodyMedium(),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],

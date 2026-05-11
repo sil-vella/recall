@@ -1,7 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
@@ -12,8 +13,9 @@ import '../../utils/analytics_service.dart';
 import '../../utils/coin_catalog.dart';
 import '../../utils/consts/theme_consts.dart';
 
-/// Coin purchases on **web**: Stripe Checkout via Python `/userauth/stripe/create-coin-checkout-session`.
-/// **iOS/Android**: native store billing is not wired (removed third-party IAP bridge); use web checkout or a future Play/App Store integration.
+/// **Web**: Stripe Checkout via `/userauth/stripe/create-coin-checkout-session`.
+/// **Android**: Google Play Billing + server verify `/userauth/play/verify-coin-purchase`.
+/// **iOS**: not wired (use web or add App Store Server API later).
 class CoinPurchaseScreen extends BaseScreen {
   const CoinPurchaseScreen({Key? key}) : super(key: key);
 
@@ -32,7 +34,17 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   String? _loadingPackageKey;
   bool _handledStripeReturn = false;
 
+  final InAppPurchase _playIap = InAppPurchase.instance;
+  StreamSubscription<List<PurchaseDetails>>? _playPurchaseSub;
+  bool _playBillingAvailable = false;
+  Map<String, ProductDetails> _playProductDetails = {};
+  String? _playBusyProductId;
+
   bool get _nativeMobile => !kIsWeb;
+
+  bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  bool get _isIos => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   Future<void> _bootstrapCatalog() async {
     await CoinCatalog.ensureLoaded();
@@ -48,12 +60,188 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
               key: j['key'] as String,
               label: j['label'] as String,
               coins: (j['coins'] as num).toInt(),
+              description: _coinPackDescriptionFromRow(j),
               priceLabel: (j['priceLabel'] as String?) ?? '',
               isPopular: j['isPopular'] == true,
             ),
           )
           .toList();
     });
+  }
+
+  Future<void> _bootstrapPlayBilling() async {
+    if (!_isAndroid || !mounted) return;
+    final ok = await _playIap.isAvailable();
+    if (!mounted) return;
+    setState(() => _playBillingAvailable = ok);
+    if (!ok) return;
+
+    _playPurchaseSub?.cancel();
+    _playPurchaseSub = _playIap.purchaseStream.listen(_handlePlayPurchases, onError: (_) {});
+
+    final ids = <String>{};
+    for (final row in CoinCatalog.playRecommendedPackages) {
+      final id = row['product_id']?.toString();
+      if (id != null && id.isNotEmpty) ids.add(id);
+    }
+    if (ids.isEmpty) return;
+
+    final resp = await _playIap.queryProductDetails(ids);
+    if (!mounted) return;
+    final map = <String, ProductDetails>{};
+    for (final p in resp.productDetails) {
+      map[p.id] = p;
+    }
+    setState(() => _playProductDetails = map);
+  }
+
+  Future<void> _handlePlayPurchases(List<PurchaseDetails> purchases) async {
+    for (final purchase in purchases) {
+      switch (purchase.status) {
+        case PurchaseStatus.pending:
+          break;
+        case PurchaseStatus.error:
+          if (mounted && purchase.error != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  purchase.error!.message,
+                  style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+                ),
+                backgroundColor: AppColors.primaryColor,
+              ),
+            );
+          }
+          if (purchase.pendingCompletePurchase) {
+            await _playIap.completePurchase(purchase);
+          }
+          break;
+        case PurchaseStatus.canceled:
+          if (purchase.pendingCompletePurchase) {
+            await _playIap.completePurchase(purchase);
+          }
+          break;
+        case PurchaseStatus.purchased:
+        case PurchaseStatus.restored:
+          await _verifyPlayPurchaseOnServer(purchase);
+          break;
+      }
+    }
+  }
+
+  Future<void> _verifyPlayPurchaseOnServer(PurchaseDetails purchase) async {
+    final token = purchase.purchaseID ?? '';
+    final productId = purchase.productID;
+    if (token.isEmpty) {
+      if (purchase.pendingCompletePurchase) {
+        await _playIap.completePurchase(purchase);
+      }
+      return;
+    }
+
+    final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+    if (api == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot reach server to confirm purchase.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final raw = await api.sendPostRequest('/userauth/play/verify-coin-purchase', {
+        'product_id': productId,
+        'purchase_token': token,
+      });
+      if (raw is! Map) {
+        throw Exception('Unexpected response');
+      }
+      final map = Map<String, dynamic>.from(raw);
+      final success = map['success'] == true;
+      if (!success) {
+        final msg = map['message']?.toString() ?? map['error']?.toString() ?? 'Purchase verification failed';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg, style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+              backgroundColor: AppColors.primaryColor,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (purchase.pendingCompletePurchase) {
+        await _playIap.completePurchase(purchase);
+      }
+      await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Coins added to your balance.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      await AnalyticsService.logEvent(
+        name: 'play_coin_purchase_verified',
+        parameters: {'product_id': productId},
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not verify purchase. You can reopen this screen to retry.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _buyPlayProduct(ProductDetails details) async {
+    setState(() => _playBusyProductId = details.id);
+    try {
+      final started = await _playIap.buyConsumable(purchaseParam: PurchaseParam(productDetails: details));
+      if (!started && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not start purchase.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Purchase failed. Try again later.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _playBusyProductId = null);
+    }
   }
 
   @override
@@ -64,8 +252,16 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       if (!mounted) return;
       if (kIsWeb) {
         await _maybeHandleStripeReturn();
+      } else if (_isAndroid) {
+        await _bootstrapPlayBilling();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _playPurchaseSub?.cancel();
+    super.dispose();
   }
 
   String _stripeResultInUri(Uri u) {
@@ -244,7 +440,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                 Text('Coin packages', style: AppTextStyles.headingSmall()),
                 const SizedBox(height: 8),
                 Text(
-                  'Each match starts from a 25 coin table fee. Secure checkout is processed by Stripe.',
+                  'Choose a coin pack. Secure checkout is processed by Stripe.',
                   style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
                 ),
                 SizedBox(height: AppPadding.defaultPadding.top),
@@ -259,12 +455,35 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                   ..._recommendedPackages.map(_buildPackageCard),
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
-              if (_nativeMobile) ...[
+              if (_isAndroid) ...[
                 Text('Coin packages', style: AppTextStyles.headingSmall()),
                 const SizedBox(height: 8),
                 Text(
-                  'In-app purchases through the store are not enabled in this build. '
-                  'Coin packs are available on the web app via Stripe, or you can add Google Play Billing directly later.',
+                  'Purchases are processed by Google Play. Your account is credited after our server confirms the transaction.',
+                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                ),
+                SizedBox(height: AppPadding.defaultPadding.top),
+                if (!_catalogReady)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (!_playBillingAvailable)
+                  Text(
+                    'Google Play Billing is not available on this device.',
+                    style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                  )
+                else
+                  ...CoinCatalog.playRecommendedPackages.map(_buildPlayPackageRow),
+                SizedBox(height: AppPadding.defaultPadding.top),
+              ],
+              if (_isIos) ...[
+                Text('Coin packages', style: AppTextStyles.headingSmall()),
+                const SizedBox(height: 8),
+                Text(
+                  'App Store billing is not enabled in this build. Use the web app (Stripe) to buy coins.',
                   style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
                 ),
                 SizedBox(height: AppPadding.defaultPadding.top),
@@ -301,6 +520,81 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPlayPackageRow(Map<String, dynamic> row) {
+    final productId = row['product_id'] as String? ?? '';
+    final label = row['label'] as String? ?? productId;
+    final isPopular = row['isPopular'] == true;
+    final details = _playProductDetails[productId];
+    final priceText = details?.price ?? (row['priceLabel'] as String? ?? '—');
+    final busy = _playBusyProductId == productId;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: AppPadding.cardPadding,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppBorderRadius.smallRadius,
+        border: Border.all(
+          color: isPopular ? AppColors.accentColor : AppColors.borderDefault,
+          width: isPopular ? 1.5 : 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(label, style: AppTextStyles.bodyLarge(color: AppColors.textPrimary)),
+                    if (isPopular) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentColor,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Most Popular',
+                          style: AppTextStyles.bodySmall(color: AppColors.textOnPrimary),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _coinPackDescriptionFromRow(row),
+                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(priceText, style: AppTextStyles.headingSmall()),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: (busy || details == null) ? null : () => _buyPlayProduct(details),
+            child: busy
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.textOnPrimary,
+                    ),
+                  )
+                : const Text('Buy'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -353,7 +647,10 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text('${pack.coins} coins', style: AppTextStyles.bodyMedium(color: AppColors.textSecondary)),
+                Text(
+                  pack.description,
+                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                ),
               ],
             ),
           ),
@@ -383,6 +680,7 @@ class _CoinPackage {
   final String key;
   final String label;
   final int coins;
+  final String description;
   final String priceLabel;
   final bool isPopular;
 
@@ -390,7 +688,15 @@ class _CoinPackage {
     required this.key,
     required this.label,
     required this.coins,
+    required this.description,
     required this.priceLabel,
     this.isPopular = false,
   });
+}
+
+String _coinPackDescriptionFromRow(Map<String, dynamic> j) {
+  final d = j['description']?.toString().trim();
+  if (d != null && d.isNotEmpty) return d;
+  final c = (j['coins'] as num?)?.toInt() ?? 0;
+  return 'Adds $c coins to your balance. Coins are used for table fees and in-game purchases.';
 }

@@ -22,10 +22,9 @@ debugpy==1.8.0
 gevent==23.9.1
 Pillow==11.1.0
 
-# Google Play Developer API — optional for future direct Play integration
-# google-api-python-client==2.108.0
-# google-auth-httplib2==0.1.1
-# google-auth-oauthlib==1.1.0
+# Google Play Developer API (Android Publisher: verify + consume coin purchases)
+google-api-python-client==2.108.0
+google-auth-httplib2==0.2.0
 
 # Google OAuth2 Authentication (for Google Sign-In)
 google-auth==2.23.4

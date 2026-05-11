@@ -1,61 +1,48 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/00_base/module_base.dart';
-import '../../../../core/managers/module_manager.dart';
-import '../../../../core/managers/hooks_manager.dart';
-import '../../../../core/managers/app_manager.dart';
-import '../../../../utils/consts/config.dart';
-import '../../promotional_ads_module/ad_registry.dart';
 
-bool _yamlBottomSlotIsAdmob() {
-  final cfg = AdRegistry.instance.typeById('bottom_banner_promo');
-  final s = (cfg?.bannerSwitch ?? 'sponsors').trim().toLowerCase();
-  return s == 'admob' || s == 'admobs';
-}
+import '../../../../core/00_base/module_base.dart';
+import '../../../../core/managers/app_manager.dart';
+import '../../../../core/managers/hooks_manager.dart';
+import '../../../../core/managers/module_manager.dart';
+import '../../../../utils/consts/config.dart';
 
 class BannerAdModule extends ModuleBase {
   final Map<String, BannerAd> _banners = {};
   final Map<String, bool> _adLoaded = {};
   late HooksManager _hooksManager;
 
-  /// ✅ Constructor with module key and dependencies
-  BannerAdModule() : super("admobs_banner_ad_module", dependencies: []);
+  BannerAdModule() : super('admobs_banner_ad_module', dependencies: []);
 
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
-    
-    // Get HooksManager from AppManager
+
     final appManager = Provider.of<AppManager>(context, listen: false);
     _hooksManager = appManager.hooksManager;
-    
-    // Register callbacks to global hooks
+
     _registerBannerCallbacks();
   }
 
-  /// ✅ Register callbacks to global hooks
   void _registerBannerCallbacks() {
-    // Register callback for top banner bar hook
     _hooksManager.registerHookWithData('top_banner_bar_loaded', (data) {
-      // Load the top banner ad when global hook is triggered
       loadBannerAd(Config.admobsTopBanner);
-    }, priority: 10); // Lower priority so it runs after the global hook
-    
-    // Register callback for bottom banner bar hook (only when YAML `switch` is admob — not sponsors strip).
+    }, priority: 10);
+
     _hooksManager.registerHookWithData('bottom_banner_bar_loaded', (data) {
-      if (!_yamlBottomSlotIsAdmob()) {
-        return;
-      }
+      if (kIsWeb) return;
       loadBannerAd(Config.admobsBottomBanner);
-    }, priority: 10); // Lower priority so it runs after the global hook
-    
+    }, priority: 10);
   }
 
-  /// ✅ Loads the banner ad with a specified ad unit ID
   Future<void> loadBannerAd(String adUnitId) async {
+    if (kIsWeb || adUnitId.trim().isEmpty) {
+      return;
+    }
     if (_adLoaded[adUnitId] == true) {
-      return; // ✅ Prevent reloading if already loaded
+      return;
     }
 
     final bannerAd = BannerAd(
@@ -77,13 +64,11 @@ class BannerAdModule extends ModuleBase {
     _banners[adUnitId] = bannerAd;
   }
 
-  /// ✅ Retrieve a new unique banner ad widget each time
   Widget getBannerWidget(BuildContext context, String adUnitId) {
-    if (_adLoaded[adUnitId] != true) {
+    if (kIsWeb || adUnitId.trim().isEmpty || _adLoaded[adUnitId] != true) {
       return const SizedBox.shrink();
     }
 
-    // Create a new BannerAd instance for this widget
     final bannerAd = BannerAd(
       adUnitId: adUnitId,
       size: AdSize.banner,
@@ -96,7 +81,6 @@ class BannerAdModule extends ModuleBase {
       ),
     );
 
-    // Load the new instance
     bannerAd.load();
 
     return Container(
@@ -108,17 +92,14 @@ class BannerAdModule extends ModuleBase {
     );
   }
 
-  /// ✅ Get top banner widget (hook callback)
   Widget getTopBannerWidget(BuildContext context) {
     return getBannerWidget(context, Config.admobsTopBanner);
   }
 
-  /// ✅ Get bottom banner widget (hook callback)
   Widget getBottomBannerWidget(BuildContext context) {
     return getBannerWidget(context, Config.admobsBottomBanner);
   }
 
-  /// ✅ Dispose a specific banner ad
   void disposeBannerAd(String adUnitId) {
     if (_banners.containsKey(adUnitId)) {
       _banners[adUnitId]?.dispose();
@@ -127,7 +108,6 @@ class BannerAdModule extends ModuleBase {
     }
   }
 
-  /// ✅ Override `dispose()` to clean up all banner ads
   @override
   void dispose() {
     for (final ad in _banners.values) {
@@ -135,6 +115,6 @@ class BannerAdModule extends ModuleBase {
     }
     _banners.clear();
     _adLoaded.clear();
-    super.dispose(); // ✅ Calls `ModuleBase.dispose()` for cleanup
+    super.dispose();
   }
 }

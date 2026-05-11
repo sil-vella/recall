@@ -13,6 +13,8 @@ from decimal import Decimal
 from bson import ObjectId
 import logging
 
+from utils.dutch_game_credits import credit_dutch_game_coins
+
 # Coin purchase: Stripe Checkout + webhooks (enable-logging-switch.mdc)
 
 
@@ -394,6 +396,7 @@ class StripeModule(BaseModule):
                         "key": row["key"],
                         "label": row["label"],
                         "coins": row["coins"],
+                        "description": row.get("description") or "",
                         "available": row["price_id"] is not None,
                     }
                 )
@@ -544,7 +547,7 @@ class StripeModule(BaseModule):
             except Exception:
                 return
 
-            self._credit_dutch_game_coins(oid, coins)
+            credit_dutch_game_coins(self.db_manager, oid, coins)
 
             self.db_manager.insert(
                 "stripe_coin_purchases",
@@ -559,25 +562,6 @@ class StripeModule(BaseModule):
         except Exception as e:
 
             pass
-    def _credit_dutch_game_coins(self, user_oid: ObjectId, coins: int, session=None):
-        """Increment modules.dutch_game.coins (same field as match economy)."""
-        if coins <= 0:
-            return
-        ts = datetime.utcnow().isoformat()
-        kwargs = {}
-        if session is not None:
-            kwargs["session"] = session
-        result = self.db_manager.db["users"].update_one(
-            {"_id": user_oid},
-            {
-                "$inc": {"modules.dutch_game.coins": coins},
-                "$set": {"modules.dutch_game.last_updated": ts, "updated_at": ts},
-            },
-            **kwargs,
-        )
-        if result.matched_count == 0:
-            raise ValueError(f"user not found: {user_oid}")
-
     def get_payment_status(self, payment_intent_id):
         """Get payment status from Stripe."""
         try:

@@ -51,5 +51,7 @@
 		<false/>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Select a photo for your profile.</string>
+		<key>GADApplicationIdentifier</key>
+		<string>$(GAD_APPLICATION_ID)</string>
 	</dict>
 </plist>

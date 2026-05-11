@@ -1,2 +1,4 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+// AdMob iOS application id (~ not /). Override in CI or Xcode user xcconfig if needed.
+GAD_APPLICATION_ID=ca-app-pub-6524100109992126~6470366151

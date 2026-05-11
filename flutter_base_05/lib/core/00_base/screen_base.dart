@@ -1,9 +1,11 @@
+import 'package:dutch/modules/admobs/ad_experience_policy.dart';
 import 'package:dutch/modules/admobs/banner/banner_ad.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../managers/app_manager.dart';
 import '../managers/module_manager.dart';
+import '../../utils/consts/config.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
 import '../widgets/feature_slot.dart';
@@ -438,9 +440,9 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       // Register global app bar features for this screen (ALWAYS)
       _registerGlobalAppBarFeatures();
       
-      // Bottom hook: AdMob banner preload on native.
-      appManager.triggerBottomBannerBarHook(context);
-      if (!kIsWeb && bannerAdModule != null) {
+      // AdMob banner preload (native, non-premium only).
+      if (!kIsWeb && bannerAdModule != null && AdExperiencePolicy.showMonetizedAds) {
+        appManager.triggerBottomBannerBarHook(context);
         appManager.triggerTopBannerBarHook(context);
       }
 
@@ -647,67 +649,63 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                 // ),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    // TEMP: snack-bar reserved strip disabled — re-enable [totalBottomSpace] + [SizedBox] below if needed.
-                    // Account for snack bar height (typically 48-56px, using 56px for safety)
-                    // Also account for system bottom padding (safe area)
-                    // const snackBarHeight = 56.0;
-                    // final bottomPadding = MediaQuery.of(context).padding.bottom;
-                    // final totalBottomSpace = snackBarHeight + bottomPadding;
-                    
-                    // Top banner (AdMob) — left commented out for future use.
-                    // final topBannerHeight =
-                    //     kIsWeb ? 0.0 : (bannerAdModule != null ? 50.0 : 0.0);
+                    return ListenableBuilder(
+                      listenable: StateManager(),
+                      builder: (context, _) {
+                        // TEMP: snack-bar reserved strip disabled — re-enable [totalBottomSpace] + [SizedBox] below if needed.
+                        final monetized = AdExperiencePolicy.showMonetizedAds;
+                        final topBannerHeight = kIsWeb
+                            ? 0.0
+                            : (monetized &&
+                                    bannerAdModule != null &&
+                                    Config.admobsTopBanner.trim().isNotEmpty
+                                ? 50.0
+                                : 0.0);
 
-                    // Bottom: AdMob banner on Android/iOS only (no web slot).
-                    final bottomBannerHeight =
-                        kIsWeb ? 0.0 : (bannerAdModule != null ? 50.0 : 0.0);
+                        final bottomBannerHeight = kIsWeb
+                            ? 0.0
+                            : (monetized &&
+                                    bannerAdModule != null &&
+                                    Config.admobsBottomBanner.trim().isNotEmpty
+                                ? 50.0
+                                : 0.0);
 
-                    return Column(
-                      mainAxisSize: MainAxisSize.max,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                      // Global header slot at the top (fixed, takes natural height)
-                      // Nothing behind it - this takes its space
-                      FeatureSlot(
-                        scopeKey: widget.runtimeType.toString(),
-                        slotId: 'header',
-                        title: 'Notices',
-                      ),
+                        return Column(
+                          mainAxisSize: MainAxisSize.max,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            FeatureSlot(
+                              scopeKey: widget.runtimeType.toString(),
+                              slotId: 'header',
+                              title: 'Notices',
+                            ),
 
-                      // Top banner (AdMob) — commented out
-                      // if (topBannerHeight > 0)
-                      //   SizedBox(
-                      //     height: topBannerHeight,
-                      //     child: Center(
-                      //       child: bannerAdModule!.getTopBannerWidget(context),
-                      //     ),
-                      //   ),
+                            if (topBannerHeight > 0)
+                              SizedBox(
+                                height: topBannerHeight,
+                                child: Center(
+                                  child: bannerAdModule!.getTopBannerWidget(context),
+                                ),
+                              ),
 
-                      // Main content area - takes ALL remaining space
-                      // This is the middle part for content, all that is available
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, contentConstraints) {
-                            // Pass full constraints to content - screens take full size
-                            return buildContent(context);
-                          },
-                        ),
-                      ),
+                            Expanded(
+                              child: LayoutBuilder(
+                                builder: (context, contentConstraints) {
+                                  return buildContent(context);
+                                },
+                              ),
+                            ),
 
-                      // Bottom banner: AdMob (native only)
-                      if (bottomBannerHeight > 0)
-                        SizedBox(
-                          height: bottomBannerHeight,
-                          child: Center(
-                            child: bannerAdModule!.getBottomBannerWidget(context),
-                          ),
-                        ),
-                      
-                      // Reserved space at the bottom for snack bars (fixed)
-                      // Nothing behind it - this takes its space
-                      // TEMP: disabled — pair with [totalBottomSpace] locals above when re-enabling.
-                      // SizedBox(height: totalBottomSpace),
-                      ],
+                            if (bottomBannerHeight > 0)
+                              SizedBox(
+                                height: bottomBannerHeight,
+                                child: Center(
+                                  child: bannerAdModule!.getBottomBannerWidget(context),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     );
                   },
                 ),

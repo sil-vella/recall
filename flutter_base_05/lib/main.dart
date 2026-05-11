@@ -15,6 +15,7 @@ import 'modules/analytics_module/analytics_module.dart';
 import 'utils/firebase_runtime_config.dart';
 import 'utils/consts/theme_consts.dart';
 import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
+import 'modules/admobs/admob_bootstrap.dart';
 
 /// Hides the Android system navigation bar so the app uses the full screen height;
 /// the bar can be revealed briefly with an edge swipe. Status bar stays visible.
@@ -35,6 +36,9 @@ Future<void> main() async {
   _applyAndroidImmersiveBottomBar();
 
   await PromotionalAdsConfigLoader.initialize();
+
+  // Native: UMP (if applicable) + Google Mobile Ads SDK before any ad units load.
+  await bootstrapConsentAndMobileAds();
 
   // Initialize Firebase (Analytics, AdMob-ready) only when enabled.
   if (FirebaseRuntimeConfig.isEnabled) {

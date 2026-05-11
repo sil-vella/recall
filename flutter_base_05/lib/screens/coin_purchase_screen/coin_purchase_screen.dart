@@ -3,15 +3,20 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
+import '../../modules/admobs/ad_experience_policy.dart';
+import '../../modules/admobs/rewarded/rewarded_ad.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../utils/analytics_service.dart';
 import '../../utils/coin_catalog.dart';
+import '../../utils/consts/config.dart';
 import '../../utils/consts/theme_consts.dart';
+import '../../utils/dbg.dart';
 
 /// **Web**: Stripe Checkout via `/userauth/stripe/create-coin-checkout-session`.
 /// **Android**: Google Play Billing + server verify `/userauth/play/verify-coin-purchase`.
@@ -39,6 +44,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   bool _playBillingAvailable = false;
   Map<String, ProductDetails> _playProductDetails = {};
   String? _playBusyProductId;
+  bool _rewardedAdBusy = false;
 
   bool get _nativeMobile => !kIsWeb;
 
@@ -420,6 +426,170 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     }
   }
 
+  Future<void> _claimRewardedAdCoins(ConnectionsApiModule api, String clientNonce) async {
+    try {
+      final raw = await api.sendPostRequest('/userauth/admob/claim-rewarded-ad', {
+        'client_nonce': clientNonce,
+      });
+      if (raw is! Map) {
+        throw Exception('Unexpected response');
+      }
+      final map = Map<String, dynamic>.from(raw);
+      if (map['success'] != true) {
+        final msg = map['error']?.toString() ?? map['message']?.toString() ?? 'Could not apply reward';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg, style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+              backgroundColor: AppColors.primaryColor,
+            ),
+          );
+        }
+        return;
+      }
+      await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+      if (!mounted) return;
+      final credited = map['coins_credited'];
+      final bal = map['balance'];
+      final dup = map['duplicate'] == true;
+      final msg = dup
+          ? 'Reward already recorded.'
+          : (credited != null ? '+$credited coins. Balance: $bal' : 'Coins added.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg, style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+          backgroundColor: AppColors.primaryColor,
+        ),
+      );
+      await AnalyticsService.logEvent(
+        name: 'admob_rewarded_claim',
+        parameters: {'duplicate': dup},
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not confirm reward. Try again later.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _watchRewardedAdForCoins() async {
+    if (kIsWeb || Config.admobsRewarded01.trim().isEmpty) {
+      dbgAdMob(
+        'coin screen _watchRewardedAdForCoins skip (web=$kIsWeb rewardedUnitEmpty=${Config.admobsRewarded01.trim().isEmpty})',
+      );
+      return;
+    }
+
+    dbgAdMob('coin screen _watchRewardedAdForCoins start');
+    final mod = ModuleManager().getModuleByType<RewardedAdModule>();
+    final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+    if (mod == null || api == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Rewards are not available right now.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      dbgAdMob(
+        'coin screen rewarded unavailable (modNull=${mod == null} apiNull=${api == null})',
+      );
+      return;
+    }
+
+    if (!mod.isReady) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Ad is still loading. Try again in a moment.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      dbgAdMob('coin screen rewarded not ready → snack + loadAd');
+      unawaited(mod.loadAd());
+      return;
+    }
+
+    final clientNonce = const Uuid().v4();
+    setState(() => _rewardedAdBusy = true);
+    try {
+      dbgAdMob('coin screen calling RewardedAdModule.showAd nonceLen=${clientNonce.length}');
+      await mod.showAd(
+        context,
+        onUserEarnedReward: () {
+          dbgAdMob('coin screen onUserEarnedReward → claim API');
+          unawaited(_claimRewardedAdCoins(api, clientNonce));
+        },
+      );
+      dbgAdMob('coin screen RewardedAdModule.showAd completed');
+    } finally {
+      if (mounted) setState(() => _rewardedAdBusy = false);
+    }
+  }
+
+  Widget _buildRewardedAdCard() {
+    final mod = ModuleManager().getModuleByType<RewardedAdModule>();
+    if (mod == null) {
+      return const SizedBox.shrink();
+    }
+    return ValueListenableBuilder<int>(
+      valueListenable: mod.stateTick,
+      builder: (context, _, __) {
+        final ready = mod.isReady;
+        return Container(
+          width: double.infinity,
+          padding: AppPadding.cardPadding,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: AppBorderRadius.smallRadius,
+            border: Border.all(color: AppColors.borderDefault),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Free coins', style: AppTextStyles.headingSmall()),
+              const SizedBox(height: 6),
+              Text(
+                'Watch a short video. Coins are added after the server confirms your reward.',
+                style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: (_rewardedAdBusy || !ready) ? null : _watchRewardedAdForCoins,
+                child: _rewardedAdBusy
+                    ? SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.textOnPrimary,
+                        ),
+                      )
+                    : Text(ready ? 'Watch ad for coins' : 'Loading ad…'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget buildContent(BuildContext context) {
     return ListenableBuilder(
@@ -477,6 +647,18 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                   )
                 else
                   ...CoinCatalog.playRecommendedPackages.map(_buildPlayPackageRow),
+                SizedBox(height: AppPadding.defaultPadding.top),
+              ],
+              if (_nativeMobile && Config.admobsRewarded01.trim().isNotEmpty) ...[
+                ListenableBuilder(
+                  listenable: StateManager(),
+                  builder: (context, _) {
+                    if (!AdExperiencePolicy.showMonetizedAds) {
+                      return const SizedBox.shrink();
+                    }
+                    return _buildRewardedAdCard();
+                  },
+                ),
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
               if (_isIos) ...[

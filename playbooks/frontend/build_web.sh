@@ -152,6 +152,7 @@ DART_DEFINE_ARGS=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
 done < <(build_dart_defines_from_env "$FRONTEND_ENV")
+echo "ℹ️  ADMOBS_* in .env.prod are for native builds; web skips AdMob. See Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md"
 # Overrides (script-set API_URL, WS_URL, APP_VERSION)
 DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
 # Ensure Firebase runtime toggle is always present (defaults to true when missing).

@@ -41,6 +41,31 @@ void dbg(
   }
 }
 
+/// AdMob SDK and policy tracing. Enable with `--dart-define=ADMOB_DEBUG_LOGS=true`,
+/// or use the same gates as [dbg] ([kDebugMode], [Config.debugMode], [Config.verboseDevLogs]).
+///
+/// No-op on web. Remote `POST /log` only in debug VM builds (same safety as [dbg]).
+void dbgAdMob(String message, {Object? error, StackTrace? stackTrace}) {
+  if (kIsWeb) return;
+  const admobOnly = Config.admobDebugLogs;
+  const generalVerbose = kDebugMode && Config.debugMode && Config.verboseDevLogs;
+  if (!admobOnly && !generalVerbose) return;
+
+  final buf = StringBuffer('[AdMob] $message');
+  if (error != null) {
+    buf.write(' | $error');
+  }
+  final mainLine = buf.toString();
+  debugPrint(mainLine);
+  if (stackTrace != null) {
+    debugPrint(stackTrace.toString());
+  }
+  if (Config.enableRemoteLogging && kDebugMode) {
+    final payload = stackTrace != null ? '$mainLine ${stackTrace.toString()}' : mainLine;
+    unawaited(_postDbgToServerLog(payload));
+  }
+}
+
 Future<void> _postDbgToServerLog(String message) async {
   try {
     final base = Config.apiUrl.replaceAll(RegExp(r'/+$'), '');

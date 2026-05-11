@@ -18,10 +18,10 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         
-        <!-- AdMob App ID - Required for Google Mobile Ads SDK -->
+        <!-- AdMob App ID (application id, not ad unit). Override via android/local.properties: admob.application_id=... -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="${ADMOB_APPLICATION_ID}"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

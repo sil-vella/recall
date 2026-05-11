@@ -405,6 +405,14 @@ class Config:
         "google_play_service_account_file", "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", ""
     )
 
+    # AdMob rewarded claim (Flask /userauth/admob/claim-rewarded-ad; client after RewardedAd earned)
+    ADMOB_REWARDED_COINS_PER_CLAIM = int(
+        get_file_first_config_value("admob_rewarded_coins_per_claim", "ADMOB_REWARDED_COINS_PER_CLAIM", "25")
+    )
+    ADMOB_REWARDED_DAILY_CAP = int(
+        get_file_first_config_value("admob_rewarded_daily_cap", "ADMOB_REWARDED_DAILY_CAP", "20")
+    )
+
     # JWT Configuration
     JWT_SECRET_KEY = get_sensitive_config_value("flask-app/app", "secret_key", "jwt_secret_key", "JWT_SECRET_KEY", "your-super-secret-key-change-in-production")
     JWT_ACCESS_TOKEN_EXPIRES = int(get_file_first_config_value("jwt_access_token_expires", "JWT_ACCESS_TOKEN_EXPIRES", "3600"))  # 1 hour in seconds

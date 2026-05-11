@@ -8,113 +8,135 @@ import '../../../../core/managers/app_manager.dart';
 import '../../../../core/managers/hooks_manager.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../utils/consts/config.dart';
+import '../../../../utils/dbg.dart';
+import '../ad_experience_policy.dart';
 
+/// Loads banner units via hooks and displays the same [BannerAd] instance with [AdWidget].
 class BannerAdModule extends ModuleBase {
-  final Map<String, BannerAd> _banners = {};
-  final Map<String, bool> _adLoaded = {};
-  late HooksManager _hooksManager;
-
   BannerAdModule() : super('admobs_banner_ad_module', dependencies: []);
+
+  final Map<String, BannerAd?> _bannerByUnitId = <String, BannerAd?>{};
+  final Set<String> _loadsInFlight = <String>{};
+  final ValueNotifier<int> _frameTick = ValueNotifier<int>(0);
+
+  void _notifyFrame() => _frameTick.value++;
 
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
 
     final appManager = Provider.of<AppManager>(context, listen: false);
-    _hooksManager = appManager.hooksManager;
-
-    _registerBannerCallbacks();
+    _registerBannerCallbacks(appManager.hooksManager);
   }
 
-  void _registerBannerCallbacks() {
-    _hooksManager.registerHookWithData('top_banner_bar_loaded', (data) {
+  void _registerBannerCallbacks(HooksManager hooksManager) {
+    hooksManager.registerHookWithData('top_banner_bar_loaded', (data) {
       loadBannerAd(Config.admobsTopBanner);
     }, priority: 10);
 
-    _hooksManager.registerHookWithData('bottom_banner_bar_loaded', (data) {
+    hooksManager.registerHookWithData('bottom_banner_bar_loaded', (data) {
       if (kIsWeb) return;
       loadBannerAd(Config.admobsBottomBanner);
     }, priority: 10);
   }
 
+  /// Preloads a banner for [adUnitId] (native only). Idempotent when already loaded.
   Future<void> loadBannerAd(String adUnitId) async {
-    if (kIsWeb || adUnitId.trim().isEmpty) {
+    if (kIsWeb) {
+      dbgAdMob('banner loadBannerAd skip: web');
       return;
     }
-    if (_adLoaded[adUnitId] == true) {
+    if (adUnitId.trim().isEmpty) {
+      dbgAdMob('banner loadBannerAd skip: empty adUnitId');
       return;
     }
+    if (!AdExperiencePolicy.showMonetizedAds) {
+      dbgAdMob(
+        'banner loadBannerAd skip: monetized ads off (${AdExperiencePolicy.monetizedAdsDebugLabel()})',
+      );
+      return;
+    }
+    if (_bannerByUnitId[adUnitId] != null || _loadsInFlight.contains(adUnitId)) {
+      dbgAdMob(
+        'banner loadBannerAd skip: already loaded or in flight (inFlight=${_loadsInFlight.contains(adUnitId)})',
+      );
+      return;
+    }
+    _loadsInFlight.add(adUnitId);
+    dbgAdMob('banner load start unitId=$adUnitId');
 
     final bannerAd = BannerAd(
       adUnitId: adUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdLoaded: (_) {
-          _adLoaded[adUnitId] = true;
+        onAdLoaded: (Ad ad) {
+          final b = ad as BannerAd;
+          dbgAdMob('banner onAdLoaded unitId=$adUnitId size=${b.size.width}x${b.size.height}');
+          _bannerByUnitId[adUnitId] = b;
+          _notifyFrame();
         },
         onAdFailedToLoad: (Ad ad, LoadAdError error) {
+          dbgAdMob(
+            'banner onAdFailedToLoad unitId=$adUnitId code=${error.code} domain=${error.domain} message=${error.message}',
+          );
           ad.dispose();
-          _adLoaded[adUnitId] = false;
+          _bannerByUnitId.remove(adUnitId);
+          _notifyFrame();
         },
       ),
     );
 
-    await bannerAd.load();
-    _banners[adUnitId] = bannerAd;
+    try {
+      await bannerAd.load();
+      dbgAdMob('banner load() completed unitId=$adUnitId');
+    } finally {
+      _loadsInFlight.remove(adUnitId);
+    }
   }
 
-  Widget getBannerWidget(BuildContext context, String adUnitId) {
-    if (kIsWeb || adUnitId.trim().isEmpty || _adLoaded[adUnitId] != true) {
+  Widget _slotFor(BuildContext context, String adUnitId) {
+    if (kIsWeb || adUnitId.trim().isEmpty || !AdExperiencePolicy.showMonetizedAds) {
       return const SizedBox.shrink();
     }
-
-    final bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {},
-        onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          ad.dispose();
-        },
-      ),
-    );
-
-    bannerAd.load();
-
-    return Container(
-      key: ValueKey('banner_ad_${DateTime.now().millisecondsSinceEpoch}'),
-      alignment: Alignment.center,
-      width: bannerAd.size.width.toDouble(),
-      height: bannerAd.size.height.toDouble(),
-      child: AdWidget(ad: bannerAd),
+    return ValueListenableBuilder<int>(
+      valueListenable: _frameTick,
+      builder: (_, __, ___) {
+        final ad = _bannerByUnitId[adUnitId];
+        if (ad == null) {
+          return const SizedBox.shrink();
+        }
+        return SizedBox(
+          width: ad.size.width.toDouble(),
+          height: ad.size.height.toDouble(),
+          child: AdWidget(ad: ad),
+        );
+      },
     );
   }
 
   Widget getTopBannerWidget(BuildContext context) {
-    return getBannerWidget(context, Config.admobsTopBanner);
+    return _slotFor(context, Config.admobsTopBanner);
   }
 
   Widget getBottomBannerWidget(BuildContext context) {
-    return getBannerWidget(context, Config.admobsBottomBanner);
+    return _slotFor(context, Config.admobsBottomBanner);
   }
 
   void disposeBannerAd(String adUnitId) {
-    if (_banners.containsKey(adUnitId)) {
-      _banners[adUnitId]?.dispose();
-      _banners.remove(adUnitId);
-      _adLoaded.remove(adUnitId);
-    }
+    final ad = _bannerByUnitId.remove(adUnitId);
+    ad?.dispose();
+    _notifyFrame();
   }
 
   @override
   void dispose() {
-    for (final ad in _banners.values) {
-      ad.dispose();
+    _loadsInFlight.clear();
+    for (final ad in _bannerByUnitId.values) {
+      ad?.dispose();
     }
-    _banners.clear();
-    _adLoaded.clear();
+    _bannerByUnitId.clear();
+    _frameTick.dispose();
     super.dispose();
   }
 }

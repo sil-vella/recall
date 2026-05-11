@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/managers/hooks_manager.dart';
+import '../../utils/consts/config.dart';
+import '../../utils/dbg.dart';
+import '../admobs/ad_experience_policy.dart';
 import 'ad_registry.dart';
 import 'route_path_utils.dart';
-
-/// enable-logging-switch.mdc — set false after debugging.
 
 /// Fires [switch_screen_ad] on real screen transitions only — not dialogs, sheets, or
 /// other [PopupRoute]s. Those use [ModalRoute] branches that are not [PageRoute].
@@ -26,30 +27,39 @@ class AdsSwitchScreenNavigatorObserver extends NavigatorObserver {
   }
 
   void _maybeFire(Route<dynamic> route) {
+    if (Config.admobsInterstitial01.trim().isEmpty) {
+      return;
+    }
+    if (!AdExperiencePolicy.showMonetizedAds) {
+      dbgAdMob(
+        'navObserver _maybeFire skip: ads off (${AdExperiencePolicy.monetizedAdsDebugLabel()})',
+      );
+      return;
+    }
     if (route is! PageRoute) {
-      
+      dbgAdMob('navObserver _maybeFire skip: not PageRoute (${route.runtimeType})');
       return;
     }
     final ctx = route.navigator?.context;
     if (ctx == null) {
-      
+      dbgAdMob('navObserver _maybeFire skip: no navigator context');
       return;
     }
     final cfg = AdRegistry.instance.typeById('switch_screen');
     final excludes = cfg?.excludeFromScreenChangeCount ?? const <String>[];
     if (excludes.isNotEmpty &&
         routeDestinationMatchesExcludeList(route, excludes)) {
-      
+      dbgAdMob('navObserver _maybeFire skip: route excluded from count');
       return;
     }
     final need = _threshold();
     _screenChangeCount++;
     if (_screenChangeCount < need) {
-      
+      dbgAdMob('navObserver screen change $_screenChangeCount/$need (no hook yet)');
       return;
     }
     _screenChangeCount = 0;
-    
+    dbgAdMob('navObserver firing switch_screen_ad hook');
     HooksManager().triggerHookWithData('switch_screen_ad', {
       'context': ctx,
       'timestamp': DateTime.now().toIso8601String(),

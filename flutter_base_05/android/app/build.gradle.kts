@@ -34,6 +34,16 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        val localProps = Properties()
+        val localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) {
+            localPropsFile.inputStream().use { localProps.load(it) }
+        }
+        val admobAppId = (localProps.getProperty("admob.application_id") ?: "").trim().ifEmpty {
+            "ca-app-pub-3940256099942544~3347511713"
+        }
+        manifestPlaceholders["ADMOB_APPLICATION_ID"] = admobAppId
     }
 
     // Load keystore properties for release signing

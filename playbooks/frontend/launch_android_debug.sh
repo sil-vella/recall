@@ -74,10 +74,7 @@ flutter run \
     --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
     --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
     --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-    --dart-define=ADMOBS_TOP_BANNER01=ca-app-pub-3940256099942544/9214589741 \
-    --dart-define=ADMOBS_BOTTOM_BANNER01=ca-app-pub-3940256099942544/9214589741 \
-    --dart-define=ADMOBS_INTERSTITIAL01=ca-app-pub-3940256099942544/1033173712 \
-    --dart-define=ADMOBS_REWARDED01=ca-app-pub-3940256099942544/5224354917 \
+    --dart-define=ADMOBS_BOTTOM_BANNER01=ca-app-pub-6524100109992126/3612268528 \
     --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_51MXUtTADcEzB4rlRqLVPRhD0Ti3SRZGyTEQ1crO6YoeGyEfWYBgDxouHygPawog6kKTLVWhxP6DbK1MtBylX2Z6G00JTtIRdgZ \
     --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
     --dart-define=DEBUG_MODE=true \
@@ -85,6 +82,10 @@ flutter run \
 
 echo ""
 echo "✅ Flutter app session ended"
+echo ""
+echo "💡 AdMob: add to flutter_base_05/android/local.properties:"
+echo "   admob.application_id=ca-app-pub-6524100109992126~6470366151"
+echo "   (see Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md)"
 echo ""
 echo "💡 Tips for Google Sign-In debugging:"
 echo "   1. Check logs for 'LoginModule: Google Sign-In initialized'"

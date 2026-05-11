@@ -87,6 +87,31 @@ class Config {
     defaultValue: '',
   );
 
+  /// [RequestConfiguration.tagForChildDirectedTreatment]: -1 unspecified, 0 false, 1 true.
+  static const int admobTagForChildDirectedTreatment = int.fromEnvironment(
+    'ADMOB_TAG_FOR_CHILD_DIRECTED_TREATMENT',
+    defaultValue: -1,
+  );
+
+  /// [RequestConfiguration.tagForUnderAgeOfConsent]: -1 unspecified; 0/1 per Mobile Ads SDK docs.
+  static const int admobTagForUnderAgeOfConsentRequest = int.fromEnvironment(
+    'ADMOB_TAG_FOR_UNDER_AGE_OF_CONSENT_REQUEST',
+    defaultValue: -1,
+  );
+
+  /// UMP [ConsentRequestParameters.tagForUnderAgeOfConsent] when in EEA.
+  static const bool admobConsentTagUnderAgeOfConsent = bool.fromEnvironment(
+    'ADMOB_CONSENT_TAG_UNDER_AGE_OF_CONSENT',
+    defaultValue: false,
+  );
+
+  /// Verbose AdMob traces via [dbgAdMob] in `dbg.dart`.
+  /// Pass `--dart-define=ADMOB_DEBUG_LOGS=true` (works without [verboseDevLogs]).
+  static const bool admobDebugLogs = bool.fromEnvironment(
+    'ADMOB_DEBUG_LOGS',
+    defaultValue: false,
+  );
+
   // Remote logging toggle
   static const bool enableRemoteLogging = bool.fromEnvironment(
     'ENABLE_REMOTE_LOGGING',

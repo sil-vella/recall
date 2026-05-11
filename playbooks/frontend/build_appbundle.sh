@@ -109,6 +109,7 @@ echo "✅ Version bumped: $CURRENT_VERSION → $APP_VERSION"
 echo "📝 Updated APP_VERSION in $ENV_FILE"
 echo ""
 echo "📦 Building with APP_VERSION=$APP_VERSION"
+echo "ℹ️  AdMob: set ADMOBS_* in .env.prod; Android app id in flutter_base_05/android/local.properties (admob.application_id). See Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md"
 
 # Derive a numeric build number from APP_VERSION (e.g. 2.1.0 -> 20100)
 IFS='.' read -r APP_MAJOR APP_MINOR APP_PATCH <<< "$APP_VERSION"

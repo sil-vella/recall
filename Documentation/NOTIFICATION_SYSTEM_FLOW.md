@@ -1,260 +1,360 @@
-# Notification System — Complete Flow
+# Notification system — end-to-end flow (current)
 
-End-to-end flow: core registration, types, how modules create messages and register response handlers, and how the frontend shows and handles them.
+This document describes the **notification and inbox system as implemented today**: Python persistence and REST, Dart WebSocket relay, Flutter fetch/modals/hooks, types (`type` / `subtype`), and optional modal chrome (URL background). It is the single reference for how to create messages and how the client shows them.
 
----
-
-## 1. Core notification system (Python backend)
-
-### 1.1 Module registration
-
-- **Discovery**: `ModuleRegistry.get_modules()` scans `core/modules/` and loads each package. The folder `notification_module/` is discovered; its `__all__` exposes `NotificationMain`.
-- **Module key**: `notification_module`.
-- **Class**: `NotificationMain` (in `notification_main.py`) extends `BaseModule`.
-
-### 1.2 Core module initialization
-
-When the app starts, the module manager loads modules in dependency order. **NotificationMain.initialize(app_manager)**:
-
-1. Creates **NotificationService(app_manager)** and keeps a reference.
-2. Calls **set_app_manager(app_manager)** so routes can use JWT/DB.
-3. **Registers the API blueprint** (`notification_api`) on the Flask app.
-
-So the core owns:
-
-- **NotificationService** — in-process API for other modules to create notifications.
-- **REST API** — list messages, mark-read, single response endpoint.
-- **Response handler registry** — `_response_handlers`: `source -> callable(doc, action_identifier, user_id)`. For source `"core"`, the core itself handles action `"close"` (delete doc). For other sources, the core passes the full payload to the registered callable; modules dispatch by `doc["msg_id"]` and `action_identifier`.
-
-### 1.3 Predefined notification types (backend)
-
-Defined in **notification_service.py**:
-
-| Type       | Constant                    | Purpose |
-|-----------|-----------------------------|---------|
-| `instant` | NOTIFICATION_TYPE_INSTANT   | Shown as modal immediately; frontend polls and shows unread. |
-| `admin`   | NOTIFICATION_TYPE_ADMIN     | Admin-style; core behaviour TBD. |
-| `advert`  | NOTIFICATION_TYPE_ADVERT    | Advert-style; core behaviour TBD. |
-
-**NOTIFICATION_TYPES_PREDEFINED** = `("instant", "admin", "advert")`.  
-**NotificationService.create()** only accepts one of these; unknown types are rejected (or default to `instant` if type is empty).
-
-Types drive **backend** semantics only. The frontend decides how to display based on `type` (e.g. `instant` → modal).
+**Related (planned, not implemented in code yet):** batching inbox rows into `GET /userauth/dutch/get-user-stats` — see [Documentation/00_Active_plans/notifications-init-user-stats-batch.md](00_Active_plans/notifications-init-user-stats-batch.md).
 
 ---
 
-## 2. How modules register and use the core
+## 1. Architecture overview
 
-### 2.1 Getting the notification service
+```mermaid
+flowchart TB
+  subgraph py [Python Flask]
+    NS[NotificationService.create]
+    Mongo[(MongoDB notifications)]
+    NS --> Mongo
+    NS --> NotifyDart[notify_dart_inbox_changed_async]
+  end
+  NotifyDart -->|HTTP POST X-Service-Key| DartNotify["/service/notify-inbox"]
+  subgraph dart [Dart game WebSocket server]
+    DartNotify --> EmitInbox["emit inbox_changed per session"]
+    GameCode[Game / room code] --> WsInstant["sendInstantNotification → ws_instant_notification"]
+    GameCode --> Restart["emit restart_invite → Flutter builds instant_ws"]
+  end
+  EmitInbox --> FlutterWS[socket_io_client]
+  WsInstant --> FlutterWS
+  Restart --> FlutterWS
+  FlutterWS --> NM[NotificationsModule]
+  NM --> REST["GET /userauth/notifications/messages"]
+  REST --> Mongo
+  NM --> BaseScreen[BaseScreenState checks and modals]
+  BaseScreen --> Modal[InstantMessageModal]
+```
 
-Modules do **not** get a global singleton. They get the core **notification module** from the app, then the service:
+| Path | Purpose |
+|------|---------|
+| **DB + REST** | Authoritative inbox: insert in Mongo → client lists and marks read via JWT APIs. |
+| **Python → Dart HTTP** | After each successful insert, `notify_dart_inbox_changed_async(user_id)` POSTs to Dart `POST /service/notify-inbox` so **connected** clients get WebSocket `inbox_changed` and refresh from REST without waiting for a poll. |
+| **Dart `ws_instant_notification`** | Ephemeral payload to a **session** (not stored in `notifications` by this path alone). Flutter queues it as `instant_ws` and shows the same modal widget. |
+| **Dart `restart_invite`** | Flutter synthesizes an `instant_ws` row (rematch invite) in `WSEventHandler.handleRestartInvite`. |
+
+---
+
+## 2. Python: core module and storage
+
+### 2.1 Module and service
+
+- **Package:** `python_base_04/core/modules/notification_module/`
+- **Class:** `NotificationMain` — registers Flask blueprint, holds `NotificationService`, exposes `get_notification_service()` and `register_response_handler(source, handler)`.
+- **Collection:** `notifications` (constant `NOTIFICATIONS_COLLECTION`).
+
+### 2.2 Predefined `type` values (enforced)
+
+Defined in `notification_service.py`. **`create()` rejects unknown types** (empty string defaults to `instant`).
+
+| `type` | Constant | Meaning |
+|--------|----------|---------|
+| `instant` | `NOTIFICATION_TYPE_INSTANT` | Inbox row that the Flutter app may show as an **app-wide modal** when unread (see §6). |
+| `admin` | `NOTIFICATION_TYPE_ADMIN` | Inbox row; **no** app-wide auto-modal from API polling — **list + tap-to-modal** only. |
+| `advert` | `NOTIFICATION_TYPE_ADVERT` | Same as `admin` for modal behaviour: **list + tap-to-modal** only. |
+
+### 2.3 `subtype`, `source`, `msg_id`
+
+| Field | Required | Role |
+|-------|----------|------|
+| **source** | Effectively yes for responses | Identifies which module registered `register_response_handler(source, ...)`. Use `"core"` for built-in close/delete. |
+| **subtype** | No | Free-form module label (e.g. `dutch_match_invite`). Shown on Flutter **notifications list** as secondary text. **Does not** switch modal layout — same `InstantMessageModal` for all. |
+| **msg_id** | No (but needed for multi-action dispatch) | Logical id; module dispatcher maps **`msg_id` + `action_identifier`** to Python handlers. Distinct from Mongo **`_id`** (returned as `id` to the client as `message_id` in POST body). |
+
+### 2.4 `data` dict (optional)
+
+Opaque JSON object stored and returned to the client. Used for:
+
+- Game context: `match_id`, `room_id`, etc.
+- **Modal backdrop (Flutter only):** if you want an optional image behind the dialog:
+  - `modal_background_enabled` (bool, or string `"true"` / `"1"` / `"yes"`; legacy key `modal_background_image` also accepted)
+  - `modal_background_url` or `background_image_url` — HTTPS URL, `CachedNetworkImage`
+
+Default: **no** backdrop unless `modal_background_enabled` is true **and** a URL is present.
+
+### 2.5 `responses` (optional)
+
+List of `{"label": "...", "action_identifier": "..."}` (or `"action"` instead of `action_identifier`). Rendered as modal buttons. Client POSTs **`action_identifier` in lowercase** (`notification_routes.handle_response`).
+
+### 2.6 After insert
+
+On successful insert, **`notify_dart_inbox_changed_async(user_id)`** runs in a daemon thread: `POST` to `Config.DART_BACKEND_NOTIFY_URL` + `/service/notify-inbox`, JSON `{"user_id": "<id>"}`, header `X-Service-Key: Config.DART_BACKEND_SERVICE_KEY`.
+
+---
+
+## 3. Python: HTTP API (JWT)
+
+| Method | Path | Body / query | Role |
+|--------|------|----------------|------|
+| GET | `/userauth/notifications/messages` | `limit` (≤100), `offset`, `unread_only` | List rows for current user. |
+| POST | `/userauth/notifications/mark-read` | `{ "message_ids": ["..."] }` | Mark read (cap 100 ids). |
+| POST | `/userauth/notifications/response` | `{ "message_id", "action_identifier" }` | Run core or module handler; on `success: true`, marks read. |
+
+**Core built-in:** `source == "core"` and `action_identifier == "close"` → delete document, no module handler.
+
+---
+
+## 4. Python: examples by `type` and `subtype`
+
+### 4.1 `type: instant` — match invite (`dutch_game`)
+
+Constants in `dutch_notifications.py`:
+
+- `DUTCH_GAME_SOURCE = "dutch_game"`
+- `SUBTYPE_MATCH_INVITE = "dutch_match_invite"`
+- `MSG_ID_MATCH_INVITE = "dutch_game_invite_to_match_001"`
+- `MATCH_INVITE_RESPONSES` → Join / Decline → `join`, `decline`
+
+**Create (preferred helper):**
+
+```python
+from core.modules.dutch_game import dutch_notifications
+
+nid = dutch_notifications.create_notification(
+    app_manager,
+    user_id=user_id,
+    subtype=dutch_notifications.SUBTYPE_MATCH_INVITE,
+    title="Match invite",
+    body="You're invited to a match.",
+    msg_id=dutch_notifications.MSG_ID_MATCH_INVITE,
+    data={"match_id": match_id, "room_id": room_id},
+    responses=dutch_notifications.MATCH_INVITE_RESPONSES,
+    notification_type="instant",  # default
+)
+```
+
+**Register handlers** (once at Dutch init — `api_endpoints.register_notification_handlers`):
+
+- `register_message_handlers(MSG_ID_MATCH_INVITE, {"accept": ..., "decline": ..., "join": ...})`
+- `notification_module.register_response_handler("dutch_game", _dutch_dispatch)`
+
+**Note:** Buttons use `join` / `decline`; `accept` is registered for the same `msg_id` if you add a button with `action_identifier` `accept`. All keys are matched **after** the API lowercases the client’s `action_identifier`.
+
+### 4.2 `type: instant` — with optional modal background image
+
+```python
+notif_service.create(
+    user_id=user_id,
+    source="my_module",
+    type="instant",
+    title="Season launch",
+    body="Tap below to open the hub.",
+    data={
+        "modal_background_enabled": True,
+        "modal_background_url": "https://cdn.example.com/promo/season_2.webp",
+        "deeplink": "/shop",
+    },
+    responses=[{"label": "Open", "action_identifier": "open_hub"}],
+    subtype="season_launch",
+)
+```
+
+Your module must **`register_response_handler("my_module", dispatch)`** and handle `action_identifier` `open_hub`.
+
+### 4.3 `type: admin` — list-first, optional modal on tap
+
+```python
+notif_service.create(
+    user_id=user_id,
+    source="core",  # or your module if you implement handlers
+    type="admin",
+    title="Maintenance",
+    body="Servers restart at 02:00 UTC.",
+    subtype="ops_maintenance",
+    responses=[{"label": "Close", "action_identifier": "close"}],  # only valid if source is "core" for close
+)
+```
+
+If `source` is not `"core"`, use your module’s `action_identifier` values and register a handler. **Auto app-wide modal** does **not** run for `admin` from the API list filter (see §6).
+
+### 4.4 `type: advert` — same client rules as `admin`
+
+```python
+notif_service.create(
+    user_id=user_id,
+    source="dutch_game",
+    type="advert",
+    title="New deck skins",
+    body="Browse the shop for limited skins.",
+    subtype="shop_promo_deck",
+    data={"sku": "deck_gold"},
+    responses=[],  # OK-only modal when opened from list
+)
+```
+
+### 4.5 `source: core` — dismiss deletes row
+
+```python
+notif_service.create(
+    user_id=user_id,
+    source="core",
+    type="admin",
+    title="Tip",
+    body="You can change sound in Settings.",
+    responses=[{"label": "Close", "action_identifier": "close"}],
+)
+```
+
+User taps Close → core deletes the document (no `register_response_handler` needed for that action).
+
+### 4.6 Raw `NotificationService.create` (any module)
 
 ```python
 notification_module = app_manager.module_manager.get_module("notification_module")
-notif_service = notification_module.get_notification_service()
+svc = notification_module.get_notification_service()
+svc.create(
+    user_id=target_user_id,
+    source="tournaments",
+    type="instant",
+    title="Bracket ready",
+    body="Your next match is scheduled.",
+    msg_id="tournament_bracket_v1",
+    subtype="bracket_ready",
+    data={"bracket_id": "b42"},
+    responses=[{"label": "View", "action_identifier": "view"}],
+)
 ```
 
-So: **AppManager → ModuleManager → notification_module (NotificationMain) → get_notification_service() → NotificationService**.
+Then **`register_response_handler("tournaments", my_dispatch)`** and in `my_dispatch` branch on `doc["msg_id"]` and `action_identifier`.
 
-### 2.2 Creating messages (modules “register” messages by creating them)
+### 4.7 `subtype` naming
 
-Modules create notifications by calling **NotificationService.create(...)**:
+There is **no central enum** of subtypes except Dutch helpers (`SUBTYPE_MATCH_INVITE`, …). **Convention:** `snake_case`, module-scoped prefix (e.g. `dutch_match_invite`, `shop_promo_deck`). Subtypes are for **display**, **analytics**, and **your** dispatch logic — not for Flutter modal skins.
 
-- **user_id** — target user (ObjectId string).
-- **source** — module identifier, e.g. `"dutch_game"`, or `"core"` for core-built-in (e.g. generic Close).
-- **type** — one of the core predefined types (`instant`, `admin`, `advert`).
-- **title**, **body** — text.
-- **msg_id** — optional logical message id (e.g. `"dutch_game_invite_to_match_001"`). Stored in the doc; returned in list/response. Modules use the same msg_id when registering response handlers so they can map **msg_id → action_identifier → handler**.
-- **data** — optional dict (e.g. `room_id`, `match_id`).
-- **responses** — optional list of `{"label": "...", "action_identifier": "..."}`. For source `"core"`, use `{"label": "Close", "action_identifier": "close"}` to get core’s built-in close (delete doc).
-- **subtype** — optional module-specific name (e.g. `dutch_room_join`, `dutch_match_invite`).
+---
 
-The service inserts a document into the **notifications** collection (MongoDB). The document has both **\_id** (DB id, used as `message_id` in API) and **msg_id** (logical id for handler mapping).
+## 5. Dart WebSocket server
 
-### 2.3 Core-built-in: source `"core"` and action `"close"`
+| Event | Origin | Client expectation |
+|-------|--------|--------------------|
+| `inbox_changed` | `notifyInboxChangedForUser` after Python HTTP notify | Flutter should **refresh inbox** from REST (see §6). |
+| `ws_instant_notification` | `WebSocketServer.sendInstantNotification(sessionId, payload)` | Payload map: e.g. `title`, `body`, `data`, `responses`, optional `id`, `subtype`. Client sets `type` to `instant_ws` and shows modal. |
+| `restart_invite` | Game layer | Flutter **`handleRestartInvite`** builds a synthetic `instant_ws` message (rematch Accept/Decline) and queues it like WS instants. |
 
-- **CORE_SOURCE** = `"core"`, **CORE_ACTION_CLOSE** = `"close"` (in `notification_routes.py`).
-- If a notification has **source** `"core"` and the user taps the button with **action_identifier** `"close"`, the core **deletes** the document from the DB and returns `{"success": True, "message": "Closed"}`. No module handler is called.
-- To create such a notification, use `source="core"` and `responses=[{"label": "Close", "action_identifier": "close"}]` (and optionally `msg_id` for display only).
+---
 
-### 2.4 Registering response handlers (other sources: full payload to module)
+## 6. Flutter: client types and one modal
 
-For **other sources**, the core only knows the **source**. When the client POSTs **message_id** and **action_identifier** to `/userauth/notifications/response`:
+### 6.1 Single modal widget
 
-1. Core loads the notification by **message_id** (DB `_id`), checks ownership.
-2. Reads **source** from the document.
-3. If **source** is **"core"** and **action_identifier** is **"close"** → core deletes doc and returns success (see above).
-4. Otherwise: looks up **one callable** per source: `handler = _response_handlers[source]`, then calls **handler(normalized_doc, action_identifier, user_id)**. The module’s handler receives the **full payload** (doc includes **msg_id**, **id**, **data**, etc.) and must dispatch by **msg_id** and **action_identifier** to its own handlers.
+**`InstantMessageModal`** (`lib/core/widgets/instant_message_modal.dart`) is the only modal UI for these flows: title, body, optional response buttons, optional **URL background** (§6.4).
 
-So modules **register a single dispatch function** per source, and internally maintain **msg_id → { action_identifier → callable(doc, user_id) }**:
+**Flutter-side type strings:**
 
-```python
-# Module keeps: msg_id -> { action_identifier -> callable(doc, user_id) }
-_message_handlers = {}
+| Value | Constant | Origin |
+|-------|----------|--------|
+| `instant` | `kNotificationTypeInstant` | Mongo / GET messages |
+| `instant_ws` | `kNotificationTypeInstantWs` | Dart WS (`ws_instant_notification` or synthesized e.g. rematch) |
+| `instant_frontend_only` | `kNotificationTypeInstantFrontendOnly` | `showFrontendOnlyInstant` only |
 
-def register_message_handlers(msg_id: str, handlers: dict):
-    _message_handlers[msg_id] = { k: v for k, v in handlers.items() if k and callable(v) }
+### 6.2 Who shows what (summary)
 
-def _dutch_dispatch(doc, action_identifier: str, user_id: str):
-    msg_id = (doc.get("msg_id") or "").strip()
-    handlers = _message_handlers.get(msg_id)
-    if not handlers: return {"success": False, "error": "No handlers for msg_id"}
-    handler = handlers.get(action_identifier)
-    if not handler: return {"success": False, "error": "Unknown action"}
-    return handler(doc, user_id)
+| Source | App-wide auto-queue (`showUnreadInstantModals`) | Notifications list | Tap row → modal |
+|--------|--------------------------------------------------|--------------------|-----------------|
+| `instant` (DB), unread | Yes | Yes | Yes (`InstantMessageModal.show`) |
+| `instant_ws`, unread | Yes | Only if present in fetched list (WS-only may not be in DB) | N/A if not in list |
+| `admin`, `advert` | **No** | Yes | Yes |
+| `instant_frontend_only` | **No** (not from API) | **No** | N/A |
 
-# At init: register each msg_id’s handlers, then register the single dispatch with core
-register_message_handlers("dutch_game_invite_to_match_001", {"accept": ..., "decline": ..., "join": ...})
-notification_module.register_response_handler("dutch_game", _dutch_dispatch)
+**Auto-queue filter** (`showUnreadInstantModals`): `type` is `instant` or `instant_ws`, unread (`read_at` empty or `instant_ws`), and not already in `_shownIds`.
+
+### 6.3 When inbox is fetched and checked
+
+- **`NotificationsModule.fetchMessages`** → `GET /userauth/notifications/messages`.
+- **`BaseScreenState`** (`lib/core/00_base/screen_base.dart`):
+  - After first frame: registers `addPendingWsInstantListener`, `addInboxRefreshListener`, calls **`_checkAndShowInstantMessages()`**.
+  - **`inbox_changed`**: clears `notifications.lastFetchedAt` and calls **`_checkAndShowInstantMessages()`** so the next check **always** refetches (bypasses **15s** throttle between fetches).
+  - **`_checkAndShowInstantMessages`**: drains **`takePendingWsInstants()`** (WS / synthetic) → **`InstantMessageModal.show`**; then if throttle allows, **`fetchMessages()`** (default unread-only) → **`showUnreadInstantModals`** with API **`submitInstantNotificationResponse`** for buttons.
+- **Rematch / coin modals:** `_pendingWsOnSendResponse` routes `data.respond_via == rematch_ws` to **`submitRematchInviteResponse`** (WebSocket emit, not REST response endpoint).
+
+### 6.4 Optional modal background (URL)
+
+Read from **`message['data']`** unless overridden by widget/`show()` parameters:
+
+- Enable: `modal_background_enabled` or legacy `modal_background_image` (see `modalBackgroundEnabledFromMessage` in `instant_message_modal.dart`).
+- URL: `modal_background_url` or `background_image_url` (`modalBackgroundUrlFromMessage`).
+
+**Frontend-only example:**
+
+```dart
+await InstantMessageModal.showFrontendOnlyInstant(
+  context,
+  title: 'Bonus',
+  body: 'You unlocked a cosmetic.',
+  modalBackgroundEnabled: true,
+  modalBackgroundUrl: 'https://cdn.example.com/bg.webp',
+);
 ```
 
-When **creating** notifications, the module passes the same **msg_id** (e.g. `MSG_ID_MATCH_INVITE = "dutch_game_invite_to_match_001"`) so the dispatch can find the right handler.
+**Or** pass the same keys inside `data` when building a message manually.
+
+### 6.5 REST response + hook
+
+**`submitInstantNotificationResponse`** (`instant_notification_response.dart`) POSTs `/userauth/notifications/response`, then **`HooksManager.triggerHookWithData('instant_message_response_success', { context, msg_id, response, message })`**. Dutch and other modules listen and branch on **`msg_id`**.
 
 ---
 
-## 3. Backend API flow (summary)
+## 7. Flutter: API surface (reference)
 
-| Step | Who | What |
-|------|-----|------|
-| 1 | Module | Gets `NotificationService` via `get_module("notification_module").get_notification_service()`. |
-| 2 | Module | Calls `notif_service.create(user_id, source, type, title, body, data, responses, subtype)` → doc inserted into `notifications` collection. |
-| 3 | Client | GET `/userauth/notifications/messages?limit=&offset=&unread_only=` (JWT) → list of notifications for current user. |
-| 4 | Client | POST `/userauth/notifications/mark-read` with `message_ids` to mark read. |
-| 5 | Client | On response button tap: POST `/userauth/notifications/response` with `message_id`, `action_identifier`. |
-| 6 | Core | Loads doc by message_id, checks user_id. If source is `"core"` and action is `"close"`: delete doc, return success. Else: call `_response_handlers[source](doc, action_identifier, user_id)`; module dispatches by doc["msg_id"] and action_identifier; on success core marks read. |
+| API | Role |
+|-----|------|
+| `NotificationsModule.fetchMessages` | GET messages; updates `StateManager` `notifications` (`messages`, `unreadCount`, `lastFetchedAt`). |
+| `NotificationsModule.markAsRead` | POST mark-read. |
+| `NotificationsModule.addPendingWsInstant` / `takePendingWsInstants` | WS / synthetic instant queue. |
+| `InstantMessageModal.show` | Single modal from a full `message` map. |
+| `InstantMessageModal.showUnreadInstantModals` | Queue unread `instant` / `instant_ws` modals. |
+| `InstantMessageModal.showFrontendOnlyInstant` | Local-only instant. |
+| `submitInstantNotificationResponse` | POST response + hook. |
+| `submitRematchInviteResponse` | WS rematch accept/decline path. |
 
----
-
-## 4. Frontend: notification types and display
-
-### 4.0 Python backend types → how the frontend handles and shows them
-
-The Python backend only creates notifications with type **`instant`**, **`admin`**, or **`advert`** (see notification_service.py). The frontend does **not** treat all three the same:
-
-| Python type | Where it comes from | App-wide modal (popup) | Notifications list screen |
-|-------------|---------------------|------------------------|----------------------------|
-| **instant** | GET `/userauth/notifications/messages` (API) | **Yes.** When the message is unread, BaseScreen shows it in the **instant modal** (polling + throttle). User can tap response buttons; client calls POST `/userauth/notifications/response`. On close or response success, client marks read via API. | **Yes.** Same as every message: card with title, body, subtype, read state, date. Tap to mark read. |
-| **admin** | Same API. | **No.** The frontend only shows a modal for type `instant` or `instant_ws`. Admin messages are **list-only**. | **Yes.** Shown in the list with the same card UI (title, body, subtype, read state). No special styling or section for “admin”. |
-| **advert** | Same API. | **No.** List-only, like admin. | **Yes.** Same card in the list. No special styling for “advert”. |
-
-So in practice:
-
-- **instant** = “show as popup when unread” + “show in list”. Only this type triggers the app-wide instant modal from API messages.
-- **admin** and **advert** = “show in list only”. They appear in the Notifications screen like any other message; the list does not branch on `type` (no different layout or icon per type). If you want different UI for admin/advert later (e.g. different icon or section), the frontend would need to branch on `m['type']` in the list builder.
-
-### 4.1 Types (Flutter)
-
-Defined in **instant_message_modal.dart** (and used by NotificationsModule / BaseScreen):
-
-| Type constant | Value | Origin | Behaviour |
-|---------------|--------|--------|-----------|
-| kNotificationTypeInstant | `instant` | Python DB (NotificationService) | Fetched via GET messages; shown as modal when unread; mark-read and response via API. |
-| kNotificationTypeInstantWs | `instant_ws` | Dart backend WebSocket event | Pushed by Dart backend via event `ws_instant_notification`; appended to pending list; shown as modal once; no API mark-read/response. |
-| kNotificationTypeInstantFrontendOnly | `instant_frontend_only` | Flutter only | **Uses the same instant modal** as the other types. These messages are **not** fetched from the API; frontend modules call `InstantMessageModal.showFrontendOnlyInstant(context, ...)` directly when they need to show an instant modal (title, body, optional Close + Action). No backend, no list. |
-
-### 4.2 Where notifications are fetched
-
-- **From DB (Python API)**: **NotificationsModule.fetchMessages()** → GET `/userauth/notifications/messages` (ConnectionsApiModule). Used by the Notifications screen (list) and by BaseScreen for instant modals (polling + throttle).
-- **From WebSocket (Dart backend)**: Listener for event **`ws_instant_notification`** → payload pushed to **NotificationsModule** “pending WS instants” list; BaseScreen drains this list and shows each as a modal (no fetch from DB for these).
-
-### 4.3 Who shows modals and when
-
-- **BaseScreen** (every screen that extends it):
-  - On enter and every **kInstantNotificationPollSeconds** (20s) runs **\_checkAndShowInstantMessages()**.
-  - First: **takePendingWsInstants()** → show each with **InstantMessageModal.show()** (no API).
-  - Then: if throttle allows, **fetchMessages()** (or use cached **lastMessages**); **InstantMessageModal.showUnreadInstantModals()** for messages with type `instant` or `instant_ws` that are unread and not already in _shownIds.
-- **Notifications screen**: On init and pull-to-refresh calls **fetchMessages(unreadOnly: false)** and shows the list (no modal).
-
-### 4.4 Response button flow (DB-backed instant)
-
-1. User taps a response button on an instant modal (message from DB).
-2. **InstantMessageModal** calls **onSendResponse(messageId, actionIdentifier)** provided by BaseScreen.
-3. BaseScreen sends POST `/userauth/notifications/response` with `message_id`, `action_identifier`.
-4. On success, BaseScreen marks read locally and triggers **HooksManager.triggerHookWithData('instant_message_response_success', { context, msg_id, response, message })**. The hook payload uses **msg_id** (logical message id from the notification) so modules can map **msg_id → handler** on the frontend, same idea as backend.
-5. **DutchEventManager** (or any module) registers on **instant_message_response_success** and routes by **data['msg_id']** to the right handler (e.g. `dutch_game_invite_to_match_001` for match-invite actions).
+**List UI:** `NotificationsScreen` — shows `subtype` under title; tap opens **`InstantMessageModal.show`** for any row.
 
 ---
 
-## 5. Dart backend: ws_instant_notification (instant_ws)
+## 8. User preference (push, not wired to FCM yet)
 
-- **Event name**: `ws_instant_notification` (constant **kWsInstantNotificationEvent** in **websocket_server.dart**).
-- **Sending**: Any code that has **WebSocketServer** and a **sessionId** can call **server.sendInstantNotification(sessionId, payload)**. Payload is a map (e.g. `title`, `body`, `data`, `responses`, `id`, `subtype`); the server sets **event: 'ws_instant_notification'** and sends it to that session.
-- **Frontend**: **WSEventListener** registers a listener for `ws_instant_notification`; **WSEventHandler.handleWsInstantNotification(data)** pushes the payload into **NotificationsModule.addPendingWsInstant(payload)**. BaseScreen’s **\_checkAndShowInstantMessages()** drains **takePendingWsInstants()** and shows each with **InstantMessageModal.show()** (no mark-read or response API). So **instant_ws** is “show once as modal”; any custom behaviour for buttons would have to be implemented on the client or via another channel.
+User documents may include **`notifications.push`** (default `True` in several registration paths in `user_management_module`). **No Flutter FCM consumer** uses it today; reserved for future push work ([Documentation/00_Active_plans/mobile-push-notifications-implementation.md](00_Active_plans/mobile-push-notifications-implementation.md)).
 
 ---
 
-## 6. Frontend-only instant (instant_frontend_only)
+## 9. File reference (canonical paths)
 
-- **Same instant modal**: `instant_frontend_only` uses the same **InstantMessageModal** as `instant` and `instant_ws`; only the source of the message differs.
-- **Not from API**: These messages are **not** fetched from the API. Frontend modules call **InstantMessageModal.showFrontendOnlyInstant(context, …)** directly whenever they need to show an instant modal (e.g. a local confirmation or notice).
-- **InstantMessageModal.showFrontendOnlyInstant(context, title, body, data?, actionLabel?, actionIdentifier?, onAction?)** builds a message with type **instant_frontend_only**, default responses **Close** and optionally **Action**, and shows it via the same modal. No backend call. If **onAction** is set, the optional button invokes it and the modal closes.
-
----
-
-## 7. Dutch game module example (end-to-end)
-
-### 7.1 Registration (init)
-
-- **DutchGameMain.initialize()** gets **notification_module** and calls **api_endpoints.register_notification_handlers(notification_module)**.
-- **register_notification_handlers** calls **register_message_handlers(MSG_ID_MATCH_INVITE, { accept, decline, join })** then **notification_module.register_response_handler("dutch_game", _dutch_dispatch)**. The core only sees one callable per source; _dutch_dispatch looks up doc["msg_id"] and action_identifier to run the right handler.
-
-### 7.2 Creating notifications
-
-- **dutch_notifications.create_notification(..., msg_id=..., ...)** gets the notification service and calls **notif_service.create(..., source=DUTCH_GAME_SOURCE, msg_id=msg_id, ...)**. **msg_id** is a logical id (e.g. **MSG_ID_MATCH_INVITE**) that matches the keys used in **register_message_handlers**. Subtypes and response lists (e.g. **MATCH_INVITE_RESPONSES**) define the buttons.
-
-### 7.3 Response handling (backend)
-
-- User taps “Join” on a room-ready notification → POST **/userauth/notifications/response** with that message’s id and **action_identifier: "join"**.
-- Core loads the doc, sees **source=dutch_game**, calls **_dutch_dispatch** which looks up **doc["msg_id"]** and **action_identifier** and runs the registered handler (e.g. **_dutch_handle_join**).
-- Client receives success; BaseScreen fires **instant_message_response_success** with **msg_id**, **response**, **message**, **context**. **DutchEventManager**’s routes by **msg_id** (e.g. `dutch_game_invite_to_match_001`) to run the right handler.
-
----
-
-## 8. File reference
-
-| Layer | File | Role |
+| Layer | Path | Role |
 |-------|------|------|
-| Python | core/modules/notification_module/notification_main.py | NotificationMain: init, blueprint, get_notification_service, register_response_handlers. |
-| Python | core/modules/notification_module/notification_service.py | NotificationService.create; NOTIFICATION_TYPES_PREDEFINED. |
-| Python | core/modules/notification_module/notification_routes.py | list_messages, mark_read, handle_response; CORE_SOURCE/CORE_ACTION_CLOSE; register_response_handler(storage: source -> callable). |
-| Python | core/modules/dutch_game/dutch_notifications.py | create_notification, DUTCH_GAME_SOURCE, SUBTYPE_MATCH_INVITE, MATCH_INVITE_RESPONSES. |
-| Python | core/modules/dutch_game/api_endpoints.py | register_message_handlers(MSG_ID_MATCH_INVITE, ...), _dutch_dispatch, _dutch_handle_accept/decline/join; register_notification_handlers; invite_players_to_match creates match-invite notifications. |
-| Python | core/modules/dutch_game/dutch_game_main.py | Gets notification_module, calls register_notification_handlers. |
-| Flutter | lib/modules/notifications_module/notifications_module.dart | fetchMessages, markAsRead, lastMessages, addPendingWsInstant, takePendingWsInstants. |
-| Flutter | lib/core/widgets/instant_message_modal.dart | Types; ResponseAction; show/showUnreadInstantModals/showFrontendOnlyInstant. |
-| Flutter | lib/core/00_base/screen_base.dart | _checkAndShowInstantMessages: drain WS pending, fetch, showUnreadInstantModals, onSendResponse → API + hook. |
-| Flutter | lib/core/managers/websockets/ws_event_listener.dart | Listener for ws_instant_notification. |
-| Flutter | lib/core/managers/websockets/ws_event_handler.dart | handleWsInstantNotification → NotificationsModule.addPendingWsInstant. |
-| Flutter | lib/modules/dutch_game/managers/dutch_event_manager.dart | instant_message_response_success hook → msg_id handlers. |
-| Dart backend | lib/server/websocket_server.dart | kWsInstantNotificationEvent, sendInstantNotification(sessionId, payload). |
+| Python | `python_base_04/core/modules/notification_module/notification_service.py` | `create`, type constants. |
+| Python | `python_base_04/core/modules/notification_module/notification_routes.py` | REST + `register_response_handler`. |
+| Python | `python_base_04/core/modules/notification_module/dart_inbox_notify.py` | `notify_dart_inbox_changed_async`. |
+| Python | `python_base_04/core/modules/dutch_game/dutch_notifications.py` | Dutch `create_notification` helper + subtype/msg_id constants. |
+| Python | `python_base_04/core/modules/dutch_game/api_endpoints.py` | `_dutch_dispatch`, `register_notification_handlers`, `invite_players_to_match`. |
+| Dart | `dart_bkend_base_01/lib/server/http_notify_handler.py` | `POST /service/notify-inbox`. |
+| Dart | `dart_bkend_base_01/lib/server/websocket_server.dart` | `sendInstantNotification`, `notifyInboxChangedForUser`. |
+| Flutter | `flutter_base_05/lib/modules/notifications_module/notifications_module.dart` | Fetch, state, WS pending queue. |
+| Flutter | `flutter_base_05/lib/core/widgets/instant_message_modal.dart` | Modal UI + types + optional URL background helpers. |
+| Flutter | `flutter_base_05/lib/core/widgets/instant_notification_response.dart` | POST response + rematch WS helpers. |
+| Flutter | `flutter_base_05/lib/core/00_base/screen_base.dart` | Inbox refresh listeners, `_checkAndShowInstantMessages`, modal wiring. |
+| Flutter | `flutter_base_05/lib/core/managers/websockets/ws_event_listener.dart` | Registers `ws_instant_notification`, `inbox_changed`, `restart_invite`. |
+| Flutter | `flutter_base_05/lib/core/managers/websockets/ws_event_handler.dart` | Handlers → `NotificationsModule`. |
+| Flutter | `flutter_base_05/lib/screens/notifications_screen/notifications_screen.dart` | Full list (`unread_only: false`), subtype line, tap → modal. |
+| Flutter | `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_manager.dart` | `instant_message_response_success` routing (by `msg_id`). |
 
 ---
 
-## 9. Summary diagram
+## 10. Quick decision table
 
-```
-[Module e.g. Dutch]
-       │
-       ├── get_module("notification_module") → get_notification_service()
-       │         → notif_service.create(user_id, source, type, title, body, data, responses, subtype)
-       │         → INSERT into notifications collection
-       │
-       └── register_response_handlers(source, { action_identifier: handler })
-                 → stored in notification_routes._response_handlers
+| I want… | Use |
+|---------|-----|
+| Stored message + list + maybe app-wide popup | `NotificationService.create`, `type: instant`, optional `subtype` / `data` / `responses`. |
+| Stored message, no auto-popup | `type: admin` or `advert`. |
+| Ephemeral popup to connected game client | Dart `sendInstantNotification` → `instant_ws`. |
+| Local-only popup | `InstantMessageModal.showFrontendOnlyInstant`. |
+| Button actions hitting Python | `responses` + `register_response_handler` + matching `source` / `msg_id` / `action_identifier`. |
+| Dismiss and delete without module code | `source: core`, `action_identifier: close`. |
+| Optional image behind modal | `data.modal_background_enabled` + `data.modal_background_url` (or Flutter-only params on `showFrontendOnlyInstant`). |
 
-[Client]
-       │
-       ├── GET /userauth/notifications/messages → list (DB)
-       ├── POST /userauth/notifications/mark-read
-       ├── POST /userauth/notifications/response (message_id, action_identifier)
-       │         → Core: load doc → _response_handlers[doc.source][action_identifier](doc, user_id) → return result, mark read
-       │
-       ├── WS event "ws_instant_notification" (Dart backend) → addPendingWsInstant → show modal once
-       └── InstantMessageModal.showFrontendOnlyInstant(...) → show modal, no backend
-
-[BaseScreen]
-       └── _checkAndShowInstantMessages(): drain pending WS → show; fetch messages → showUnreadInstantModals
-             → on response success → triggerHook('instant_message_response_success') → DutchEventManager etc.
-```
-
-This is the full flow from core registration and types, through modules registering messages (create) and responses (register_response_handlers), to the client fetching, showing modals, and handling button taps.
+This matches the **current** notification system in the repo end-to-end.

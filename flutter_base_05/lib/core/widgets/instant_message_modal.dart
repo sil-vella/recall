@@ -1,8 +1,32 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../utils/consts/theme_consts.dart';
+
+/// Reads [modal_background_enabled] (or legacy [modal_background_image]) from [message] `data`.
+/// Default is off unless explicitly true and a URL is present (see [modalBackgroundUrlFromMessage]).
+bool modalBackgroundEnabledFromMessage(Map<String, dynamic> message) {
+  final data = message['data'];
+  if (data is! Map) return false;
+  final map = Map<String, dynamic>.from(data);
+  final raw = map['modal_background_enabled'] ?? map['modal_background_image'];
+  if (raw is bool) return raw;
+  if (raw is num) return raw != 0;
+  final s = raw?.toString().toLowerCase().trim();
+  return s == 'true' || s == '1' || s == 'yes';
+}
+
+/// URL for modal backdrop image; from [message] `data` keys [modal_background_url] or [background_image_url].
+String? modalBackgroundUrlFromMessage(Map<String, dynamic> message) {
+  final data = message['data'];
+  if (data is! Map) return null;
+  final map = Map<String, dynamic>.from(data);
+  final url = (map['modal_background_url'] ?? map['background_image_url'])?.toString().trim();
+  if (url == null || url.isEmpty) return null;
+  return url;
+}
 
 /// Notification type that must be shown as a modal immediately, app-wide (from DB/polling).
 const String kNotificationTypeInstant = 'instant';
@@ -47,6 +71,8 @@ class InstantMessageModal extends StatelessWidget {
     this.dismissLabel = 'OK',
     this.onSendResponse,
     this.onMarkAsRead,
+    this.useModalBackgroundImage,
+    this.modalBackgroundImageUrl,
   }) : super(key: key);
 
   final Map<String, dynamic> message;
@@ -55,6 +81,26 @@ class InstantMessageModal extends StatelessWidget {
   /// Single core endpoint: called with messageId and actionIdentifier. Returns true if success.
   final Future<bool> Function(String messageId, String actionIdentifier)? onSendResponse;
   final Future<void> Function(String messageId)? onMarkAsRead;
+  /// When non-null, overrides [modalBackgroundEnabledFromMessage]. When false, never shows backdrop image.
+  final bool? useModalBackgroundImage;
+  /// When non-null and non-empty, used as image URL; otherwise URL is read from [message] `data`.
+  final String? modalBackgroundImageUrl;
+
+  bool get _showBackdropImage {
+    final urlFromMessage = modalBackgroundUrlFromMessage(message);
+    final explicitUrl = modalBackgroundImageUrl?.trim();
+    final url = (explicitUrl != null && explicitUrl.isNotEmpty) ? explicitUrl : urlFromMessage;
+    if (url == null || url.isEmpty) return false;
+    if (useModalBackgroundImage == false) return false;
+    if (useModalBackgroundImage == true) return true;
+    return modalBackgroundEnabledFromMessage(message);
+  }
+
+  String? get _backdropImageUrl {
+    final explicitUrl = modalBackgroundImageUrl?.trim();
+    if (explicitUrl != null && explicitUrl.isNotEmpty) return explicitUrl;
+    return modalBackgroundUrlFromMessage(message);
+  }
 
   String get _title => message['title']?.toString().trim().isNotEmpty == true
       ? message['title'].toString()
@@ -76,6 +122,11 @@ class InstantMessageModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final responses = _responses;
     final hasResponseButtons = responses.isNotEmpty && onSendResponse != null;
+    final showBg = _showBackdropImage;
+    final bgUrl = _backdropImageUrl;
+    final contentLayerColor =
+        showBg ? AppColors.surface.withValues(alpha: 0.9) : AppColors.surface;
+
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
@@ -83,56 +134,97 @@ class InstantMessageModal extends StatelessWidget {
         _onInstantModalClosed();
       },
       child: AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
-        titlePadding: EdgeInsets.fromLTRB(
-          AppPadding.cardPadding.horizontal,
-          AppPadding.cardPadding.vertical,
-          AppPadding.cardPadding.horizontal,
-          AppPadding.smallPadding.top,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        contentPadding: EdgeInsets.zero,
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: AppPadding.defaultPadding.horizontal,
+          vertical: AppPadding.defaultPadding.vertical,
         ),
-        contentPadding: EdgeInsets.fromLTRB(
-          AppPadding.cardPadding.horizontal,
-          AppPadding.smallPadding.top,
-          AppPadding.cardPadding.horizontal,
-          AppPadding.cardPadding.vertical,
-        ),
-        actionsPadding: EdgeInsets.only(
-          right: AppPadding.cardPadding.horizontal,
-          bottom: AppPadding.smallPadding.bottom,
-          left: AppPadding.smallPadding.left,
-        ),
-        title: Text(
-          _title,
-          style: AppTextStyles.headingSmall(color: AppColors.textOnSurface),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            _body,
-            style: AppTextStyles.bodyMedium(color: AppColors.textOnSurface),
-          ),
-        ),
-        actions: hasResponseButtons
-            ? responses.map((r) {
-                return TextButton(
-                  onPressed: () => _onResponseTap(context, r),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
-                  child: Text(
-                    r.label,
-                    style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: ClipRRect(
+            borderRadius: AppBorderRadius.mediumRadius,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (showBg && bgUrl != null)
+                  Positioned.fill(
+                    child: CachedNetworkImage(
+                      imageUrl: bgUrl,
+                      fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      errorWidget: (_, __, ___) => ColoredBox(color: AppColors.surface),
+                    ),
                   ),
-                );
-              }).toList()
-            : [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
-                  child: Text(
-                    dismissLabel,
-                    style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
+                Material(
+                  color: contentLayerColor,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppPadding.cardPadding.horizontal,
+                      AppPadding.cardPadding.vertical,
+                      AppPadding.cardPadding.horizontal,
+                      AppPadding.smallPadding.top,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          _title,
+                          style: AppTextStyles.headingSmall(color: AppColors.textOnSurface),
+                        ),
+                        SizedBox(height: AppPadding.smallPadding.top),
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: MediaQuery.sizeOf(context).height * 0.45,
+                          ),
+                          child: SingleChildScrollView(
+                            child: Text(
+                              _body,
+                              style: AppTextStyles.bodyMedium(color: AppColors.textOnSurface),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: AppPadding.cardPadding.vertical),
+                        Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: AppPadding.smallPadding.left,
+                            children: hasResponseButtons
+                                ? responses
+                                    .map((r) {
+                                      return TextButton(
+                                        onPressed: () => _onResponseTap(context, r),
+                                        style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
+                                        child: Text(
+                                          r.label,
+                                          style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
+                                        ),
+                                      );
+                                    })
+                                    .toList()
+                                : [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(context).pop(),
+                                      style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
+                                      child: Text(
+                                        dismissLabel,
+                                        style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
+                                      ),
+                                    ),
+                                  ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -155,6 +247,8 @@ class InstantMessageModal extends StatelessWidget {
     String dismissLabel = 'OK',
     Future<bool> Function(String messageId, String actionIdentifier)? onSendResponse,
     Future<void> Function(String messageId)? onMarkAsRead,
+    bool? useModalBackgroundImage,
+    String? modalBackgroundImageUrl,
   }) {
     return showDialog<void>(
       context: context,
@@ -165,6 +259,8 @@ class InstantMessageModal extends StatelessWidget {
         onDismiss: onDismiss,
         onSendResponse: onSendResponse,
         onMarkAsRead: onMarkAsRead,
+        useModalBackgroundImage: useModalBackgroundImage,
+        modalBackgroundImageUrl: modalBackgroundImageUrl,
       ),
     );
   }
@@ -174,6 +270,9 @@ class InstantMessageModal extends StatelessWidget {
   /// Shows a frontend-only instant modal (no backend). Predefined structure: title, body, data, responses.
   /// [responses] defaults to required 'Close'; pass optional [actionLabel] and [actionIdentifier] for an extra button.
   /// [onAction] is called when the optional action button is pressed (if provided).
+  ///
+  /// Optional backdrop: set [modalBackgroundEnabled] to true and pass [modalBackgroundUrl] (merged into [data]
+  /// as `modal_background_enabled` / `modal_background_url` for the shared modal layout).
   static Future<void> showFrontendOnlyInstant(
     BuildContext context, {
     required String title,
@@ -182,7 +281,16 @@ class InstantMessageModal extends StatelessWidget {
     String actionLabel = 'Action',
     String actionIdentifier = 'action',
     VoidCallback? onAction,
+    bool modalBackgroundEnabled = false,
+    String? modalBackgroundUrl,
   }) {
+    final merged = Map<String, dynamic>.from(data ?? {});
+    if (modalBackgroundEnabled &&
+        modalBackgroundUrl != null &&
+        modalBackgroundUrl.trim().isNotEmpty) {
+      merged['modal_background_enabled'] = true;
+      merged['modal_background_url'] = modalBackgroundUrl.trim();
+    }
     final responses = <Map<String, dynamic>>[
       {'label': 'Close', 'action_identifier': 'close'},
       if (onAction != null) {'label': actionLabel, 'action_identifier': actionIdentifier},
@@ -191,7 +299,7 @@ class InstantMessageModal extends StatelessWidget {
       'type': kNotificationTypeInstantFrontendOnly,
       'title': title,
       'body': body,
-      'data': data ?? <String, dynamic>{},
+      'data': merged,
       'responses': responses,
       'id': 'frontend_${DateTime.now().millisecondsSinceEpoch}',
     };

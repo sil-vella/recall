@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Flutter APK build script
-# Builds an Android APK for Dutch with the same dart-define envs
-# used by the OnePlus launcher script, targeting either LOCAL or VPS backend.
+# Builds an Android APK for Dutch. Dart-define SSOT: repo-root `.env.prod` (via
+# `dart_defines_from_env.sh`). Optional `$1`: `vps` (default) runs VPS upload steps;
+# `local` skips upload — does not set API_URL/WS_URL (set those in `.env.prod`).
 
 set -e
 
@@ -52,20 +53,15 @@ set_production_deck_config() {
   echo "✅ Production deck config set"
   echo ""
 }
-trap restore_deck_config EXIT
+DART_DEF_JSON=""
+trap 'restore_deck_config; rm -f "${DART_DEF_JSON:-}"' EXIT
 
-# Determine backend target from first argument: 'local' or 'vps' (default: vps for distribution)
+# Post-build upload: `vps` (default) uploads APK + manifest; `local` skips (Dart defines unchanged).
 BACKEND_TARGET="${1:-vps}"
-
 if [ "$BACKEND_TARGET" = "local" ]; then
-    # Local LAN IP for Python & Dart services
-    API_URL="http://192.168.178.81:5001"
-    WS_URL="ws://192.168.178.81:8080"
-    echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
+  echo "📤 Skipping VPS upload (arg: local). API_URL/WS_URL come only from $FRONTEND_ENV."
 else
-    API_URL="https://dutch.reignofplay.com"
-    WS_URL="wss://dutch.reignofplay.com/ws"
-    echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
+  echo "📤 After build: VPS upload enabled (arg: vps). API_URL/WS_URL come only from $FRONTEND_ENV."
 fi
 
 # Load env from repo root .env.prod (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
@@ -144,33 +140,21 @@ echo ""
 
 set_production_deck_config
 
-# Build --dart-define from .env (all vars) then overrides and build-only extras
-source "$SCRIPT_DIR/dart_defines_from_env.sh"
-DART_DEFINE_ARGS=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$FRONTEND_ENV")
-# Overrides (script-set API_URL, WS_URL, APP_VERSION)
-DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
-# Ensure Firebase runtime toggle is always present (defaults to true when missing).
-DART_DEFINE_ARGS+=( --dart-define=FIREBASE_SWITCH="${FIREBASE_SWITCH:-true}" )
-# Build-only (not in .env)
-DART_DEFINE_ARGS+=( \
-  --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
-  --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
-  --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
-  --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-  --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
-  --dart-define=DEBUG_MODE=true \
-  --dart-define=ENABLE_REMOTE_LOGGING=true \
-)
+# Build --dart-define-from-file from .env.prod (SSOT). APP_VERSION in file/shell after bump_app_version_prompt.
+echo "📝 Dart-define SSOT: $FRONTEND_ENV → --dart-define-from-file (no argv blow-up)"
+if ! command -v python3 &>/dev/null; then
+  echo "❌ python3 not found — required for env_for_flutter_dart_defines.py"
+  exit 1
+fi
+DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
 
 # Build the release APK
 flutter build apk \
   --release \
   --build-name="$APP_VERSION" \
   --build-number="$BUILD_NUMBER" \
-  "${DART_DEFINE_ARGS[@]}"
+  --dart-define-from-file="$DART_DEF_JSON"
 
 OUTPUT_APK="$REPO_ROOT/flutter_base_05/build/app/outputs/flutter-apk/app-release.apk"
 

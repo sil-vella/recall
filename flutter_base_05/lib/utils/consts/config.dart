@@ -66,15 +66,14 @@ class Config {
     defaultValue: '',
   );
 
-  // AdMob IDs
+  // AdMob IDs (override with --dart-define=ADMOBS_* for staging/other units).
   static const String admobsTopBanner = String.fromEnvironment(
     'ADMOBS_TOP_BANNER01',
-    defaultValue: '',
+    defaultValue: 'ca-app-pub-6524100109992126/3612268528',
   );
-  // AdMob IDs
   static const String admobsBottomBanner = String.fromEnvironment(
     'ADMOBS_BOTTOM_BANNER01',
-    defaultValue: '',
+    defaultValue: 'ca-app-pub-6524100109992126/3612268528',
   );
 
   static const String admobsInterstitial01 = String.fromEnvironment(

@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # Build --dart-define arguments from .env file(s).
+#
+# **SSOT:** Repo-root `.env.local` (device/web dev) and `.env.prod` (release builds) hold every
+# `KEY=value` that becomes `--dart-define=KEY=value`. Launch/build scripts must not append
+# duplicate defines for the same keys — set API_URL, WS_URL, JWT_*, AdMob, DEBUG_MODE, etc.
+# in the appropriate env file.
+#
 # Source this file and call build_dart_defines_from_env with path(s) to .env.
 # Output: one --dart-define=KEY="VALUE" per line (safe to read into an array).
+#
+# For large .env files, prefer `python3 playbooks/frontend/env_for_flutter_dart_defines.py`
+# plus `flutter … --dart-define-from-file=…` so the shell does not hit ARG_MAX.
 # Usage:
 #   source "$SCRIPT_DIR/dart_defines_from_env.sh"
 #   while IFS= read -r line; do [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" ); done < <(build_dart_defines_from_env "$REPO_ROOT/.env.local")
-#   # add overrides: DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" )
 #   flutter build web "${DART_DEFINE_ARGS[@]}"
 
 build_dart_defines_from_env() {

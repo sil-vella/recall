@@ -14,7 +14,6 @@ from pymongo.errors import DuplicateKeyError
 from core.modules.base_module import BaseModule
 from utils.config.config import Config
 from utils.dutch_game_credits import credit_dutch_game_coins, get_dutch_game_coin_balance
-from utils.logging_utils import custom_log
 
 
 class AdmobRewardsModule(BaseModule):
@@ -63,9 +62,10 @@ class AdmobRewardsModule(BaseModule):
                 return jsonify({"success": False, "error": "client_nonce is required (min 8 chars)"}), 400
 
             if Config.DEBUG:
-                custom_log(
-                    f"admob_rewards claim: user_id={user_id} nonce_prefix={client_nonce[:12]}…",
-                    level="DEBUG",
+                self.logger.debug(
+                    "admob_rewards claim: user_id=%s nonce_prefix=%s…",
+                    user_id,
+                    client_nonce[:12],
                 )
 
             coins = int(Config.ADMOB_REWARDED_COINS_PER_CLAIM or 0)
@@ -83,7 +83,7 @@ class AdmobRewardsModule(BaseModule):
             tier = str(dg.get("subscription_tier") or "").strip().lower()
             if tier == "premium":
                 if Config.DEBUG:
-                    custom_log("admob_rewards claim rejected: premium tier", level="DEBUG")
+                    self.logger.debug("admob_rewards claim rejected: premium tier")
                 return (
                     jsonify(
                         {
@@ -102,9 +102,10 @@ class AdmobRewardsModule(BaseModule):
             used_today = coll.count_documents({"user_id": oid, "created_at": {"$gte": day_start}})
             if used_today >= daily_cap:
                 if Config.DEBUG:
-                    custom_log(
-                        f"admob_rewards claim rejected: daily_cap used_today={used_today}/{daily_cap}",
-                        level="DEBUG",
+                    self.logger.debug(
+                        "admob_rewards claim rejected: daily_cap used_today=%s/%s",
+                        used_today,
+                        daily_cap,
                     )
                 return (
                     jsonify(
@@ -120,9 +121,9 @@ class AdmobRewardsModule(BaseModule):
             existing = self.db_manager.find_one(self._CLAIMS, {"user_id": oid, "client_nonce": client_nonce})
             if existing:
                 if Config.DEBUG:
-                    custom_log(
-                        f"admob_rewards claim duplicate idempotent coins={int(existing.get('coins') or 0)}",
-                        level="DEBUG",
+                    self.logger.debug(
+                        "admob_rewards claim duplicate idempotent coins=%s",
+                        int(existing.get("coins") or 0),
                     )
                 bal = get_dutch_game_coin_balance(self.db_manager, oid)
                 return (
@@ -169,9 +170,10 @@ class AdmobRewardsModule(BaseModule):
 
             bal = get_dutch_game_coin_balance(self.db_manager, oid)
             if Config.DEBUG:
-                custom_log(
-                    f"admob_rewards claim success coins={coins} balance={bal}",
-                    level="DEBUG",
+                self.logger.debug(
+                    "admob_rewards claim success coins=%s balance=%s",
+                    coins,
+                    bal,
                 )
             return (
                 jsonify(

@@ -53,18 +53,7 @@ echo_and_server_log "📝 Flutter script + flutter run → $SERVER_LOG_FILE ([LA
 # Launch Flutter app with Chrome web configuration
 echo_and_server_log "🎯 Launching Flutter app with Chrome web configuration..."
 
-# Determine backend target from first argument: 'local' (default) or 'vps'
-BACKEND_TARGET="${1:-local}"
-
-if [ "$BACKEND_TARGET" = "vps" ]; then
-    API_URL="https://dutch.reignofplay.com"
-    WS_URL="wss://dutch.reignofplay.com/ws"
-    echo_and_server_log "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
-else
-    API_URL="http://localhost:5001"
-    WS_URL="ws://localhost:8080"
-    echo_and_server_log "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
-fi
+echo_and_server_log "📝 Dart-define SSOT: $FRONTEND_ENV (set API_URL, WS_URL, JWT_*, … there; no script overrides)"
 
 # Mirror merged flutter run output to server.log; echo same lines to the terminal (stdout).
 filter_logs() {
@@ -77,41 +66,33 @@ filter_logs() {
     done
 }
 
-# Build --dart-define from .env (all vars) then overrides and run-only extras
-source "$SCRIPT_DIR/dart_defines_from_env.sh"
-DART_DEFINE_ARGS=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$FRONTEND_ENV")
-DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" )
-# Ensure Firebase runtime toggle is always present (defaults to true when missing).
-DART_DEFINE_ARGS+=( --dart-define=FIREBASE_SWITCH="${FIREBASE_SWITCH:-true}" )
-DART_DEFINE_ARGS+=( \
-  --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
-  --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
-  --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
-  --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-  --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
-  --dart-define=DEBUG_MODE=true \
-  --dart-define=ENABLE_REMOTE_LOGGING=true \
-)
-
-# Diagnostic: verify GOOGLE_CLIENT_ID is in dart-defines (helps debug 401 invalid_client)
-GOOGLE_IN_DEFINES=false
-for arg in "${DART_DEFINE_ARGS[@]}"; do
-  if [[ "$arg" == --dart-define=GOOGLE_CLIENT_ID=* ]]; then
-    GOOGLE_IN_DEFINES=true
-    VAL="${arg#--dart-define=GOOGLE_CLIENT_ID=}"
-    VAL="${VAL%\"}"
-    VAL="${VAL#\"}"
-    echo_and_server_log "   Dart-define GOOGLE_CLIENT_ID: ${VAL:0:40}... (length=${#VAL})"
-    break
-  fi
-done
-if [ "$GOOGLE_IN_DEFINES" = false ]; then
-  echo_and_server_log "   ❌ GOOGLE_CLIENT_ID not found in dart-defines — add GOOGLE_CLIENT_ID=... to $FRONTEND_ENV"
+# Dart-define SSOT: .env.local → temp JSON (avoids shell ARG_MAX with many keys).
+if ! command -v python3 &>/dev/null; then
+  echo_and_server_log "❌ python3 not found — required for --dart-define-from-file"
+  exit 1
 fi
-echo_and_server_log "   Total dart-defines: ${#DART_DEFINE_ARGS[@]}"
+DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
+trap 'rm -f "$DART_DEF_JSON"' EXIT
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
+export DART_DEF_JSON
+KEYCOUNT="$(python3 -c 'import json,os; print(len(json.load(open(os.environ["DART_DEF_JSON"],encoding="utf-8"))))')"
+echo_and_server_log "   Dart-define-from-file: $KEYCOUNT keys → $DART_DEF_JSON"
+
+# Diagnostic: GOOGLE_CLIENT_ID (helps debug 401 invalid_client)
+GOOGLE_CHECK="$(python3 -c '
+import json, os
+p = os.environ["DART_DEF_JSON"]
+v = (json.load(open(p, encoding="utf-8")).get("GOOGLE_CLIENT_ID") or "")
+print(len(v))
+print(v[:40] if v else "")
+' 2>/dev/null)" || GOOGLE_CHECK=""
+GOOGLE_LEN="$(echo "$GOOGLE_CHECK" | sed -n '1p')"
+GOOGLE_PRE="$(echo "$GOOGLE_CHECK" | sed -n '2p')"
+if [[ "$GOOGLE_LEN" =~ ^[0-9]+$ ]] && [ "$GOOGLE_LEN" -gt 0 ]; then
+  echo_and_server_log "   GOOGLE_CLIENT_ID (for web): ${GOOGLE_PRE}... (length=$GOOGLE_LEN)"
+else
+  echo_and_server_log "   ❌ GOOGLE_CLIENT_ID missing or empty in dart-define file — set in $FRONTEND_ENV"
+fi
 
 # Default: do NOT quit your normal Chrome — Flutter uses a separate user-data-dir
 # (~/.flutter_chrome_profile by default), so profile lock / second-instance issues
@@ -156,6 +137,8 @@ CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-Default}"
 echo_and_server_log "🌐 Chrome user-data-dir: $CHROME_USER_DATA_DIR (profile: $CHROME_PROFILE_DIR)"
 echo_and_server_log "🔍 DebugView (web): after the app loads, enable GA Debugger on this tab and refresh — then pick this device in Firebase DebugView’s device selector."
 
+echo_and_server_log "⏳ Starting flutter run (compile may take 1–2 min with little output)…"
+
 # Launch Flutter and filter output
 flutter run \
     -d chrome \
@@ -163,7 +146,8 @@ flutter run \
     --web-hostname=localhost \
     --web-browser-flag="--user-data-dir=$CHROME_USER_DATA_DIR" \
     --web-browser-flag="--profile-directory=$CHROME_PROFILE_DIR" \
-    "${DART_DEFINE_ARGS[@]}" 2>&1 | filter_logs
+    --dart-define-from-file="$DART_DEF_JSON" \
+    2>&1 | filter_logs
 
 echo_and_server_log "✅ Flutter app launch completed"
 echo_and_server_log "📝 Flutter run log: $SERVER_LOG_FILE"

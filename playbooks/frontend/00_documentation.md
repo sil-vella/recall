@@ -3,8 +3,8 @@
 This directory contains helper scripts for running and building the Dutch Flutter app and integrating it with the Python backend and the VPS.
 
 Scripts:
-- `launch_chrome.sh` – run the Flutter web app in Chrome, pointing at either LOCAL or VPS backend.
-- `launch_oneplus.sh` – run the Flutter app on a physical Android device (OnePlus, id `84fbcf31`) with the same backend options.
+- `launch_chrome.sh` – run the Flutter web app in Chrome; `--dart-define` values come only from repo-root `.env.local`.
+- `launch_oneplus.sh` – run the Flutter app on a physical Android device; same dart-define SSOT (`.env.local`).
 - `build_web.sh` – build Flutter web release and upload to VPS (dutch.reignofplay.com). Optional `DEPLOY_SUBDIR=example` deploys to dutch.reignofplay.com/example.
 - `build_apk.sh` – build a release APK, bump the platform version, upload it to the VPS downloads directory, and update the mobile release manifest.
 - `optimize_logging_calls.py` – optimize logging calls by converting runtime checks to compile-time conditionals for better performance.
@@ -16,32 +16,11 @@ Scripts:
 **Purpose**:
 - Launches the Flutter web app (`flutter_base_05`) in Chrome on your Mac.
 - Mirrors merged `flutter run` output into `python_base_04/tools/logger/server.log` for debugging (see `Documentation/debug/AGENT_DEBUG_LOGS.md`).
-- Allows a simple switch between LOCAL and VPS backends.
-
-**Backend selection**:
-- First argument: `local` (default) or `vps`.
-
-```bash
-# LOCAL backend (default)
-./playbooks/frontend/launch_chrome.sh
-# or
-./playbooks/frontend/launch_chrome.sh local
-
-# VPS backend
-./playbooks/frontend/launch_chrome.sh vps
-```
-
-**Local vs VPS behavior**:
-- `local`:
-  - `API_URL="http://localhost:5001"`
-  - `WS_URL="ws://localhost:8080"`
-- `vps`:
-  - `API_URL="https://dutch.reignofplay.com"`
-  - `WS_URL="wss://dutch.reignofplay.com/ws"`
+- **Dart-define SSOT:** repo-root `.env.local` (see `playbooks/frontend/dart_defines_from_env.sh`). Set `API_URL`, `WS_URL`, JWT, AdMob, Stripe, logging flags there — scripts do not override them.
 
 **What it runs**:
 - `cd flutter_base_05`
-- `flutter run -d chrome --web-port=3002 --web-hostname=localhost` with a set of `--dart-define` flags (API_URL, WS_URL, JWT, AdMob, Stripe, logging, etc.).
+- `flutter run -d chrome --web-port=3002 --web-hostname=localhost` with `--dart-define` built only from `.env.local`.
 - Pipes merged `flutter run` stdout/stderr through `filter_logs`, which appends each line (with a UTC prefix and `[FLUTTER]`) to:
 
     ```
@@ -50,56 +29,33 @@ Scripts:
 
   and prints the same lines to the integrated terminal.
 
-This is the recommended way to run the **web** version against either the local backend or the live VPS.
+This is the recommended way to run the **web** version; point it at local or VPS by editing `API_URL` / `WS_URL` in `.env.local`.
 
 ---
 
 ### 2. `launch_oneplus.sh`
 
 **Purpose**:
-- Launches the Flutter app on the connected **OnePlus** Android device with id `84fbcf31`.
-- Uses the same environment (`API_URL`, `WS_URL`, JWT, AdMob, Stripe, logging) as the Chrome launcher.
+- Launches the Flutter app on a selected **Android** device (shortcuts for OnePlus, Samsung, Xiaomi tablet, DOOGEE).
+- Uses the same dart-define SSOT as the Chrome launcher (repo-root `.env.local`).
 - Mirrors merged `flutter run` output into `python_base_04/tools/logger/server.log` (same scheme as Chrome; see `Documentation/debug/AGENT_DEBUG_LOGS.md`).
 
 **Prerequisites**:
 - `adb` installed and on your `PATH`.
-- OnePlus device connected and visible via `adb devices` as `84fbcf31`.
+- Target device connected and visible via `adb devices`.
 
-**Backend selection**:
-
-```bash
-# LOCAL backend
-./playbooks/frontend/launch_oneplus.sh
-# or
-./playbooks/frontend/launch_oneplus.sh local
-
-# VPS backend
-./playbooks/frontend/launch_oneplus.sh vps
-```
-
-**Local vs VPS behavior**:
-- `vps`:
-  - `API_URL="https://dutch.reignofplay.com"`
-  - `WS_URL="wss://dutch.reignofplay.com/ws"`
-- `local`:
-  - Uses your LAN IP for the Python/Dart backend (currently `192.168.178.81:5001` for Flask and `:8080` for WebSockets).
+**Device selection**:
+- Optional first argument **`local` or `vps`** (legacy, no-op for dart-defines): if present, device is **`$2`**, or `ANDROID_DEVICE_ID`, or the interactive prompt.
+- Otherwise **`$1`** = device serial or shortcut (`1` OnePlus, `2` Samsung, `3` Xiaomi tablet, `4` DOOGEE).
+- **Dart-define SSOT:** repo-root `.env.local`. Set `API_URL` / `WS_URL` there for local vs VPS backends.
 
 **What it runs**:
-- Confirms the OnePlus device is connected.
+- Confirms the device is connected.
 - `cd flutter_base_05`.
-- Runs:
+- `flutter run -d <device>` with `--dart-define` built only from `.env.local`.
+- All merged `flutter run` lines are written to `server.log` and echoed to the terminal.
 
-  ```bash
-  flutter run \
-    -d 84fbcf31 \
-    --dart-define=API_URL=... \
-    --dart-define=WS_URL=... \
-    ... (JWT/AdMob/Stripe/logging defines)
-  ```
-
-- All merged `flutter run` lines are written to `server.log` and echoed to the terminal (no legacy AppLogger filter).
-
-Use this script for **manual testing on the physical device** against either local or VPS backends.
+Use this script for **manual testing on a physical device**.
 
 ---
 
@@ -114,8 +70,9 @@ Use this script for **manual testing on the physical device** against either loc
 - Optionally uploads the APK to the VPS and updates the mobile release manifest.
 
 **Inputs**:
-- `BACKEND_TARGET` – positional arg (`local` or `vps`, default `vps`).
-- `python_base_04/secrets/app_version` – single-line semantic version (e.g. `2.1.0`).
+- **Dart-define SSOT:** repo-root `.env.prod` — every `KEY=value` becomes `--dart-define` via `dart_defines_from_env.sh` (including `API_URL`, `WS_URL`, `APP_VERSION`, JWT, AdMob, flags).
+- Positional arg `local` or `vps` (default `vps`): **upload/deploy only** — does not change dart-defines.
+- Interactive `bump_app_version_prompt` updates `APP_VERSION` in `.env.prod` before build.
 - Optional env vars:
   - `VPS_SSH_TARGET` (default: `rop01_user@65.181.125.135`).
   - `VPS_SSH_KEY` (default: `~/.ssh/rop01_key`).
@@ -131,8 +88,8 @@ Use this script for **manual testing on the physical device** against either loc
    - `SCRIPT_DIR` = `playbooks/frontend`
    - `REPO_ROOT` = project root.
 
-3. **Read app version**:
-   - Reads `APP_VERSION` from `python_base_04/secrets/app_version`, or falls back to `2.0.0` if not present.
+3. **Load `.env.prod` and bump version**:
+   - Sources repo-root `.env.prod`, then runs `bump_app_version_prompt` (patch bump optional).
 
 4. **Compute build number**:
    - Parses `APP_VERSION` as `major.minor.patch`.
@@ -144,28 +101,17 @@ Use this script for **manual testing on the physical device** against either loc
 
      (e.g., `2.1.0` → `20100`).
 
-5. **Select backend URLs**:
-   - For `vps` (default):
-
-     ```bash
-     API_URL="https://dutch.reignofplay.com"
-     WS_URL="wss://dutch.reignofplay.com/ws"
-     ```
-
-   - For `local`: uses the LAN IP for the backend services.
-
-6. **Build APK** from `flutter_base_05`:
+5. **Build APK** from `flutter_base_05`:
 
    ```bash
-   flutter build apk \
-     --release \
-     --build-name="$APP_VERSION" \
-     --build-number="$BUILD_NUMBER" \
-     --dart-define=API_URL="$API_URL" \
-     --dart-define=WS_URL="$WS_URL" \
-     --dart-define=APP_VERSION="$APP_VERSION" \
-     ...
+     flutter build apk \
+       --release \
+       --build-name="$APP_VERSION" \
+       --build-number="$BUILD_NUMBER" \
+       --dart-define-from-file=/path/to/generated-from-.env.prod.json
    ```
+
+   (Script builds the `--dart-define` array from `.env.prod` only — no script-side URL/JWT overrides.)
 
    Output APK:
 
@@ -173,7 +119,7 @@ Use this script for **manual testing on the physical device** against either loc
    flutter_base_05/build/app/outputs/flutter-apk/app-release.apk
    ```
 
-7. **If `BACKEND_TARGET=vps`**:
+6. **If `BACKEND_TARGET=vps`**:
    - Uploads the APK to the VPS via `scp` using `VPS_SSH_KEY` and `VPS_SSH_TARGET`.
    - Installs it to:
 
@@ -214,13 +160,12 @@ Use this script for **manual testing on the physical device** against either loc
 ```bash
 cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 
-# 1) Set the new app version
-echo "2.1.0" > python_base_04/secrets/app_version
+# 1) Ensure repo-root `.env.prod` has API_URL, WS_URL, APP_VERSION, secrets, and release flags (DEBUG_MODE, JWT_*, …).
 
-# 2) Build + upload + update manifest for VPS
+# 2) Build + upload + update manifest for VPS (default)
 ./playbooks/frontend/build_apk.sh
 
-# 3) Build only for local backend
+# 3) Build only — skip VPS upload
 ./playbooks/frontend/build_apk.sh local
 
 # 4) Use a custom SSH target (if needed)
@@ -236,9 +181,9 @@ VPS_SSH_TARGET="rop01_user@65.181.125.135" ./playbooks/frontend/build_apk.sh
 
 **Steps (high level)**:
 1. Sets production deck config (testing_mode=false, predefined_hands enabled=false), disables `LOGGING_SWITCH` in Dart sources.
-2. Runs `flutter build web` from `flutter_base_05` with `API_URL`, `WS_URL`, and other dart-defines (from `playbooks/frontend/.env` and repo `.env`).
+2. Runs `flutter build web` from `flutter_base_05` with `--dart-define` built only from repo-root `.env.prod`.
 3. Output: `flutter_base_05/build/web/`. Cache-busts `index.html` with `?v=$APP_VERSION` for script/manifest/favicon.
-4. If backend target is `vps`: rsyncs build to a temp dir on the VPS, then (unless deploying to a subdir) backs up existing root, cleans web root (preserving `sponsors`, `sim_players`, `downloads`, `example`, `.well-known`), copies new files to `/var/www/dutch.reignofplay.com`, sets ownership to `www-data`.
+4. If deploy arg is `vps` (default): rsyncs build to a temp dir on the VPS, then (unless deploying to a subdir) backs up existing root, cleans web root (preserving `sponsors`, `sim_players`, `downloads`, `example`, `.well-known`), copies new files to `/var/www/dutch.reignofplay.com`, sets ownership to `www-data`. Use `./build_web.sh local` to build without deploy.
 
 **Deploying to a subdirectory (`/example/`)**:
 - On the VPS, nginx must expose `location /example/` → `/var/www/dutch.reignofplay.com/example/` (configure manually on the server).

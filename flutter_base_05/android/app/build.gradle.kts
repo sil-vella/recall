@@ -67,17 +67,19 @@ android {
             localPropsFile.inputStream().use { localProps.load(it) }
         }
         // Precedence: --dart-define ADMOB_APPLICATION_ID (from .env via launch/build scripts)
-        // > android/local.properties admob.application_id > Google sample app id.
+        // > android/local.properties admob.application_id > production app id (Dutch AdMob).
         val dartDefinesRaw =
             (project.findProperty("dart-defines") ?: project.rootProject.findProperty("dart-defines"))
                 ?.toString()
         val fromDart = (decodeDartDefinesMap(dartDefinesRaw)["ADMOB_APPLICATION_ID"] ?: "").trim()
         val fromLocal = (localProps.getProperty("admob.application_id") ?: "").trim()
+        // Default = Dutch production AdMob *app* id. If you use Google test *ad units* (ca-app-pub-3940256099942544/…),
+        // you must pass ADMOB_APPLICATION_ID=ca-app-pub-3940256099942544~3347511713 via dart-define (.env.local).
         val admobAppId =
             when {
                 fromDart.isNotEmpty() -> fromDart
                 fromLocal.isNotEmpty() -> fromLocal
-                else -> "ca-app-pub-3940256099942544~3347511713"
+                else -> "ca-app-pub-6524100109992126~6470366151"
             }
         manifestPlaceholders["ADMOB_APPLICATION_ID"] = admobAppId
     }

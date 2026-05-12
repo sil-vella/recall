@@ -5,6 +5,7 @@
 # The web app will be served from dutch.reignofplay.com
 # To deploy to a subdir (e.g. dutch.reignofplay.com/example): DEPLOY_SUBDIR=example ./build_web.sh vps
 #   (Build the Flutter app with base-href /example/ when targeting the subdir.)
+# Dart-define SSOT: repo-root `.env.prod` only (see `dart_defines_from_env.sh`). `$1` local|vps = deploy target only.
 
 set -e
 
@@ -54,20 +55,15 @@ set_production_deck_config() {
   echo "✅ Production deck config set"
   echo ""
 }
-trap restore_deck_config EXIT
+DART_DEF_JSON=""
+trap 'restore_deck_config; rm -f "${DART_DEF_JSON:-}"' EXIT
 
-# Determine backend target from first argument: 'local' or 'vps' (default: vps for production)
+# Post-build deploy: `vps` (default) uploads to VPS; `local` skips. API_URL/WS_URL: only from .env.prod.
 BACKEND_TARGET="${1:-vps}"
-
 if [ "$BACKEND_TARGET" = "local" ]; then
-    # Local LAN IP for Python & Dart services
-    API_URL="http://192.168.178.81:5001"
-    WS_URL="ws://192.168.178.81:8080"
-    echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
+  echo "📤 Skipping VPS deploy (arg: local). API_URL/WS_URL come only from $FRONTEND_ENV."
 else
-    API_URL="https://dutch.reignofplay.com"
-    WS_URL="wss://dutch.reignofplay.com/ws"
-    echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
+  echo "📤 After build: VPS deploy enabled (arg: vps). API_URL/WS_URL come only from $FRONTEND_ENV."
 fi
 
 # Load env from repo root .env.prod (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
@@ -146,27 +142,14 @@ echo ""
 
 set_production_deck_config
 
-# Build --dart-define from .env (all vars) then overrides and build-only extras
-source "$SCRIPT_DIR/dart_defines_from_env.sh"
-DART_DEFINE_ARGS=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$FRONTEND_ENV")
+echo "📝 Dart-define SSOT: $FRONTEND_ENV → --dart-define-from-file"
+if ! command -v python3 &>/dev/null; then
+  echo "❌ python3 not found — required for env_for_flutter_dart_defines.py"
+  exit 1
+fi
+DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
 echo "ℹ️  ADMOBS_* in .env.prod are for native builds; web skips AdMob. See Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md"
-# Overrides (script-set API_URL, WS_URL, APP_VERSION)
-DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
-# Ensure Firebase runtime toggle is always present (defaults to true when missing).
-DART_DEFINE_ARGS+=( --dart-define=FIREBASE_SWITCH="${FIREBASE_SWITCH:-true}" )
-# Build-only (not in .env)
-DART_DEFINE_ARGS+=( \
-  --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
-  --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
-  --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
-  --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-  --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
-  --dart-define=DEBUG_MODE=true \
-  --dart-define=ENABLE_REMOTE_LOGGING=true \
-)
 
 # Build the web release
 echo "🌐 Building Flutter web release..."
@@ -174,7 +157,7 @@ flutter build web \
   --release \
   --build-name="$APP_VERSION" \
   --build-number="$BUILD_NUMBER" \
-  "${DART_DEFINE_ARGS[@]}"
+  --dart-define-from-file="$DART_DEF_JSON"
 
 OUTPUT_DIR="$REPO_ROOT/flutter_base_05/build/web"
 

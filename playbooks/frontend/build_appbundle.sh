@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # Flutter App Bundle (AAB) build script
-# Builds an Android App Bundle for Dutch with the same dart-define envs
-# used by build_apk.sh and the OnePlus launcher script (local or vps backend).
+# Builds an Android App Bundle for Dutch. Dart-define SSOT: repo-root `.env.prod`.
 # Output is for Play Store upload; no VPS upload.
 
 set -e
@@ -53,21 +52,8 @@ set_production_deck_config() {
   echo "✅ Production deck config set"
   echo ""
 }
-trap restore_deck_config EXIT
-
-# Determine backend target from first argument: 'local' or 'vps' (default: vps for distribution)
-BACKEND_TARGET="${1:-vps}"
-
-if [ "$BACKEND_TARGET" = "local" ]; then
-    # Local LAN IP for Python & Dart services
-    API_URL="http://192.168.178.81:5001"
-    WS_URL="ws://192.168.178.81:8080"
-    echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
-else
-    API_URL="https://dutch.reignofplay.com"
-    WS_URL="wss://dutch.reignofplay.com/ws"
-    echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
-fi
+DART_DEF_JSON=""
+trap 'restore_deck_config; rm -f "${DART_DEF_JSON:-}"' EXIT
 
 # Load env from repo root .env.prod (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
 if [ -f "$FRONTEND_ENV" ]; then
@@ -172,32 +158,21 @@ echo ""
 
 set_production_deck_config
 
-# Build --dart-define from .env.prod (all vars) then overrides and build-only extras (same as build_apk.sh)
-source "$SCRIPT_DIR/dart_defines_from_env.sh"
-DART_DEFINE_ARGS=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$FRONTEND_ENV")
-# Overrides (script-set API_URL, WS_URL, APP_VERSION)
-DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" --dart-define=APP_VERSION="$APP_VERSION" )
-# Build-only (not in .env). Logging: off for Play — disables dbg()/remote log pipeline (see lib/utils/dbg.dart).
-DART_DEFINE_ARGS+=( \
-  --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
-  --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
-  --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
-  --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-  --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
-  --dart-define=DEBUG_MODE=false \
-  --dart-define=VERBOSE_DEV_LOGS=false \
-  --dart-define=ENABLE_REMOTE_LOGGING=false \
-)
+# Build --dart-define-from-file from .env.prod (SSOT). Set DEBUG_MODE, VERBOSE_DEV_LOGS, etc. in .env.prod for Play.
+echo "📝 Dart-define SSOT: $FRONTEND_ENV → --dart-define-from-file"
+if ! command -v python3 &>/dev/null; then
+  echo "❌ python3 not found — required for env_for_flutter_dart_defines.py"
+  exit 1
+fi
+DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
 
 # Build the release App Bundle (AAB) for Play Store
 flutter build appbundle \
   --release \
   --build-name="$APP_VERSION" \
   --build-number="$BUILD_NUMBER" \
-  "${DART_DEFINE_ARGS[@]}"
+  --dart-define-from-file="$DART_DEF_JSON"
 
 OUTPUT_AAB="$REPO_ROOT/flutter_base_05/build/app/outputs/bundle/release/app-release.aab"
 

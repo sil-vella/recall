@@ -86,12 +86,10 @@ Future<void> bootstrapConsentAndMobileAds() async {
   dbgAdMob('bootstrapConsentAndMobileAds: finished');
   admobTrace(
     'Bootstrap',
-    'dart-define banner top len=${Config.admobsTopBanner.length} bottom len=${Config.admobsBottomBanner.length} '
-    '(Google sample bottom is ca-app-pub-3940256099942544/6300978111)',
+    'banner top len=${Config.admobsTopBanner.length} bottom len=${Config.admobsBottomBanner.length}',
   );
   admobTrace(
     'Bootstrap',
-    'Android: manifest app id comes from android/local.properties admob.application_id — '
-    'must match publisher of banner unit ids (Google test app id for sample units)',
+    'Android manifest APPLICATION_ID must match the same AdMob app as these ad unit ids.',
   );
 }

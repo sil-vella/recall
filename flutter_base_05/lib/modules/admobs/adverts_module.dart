@@ -41,7 +41,7 @@ class AdvertsModule extends ModuleBase {
       return;
     }
     admobTrace('Adverts', 'preload banners top+bottom');
-    banner.loadBannerAd(Config.admobsTopBanner);
-    banner.loadBannerAd(Config.admobsBottomBanner);
+    banner.loadBannerAd(Config.admobsTopBanner, slot: 'top');
+    banner.loadBannerAd(Config.admobsBottomBanner, slot: 'bottom');
   }
 }

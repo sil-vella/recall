@@ -66,12 +66,17 @@ prompt_for_device_selection() {
 }
 
 # Args:
-#   $1 = backend target: local (default) or vps
-#   $2 = Android device id/serial/shortcut (optional)
-#        Shortcuts: 1=OnePlus, 2=Samsung, 3=Xiaomi Redmi tablet, 4=DOOGEE (doogee/DOOGEE)
+#   $1 = optional legacy: `local` or `vps` (ignored for dart-defines; set API_URL/WS_URL in .env.local).
+#        If used, device id is $2 (or ANDROID_DEVICE_ID / interactive prompt).
+#   Otherwise $1 = device id/serial/shortcut. Shortcuts: 1=OnePlus, 2=Samsung, 3=Xiaomi tablet, 4=DOOGEE
 # You can also set ANDROID_DEVICE_ID env var to override.
-# Interactive prompt: if neither is set, choose within 10s or default to 1 (OnePlus).
-RAW_DEVICE_INPUT="${ANDROID_DEVICE_ID:-$2}"
+# Interactive prompt: if device not set, choose within 10s or default to 1 (OnePlus).
+if [[ "${1:-}" == "local" || "${1:-}" == "vps" ]]; then
+  _legacy_backend="$1"
+  shift
+  echo "ℹ️  First arg '${_legacy_backend}' is legacy (URLs/API are only from $FRONTEND_ENV); using device from \$2 or prompt." >&2
+fi
+RAW_DEVICE_INPUT="${ANDROID_DEVICE_ID:-$1}"
 if [ -z "$RAW_DEVICE_INPUT" ]; then
     DEVICE_ID="$(prompt_for_device_selection)"
 else
@@ -129,19 +134,7 @@ echo_and_server_log "📝 Flutter script + flutter run → $SERVER_LOG_FILE ([LA
 # Launch Flutter app with selected device configuration
 echo_and_server_log "🎯 Launching Flutter app for $DEVICE_LABEL..."
 
-# Determine backend target from first argument: 'local' (default) or 'vps'
-BACKEND_TARGET="${1:-local}"
-
-if [ "$BACKEND_TARGET" = "vps" ]; then
-    API_URL="https://dutch.reignofplay.com"
-    WS_URL="wss://dutch.reignofplay.com/ws"
-    echo_and_server_log "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
-else
-    # Local LAN IP for Python & Dart services
-    API_URL="http://192.168.178.81:5001"
-    WS_URL="ws://192.168.178.81:8080"
-    echo_and_server_log "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
-fi
+echo_and_server_log "📝 Dart-define SSOT: $FRONTEND_ENV (no script-side --dart-define overrides)"
 
 # Same pipeline as launch_chrome.sh (flutter tool merged streams after sed strip, not raw adb logcat).
 filter_logs() {
@@ -155,12 +148,14 @@ filter_logs() {
 }
 
 CLEANUP_DONE=false
+DART_DEF_JSON=""
 
 cleanup() {
     if [ "$CLEANUP_DONE" = true ]; then
         return
     fi
     CLEANUP_DONE=true
+    [ -n "${DART_DEF_JSON:-}" ] && rm -f "$DART_DEF_JSON"
     if [ "$FIREBASE_DEBUGVIEW_ENABLED" = true ]; then
         echo "🧪 Disabling Firebase Analytics DebugView for $ANDROID_APP_ID..."
         adb -s "$DEVICE_ID" shell setprop debug.firebase.analytics.app .none. >/dev/null 2>&1 || true
@@ -170,31 +165,24 @@ cleanup() {
 
 trap cleanup EXIT INT TERM HUP
 
-# Build --dart-define from .env (all vars) then overrides and run-only extras
-source "$SCRIPT_DIR/dart_defines_from_env.sh"
-DART_DEFINE_ARGS=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] && DART_DEFINE_ARGS+=( "$line" )
-done < <(build_dart_defines_from_env "$FRONTEND_ENV")
-DART_DEFINE_ARGS+=( --dart-define=API_URL="$API_URL" --dart-define=WS_URL="$WS_URL" )
-# Ensure Firebase runtime toggle is always present (defaults to true when missing).
-DART_DEFINE_ARGS+=( --dart-define=FIREBASE_SWITCH="${FIREBASE_SWITCH:-true}" )
-DART_DEFINE_ARGS+=( \
-  --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
-  --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
-  --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \
-  --dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600 \
-  --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
-  --dart-define=DEBUG_MODE=true \
-  --dart-define=ENABLE_REMOTE_LOGGING=true \
-)
+# Dart-define SSOT: .env.local → temp JSON (avoids shell ARG_MAX with dozens of --dart-define args).
+if ! command -v python3 &>/dev/null; then
+  echo_and_server_log "❌ python3 not found — required for --dart-define-from-file"
+  exit 1
+fi
+DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
+export DART_DEF_JSON
+KEYCOUNT="$(python3 -c 'import json,os; print(len(json.load(open(os.environ["DART_DEF_JSON"],encoding="utf-8"))))')"
+echo_and_server_log "   Dart-define-from-file: $KEYCOUNT keys → $DART_DEF_JSON"
 
-echo_and_server_log "   Total dart-defines: ${#DART_DEFINE_ARGS[@]}"
+echo_and_server_log "⏳ Starting flutter run (first Gradle build may take 1–2 min with little output)…"
 
 # Mirror launch_chrome.sh: filter_logs on merged flutter output (strip date prefix on matching lines first).
 flutter run \
     -d "$DEVICE_ID" \
-    "${DART_DEFINE_ARGS[@]}" 2>&1 | sed -E '/\[[0-9]{4}-[0-9]{2}-[0-9]{2}T/s/^[^[]*//' | filter_logs
+    --dart-define-from-file="$DART_DEF_JSON" \
+    2>&1 | sed -E '/\[[0-9]{4}-[0-9]{2}-[0-9]{2}T/s/^[^[]*//' | filter_logs
 
 FLUTTER_EXIT_CODE=${PIPESTATUS[0]}
 

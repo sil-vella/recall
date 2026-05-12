@@ -12,11 +12,26 @@ import '../../../../utils/dbg.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
 
-/// Loads banner units via hooks and displays the same [BannerAd] instance with [AdWidget].
+/// Loads banner units via hooks and displays each slot with its own [BannerAd] + [AdWidget].
+///
+/// Top and bottom are tracked separately so the **same ad unit id** can be used for both
+/// slots (two loads, two [BannerAd] instances). Deduplicating only by unit id would skip the
+/// second load and would not allow two [AdWidget]s for one ad object.
 class BannerAdModule extends ModuleBase {
   BannerAdModule() : super('admobs_banner_ad_module', dependencies: []);
 
-  final Map<String, BannerAd?> _bannerByUnitId = <String, BannerAd?>{};
+  static String _storageKey(String slot, String adUnitId) => '$slot|${adUnitId.trim()}';
+
+  /// One-shot diagnostics (avoid log spam on every rebuild).
+  static final Set<String> _diagOnce = <String>{};
+
+  static void _diagOnceLog(String key, String message) {
+    if (_diagOnce.add(key)) {
+      admobTrace('Banner', message);
+    }
+  }
+
+  final Map<String, BannerAd?> _bannerByKey = <String, BannerAd?>{};
   final Set<String> _loadsInFlight = <String>{};
   final ValueNotifier<int> _frameTick = ValueNotifier<int>(0);
 
@@ -36,7 +51,7 @@ class BannerAdModule extends ModuleBase {
       'Banner',
       'compile-time ADMOBS_TOP len=${Config.admobsTopBanner.length} '
       'ADMOBS_BOTTOM len=${Config.admobsBottomBanner.length} '
-      '(empty top skips load; use Google sample IDs in .env.local for dev)',
+      '(empty unit skips load for that slot)',
     );
     _registerBannerCallbacks(appManager.hooksManager);
   }
@@ -44,19 +59,20 @@ class BannerAdModule extends ModuleBase {
   void _registerBannerCallbacks(HooksManager hooksManager) {
     hooksManager.registerHookWithData('top_banner_bar_loaded', (data) {
       admobTrace('Banner', 'hook top_banner_bar_loaded → loadBannerAd(top)');
-      loadBannerAd(Config.admobsTopBanner);
+      loadBannerAd(Config.admobsTopBanner, slot: 'top');
     }, priority: 10);
 
     hooksManager.registerHookWithData('bottom_banner_bar_loaded', (data) {
       if (kIsWeb) return;
       admobTrace('Banner', 'hook bottom_banner_bar_loaded → loadBannerAd(bottom)');
-      loadBannerAd(Config.admobsBottomBanner);
+      loadBannerAd(Config.admobsBottomBanner, slot: 'bottom');
     }, priority: 10);
     admobTrace('Banner', 'registered top+bottom hooks (priority 10; AppManager stubs at 1)');
   }
 
-  /// Preloads a banner for [adUnitId] (native only). Idempotent when already loaded.
-  Future<void> loadBannerAd(String adUnitId) async {
+  /// Preloads a banner for [adUnitId] (native only). [slot] must be stable (`top` / `bottom`)
+  /// so top and bottom can share the same unit id with two separate [BannerAd] instances.
+  Future<void> loadBannerAd(String adUnitId, {required String slot}) async {
     if (kIsWeb) {
       admobTrace('Banner', 'loadBannerAd skip: web');
       dbgAdMob('banner loadBannerAd skip: web');
@@ -77,23 +93,24 @@ class BannerAdModule extends ModuleBase {
       );
       return;
     }
-    if (_bannerByUnitId[adUnitId] != null || _loadsInFlight.contains(adUnitId)) {
+    final key = _storageKey(slot, adUnitId);
+    if (_bannerByKey[key] != null || _loadsInFlight.contains(key)) {
       admobTrace(
         'Banner',
-        'loadBannerAd skip: already loaded or inFlight=${_loadsInFlight.contains(adUnitId)}',
+        'loadBannerAd skip: already loaded or inFlight slot=$slot inFlight=${_loadsInFlight.contains(key)}',
       );
       dbgAdMob(
-        'banner loadBannerAd skip: already loaded or in flight (inFlight=${_loadsInFlight.contains(adUnitId)})',
+        'banner loadBannerAd skip: already loaded or in flight slot=$slot inFlight=${_loadsInFlight.contains(key)}',
       );
       return;
     }
-    _loadsInFlight.add(adUnitId);
+    _loadsInFlight.add(key);
     admobTrace(
       'Banner',
-      'BannerAd.load() start unitId=$adUnitId size=AdSize.banner — '
+      'BannerAd.load() slot=$slot unitId=$adUnitId size=AdSize.banner — '
       'Android app id must match this unit (local.properties admob.application_id)',
     );
-    dbgAdMob('banner load start unitId=$adUnitId');
+    dbgAdMob('banner load start slot=$slot unitId=$adUnitId');
 
     final bannerAd = BannerAd(
       adUnitId: adUnitId,
@@ -104,22 +121,22 @@ class BannerAdModule extends ModuleBase {
           final b = ad as BannerAd;
           admobTrace(
             'Banner',
-            'onAdLoaded unitId=$adUnitId widget=${b.size.width}x${b.size.height}',
+            'onAdLoaded slot=$slot unitId=$adUnitId widget=${b.size.width}x${b.size.height}',
           );
-          dbgAdMob('banner onAdLoaded unitId=$adUnitId size=${b.size.width}x${b.size.height}');
-          _bannerByUnitId[adUnitId] = b;
+          dbgAdMob('banner onAdLoaded slot=$slot unitId=$adUnitId size=${b.size.width}x${b.size.height}');
+          _bannerByKey[key] = b;
           _notifyFrame();
         },
         onAdFailedToLoad: (Ad ad, LoadAdError error) {
           admobTrace(
             'Banner',
-            'onAdFailedToLoad unitId=$adUnitId code=${error.code} message=${error.message}',
+            'onAdFailedToLoad slot=$slot unitId=$adUnitId code=${error.code} message=${error.message}',
           );
           dbgAdMob(
-            'banner onAdFailedToLoad unitId=$adUnitId code=${error.code} domain=${error.domain} message=${error.message}',
+            'banner onAdFailedToLoad slot=$slot unitId=$adUnitId code=${error.code} domain=${error.domain} message=${error.message}',
           );
           ad.dispose();
-          _bannerByUnitId.remove(adUnitId);
+          _bannerByKey.remove(key);
           _notifyFrame();
         },
       ),
@@ -127,27 +144,38 @@ class BannerAdModule extends ModuleBase {
 
     try {
       await bannerAd.load();
-      admobTrace('Banner', 'await load() returned for unitId=$adUnitId (callbacks may still be pending)');
-      dbgAdMob('banner load() completed unitId=$adUnitId');
+      admobTrace('Banner', 'await load() returned slot=$slot unitId=$adUnitId (callbacks may still be pending)');
+      dbgAdMob('banner load() completed slot=$slot unitId=$adUnitId');
     } finally {
-      _loadsInFlight.remove(adUnitId);
+      _loadsInFlight.remove(key);
     }
   }
 
-  Widget _slotFor(BuildContext context, String adUnitId) {
+  Widget _slotFor(BuildContext context, String slot, String adUnitId) {
     if (kIsWeb || adUnitId.trim().isEmpty || !AdExperiencePolicy.showMonetizedAds) {
-      if (!kIsWeb && kDebugMode && adUnitId.trim().isEmpty) {
-        admobTrace('Banner', '_slotFor shrink: empty unitId for this slot');
-      }
+      _diagOnceLog(
+        'shrink|$slot',
+        '_slotFor shrink slot=$slot web=$kIsWeb empty=${adUnitId.trim().isEmpty} '
+        'monetized=${AdExperiencePolicy.showMonetizedAds} ${AdExperiencePolicy.monetizedAdsDebugLabel()}',
+      );
       return const SizedBox.shrink();
     }
+    final key = _storageKey(slot, adUnitId);
     return ValueListenableBuilder<int>(
       valueListenable: _frameTick,
-      builder: (_, __, ___) {
-        final ad = _bannerByUnitId[adUnitId];
+      builder: (_, tick, ___) {
+        final ad = _bannerByKey[key];
         if (ad == null) {
+          _diagOnceLog(
+            'await|$key',
+            '_slotFor slot=$slot key=$key tick=$tick → no BannerAd yet (load in progress or failed)',
+          );
           return const SizedBox.shrink();
         }
+        _diagOnceLog(
+          'show|$key',
+          '_slotFor slot=$slot key=$key → AdWidget size=${ad.size.width}x${ad.size.height}',
+        );
         return SizedBox(
           width: ad.size.width.toDouble(),
           height: ad.size.height.toDouble(),
@@ -158,26 +186,31 @@ class BannerAdModule extends ModuleBase {
   }
 
   Widget getTopBannerWidget(BuildContext context) {
-    return _slotFor(context, Config.admobsTopBanner);
+    return _slotFor(context, 'top', Config.admobsTopBanner);
   }
 
   Widget getBottomBannerWidget(BuildContext context) {
-    return _slotFor(context, Config.admobsBottomBanner);
+    return _slotFor(context, 'bottom', Config.admobsBottomBanner);
   }
 
   void disposeBannerAd(String adUnitId) {
-    final ad = _bannerByUnitId.remove(adUnitId);
-    ad?.dispose();
+    final t = adUnitId.trim();
+    if (t.isEmpty) return;
+    for (final slot in <String>['top', 'bottom']) {
+      final key = _storageKey(slot, t);
+      final ad = _bannerByKey.remove(key);
+      ad?.dispose();
+    }
     _notifyFrame();
   }
 
   @override
   void dispose() {
     _loadsInFlight.clear();
-    for (final ad in _bannerByUnitId.values) {
+    for (final ad in _bannerByKey.values) {
       ad?.dispose();
     }
-    _bannerByUnitId.clear();
+    _bannerByKey.clear();
     _frameTick.dispose();
     super.dispose();
   }

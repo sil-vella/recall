@@ -5,6 +5,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../utils/consts/config.dart';
 import '../../utils/dbg.dart';
+import 'admob_trace.dart';
 
 bool _mobileAdsInitialized = false;
 
@@ -83,4 +84,14 @@ Future<void> bootstrapConsentAndMobileAds() async {
     },
   );
   dbgAdMob('bootstrapConsentAndMobileAds: finished');
+  admobTrace(
+    'Bootstrap',
+    'dart-define banner top len=${Config.admobsTopBanner.length} bottom len=${Config.admobsBottomBanner.length} '
+    '(Google sample bottom is ca-app-pub-3940256099942544/6300978111)',
+  );
+  admobTrace(
+    'Bootstrap',
+    'Android: manifest app id comes from android/local.properties admob.application_id — '
+    'must match publisher of banner unit ids (Google test app id for sample units)',
+  );
 }

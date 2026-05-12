@@ -1,5 +1,31 @@
-import java.util.Properties
 import java.io.FileInputStream
+import java.util.Base64
+import java.util.Properties
+
+/**
+ * Flutter passes `--dart-define` keys to Gradle as a comma-separated list of
+ * Base64-encoded `KEY=VALUE` tokens ([dart-defines] project property).
+ * Used so `ADMOB_APPLICATION_ID` can live in repo `.env` / `.env.prod` like other AdMob vars.
+ */
+private fun decodeDartDefinesMap(raw: String?): Map<String, String> {
+    if (raw.isNullOrBlank()) return emptyMap()
+    val decoder = Base64.getDecoder()
+    val out = mutableMapOf<String, String>()
+    for (token in raw.split(',')) {
+        val t = token.trim()
+        if (t.isEmpty()) continue
+        try {
+            val decoded = String(decoder.decode(t), Charsets.UTF_8)
+            val idx = decoded.indexOf('=')
+            if (idx > 0 && idx < decoded.length - 1) {
+                out[decoded.substring(0, idx)] = decoded.substring(idx + 1)
+            }
+        } catch (_: IllegalArgumentException) {
+            // ignore malformed segment
+        }
+    }
+    return out
+}
 
 plugins {
     id("com.android.application")
@@ -40,9 +66,19 @@ android {
         if (localPropsFile.exists()) {
             localPropsFile.inputStream().use { localProps.load(it) }
         }
-        val admobAppId = (localProps.getProperty("admob.application_id") ?: "").trim().ifEmpty {
-            "ca-app-pub-3940256099942544~3347511713"
-        }
+        // Precedence: --dart-define ADMOB_APPLICATION_ID (from .env via launch/build scripts)
+        // > android/local.properties admob.application_id > Google sample app id.
+        val dartDefinesRaw =
+            (project.findProperty("dart-defines") ?: project.rootProject.findProperty("dart-defines"))
+                ?.toString()
+        val fromDart = (decodeDartDefinesMap(dartDefinesRaw)["ADMOB_APPLICATION_ID"] ?: "").trim()
+        val fromLocal = (localProps.getProperty("admob.application_id") ?: "").trim()
+        val admobAppId =
+            when {
+                fromDart.isNotEmpty() -> fromDart
+                fromLocal.isNotEmpty() -> fromLocal
+                else -> "ca-app-pub-3940256099942544~3347511713"
+            }
         manifestPlaceholders["ADMOB_APPLICATION_ID"] = admobAppId
     }
 

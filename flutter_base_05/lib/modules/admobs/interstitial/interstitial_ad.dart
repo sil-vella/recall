@@ -9,6 +9,7 @@ import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
 import '../../../../utils/dbg.dart';
 import '../ad_experience_policy.dart';
+import '../admob_trace.dart';
 
 /// Preloads and shows AdMob interstitials (e.g. after navigation gate in [PromotionalAdsModule]).
 class InterstitialAdModule extends ModuleBase {
@@ -23,6 +24,10 @@ class InterstitialAdModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
+    if (adUnitId.trim().isEmpty) {
+      admobTrace('Interstitial', 'initialize: empty adUnitId — skip loadAd()');
+      return;
+    }
     loadAd();
   }
 

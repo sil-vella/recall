@@ -39,7 +39,8 @@
                 "--dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800",
                 "--dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300",
                 "--dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600",
-                "--dart-define=ADMOBS_BOTTOM_BANNER01=ca-app-pub-6524100109992126/3612268528",
+                "--dart-define=ADMOBS_TOP_BANNER01=ca-app-pub-3940256099942544/6300978111",
+                "--dart-define=ADMOBS_BOTTOM_BANNER01=ca-app-pub-3940256099942544/6300978111",
                 "--dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_51MXUtTADcEzB4rlRqLVPRhD0Ti3SRZGyTEQ1crO6YoeGyEfWYBgDxouHygPawog6kKTLVWhxP6DbK1MtBylX2Z6G00JTtIRdgZ",
                 "--dart-define=FLUTTER_KEEP_SCREEN_ON=true",
                 "--dart-define=DEBUG_MODE=true"

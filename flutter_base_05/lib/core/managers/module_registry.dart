@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:dutch/modules/dutch_game/dutch_game_main.dart';
 import '../00_base/module_base.dart';
 import 'module_manager.dart';
@@ -15,6 +14,7 @@ import '../../modules/analytics_module/analytics_module.dart';
 import '../../modules/audio_module/audio_module.dart';
 import '../../modules/animations_module/animations_module.dart';
 // Native IAP module not registered (use Stripe on web; Play Billing TBD).
+import '../../modules/admobs/adverts_module.dart';
 import '../../modules/admobs/banner/banner_ad.dart';
 import '../../modules/admobs/interstitial/interstitial_ad.dart';
 import '../../modules/admobs/rewarded/rewarded_ad.dart';
@@ -111,15 +111,29 @@ class ModuleRegistry {
     
     registerModule('animations', () => AnimationsModule());
 
-    registerModule('promotional_ads', () => PromotionalAdsModule());
-    
     // Native IAP module not registered (use Stripe on web; Play Billing TBD).
     // registerModule('in_app_purchases', () => InAppPurchasesModule());
-    
-    // Ad modules temporarily disabled - will be converted to hooks
+
+    // AdMob: unit modules first, then coordinator (FMIF-style preload), then
+    // promotional (navigation-gated interstitial) so registration order matches
+    // PluginManager Main → … → Adverts in the reference project.
     registerModule('admobs_banner_ad_module', () => BannerAdModule());
     registerModule('admobs_interstitial_ad_module', () => InterstitialAdModule(Config.admobsInterstitial01));
     registerModule('admobs_rewarded_ad_module', () => RewardedAdModule(Config.admobsRewarded01));
+    registerModule(
+      'adverts_module',
+      () => AdvertsModule(),
+      dependencies: const [
+        'admobs_banner_ad_module',
+        'admobs_interstitial_ad_module',
+        'admobs_rewarded_ad_module',
+      ],
+    );
+    registerModule(
+      'promotional_ads',
+      () => PromotionalAdsModule(),
+      dependencies: const ['adverts_module'],
+    );
 
     registerModule('dutch_game', () => DutchGameMain());
   }

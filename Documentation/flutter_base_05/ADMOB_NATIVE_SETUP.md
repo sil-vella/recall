@@ -2,10 +2,11 @@
 
 ## Flutter `--dart-define` (ad **unit** IDs)
 
-Set in `.env.prod`, `.env.local`, or your launch script (see `playbooks/frontend/dart_defines_from_env.sh`). Release/debug builds go through `playbooks/frontend/build_appbundle.sh`, `build_apk.sh`, `build_web.sh`, and `launch_android_debug.sh` — not `flutter_base_05/build.py` (that file is an optional manual AAB helper only).
+Set in `.env.prod`, `.env.local`, or your launch script (see `playbooks/frontend/dart_defines_from_env.sh`). Release builds go through `playbooks/frontend/build_appbundle.sh`, `build_apk.sh`, and `build_web.sh`; local Android device runs use `launch_oneplus.sh` (see `.vscode/launch.json`) — not `flutter_base_05/build.py` (that file is an optional manual AAB helper only).
 
 | Variable | Purpose |
 |----------|---------|
+| `ADMOB_APPLICATION_ID` | Android AdMob **app** id (`ca-app-pub-…~…`, **not** an ad unit). Same `.env` files as below; Gradle prefers this over `local.properties`. |
 | `ADMOBS_TOP_BANNER01` | Top banner ad unit |
 | `ADMOBS_BOTTOM_BANNER01` | Bottom banner ad unit |
 | `ADMOBS_INTERSTITIAL01` | Full-screen interstitial (navigation gate) |
@@ -15,7 +16,7 @@ Leave `ADMOBS_INTERSTITIAL01` and `ADMOBS_REWARDED01` **empty** until those unit
 
 ### Google demo ad units (local / QA)
 
-Official test creatives ([Android test ads](https://developers.google.com/admob/android/test-ads)). Defaults for **hardcoded** demo IDs live in `playbooks/frontend/launch_android_debug.sh` and the optional `flutter_base_05/build.py`; most setups set `ADMOBS_*` in root `.env.local` / `.env.prod` instead.
+Official test creatives ([Android test ads](https://developers.google.com/admob/android/test-ads)). Set `ADMOBS_*` in root **`.env.local`** (loaded by `launch_oneplus.sh` / `launch_chrome.sh` via `dart_defines_from_env.sh`) and **`.env.prod`** (release). Use **Google sample** banner IDs locally with **Google test application id** in `android/local.properties`.
 
 | Ad format | Demo ad unit ID | This repo (`ADMOBS_*`) |
 |-----------|------------------|-------------------------|
@@ -38,13 +39,36 @@ Optional targeting / consent-related defines (see `lib/utils/consts/config.dart`
 
 ## Android AdMob **application** id
 
-Not a Dart define. Gradle injects `ADMOB_APPLICATION_ID` into the manifest placeholder.
+Gradle injects `ADMOB_APPLICATION_ID` into the manifest placeholder.
 
-1. In `flutter_base_05/android/local.properties` add (Dutch production app example):
-   ```properties
-   admob.application_id=ca-app-pub-6524100109992126~6470366151
-   ```
-2. If omitted, the build uses Google’s **test** application id (`ca-app-pub-3940256099942544~3347511713`) — only use that when your `ADMOBS_*` units are also Google’s **sample** IDs.
+**What is “testing” vs production?**
+
+- **`ca-app-pub-6524100109992126~6470366151`** — your **real** AdMob **application** id from the console (production app). Use it when `ADMOBS_*` point at **your** ad units from that same app.
+- **`ca-app-pub-3940256099942544~3347511713`** — Google’s **sample** application id. Use it with Google’s **sample** unit ids (`ca-app-pub-3940256099942544/...`) for local QA.
+
+**Precedence (no need to edit `local.properties` when switching):**
+
+1. **`ADMOB_APPLICATION_ID`** in `.env.local` / `.env.prod` — emitted as `--dart-define` by `dart_defines_from_env.sh` (used by `launch_oneplus.sh`, `build_appbundle.sh`, etc.). **Wins when present.**
+2. **`admob.application_id`** in `flutter_base_05/android/local.properties` — optional fallback (e.g. opening only the `android` module in Android Studio without Flutter’s dart-defines).
+3. If both are absent, Gradle uses Google’s **test** application id (`ca-app-pub-3940256099942544~3347511713`).
+
+Example `.env.local` (sample banners + sample app id):
+
+```properties
+ADMOB_APPLICATION_ID='ca-app-pub-3940256099942544~3347511713'
+ADMOBS_TOP_BANNER01='ca-app-pub-3940256099942544/6300978111'
+```
+
+Example production (your app id + your live units from AdMob):
+
+```properties
+ADMOB_APPLICATION_ID='ca-app-pub-6524100109992126~6470366151'
+ADMOBS_TOP_BANNER01='ca-app-pub-6524100109992126/3612268528'
+```
+
+### Troubleshooting: no banner, `onAdFailedToLoad` code 1
+
+If logcat / forwarded logs show **`Error building request URL: Cannot determine request type. Is your ad unit id correct?`** for a unit like `ca-app-pub-3940256099942544/6300978111`, the **ad unit id string is often fine** — the mismatch is usually **application id** in `local.properties` (or iOS `GAD_APPLICATION_ID`) vs the **publisher** of the ad unit. Pair **Google sample units** with **`ca-app-pub-3940256099942544~3347511713`**. Pair **your live units** with **your** `ca-app-pub-…~…` app id from AdMob. Then **clean** (`flutter clean`) and reinstall so the manifest picks up the new app id.
 
 ## iOS AdMob **application** id
 

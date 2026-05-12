@@ -11,6 +11,7 @@ import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
 import '../../../../utils/dbg.dart';
 import '../ad_experience_policy.dart';
+import '../admob_trace.dart';
 
 /// Rewarded AdMob unit: preload, [isReady], [showAd] with earn + dismiss callbacks.
 class RewardedAdModule extends ModuleBase {
@@ -35,6 +36,10 @@ class RewardedAdModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
+    if (adUnitId.trim().isEmpty) {
+      admobTrace('Rewarded', 'initialize: empty adUnitId — skip loadAd()');
+      return;
+    }
     loadAd();
   }
 

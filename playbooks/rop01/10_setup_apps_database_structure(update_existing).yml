@@ -449,7 +449,7 @@
           }
 
           // ========================================
-          // 8. LEADERBOARDS COLLECTION (cron snapshots via Flask — see 14_leaderboard_cron.yml)
+          // 8. LEADERBOARDS COLLECTION (optional archive / tournament payloads; live period boards use dutch_match_win_outcomes)
           // ========================================
           // leaderboard_type: "daily" | "monthly" | "yearly" | "tournament"
           // For leaderboard_type === "tournament": set tournament_type + tournament_format (e.g. IRL/Online × League/Cup)

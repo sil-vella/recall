@@ -2,19 +2,52 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/module_manager.dart';
+import '../../../../core/managers/navigation_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../backend_core/utils/rank_matcher.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
+
+const int _kLeaderboardDisplayLimit = 20;
 
 /// Enable for leaderboard testing (period-wins). See `.cursor/rules/enable-logging-switch.mdc`.
 
-/// Route: `/dutch/leaderboard` — live period wins from public Dutch endpoints.
+/// Route: `/dutch/leaderboard` — one bundle fetch; monthly/yearly and rank tier filtered on device.
 class LeaderboardScreen extends BaseScreen {
   const LeaderboardScreen({Key? key}) : super(key: key);
 
+  /// Set by [_LeaderboardScreenState] so the app bar refresh action can call [_LeaderboardScreenState._load].
+  static VoidCallback? refreshCallback;
+
   @override
   String computeTitle(BuildContext context) => 'Leaderboard';
+
+  @override
+  List<Widget>? getAppBarActions(BuildContext context) {
+    return [
+      Semantics(
+        identifier: 'leaderboard_history',
+        button: true,
+        label: 'Leaderboard history',
+        child: IconButton(
+          icon: const Icon(Icons.history, color: AppColors.white),
+          tooltip: 'History',
+          onPressed: () => NavigationManager().navigateTo('/dutch/leaderboard/history'),
+        ),
+      ),
+      Semantics(
+        identifier: 'leaderboard_refresh',
+        button: true,
+        label: 'Refresh leaderboard',
+        child: IconButton(
+          icon: const Icon(Icons.refresh, color: AppColors.white),
+          tooltip: 'Refresh',
+          onPressed: () => LeaderboardScreen.refreshCallback?.call(),
+        ),
+      ),
+    ];
+  }
 
   @override
   Decoration? getBackground(BuildContext context) {
@@ -32,56 +65,82 @@ class LeaderboardScreen extends BaseScreen {
 }
 
 class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
+  static const int _displayLimit = _kLeaderboardDisplayLimit;
+
   bool _loading = true;
-  String? _monthlyError;
-  String? _yearlyError;
-  List<Map<String, dynamic>> _monthlyRows = [];
-  List<Map<String, dynamic>> _yearlyRows = [];
+  String? _loadError;
+  List<Map<String, dynamic>> _rawMonthly = [];
+  List<Map<String, dynamic>> _rawYearly = [];
   String _monthlyPeriodKey = '';
   String _yearlyPeriodKey = '';
-  Map<String, dynamic>? _monthlyViewer;
-  Map<String, dynamic>? _yearlyViewer;
+  Map<String, dynamic>? _bundleViewer;
+  bool _monthlyTruncated = false;
+  bool _yearlyTruncated = false;
   int _tabIndex = 0;
+  /// `null` = all ranks (client-side filter only).
+  String? _selectedRankTier;
 
   @override
   void initState() {
     super.initState();
+    LeaderboardScreen.refreshCallback = _load;
     _load();
   }
 
+  @override
+  void dispose() {
+    LeaderboardScreen.refreshCallback = null;
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> _filteredAndRanked(List<Map<String, dynamic>> raw) {
+    final tierLc = _selectedRankTier?.toLowerCase().trim();
+    final filtered = <Map<String, dynamic>>[];
+    if (tierLc == null || tierLc.isEmpty) {
+      for (final r in raw) {
+        filtered.add(Map<String, dynamic>.from(r));
+      }
+    } else {
+      for (final r in raw) {
+        final rt = (r['rank_tier'] ?? '').toString().toLowerCase();
+        if (rt == tierLc) {
+          filtered.add(Map<String, dynamic>.from(r));
+        }
+      }
+    }
+    final top = filtered.take(_displayLimit).toList();
+    return List.generate(top.length, (i) {
+      final m = Map<String, dynamic>.from(top[i]);
+      m['rank'] = i + 1;
+      return m;
+    });
+  }
+
+  List<Map<String, dynamic>> get _visibleMonthly => _filteredAndRanked(_rawMonthly);
+  List<Map<String, dynamic>> get _visibleYearly => _filteredAndRanked(_rawYearly);
+
   Future<void> _load() async {
-    
     setState(() {
       _loading = true;
-      _monthlyError = null;
-      _yearlyError = null;
+      _loadError = null;
     });
     try {
       final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
       if (api == null) {
-        _monthlyError = 'API not available';
-        _yearlyError = 'API not available';
-        _monthlyRows = [];
-        _yearlyRows = [];
+        _loadError = 'API not available';
+        _rawMonthly = [];
+        _rawYearly = [];
+        _bundleViewer = null;
         if (mounted) setState(() => _loading = false);
         return;
       }
-      final results = await Future.wait([
-        api.sendGetRequest(_periodWinsUrl('monthly')),
-        api.sendGetRequest(_periodWinsUrl('yearly')),
-      ]);
-      _applyResponse(results[0], isMonthly: true);
-      _applyResponse(results[1], isMonthly: false);
-      
+      final response = await api.sendGetRequest(_leaderboardBundleUrl());
+      _applyBundleResponse(response);
     } catch (e) {
-      
-      final msg = e.toString();
-      _monthlyError ??= msg;
-      _yearlyError ??= msg;
-      _monthlyRows = [];
-      _yearlyRows = [];
-      _monthlyViewer = null;
-      _yearlyViewer = null;
+      _loadError = e.toString();
+      _rawMonthly = [];
+      _rawYearly = [];
+      _bundleViewer = null;
     }
     if (mounted) {
       setState(() {
@@ -90,47 +149,92 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     }
   }
 
-  void _applyResponse(dynamic response, {required bool isMonthly}) {
-    if (response is Map && response['success'] == true) {
-      final raw = response['rows'];
-      final list = raw is List ? raw : const [];
-      final rows = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      final pk = response['period_key']?.toString() ?? '';
-      final viewerRaw = response['viewer'];
-      final viewer = viewerRaw is Map ? Map<String, dynamic>.from(viewerRaw) : null;
-      if (isMonthly) {
-        _monthlyRows = rows;
-        _monthlyPeriodKey = pk;
-        _monthlyError = null;
-        _monthlyViewer = viewer;
-      } else {
-        _yearlyRows = rows;
-        _yearlyPeriodKey = pk;
-        _yearlyError = null;
-        _yearlyViewer = viewer;
-      }
-    } else {
-      final err = (response is Map ? response['error']?.toString() : null) ?? 'Failed to load leaderboard';
-      if (isMonthly) {
-        _monthlyRows = [];
-        _monthlyError = err;
-        _monthlyViewer = null;
-      } else {
-        _yearlyRows = [];
-        _yearlyError = err;
-        _yearlyViewer = null;
-      }
+  void _applyBundleResponse(dynamic response) {
+    if (response is! Map || response['success'] != true) {
+      _loadError =
+          (response is Map ? response['error']?.toString() : null) ?? 'Failed to load leaderboard';
+      _rawMonthly = [];
+      _rawYearly = [];
+      _bundleViewer = null;
+      return;
     }
+    _loadError = null;
+    final m = response['monthly'];
+    final y = response['yearly'];
+    if (m is Map) {
+      _monthlyPeriodKey = m['period_key']?.toString() ?? '';
+      _monthlyTruncated = m['truncated'] == true;
+      final rows = m['rows'];
+      _rawMonthly = rows is List
+          ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+    } else {
+      _rawMonthly = [];
+    }
+    if (y is Map) {
+      _yearlyPeriodKey = y['period_key']?.toString() ?? '';
+      _yearlyTruncated = y['truncated'] == true;
+      final rows = y['rows'];
+      _rawYearly = rows is List
+          ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+    } else {
+      _rawYearly = [];
+    }
+    final v = response['viewer'];
+    _bundleViewer = v is Map ? Map<String, dynamic>.from(v) : null;
   }
 
-  /// Public period-wins API; optional `user_id` for `viewer` block (no JWT).
-  String _periodWinsUrl(String period) {
+  String _leaderboardBundleUrl() {
     final login = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final uid = login['userId']?.toString() ?? login['user_id']?.toString() ?? '';
     if (uid.isEmpty) {
-      return '/public/dutch/leaderboard-period-wins?period=$period&limit=20';
+      return '/public/dutch/leaderboard-period-wins-bundle';
     }
-    return '/public/dutch/leaderboard-period-wins?period=$period&limit=20&user_id=${Uri.encodeQueryComponent(uid)}';
+    return '/public/dutch/leaderboard-period-wins-bundle?user_id=${Uri.encodeQueryComponent(uid)}';
+  }
+
+  String? _currentUserId() {
+    final login = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    return login['userId']?.toString() ?? login['user_id']?.toString();
+  }
+
+  String _capitalizeRank(String r) {
+    if (r.isEmpty) return r;
+    return '${r[0].toUpperCase()}${r.substring(1)}';
+  }
+
+  String _monthlyPeriodTitle() {
+    final base =
+        _monthlyPeriodKey.isEmpty ? 'This month (UTC)' : 'Month $_monthlyPeriodKey (UTC)';
+    final t = _selectedRankTier;
+    if (t == null || t.isEmpty) return base;
+    return '$base · ${_capitalizeRank(t)} only';
+  }
+
+  String _yearlyPeriodTitle() {
+    final base = _yearlyPeriodKey.isEmpty ? 'This year (UTC)' : 'Year $_yearlyPeriodKey (UTC)';
+    final t = _selectedRankTier;
+    if (t == null || t.isEmpty) return base;
+    return '$base · ${_capitalizeRank(t)} only';
+  }
+
+  String _emptyMessageMonthly() {
+    final t = _selectedRankTier;
+    if (t == null || t.isEmpty) return 'No wins recorded this month yet.';
+    return 'No wins recorded this month for ${_capitalizeRank(t)} players yet.';
+  }
+
+  String _emptyMessageYearly() {
+    final t = _selectedRankTier;
+    if (t == null || t.isEmpty) return 'No wins recorded this year yet.';
+    return 'No wins recorded this year for ${_capitalizeRank(t)} players yet.';
+  }
+
+  String? _truncationNote(bool monthly) {
+    final t = monthly ? _monthlyTruncated : _yearlyTruncated;
+    if (!t) return null;
+    return 'Server list may be capped; some players beyond the cap are omitted.';
   }
 
   @override
@@ -141,6 +245,24 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
       );
     }
 
+    final monthlyRows = _visibleMonthly;
+    final yearlyRows = _visibleYearly;
+    final uid = _currentUserId();
+    final monthlyViewerLine = _viewerLine(
+      uid: uid,
+      bundleViewer: _bundleViewer,
+      periodKey: 'monthly',
+      filteredRows: monthlyRows,
+      selectedTier: _selectedRankTier,
+    );
+    final yearlyViewerLine = _viewerLine(
+      uid: uid,
+      bundleViewer: _bundleViewer,
+      periodKey: 'yearly',
+      filteredRows: yearlyRows,
+      selectedTier: _selectedRankTier,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -149,8 +271,8 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
           child: Padding(
             padding: AppPadding.defaultPadding.copyWith(bottom: 8),
             child: _LeaderboardPodium(
-              rows: _tabIndex == 0 ? _monthlyRows : _yearlyRows,
-              periodError: _tabIndex == 0 ? _monthlyError : _yearlyError,
+              rows: _tabIndex == 0 ? monthlyRows : yearlyRows,
+              periodError: _loadError,
             ),
           ),
         ),
@@ -161,25 +283,34 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
             onChanged: (i) => setState(() => _tabIndex = i),
           ),
         ),
+        Padding(
+          padding: AppPadding.defaultPadding.copyWith(bottom: 8),
+          child: _RankTierChipBar(
+            selectedTier: _selectedRankTier,
+            onTierChanged: (tier) => setState(() => _selectedRankTier = tier),
+          ),
+        ),
         Expanded(
           child: RefreshIndicator(
             color: AppColors.accentColor,
             onRefresh: _load,
             child: _tabIndex == 0
                 ? _PeriodLeaderboardBody(
-                    error: _monthlyError,
-                    rows: _monthlyRows,
-                    viewer: _monthlyViewer,
-                    periodLabel: _monthlyPeriodKey.isEmpty ? 'This month (UTC)' : 'Month $_monthlyPeriodKey (UTC)',
-                    emptyMessage: 'No wins recorded this month yet.',
+                    error: _loadError,
+                    rows: monthlyRows,
+                    viewerLine: monthlyViewerLine,
+                    truncationNote: _truncationNote(true),
+                    periodLabel: _monthlyPeriodTitle(),
+                    emptyMessage: _emptyMessageMonthly(),
                     onRetry: _load,
                   )
                 : _PeriodLeaderboardBody(
-                    error: _yearlyError,
-                    rows: _yearlyRows,
-                    viewer: _yearlyViewer,
-                    periodLabel: _yearlyPeriodKey.isEmpty ? 'This year (UTC)' : 'Year $_yearlyPeriodKey (UTC)',
-                    emptyMessage: 'No wins recorded this year yet.',
+                    error: _loadError,
+                    rows: yearlyRows,
+                    viewerLine: yearlyViewerLine,
+                    truncationNote: _truncationNote(false),
+                    periodLabel: _yearlyPeriodTitle(),
+                    emptyMessage: _emptyMessageYearly(),
                     onRetry: _load,
                   ),
           ),
@@ -199,6 +330,44 @@ String _displayNameFromPeriodRow(Map<String, dynamic> row) {
     return 'Player $tail';
   }
   return 'Player';
+}
+
+/// Viewer subtitle from bundle ``viewer.monthly`` / ``viewer.yearly`` and client-filtered rows.
+String? _viewerLine({
+  required String? uid,
+  required Map<String, dynamic>? bundleViewer,
+  required String periodKey,
+  required List<Map<String, dynamic>> filteredRows,
+  required String? selectedTier,
+}) {
+  if (uid == null || uid.isEmpty || bundleViewer == null) return null;
+  final ps = bundleViewer[periodKey];
+  if (ps is! Map) return null;
+  final stats = Map<String, dynamic>.from(ps);
+  final winsInPeriod = (stats['wins'] as num?)?.toInt() ?? 0;
+  final yrTier = stats['rank_tier']?.toString() ?? '';
+  final inPeriod = stats['in_period'] == true;
+
+  final idx = filteredRows.indexWhere((r) => r['user_id']?.toString() == uid);
+  if (idx >= 0) {
+    final w = filteredRows[idx]['wins'];
+    return 'Your position: #${idx + 1} · $w wins';
+  }
+
+  final st = selectedTier?.toLowerCase().trim();
+  if (st != null && st.isNotEmpty && winsInPeriod > 0) {
+    if (yrTier.toLowerCase() != st) {
+      return 'Your tier is $yrTier ($winsInPeriod wins this period); not on this rank board.';
+    }
+    return 'Your position: not in the top $_kLeaderboardDisplayLimit for this view.';
+  }
+  if (!inPeriod && winsInPeriod <= 0) {
+    return 'Your position: no wins in this period yet';
+  }
+  if (winsInPeriod > 0) {
+    return 'Your position: not in the top $_kLeaderboardDisplayLimit for this view.';
+  }
+  return 'Your position: no wins in this period yet';
 }
 
 /// Top 3 for the active period (2nd – 1st – 3rd), aligned with list ordering from the API.
@@ -442,23 +611,12 @@ class _PeriodTabBar extends StatelessWidget {
   }
 }
 
-/// One-line copy for API `viewer` block from [get_period_wins_leaderboard_public].
-String? _viewerPositionLine(Map<String, dynamic>? viewer) {
-  if (viewer == null) return null;
-  if (viewer['in_period'] == false) {
-    return 'Your position: no wins in this period yet';
-  }
-  final rank = viewer['rank'];
-  final wins = viewer['wins'];
-  if (rank == null) return null;
-  return 'Your position: #$rank · $wins wins';
-}
-
 class _PeriodLeaderboardBody extends StatelessWidget {
   const _PeriodLeaderboardBody({
     required this.error,
     required this.rows,
-    required this.viewer,
+    required this.viewerLine,
+    required this.truncationNote,
     required this.periodLabel,
     required this.emptyMessage,
     required this.onRetry,
@@ -466,7 +624,8 @@ class _PeriodLeaderboardBody extends StatelessWidget {
 
   final String? error;
   final List<Map<String, dynamic>> rows;
-  final Map<String, dynamic>? viewer;
+  final String? viewerLine;
+  final String? truncationNote;
   final String periodLabel;
   final String emptyMessage;
   final Future<void> Function() onRetry;
@@ -489,7 +648,6 @@ class _PeriodLeaderboardBody extends StatelessWidget {
         ],
       );
     }
-    final viewerLine = _viewerPositionLine(viewer);
     if (rows.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -499,13 +657,20 @@ class _PeriodLeaderboardBody extends StatelessWidget {
             periodLabel,
             style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
           ),
+          if (truncationNote != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              truncationNote!,
+              style: AppTextStyles.caption(color: AppColors.textTertiary),
+            ),
+          ],
           if (viewerLine != null) ...[
             const SizedBox(height: 6),
             Semantics(
               identifier: 'leaderboard_viewer_position',
-              label: viewerLine,
+              label: viewerLine!,
               child: Text(
-                viewerLine,
+                viewerLine!,
                 style: AppTextStyles.bodyMedium(color: AppColors.white),
               ),
             ),
@@ -526,7 +691,6 @@ class _PeriodLeaderboardBody extends StatelessWidget {
       separatorBuilder: (_, i) => i == 0 ? const SizedBox(height: 4) : const SizedBox(height: 6),
       itemBuilder: (context, index) {
         if (index == 0) {
-          final line = _viewerPositionLine(viewer);
           return Padding(
             padding: const EdgeInsets.only(bottom: 2),
             child: Column(
@@ -536,13 +700,20 @@ class _PeriodLeaderboardBody extends StatelessWidget {
                   periodLabel,
                   style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
                 ),
-                if (line != null) ...[
+                if (truncationNote != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    truncationNote!,
+                    style: AppTextStyles.caption(color: AppColors.textTertiary),
+                  ),
+                ],
+                if (viewerLine != null) ...[
                   const SizedBox(height: 6),
                   Semantics(
                     identifier: 'leaderboard_viewer_position',
-                    label: line,
+                    label: viewerLine!,
                     child: Text(
-                      line,
+                      viewerLine!,
                       style: AppTextStyles.bodyMedium(color: AppColors.white),
                     ),
                   ),
@@ -620,6 +791,81 @@ class _PeriodLeaderboardBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _RankTierChipBar extends StatelessWidget {
+  const _RankTierChipBar({
+    required this.selectedTier,
+    required this.onTierChanged,
+  });
+
+  final String? selectedTier;
+  final ValueChanged<String?> onTierChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiers = RankMatcher.rankHierarchy;
+    final inactiveBorder = AppColors.casinoBorderColor;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Rank tier',
+          style: AppTextStyles.caption(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Semantics(
+                  identifier: 'leaderboard_rank_tier_all',
+                  button: true,
+                  label: 'All ranks',
+                  child: FilterChip(
+                    label: Text('All', style: AppTextStyles.bodySmall(color: AppColors.white)),
+                    selected: selectedTier == null,
+                    onSelected: (v) {
+                      if (v) onTierChanged(null);
+                    },
+                    showCheckmark: false,
+                    selectedColor: AppColors.accentContrast,
+                    backgroundColor: AppColors.surface,
+                    side: BorderSide(color: inactiveBorder),
+                  ),
+                ),
+              ),
+              for (final tier in tiers)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Semantics(
+                    identifier: 'leaderboard_rank_tier_$tier',
+                    button: true,
+                    label: 'Rank $tier',
+                    child: FilterChip(
+                      label: Text(
+                        tier.isEmpty ? tier : '${tier[0].toUpperCase()}${tier.substring(1)}',
+                        style: AppTextStyles.bodySmall(color: AppColors.white),
+                      ),
+                      selected: selectedTier == tier,
+                      onSelected: (v) {
+                        if (v) onTierChanged(tier);
+                      },
+                      showCheckmark: false,
+                      selectedColor: AppColors.accentContrast,
+                      backgroundColor: AppColors.surface,
+                      side: BorderSide(color: inactiveBorder),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

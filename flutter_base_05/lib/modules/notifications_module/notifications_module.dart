@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'dart:developer' as developer;
 
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
@@ -21,6 +23,15 @@ class NotificationsModule extends ModuleBase {
 
   /// Listeners for Dart [inbox_changed] (Python created a DB notification) — run inbox fetch + modals.
   final List<VoidCallback> _inboxRefreshListeners = [];
+
+  void _notificationsDebug(String message, [Object? error, StackTrace? stackTrace]) {
+    if (!kDebugMode) return;
+    if (error != null) {
+      developer.log(message, name: 'NotificationsModule', error: error, stackTrace: stackTrace);
+    } else {
+      developer.log(message, name: 'NotificationsModule');
+    }
+  }
 
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
@@ -94,6 +105,7 @@ class NotificationsModule extends ModuleBase {
 
   /// Replaces global broadcast rows from `get-user-stats` (`global_broadcast_messages`).
   void applyGlobalBroadcastsFromStats(List<Map<String, dynamic>> items) {
+    _notificationsDebug('applyGlobalBroadcastsFromStats: count=${items.length}');
     StateManager().updateModuleState(_stateKey, {
       'globalBroadcasts': items.map((e) => Map<String, dynamic>.from(e)).toList(),
     });
@@ -134,7 +146,8 @@ class NotificationsModule extends ModuleBase {
         StateManager().updateModuleState(_stateKey, {'globalBroadcasts': updated});
       }
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      _notificationsDebug('markGlobalBroadcastsRead failed', e, st);
       return false;
     }
   }
@@ -152,8 +165,16 @@ class NotificationsModule extends ModuleBase {
         '/userauth/notifications/messages?limit=$limitVal&offset=$offsetVal&unread_only=$unreadOnly';
     try {
       final response = await _connectionsModule!.sendGetRequest(route);
-      if (response is! Map) return [];
-      if (response['success'] != true) return [];
+      if (response is! Map) {
+        _notificationsDebug('fetchMessages: non-Map response type=${response.runtimeType}');
+        return [];
+      }
+      if (response['success'] != true) {
+        _notificationsDebug(
+          'fetchMessages: success!=true keys=${response.keys.toList()} message=${response['message'] ?? response['error']}',
+        );
+        return [];
+      }
       final data = response['data'];
       if (data is! List) return [];
       final list = data
@@ -168,7 +189,8 @@ class NotificationsModule extends ModuleBase {
         'unreadCount': list.where((m) => m['read_at'] == null || m['read_at'] == '').length,
       });
       return list;
-    } catch (e) {
+    } catch (e, st) {
+      _notificationsDebug('fetchMessages failed route=$route', e, st);
       return [];
     }
   }
@@ -208,7 +230,8 @@ class NotificationsModule extends ModuleBase {
         });
       }
       return true;
-    } catch (e) {
+    } catch (e, st) {
+      _notificationsDebug('markAsRead failed', e, st);
       return false;
     }
   }

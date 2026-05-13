@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import '../connections_api_module/connections_api_module.dart';
 import 'package:provider/provider.dart';
 import '../../core/00_base/module_base.dart';
@@ -18,6 +19,15 @@ import '../../core/managers/websockets/websocket_manager.dart';
 import '../../utils/consts/config.dart';
 import '../../utils/analytics_service.dart';
 import 'utils/ws_jwt_access_expiry.dart';
+
+void _loginModuleDebug(String message, [Object? error, StackTrace? stackTrace]) {
+  if (!kDebugMode) return;
+  if (error != null) {
+    developer.log(message, name: 'LoginModule', error: error, stackTrace: stackTrace);
+  } else {
+    developer.log(message, name: 'LoginModule');
+  }
+}
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
@@ -600,13 +610,17 @@ class LoginModule extends ModuleBase {
     _initDependencies(context);
 
     if (_connectionModule == null || _sharedPref == null || _authManager == null) {
+      _loginModuleDebug(
+        'loginUser: service unavailable '
+        '(connection=${_connectionModule != null} sharedPref=${_sharedPref != null} auth=${_authManager != null})',
+      );
       return {"error": "Service not available."};
     }
 
     try {
-      // Log login attempt
-      
-      
+      _loginModuleDebug(
+        'loginUser: POST /public/login start email=$email forceNewSession=$forceNewSession',
+      );
       // Use the correct backend route
       final response = await _connectionModule!.sendPostRequest(
         "/public/login",
@@ -617,11 +631,23 @@ class LoginModule extends ModuleBase {
         },
       );
 
+      if (response is Map) {
+        final m = Map<String, dynamic>.from(response);
+        final data = m['data'];
+        final dataKeys = data is Map ? Map<String, dynamic>.from(data).keys.toList() : <Object?>[];
+        _loginModuleDebug(
+          'loginUser: response status=${m['status']} code=${m['code']} success=${m['success']} '
+          'keys=${m.keys.toList()} dataKeys=$dataKeys',
+        );
+      } else {
+        _loginModuleDebug('loginUser: response type=${response.runtimeType}');
+      }
+
       // Another device has an active session (single-session policy)
       if (response?["status"] == 409 &&
           (response?["code"] == "SESSION_ACTIVE_ELSEWHERE" ||
               response?["error"] == "SESSION_ACTIVE_ELSEWHERE")) {
-        
+        _loginModuleDebug('loginUser: session conflict elsewhere (409 SESSION_ACTIVE_ELSEWHERE)');
         return {
           "sessionConflict": true,
           "message": response?["message"]?.toString() ??
@@ -631,6 +657,7 @@ class LoginModule extends ModuleBase {
 
       // Handle error responses
       if (response?["status"] == 409 || response?["code"] == "CONFLICT") {
+        _loginModuleDebug('loginUser: conflict 409/CONFLICT message=${response?["message"]}');
         return {
           "error": response["message"] ?? "A conflict occurred",
           "user": response["user"]
@@ -639,10 +666,9 @@ class LoginModule extends ModuleBase {
 
       if (response?["error"] != null || response?["message"]?.contains("error") == true) {
         String errorMessage = response?["message"] ?? response?["error"] ?? "Unknown error occurred";
-        
-        // Log login failure
-        
-        
+        _loginModuleDebug(
+          'loginUser: error branch status=${response?["status"]} message=$errorMessage',
+        );
         // Handle rate limiting errors
         if (response?["status"] == 429) {
           return {
@@ -662,6 +688,7 @@ class LoginModule extends ModuleBase {
         final refreshToken = response?["data"]?["refresh_token"];
         
         if (accessToken == null) {
+          _loginModuleDebug('loginUser: success flag set but access_token missing in data');
           return {"error": "Login successful but no access token received"};
         }
         
@@ -750,7 +777,11 @@ class LoginModule extends ModuleBase {
             "email": email,
           },
         });
-        
+
+        _loginModuleDebug(
+          'loginUser: completed ok isGuest=$isGuestAccount userIdLen=${userId.toString().length} '
+          'hasRefresh=${refreshToken != null && refreshToken.toString().isNotEmpty}',
+        );
         return {
           "success": "Login successful",
           "user_id": userId,
@@ -761,8 +792,10 @@ class LoginModule extends ModuleBase {
         };
       }
 
+      _loginModuleDebug('loginUser: unexpected server response (no success branch matched)');
       return {"error": "Unexpected server response"};
-    } catch (e) {
+    } catch (e, st) {
+      _loginModuleDebug('loginUser: exception', e, st);
       return {"error": "Server error. Check network connection."};
     }
   }
@@ -776,13 +809,14 @@ class LoginModule extends ModuleBase {
     _initDependencies(context);
 
     if (_connectionModule == null || _sharedPref == null || _authManager == null) {
+      _loginModuleDebug(
+        'signInWithGoogle: service unavailable '
+        '(connection=${_connectionModule != null} sharedPref=${_sharedPref != null} auth=${_authManager != null})',
+      );
       return {"error": "Service not available."};
     }
 
     try {
-      
-      
-      // Check if guest account conversion is requested
       final isConvertingGuest = guestEmail != null && guestPassword != null;
       if (isConvertingGuest) {
         
@@ -914,14 +948,30 @@ class LoginModule extends ModuleBase {
       }
 
       // Send to backend
+      _loginModuleDebug(
+        'signInWithGoogle: POST /public/google-signin convertGuest=$isConvertingGuest forceNewSession=$forceNewSession',
+      );
       final response = await _connectionModule!.sendPostRequest(
         "/public/google-signin",
         requestPayload,
       );
 
+      if (response is Map) {
+        final m = Map<String, dynamic>.from(response);
+        final data = m['data'];
+        final dataKeys = data is Map ? Map<String, dynamic>.from(data).keys.toList() : <Object?>[];
+        _loginModuleDebug(
+          'signInWithGoogle: response status=${m['status']} code=${m['code']} success=${m['success']} '
+          'keys=${m.keys.toList()} dataKeys=$dataKeys',
+        );
+      } else {
+        _loginModuleDebug('signInWithGoogle: response type=${response.runtimeType}');
+      }
+
       if (response?["status"] == 409 &&
           (response?["code"] == "SESSION_ACTIVE_ELSEWHERE" ||
               response?["error"] == "SESSION_ACTIVE_ELSEWHERE")) {
+        _loginModuleDebug('signInWithGoogle: session conflict elsewhere');
         return {
           "sessionConflict": true,
           "message": response?["message"]?.toString() ??
@@ -932,9 +982,9 @@ class LoginModule extends ModuleBase {
       // Handle error responses
       if (response?["error"] != null || response?["message"]?.contains("error") == true) {
         String errorMessage = response?["message"] ?? response?["error"] ?? "Unknown error occurred";
-        
-        
-        
+        _loginModuleDebug(
+          'signInWithGoogle: error branch status=${response?["status"]} message=$errorMessage',
+        );
         // Handle rate limiting errors
         if (response?["status"] == 429) {
           return {
@@ -954,6 +1004,7 @@ class LoginModule extends ModuleBase {
         final refreshToken = response?["data"]?["refresh_token"];
         
         if (accessToken == null) {
+          _loginModuleDebug('signInWithGoogle: success but no access_token in data');
           return {"error": "Google Sign-In successful but no access token received"};
         }
         
@@ -1034,7 +1085,11 @@ class LoginModule extends ModuleBase {
             "email": email,
           },
         });
-        
+
+        _loginModuleDebug(
+          'signInWithGoogle: completed ok userIdLen=${userId.toString().length} '
+          'hasRefresh=${refreshToken != null && refreshToken.toString().isNotEmpty}',
+        );
         return {
           "success": "Google Sign-In successful",
           "user_id": userId,
@@ -1045,11 +1100,11 @@ class LoginModule extends ModuleBase {
         };
       }
 
+      _loginModuleDebug('signInWithGoogle: unexpected server response');
       return {"error": "Unexpected server response"};
     } catch (e, stackTrace) {
-      
-      
-      
+      _loginModuleDebug('signInWithGoogle: exception', e, stackTrace);
+
       // Handle specific Google Sign-In errors
       final errorString = e.toString().toLowerCase();
       
@@ -1099,17 +1154,19 @@ class LoginModule extends ModuleBase {
   /// Stores profile data in StateManager under "login" state
   Future<bool> fetchAndUpdateUserProfile() async {
     try {
-      
-      
       if (_connectionModule == null) {
-        
+        _loginModuleDebug('fetchAndUpdateUserProfile: ConnectionsApiModule null');
         return false;
       }
-      
+
+      _loginModuleDebug('fetchAndUpdateUserProfile: GET /userauth/users/profile');
       final response = await _connectionModule!.sendGetRequest('/userauth/users/profile');
-      
+
       if (response is Map && response.containsKey('error')) {
-        
+        _loginModuleDebug(
+          'fetchAndUpdateUserProfile: error in response keys=${(response as Map).keys.toList()} '
+          'message=${response['message'] ?? response['error']}',
+        );
         return false;
       }
       
@@ -1161,8 +1218,8 @@ class LoginModule extends ModuleBase {
       }
       
       return true;
-    } catch (e) {
-      
+    } catch (e, st) {
+      _loginModuleDebug('fetchAndUpdateUserProfile: exception', e, st);
       return false;
     }
   }

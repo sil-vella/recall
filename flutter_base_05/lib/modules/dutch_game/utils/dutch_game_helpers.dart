@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import '../../../core/managers/module_manager.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
@@ -18,6 +19,7 @@ import '../backend_core/utils/level_matcher.dart';
 import 'table_tiers_bootstrap.dart';
 import 'consumables_catalog_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
+import 'dart:developer' as developer;
 
 /// Convenient helper methods for dutch game operations
 /// Provides type-safe, validated methods for common game actions
@@ -788,16 +790,42 @@ class DutchGameHelpers {
       await TableTiersBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await ConsumablesCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
 
-      final gRaw = response['global_broadcast_messages'];
-      final nm = ModuleManager().getModuleByType<NotificationsModule>();
-      if (gRaw is List) {
-        final list = gRaw
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-        nm?.applyGlobalBroadcastsFromStats(list);
-      } else {
-        nm?.applyGlobalBroadcastsFromStats(const <Map<String, dynamic>>[]);
+      try {
+        final gRaw = response['global_broadcast_messages'];
+        final nm = ModuleManager().getModuleByType<NotificationsModule>();
+        if (gRaw is List) {
+          final list = gRaw
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+          if (kDebugMode) {
+            developer.log(
+              'getUserStats: applying global_broadcast_messages count=${list.length}',
+              name: 'DutchGameHelpers',
+            );
+          }
+          nm?.applyGlobalBroadcastsFromStats(list);
+        } else {
+          if (kDebugMode && gRaw != null) {
+            developer.log(
+              'getUserStats: global_broadcast_messages unexpected type=${gRaw.runtimeType}',
+              name: 'DutchGameHelpers',
+            );
+          }
+          nm?.applyGlobalBroadcastsFromStats(const <Map<String, dynamic>>[]);
+        }
+      } catch (e, st) {
+        if (kDebugMode) {
+          developer.log(
+            'getUserStats: global_broadcast_messages handling failed',
+            name: 'DutchGameHelpers',
+            error: e,
+            stackTrace: st,
+          );
+        }
+        ModuleManager().getModuleByType<NotificationsModule>()?.applyGlobalBroadcastsFromStats(
+          const <Map<String, dynamic>>[],
+        );
       }
 
       // Extract data from response

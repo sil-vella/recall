@@ -928,6 +928,95 @@ def _utc_bounds_calendar_year(now_utc: datetime) -> Tuple[datetime, datetime]:
     return first, nxt
 
 
+def _prev_calendar_month_first(dt: datetime) -> datetime:
+    """First instant of the previous calendar month (UTC). ``dt`` should be timezone-aware."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    if dt.month == 1:
+        return datetime(dt.year - 1, 12, 1, tzinfo=timezone.utc)
+    return datetime(dt.year, dt.month - 1, 1, tzinfo=timezone.utc)
+
+
+def _next_calendar_month_first(dt: datetime) -> datetime:
+    """First instant of the next calendar month (UTC)."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    if dt.month == 12:
+        return datetime(dt.year + 1, 1, 1, tzinfo=timezone.utc)
+    return datetime(dt.year, dt.month + 1, 1, tzinfo=timezone.utc)
+
+
+def _winners_for_outcome_window(
+    db_manager, coll, start: datetime, end: datetime
+) -> List[Dict[str, Any]]:
+    """All players tied for most wins in ``[start, end)`` (UTC)."""
+    summaries = _aggregate_period_wins_summaries(coll, start, end)
+    if not summaries:
+        return []
+    max_w = int(summaries[0].get("wins") or 0)
+    if max_w <= 0:
+        return []
+    tied = [d for d in summaries if int(d.get("wins") or 0) == max_w]
+    uids = [d["_id"] for d in tied]
+    uname: Dict[Any, str] = {}
+    if uids:
+        for u in db_manager.db["users"].find({"_id": {"$in": uids}}, {"username": 1}):
+            uname[u["_id"]] = u.get("username") or ""
+    return [
+        {"user_id": str(d["_id"]), "username": uname.get(d["_id"], ""), "wins": int(d.get("wins") or 0)}
+        for d in tied
+    ]
+
+
+def _build_monthly_history(
+    db_manager, coll, now_utc: datetime, count: int
+) -> List[Dict[str, Any]]:
+    """Most recently completed months first (each has ``winners`` tied for #1 wins)."""
+    if count <= 0:
+        return []
+    first_this = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if first_this.tzinfo is None:
+        first_this = first_this.replace(tzinfo=timezone.utc)
+    out: List[Dict[str, Any]] = []
+    cur_start = first_this
+    for _ in range(count):
+        cur_start = _prev_calendar_month_first(cur_start)
+        cur_end = _next_calendar_month_first(cur_start)
+        out.append(
+            {
+                "period_key": cur_start.strftime("%Y-%m"),
+                "range_start_utc": cur_start.isoformat(),
+                "range_end_exclusive_utc": cur_end.isoformat(),
+                "winners": _winners_for_outcome_window(db_manager, coll, cur_start, cur_end),
+            }
+        )
+    return out
+
+
+def _build_yearly_history(
+    db_manager, coll, now_utc: datetime, count: int
+) -> List[Dict[str, Any]]:
+    """Completed calendar years before the current UTC year, most recent first."""
+    if count <= 0:
+        return []
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    out: List[Dict[str, Any]] = []
+    for i in range(1, count + 1):
+        y = now_utc.year - i
+        start = datetime(y, 1, 1, tzinfo=timezone.utc)
+        end = datetime(y + 1, 1, 1, tzinfo=timezone.utc)
+        out.append(
+            {
+                "period_key": str(y),
+                "range_start_utc": start.isoformat(),
+                "range_end_exclusive_utc": end.isoformat(),
+                "winners": _winners_for_outcome_window(db_manager, coll, start, end),
+            }
+        )
+    return out
+
+
 def update_game_stats():
     """Update user game statistics after a game ends (service endpoint: Dart backend only, X-Service-Key auth).
 
@@ -1162,156 +1251,6 @@ def update_game_stats():
         return jsonify({"success": False, "message": "Failed to update any player statistics", "error": "All updates failed", "errors": errors}), 500
     except Exception as e:
         return jsonify({"success": False, "message": "Failed to update game statistics", "error": str(e)}), 500
-
-
-def _leaderboard_period_key_monthly(now_utc: datetime) -> str:
-    """Calendar month immediately before now_utc (YYYY-MM). E.g. cron on 2026-03-01 -> '2026-02'."""
-    first_this = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    last_prev = first_this - timedelta(days=1)
-    return last_prev.strftime("%Y-%m")
-
-
-def _leaderboard_period_key_yearly(now_utc: datetime) -> str:
-    """Calendar year immediately before now_utc (YYYY). E.g. cron on 2026-01-01 -> '2025'."""
-    return str(now_utc.year - 1)
-
-
-def _ensure_leaderboards_indexes(db_manager) -> None:
-    """Create leaderboards indexes if missing (idempotent)."""
-    try:
-        coll = db_manager.db["leaderboards"]
-        coll.create_index([("leaderboard_type", 1), ("date_time", -1)])
-        coll.create_index([("period_key", 1), ("leaderboard_type", 1)])
-        coll.create_index(
-            [
-                ("leaderboard_type", 1),
-                ("tournament_type", 1),
-                ("tournament_format", 1),
-                ("date_time", -1),
-            ]
-        )
-        coll.create_index([("date_time", -1)])
-    except Exception as e:
-
-
-        pass
-def snapshot_wins_leaderboard_service():
-    """Service: record top player(s) by cumulative ``modules.dutch_game.wins`` into ``leaderboards``.
-
-    Includes all active users with a ``dutch_game`` module (human and comp players).
-
-    POST JSON: ``leaderboard_type`` required: ``monthly`` | ``yearly``.
-    Optional ``period_key`` (e.g. ``2026-02`` or ``2025``) — default derived from UTC now (previous month / year).
-
-    Idempotent: one document per `(leaderboard_type, period_key)` for non-tournament snapshots (skips if exists).
-    **Note:** Wins are lifetime totals at snapshot time, not wins earned only inside the period (until per-period stats exist).
-    """
-    try:
-        data = request.get_json() or {}
-        lb_type = (data.get("leaderboard_type") or data.get("leaderboardType") or "").strip().lower()
-        if lb_type not in ("monthly", "yearly"):
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "leaderboard_type must be 'monthly' or 'yearly'",
-                    }
-                ),
-                400,
-            )
-        if not _app_manager:
-            return jsonify({"success": False, "message": "Server not initialized"}), 503
-        db_manager = _app_manager.get_db_manager(role="read_write")
-        if not db_manager:
-            return jsonify({"success": False, "message": "Database connection unavailable"}), 500
-
-        now_utc = datetime.now(timezone.utc)
-        period_key = (data.get("period_key") or data.get("periodKey") or "").strip()
-        if not period_key:
-            period_key = (
-                _leaderboard_period_key_monthly(now_utc)
-                if lb_type == "monthly"
-                else _leaderboard_period_key_yearly(now_utc)
-            )
-
-        _ensure_leaderboards_indexes(db_manager)
-        coll = db_manager.db["leaderboards"]
-
-        existing = coll.find_one(
-            {
-                "leaderboard_type": lb_type,
-                "period_key": period_key,
-                "tournament_type": {"$exists": False},
-                "tournament_format": {"$exists": False},
-            }
-        )
-        if existing:
-            return (
-                jsonify(
-                    {
-                        "success": True,
-                        "skipped": True,
-                        "reason": "already_recorded",
-                        "leaderboard_type": lb_type,
-                        "period_key": period_key,
-                        "existing_id": str(existing.get("_id")),
-                    }
-                ),
-                200,
-            )
-
-        match_user = {
-            "status": "active",
-            "modules.dutch_game": {"$exists": True},
-        }
-        top = db_manager.db["users"].find_one(match_user, sort=[("modules.dutch_game.wins", -1)])
-        if not top:
-            win_count = None
-            winners_rows = []
-        else:
-            max_w = (top.get("modules") or {}).get("dutch_game", {}).get("wins", 0) or 0
-            win_count = int(max_w)
-            cursor = db_manager.db["users"].find(
-                {**match_user, "modules.dutch_game.wins": win_count},
-                {"username": 1, "modules.dutch_game.wins": 1},
-            )
-            winners_rows = []
-            rank = 1
-            for u in cursor:
-                uid = u.get("_id")
-                winners_rows.append(
-                    {
-                        "user_id": str(uid),
-                        "username": u.get("username") or "",
-                        "rank": rank,
-                        "wins": win_count,
-                    }
-                )
-
-        doc = {
-            "leaderboard_type": lb_type,
-            "period_key": period_key,
-            "date_time": now_utc,
-            "winners": winners_rows,
-            "metric": "cumulative_wins_snapshot",
-            "metric_note": "modules.dutch_game.wins at snapshot time; not wins-only-within-period",
-        }
-        ins = coll.insert_one(doc)
-        return (
-            jsonify(
-                {
-                    "success": True,
-                    "leaderboard_type": lb_type,
-                    "period_key": period_key,
-                    "inserted_id": str(ins.inserted_id),
-                    "winners": winners_rows,
-                    "top_wins": win_count,
-                }
-            ),
-            200,
-        )
-    except Exception as e:
-        return jsonify({"success": False, "message": "Failed to snapshot leaderboard", "error": str(e)}), 500
 
 
 def get_user_stats():
@@ -2645,12 +2584,116 @@ def _aggregate_period_wins_summaries(coll, start: datetime, end: datetime) -> Li
     return list(coll.aggregate(pipeline))
 
 
+def _aggregate_period_wins_summaries_with_rank_tiers(
+    coll, start: datetime, end: datetime, max_entries: int
+) -> List[Dict[str, Any]]:
+    """Period wins per user with ``rank_tier`` (current stored rank) and ``username`` for client-side filtering.
+
+    ``max_entries`` caps rows returned (sorted by wins desc, then user_id).
+    """
+    default_r = matcher.DEFAULT_RANK
+    cap = max(1, min(int(max_entries), 10000))
+    pipeline = [
+        {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
+        {"$group": {"_id": "$user_id", "wins": {"$sum": 1}}},
+        {
+            "$lookup": {
+                "from": "users",
+                "let": {"wid": "$_id"},
+                "pipeline": [
+                    {"$match": {"$expr": {"$eq": ["$_id", "$$wid"]}}},
+                    {
+                        "$project": {
+                            "_id": 0,
+                            "username": {"$ifNull": ["$username", ""]},
+                            "_raw_rank": {"$ifNull": ["$modules.dutch_game.rank", default_r]},
+                        }
+                    },
+                ],
+                "as": "_u",
+            }
+        },
+        {
+            "$addFields": {
+                "username": {"$ifNull": [{"$arrayElemAt": ["$_u.username", 0]}, ""]},
+                "rank_tier": {
+                    "$toLower": {
+                        "$trim": {
+                            "input": {
+                                "$toString": {
+                                    "$ifNull": [{"$arrayElemAt": ["$_u._raw_rank", 0]}, default_r],
+                                }
+                            }
+                        }
+                    }
+                },
+            }
+        },
+        {"$project": {"_u": 0}},
+        {"$sort": {"wins": -1, "_id": 1}},
+        {"$limit": cap},
+    ]
+    return list(coll.aggregate(pipeline))
+
+
+def _aggregate_period_wins_summaries_rank_tier(
+    coll, start: datetime, end: datetime, canonical_rank_tier: str
+) -> List[Dict[str, Any]]:
+    """Like [_aggregate_period_wins_summaries] but only users whose **current** ``modules.dutch_game.rank`` matches tier.
+
+    ``canonical_rank_tier`` must be a lowercase rank string from ``RANK_HIERARCHY`` (already validated).
+    Rank is compared after ``$toLower`` + ``$trim`` on the stored field (see caveat in public endpoint docstring).
+    """
+    default_r = matcher.DEFAULT_RANK
+    pipeline = [
+        {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
+        {"$group": {"_id": "$user_id", "wins": {"$sum": 1}}},
+        {
+            "$lookup": {
+                "from": "users",
+                "let": {"wid": "$_id"},
+                "pipeline": [
+                    {"$match": {"$expr": {"$eq": ["$_id", "$$wid"]}}},
+                    {
+                        "$project": {
+                            "_id": 0,
+                            "_raw_rank": {"$ifNull": ["$modules.dutch_game.rank", default_r]},
+                        }
+                    },
+                ],
+                "as": "_u",
+            }
+        },
+        {
+            "$addFields": {
+                "_norm_rank": {
+                    "$toLower": {
+                        "$trim": {
+                            "input": {
+                                "$toString": {
+                                    "$ifNull": [{"$arrayElemAt": ["$_u._raw_rank", 0]}, default_r],
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {"$match": {"_norm_rank": canonical_rank_tier}},
+        {"$sort": {"wins": -1, "_id": 1}},
+        {"$project": {"_u": 0, "_norm_rank": 0}},
+    ]
+    return list(coll.aggregate(pipeline))
+
+
 def get_period_wins_leaderboard_public():
     """Public (no auth): rank users by win count in the **current UTC** calendar month or year.
 
     Data comes from insert-only ``dutch_match_win_outcomes``; aggregation runs **on each request** (no precomputed board).
 
     Query: ``period`` or ``scope`` = ``monthly`` | ``yearly`` (default ``monthly``); ``limit`` default 20, max 50.
+    Optional ``rank_tier`` / ``rankTier``: filter to users whose **current** stored competitive rank equals that tier
+    (normalized). Omitted = all ranks. **Caveat:** rank is read from the user document at request time, not at each win.
     Optional ``user_id`` / ``userId``: include ``viewer`` with that user's rank and wins in the same period (no JWT).
     """
     try:
@@ -2670,6 +2713,29 @@ def get_period_wins_leaderboard_public():
         except (TypeError, ValueError):
             limit = 20
 
+        raw_rank_tier = (
+            request.args.get("rank_tier") or request.args.get("rankTier") or request.args.get("rank") or ""
+        ).strip()
+        canonical_tier: Optional[str] = None
+        if raw_rank_tier:
+            if not matcher.is_valid_rank(raw_rank_tier):
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "rank_tier must be a valid competitive rank (e.g. beginner, expert, legend)",
+                            "rows": [],
+                        }
+                    ),
+                    400,
+                )
+            canonical_tier = matcher.normalize_rank(raw_rank_tier)
+            if not canonical_tier:
+                return (
+                    jsonify({"success": False, "error": "rank_tier could not be normalized", "rows": []}),
+                    400,
+                )
+
         now_utc = datetime.now(timezone.utc)
         if raw_period == "monthly":
             start, end = _utc_bounds_calendar_month(now_utc)
@@ -2679,7 +2745,10 @@ def get_period_wins_leaderboard_public():
             period_key = str(now_utc.year)
 
         coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
-        summaries = _aggregate_period_wins_summaries(coll, start, end)
+        if canonical_tier:
+            summaries = _aggregate_period_wins_summaries_rank_tier(coll, start, end, canonical_tier)
+        else:
+            summaries = _aggregate_period_wins_summaries(coll, start, end)
 
         user_ids_top = [d["_id"] for d in summaries[:limit]]
         username_map: Dict[Any, str] = {}
@@ -2723,6 +2792,8 @@ def get_period_wins_leaderboard_public():
                         "username": uname,
                         "in_period": True,
                     }
+                    if canonical_tier:
+                        viewer_out["matches_rank_segment"] = True
                 else:
                     viewer_out = {
                         "user_id": raw_viewer_uid,
@@ -2731,6 +2802,16 @@ def get_period_wins_leaderboard_public():
                         "username": uname,
                         "in_period": False,
                     }
+                    if canonical_tier:
+                        pw = coll.count_documents(
+                            {"user_id": viewer_oid, "ended_at": {"$gte": start, "$lt": end}}
+                        )
+                        if pw > 0:
+                            dg = ((udoc or {}).get("modules") or {}).get("dutch_game") or {}
+                            yr = matcher.normalize_rank(dg.get("rank")) or matcher.DEFAULT_RANK
+                            viewer_out["matches_rank_segment"] = False
+                            viewer_out["period_wins"] = int(pw)
+                            viewer_out["your_rank_tier"] = yr
 
         payload: Dict[str, Any] = {
             "success": True,
@@ -2740,6 +2821,12 @@ def get_period_wins_leaderboard_public():
             "range_end_exclusive_utc": end.isoformat(),
             "rows": rows,
         }
+        if canonical_tier:
+            payload["rank_tier"] = canonical_tier
+            payload["segment_note"] = (
+                "Filtered by each player's current stored rank at request time; "
+                "not rank at the time of each win."
+            )
         if viewer_out is not None:
             payload["viewer"] = viewer_out
         return jsonify(payload), 200
@@ -2747,55 +2834,138 @@ def get_period_wins_leaderboard_public():
         return jsonify({"success": False, "error": str(e), "rows": []}), 500
 
 
-def get_leaderboards_list_public():
-    """Public (no auth): list wins snapshot rows from ``leaderboards`` (monthly/yearly, non-tournament).
+def _bundle_rows_from_summaries_with_tiers(summaries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """JSON rows for bundle: ``rank_tier`` canonical; no leaderboard ``rank`` (client assigns after filters)."""
+    out: List[Dict[str, Any]] = []
+    for doc in summaries:
+        uid = doc["_id"]
+        rt_raw = doc.get("rank_tier")
+        rt = matcher.normalize_rank(str(rt_raw) if rt_raw is not None else "") or matcher.DEFAULT_RANK
+        out.append(
+            {
+                "user_id": str(uid),
+                "username": (doc.get("username") or "") or "",
+                "wins": int(doc.get("wins") or 0),
+                "rank_tier": rt,
+            }
+        )
+    return out
 
-    Query: ``leaderboard_type`` optional ``monthly`` | ``yearly``; ``limit`` default 20, max 20.
+
+def _viewer_period_stats_from_summaries(
+    summaries: List[Dict[str, Any]], viewer_oid: ObjectId
+) -> Dict[str, Any]:
+    """Stats for one period from capped summary list (may miss user if beyond cap)."""
+    for doc in summaries:
+        if doc["_id"] == viewer_oid:
+            rt_raw = doc.get("rank_tier")
+            rt = matcher.normalize_rank(str(rt_raw) if rt_raw is not None else "") or matcher.DEFAULT_RANK
+            return {"wins": int(doc.get("wins") or 0), "rank_tier": rt, "in_period": True}
+    return {"wins": 0, "rank_tier": matcher.DEFAULT_RANK, "in_period": False}
+
+
+def get_period_wins_leaderboard_bundle_public():
+    """Public (no auth): **single response** with current UTC month **and** year period standings.
+
+    Each row includes ``rank_tier`` (player's current stored competitive rank) so clients can filter by tier locally.
+    Rows are sorted by wins desc; ``max_entries`` caps each period (default 2500, max 10000).
+
+    Query: ``max_entries`` / ``maxEntries``; optional ``user_id`` / ``userId`` for ``viewer`` (monthly + yearly stats).
+
+    Optional history (for hall-of-fame / history UIs): ``history_months`` / ``historyMonths`` (0–60, default 0),
+    ``history_years`` / ``historyYears`` (0–20, default 0). Each completed period includes ``winners`` (tied for
+    most wins in that window). Current calendar month/year are still under ``monthly`` / ``yearly``.
+
+    **Caveat:** ``rank_tier`` reflects the user document at request time, not at each win.
     """
     try:
         if not _app_manager:
-            return jsonify({"success": False, "error": "Server not initialized", "leaderboards": []}), 503
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
         db_manager = _app_manager.get_db_manager(role="read_only")
         if not db_manager:
-            return jsonify({"success": False, "error": "Database unavailable", "leaderboards": []}), 503
+            return jsonify({"success": False, "error": "Database unavailable"}), 503
 
-        _max = 20
-        raw_limit = request.args.get("limit", str(_max))
+        raw_max = (request.args.get("max_entries") or request.args.get("maxEntries") or "2500").strip()
         try:
-            limit = min(max(int(raw_limit), 1), _max)
+            max_entries = min(max(int(raw_max), 1), 10000)
         except (TypeError, ValueError):
-            limit = _max
+            max_entries = 2500
 
-        lb_filter = (request.args.get("leaderboard_type") or request.args.get("leaderboardType") or "").strip().lower()
-        query: Dict[str, Any] = {
-            "tournament_type": {"$exists": False},
-            "tournament_format": {"$exists": False},
+        raw_hm = (request.args.get("history_months") or request.args.get("historyMonths") or "0").strip()
+        raw_hy = (request.args.get("history_years") or request.args.get("historyYears") or "0").strip()
+        try:
+            hist_months = min(max(int(raw_hm), 0), 60)
+        except (TypeError, ValueError):
+            hist_months = 0
+        try:
+            hist_years = min(max(int(raw_hy), 0), 20)
+        except (TypeError, ValueError):
+            hist_years = 0
+
+        now_utc = datetime.now(timezone.utc)
+        m_start, m_end = _utc_bounds_calendar_month(now_utc)
+        y_start, y_end = _utc_bounds_calendar_year(now_utc)
+        m_key = now_utc.strftime("%Y-%m")
+        y_key = str(now_utc.year)
+
+        coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
+        m_summ = _aggregate_period_wins_summaries_with_rank_tiers(coll, m_start, m_end, max_entries)
+        y_summ = _aggregate_period_wins_summaries_with_rank_tiers(coll, y_start, y_end, max_entries)
+
+        m_rows = _bundle_rows_from_summaries_with_tiers(m_summ)
+        y_rows = _bundle_rows_from_summaries_with_tiers(y_summ)
+
+        m_truncated = len(m_summ) >= max_entries
+        y_truncated = len(y_summ) >= max_entries
+
+        viewer_out: Optional[Dict[str, Any]] = None
+        raw_viewer_uid = (request.args.get("user_id") or request.args.get("userId") or "").strip()
+        if raw_viewer_uid:
+            try:
+                viewer_oid = ObjectId(raw_viewer_uid)
+            except Exception:
+                viewer_oid = None
+            if viewer_oid is not None:
+                udoc = db_manager.find_one("users", {"_id": viewer_oid})
+                uname = (udoc or {}).get("username") or ""
+                viewer_out = {
+                    "user_id": raw_viewer_uid,
+                    "username": uname,
+                    "monthly": _viewer_period_stats_from_summaries(m_summ, viewer_oid),
+                    "yearly": _viewer_period_stats_from_summaries(y_summ, viewer_oid),
+                }
+
+        payload: Dict[str, Any] = {
+            "success": True,
+            "segment_note": (
+                "rank_tier is each player's current stored rank at request time; "
+                "not rank at the time of each win. Filter tiers on the client."
+            ),
+            "max_entries": max_entries,
+            "monthly": {
+                "period_key": m_key,
+                "range_start_utc": m_start.isoformat(),
+                "range_end_exclusive_utc": m_end.isoformat(),
+                "truncated": m_truncated,
+                "rows": m_rows,
+            },
+            "yearly": {
+                "period_key": y_key,
+                "range_start_utc": y_start.isoformat(),
+                "range_end_exclusive_utc": y_end.isoformat(),
+                "truncated": y_truncated,
+                "rows": y_rows,
+            },
         }
-        if lb_filter in ("monthly", "yearly"):
-            query["leaderboard_type"] = lb_filter
-
-        coll = db_manager.db["leaderboards"]
-        cur = coll.find(query).sort("date_time", -1).limit(limit)
-        out = []
-        for d in cur:
-            dt = d.get("date_time")
-            if hasattr(dt, "isoformat"):
-                dt_s = dt.isoformat()
-            else:
-                dt_s = None
-            item = {
-                "id": str(d.get("_id", "")),
-                "leaderboard_type": d.get("leaderboard_type"),
-                "period_key": d.get("period_key"),
-                "date_time": dt_s,
-                "metric": d.get("metric"),
-                "metric_note": d.get("metric_note"),
-                "winners": d.get("winners") or [],
-            }
-            out.append(item)
-        return jsonify({"success": True, "leaderboards": out}), 200
+        if hist_months > 0:
+            payload["monthly_history"] = _build_monthly_history(db_manager, coll, now_utc, hist_months)
+        if hist_years > 0:
+            payload["yearly_history"] = _build_yearly_history(db_manager, coll, now_utc, hist_years)
+        if viewer_out is not None:
+            payload["viewer"] = viewer_out
+        return jsonify(payload), 200
     except Exception as e:
-        return jsonify({"success": False, "error": str(e), "leaderboards": []}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def tournament_signup():

@@ -17,6 +17,7 @@ import uuid
 from . import dutch_notifications
 from . import table_tiers_catalog as ttc
 from . import consumables_catalog as cc
+from core.modules.notification_module.global_broadcast_service import load_global_broadcast_payload_for_user
 from .wins_level_rank_matcher import WinsLevelRankMatcher
 from .dutch_achievement_catalog import (
     achievements_unlocked_ids_sorted,
@@ -1386,6 +1387,15 @@ def get_user_stats():
             "table_tiers_revision": rev,
             "consumables_catalog_revision": cons_rev,
         }
+        try:
+            gb_list = load_global_broadcast_payload_for_user(
+                db_manager,
+                user_id=str(user_id),
+                user_rank=str(stats_data.get("rank") or matcher.DEFAULT_RANK),
+            )
+        except Exception:
+            gb_list = []
+        response_body["global_broadcast_messages"] = gb_list
         if (not client_rev) or client_rev != rev:
             public_base = _resolve_public_api_base()
             response_body["table_tiers"] = ttc.build_client_table_tiers_payload(public_base)

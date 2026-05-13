@@ -1,0 +1,83 @@
+---
+# Replace MongoDB global_broadcast_messages with data from files/global_broadcast_messages.json
+# (source of truth). Any existing document whose _id is not in the JSON list is deleted.
+# Optionally prunes global_broadcast_reads for removed message ids (default: yes).
+#
+# Run from repo root:
+#   ansible-playbook -i localhost, -c local playbooks/00_local/sync_global_broadcast_messages.yml
+# Optional:
+#   ansible-playbook ... -e seed_json_path=/abs/path/to/seed.json
+#   ansible-playbook ... -e prune_reads=false
+#   ansible-playbook ... -e allow_empty=true   # wipe all globals + prune reads (dangerous)
+#
+# MongoDB: local Docker (same defaults as add_two_tournaments.yml). Override with -e.
+- name: Sync global_broadcast_messages from local JSON (mongosh in Docker)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mongodb_container_name: "dutch_external_app_mongodb"
+    database_name: "external_system"
+    app_user: "external_app_user"
+    app_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
+    mongodb_auth_db: "external_system"
+    global_broadcast_messages_coll: "global_broadcast_messages"
+    global_broadcast_reads_coll: "global_broadcast_reads"
+    seed_json_path: "{{ playbook_dir }}/files/global_broadcast_messages.json"
+    prune_reads: true
+    allow_empty: false
+
+  tasks:
+    - name: Wait for MongoDB container to be ready
+      shell: docker exec {{ mongodb_container_name }} mongosh --eval "db.adminCommand('ping')" --quiet
+      register: mongodb_ready
+      retries: 10
+      delay: 2
+      until: mongodb_ready.rc == 0
+      changed_when: false
+
+    - name: Check seed JSON exists
+      stat:
+        path: "{{ seed_json_path }}"
+      register: seed_stat
+
+    - name: Fail if seed JSON missing
+      fail:
+        msg: "Seed file not found: {{ seed_json_path }}"
+      when: not seed_stat.stat.exists | default(false)
+
+    - name: Load seed JSON
+      set_fact:
+        gb_seed: "{{ lookup('file', seed_json_path) | from_json }}"
+
+    - name: Derive messages array (root {messages:[]} or bare array)
+      set_fact:
+        gb_messages: "{{ (gb_seed.messages | default([])) if gb_seed is mapping else (gb_seed | default([])) }}"
+
+    - name: Fail if messages empty (set -e allow_empty=true to wipe collection)
+      fail:
+        msg: "Seed has no messages. Refusing to run (would require allow_empty=true to delete all globals)."
+      when:
+        - not (allow_empty | default(false) | bool)
+        - gb_messages | length == 0
+
+    - name: Render mongosh sync script
+      template:
+        src: templates/sync_global_broadcast_messages.js.j2
+        dest: /tmp/sync_global_broadcast_messages.js
+        mode: "0644"
+
+    - name: Copy script to MongoDB container
+      shell: docker cp /tmp/sync_global_broadcast_messages.js {{ mongodb_container_name }}:/tmp/sync_global_broadcast_messages.js
+      register: copy_result
+      changed_when: copy_result.rc == 0
+
+    - name: Run sync in MongoDB container
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --quiet /tmp/sync_global_broadcast_messages.js
+      register: script_result
+      changed_when: true
+
+    - name: Show mongosh output
+      debug:
+        msg: "{{ script_result.stdout_lines }}"

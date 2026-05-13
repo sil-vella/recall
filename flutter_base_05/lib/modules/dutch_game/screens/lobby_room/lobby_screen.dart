@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
@@ -68,6 +69,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _applyLobbySectionFromRoute();
     // Recompute joinedGamesSlice when screen becomes visible (e.g., navigating back to lobby)
     // This ensures the widget always reflects current state
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -399,6 +401,51 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   }
 
   String? _expandedSection; // Track which section is currently expanded
+  /// Last [GoRouterState.uri.query] we used to expand a lobby section (accordion).
+  String? _lobbySectionRouteQueryApplied;
+
+  void _applyLobbySectionFromRoute() {
+    if (!mounted) return;
+    Uri uri;
+    try {
+      uri = GoRouterState.of(context).uri;
+    } catch (_) {
+      return;
+    }
+    if (uri.path != '/dutch/lobby') return;
+    final q = uri.query;
+    if (q.isEmpty) return;
+    if (q == _lobbySectionRouteQueryApplied) return;
+
+    final section = uri.queryParameters['section']?.toLowerCase().trim() ?? '';
+    if (section.isEmpty) return;
+
+    String? expandTitle;
+    switch (section) {
+      case 'join_random':
+      case 'join-random':
+      case 'quick_join':
+      case 'quickjoin':
+        expandTitle = 'Join Random';
+        break;
+      case 'practice':
+        expandTitle = 'Practice';
+        break;
+      case 'create':
+      case 'create_new':
+      case 'create-new':
+      case 'create_new_room':
+        expandTitle = 'Create New';
+        break;
+      default:
+        return;
+    }
+
+    _lobbySectionRouteQueryApplied = q;
+    if (_expandedSection != expandTitle) {
+      setState(() => _expandedSection = expandTitle);
+    }
+  }
 
   void _handleSectionToggled(String sectionTitle) {
     setState(() {

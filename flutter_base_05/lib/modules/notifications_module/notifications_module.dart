@@ -31,6 +31,7 @@ class NotificationsModule extends ModuleBase {
       'unreadCount': 0,
       'lastFetchedAt': null,
       'pendingWsInstants': <Map<String, dynamic>>[],
+      'globalBroadcasts': <Map<String, dynamic>>[],
     });
   }
 
@@ -89,6 +90,53 @@ class NotificationsModule extends ModuleBase {
         : <Map<String, dynamic>>[];
     StateManager().updateModuleState(_stateKey, {'pendingWsInstants': <Map<String, dynamic>>[]});
     return list;
+  }
+
+  /// Replaces global broadcast rows from `get-user-stats` (`global_broadcast_messages`).
+  void applyGlobalBroadcastsFromStats(List<Map<String, dynamic>> items) {
+    StateManager().updateModuleState(_stateKey, {
+      'globalBroadcasts': items.map((e) => Map<String, dynamic>.from(e)).toList(),
+    });
+  }
+
+  List<Map<String, dynamic>> get globalBroadcasts {
+    final state = StateManager().getModuleState<Map<String, dynamic>>(_stateKey);
+    final raw = state?['globalBroadcasts'];
+    if (raw is! List) return [];
+    return raw.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  /// Mark global broadcast(s) read (separate from per-user [markAsRead]).
+  Future<bool> markGlobalBroadcastsRead(List<String> ids) async {
+    if (_connectionsModule == null || ids.isEmpty) return false;
+    try {
+      final response = await _connectionsModule!.sendPostRequest(
+        '/userauth/notifications/global-mark-read',
+        {'global_message_ids': ids},
+      );
+      if (response is! Map || response['success'] != true) return false;
+      final state = StateManager().getModuleState<Map<String, dynamic>>(_stateKey);
+      final gb = state?['globalBroadcasts'];
+      if (gb is List) {
+        final now = DateTime.now().toIso8601String();
+        final idSet = ids.toSet();
+        final updated = gb.map((e) {
+          if (e is! Map) return <String, dynamic>{};
+          final m = Map<String, dynamic>.from(e);
+          final id = m['id']?.toString() ?? '';
+          if (idSet.contains(id)) {
+            m['user_read'] = true;
+            m['read'] = true;
+            m['read_at'] = now;
+          }
+          return m;
+        }).toList();
+        StateManager().updateModuleState(_stateKey, {'globalBroadcasts': updated});
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Fetch messages from the core notification API. Updates state on success.

@@ -12,6 +12,11 @@ from bson import ObjectId
 from core.managers.jwt_manager import TokenType
 
 from .notification_service import NOTIFICATIONS_COLLECTION
+from .global_broadcast_service import (
+    GLOBAL_BROADCAST_MESSAGES_COLL,
+    insert_global_broadcast,
+    mark_global_broadcasts_read,
+)
 
 notification_api = Blueprint("notification_api", __name__)
 
@@ -41,6 +46,25 @@ def register_response_handler(source: str, handler):
     if not source or not callable(handler):
         return
     _response_handlers[source.strip()] = handler
+
+
+def _require_admin():
+    """If current user is not admin, return (response, status_code). Else return (None, None)."""
+    if not request.user_id:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    if not _app_manager:
+        return jsonify({"success": False, "error": "Server not initialized"}), 503
+    db_manager = _app_manager.get_db_manager(role="read_only")
+    if not db_manager:
+        return jsonify({"success": False, "error": "Database unavailable"}), 503
+    try:
+        user_oid = ObjectId(request.user_id) if isinstance(request.user_id, str) else request.user_id
+        user = db_manager.find_one("users", {"_id": user_oid})
+    except Exception:
+        user = None
+    if not user or user.get("role") != "admin":
+        return jsonify({"success": False, "error": "Admin role required"}), 403
+    return None, None
 
 
 def _get_current_user_id():
@@ -261,5 +285,51 @@ def handle_response():
             except Exception:
                 pass
         return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@notification_api.route("/userauth/notifications/global-mark-read", methods=["POST"])
+def global_mark_read():
+    """Mark global broadcast(s) as read for the current user. Body: { "global_message_ids": ["<ObjectId>", ...] }."""
+    try:
+        user_id = _get_current_user_id()
+        if not user_id:
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not configured"}), 500
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database unavailable"}), 500
+        data = request.get_json(silent=True) or {}
+        raw_ids = data.get("global_message_ids") or data.get("message_ids") or []
+        if not isinstance(raw_ids, list):
+            return jsonify({"success": False, "error": "global_message_ids must be a list"}), 400
+        capped = [str(x) for x in raw_ids if x][:50]
+        updated = mark_global_broadcasts_read(db_manager, user_id, capped)
+        return jsonify({"success": True, "updated": updated}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@notification_api.route("/userauth/notifications/admin/global-broadcast", methods=["POST"])
+def admin_create_global_broadcast():
+    """Admin only: create a document in global_broadcast_messages. Body matches insert_global_broadcast fields."""
+    err = _require_admin()
+    if err[0] is not None:
+        return err
+    try:
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not configured"}), 500
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database unavailable"}), 500
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return jsonify({"success": False, "error": "JSON body required"}), 400
+        inserted = insert_global_broadcast(db_manager, data)
+        if not inserted:
+            return jsonify({"success": False, "error": "Invalid payload or insert failed"}), 400
+        return jsonify({"success": True, "id": inserted, "collection": GLOBAL_BROADCAST_MESSAGES_COLL}), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

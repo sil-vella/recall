@@ -17,6 +17,7 @@ import '../widgets/instant_message_modal.dart';
 import '../widgets/instant_notification_response.dart';
 import '../managers/state_manager.dart';
 import '../managers/navigation_manager.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
@@ -507,6 +508,89 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     return null;
   }
 
+  /// Unread global broadcasts (instant) first, then per-user API list for [InstantMessageModal.showUnreadInstantModals].
+  List<Map<String, dynamic>> _mergeInstantModalInbox(
+    NotificationsModule mod,
+    List<Map<String, dynamic>> apiList,
+  ) {
+    final gList = mod.globalBroadcasts;
+    final unreadGlobals = gList.where((m) {
+      if (m['user_read'] == true) return false;
+      final t = m['type']?.toString() ?? '';
+      return t == kNotificationTypeInstant;
+    }).toList();
+    return [...unreadGlobals, ...apiList];
+  }
+
+  /// Handles [message.data] for global notification CTAs: in-app navigation with optional query params.
+  ///
+  /// Supported shapes:
+  /// - **String** [deeplink]: `"/dutch/lobby?section=join_random&table=city"` or plain `"/path"`.
+  ///   Optional [deeplink_query] map is merged into query (values stringified).
+  /// - **Map** [deeplink]: `{"path": "/dutch/lobby", "section": "join_random", "table": "city"}` — keys other
+  ///   than `path` / `route` become query parameters.
+  /// - **Flat** alternative: [deeplink_path] string + optional [deeplink_query] map (no [deeplink] key).
+  Future<void> _deeplinkFromGlobalMessage(Map<String, dynamic> message) async {
+    final data = message['data'];
+    if (data is! Map) return;
+
+    String? path;
+    Map<String, dynamic>? query;
+
+    final rawDeeplink = data['deeplink'];
+    if (rawDeeplink is Map) {
+      final m = Map<String, dynamic>.from(rawDeeplink);
+      path = (m.remove('path') ?? m.remove('route'))?.toString().trim();
+      query = m.map((k, v) => MapEntry(k.toString(), v));
+    } else if (rawDeeplink is String) {
+      final link = rawDeeplink.trim();
+      if (link.startsWith('http')) {
+        final uri = Uri.tryParse(link);
+        if (uri != null && await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+        return;
+      }
+      if (link.startsWith('/')) {
+        final uri = Uri.parse('https://_._$link');
+        path = uri.path;
+        if (uri.queryParameters.isNotEmpty) {
+          query = Map<String, dynamic>.from(uri.queryParameters);
+        }
+      }
+    }
+
+    if (path == null || path.isEmpty) {
+      final flat = data['deeplink_path']?.toString().trim();
+      if (flat != null && flat.isNotEmpty) {
+        path = flat;
+      }
+      final dqFlat = data['deeplink_query'];
+      if (dqFlat is Map && dqFlat.isNotEmpty) {
+        query ??= {};
+        dqFlat.forEach((k, v) {
+          query![k.toString()] = v;
+        });
+      }
+    }
+
+    final extra = data['deeplink_query'];
+    if (extra is Map && extra.isNotEmpty) {
+      query ??= {};
+      extra.forEach((k, v) {
+        query![k.toString()] = v;
+      });
+    }
+
+    if (path == null || path.isEmpty) return;
+    if (!path.startsWith('/')) return;
+
+    NavigationManager().navigateTo(
+      path,
+      parameters: query?.map((k, v) => MapEntry(k, v?.toString() ?? '')),
+    );
+  }
+
   /// Shows queued `instant_ws` modals (rematch invite, etc.) using the same path as the rest of the instant system.
   Future<void> _drainPendingWsInstantModals() async {
     if (!mounted) return;
@@ -550,14 +634,30 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     }
     if (!mounted) return;
     final api = _moduleManager.getModuleByType<ConnectionsApiModule>();
+    final combined = _mergeInstantModalInbox(mod, list);
     await InstantMessageModal.showUnreadInstantModals(
       context,
-      messages: list,
-      onMarkAsRead: (id) => mod.markAsRead([id]),
+      messages: combined,
+      onMarkAsRead: (id) async {
+        final sid = id.toString();
+        if (sid.startsWith('glob_')) {
+          await mod.markGlobalBroadcastsRead([sid]);
+        } else {
+          await mod.markAsRead([sid]);
+        }
+      },
       onSendResponse: api == null
           ? null
           : (String messageId, String actionIdentifier) async {
-              final message = list.cast<Map<String, dynamic>>().where((m) => m['id']?.toString() == messageId).firstOrNull ?? <String, dynamic>{};
+              final message = combined
+                  .cast<Map<String, dynamic>>()
+                  .where((m) => m['id']?.toString() == messageId)
+                  .firstOrNull ??
+                  <String, dynamic>{};
+              if (message['origin']?.toString() == 'global') {
+                await _deeplinkFromGlobalMessage(message);
+                return true;
+              }
               return submitInstantNotificationResponse(
                 api: api,
                 mod: mod,

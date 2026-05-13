@@ -2,7 +2,7 @@
 
 This document describes the **notification and inbox system as implemented today**: Python persistence and REST, Dart WebSocket relay, Flutter fetch/modals/hooks, types (`type` / `subtype`), and optional modal chrome (URL background). It is the single reference for how to create messages and how the client shows them.
 
-**Related (planned, not implemented in code yet):** batching inbox rows into `GET /userauth/dutch/get-user-stats` — see [Documentation/00_Active_plans/notifications-init-user-stats-batch.md](00_Active_plans/notifications-init-user-stats-batch.md).
+**Related:** global rank-targeted broadcasts ride on **`GET /userauth/dutch/get-user-stats`** — see [Documentation/00_Active_plans/global-broadcast-user-stats.md](../00_Active_plans/global-broadcast-user-stats.md).
 
 ---
 
@@ -95,6 +95,8 @@ On successful insert, **`notify_dart_inbox_changed_async(user_id)`** runs in a d
 | GET | `/userauth/notifications/messages` | `limit` (≤100), `offset`, `unread_only` | List rows for current user. |
 | POST | `/userauth/notifications/mark-read` | `{ "message_ids": ["..."] }` | Mark read (cap 100 ids). |
 | POST | `/userauth/notifications/response` | `{ "message_id", "action_identifier" }` | Run core or module handler; on `success: true`, marks read. |
+| POST | `/userauth/notifications/global-mark-read` | `{ "global_message_ids": ["glob_<hex>", ...] }` (max 50) | Upsert per-user ack in `global_broadcast_reads` (not `notifications`). |
+| POST | `/userauth/notifications/admin/global-broadcast` | JSON body (admin JWT) | Insert one row into `global_broadcast_messages` (see §11). |
 
 **Core built-in:** `source == "core"` and `action_identifier == "close"` → delete document, no module handler.
 
@@ -261,6 +263,7 @@ There is **no central enum** of subtypes except Dutch helpers (`SUBTYPE_MATCH_IN
 | `instant_ws`, unread | Yes | Only if present in fetched list (WS-only may not be in DB) | N/A if not in list |
 | `admin`, `advert` | **No** | Yes | Yes |
 | `instant_frontend_only` | **No** (not from API) | **No** | N/A |
+| **`instant` + `origin: global`** (from stats, not GET messages) | **Yes** (merged ahead of API list) | Optional product choice (not in list API) | Same modal; dismiss → global mark-read |
 
 **Auto-queue filter** (`showUnreadInstantModals`): `type` is `instant` or `instant_ws`, unread (`read_at` empty or `instant_ws`), and not already in `_shownIds`.
 
@@ -270,7 +273,7 @@ There is **no central enum** of subtypes except Dutch helpers (`SUBTYPE_MATCH_IN
 - **`BaseScreenState`** (`lib/core/00_base/screen_base.dart`):
   - After first frame: registers `addPendingWsInstantListener`, `addInboxRefreshListener`, calls **`_checkAndShowInstantMessages()`**.
   - **`inbox_changed`**: clears `notifications.lastFetchedAt` and calls **`_checkAndShowInstantMessages()`** so the next check **always** refetches (bypasses **15s** throttle between fetches).
-  - **`_checkAndShowInstantMessages`**: drains **`takePendingWsInstants()`** (WS / synthetic) → **`InstantMessageModal.show`**; then if throttle allows, **`fetchMessages()`** (default unread-only) → **`showUnreadInstantModals`** with API **`submitInstantNotificationResponse`** for buttons.
+  - **`_checkAndShowInstantMessages`**: drains **`takePendingWsInstants()`** (WS / synthetic) → **`InstantMessageModal.show`**; then if throttle allows, **`fetchMessages()`** (default unread-only) → **`showUnreadInstantModals`** on **`_mergeInstantModalInbox`** (unread globals from stats first, then API list). **`onMarkAsRead`**: ids starting with `glob_` → **`NotificationsModule.markGlobalBroadcastsRead`**; otherwise per-user **`markAsRead`**. **`onSendResponse`**: if `origin == global`, client handles **`data.deeplink`** only (no `POST .../response` for globals in v1); else **`submitInstantNotificationResponse`**.
 - **Rematch / coin modals:** `_pendingWsOnSendResponse` routes `data.respond_via == rematch_ws` to **`submitRematchInviteResponse`** (WebSocket emit, not REST response endpoint).
 
 ### 6.4 Optional modal background (URL)
@@ -305,7 +308,9 @@ await InstantMessageModal.showFrontendOnlyInstant(
 | API | Role |
 |-----|------|
 | `NotificationsModule.fetchMessages` | GET messages; updates `StateManager` `notifications` (`messages`, `unreadCount`, `lastFetchedAt`). |
-| `NotificationsModule.markAsRead` | POST mark-read. |
+| `NotificationsModule.applyGlobalBroadcastsFromStats` | Replace `globalBroadcasts` from `get-user-stats` `global_broadcast_messages`. |
+| `NotificationsModule.markGlobalBroadcastsRead` | POST `global-mark-read`; patches local `globalBroadcasts`. |
+| `NotificationsModule.markAsRead` | POST mark-read (per-user inbox only). |
 | `NotificationsModule.addPendingWsInstant` / `takePendingWsInstants` | WS / synthetic instant queue. |
 | `InstantMessageModal.show` | Single modal from a full `message` map. |
 | `InstantMessageModal.showUnreadInstantModals` | Queue unread `instant` / `instant_ws` modals. |
@@ -331,7 +336,8 @@ User documents may include **`notifications.push`** (default `True` in several r
 | Python | `python_base_04/core/modules/notification_module/notification_routes.py` | REST + `register_response_handler`. |
 | Python | `python_base_04/core/modules/notification_module/dart_inbox_notify.py` | `notify_dart_inbox_changed_async`. |
 | Python | `python_base_04/core/modules/dutch_game/dutch_notifications.py` | Dutch `create_notification` helper + subtype/msg_id constants. |
-| Python | `python_base_04/core/modules/dutch_game/api_endpoints.py` | `_dutch_dispatch`, `register_notification_handlers`, `invite_players_to_match`. |
+| Python | `python_base_04/core/modules/dutch_game/api_endpoints.py` | `_dutch_dispatch`, `register_notification_handlers`, `invite_players_to_match`, attaches `global_broadcast_messages` on get-user-stats. |
+| Python | `python_base_04/core/modules/notification_module/global_broadcast_service.py` | Mongo globals + reads, rank filter, serialize for client. |
 | Dart | `dart_bkend_base_01/lib/server/http_notify_handler.py` | `POST /service/notify-inbox`. |
 | Dart | `dart_bkend_base_01/lib/server/websocket_server.dart` | `sendInstantNotification`, `notifyInboxChangedForUser`. |
 | Flutter | `flutter_base_05/lib/modules/notifications_module/notifications_module.dart` | Fetch, state, WS pending queue. |
@@ -341,6 +347,7 @@ User documents may include **`notifications.push`** (default `True` in several r
 | Flutter | `flutter_base_05/lib/core/managers/websockets/ws_event_listener.dart` | Registers `ws_instant_notification`, `inbox_changed`, `restart_invite`. |
 | Flutter | `flutter_base_05/lib/core/managers/websockets/ws_event_handler.dart` | Handlers → `NotificationsModule`. |
 | Flutter | `flutter_base_05/lib/screens/notifications_screen/notifications_screen.dart` | Full list (`unread_only: false`), subtype line, tap → modal. |
+| Flutter | `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart` | After user stats, applies `global_broadcast_messages` into `NotificationsModule`. |
 | Flutter | `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_manager.dart` | `instant_message_response_success` routing (by `msg_id`). |
 
 ---
@@ -356,5 +363,80 @@ User documents may include **`notifications.push`** (default `True` in several r
 | Button actions hitting Python | `responses` + `register_response_handler` + matching `source` / `msg_id` / `action_identifier`. |
 | Dismiss and delete without module code | `source: core`, `action_identifier: close`. |
 | Optional image behind modal | `data.modal_background_enabled` + `data.modal_background_url` (or Flutter-only params on `showFrontendOnlyInstant`). |
+| Same-user rank announcement, one Mongo doc, no per-user inbox row | `global_broadcast_messages` + `POST .../admin/global-broadcast`; payload on **`GET /userauth/dutch/get-user-stats`** as `global_broadcast_messages`. |
+| Ack a global without touching `notifications` | `POST /userauth/notifications/global-mark-read` (or dismiss modal — client calls same). |
 
 This matches the **current** notification system in the repo end-to-end.
+
+---
+
+## 11. Global broadcast messages (rank-targeted, stats envelope)
+
+These are **not** rows in `notifications`. One document per campaign in **`global_broadcast_messages`**; per-user read state only in **`global_broadcast_reads`** (`user_id`, `global_message_id`, `read_at`, unique compound index).
+
+### 11.1 Delivery and shape
+
+- **`GET /userauth/dutch/get-user-stats`** adds **`global_broadcast_messages`**: an array of objects shaped like list-message rows plus **`origin: "global"`**, **`global_id`** (24-char hex), **`user_read`**, and client **`id`** = `glob_<global_id>` so ids never collide with per-user `message_id` values.
+- Server filters by the user’s Dutch rank (same normalization as `tier_rank_level_matcher`): `target_ranks` may include **`"all"`** or a list of rank strings; documents respect **`is_active`** and optional **`starts_at`** / **`ends_at`**.
+
+### 11.2 Admin create (JSON body)
+
+`POST /userauth/notifications/admin/global-broadcast` — caller’s JWT must resolve to a `users` document with **`role: "admin"`**. Body fields (see `insert_global_broadcast`):
+
+| Field | Notes |
+|-------|--------|
+| `title`, `body` | Required strings. |
+| `type` | Optional; must be a predefined notification type or defaults to `instant`. |
+| `subtype`, `source`, `msg_id` | Optional. |
+| `data` | Object (e.g. `deeplink`, modal background keys). |
+| `responses` | List of `{ "label", "action_identifier" }` — **v1:** Flutter does not POST `.../response` for globals; use for labels and map actions client-side (e.g. `data.deeplink`). |
+| `target_ranks` | List: `["all"]` or specific normalized ranks. |
+| `is_active` | Default `true`. |
+| `starts_at`, `ends_at` | Optional `datetime` when inserting from Python. |
+
+Example (replace `TOKEN`):
+
+```bash
+curl -sS -X POST 'https://<host>/userauth/notifications/admin/global-broadcast' \
+  -H 'Authorization: Bearer TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "title": "Patch 1.2",
+    "body": "Balance changes are live.",
+    "type": "instant",
+    "subtype": "patch_notes",
+    "target_ranks": ["all"],
+    "data": { "deeplink": "/news" }
+  }'
+```
+
+**Local dev (replace collection from repo JSON, no extra Python deps):** edit `playbooks/00_local/files/global_broadcast_messages.json`, then from repo root run:
+
+```bash
+ansible-playbook -i localhost, -c local playbooks/00_local/sync_global_broadcast_messages.yml
+```
+
+The playbook renders a `mongosh` script into the `dutch_external_app_mongodb` container (same pattern as `add_two_tournaments.yml`). Use `-e prune_reads=false` to keep orphan read rows; `-e allow_empty=true` wipes all global message docs (dangerous).
+
+### 11.3 Mark read
+
+`POST /userauth/notifications/global-mark-read` with `{ "global_message_ids": ["glob_<hex>", ...] }` — **at most 50** ids per request. Idempotent upserts into **`global_broadcast_reads`**.
+
+### 11.4 Flutter behaviour (summary)
+
+`dutch_game_helpers` calls **`NotificationsModule.applyGlobalBroadcastsFromStats`** when stats return. **`BaseScreenState`** merges unread global **`instant`** rows **before** API messages for **`showUnreadInstantModals`**; dismiss uses **`markGlobalBroadcastsRead`** for `glob_*` ids; modal buttons on globals run **`data.deeplink`** handling only (no Python response handler for globals in v1).
+
+**`data.deeplink` shapes (in-app):**
+
+| Shape | Example |
+|-------|--------|
+| String path | `"/dutch/leaderboard"` |
+| String path + query | `"/dutch/lobby?section=join_random&table=city"` |
+| Map | `{"path": "/dutch/lobby", "section": "join_random", "table": "city"}` (keys other than `path`/`route` → query) |
+| Flat | `deeplink_path` + optional `deeplink_query` map |
+
+String **`https://...`** still opens in the external browser (not merged with map/query rules above).
+
+**Lobby (`/dutch/lobby`) query keys:** `section` expands accordion — `join_random`, `join-random`, `quick_join` → Join Random; `practice` → Practice; `create`, `create_new`, `create-new` → Create New. **`table`** / **`carousel`** / **`game_table`** — hint for Quick Join carousel (fuzzy match on declarative tier **title** or event **id**/title; numeric string matches **`game_level`**). **`game_level`** — explicit tier id. **`event`** / **`event_id`** — special-event carousel row.
+
+**Customize (`/dutch-customize`) query keys:** **`item_id`** (preferred) or **`item`**, **`highlight`**, **`consumable`** — selects the matching shop row (same border as a tap), expands Buy/Use actions, and scrolls it into view. If the value is not a raw catalog id, the client resolves by **slug match** on **`display_name`** (declarative consumables / cosmetics catalog). Example: `"/dutch-customize?item_id=skin_gold_felt"` or `"/dutch-customize?highlight=gold pack"`.

@@ -23,6 +23,14 @@ class NotificationMain(BaseModule):
         self._notification_service = NotificationService(app_manager)
         set_app_manager(app_manager)
         self.register_routes()
+        try:
+            from .global_broadcast_service import ensure_global_broadcast_indexes
+
+            dbm = app_manager.get_db_manager(role="read_write")
+            if dbm:
+                ensure_global_broadcast_indexes(dbm)
+        except Exception:
+            pass
         self._initialized = True
 
     def register_routes(self):

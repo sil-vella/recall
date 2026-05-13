@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
@@ -114,6 +115,73 @@ int defaultCarouselIndexForHighestUnlockedTier(List<JoinRandomCarouselEntry> ent
     if (e is JoinRandomTierEntry && e.level == best) return i;
   }
   return 0;
+}
+
+/// Normalizes a user- or catalog-supplied hint for fuzzy matching (e.g. `city` vs `City Table`).
+String joinRandomTableHintSlug(String s) =>
+    s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+
+/// Picks a carousel page index from route/query hints (declarative table title, [game_level], or event id).
+///
+/// [tableHint] matches tier **display title** or event **title** / **id** (slug compare / contains).
+/// [gameLevel] matches standard tier level or special-event resolved `game_level`.
+int? joinRandomCarouselIndexForRouteHints(
+  List<JoinRandomCarouselEntry> entries, {
+  String? eventId,
+  int? gameLevel,
+  String? tableHint,
+}) {
+  if (entries.isEmpty) return null;
+
+  final eid = eventId?.trim();
+  if (eid != null && eid.isNotEmpty) {
+    final slug = joinRandomTableHintSlug(eid);
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e is! JoinRandomEventEntry) continue;
+      final id = joinRandomTableHintSlug(e.id);
+      if (id == slug || id.contains(slug) || slug.contains(id)) return i;
+      final t = joinRandomTableHintSlug(joinRandomCarouselTitle(e));
+      if (t == slug || (slug.length >= 2 && (t.contains(slug) || slug.contains(t)))) return i;
+    }
+  }
+
+  if (gameLevel != null && gameLevel >= 1) {
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e is JoinRandomTierEntry && e.level == gameLevel) return i;
+      if (e is JoinRandomEventEntry && resolvedGameLevelForSpecialEvent(e.raw) == gameLevel) {
+        return i;
+      }
+    }
+  }
+
+  final hint = tableHint?.trim();
+  if (hint != null && hint.isNotEmpty) {
+    final parsedLevel = int.tryParse(hint);
+    if (parsedLevel != null && parsedLevel >= 1) {
+      for (var i = 0; i < entries.length; i++) {
+        final e = entries[i];
+        if (e is JoinRandomTierEntry && e.level == parsedLevel) return i;
+      }
+    }
+    final hs = joinRandomTableHintSlug(hint);
+    if (hs.isEmpty) return null;
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      final title = joinRandomTableHintSlug(joinRandomCarouselTitle(e));
+      if (title == hs || (hs.length >= 2 && (title.contains(hs) || hs.contains(title)))) {
+        return i;
+      }
+      if (e is JoinRandomEventEntry) {
+        final id = joinRandomTableHintSlug(e.id);
+        if (id == hs || (hs.length >= 2 && (id.contains(hs) || hs.contains(id)))) return i;
+      }
+      if (e is JoinRandomTierEntry && joinRandomTableHintSlug('${e.level}') == hs) return i;
+    }
+  }
+
+  return null;
 }
 
 int joinRandomDisplayCoins(JoinRandomCarouselEntry e) {
@@ -493,6 +561,8 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   bool _isLoading = false;
   late List<JoinRandomCarouselEntry> _entries;
   late int _carouselIndex;
+  /// [GoRouterState.uri.query] last applied for carousel hints (re-apply when query changes).
+  String? _lastJoinRandomRouteQueryApplied;
   /// Carousel identity for resync after [LevelMatcher] catalog merge.
   static String? _carouselEntryKey(JoinRandomCarouselEntry e) {
     if (e is JoinRandomTierEntry) return 't:${e.level}';
@@ -544,6 +614,48 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     }
     LevelMatcher.catalogChangeVersion.addListener(_onCatalogMerged);
     _setupWebSocketListeners();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _applyJoinRandomRouteHintsIfPresent();
+  }
+
+  void _applyJoinRandomRouteHintsIfPresent() {
+    if (!mounted) return;
+    Uri uri;
+    try {
+      uri = GoRouterState.of(context).uri;
+    } catch (_) {
+      return;
+    }
+    if (uri.path != '/dutch/lobby') return;
+    final q = uri.query;
+    if (q.isEmpty) return;
+    if (q == _lastJoinRandomRouteQueryApplied) return;
+
+    final p = uri.queryParameters;
+    final eventId = (p['event_id'] ?? p['event'])?.trim();
+    final gl = int.tryParse(p['game_level'] ?? '');
+    final table = (p['table'] ?? p['carousel'] ?? p['game_table'])?.trim();
+    final hasHint = (eventId != null && eventId.isNotEmpty) ||
+        (gl != null && gl >= 1) ||
+        (table != null && table.isNotEmpty);
+    if (!hasHint) return;
+
+    _lastJoinRandomRouteQueryApplied = q;
+
+    final idx = joinRandomCarouselIndexForRouteHints(
+      _entries,
+      eventId: eventId,
+      gameLevel: (gl != null && gl >= 1) ? gl : null,
+      tableHint: table,
+    );
+    if (idx == null) return;
+    final clamped = idx.clamp(0, _entries.length - 1);
+    if (clamped == _carouselIndex) return;
+    setState(() => _carouselIndex = clamped);
   }
 
   bool _isCurrentLocked() => joinRandomEntryLocked(_currentEntry);

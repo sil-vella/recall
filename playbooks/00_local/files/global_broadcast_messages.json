@@ -1,0 +1,60 @@
+{
+  "comment": "Source of truth for global_broadcast_messages. Stable _id per row. Sync: ansible-playbook -i localhost, -c local playbooks/00_local/sync_global_broadcast_messages.yml. Deeplink examples: Lobby — section=join_random|practice|create_new; table|carousel|game_table=slug; game_level=int; event|event_id=id. Customize (/dutch-customize) — item_id=… or item|highlight|consumable=… (slug matches display_name if id unknown).",
+  "messages": [
+    {
+      "_id": "65f0a1b2c3d4e5f6071829a01",
+      "title": "Welcome to Dutch",
+      "body": "Rank-targeted announcements load from user stats. This row is an example — edit or replace in this file, then re-run the sync script.",
+      "type": "instant",
+      "subtype": "playbook_seed",
+      "source": "global_broadcast",
+      "msg_id": "playbook_welcome_v1",
+      "target_ranks": ["all"],
+      "is_active": true,
+      "data": {
+        "deeplink": {
+          "path": "/dutch/lobby",
+          "section": "join_random",
+          "table": "city"
+        }
+      },
+      "responses": []
+    },
+    {
+      "_id": "65f0a1b2c3d4e5f6071829a02",
+      "title": "Example: beginners only",
+      "body": "Only users whose Dutch rank matches beginner will see this (plus any rank when you use target_ranks all).",
+      "type": "instant",
+      "subtype": "playbook_rank_example",
+      "source": "global_broadcast",
+      "msg_id": "playbook_beginner_tip_v1",
+      "target_ranks": ["beginner"],
+      "is_active": true,
+      "data": {},
+      "responses": []
+    },
+    {
+      "_id": "65f0a1b2c3d4e5f6071829a03",
+      "title": "Example: Customize deep link",
+      "body": "Modal CTA opens Customize and highlights a shop row. Replace item_id with a real consumables_catalog item_id, or use highlight=/item=/consumable= with a substring of display_name.",
+      "type": "instant",
+      "subtype": "playbook_customize_deeplink",
+      "source": "global_broadcast",
+      "msg_id": "playbook_customize_example_v1",
+      "target_ranks": ["all"],
+      "is_active": true,
+      "data": {
+        "deeplink": {
+          "path": "/dutch-customize",
+          "item_id": "REPLACE_WITH_REAL_ITEM_ID"
+        }
+      },
+      "responses": [
+        {
+          "label": "Open Customize",
+          "action_identifier": "open_customize"
+        }
+      ]
+    }
+  ]
+}

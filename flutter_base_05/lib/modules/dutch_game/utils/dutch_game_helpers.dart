@@ -4,6 +4,7 @@ import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
 import '../../../core/widgets/instant_message_modal.dart';
 import '../../connections_api_module/connections_api_module.dart';
+import '../../notifications_module/notifications_module.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/services/shared_preferences.dart';
 import '../../login_module/login_module.dart';
@@ -786,6 +787,18 @@ class DutchGameHelpers {
 
       await TableTiersBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await ConsumablesCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
+
+      final gRaw = response['global_broadcast_messages'];
+      final nm = ModuleManager().getModuleByType<NotificationsModule>();
+      if (gRaw is List) {
+        final list = gRaw
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        nm?.applyGlobalBroadcastsFromStats(list);
+      } else {
+        nm?.applyGlobalBroadcastsFromStats(const <Map<String, dynamic>>[]);
+      }
 
       // Extract data from response
       final statsData = response['data'] as Map<String, dynamic>?;

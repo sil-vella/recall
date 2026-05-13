@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../../core/00_base/screen_base.dart';
 import '../../../../../utils/consts/theme_consts.dart';
@@ -51,15 +52,104 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   Map<String, dynamic> _inventory = const {};
   String _selectedItemId = '';
 
+  /// Last [GoRouterState.uri.query] applied for deep-link highlight (re-run when query changes).
+  String? _lastCustomizeRouteQueryApplied;
+
+  /// Raw hint from route until catalog is ready to resolve to [item_id].
+  String? _pendingCustomizeHighlightHint;
+
+  final Map<String, GlobalKey> _itemScrollKeys = {};
+
+  GlobalKey _scrollKeyForItem(String id) =>
+      _itemScrollKeys.putIfAbsent(id, GlobalKey.new);
+
+  static String _slugForCustomizeHint(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+
+  /// Resolve `item_id` or fuzzy [display_name] slug against the loaded shop catalog.
+  String? _resolveCatalogItemId(String hint) {
+    final h = hint.trim();
+    if (h.isEmpty) return null;
+    for (final item in _catalog) {
+      final id = item['item_id']?.toString() ?? '';
+      if (id == h) return id;
+    }
+    final hs = _slugForCustomizeHint(h);
+    if (hs.length < 2) return null;
+    for (final item in _catalog) {
+      final id = item['item_id']?.toString() ?? '';
+      if (id.isEmpty) continue;
+      final name = _slugForCustomizeHint(item['display_name']?.toString() ?? '');
+      if (name.isEmpty) continue;
+      if (name == hs || name.contains(hs) || hs.contains(name)) return id;
+    }
+    return null;
+  }
+
+  void _captureCustomizeRouteIntent() {
+    if (!mounted) return;
+    Uri uri;
+    try {
+      uri = GoRouterState.of(context).uri;
+    } catch (_) {
+      return;
+    }
+    if (uri.path != '/dutch-customize') return;
+    final q = uri.query;
+    if (q == _lastCustomizeRouteQueryApplied) return;
+    _lastCustomizeRouteQueryApplied = q;
+
+    final raw = uri.queryParameters['item_id'] ??
+        uri.queryParameters['item'] ??
+        uri.queryParameters['highlight'] ??
+        uri.queryParameters['consumable'];
+    if (raw == null || raw.trim().isEmpty) {
+      _pendingCustomizeHighlightHint = null;
+      return;
+    }
+    _pendingCustomizeHighlightHint = raw.trim();
+  }
+
+  void _tryApplyPendingCustomizeHighlight() {
+    final hint = _pendingCustomizeHighlightHint;
+    if (hint == null || hint.isEmpty || _loading || !mounted) return;
+    final resolved = _resolveCatalogItemId(hint);
+    if (resolved == null) {
+      _pendingCustomizeHighlightHint = null;
+      return;
+    }
+    _pendingCustomizeHighlightHint = null;
+    setState(() => _selectedItemId = resolved);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _itemScrollKeys[resolved]?.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.12,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    
+
     _loadData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _captureCustomizeRouteIntent();
+    if (!_loading) {
+      _tryApplyPendingCustomizeHighlight();
+    }
+  }
+
   Future<void> _loadData() async {
-    
     setState(() => _loading = true);
     final catalog = await DutchGameHelpers.getShopCatalog();
     final inventory = await DutchGameHelpers.fetchInventory() ?? {};
@@ -69,7 +159,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
       _inventory = inventory;
       _loading = false;
     });
-    
+    _tryApplyPendingCustomizeHighlight();
   }
 
   bool _isOwned(Map<String, dynamic> item) {
@@ -586,98 +676,104 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     final selected = _selectedItemId == id;
     final priceCoins = showPrice ? _readPriceCoins(item) : 0;
 
-    return GestureDetector(
-      onTap: () => setState(() => _selectedItemId = selected ? '' : id),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.accentContrast,
-          borderRadius: AppBorderRadius.mediumRadius,
-          border: Border.all(
-            color: selected ? AppColors.accentColor2 : AppColors.borderDefault,
-            width: selected ? 2 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.black.withValues(alpha: AppOpacity.shadow),
-              blurRadius: AppSizes.shadowBlur,
-              offset: AppSizes.shadowOffset,
+    return Semantics(
+      identifier: 'customize_shop_item_$id',
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedItemId = selected ? '' : id),
+        child: KeyedSubtree(
+        key: _scrollKeyForItem(id),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.accentContrast,
+            borderRadius: AppBorderRadius.mediumRadius,
+            border: Border.all(
+              color: selected ? AppColors.accentColor2 : AppColors.borderDefault,
+              width: selected ? 2 : 1,
             ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _textScrim(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                child: Text(
-                  item['display_name']?.toString() ?? 'Item',
-                  style: AppTextStyles.caption(color: AppColors.white).copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                  ),
-                  maxLines: selected ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                          child: _centeredItemPreview(item),
-                        ),
-                      ),
-                    ),
-                    if (selected)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (!widget.equipOnly && !owned)
-                              _tilePrimaryAction('Buy', () => _purchase(item)),
-                            if (canEquip && owned && !equipped)
-                              _tilePrimaryAction('Use', () => _equip(item)),
-                            if (canEquip && equipped) ...[
-                              _tileSecondaryAction(
-                                'Unuse',
-                                () => _unequip(type == 'card_back' ? 'card_back' : 'table_design'),
-                              ),
-                              _textScrim(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Text(
-                                  'In use',
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.overline(color: AppColors.white.withValues(alpha: 0.9)),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      )
-                    else
-                      Align(
-                        alignment: Alignment.bottomCenter,
-                        child: showPrice
-                            ? _textScrim(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                child: _priceWithCoinIcon(priceCoins),
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                  ],
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.black.withValues(alpha: AppOpacity.shadow),
+                blurRadius: AppSizes.shadowBlur,
+                offset: AppSizes.shadowOffset,
               ),
             ],
           ),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _textScrim(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                  child: Text(
+                    item['display_name']?.toString() ?? 'Item',
+                    style: AppTextStyles.caption(color: AppColors.white).copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                    maxLines: selected ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            child: _centeredItemPreview(item),
+                          ),
+                        ),
+                      ),
+                      if (selected)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (!widget.equipOnly && !owned)
+                                _tilePrimaryAction('Buy', () => _purchase(item)),
+                              if (canEquip && owned && !equipped)
+                                _tilePrimaryAction('Use', () => _equip(item)),
+                              if (canEquip && equipped) ...[
+                                _tileSecondaryAction(
+                                  'Unuse',
+                                  () => _unequip(type == 'card_back' ? 'card_back' : 'table_design'),
+                                ),
+                                _textScrim(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Text(
+                                    'In use',
+                                    textAlign: TextAlign.center,
+                                    style: AppTextStyles.overline(color: AppColors.white.withValues(alpha: 0.9)),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        )
+                      else
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: showPrice
+                              ? _textScrim(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                  child: _priceWithCoinIcon(priceCoins),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
+    ),
     );
   }
 }

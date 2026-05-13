@@ -104,31 +104,6 @@ class Config {
     defaultValue: false,
   );
 
-  /// Verbose AdMob traces via [dbgAdMob] in `dbg.dart`.
-  /// Pass `--dart-define=ADMOB_DEBUG_LOGS=true` (works without [verboseDevLogs]).
-  static const bool admobDebugLogs = bool.fromEnvironment(
-    'ADMOB_DEBUG_LOGS',
-    defaultValue: false,
-  );
-
-  // Remote logging toggle
-  static const bool enableRemoteLogging = bool.fromEnvironment(
-    'ENABLE_REMOTE_LOGGING',
-    defaultValue: true,
-  );
-
-  /// Debug-only traces (see [dbg] in `dbg.dart`). Launch scripts pass `DEBUG_MODE=true`.
-  static const bool debugMode = bool.fromEnvironment(
-    'DEBUG_MODE',
-    defaultValue: true,
-  );
-
-  /// Extra switch for noisy [dbg] lines in debug runs (`--dart-define=VERBOSE_DEV_LOGS=false`).
-  static const bool verboseDevLogs = bool.fromEnvironment(
-    'VERBOSE_DEV_LOGS',
-    defaultValue: true,
-  );
-
   // Google Sign-In Client ID (Web)
   static const String googleClientId = String.fromEnvironment(
     'GOOGLE_CLIENT_ID',

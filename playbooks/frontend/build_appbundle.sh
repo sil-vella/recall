@@ -158,7 +158,7 @@ echo ""
 
 set_production_deck_config
 
-# Build --dart-define-from-file from .env.prod (SSOT). Set DEBUG_MODE, VERBOSE_DEV_LOGS, etc. in .env.prod for Play.
+# Build --dart-define-from-file from .env.prod (SSOT). Set API_URL, WS_URL, APP_VERSION, etc. in .env.prod for Play.
 echo "📝 Dart-define SSOT: $FRONTEND_ENV → --dart-define-from-file"
 if ! command -v python3 &>/dev/null; then
   echo "❌ python3 not found — required for env_for_flutter_dart_defines.py"

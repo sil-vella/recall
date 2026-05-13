@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Flutter app launcher for Chrome web. Merges flutter run stdout/stderr and mirrors every
-# line to python_base_04/tools/logger/server.log for agent/human debugging (see Documentation/debug/AGENT_DEBUG_LOGS.md).
+# Flutter app launcher for Chrome web.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -15,15 +14,9 @@ if [ -f "$FRONTEND_ENV" ]; then
   set +a
 fi
 
-SERVER_LOG_FILE="$REPO_ROOT/python_base_04/tools/logger/server.log"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/agent_server_log_helpers.sh"
 ensure_server_log_dir_and_maybe_rotate
-LOG_DIR=$(dirname "$SERVER_LOG_FILE")
-if [ ! -w "$LOG_DIR" ]; then
-    echo "❌ Error: Log directory is not writable: $LOG_DIR"
-    exit 1
-fi
 
 if [ -f "$FRONTEND_ENV" ]; then
   echo_and_server_log "✅ Loaded .env.local from: $FRONTEND_ENV"
@@ -38,7 +31,7 @@ else
   echo_and_server_log "   Create and fill the repo root .env.local file first."
 fi
 
-echo_and_server_log "🚀 Launching Flutter app on Chrome web (flutter run → server.log for debugging)..."
+echo_and_server_log "🚀 Launching Flutter app on Chrome web…"
 echo_and_server_log "ℹ️  Firebase Analytics DebugView:"
 echo_and_server_log "   • Android: use adb debug mode (see Firebase DebugView docs)."
 echo_and_server_log "   • Web: install the Google Analytics Debugger extension in THIS Chrome profile, enable it, reload the app."
@@ -48,20 +41,12 @@ echo_and_server_log "     (This script uses a dedicated user-data-dir so you ins
 # Navigate to Flutter project directory
 cd "$SCRIPT_DIR/../../flutter_base_05" || cd flutter_base_05
 
-echo_and_server_log "📝 Flutter script + flutter run → $SERVER_LOG_FILE ([LAUNCH] = this script, [FLUTTER] = tool stream)"
-
-# Launch Flutter app with Chrome web configuration
 echo_and_server_log "🎯 Launching Flutter app with Chrome web configuration..."
 
 echo_and_server_log "📝 Dart-define SSOT: $FRONTEND_ENV (set API_URL, WS_URL, JWT_*, … there; no script overrides)"
 
-# Mirror merged flutter run output to server.log; echo same lines to the terminal (stdout).
 filter_logs() {
     while IFS= read -r line; do
-        local ts
-        ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-        printf '%s [FLUTTER] %s\n' "$ts" "$line" >> "$SERVER_LOG_FILE"
-        append_agent_json_server_log "$ts" "flutter" "INFO" "$line"
         printf '%s\n' "$line"
     done
 }
@@ -150,6 +135,3 @@ flutter run \
     2>&1 | filter_logs
 
 echo_and_server_log "✅ Flutter app launch completed"
-echo_and_server_log "📝 Flutter run log: $SERVER_LOG_FILE"
-echo_and_server_log "🔍 To view logs: tail -f $SERVER_LOG_FILE"
-

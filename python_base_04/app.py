@@ -12,6 +12,9 @@ importlib.invalidate_caches()
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
+from tools.dev_logging import configure_dev_logging
+
+configure_dev_logging()
 
 # Initialize the AppManager
 app_manager = AppManager()
@@ -302,39 +305,6 @@ def list_internal_actions():
             return jsonify(result), 500
     except Exception as e:
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
-
-@app.route('/log', methods=['POST'])
-def frontend_log():
-    """
-    Simple endpoint to catch frontend logs and append to server.log.
-    Brought over from app.debug.py so production can also capture client logs.
-    """
-    try:
-        data = request.get_json() or {}
-        
-        # Extract log data
-        message = data.get('message', '')
-        level = data.get('level', 'INFO')
-        source = data.get('source', 'frontend')
-        platform = data.get('platform', 'flutter')
-        build_mode = data.get('buildMode', 'debug')
-        timestamp = data.get('timestamp', '')
-        
-        # Format the log message
-        log_entry = f"[{timestamp}] - {source} - {level} - [{platform}|{build_mode}] {message}"
-        
-        # Append to server.log
-        log_file_path = os.path.join(
-            os.path.dirname(__file__),
-            'tools', 'logger', 'server.log'
-        )
-        with open(log_file_path, 'a') as f:
-            f.write(log_entry + '\n')
-        
-        return jsonify({'success': True, 'message': 'Log recorded'}), 200
-        
-    except Exception as e:
-        return jsonify({'error': f'Log failed: {str(e)}'}), 500
 
 @app.route('/api-auth/actions', methods=['GET'])
 def list_authenticated_actions():

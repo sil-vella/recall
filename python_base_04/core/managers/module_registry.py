@@ -74,14 +74,7 @@ class ModuleRegistry:
                             # Use directory name as module key (keep full name)
                             module_key = item
                             modules[module_key] = module_class
-                            print(f"DEBUG: Discovered module: {module_key} -> {module_class.__name__}")
-                        else:
-                            print(f"DEBUG: No module class found in {item}")
-                    except Exception as e:
-                        import traceback
-                        # Always print so container logs show why a module was skipped (e.g. dutch_game)
-                        print(f"ERROR: Failed to import module {item}: {e}")
-                        print(traceback.format_exc())
+                    except Exception:
                         continue
             return modules
             
@@ -187,9 +180,6 @@ class ModuleRegistry:
             
             dependencies = ModuleRegistry.get_module_dependencies()
             
-            print(f"DEBUG: Found modules: {list(modules.keys())}")
-            print(f"DEBUG: Dependencies: {dependencies}")
-            
             # Check that for each discovered module, its dependencies are also discovered
             # (do not require every key in dependencies to be discovered - allows app to start if a module fails to load)
             for module_key in modules:
@@ -201,13 +191,10 @@ class ModuleRegistry:
             # Check for circular dependencies (only among discovered modules)
             discovered_deps = {k: [d for d in v if d in modules] for k, v in dependencies.items() if k in modules}
             if ModuleRegistry._has_circular_dependency(discovered_deps):
-                print("DEBUG: Circular dependency detected")
                 return False
-            print("DEBUG: Module registry validation passed")
             return True
             
-        except Exception as e:
-            print(f"DEBUG: Exception in validate_module_registry: {e}")
+        except Exception:
             return False
     
     @staticmethod

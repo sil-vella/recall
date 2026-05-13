@@ -1,19 +1,15 @@
 ---
-description: When debugging local Flutter/Python/Dart dev, prefer workspace log files the agent can Read or tail.
+description: When debugging local Flutter/Python/Dart dev, prefer process terminal output and app-visible errors.
 globs:
 alwaysApply: false
 ---
 
-# Agent-accessible local debug logs
+# Local debugging (no shared repo log files)
 
-When investigating local dev issues (Flutter web/Android, Flask, Dart WS), **read these paths first** (repo root relative):
+The former merged `server.log` / agent NDJSON pipeline has been **removed**. When investigating local dev issues:
 
-1. **`python_base_04/tools/logger/server.log`** — Flutter `flutter run` output mirrored from `playbooks/frontend/launch_chrome.sh` / `launch_oneplus.sh` (lines look like `… [FLUTTER] …`). Optional NDJSON via `AGENT_LOG_JSON` in `.env.local`.
-2. **`python_base_04/tools/logger/backend.debug.log`** — Flask/Werkzeug when `AGENT_BACKEND_LOG=1` in `.env.local` and using `app.debug.py`.
-3. **`dart_bkend_base_01/tools/logger/dart_ws.debug.log`** — Dart dev WebSocket server (`dart run app.debug.dart`).
+1. **Flutter** — read the terminal where `flutter run` (or `playbooks/frontend/launch_chrome.sh` / `launch_oneplus.sh`) is attached.
+2. **Flask** — read the terminal running `app.py` or `app.debug.py`.
+3. **Dart WebSocket server** — read the terminal running `dart run app.debug.dart`.
 
-**Flask clearing `server.log`:** If Flask debug starts with `CLEAR_SERVER_LOG_ON_FLASK_START` unset or `1`, it may truncate `server.log` and erase Flutter tail history. Set `CLEAR_SERVER_LOG_ON_FLASK_START=0` when preserving that file.
-
-Full contract: `Documentation/debug/AGENT_DEBUG_LOGS.md` (from repo root).
-
-Optional env: `AGENT_LOG_JSON`, `AGENT_LOG_MAX_MB` (see doc).
+Use breakpoints, API responses, and user-visible UI feedback instead of tailing paths under `python_base_04/tools/logger/`.

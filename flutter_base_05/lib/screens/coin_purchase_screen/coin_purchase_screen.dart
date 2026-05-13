@@ -16,7 +16,6 @@ import '../../utils/analytics_service.dart';
 import '../../utils/coin_catalog.dart';
 import '../../utils/consts/config.dart';
 import '../../utils/consts/theme_consts.dart';
-import '../../utils/dbg.dart';
 
 /// **Web**: Stripe Checkout via `/userauth/stripe/create-coin-checkout-session`.
 /// **Android**: Google Play Billing + server verify `/userauth/play/verify-coin-purchase`.
@@ -482,13 +481,9 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
 
   Future<void> _watchRewardedAdForCoins() async {
     if (kIsWeb || Config.admobsRewarded01.trim().isEmpty) {
-      dbgAdMob(
-        'coin screen _watchRewardedAdForCoins skip (web=$kIsWeb rewardedUnitEmpty=${Config.admobsRewarded01.trim().isEmpty})',
-      );
       return;
     }
 
-    dbgAdMob('coin screen _watchRewardedAdForCoins start');
     final mod = ModuleManager().getModuleByType<RewardedAdModule>();
     final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
     if (mod == null || api == null) {
@@ -503,9 +498,6 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           ),
         );
       }
-      dbgAdMob(
-        'coin screen rewarded unavailable (modNull=${mod == null} apiNull=${api == null})',
-      );
       return;
     }
 
@@ -521,7 +513,6 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           ),
         );
       }
-      dbgAdMob('coin screen rewarded not ready → snack + loadAd');
       unawaited(mod.loadAd());
       return;
     }
@@ -529,15 +520,12 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     final clientNonce = const Uuid().v4();
     setState(() => _rewardedAdBusy = true);
     try {
-      dbgAdMob('coin screen calling RewardedAdModule.showAd nonceLen=${clientNonce.length}');
       await mod.showAd(
         context,
         onUserEarnedReward: () {
-          dbgAdMob('coin screen onUserEarnedReward → claim API');
           unawaited(_claimRewardedAdCoins(api, clientNonce));
         },
       );
-      dbgAdMob('coin screen RewardedAdModule.showAd completed');
     } finally {
       if (mounted) setState(() => _rewardedAdBusy = false);
     }

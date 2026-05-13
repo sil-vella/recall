@@ -299,12 +299,7 @@ class CreditSystemModule(BaseModule):
             pass
 
     def test_debug(self):
-        """Test endpoint to verify debug logging works."""
-        print("[DEBUG] Test endpoint called!")
-        print(f"[DEBUG] Database manager: {self.db_manager}")
-        print(f"[DEBUG] Analytics DB: {self.analytics_db}")
-        print(f"[DEBUG] Credit system URL: {self.credit_system_url}")
-        print(f"[DEBUG] API key configured: {'Yes' if self.api_key else 'No'}")
+        """Test endpoint to verify configuration."""
         return jsonify({
             "message": "Debug test successful",
             "credit_system_url": self.credit_system_url,

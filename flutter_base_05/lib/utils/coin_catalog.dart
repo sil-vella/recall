@@ -2,8 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart' show rootBundle;
 
-import 'dbg.dart';
-
 /// Loads [assets/dutch_coin_catalog.json] — SSOT shared with Python `utils/coin_catalog.py`.
 class CoinCatalog {
   CoinCatalog._();
@@ -46,16 +44,11 @@ class CoinCatalog {
         built.add(row);
       }
       _playRecommendedUi = built;
-      dbg(
-        'CoinCatalog',
-        'loaded in_app_products=${_inAppProducts!.length} recommended_ui=${_recommendedUi!.length} play_recommended=${_playRecommendedUi!.length}',
-      );
-    } catch (e, st) {
+    } catch (e) {
       _loadFailed = true;
       _inAppProducts = {};
       _recommendedUi = [];
       _playRecommendedUi = [];
-      dbg('CoinCatalog', 'load failed', error: e, stackTrace: st);
     }
   }
 }

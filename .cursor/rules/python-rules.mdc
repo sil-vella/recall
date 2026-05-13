@@ -275,7 +275,7 @@ try:
     result = db_manager.execute_query(query, params)
 except Exception as e:
     # Log error and handle gracefully
-    custom_log(f"Database error: {e}", level="ERROR")
+    # Log error and handle gracefully
     # Implement fallback or retry logic
 ```
 
@@ -327,7 +327,7 @@ try:
     jwt_secret = vault_manager.get_secret_value("flask-app/app", "secret_key")
 except Exception as e:
     # Handle Vault errors
-    custom_log(f"Vault error: {e}", level="ERROR")
+    # Log error and handle gracefully
 ```
 
 ### 2. Rate Limiting
@@ -388,10 +388,10 @@ def api_endpoint():
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
     except DatabaseError as e:
-        custom_log(f"Database error: {e}", level="ERROR")
+        # Log error and handle gracefully
         return jsonify({"error": "Internal server error"}), 500
     except Exception as e:
-        custom_log(f"Unexpected error: {e}", level="ERROR")
+        # Log error and handle gracefully
         return jsonify({"error": "Internal server error"}), 500
 ```
 
@@ -483,29 +483,18 @@ def function_name(param1, param2):
         result = perform_operation(param1, param2)
         return result
     except SpecificException as e:
-        custom_log(f"Specific error in function: {e}", level="ERROR")
         # Handle specific error
         raise
     except Exception as e:
-        custom_log(f"Unexpected error in function: {e}", level="ERROR")
         # Handle general error
         raise
 ```
 
 ### 2. Logging
 
-**RULE**: Use the built-in `custom_log` function for all logging.
+**RULE**: There is **no** shared application logger (`custom_log` / `logging_utils`). Prefer explicit error handling, HTTP responses with safe messages, and external monitoring—not file or stdout logging from core managers.
 
-**PATTERN**:
-```python
-from utils.logging_utils import custom_log
-
-# Log different levels
-custom_log("Information message", level="INFO")
-custom_log("Warning message", level="WARNING")
-custom_log("Error message", level="ERROR")
-custom_log("Debug message", level="DEBUG")
-```
+**PATTERN**: On failure, return or raise with context; avoid `print` and `logging.getLogger` in application code under `python_base_04` outside vendored `libs/`.
 
 ### 3. Documentation
 
@@ -692,7 +681,7 @@ result = db_manager.execute_query(
 - [ ] Follows module structure if applicable
 - [ ] Uses StateManager for state management
 - [ ] Includes proper error handling
-- [ ] Uses built-in logging
+- [ ] Proper error handling (no reliance on removed logging helpers)
 - [ ] Follows naming conventions
 - [ ] Includes documentation
 - [ ] Implements security best practices
@@ -801,7 +790,7 @@ try:
     # Operation
     result = perform_operation()
 except Exception as e:
-    custom_log(f"Operation failed: {e}", level="ERROR")
+    # Attach context before re-raise
     # Re-raise with context
     raise ModuleException(f"Failed to perform operation: {e}", "module_name")
 ```
@@ -856,7 +845,7 @@ The key principles are:
 1. **Manager-based architecture** for all functionality
 2. **Module system** for feature organization
 3. **StateManager** for state management
-4. **Proper error handling and logging**
+4. **Proper error handling**
 5. **Security-first approach**
 6. **Comprehensive documentation**
 7. **Approval process for new components**

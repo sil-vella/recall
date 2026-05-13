@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/managers/module_manager.dart';
 import '../../../utils/consts/theme_consts.dart';
-import '../../../utils/dbg.dart';
 import '../../admobs/interstitial/interstitial_ad.dart';
 
 /// Full-screen gate before an AdMob interstitial: countdown, then Skip (or dismiss if no ad / web).
@@ -16,7 +15,6 @@ class SwitchScreenAdOverlay {
     BuildContext context, {
     required int delayBeforeSkipSeconds,
   }) {
-    dbgAdMob('SwitchScreenAdOverlay.show delayBeforeSkipSeconds=$delayBeforeSkipSeconds');
     return showGeneralDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -53,7 +51,6 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      dbgAdMob('SwitchScreenAdOverlay postFrame → InterstitialAdModule.loadAd()');
       ModuleManager().getModuleByType<InterstitialAdModule>()?.loadAd();
     });
     final totalSecs = widget.delayBeforeSkipSeconds;
@@ -90,13 +87,9 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
 
     final mod = ModuleManager().getModuleByType<InterstitialAdModule>();
     if (mod == null || kIsWeb) {
-      dbgAdMob(
-        'SwitchScreenAdOverlay skip/finish: close without interstitial (modNull=${mod == null} web=$kIsWeb)',
-      );
       close();
       return;
     }
-    dbgAdMob('SwitchScreenAdOverlay skip/finish → showOrFinish');
     mod.showOrFinish(context, close);
   }
 

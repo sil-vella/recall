@@ -25,16 +25,12 @@ from email.mime.multipart import MIMEMultipart
 try:
     from core.services.google_auth_service import GoogleAuthService
     GOOGLE_AUTH_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     GOOGLE_AUTH_AVAILABLE = False
     GoogleAuthService = None
-    print(f"⚠️ UserManagement: Failed to import GoogleAuthService - ImportError: {e}")
-except Exception as e:
+except Exception:
     GOOGLE_AUTH_AVAILABLE = False
     GoogleAuthService = None
-    import traceback
-    print(f"⚠️ UserManagement: Failed to import GoogleAuthService - Unexpected error: {e}")
-    print(f"⚠️ Traceback: {traceback.format_exc()}")
 
 from core.services.analytics_service import AnalyticsService
 

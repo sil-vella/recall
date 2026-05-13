@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Flutter app launcher for Android devices. Merges flutter run stdout/stderr and mirrors
-# every line to python_base_04/tools/logger/server.log (see Documentation/debug/AGENT_DEBUG_LOGS.md).
+# Flutter app launcher for Android devices.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -86,17 +85,11 @@ DEVICE_LABEL="$(get_device_label "$DEVICE_ID")"
 ANDROID_APP_ID="com.reignofplay.dutch"
 FIREBASE_DEBUGVIEW_ENABLED=false
 
-SERVER_LOG_FILE="$REPO_ROOT/python_base_04/tools/logger/server.log"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/agent_server_log_helpers.sh"
 ensure_server_log_dir_and_maybe_rotate
-LOG_DIR=$(dirname "$SERVER_LOG_FILE")
-if [ ! -w "$LOG_DIR" ]; then
-    echo "❌ Error: Log directory is not writable: $LOG_DIR"
-    exit 1
-fi
 
-echo_and_server_log "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID) (flutter run → server.log for debugging)..."
+echo_and_server_log "🚀 Launching Flutter app on $DEVICE_LABEL ($DEVICE_ID)…"
 
 # Check if adb is available
 if ! command -v adb &> /dev/null; then
@@ -129,20 +122,13 @@ fi
 # Navigate to Flutter project directory
 cd "$SCRIPT_DIR/../../flutter_base_05" 2>/dev/null || cd flutter_base_05
 
-echo_and_server_log "📝 Flutter script + flutter run → $SERVER_LOG_FILE ([LAUNCH] = this script, [FLUTTER] = tool stream)"
-
-# Launch Flutter app with selected device configuration
 echo_and_server_log "🎯 Launching Flutter app for $DEVICE_LABEL..."
 
 echo_and_server_log "📝 Dart-define SSOT: $FRONTEND_ENV (no script-side --dart-define overrides)"
 
-# Same pipeline as launch_chrome.sh (flutter tool merged streams after sed strip, not raw adb logcat).
+# Same pipeline as launch_chrome.sh: filter_logs on merged flutter output (strip date prefix on matching lines first).
 filter_logs() {
     while IFS= read -r line; do
-        local ts
-        ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-        printf '%s [FLUTTER] %s\n' "$ts" "$line" >> "$SERVER_LOG_FILE"
-        append_agent_json_server_log "$ts" "flutter" "INFO" "$line"
         printf '%s\n' "$line"
     done
 }
@@ -189,7 +175,5 @@ FLUTTER_EXIT_CODE=${PIPESTATUS[0]}
 cleanup
 
 echo_and_server_log "✅ Flutter app launch completed (exit code: $FLUTTER_EXIT_CODE)"
-echo_and_server_log "📝 Flutter run log: $SERVER_LOG_FILE"
-echo_and_server_log "🔍 To view logs: tail -f $SERVER_LOG_FILE"
 
 exit $FLUTTER_EXIT_CODE

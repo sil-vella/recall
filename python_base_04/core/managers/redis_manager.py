@@ -11,7 +11,6 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from datetime import datetime
-import logging
 try:
     from redis.retry import ExponentialBackoff, Retry
 except ImportError:
@@ -35,7 +34,6 @@ class RedisManager:
         self.connection_pool = None
         self._initialized = False
         self._initialize_connection_pool()
-        self.logger = logging.getLogger(__name__)
         self._setup_encryption()
         self._token_prefix = "token"
         self._token_set_prefix = "tokens"

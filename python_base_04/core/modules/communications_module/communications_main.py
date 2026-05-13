@@ -9,7 +9,6 @@ from tools.error_handling import ErrorHandler
 from datetime import datetime, timedelta
 import time
 import uuid
-import logging
 from flask import request, jsonify
 from typing import Dict, Any
 from core.modules.base_module import BaseModule

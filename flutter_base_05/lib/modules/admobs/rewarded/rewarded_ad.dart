@@ -9,7 +9,6 @@ import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
-import '../../../../utils/dbg.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
 
@@ -46,7 +45,6 @@ class RewardedAdModule extends ModuleBase {
   /// Preloads the next rewarded ad (no-op on web or empty unit id).
   Future<void> loadAd() async {
     if (kIsWeb) {
-      dbgAdMob('rewarded loadAd skip: web');
       await _rewardedAd?.dispose();
       _rewardedAd = null;
       _isAdReady = false;
@@ -54,7 +52,6 @@ class RewardedAdModule extends ModuleBase {
       return;
     }
     if (adUnitId.trim().isEmpty) {
-      dbgAdMob('rewarded loadAd skip: empty adUnitId');
       await _rewardedAd?.dispose();
       _rewardedAd = null;
       _isAdReady = false;
@@ -62,9 +59,6 @@ class RewardedAdModule extends ModuleBase {
       return;
     }
     if (!AdExperiencePolicy.showMonetizedAds) {
-      dbgAdMob(
-        'rewarded loadAd skip: ${AdExperiencePolicy.monetizedAdsDebugLabel()}',
-      );
       await _rewardedAd?.dispose();
       _rewardedAd = null;
       _isAdReady = false;
@@ -77,21 +71,16 @@ class RewardedAdModule extends ModuleBase {
     _isAdReady = false;
     _bump();
 
-    dbgAdMob('rewarded RewardedAd.load start unitId=$adUnitId');
     RewardedAd.load(
       adUnitId: adUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          dbgAdMob('rewarded onAdLoaded unitId=$adUnitId');
           _rewardedAd = ad;
           _isAdReady = true;
           _bump();
         },
         onAdFailedToLoad: (LoadAdError error) {
-          dbgAdMob(
-            'rewarded onAdFailedToLoad code=${error.code} domain=${error.domain} message=${error.message}',
-          );
           _rewardedAd = null;
           _isAdReady = false;
           _bump();
@@ -108,16 +97,12 @@ class RewardedAdModule extends ModuleBase {
     VoidCallback? onAdClosed,
   }) async {
     if (kIsWeb || adUnitId.trim().isEmpty || !AdExperiencePolicy.showMonetizedAds) {
-      dbgAdMob(
-        'rewarded showAd no-op (web=$kIsWeb empty=${adUnitId.trim().isEmpty} policy=${AdExperiencePolicy.showMonetizedAds})',
-      );
       onAdClosed?.call();
       return;
     }
 
     final sharedPref = _sharedPrefOrNull(context);
     if (!isReady || _rewardedAd == null) {
-      dbgAdMob('rewarded showAd not ready → onAdClosed + reload');
       onAdClosed?.call();
       unawaited(loadAd());
       return;
@@ -130,22 +115,15 @@ class RewardedAdModule extends ModuleBase {
 
     final completer = Completer<void>();
 
-    dbgAdMob('rewarded show()');
     ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (Ad a) {
-        dbgAdMob('rewarded onAdShowedFullScreenContent');
-      },
+      onAdShowedFullScreenContent: (Ad a) {},
       onAdDismissedFullScreenContent: (Ad dismissed) {
-        dbgAdMob('rewarded onAdDismissedFullScreenContent');
         dismissed.dispose();
         unawaited(loadAd());
         if (!completer.isCompleted) completer.complete();
         onAdClosed?.call();
       },
       onAdFailedToShowFullScreenContent: (Ad failed, AdError error) {
-        dbgAdMob(
-          'rewarded onAdFailedToShowFullScreenContent code=${error.code} domain=${error.domain} message=${error.message}',
-        );
         failed.dispose();
         unawaited(loadAd());
         if (!completer.isCompleted) completer.complete();
@@ -155,7 +133,6 @@ class RewardedAdModule extends ModuleBase {
 
     ad.show(
       onUserEarnedReward: (AdWithoutView adView, RewardItem reward) {
-        dbgAdMob('rewarded onUserEarnedReward type=${reward.type} amount=${reward.amount}');
         onUserEarnedReward();
         _recordRewardViewBestEffort(sharedPref);
       },

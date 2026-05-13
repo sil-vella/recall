@@ -1,7 +1,6 @@
 from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 from enum import Enum
-import logging
 from core.managers.redis_manager import RedisManager
 from core.managers.database_manager import DatabaseManager
 
@@ -60,8 +59,6 @@ class StateManager:
         if StateManager._initialized:
             return
             
-        self.logger = logging.getLogger(__name__)
-        
         # Use provided managers or create new ones
         self.redis_manager = redis_manager if redis_manager else RedisManager()
         self.database_manager = database_manager if database_manager else DatabaseManager()
@@ -121,7 +118,6 @@ class StateManager:
         """
         try:
             if state_id in self._states:
-                self.logger.warning(f"State {state_id} already exists, updating instead")
                 return self.update_state(state_id, initial_data)
             
             # Create state record
@@ -157,7 +153,6 @@ class StateManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to register state {state_id}: {e}")
             return False
 
     def get_state(self, state_id: str) -> Optional[Dict[str, Any]]:
@@ -192,7 +187,6 @@ class StateManager:
             return None
             
         except Exception as e:
-            self.logger.error(f"Failed to get state {state_id}: {e}")
             return None
 
     def update_state(self, state_id: str, new_data: Dict[str, Any], 
@@ -211,12 +205,10 @@ class StateManager:
         try:
             current_state = self.get_state(state_id)
             if not current_state:
-                self.logger.error(f"State {state_id} not found for update")
                 return False
             
             # Validate transition if provided
             if transition and not self._validate_transition(state_id, transition):
-                self.logger.error(f"Invalid transition {transition.value} for state {state_id}")
                 return False
             
             # Update state data
@@ -243,7 +235,6 @@ class StateManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to update state {state_id}: {e}")
             return False
 
     def delete_state(self, state_id: str) -> bool:
@@ -258,7 +249,6 @@ class StateManager:
         """
         try:
             if state_id not in self._states:
-                self.logger.warning(f"State {state_id} not found for deletion")
                 return False
             
             # Add deletion to history before removing
@@ -283,7 +273,6 @@ class StateManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to delete state {state_id}: {e}")
             return False
 
     def get_state_history(self, state_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -304,7 +293,6 @@ class StateManager:
             return history
             
         except Exception as e:
-            self.logger.error(f"Failed to get history for state {state_id}: {e}")
             return []
 
     def register_callback(self, state_id: str, callback: Callable) -> bool:
@@ -326,7 +314,6 @@ class StateManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to register callback for state {state_id}: {e}")
             return False
 
     def get_states_by_type(self, state_type: StateType) -> List[Dict[str, Any]]:
@@ -347,7 +334,6 @@ class StateManager:
             return states
             
         except Exception as e:
-            self.logger.error(f"Failed to get states by type {state_type.value}: {e}")
             return []
 
     def get_active_states(self) -> List[Dict[str, Any]]:
@@ -360,7 +346,6 @@ class StateManager:
         try:
             return [state for state in self._states.values() if state.get('active', True)]
         except Exception as e:
-            self.logger.error(f"Failed to get active states: {e}")
             return []
 
     # Private helper methods
@@ -405,21 +390,20 @@ class StateManager:
             try:
                 callback(state_id, transition, data)
             except Exception as e:
-                self.logger.error(f"Callback error for state {state_id}: {e}")
+                pass
 
     def _store_state_in_redis(self, state_id: str, state_data: Dict[str, Any]):
         """Store state in Redis cache."""
         try:
             self.redis_manager.set(f"state:{state_id}", state_data, expire=self.state_ttl)
         except Exception as e:
-            self.logger.warning(f"Failed to store state {state_id} in Redis: {e}")
+            pass
 
     def _get_state_from_redis(self, state_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve state from Redis cache."""
         try:
             return self.redis_manager.get(f"state:{state_id}")
         except Exception as e:
-            self.logger.warning(f"Failed to get state {state_id} from Redis: {e}")
             return None
 
     def _remove_state_from_redis(self, state_id: str):
@@ -427,7 +411,7 @@ class StateManager:
         try:
             self.redis_manager.delete(f"state:{state_id}")
         except Exception as e:
-            self.logger.warning(f"Failed to remove state {state_id} from Redis: {e}")
+            pass
 
     def _store_state_in_database(self, state_id: str, state_data: Dict[str, Any]):
         """Store state in database for persistence."""
@@ -435,7 +419,7 @@ class StateManager:
             if self.database_manager.available:
                 self.database_manager.insert("states", state_data)
         except Exception as e:
-            self.logger.warning(f"Failed to store state {state_id} in database: {e}")
+            pass
 
     def _get_state_from_database(self, state_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve state from database."""
@@ -443,7 +427,7 @@ class StateManager:
             if self.database_manager.available:
                 return self.database_manager.find_one("states", {"id": state_id})
         except Exception as e:
-            self.logger.warning(f"Failed to get state {state_id} from database: {e}")
+            pass
         return None
 
     def _mark_state_deleted_in_database(self, state_id: str):
@@ -456,7 +440,7 @@ class StateManager:
                     {"active": False, "deleted_at": datetime.utcnow().isoformat()}
                 )
         except Exception as e:
-            self.logger.warning(f"Failed to mark state {state_id} as deleted in database: {e}")
+            pass
 
     def _initialize_main_app_state(self):
         """Initialize the main application state."""

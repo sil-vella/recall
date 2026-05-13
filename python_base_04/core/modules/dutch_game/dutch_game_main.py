@@ -9,8 +9,6 @@ All endpoint handlers live in api_endpoints.py; this module registers routes and
 from typing import Optional
 from core.modules.base_module import BaseModule
 
-# Logging switch for route registration (see .cursor/rules/enable-logging-switch.mdc)
-
 
 class DutchGameMain(BaseModule):
     """Main orchestrator for the Dutch game backend"""

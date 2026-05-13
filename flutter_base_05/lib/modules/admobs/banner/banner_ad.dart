@@ -8,7 +8,6 @@ import '../../../../core/managers/app_manager.dart';
 import '../../../../core/managers/hooks_manager.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../utils/consts/config.dart';
-import '../../../../utils/dbg.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
 
@@ -75,21 +74,16 @@ class BannerAdModule extends ModuleBase {
   Future<void> loadBannerAd(String adUnitId, {required String slot}) async {
     if (kIsWeb) {
       admobTrace('Banner', 'loadBannerAd skip: web');
-      dbgAdMob('banner loadBannerAd skip: web');
       return;
     }
     if (adUnitId.trim().isEmpty) {
       admobTrace('Banner', 'loadBannerAd skip: empty adUnitId (check ADMOBS_TOP/BOTTOM dart-define)');
-      dbgAdMob('banner loadBannerAd skip: empty adUnitId');
       return;
     }
     if (!AdExperiencePolicy.showMonetizedAds) {
       admobTrace(
         'Banner',
         'loadBannerAd skip: monetized ads off (${AdExperiencePolicy.monetizedAdsDebugLabel()})',
-      );
-      dbgAdMob(
-        'banner loadBannerAd skip: monetized ads off (${AdExperiencePolicy.monetizedAdsDebugLabel()})',
       );
       return;
     }
@@ -99,9 +93,6 @@ class BannerAdModule extends ModuleBase {
         'Banner',
         'loadBannerAd skip: already loaded or inFlight slot=$slot inFlight=${_loadsInFlight.contains(key)}',
       );
-      dbgAdMob(
-        'banner loadBannerAd skip: already loaded or in flight slot=$slot inFlight=${_loadsInFlight.contains(key)}',
-      );
       return;
     }
     _loadsInFlight.add(key);
@@ -110,7 +101,6 @@ class BannerAdModule extends ModuleBase {
       'BannerAd.load() slot=$slot unitId=$adUnitId size=AdSize.banner — '
       'Android app id must match this unit (local.properties admob.application_id)',
     );
-    dbgAdMob('banner load start slot=$slot unitId=$adUnitId');
 
     final bannerAd = BannerAd(
       adUnitId: adUnitId,
@@ -123,7 +113,6 @@ class BannerAdModule extends ModuleBase {
             'Banner',
             'onAdLoaded slot=$slot unitId=$adUnitId widget=${b.size.width}x${b.size.height}',
           );
-          dbgAdMob('banner onAdLoaded slot=$slot unitId=$adUnitId size=${b.size.width}x${b.size.height}');
           _bannerByKey[key] = b;
           _notifyFrame();
         },
@@ -131,9 +120,6 @@ class BannerAdModule extends ModuleBase {
           admobTrace(
             'Banner',
             'onAdFailedToLoad slot=$slot unitId=$adUnitId code=${error.code} message=${error.message}',
-          );
-          dbgAdMob(
-            'banner onAdFailedToLoad slot=$slot unitId=$adUnitId code=${error.code} domain=${error.domain} message=${error.message}',
           );
           ad.dispose();
           _bannerByKey.remove(key);
@@ -145,7 +131,6 @@ class BannerAdModule extends ModuleBase {
     try {
       await bannerAd.load();
       admobTrace('Banner', 'await load() returned slot=$slot unitId=$adUnitId (callbacks may still be pending)');
-      dbgAdMob('banner load() completed slot=$slot unitId=$adUnitId');
     } finally {
       _loadsInFlight.remove(key);
     }

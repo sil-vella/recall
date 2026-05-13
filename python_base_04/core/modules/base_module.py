@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-import logging
 
 
 class BaseModule(ABC):
@@ -20,7 +19,6 @@ class BaseModule(ABC):
         self.registered_routes = []
         self.dependencies = []
         self.module_name = self.__class__.__name__
-        self.logger = logging.getLogger(f"modules.{self.module_name}")
         self._initialized = False
     
     @abstractmethod
@@ -117,9 +115,6 @@ class BaseModule(ABC):
         # Track route with authentication info
         route_info = (route, view_func.__name__, methods, auth)
         self.registered_routes.append(route_info)
-        
-        auth_info = f" (auth: {auth})" if auth else " (public)"
-        self.logger.info(f"Registered route: {route} with methods {methods}{auth_info}")
     
     def _register_auth_route_helper(self, route: str, view_func, methods: List[str] = None):
         """

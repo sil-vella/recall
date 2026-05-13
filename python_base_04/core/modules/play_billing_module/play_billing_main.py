@@ -42,7 +42,6 @@ class PlayBillingModule(BaseModule):
         if not pkg or not sa_path:
             return None
         if not os.path.isfile(sa_path):
-            self.logger.warning("GOOGLE_PLAY_SERVICE_ACCOUNT_FILE is not a readable file: %s", sa_path)
             return None
         try:
             from google.oauth2 import service_account
@@ -54,8 +53,7 @@ class PlayBillingModule(BaseModule):
             )
             self._android_publisher = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
             return self._android_publisher
-        except Exception as e:
-            self.logger.exception("Failed to build Android Publisher client: %s", e)
+        except Exception:
             self._android_publisher = None
             return None
 
@@ -135,7 +133,6 @@ class PlayBillingModule(BaseModule):
             except Exception as e:
                 status = getattr(getattr(e, "resp", None), "status", None)
                 err = str(e)
-                self.logger.warning("Play purchases.products.get failed: %s", err)
                 if status == 404 or "404" in err or "notFound" in err:
                     return jsonify({"success": False, "error": "Invalid or expired purchase token"}), 400
                 return jsonify({"success": False, "error": "Play verification failed", "message": err}), 502
@@ -190,7 +187,6 @@ class PlayBillingModule(BaseModule):
                 credit_dutch_game_coins(self.db_manager, user_oid, coins)
             except Exception as e:
                 self.db_manager.db["play_coin_purchases"].delete_one({"purchase_token": purchase_token})
-                self.logger.exception("credit_dutch_game_coins failed: %s", e)
                 return jsonify({"success": False, "error": "Failed to credit coins"}), 500
 
             consume_ok = True
@@ -200,9 +196,8 @@ class PlayBillingModule(BaseModule):
                     productId=product_id,
                     token=purchase_token,
                 ).execute()
-            except Exception as e:
+            except Exception:
                 consume_ok = False
-                self.logger.warning("Play purchases.products.consume failed (coins already credited): %s", e)
 
             self.db_manager.db["play_coin_purchases"].update_one(
                 {"purchase_token": purchase_token},
@@ -226,8 +221,7 @@ class PlayBillingModule(BaseModule):
                 ),
                 200,
             )
-        except Exception as e:
-            self.logger.exception("verify_coin_purchase: %s", e)
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     def health_check(self) -> dict[str, Any]:

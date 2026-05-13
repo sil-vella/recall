@@ -664,7 +664,7 @@ if (Config.featureFlags['new_feature'] == true) {
 - [ ] Follows module structure if applicable
 - [ ] Uses StateManager for state management
 - [ ] Includes proper error handling
-- [ ] Uses built-in logging
+- [ ] Proper error handling and user-visible feedback where appropriate
 - [ ] Follows naming conventions
 - [ ] Includes documentation
 
@@ -814,7 +814,7 @@ The key principles are:
 1. **Manager-based architecture** for all functionality
 2. **Module system** for feature organization
 3. **StateManager** for state management
-4. **Proper error handling and logging**
+4. **Proper error handling**
 5. **Security-first approach**
 6. **Comprehensive documentation**
 7. **Approval process for new components**

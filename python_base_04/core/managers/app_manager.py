@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from utils.config.config import Config
 from redis.exceptions import RedisError
 from core.monitoring.metrics_collector import MetricsCollector
-import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from core.managers.database_manager import DatabaseManager
 from core.managers.redis_manager import RedisManager
@@ -32,7 +31,6 @@ class AppManager:
         self.module_manager = ModuleManager()  # Primary orchestrator
         self.template_dirs = []  # List to track template directories
         self.flask_app = None  # Flask app reference
-        self.logger = logging.getLogger(__name__)
         self.scheduler = None
         
         # Centralized managers - single instances for all modules

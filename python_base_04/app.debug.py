@@ -12,51 +12,10 @@ importlib.invalidate_caches()
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-def ensure_server_log_file_exists():
-    """Ensure tools/logger/server.log exists; never truncate (append-only shared log)."""
-    try:
-        log_file_path = os.path.join(os.path.dirname(__file__), "tools", "logger", "server.log")
-        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-        if not os.path.exists(log_file_path):
-            open(log_file_path, "a", encoding="utf-8").close()
-    except Exception:
-        pass
+from tools.dev_logging import configure_dev_logging
 
+configure_dev_logging()
 
-def setup_server_log_file_handler():
-    """Append Werkzeug and root Python logging to tools/logger/server.log (shared with Flutter/Dart)."""
-    import logging
-    from datetime import datetime, timezone
-
-    log_path = os.path.join(os.path.dirname(__file__), "tools", "logger", "server.log")
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    abs_path = os.path.abspath(log_path)
-    root = logging.getLogger()
-    for h in root.handlers:
-        bf = getattr(h, "baseFilename", None)
-        if bf and os.path.abspath(bf) == abs_path:
-            return
-
-    class UtcFormatter(logging.Formatter):
-        def formatTime(self, record, datefmt=None):
-            return datetime.fromtimestamp(record.created, tz=timezone.utc).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            )
-
-    fh = logging.FileHandler(abs_path, mode="a", encoding="utf-8")
-    fh.setLevel(logging.INFO)
-    fh.setFormatter(
-        UtcFormatter("%(asctime)s [PYTHON] %(levelname)s %(name)s: %(message)s")
-    )
-    root.addHandler(fh)
-    root.setLevel(logging.INFO)
-    logging.getLogger("werkzeug").setLevel(logging.INFO)
-
-
-ensure_server_log_file_exists()
-setup_server_log_file_handler()
-
-# Initialize the AppManager
 app_manager = AppManager()
 
 # Initialize the Flask app
@@ -234,25 +193,6 @@ def execute_internal_action(action_name, args):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-@app.route('/log', methods=['POST'])
-def frontend_log():
-    """Append Flutter (and other client) lines to server.log — same format as launch script [FLUTTER] lines."""
-    try:
-        from datetime import datetime, timezone
-
-        data = request.get_json() or {}
-        message = (data.get("message", "") or "").replace("\r\n", "\n").replace("\n", " ").strip()
-        log_file_path = os.path.join(os.path.dirname(__file__), "tools", "logger", "server.log")
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        log_entry = f"{ts} [FLUTTER] {message}\n"
-        with open(log_file_path, "a", encoding="utf-8") as f:
-            f.write(log_entry)
-        
-        return jsonify({'success': True, 'message': 'Log recorded'}), 200
-        
-    except Exception as e:
-        return jsonify({'error': f'Log failed: {str(e)}'}), 500
 
 # Development server startup
 if __name__ == "__main__":

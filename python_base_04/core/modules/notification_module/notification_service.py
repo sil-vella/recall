@@ -99,5 +99,4 @@ class NotificationService:
             notify_dart_inbox_changed_async(user_id)
             return msg_id
         except Exception as e:
-            print(f"[NotificationService] create insert failed for user_id={user_id}: {e}", flush=True)
             return None

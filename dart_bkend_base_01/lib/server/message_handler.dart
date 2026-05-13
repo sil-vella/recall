@@ -332,7 +332,6 @@ class MessageHandler {
   /// Only then proceed with restart / tournament persistence.
   void _handleRematchStub(String sessionId, Map<String, dynamic> data) {
     final gameId = data['game_id'] as String?;
-    final gameState = data['game_state'];
     final userId = data['user_id'] as String?;
 
     if (gameId == null || gameId.isEmpty) {
@@ -357,7 +356,6 @@ class MessageHandler {
     }
 
     if (room.hasMatchRestarted) {
-      print('[rematch] early exit: hasMatchRestarted=true room=$gameId session=$sessionId');
       return;
     }
 
@@ -387,7 +385,6 @@ class MessageHandler {
         return;
       }
       if (r.hasMatchRestarted) {
-        print('[rematch] coin ok but another rematch already started room=$gameId');
         return;
       }
 
@@ -402,22 +399,6 @@ class MessageHandler {
         'user_id': resolvedUserId,
       });
       r.hasMatchRestarted = true;
-
-      
-
-      print('[rematch] sessionId=$sessionId user_id=$resolvedUserId game_id=$gameId — broadcasting restart_invite to others');
-      try {
-        if (gameState is Map) {
-          final encoded = jsonEncode(gameState);
-          final preview =
-              encoded.length > 8000 ? '${encoded.substring(0, 8000)}…(truncated, len=${encoded.length})' : encoded;
-          print('[rematch] game_state: $preview');
-        } else {
-          print('[rematch] game_state: ${gameState?.toString() ?? 'null'} (not a Map)');
-        }
-      } catch (e, st) {
-        print('[rematch] game_state log error: $e\n$st');
-      }
 
       var isCoinRequired = true;
       try {
@@ -490,7 +471,6 @@ class MessageHandler {
       room.rematchPendingTimer = null;
       _clearRematchLobbyRoom(room);
       room.hasMatchRestarted = false;
-      print('[rematch_declined] sessionId=$sessionId user_id=$userId room=$gameId — rematch cancelled');
       return;
     }
 
@@ -763,12 +743,7 @@ class MessageHandler {
   /// After [Room.rematchAccepted] lists every in-room session (post coin-check) and none declined:
   /// [GameRegistry] reset, fresh lobby state, then [_startMatchForRoom].
   Future<void> _handleStartRematch(String sessionId, Map<String, dynamic> data) async {
-    
-    final trigger = data['trigger'] as String?;
     final gameId = data['game_id'] as String? ?? data['room_id'] as String?;
-    print(
-      '[start_rematch] sessionId=$sessionId trigger=$trigger room_id=${data['room_id']} game_id=$gameId',
-    );
 
     if (gameId == null || gameId.isEmpty) {
       _sendError(sessionId, 'start_rematch requires game_id');
@@ -791,14 +766,12 @@ class MessageHandler {
     room.rematchPendingTimer = null;
 
     if (room.rematchDeclined.isNotEmpty) {
-      print('[start_rematch] aborted: room has declines');
       _clearRematchLobbyRoom(room);
       room.hasMatchRestarted = false;
       return;
     }
 
     if (!_allSessionsAcceptedRematch(room)) {
-      print('[start_rematch] skip: not all sessions accepted (trigger=$trigger)');
       return;
     }
 
@@ -895,16 +868,6 @@ class MessageHandler {
       createRoomSpecialModal = se.modal;
     } else {
       effectiveGameLevel = gameLevel ?? 1;
-    }
-
-    // Log create_room payload for debugging (visible in container logs)
-    print('[create_room] payload: is_tournament=$isTournament is_coin_required=$isCoinRequired add_creator_to_room=$addCreatorToRoom auto_start=$autoStart min_players=$minPlayers max_players=$maxPlayers');
-    print('[create_room] accepted_players count=${acceptedPlayers?.length ?? 0}');
-    if (acceptedPlayers != null && acceptedPlayers.isNotEmpty) {
-      for (var i = 0; i < acceptedPlayers.length; i++) {
-        final p = acceptedPlayers[i];
-        print('[create_room]   accepted_players[$i]: user_id=${p['user_id']} username=${p['username']} is_comp_player=${p['is_comp_player']}');
-      }
     }
 
     final uid = userId;
@@ -1072,7 +1035,6 @@ class MessageHandler {
             ?.where((e) => _isCompPlayer(e))
             .length ?? 0;
         final effectiveMax = room.maxSize - compCount;
-        print('[create_room] at create: roomId=$roomId currentSize=${room.currentSize} compCount=$compCount effectiveMax=$effectiveMax (start=${room.currentSize >= effectiveMax})');
         if (room.currentSize >= effectiveMax) {
           
           _startMatchForRoom(roomId);
@@ -1311,7 +1273,6 @@ class MessageHandler {
             ?.where((e) => _isCompPlayer(e))
             .length ?? 0;
         final effectiveMax = room.maxSize - compCount;
-        print('[join_room] autoStart check: roomId=$jr currentSize=${room.currentSize} compCount=$compCount effectiveMax=$effectiveMax (start=${room.currentSize >= effectiveMax})');
         if (room.currentSize >= effectiveMax) {
           
           _startMatchForRoom(jr);

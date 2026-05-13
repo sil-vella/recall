@@ -1,34 +1,101 @@
 ---
-description: Instructions for the AI to enable LOGGING_SWITCH in the relevant files when working on related logic, so debug output appears in server.log for testing.
+description: Strict dev logging — native loggers, LOGGING_SWITCH blocks only, optional global.log via wfgloballog (no in-app file writes).
 globs:
   - "**/*.dart"
   - "**/*.py"
 alwaysApply: false
 ---
-# Enable Logging Switch for Testing
 
-**Do not modify this rule unless explicitly instructed.**
+# Dev logging (strict `LOGGING_SWITCH` blocks)
 
-## Purpose (for the AI)
+## Goals
 
-This rule is **for the AI**: when you work on logic that has a `LOGGING_SWITCH` constant (where it still exists), **you** may enable the relevant switch so debug output goes to the configured log destination for that stack.
+- **Terminal only** in app code: Python → stderr; Flutter / Dart WS → stdout (via `print` / `stdout` in the dev console helpers). **Never** open or append `global.log` (or any repo log file) from Dart/Python.
+- **Optional aggregate**: `global.log` at repo root is written only by **`wfgloballog`** (outside app) when VS Code tasks / shell wrap sessions. See `/Users/sil/Documents/Work/00Utilities/scripts/00_workflow/README.md`, [`.vscode/tasks.json`](.vscode/tasks.json).
 
-## Flutter app (`flutter_base_05`)
+---
 
-The **custom `Logger` and per-file `LOGGING_SWITCH` pattern have been removed** from the Flutter client. Do not reintroduce `lib/tools/logging/logger.dart` or `LOGGING_SWITCH` in `flutter_base_05` unless the project explicitly adds a new logging design.
+## Agent rule: gated calls **must** sit inside `if (LOGGING_SWITCH)` **blocks**
 
-## Dart game server (`dart_bkend_base_01`)
+When adding or editing **dev / trace / diagnostic** logs (not user-facing errors you intentionally always show):
 
-The **custom `Logger` (`server_logger.dart`), `LOGGING_SWITCH`, and `_logger` guarded calls have been removed** from the Dart WebSocket/game server. Do not reintroduce that pattern unless the project explicitly adds a new logging design. Use `print` sparingly if needed for local debugging only.
+1. **Declare** per compilation unit:
+   - **Python**: at module top, `LOGGING_SWITCH = False` (release tooling may set lines to `False` in bulk; use `True` only while actively debugging that file).
+   - **Dart**: `const bool LOGGING_SWITCH = false;` (or `static const bool` in a class). Release build scripts search for these patterns — keep declarations simple (`LOGGING_SWITCH = true/false` or `const bool LOGGING_SWITCH = …`).
 
-## What to do (Python only)
+2. **Strict gating — every such log must be inside a dedicated `if` block body**:
+   - **Dart / Flutter**: use a **braced** block `if (LOGGING_SWITCH) { ... }` (do not rely on a one-line `if` without `{ }` for trace logs).
+   - **Python**: the suite under `if LOGGING_SWITCH:` may be one or more indented statements (a one-line body is OK as long as it is clearly the `if` suite, not at top level).
+   - **Do not** emit trace logs at module import time.
+   - **Do not** call `logger.debug` / `logger.info` / `_log.fine` etc. for trace noise **unless** that call appears **only** as a descendant of `if LOGGING_SWITCH:` (Python) or `if (LOGGING_SWITCH) { ... }` (Dart).
+   - **Do not** use `dev_log(LOGGING_SWITCH, ...)` **as the only** guard on its own line where the “if” is implied by the helper — the **`if (LOGGING_SWITCH)` block is mandatory**; you may call `dev_log` **inside** that block.
 
-1. **Use only LOGGING_SWITCH** (Python only, where present): Do **not** create new switch names (e.g. no `AUTH_LOGGING_SWITCH`, `TOKEN_LOGGING_SWITCH`, etc.). Where the codebase uses **`LOGGING_SWITCH`**, use that single name.
-2. **Enable the switch where needed**: Set `LOGGING_SWITCH = true` in the file(s) that contain the logic you are changing or that are relevant to the task. Do not enable everywhere—only where it helps trace the current task.
-3. **Guard log calls**: Add or keep `custom_log(..., isOn=LOGGING_SWITCH)` (Python) for the paths you care about.
-4. **Log destination**: Python logs go to `python_base_04/tools/logger/server.log` (or the configured logger output).
+**Python — correct**
 
-## Where LOGGING_SWITCH may still appear
+```python
+LOGGING_SWITCH = False
+logger = logging.getLogger(__name__)
 
-- Python: `python_base_04/**/*.py` (e.g. app_manager, jwt_manager, redis_manager, user_management_module, etc.)
-- Match the switch to the logic under test.
+def handle():
+    if LOGGING_SWITCH:
+        logger.debug("detail %s", value)
+    # or:
+    if LOGGING_SWITCH:
+        dev_log(True, logger, logging.DEBUG, "detail %s", value)
+```
+
+**Python — wrong** (no surrounding `if LOGGING_SWITCH:`)
+
+```python
+logger.debug("detail %s", value)
+dev_log(LOGGING_SWITCH, logger, logging.DEBUG, "msg")  # switch inside helper is NOT enough
+```
+
+Use [`python_base_04/tools/dev_logging.py`](python_base_04/tools/dev_logging.py): `configure_dev_logging()` is already invoked from `app.py` / `app.debug.py`. Inside the block, prefer `logger.log(...)` or `dev_log(True, logger, level, msg, *args)` so the outer `if` is the single gate.
+
+**Dart / Flutter — correct**
+
+```dart
+const bool LOGGING_SWITCH = false;
+final _log = Logger('my.feature');
+
+void f() {
+  if (LOGGING_SWITCH) {
+    _log.fine('detail');
+  }
+  if (LOGGING_SWITCH) {
+    devLog(true, () => _log.fine('lazy $x'));
+  }
+}
+```
+
+**Dart / Flutter — wrong**
+
+```dart
+_log.fine('always runs');
+devLog(LOGGING_SWITCH, () => _log.fine('x')); // helper alone — forbidden for trace logs
+```
+
+Use [`flutter_base_05/lib/utils/dev_console_log.dart`](flutter_base_05/lib/utils/dev_console_log.dart) and [`dart_bkend_base_01/lib/utils/dev_console_log.dart`](dart_bkend_base_01/lib/utils/dev_console_log.dart): call `ensureDevConsoleLogging()` **once** at process entry (`main` / `app.debug.dart`); then only log from inside `if (LOGGING_SWITCH) { ... }`.
+
+---
+
+## What does **not** need `LOGGING_SWITCH`
+
+- **User-visible** errors, API failure responses, and **security-relevant** audit lines required in production (follow product rules elsewhere).
+- **Flask / framework** log lines emitted by Werkzeug or other libraries (not under our switch).
+
+---
+
+## Prefixes (for `wfgloballog` / filters)
+
+Configured formatters use **`[python]`** on stderr. Flutter / Dart WS dev helpers use **`[flutter]`** / **`[dart_ws]`** on console lines. Keep those prefixes when adding new console paths so optional `GLOBAL_LOG_STRICT` filtering can match.
+
+---
+
+## Summary checklist (agents)
+
+- [ ] `LOGGING_SWITCH` declared at file (or class) scope with default **`false`** unless explicitly debugging.
+- [ ] **Every** new trace/diagnostic log is **only** inside `if LOGGING_SWITCH:` (Python) or `if (LOGGING_SWITCH) { ... }` (Dart, **braces required**).
+- [ ] No `global.log` / `server.log` / HTTP log posting from app code.
+- [ ] Python: use `logging.getLogger(__name__)`; optional `APP_LOG_LEVEL` on stderr root handler (already configured).

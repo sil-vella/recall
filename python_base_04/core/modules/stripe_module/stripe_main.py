@@ -11,13 +11,8 @@ import json
 from decimal import Decimal
 
 from bson import ObjectId
-import logging
 
 from utils.dutch_game_credits import credit_dutch_game_coins
-
-# Coin purchase: Stripe Checkout + webhooks (enable-logging-switch.mdc)
-
-
 class StripeModule(BaseModule):
     def __init__(self, app_manager=None):
         """Initialize the StripeModule."""

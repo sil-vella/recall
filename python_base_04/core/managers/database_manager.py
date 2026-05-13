@@ -6,7 +6,6 @@ from pymongo.read_concern import ReadConcern
 from pymongo.write_concern import WriteConcern
 from pymongo.errors import OperationFailure, ConnectionFailure
 from urllib.parse import quote_plus
-import logging
 import os
 import queue
 import threading
@@ -42,7 +41,6 @@ class DatabaseManager:
         self.client = None
         self.db = None
         self.available = False  # Track if database is available for use
-        self.logger = logging.getLogger(__name__)
         
         # Queue system components
         self.request_queue = queue.Queue(maxsize=1000)  # Configurable queue size
@@ -284,7 +282,6 @@ class DatabaseManager:
     def _execute_insert(self, collection: str, data: Dict[str, Any]) -> Optional[str]:
         """Execute insert operation directly (for queue worker)."""
         if not self.available:
-            self.logger.warning("_execute_insert: database not available (check MongoDB connection and MONGODB_SERVICE_NAME for local dev)")
             return None
         encrypted_data = self._encrypt_sensitive_fields(data)
         result = self.db[collection].insert_one(encrypted_data)
@@ -445,12 +442,10 @@ class DatabaseManager:
         """Verify MongoDB connection and role-based access."""
         # Test connection
         self.client.server_info()
-        self.logger.info("✅ Successfully connected to MongoDB")
 
         # Test write access if role is read_write
         if self.role == "read_write":
             self.db.command("ping")
-            self.logger.info("✅ Write access verified")
 
     def _encrypt_sensitive_fields(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Encrypt sensitive fields in the data dictionary."""

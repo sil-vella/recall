@@ -230,26 +230,22 @@ class RoomManager {
     // Set/extend TTL when room is created (or first join)
     reinstateRoomTtl(roomId);
 
-    print('🏠 Room created: $roomId by $userId (max: ${room.maxSize}, permission: ${room.permission}, TTL: ${Config.WS_ROOM_TTL}s)');
     return roomId;
   }
   
   bool joinRoom(String roomId, String sessionId, String userId) {
     final room = _rooms[roomId];
     if (room == null) {
-      print('❌ Room not found: $roomId');
       return false;
     }
     
     // Check if user is already in room
     if (isUserInRoom(sessionId, roomId)) {
-      print('⚠️  User $userId already in room $roomId');
       return false; // Will be handled as "already_joined" in message handler
     }
     
     // Check room capacity
     if (!room.hasCapacity) {
-      print('❌ Room $roomId is full (${room.currentSize}/${room.maxSize})');
       return false;
     }
     
@@ -260,8 +256,7 @@ class RoomManager {
     
     // Reinstate TTL on join (extend expiration time)
     reinstateRoomTtl(roomId);
-    
-    print('👤 $userId joined room $roomId (Players: ${room.currentSize}/${room.maxSize})');
+
     return true;
   }
   
@@ -273,16 +268,13 @@ class RoomManager {
     room?.sessionIds.remove(sessionId);
     room?.unbindSession(sessionId);
     _sessionToRoom.remove(sessionId);
-    
-    print('👋 Session $sessionId left room $roomId');
-    
+
     // Destroy empty rooms
     if (room != null && room.sessionIds.isEmpty) {
       // 🎣 Trigger room_closed hook before cleanup
       onRoomClosed?.call(roomId, 'empty');
       
       _rooms.remove(roomId);
-      print('🗑️  Room destroyed: $roomId (empty)');
     }
   }
   
@@ -301,7 +293,6 @@ class RoomManager {
     
     // Remove the room
     _rooms.remove(roomId);
-    print('🗑️  Room manually closed: $roomId (reason: $reason)');
   }
 
   void handleDisconnect(String sessionId) {
@@ -369,8 +360,6 @@ class RoomManager {
     _ttlCleanupTimer = Timer.periodic(Duration(seconds: intervalSeconds), (_) {
       _cleanupExpiredRooms();
     });
-
-    print('⏰ Room TTL monitor started (check interval: ${intervalSeconds}s, room TTL: ${Config.WS_ROOM_TTL}s)');
   }
 
   /// Cleanup expired rooms
@@ -387,12 +376,7 @@ class RoomManager {
 
     // Close expired rooms
     for (final roomId in expiredRooms) {
-      print('⏰ Room $roomId expired (TTL: ${Config.WS_ROOM_TTL}s)');
       closeRoom(roomId, 'ttl_expired');
-    }
-
-    if (expiredRooms.isNotEmpty) {
-      print('🧹 Cleaned up ${expiredRooms.length} expired room(s)');
     }
   }
   

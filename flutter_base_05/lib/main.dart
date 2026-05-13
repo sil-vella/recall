@@ -16,6 +16,7 @@ import 'utils/firebase_runtime_config.dart';
 import 'utils/consts/theme_consts.dart';
 import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 import 'modules/admobs/admob_bootstrap.dart';
+import 'utils/dev_console_log.dart';
 
 /// Hides the Android system navigation bar so the app uses the full screen height;
 /// the bar can be revealed briefly with an edge swipe. Status bar stays visible.
@@ -33,6 +34,7 @@ void _applyAndroidImmersiveBottomBar() {
 Future<void> main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
+  ensureDevConsoleLogging();
   _applyAndroidImmersiveBottomBar();
 
   await PromotionalAdsConfigLoader.initialize();

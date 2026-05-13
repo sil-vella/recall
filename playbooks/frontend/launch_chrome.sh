@@ -5,8 +5,9 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FRONTEND_ENV="$REPO_ROOT/.env.local"
+DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.local"
 
-# Load env from repo root .env.local (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+# Load repo-root .env.local for shell / tooling (e.g. GOOGLE_CLIENT_ID checks). Dart compile-time keys: .env.dart.defines.local.
 if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
@@ -27,8 +28,8 @@ if [ -f "$FRONTEND_ENV" ]; then
     echo_and_server_log "   ❌ GOOGLE_CLIENT_ID is empty or unset — Google Sign-In will fail (401 invalid_client). Set it in $FRONTEND_ENV"
   fi
 else
-  echo_and_server_log "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
-  echo_and_server_log "   Create and fill the repo root .env.local file first."
+  echo_and_server_log "⚠️  Warning: $FRONTEND_ENV not found — shell-sourced vars (e.g. tooling-only keys) unavailable. Flutter dart-defines: $DART_DEFINES_ENV"
+  echo_and_server_log "   Create $FRONTEND_ENV if you still need a separate shell env file."
 fi
 
 echo_and_server_log "🚀 Launching Flutter app on Chrome web…"
@@ -43,7 +44,7 @@ cd "$SCRIPT_DIR/../../flutter_base_05" || cd flutter_base_05
 
 echo_and_server_log "🎯 Launching Flutter app with Chrome web configuration..."
 
-echo_and_server_log "📝 Dart-define SSOT: $FRONTEND_ENV (set API_URL, WS_URL, JWT_*, … there; no script overrides)"
+echo_and_server_log "📝 Dart-define SSOT: $DART_DEFINES_ENV (API_URL, WS_URL, JWT_*, …; no script overrides)"
 
 filter_logs() {
     while IFS= read -r line; do
@@ -51,14 +52,18 @@ filter_logs() {
     done
 }
 
-# Dart-define SSOT: .env.local → temp JSON (avoids shell ARG_MAX with many keys).
+# Dart-define SSOT: .env.dart.defines.local → temp JSON (avoids shell ARG_MAX with many keys).
 if ! command -v python3 &>/dev/null; then
   echo_and_server_log "❌ python3 not found — required for --dart-define-from-file"
   exit 1
 fi
+if [ ! -f "$DART_DEFINES_ENV" ]; then
+  echo_and_server_log "❌ Missing dart-define file: $DART_DEFINES_ENV"
+  exit 1
+fi
 DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
 trap 'rm -f "$DART_DEF_JSON"' EXIT
-python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
 export DART_DEF_JSON
 KEYCOUNT="$(python3 -c 'import json,os; print(len(json.load(open(os.environ["DART_DEF_JSON"],encoding="utf-8"))))')"
 echo_and_server_log "   Dart-define-from-file: $KEYCOUNT keys → $DART_DEF_JSON"
@@ -76,7 +81,7 @@ GOOGLE_PRE="$(echo "$GOOGLE_CHECK" | sed -n '2p')"
 if [[ "$GOOGLE_LEN" =~ ^[0-9]+$ ]] && [ "$GOOGLE_LEN" -gt 0 ]; then
   echo_and_server_log "   GOOGLE_CLIENT_ID (for web): ${GOOGLE_PRE}... (length=$GOOGLE_LEN)"
 else
-  echo_and_server_log "   ❌ GOOGLE_CLIENT_ID missing or empty in dart-define file — set in $FRONTEND_ENV"
+  echo_and_server_log "   ❌ GOOGLE_CLIENT_ID missing or empty in dart-define file — set in $DART_DEFINES_ENV"
 fi
 
 # Default: do NOT quit your normal Chrome — Flutter uses a separate user-data-dir

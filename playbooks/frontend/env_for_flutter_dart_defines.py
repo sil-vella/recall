@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Write a JSON file for `flutter run|build --dart-define-from-file=FILE`.
 
-Parses KEY=value lines like playbooks/frontend/dart_defines_from_env.sh (comments,
+Input is typically repo-root `.env.dart.defines.local` (dev) or `.env.dart.defines.prod`
+(release). Parses KEY=value lines like playbooks/frontend/dart_defines_from_env.sh (comments,
 optional single/double quotes on values). Avoids shell ARG_MAX when .env has many keys.
 """
 from __future__ import annotations

@@ -4,6 +4,7 @@ from core.managers.app_manager import AppManager
 import sys
 import os
 import importlib
+import logging
 from core.metrics import init_metrics
 from utils.config.config import Config
 
@@ -15,6 +16,13 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from tools.dev_logging import configure_dev_logging
 
 configure_dev_logging()
+
+LOGGING_SWITCH = True
+_startup_log = logging.getLogger("app.startup")
+if LOGGING_SWITCH:
+    _startup_log.info(
+        "Python dev logging init (app.py); set LOGGING_SWITCH=True in this file to verify.",
+    )
 
 # Initialize the AppManager
 app_manager = AppManager()

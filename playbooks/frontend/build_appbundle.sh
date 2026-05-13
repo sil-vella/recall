@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Flutter App Bundle (AAB) build script
-# Builds an Android App Bundle for Dutch. Dart-define SSOT: repo-root `.env.prod`.
-# Output is for Play Store upload; no VPS upload.
+# Builds an Android App Bundle for Dutch. Dart-define input: repo-root `.env.dart.defines.prod`.
+# Shell still sources `.env.prod` for APP_VERSION / auto-bump. Output is for Play Store upload; no VPS upload.
 
 set -e
 
@@ -12,6 +12,8 @@ echo "🚀 Building Flutter App Bundle (AAB) for Dutch..."
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FRONTEND_ENV="$REPO_ROOT/.env.prod"
+DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.prod"
+export DART_DEFINES_ENV
 
 # Flutter assets: set testing_mode=false and predefined_hands enabled=false for production build (restored on exit)
 # Backups go to /tmp so they are not bundled into build output
@@ -62,7 +64,7 @@ if [ -f "$FRONTEND_ENV" ]; then
   source "$FRONTEND_ENV"
   set +a
 else
-  echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
+  echo "⚠️  Warning: $FRONTEND_ENV not found — APP_VERSION auto-bump may use defaults only (dart-defines use $DART_DEFINES_ENV)."
 fi
 CURRENT_VERSION="${APP_VERSION:-2.0.0}"
 
@@ -80,7 +82,7 @@ if ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then PATCH=0; fi
 PATCH=$((PATCH + 1))
 APP_VERSION="$MAJOR.$MINOR.$PATCH"
 
-# Write bumped version to .env.prod (APP_VERSION=)
+# Write bumped version to .env.prod (APP_VERSION=) and mirror to .env.dart.defines.prod when present
 ENV_FILE="$FRONTEND_ENV"
 if [ -f "$ENV_FILE" ] && grep -q '^APP_VERSION=' "$ENV_FILE" 2>/dev/null; then
   if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -91,11 +93,23 @@ if [ -f "$ENV_FILE" ] && grep -q '^APP_VERSION=' "$ENV_FILE" 2>/dev/null; then
 else
   echo "APP_VERSION=$APP_VERSION" >> "$ENV_FILE"
 fi
+if [ -f "$DART_DEFINES_ENV" ]; then
+  if grep -q '^APP_VERSION=' "$DART_DEFINES_ENV" 2>/dev/null; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sed -i '' "s/^APP_VERSION=.*/APP_VERSION=$APP_VERSION/" "$DART_DEFINES_ENV"
+    else
+      sed -i "s/^APP_VERSION=.*/APP_VERSION=$APP_VERSION/" "$DART_DEFINES_ENV"
+    fi
+  else
+    echo "APP_VERSION=$APP_VERSION" >> "$DART_DEFINES_ENV"
+  fi
+  echo "📝 Mirrored APP_VERSION to $DART_DEFINES_ENV"
+fi
 echo "✅ Version bumped: $CURRENT_VERSION → $APP_VERSION"
 echo "📝 Updated APP_VERSION in $ENV_FILE"
 echo ""
 echo "📦 Building with APP_VERSION=$APP_VERSION"
-echo "ℹ️  AdMob: set ADMOBS_* and ADMOB_APPLICATION_ID in .env.prod (dart-define; see Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md). Optional fallback: android/local.properties admob.application_id"
+echo "ℹ️  AdMob: set ADMOBS_* and ADMOB_APPLICATION_ID in .env.dart.defines.prod (dart-define; see Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md). Optional fallback: android/local.properties admob.application_id"
 
 # Derive a numeric build number from APP_VERSION (e.g. 2.1.0 -> 20100)
 IFS='.' read -r APP_MAJOR APP_MINOR APP_PATCH <<< "$APP_VERSION"
@@ -158,14 +172,18 @@ echo ""
 
 set_production_deck_config
 
-# Build --dart-define-from-file from .env.prod (SSOT). Set API_URL, WS_URL, APP_VERSION, etc. in .env.prod for Play.
-echo "📝 Dart-define SSOT: $FRONTEND_ENV → --dart-define-from-file"
+# Build --dart-define-from-file from .env.dart.defines.prod
+echo "📝 Dart-define file: $DART_DEFINES_ENV → --dart-define-from-file"
+if [ ! -f "$DART_DEFINES_ENV" ]; then
+  echo "❌ Missing dart-define file: $DART_DEFINES_ENV"
+  exit 1
+fi
 if ! command -v python3 &>/dev/null; then
   echo "❌ python3 not found — required for env_for_flutter_dart_defines.py"
   exit 1
 fi
 DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
-python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
 
 # Build the release App Bundle (AAB) for Play Store
 flutter build appbundle \

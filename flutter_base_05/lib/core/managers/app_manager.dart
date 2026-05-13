@@ -1,6 +1,5 @@
 import 'dart:async' show unawaited;
 
-import 'package:dutch/modules/admobs/admob_trace.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'hooks_manager.dart';
@@ -168,7 +167,6 @@ class AppManager extends ChangeNotifier {
 
   /// Trigger top banner bar hook
   void triggerTopBannerBarHook(BuildContext context) {
-    admobTrace('BannerShell', 'triggerTopBannerBarHook → HooksManager');
     _hooksManager.triggerHookWithData('top_banner_bar_loaded', {
       'context': context,
       'timestamp': DateTime.now().toIso8601String(),
@@ -177,7 +175,6 @@ class AppManager extends ChangeNotifier {
 
   /// Trigger bottom banner bar hook
   void triggerBottomBannerBarHook(BuildContext context) {
-    admobTrace('BannerShell', 'triggerBottomBannerBarHook → HooksManager');
     _hooksManager.triggerHookWithData('bottom_banner_bar_loaded', {
       'context': context,
       'timestamp': DateTime.now().toIso8601String(),

@@ -1,8 +1,7 @@
 import 'package:dutch/modules/admobs/ad_experience_policy.dart';
-import 'package:dutch/modules/admobs/admob_trace.dart';
 import 'package:dutch/modules/admobs/banner/banner_ad.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../managers/app_manager.dart';
 import '../managers/module_manager.dart';
@@ -444,28 +443,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       
       // AdMob banner preload (native, non-premium only).
       if (!kIsWeb && bannerAdModule != null && AdExperiencePolicy.showMonetizedAds) {
-        admobTrace(
-          'BannerShell',
-          'postFrame: firing bottom then top hooks (bannerModOk=true monetized=true)',
-        );
-        if (kDebugMode) {
-          debugPrint(
-            '[BannerShell] postFrame hooks: monetized=${AdExperiencePolicy.showMonetizedAds} '
-            '${AdExperiencePolicy.monetizedAdsDebugLabel()} bannerNull=${bannerAdModule == null} '
-            'topUnitLen=${Config.admobsTopBanner.trim().length} bottomUnitLen=${Config.admobsBottomBanner.trim().length}',
-          );
-        }
         appManager.triggerBottomBannerBarHook(context);
         appManager.triggerTopBannerBarHook(context);
-      } else if (!kIsWeb && kDebugMode) {
-        debugPrint(
-          '[BannerShell] postFrame skip hooks: kIsWeb=$kIsWeb bannerNull=${bannerAdModule == null} '
-          'monetized=${AdExperiencePolicy.showMonetizedAds} ${AdExperiencePolicy.monetizedAdsDebugLabel()}',
-        );
-        admobTrace(
-          'BannerShell',
-          'postFrame skip hooks web=$kIsWeb modNull=${bannerAdModule == null} monetized=${AdExperiencePolicy.showMonetizedAds}',
-        );
       }
 
       // App-wide: show instant-type notification modals when unread (any screen)
@@ -790,15 +769,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                                     Config.admobsBottomBanner.trim().isNotEmpty
                                 ? 50.0
                                 : 0.0);
-
-                        if (kDebugMode && !kIsWeb) {
-                          debugPrint(
-                            '[BannerShell] body layout maxW=${constraints.maxWidth.toStringAsFixed(0)} '
-                            'maxH=${constraints.maxHeight.toStringAsFixed(0)} topH=$topBannerHeight bottomH=$bottomBannerHeight '
-                            'monetized=$monetized modNull=${bannerAdModule == null} '
-                            '${AdExperiencePolicy.monetizedAdsDebugLabel()}',
-                          );
-                        }
 
                         return Column(
                           mainAxisSize: MainAxisSize.max,

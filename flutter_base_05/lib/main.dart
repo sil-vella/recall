@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, PlatformDispatcher, defaultTargetPlatform, TargetPlatform;
 import 'dart:async';
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -17,6 +18,10 @@ import 'utils/consts/theme_consts.dart';
 import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 import 'modules/admobs/admob_bootstrap.dart';
 import 'utils/dev_console_log.dart';
+
+// ignore: constant_identifier_names — matches release tooling / enable-logging-switch.mdc
+const bool LOGGING_SWITCH = true;
+final Logger _devStartupLog = Logger('app.startup');
 
 /// Hides the Android system navigation bar so the app uses the full screen height;
 /// the bar can be revealed briefly with an edge swipe. Status bar stays visible.
@@ -35,6 +40,11 @@ Future<void> main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
   ensureDevConsoleLogging();
+  if (LOGGING_SWITCH) {
+    _devStartupLog.info(
+      'Flutter dev logging init (main.dart); set LOGGING_SWITCH=true in this file to verify.',
+    );
+  }
   _applyAndroidImmersiveBottomBar();
 
   await PromotionalAdsConfigLoader.initialize();

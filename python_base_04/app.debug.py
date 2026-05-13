@@ -4,6 +4,7 @@ from core.managers.app_manager import AppManager
 import sys
 import os
 import importlib
+import logging
 from core.metrics import init_metrics
 from utils.config.config import Config
 
@@ -15,6 +16,13 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from tools.dev_logging import configure_dev_logging
 
 configure_dev_logging()
+
+LOGGING_SWITCH = True
+_startup_log = logging.getLogger("app.startup")
+if LOGGING_SWITCH:
+    _startup_log.info(
+        "Python dev logging init (app.debug.py); set LOGGING_SWITCH=True in this file to verify.",
+    )
 
 app_manager = AppManager()
 
@@ -200,8 +208,29 @@ if __name__ == "__main__":
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_PORT', 5001))
 
+    # With debug=True, Flask-SocketIO defaults use_reloader=True. The Werkzeug reloader
+    # stops the child with sys.exit(3); debugpy reports that as an exception. For this
+    # IDE entrypoint, disable the reloader unless FLASK_USE_RELOADER=1/true/yes.
+    _use_reloader = os.environ.get("FLASK_USE_RELOADER", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
     # WebSocket functionality is now handled by app_manager
     if app_manager.websocket_manager:
-        app_manager.websocket_manager.run(app, host=host, port=port, debug=True)
+        app_manager.websocket_manager.run(
+            app,
+            host=host,
+            port=port,
+            debug=True,
+            use_reloader=_use_reloader,
+        )
     else:
-        app_manager.run(app, host=host, port=port, debug=True)
+        app_manager.run(
+            app,
+            host=host,
+            port=port,
+            debug=True,
+            use_reloader=_use_reloader,
+        )

@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 
-/// Console-only traces for AdMob debugging (`flutter run` / Xcode / Logcat).
-/// No-op on web and in non-debug builds.
+/// Flip to `true` to print `[AdMob/…]` lines again (`flutter run` / logcat).
+const bool kAdMobVerboseTrace = false;
+
+/// Console-only traces for AdMob debugging. Off by default (see [kAdMobVerboseTrace]).
 void admobTrace(String tag, String message) {
-  if (kIsWeb || !kDebugMode) return;
+  if (kIsWeb || !kDebugMode || !kAdMobVerboseTrace) return;
   debugPrint('[AdMob/$tag] $message');
 }

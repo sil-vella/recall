@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# SSOT: interactive patch bump for APP_VERSION in FRONTEND_ENV (repo root .env.prod).
+# Interactive patch bump for APP_VERSION in FRONTEND_ENV (repo root .env.prod).
+# When DART_DEFINES_ENV is set (e.g. .env.dart.defines.prod), mirrors APP_VERSION there so
+# `env_for_flutter_dart_defines.py` and `--build-name` stay aligned.
 # Sourced by build_apk.sh and build_web.sh after FRONTEND_ENV is loaded and `set +a`.
 #
 #   source "$SCRIPT_DIR/bump_app_version_prompt.sh"
@@ -42,6 +44,19 @@ bump_app_version_prompt() {
     fi
     echo "✅ Version bumped: $current → $NEW_VERSION"
     echo "📝 Updated APP_VERSION in $env_file"
+    local dart_file="${DART_DEFINES_ENV:-}"
+    if [ -n "$dart_file" ] && [ -f "$dart_file" ]; then
+      if grep -q '^APP_VERSION=' "$dart_file" 2>/dev/null; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+          sed -i '' "s/^APP_VERSION=.*/APP_VERSION=$NEW_VERSION/" "$dart_file"
+        else
+          sed -i "s/^APP_VERSION=.*/APP_VERSION=$NEW_VERSION/" "$dart_file"
+        fi
+      else
+        echo "APP_VERSION=$NEW_VERSION" >> "$dart_file"
+      fi
+      echo "📝 Mirrored APP_VERSION to $dart_file"
+    fi
     APP_VERSION="$NEW_VERSION"
   else
     APP_VERSION="$current"

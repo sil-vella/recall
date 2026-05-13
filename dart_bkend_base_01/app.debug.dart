@@ -1,11 +1,21 @@
 import 'dart:io';
+import 'package:logging/logging.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:dart_game_server/utils/dev_console_log.dart';
 import 'lib/server/http_notify_handler.dart';
 import 'lib/server/websocket_server.dart';
 
+// ignore: constant_identifier_names — matches release tooling / enable-logging-switch.mdc
+const bool LOGGING_SWITCH = true;
+final Logger _devStartupLog = Logger('dart_ws.startup');
+
 void main(List<String> args) async {
   ensureDevConsoleLogging();
+  if (LOGGING_SWITCH) {
+    _devStartupLog.info(
+      'Dart WS dev logging init (app.debug.dart); set LOGGING_SWITCH=true in this file to verify.',
+    );
+  }
   try {
     final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;
 

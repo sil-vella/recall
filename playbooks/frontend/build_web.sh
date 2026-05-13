@@ -5,7 +5,7 @@
 # The web app will be served from dutch.reignofplay.com
 # To deploy to a subdir (e.g. dutch.reignofplay.com/example): DEPLOY_SUBDIR=example ./build_web.sh vps
 #   (Build the Flutter app with base-href /example/ when targeting the subdir.)
-# Dart-define SSOT: repo-root `.env.prod` only (see `dart_defines_from_env.sh`). `$1` local|vps = deploy target only.
+# Dart-define input: repo-root `.env.dart.defines.prod`. Shell sources `.env.prod` for bump / deploy.
 
 set -e
 
@@ -15,6 +15,8 @@ echo "🚀 Building Flutter Web for Dutch..."
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FRONTEND_ENV="$REPO_ROOT/.env.prod"
+DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.prod"
+export DART_DEFINES_ENV
 
 # Flutter assets: set testing_mode=false and predefined_hands enabled=false for production build (restored on exit)
 # Backups go to /tmp so they are not bundled into build/web
@@ -58,22 +60,22 @@ set_production_deck_config() {
 DART_DEF_JSON=""
 trap 'restore_deck_config; rm -f "${DART_DEF_JSON:-}"' EXIT
 
-# Post-build deploy: `vps` (default) uploads to VPS; `local` skips. API_URL/WS_URL: only from .env.prod.
+# Post-build deploy: `vps` (default) uploads to VPS; `local` skips. API_URL/WS_URL: from .env.dart.defines.prod.
 BACKEND_TARGET="${1:-vps}"
 if [ "$BACKEND_TARGET" = "local" ]; then
-  echo "📤 Skipping VPS deploy (arg: local). API_URL/WS_URL come only from $FRONTEND_ENV."
+  echo "📤 Skipping VPS deploy (arg: local). API_URL/WS_URL come from $DART_DEFINES_ENV."
 else
-  echo "📤 After build: VPS deploy enabled (arg: vps). API_URL/WS_URL come only from $FRONTEND_ENV."
+  echo "📤 After build: VPS deploy enabled (arg: vps). API_URL/WS_URL come from $DART_DEFINES_ENV."
 fi
 
-# Load env from repo root .env.prod (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+# Load env from repo root .env.prod (APP_VERSION bump, deploy-related vars, etc.)
 if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
   source "$FRONTEND_ENV"
   set +a
 else
-  echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
+  echo "⚠️  Warning: $FRONTEND_ENV not found — APP_VERSION bump and deploy-related shell vars may be missing (dart-defines use $DART_DEFINES_ENV)."
 fi
 
 # APP_VERSION SSOT: .env.prod; interactive patch bump shared with build_apk.sh
@@ -142,14 +144,18 @@ echo ""
 
 set_production_deck_config
 
-echo "📝 Dart-define SSOT: $FRONTEND_ENV → --dart-define-from-file"
+echo "📝 Dart-define file: $DART_DEFINES_ENV → --dart-define-from-file"
+if [ ! -f "$DART_DEFINES_ENV" ]; then
+  echo "❌ Missing dart-define file: $DART_DEFINES_ENV"
+  exit 1
+fi
 if ! command -v python3 &>/dev/null; then
   echo "❌ python3 not found — required for env_for_flutter_dart_defines.py"
   exit 1
 fi
 DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
-python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
-echo "ℹ️  ADMOBS_* in .env.prod are for native builds; web skips AdMob. See Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md"
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
+echo "ℹ️  ADMOBS_* in .env.dart.defines.prod are for native builds; web skips AdMob. See Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md"
 
 # Build the web release
 echo "🌐 Building Flutter web release..."

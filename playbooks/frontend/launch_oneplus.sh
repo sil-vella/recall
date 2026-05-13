@@ -5,15 +5,16 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FRONTEND_ENV="$REPO_ROOT/.env.local"
+DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.local"
 
-# Load env from repo root .env.local (APP_VERSION, Firebase, GOOGLE_CLIENT_ID, Stripe, AdMob, AdSense, etc.)
+# Load repo-root .env.local for shell. Dart compile-time keys: .env.dart.defines.local.
 if [ -f "$FRONTEND_ENV" ]; then
   set -a
   # shellcheck source=/dev/null
   source "$FRONTEND_ENV"
   set +a
 else
-  echo "⚠️  Warning: $FRONTEND_ENV not found — dart-defines (Firebase, Google Sign-In, etc.) will be empty."
+  echo "⚠️  Warning: $FRONTEND_ENV not found — shell-sourced vars unavailable. Flutter dart-defines: $DART_DEFINES_ENV"
 fi
 
 # Known device labels (extend this list when adding new phones)
@@ -65,7 +66,7 @@ prompt_for_device_selection() {
 }
 
 # Args:
-#   $1 = optional legacy: `local` or `vps` (ignored for dart-defines; set API_URL/WS_URL in .env.local).
+#   $1 = optional legacy: `local` or `vps` (ignored for dart-defines; set API_URL/WS_URL in .env.dart.defines.local).
 #        If used, device id is $2 (or ANDROID_DEVICE_ID / interactive prompt).
 #   Otherwise $1 = device id/serial/shortcut. Shortcuts: 1=OnePlus, 2=Samsung, 3=Xiaomi tablet, 4=DOOGEE
 # You can also set ANDROID_DEVICE_ID env var to override.
@@ -73,7 +74,7 @@ prompt_for_device_selection() {
 if [[ "${1:-}" == "local" || "${1:-}" == "vps" ]]; then
   _legacy_backend="$1"
   shift
-  echo "ℹ️  First arg '${_legacy_backend}' is legacy (URLs/API are only from $FRONTEND_ENV); using device from \$2 or prompt." >&2
+  echo "ℹ️  First arg '${_legacy_backend}' is legacy (URLs/API are in $DART_DEFINES_ENV); using device from \$2 or prompt." >&2
 fi
 RAW_DEVICE_INPUT="${ANDROID_DEVICE_ID:-$1}"
 if [ -z "$RAW_DEVICE_INPUT" ]; then
@@ -124,7 +125,7 @@ cd "$SCRIPT_DIR/../../flutter_base_05" 2>/dev/null || cd flutter_base_05
 
 echo_and_server_log "🎯 Launching Flutter app for $DEVICE_LABEL..."
 
-echo_and_server_log "📝 Dart-define SSOT: $FRONTEND_ENV (no script-side --dart-define overrides)"
+echo_and_server_log "📝 Dart-define SSOT: $DART_DEFINES_ENV (no script-side --dart-define overrides)"
 
 # Same pipeline as launch_chrome.sh: filter_logs on merged flutter output (strip date prefix on matching lines first).
 filter_logs() {
@@ -151,13 +152,17 @@ cleanup() {
 
 trap cleanup EXIT INT TERM HUP
 
-# Dart-define SSOT: .env.local → temp JSON (avoids shell ARG_MAX with dozens of --dart-define args).
+# Dart-define SSOT: .env.dart.defines.local → temp JSON (avoids shell ARG_MAX with dozens of --dart-define args).
 if ! command -v python3 &>/dev/null; then
   echo_and_server_log "❌ python3 not found — required for --dart-define-from-file"
   exit 1
 fi
+if [ ! -f "$DART_DEFINES_ENV" ]; then
+  echo_and_server_log "❌ Missing dart-define file: $DART_DEFINES_ENV"
+  exit 1
+fi
 DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
-python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$FRONTEND_ENV" "$DART_DEF_JSON" || exit 1
+python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
 export DART_DEF_JSON
 KEYCOUNT="$(python3 -c 'import json,os; print(len(json.load(open(os.environ["DART_DEF_JSON"],encoding="utf-8"))))')"
 echo_and_server_log "   Dart-define-from-file: $KEYCOUNT keys → $DART_DEF_JSON"

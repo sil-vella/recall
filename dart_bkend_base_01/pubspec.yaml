@@ -12,7 +12,6 @@ dependencies:
   uuid: ^4.0.0               # Generate IDs
   http: ^1.1.0               # For Python API calls
   yaml: ^3.1.2               # YAML parsing for server-side configs
-  logging: ^1.3.0
 
 dev_dependencies:
   lints: ^3.0.0

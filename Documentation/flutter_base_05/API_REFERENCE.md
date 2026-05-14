@@ -718,12 +718,6 @@ final json = creditBucket.toJson();
 // Returns: {"id": "bucket_123", "userId": "user_456", ...}
 ```
 
-## Utilities
-
-### Logging (removed)
-
-The previous app-wide `Logger` (`lib/tools/logging/logger.dart`), `Config.loggerOn`, and `LOGGING_SWITCH` usage in the Flutter client have been **removed**. Any new logging approach should be documented here when adopted.
-
 ## Configuration
 
 ### Config

@@ -11,8 +11,6 @@ import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 
 const int _kLeaderboardDisplayLimit = 20;
 
-/// Enable for leaderboard testing (period-wins). See `.cursor/rules/enable-logging-switch.mdc`.
-
 /// Route: `/dutch/leaderboard` — one bundle fetch; monthly/yearly and rank tier filtered on device.
 class LeaderboardScreen extends BaseScreen {
   const LeaderboardScreen({Key? key}) : super(key: key);

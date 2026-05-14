@@ -172,6 +172,7 @@ echo_and_server_log "⏳ Starting flutter run (first Gradle build may take 1–2
 # Mirror launch_chrome.sh: filter_logs on merged flutter output (strip date prefix on matching lines first).
 flutter run \
     -d "$DEVICE_ID" \
+    --dart-define=DUTCH_DEV_LOG=1 \
     --dart-define-from-file="$DART_DEF_JSON" \
     2>&1 | sed -E '/\[[0-9]{4}-[0-9]{2}-[0-9]{2}T/s/^[^[]*//' | filter_logs
 

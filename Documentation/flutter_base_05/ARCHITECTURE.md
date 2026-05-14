@@ -357,10 +357,6 @@ Router Update
 UI Navigation
 ```
 
-## Logging Architecture
-
-The legacy in-app `Logger` / `LOGGING_SWITCH` stack has been **removed** from the Flutter client. See [LOGGING_SYSTEM.md](LOGGING_SYSTEM.md). Diagnostics should use user-visible errors, analytics, and (when a standard is adopted) a single documented logging approach.
-
 ## Configuration Architecture
 
 ### Environment-Based Configuration

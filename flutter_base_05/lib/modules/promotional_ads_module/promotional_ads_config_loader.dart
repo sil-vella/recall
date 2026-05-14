@@ -7,8 +7,6 @@ import 'ad_registry.dart';
 import 'models/ad_event_type_config.dart';
 import 'models/ad_registration.dart';
 
-/// enable-logging-switch.mdc — set false after debugging promotional load/network.
-
 /// Loads promotional ads from `${Config.apiUrl}/sponsors/promotional_ads.json` only (no bundled fallback).
 class PromotionalAdsConfigLoader {
   static bool _loaded = false;

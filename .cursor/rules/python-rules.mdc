@@ -492,9 +492,7 @@ def function_name(param1, param2):
 
 ### 2. Logging
 
-**RULE**: There is **no** shared application logger (`custom_log` / `logging_utils`). Prefer explicit error handling, HTTP responses with safe messages, and external monitoring—not file or stdout logging from core managers.
-
-**PATTERN**: On failure, return or raise with context; avoid `print` and `logging.getLogger` in application code under `python_base_04` outside vendored `libs/`.
+**RULE**: There is **no** legacy `custom_log` / `logging_utils` singleton. Do not add unstructured `print` in core managers. Use stdlib **`logging`** in modules where appropriate; there is **no** central `tools/app_logging` helper or repo `global.log` mirroring.
 
 ### 3. Documentation
 

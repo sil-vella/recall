@@ -506,9 +506,7 @@ try {
 
 ### 2. Logging
 
-**RULE**: The legacy singleton `Logger` in `lib/tools/logging/` has been **removed**. Do not add it back unless the project adopts a documented replacement.
-
-**PATTERN**: Prefer explicit error handling, user-visible feedback, and existing modules (e.g. analytics). For temporary local diagnostics only, you may use `dart:developer` `developer.log` behind `kDebugMode` sparingly—never as a substitute for proper error handling.
+**RULE**: The legacy singleton `Logger` in `lib/tools/logging/` has been **removed**. Do not add it back. Prefer user-visible errors, analytics, and `dart:developer` `developer.log` behind `kDebugMode` only when needed—no repo-wide logging stack or `global.log` mirroring.
 
 ### 3. Documentation
 

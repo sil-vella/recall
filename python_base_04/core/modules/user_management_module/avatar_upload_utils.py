@@ -9,8 +9,6 @@ import re
 from typing import Optional, Tuple
 
 
-# Profile avatar pipeline trace → server.log (see .cursor/rules/enable-logging-switch.mdc)
-
 # Allowed client filename extensions (case-insensitive).
 ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 

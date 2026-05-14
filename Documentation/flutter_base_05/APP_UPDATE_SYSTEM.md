@@ -353,7 +353,6 @@ Per-component `LOGGING_SWITCH` tracing in the Flutter update flow has been remov
 
 - [Architecture Overview](./ARCHITECTURE.md)
 - [State Management System](./STATE_MANAGEMENT_SYSTEM.md)
-- [Logging System](./LOGGING_SYSTEM.md)
 
 ## Files Reference
 

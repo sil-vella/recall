@@ -41,10 +41,8 @@ class DutchPromotionScreen extends StatefulWidget {
 
 class _DutchPromotionScreenState extends State<DutchPromotionScreen>
     with SingleTickerProviderStateMixin {
-  /// Promotion-screen lifecycle/animation trace. Enabled so the new sequenced
-  /// fullscreen flow surfaces in `server.log` during initial smoke-tests; set
-  /// to `false` once the screen has been verified end-to-end. See
-  /// `.cursor/rules/enable-logging-switch.mdc`.
+  /// Promotion-screen lifecycle/animation trace. Set to `false` once the
+  /// sequenced fullscreen flow has been verified end-to-end.
   /// Delay before the secondary confetti burst for sustained energy.
   static const Duration _secondaryBurstDelay = Duration(milliseconds: 1600);
 

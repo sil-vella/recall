@@ -11,7 +11,7 @@ def _enabled() -> bool:
     return v in ("1", "true", "yes")
 
 
-def dev_log(message: str) -> None:
+def customlog(message: str) -> None:
     """Log [message] to stderr when ``DUTCH_DEV_LOG`` is ``1``/``true``/``yes``; otherwise no-op."""
     if not _enabled():
         return

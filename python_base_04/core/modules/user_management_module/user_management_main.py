@@ -33,6 +33,10 @@ except Exception:
     GoogleAuthService = None
 
 from core.services.analytics_service import AnalyticsService
+from tools.dev_logger import customlog
+
+# Flip False when done debugging auth (see Documentation/Logging/LOGGING_SYSTEM.md).
+LOGGING_SWITCH = True
 
 
 class UserManagementModule(BaseModule):
@@ -763,23 +767,33 @@ class UserManagementModule(BaseModule):
     def login_user(self):
         """Authenticate user and return JWT tokens."""
         try:
-            data = request.get_json()
+            data = request.get_json() or {}
             force_new_session = bool(data.get("force_new_session", False))
+            email = (data.get("email") or "").strip()
+
+            if LOGGING_SWITCH:
+                customlog(
+                    f"login_user POST /public/login start email={email!r} "
+                    f"force_new_session={force_new_session}"
+                )
 
             # Validate required fields
-            if not data.get("email") or not data.get("password"):
+            if not email or not data.get("password"):
+                if LOGGING_SWITCH:
+                    customlog("login_user rejected: missing email or password")
                 return jsonify({
                     "success": False,
                     "error": "Email and password are required"
                 }), 400
             
-            email = data.get("email")
             password = data.get("password")
             
             # Use direct email query instead of fetching all users
             user = self.db_manager.find_one("users", {"email": email})
             
             if not user:
+                if LOGGING_SWITCH:
+                    customlog(f"login_user rejected: no user for email={email!r}")
                 return jsonify({
                     "success": False,
                     "error": "Invalid email or password"
@@ -787,6 +801,11 @@ class UserManagementModule(BaseModule):
             
             # Check if user is active
             if user.get("status") != "active":
+                if LOGGING_SWITCH:
+                    customlog(
+                        f"login_user rejected: inactive account user_id={user.get('_id')} "
+                        f"status={user.get('status')!r}"
+                    )
                 return jsonify({
                     "success": False,
                     "error": "Account is not active"
@@ -803,6 +822,8 @@ class UserManagementModule(BaseModule):
                 check_result = False
             
             if not check_result:
+                if LOGGING_SWITCH:
+                    customlog(f"login_user rejected: bad password user_id={user.get('_id')}")
                 return jsonify({
                     "success": False,
                     "error": "Invalid email or password"
@@ -820,6 +841,11 @@ class UserManagementModule(BaseModule):
             auth_gen, session_err = self._prepare_single_session_login(str(user["_id"]), force_new_session)
             if session_err:
                 err_body, err_status = session_err
+                if LOGGING_SWITCH:
+                    customlog(
+                        f"login_user session conflict user_id={user.get('_id')} "
+                        f"status={err_status} code={err_body.get('code')}"
+                    )
                 return jsonify(err_body), err_status
             
             # Create JWT tokens
@@ -870,6 +896,12 @@ class UserManagementModule(BaseModule):
                     metrics_enabled=UserManagementModule.METRICS_SWITCH
                 )
             
+            if LOGGING_SWITCH:
+                customlog(
+                    f"login_user success user_id={user.get('_id')} "
+                    f"account_type={account_type!r} is_guest={is_guest} auth_gen={auth_gen}"
+                )
+
             return jsonify({
                 "success": True,
                 "message": "Login successful",
@@ -884,6 +916,8 @@ class UserManagementModule(BaseModule):
             }), 200
             
         except Exception as e:
+            if LOGGING_SWITCH:
+                customlog(f"login_user exception: {e!r}")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"

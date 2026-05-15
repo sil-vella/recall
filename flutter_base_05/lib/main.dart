@@ -38,7 +38,7 @@ Future<void> main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
   if (LOGGING_SWITCH) {
-    devLog('main.dart entry');
+    customlog('main.dart entry');
   }
   _applyAndroidImmersiveBottomBar();
 

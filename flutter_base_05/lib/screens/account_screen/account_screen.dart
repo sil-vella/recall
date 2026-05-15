@@ -16,7 +16,11 @@ import '../../modules/dutch_game/widgets/ui_kit/dutch_settings_row.dart';
 import '../../core/services/shared_preferences.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../utils/profile_photo_helper.dart';
+import '../../utils/dev_logger.dart';
 import 'package:image_picker/image_picker.dart';
+
+// ignore: constant_identifier_names — flip false when done debugging login UI (see Documentation/Logging/LOGGING_SYSTEM.md).
+const bool LOGGING_SWITCH = true;
 
 class AccountScreen extends BaseScreen {
   const AccountScreen({Key? key}) : super(key: key);
@@ -398,6 +402,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     required String email,
     required String password,
   }) async {
+    if (LOGGING_SWITCH) {
+      customlog('AccountScreen: _loginResolvingSessionConflict first attempt');
+    }
     var result = await _loginModule!.loginUser(
       context: context,
       email: email,
@@ -414,6 +421,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       }
       if (!mounted) {
         return {'cancelled': true};
+      }
+      if (LOGGING_SWITCH) {
+        customlog('AccountScreen: _loginResolvingSessionConflict retry forceNewSession');
       }
       result = await _loginModule!.loginUser(
         context: context,
@@ -439,10 +449,21 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     });
     
     try {
+      if (LOGGING_SWITCH) {
+        customlog('AccountScreen: _handleLogin submit');
+      }
       final result = await _loginResolvingSessionConflict(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'AccountScreen: _handleLogin result keys=${result.keys.toList()} '
+          'success=${result['success']} error=${result['error']} '
+          'sessionConflict=${result['sessionConflict']} cancelled=${result['cancelled']}',
+        );
+      }
 
       if (result['cancelled'] == true) {
         if (mounted) {
@@ -467,8 +488,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _isLoading = false;
         });
       }
-    } catch (e) {
-      
+    } catch (e, st) {
+      if (LOGGING_SWITCH) {
+        customlog('AccountScreen: _handleLogin exception error=$e stack=$st');
+      }
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;

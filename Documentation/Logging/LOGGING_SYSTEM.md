@@ -10,9 +10,9 @@ For day-to-day agent guidance on where to look when debugging locally, see [`.cu
 
 | Concept | Role |
 |--------|------|
-| **`devLog` / `dev_log`** | Small, intentional **dev-only** messages with a stable **`[dev]`** prefix so scripts can filter them. |
-| **`DUTCH_DEV_LOG`** | **Environment / compile-time gate**: when truthy, `devLog`/`dev_log` actually print; otherwise they are no-ops. |
-| **`LOGGING_SWITCH`** | **Per-entrypoint compile-time (or file-level) toggle** around *whether to call* `devLog`/`dev_log` at all. Independent of `DUTCH_DEV_LOG`. |
+| **`customlog`** | Small, intentional **dev-only** messages with a stable **`[dev]`** prefix so scripts can filter them (Flutter, Dart WS, Python). |
+| **`DUTCH_DEV_LOG`** | **Environment / compile-time gate**: when truthy, `customlog` actually prints; otherwise it is a no-op. |
+| **`LOGGING_SWITCH`** | **Per-entrypoint compile-time (or file-level) toggle** around *whether to call* `customlog` at all. Independent of `DUTCH_DEV_LOG`. |
 | **`global.log`** | **Optional merged file** at the **repo root** (`app_dev/global.log`). Only **filtered** dev lines are appended; full process output stays on the **terminal**. |
 | **`run_*_to_global_log.sh`** | Wrappers that run a stack process and **tee-filter** stdout/stderr into `global.log` while printing everything to the terminal. |
 | **`launch_chrome.sh` / `launch_oneplus.sh`** | **Direct** `flutter run` launchers (no `global.log` mirroring). They pass **`--dart-define=DUTCH_DEV_LOG=1`** and may pipe through **`filter_logs`** (see below). |

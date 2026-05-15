@@ -10,4 +10,4 @@
 import 'dev_logger_web.dart' if (dart.library.io) 'dev_logger_io.dart' as _impl;
 
 /// Writes `[dev] message` when the stack-specific gate allows; otherwise no-op.
-void devLog(String message) => _impl.devLog(message);
+void customlog(String message) => _impl.customlog(message);

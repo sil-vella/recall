@@ -12,12 +12,12 @@ importlib.invalidate_caches()
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-from tools.dev_logger import dev_log
+from tools.dev_logger import customlog
 
 # Set False when not debugging this entrypoint (release tooling may flip).
 LOGGING_SWITCH = True
 if LOGGING_SWITCH:
-    dev_log("app.debug.py entry")
+    customlog("app.debug.py entry")
 
 app_manager = AppManager()
 

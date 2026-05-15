@@ -7,7 +7,7 @@ bool _enabled() {
 }
 
 /// Writes `[dev] message` to stderr when enabled; otherwise no-op.
-void devLog(String message) {
+void customlog(String message) {
   if (!_enabled()) return;
   stderr.writeln('[dev] $message');
 }

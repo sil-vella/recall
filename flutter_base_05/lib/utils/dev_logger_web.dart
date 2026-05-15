@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
-bool _devLogEnabled() {
+bool _customlogEnabled() {
   const s = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
   final fromDefine = s.toLowerCase().trim();
   if (fromDefine == '1' ||
@@ -11,7 +11,7 @@ bool _devLogEnabled() {
   return kDebugMode;
 }
 
-void devLog(String message) {
-  if (!_devLogEnabled()) return;
+void customlog(String message) {
+  if (!_customlogEnabled()) return;
   debugPrint('[dev] $message');
 }

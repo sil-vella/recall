@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 
-bool _devLogEnabled() {
+bool _customlogEnabled() {
   const s = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
   final fromDefine = s.toLowerCase().trim();
   if (fromDefine == '1' ||
@@ -15,7 +15,7 @@ bool _devLogEnabled() {
 }
 
 /// Writes via [debugPrint] so Android/iOS logs reach logcat / `flutter run` (not host stderr).
-void devLog(String message) {
-  if (!_devLogEnabled()) return;
+void customlog(String message) {
+  if (!_customlogEnabled()) return;
   debugPrint('[dev] $message');
 }

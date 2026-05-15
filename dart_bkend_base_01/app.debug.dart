@@ -9,7 +9,7 @@ const bool LOGGING_SWITCH = true;
 
 void main(List<String> args) async {
   if (LOGGING_SWITCH) {
-    devLog('app.debug.dart entry');
+    customlog('app.debug.dart entry');
   }
   try {
     final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;

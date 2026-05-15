@@ -784,7 +784,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                               SizedBox(
                                 height: topBannerHeight,
                                 child: Center(
-                                  child: bannerAdModule!.getTopBannerWidget(context),
+                                  child: bannerAdModule!.show(context, slot: 'top'),
                                 ),
                               ),
 
@@ -800,7 +800,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                               SizedBox(
                                 height: bottomBannerHeight,
                                 child: Center(
-                                  child: bannerAdModule!.getBottomBannerWidget(context),
+                                  child: bannerAdModule!.show(context, slot: 'bottom'),
                                 ),
                               ),
                           ],

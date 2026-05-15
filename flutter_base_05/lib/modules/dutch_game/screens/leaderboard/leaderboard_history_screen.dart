@@ -31,26 +31,8 @@ class _HallEntry {
 class LeaderboardHistoryScreen extends BaseScreen {
   const LeaderboardHistoryScreen({Key? key}) : super(key: key);
 
-  static VoidCallback? refreshCallback;
-
   @override
   String computeTitle(BuildContext context) => 'Leaderboard history';
-
-  @override
-  List<Widget>? getAppBarActions(BuildContext context) {
-    return [
-      Semantics(
-        identifier: 'leaderboard_history_refresh',
-        button: true,
-        label: 'Refresh history',
-        child: IconButton(
-          icon: const Icon(Icons.refresh, color: AppColors.white),
-          tooltip: 'Refresh',
-          onPressed: () => LeaderboardHistoryScreen.refreshCallback?.call(),
-        ),
-      ),
-    ];
-  }
 
   @override
   Decoration? getBackground(BuildContext context) {
@@ -85,14 +67,7 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
   @override
   void initState() {
     super.initState();
-    LeaderboardHistoryScreen.refreshCallback = _load;
     _load();
-  }
-
-  @override
-  void dispose() {
-    LeaderboardHistoryScreen.refreshCallback = null;
-    super.dispose();
   }
 
   String _bundleUrl() {
@@ -283,7 +258,7 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: AppColors.widgetContainerBackground,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.casinoBorderColor),
         ),
@@ -297,7 +272,7 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
             const SizedBox(height: 4),
             Text(
               _winnerLine(winners),
-              style: AppTextStyles.bodyMedium(color: AppColors.white),
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
             ),
           ],
         ),
@@ -339,6 +314,30 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
             'UTC periods · #1 wins (ties share the title). All-time counts include the current month and year.',
             style: AppTextStyles.caption(color: AppColors.textSecondary),
           ),
+          const SizedBox(height: 12),
+          Semantics(
+            identifier: 'leaderboard_history_refresh',
+            button: true,
+            label: 'Refresh history',
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _load,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textOnPrimary,
+                  side: BorderSide(color: AppColors.casinoBorderColor),
+                  backgroundColor: AppColors.widgetContainerBackground,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.refresh, size: 20),
+                label: Text(
+                  'Refresh',
+                  style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           DutchSectionHeader(
             title: 'All-time greatest',
@@ -378,7 +377,7 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
                       Expanded(
                         child: Text(
                           e.username.isNotEmpty ? e.username : 'Player ${e.userId}',
-                          style: AppTextStyles.bodyMedium(color: AppColors.white),
+                          style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
                         ),
                       ),
                       Text(
@@ -435,9 +434,16 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
             );
           }),
           const SizedBox(height: 24),
-          TextButton.icon(
+          OutlinedButton.icon(
             onPressed: () => NavigationManager().navigateTo('/dutch/leaderboard'),
-            icon: Icon(Icons.arrow_back, color: AppColors.accentColor),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accentColor,
+              side: BorderSide(color: AppColors.casinoBorderColor),
+              backgroundColor: AppColors.widgetContainerBackground,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.arrow_back, size: 20),
             label: Text(
               'Back to live leaderboard',
               style: AppTextStyles.bodyMedium(color: AppColors.accentColor),

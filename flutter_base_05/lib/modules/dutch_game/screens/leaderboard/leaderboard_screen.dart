@@ -15,37 +15,8 @@ const int _kLeaderboardDisplayLimit = 20;
 class LeaderboardScreen extends BaseScreen {
   const LeaderboardScreen({Key? key}) : super(key: key);
 
-  /// Set by [_LeaderboardScreenState] so the app bar refresh action can call [_LeaderboardScreenState._load].
-  static VoidCallback? refreshCallback;
-
   @override
   String computeTitle(BuildContext context) => 'Leaderboard';
-
-  @override
-  List<Widget>? getAppBarActions(BuildContext context) {
-    return [
-      Semantics(
-        identifier: 'leaderboard_history',
-        button: true,
-        label: 'Leaderboard history',
-        child: IconButton(
-          icon: const Icon(Icons.history, color: AppColors.white),
-          tooltip: 'History',
-          onPressed: () => NavigationManager().navigateTo('/dutch/leaderboard/history'),
-        ),
-      ),
-      Semantics(
-        identifier: 'leaderboard_refresh',
-        button: true,
-        label: 'Refresh leaderboard',
-        child: IconButton(
-          icon: const Icon(Icons.refresh, color: AppColors.white),
-          tooltip: 'Refresh',
-          onPressed: () => LeaderboardScreen.refreshCallback?.call(),
-        ),
-      ),
-    ];
-  }
 
   @override
   Decoration? getBackground(BuildContext context) {
@@ -81,14 +52,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   @override
   void initState() {
     super.initState();
-    LeaderboardScreen.refreshCallback = _load;
     _load();
-  }
-
-  @override
-  void dispose() {
-    LeaderboardScreen.refreshCallback = null;
-    super.dispose();
   }
 
   List<Map<String, dynamic>> _filteredAndRanked(List<Map<String, dynamic>> raw) {
@@ -202,6 +166,27 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     return '${r[0].toUpperCase()}${r.substring(1)}';
   }
 
+  /// Current competitive rank from bundle viewer, then dutch_game userStats.
+  String? _viewerRankTier() {
+    final v = _bundleViewer;
+    if (v != null) {
+      for (final key in ['monthly', 'yearly']) {
+        final ps = v[key];
+        if (ps is Map) {
+          final rt = (ps['rank_tier'] ?? '').toString().trim().toLowerCase();
+          if (rt.isNotEmpty) return rt;
+        }
+      }
+    }
+    final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final stats = dutch['userStats'];
+    if (stats is Map) {
+      final rt = (stats['rank'] ?? '').toString().trim().toLowerCase();
+      if (rt.isNotEmpty) return rt;
+    }
+    return null;
+  }
+
   String _monthlyPeriodTitle() {
     final base =
         _monthlyPeriodKey.isEmpty ? 'This month (UTC)' : 'Month $_monthlyPeriodKey (UTC)';
@@ -285,7 +270,15 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
           padding: AppPadding.defaultPadding.copyWith(bottom: 8),
           child: _RankTierChipBar(
             selectedTier: _selectedRankTier,
+            userRankTier: _viewerRankTier(),
             onTierChanged: (tier) => setState(() => _selectedRankTier = tier),
+          ),
+        ),
+        Padding(
+          padding: AppPadding.defaultPadding.copyWith(bottom: 8),
+          child: _LeaderboardActionsRow(
+            onHistory: () => NavigationManager().navigateTo('/dutch/leaderboard/history'),
+            onRefresh: _load,
           ),
         ),
         Expanded(
@@ -512,7 +505,60 @@ class _PodiumPlace extends StatelessWidget {
   }
 }
 
-/// Monthly / Yearly toggle — deep plum track; active = full light plum, inactive = low-opacity plum.
+/// History + refresh — below rank tier, above viewer position / list.
+class _LeaderboardActionsRow extends StatelessWidget {
+  const _LeaderboardActionsRow({
+    required this.onHistory,
+    required this.onRefresh,
+  });
+
+  final VoidCallback onHistory;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final buttonStyle = OutlinedButton.styleFrom(
+      foregroundColor: AppColors.textOnPrimary,
+      side: BorderSide(color: AppColors.casinoBorderColor),
+      backgroundColor: AppColors.widgetContainerBackground,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+    return Row(
+      children: [
+        Expanded(
+          child: Semantics(
+            identifier: 'leaderboard_history',
+            button: true,
+            label: 'Leaderboard history',
+            child: OutlinedButton.icon(
+              onPressed: onHistory,
+              style: buttonStyle,
+              icon: const Icon(Icons.history, size: 20),
+              label: Text('History', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Semantics(
+            identifier: 'leaderboard_refresh',
+            button: true,
+            label: 'Refresh leaderboard',
+            child: OutlinedButton.icon(
+              onPressed: onRefresh,
+              style: buttonStyle,
+              icon: const Icon(Icons.refresh, size: 20),
+              label: Text('Refresh', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Monthly / Yearly toggle — deep plum track; active = accent contrast, inactive = muted plum.
 class _PeriodTabBar extends StatelessWidget {
   const _PeriodTabBar({
     required this.tabIndex,
@@ -524,7 +570,8 @@ class _PeriodTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inactivePlum = AppColors.accentContrast.withValues(alpha: 0.28);
+    final inactiveBg = AppColors.accentContrast.withValues(alpha: 0.28);
+    final inactiveFg = AppColors.textOnPrimary.withValues(alpha: 0.45);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.scaffoldDeepPlumColor,
@@ -551,7 +598,7 @@ class _PeriodTabBar extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    color: tabIndex == 0 ? AppColors.accentContrast : inactivePlum,
+                    color: tabIndex == 0 ? AppColors.accentContrast : inactiveBg,
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(12),
                       bottomLeft: Radius.circular(12),
@@ -560,12 +607,9 @@ class _PeriodTabBar extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     'Monthly',
-                    style: AppTextStyles.bodyMedium().copyWith(
-                      color: tabIndex == 0
-                          ? AppColors.white
-                          : AppColors.white.withValues(alpha: 0.45),
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTextStyles.bodyMedium(
+                      color: tabIndex == 0 ? AppColors.textOnAccent : inactiveFg,
+                    ).copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -583,7 +627,7 @@ class _PeriodTabBar extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    color: tabIndex == 1 ? AppColors.accentContrast : inactivePlum,
+                    color: tabIndex == 1 ? AppColors.accentContrast : inactiveBg,
                     borderRadius: const BorderRadius.only(
                       topRight: Radius.circular(12),
                       bottomRight: Radius.circular(12),
@@ -592,12 +636,9 @@ class _PeriodTabBar extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     'Yearly',
-                    style: AppTextStyles.bodyMedium().copyWith(
-                      color: tabIndex == 1
-                          ? AppColors.white
-                          : AppColors.white.withValues(alpha: 0.45),
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTextStyles.bodyMedium(
+                      color: tabIndex == 1 ? AppColors.textOnAccent : inactiveFg,
+                    ).copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -796,21 +837,57 @@ class _PeriodLeaderboardBody extends StatelessWidget {
 class _RankTierChipBar extends StatelessWidget {
   const _RankTierChipBar({
     required this.selectedTier,
+    required this.userRankTier,
     required this.onTierChanged,
   });
 
   final String? selectedTier;
+  final String? userRankTier;
   final ValueChanged<String?> onTierChanged;
+
+  String _capitalize(String r) {
+    if (r.isEmpty) return r;
+    return '${r[0].toUpperCase()}${r.substring(1)}';
+  }
+
+  FilterChip _tierChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelect,
+  }) {
+    return FilterChip(
+      label: Text(
+        label,
+        style: AppTextStyles.bodySmall(
+          color: selected ? AppColors.textOnAccent : AppColors.textOnPrimary,
+        ),
+      ),
+      selected: selected,
+      onSelected: (v) {
+        if (v) onSelect();
+      },
+      showCheckmark: false,
+      selectedColor: AppColors.accentContrast,
+      backgroundColor: AppColors.accentContrast.withValues(alpha: 0.28),
+      side: BorderSide(
+        color: selected ? AppColors.accentColor : AppColors.casinoBorderColor,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final tiers = RankMatcher.rankHierarchy;
-    final inactiveBorder = AppColors.casinoBorderColor;
+    final yours = userRankTier?.toLowerCase().trim();
+    final otherTiers = yours == null || yours.isEmpty
+        ? tiers
+        : tiers.where((t) => t.toLowerCase() != yours).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Rank tier',
+          'Rank',
           style: AppTextStyles.caption(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 8),
@@ -824,39 +901,38 @@ class _RankTierChipBar extends StatelessWidget {
                   identifier: 'leaderboard_rank_tier_all',
                   button: true,
                   label: 'All ranks',
-                  child: FilterChip(
-                    label: Text('All', style: AppTextStyles.bodySmall(color: AppColors.white)),
+                  child: _tierChip(
+                    label: 'All',
                     selected: selectedTier == null,
-                    onSelected: (v) {
-                      if (v) onTierChanged(null);
-                    },
-                    showCheckmark: false,
-                    selectedColor: AppColors.accentContrast,
-                    backgroundColor: AppColors.surface,
-                    side: BorderSide(color: inactiveBorder),
+                    onSelect: () => onTierChanged(null),
                   ),
                 ),
               ),
-              for (final tier in tiers)
+              if (yours != null && yours.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Semantics(
+                    identifier: 'leaderboard_rank_yours',
+                    button: true,
+                    label: 'Your rank ${_capitalize(yours)}',
+                    child: _tierChip(
+                      label: 'Your rank: ${_capitalize(yours)}',
+                      selected: selectedTier == yours,
+                      onSelect: () => onTierChanged(yours),
+                    ),
+                  ),
+                ),
+              for (final tier in otherTiers)
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: Semantics(
                     identifier: 'leaderboard_rank_tier_$tier',
                     button: true,
                     label: 'Rank $tier',
-                    child: FilterChip(
-                      label: Text(
-                        tier.isEmpty ? tier : '${tier[0].toUpperCase()}${tier.substring(1)}',
-                        style: AppTextStyles.bodySmall(color: AppColors.white),
-                      ),
+                    child: _tierChip(
+                      label: _capitalize(tier),
                       selected: selectedTier == tier,
-                      onSelected: (v) {
-                        if (v) onTierChanged(tier);
-                      },
-                      showCheckmark: false,
-                      selectedColor: AppColors.accentContrast,
-                      backgroundColor: AppColors.surface,
-                      side: BorderSide(color: inactiveBorder),
+                      onSelect: () => onTierChanged(tier),
                     ),
                   ),
                 ),

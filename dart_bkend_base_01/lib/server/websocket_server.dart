@@ -11,6 +11,7 @@ import '../utils/config.dart';
 import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 import '../modules/dutch_game/backend_core/services/game_state_store.dart';
+import '../modules/dutch_game/backend_core/utils/progression_config_store.dart';
 
 /// Core WebSocket event name for instant notifications pushed by the backend to a session.
 const String kWsInstantNotificationEvent = 'ws_instant_notification';
@@ -59,6 +60,8 @@ class WebSocketServer {
     _messageHandler = MessageHandler(_roomManager, this);
     // Python API URL is passed from app.dart (VPS) or app.debug.dart (local)
     _pythonClient = PythonApiClient(baseUrl: pythonApiUrl);
+    ProgressionConfigStore.ensureEnvFallback();
+    _pythonClient.fetchInitConfig();
 
     // Wire up room closure hook
     _roomManager.onRoomClosed = (roomId, reason) {

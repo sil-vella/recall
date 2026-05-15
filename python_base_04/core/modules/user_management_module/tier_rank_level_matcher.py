@@ -8,8 +8,9 @@ player rank hierarchy, and game table levels. Aligned with Dart RankMatcher and 
 - Level: game table tier ids from declarative catalog; used for coin fee and display title. Not mapped to rank.
 """
 
-import os
 from typing import List, Optional, Tuple
+
+from core.modules.dutch_game import progression_catalog as _pc
 
 # ---------------------------------------------------------------------------
 # Subscription tiers (subscription_tier in user modules.dutch_game)
@@ -18,11 +19,11 @@ TIER_PROMOTIONAL = "promotional"  # Free play: no coin check, no deduction
 TIER_REGULAR = "regular"        # Paid: coin check and deduction
 TIER_PREMIUM = "premium"        # Paid: coin check and deduction
 
-SUBSCRIPTION_TIERS: Tuple[str, ...] = (TIER_PROMOTIONAL, TIER_REGULAR, TIER_PREMIUM)
+SUBSCRIPTION_TIERS: Tuple[str, ...] = _pc.SUBSCRIPTION_TIERS
 
 # Defaults for new users or missing data (use these instead of hardcoding)
-DEFAULT_RANK = "beginner"
-DEFAULT_LEVEL = 1
+DEFAULT_RANK = _pc.DEFAULT_RANK
+DEFAULT_LEVEL = _pc.DEFAULT_USER_LEVEL
 
 
 def normalize_tier(tier: Optional[str]) -> str:
@@ -67,27 +68,10 @@ def is_valid_tier(tier: Optional[str]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Rank hierarchy (player skill) — same order as Dart RankMatcher.rankHierarchy
+# Rank hierarchy (player skill) — from progression_catalog.json
 # ---------------------------------------------------------------------------
-_DEFAULT_RANK_HIERARCHY = "beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend"
-RANK_HIERARCHY: Tuple[str, ...] = tuple(
-    x.strip().lower()
-    for x in os.getenv("DUTCH_RANK_HIERARCHY", _DEFAULT_RANK_HIERARCHY).split(",")
-    if x.strip()
-)
-
-RANK_VARIATIONS = {
-    "beginner": "beginner",
-    "novice": "novice",
-    "apprentice": "apprentice",
-    "skilled": "skilled",
-    "advanced": "advanced",
-    "expert": "expert",
-    "veteran": "veteran",
-    "master": "master",
-    "elite": "elite",
-    "legend": "legend",
-}
+RANK_HIERARCHY: Tuple[str, ...] = _pc.RANK_HIERARCHY
+RANK_VARIATIONS: dict = dict(_pc.RANK_VARIATIONS)
 
 
 def normalize_rank(rank: Optional[str]) -> str:
@@ -112,12 +96,12 @@ def get_rank_index(rank: Optional[str]) -> int:
 
 
 def are_ranks_compatible(rank1: Optional[str], rank2: Optional[str]) -> bool:
-    """True if both ranks are valid and within ±1 in hierarchy (same as Dart)."""
+    """True if both ranks are valid and within configured delta in hierarchy (same as Dart)."""
     i1 = get_rank_index(rank1)
     i2 = get_rank_index(rank2)
     if i1 == -1 or i2 == -1:
         return False
-    return abs(i1 - i2) <= 1
+    return abs(i1 - i2) <= _pc.RANK_MATCHMAKING_MAX_DELTA
 
 
 def get_compatible_ranks(rank: Optional[str]) -> List[str]:
@@ -140,19 +124,11 @@ def is_valid_rank(rank: Optional[str]) -> bool:
 
 
 def rank_to_difficulty(rank: Optional[str], default: str = "medium") -> str:
-    """Map player rank to YAML difficulty for computer AI. Returns easy|medium|hard|expert (same as Dart)."""
+    """Map player rank to YAML difficulty for computer AI (from progression_catalog)."""
     n = normalize_rank(rank)
     if not n:
         return default
-    if n == "beginner":
-        return "easy"
-    if n in ("novice", "apprentice"):
-        return "medium"
-    if n in ("skilled", "advanced", "expert"):
-        return "hard"
-    if n in ("veteran", "master", "elite", "legend"):
-        return "expert"
-    return default
+    return _pc.rank_to_difficulty(n, default=default)
 
 
 # ---------------------------------------------------------------------------

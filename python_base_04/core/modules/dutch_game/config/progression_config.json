@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "progression": {
+    "user_level_min": 1,
+    "wins_per_user_level": 10,
+    "levels_per_rank": {
+      "beginner": 5,
+      "novice": 5,
+      "apprentice": 5,
+      "skilled": 5,
+      "advanced": 5,
+      "expert": 5,
+      "veteran": 5,
+      "master": 5,
+      "elite": 5,
+      "legend": 10
+    }
+  },
+  "rank_hierarchy": [
+    "beginner",
+    "novice",
+    "apprentice",
+    "skilled",
+    "advanced",
+    "expert",
+    "veteran",
+    "master",
+    "elite",
+    "legend"
+  ],
+  "rank_matchmaking": {
+    "max_rank_delta": 1
+  },
+  "rank_to_difficulty": {
+    "beginner": "easy",
+    "novice": "medium",
+    "apprentice": "medium",
+    "skilled": "hard",
+    "advanced": "hard",
+    "expert": "hard",
+    "veteran": "expert",
+    "master": "expert",
+    "elite": "expert",
+    "legend": "expert"
+  },
+  "subscription_tiers": ["promotional", "regular", "premium"],
+  "defaults": {
+    "rank": "beginner",
+    "user_level": 1,
+    "subscription_tier": "regular"
+  }
+}

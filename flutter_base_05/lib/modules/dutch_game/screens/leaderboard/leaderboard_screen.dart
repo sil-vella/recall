@@ -7,6 +7,7 @@ import '../../../../core/managers/state_manager.dart';
 import '../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../backend_core/utils/rank_matcher.dart';
+import '../../utils/dutch_game_helpers.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 
 const int _kLeaderboardDisplayLimit = 20;
@@ -52,6 +53,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   @override
   void initState() {
     super.initState();
+    DutchGameHelpers.fetchPublicInitConfig();
     _load();
   }
 

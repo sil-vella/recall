@@ -1,27 +1,17 @@
-/// Rank matching utility for player compatibility checking
+import '../../utils/progression_config_store.dart';
+
+/// Rank matching utility for player compatibility checking.
 class RankMatcher {
-  static const String _rankHierarchyRaw = String.fromEnvironment(
-    'DUTCH_RANK_HIERARCHY',
-    defaultValue: 'beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend',
-  );
+  /// Rank hierarchy in order from lowest to highest (from server catalog when hydrated).
+  static List<String> get rankHierarchy => ProgressionConfigStore.rankHierarchy;
 
-  /// Rank hierarchy in order from lowest to highest
-  static final List<String> rankHierarchy = _rankHierarchyRaw
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .where((e) => e.isNotEmpty)
-      .toList();
-
-  /// Get rank index in hierarchy (0-9)
-  /// Returns -1 if rank is not found
+  /// Get rank index in hierarchy (0..n-1). Returns -1 if rank is not found.
   static int getRankIndex(String rank) {
     final normalized = normalizeRank(rank);
     return rankHierarchy.indexOf(normalized);
   }
 
-  /// Check if two ranks are within ±1 of each other (compatible)
-  /// Returns true if ranks are compatible, false otherwise
-  /// If either rank is null or invalid, returns false
+  /// Check if two ranks are within configured delta (compatible).
   static bool areRanksCompatible(String? rank1, String? rank2) {
     if (rank1 == null || rank2 == null) {
       return false;
@@ -34,14 +24,11 @@ class RankMatcher {
       return false;
     }
 
-    // Check if ranks are within ±1 of each other
     final difference = (index1 - index2).abs();
-    return difference <= 1;
+    return difference <= ProgressionConfigStore.maxRankDelta;
   }
 
-  /// Get compatible ranks for a given rank (±1)
-  /// Returns list of compatible ranks including the rank itself
-  /// Returns empty list if rank is invalid
+  /// Get compatible ranks for a given rank (±delta).
   static List<String> getCompatibleRanks(String? rank) {
     if (rank == null) {
       return [];
@@ -52,57 +39,33 @@ class RankMatcher {
       return [];
     }
 
+    final delta = ProgressionConfigStore.maxRankDelta;
     final compatibleRanks = <String>[];
-    
-    // Add rank one below (if exists)
-    if (index > 0) {
-      compatibleRanks.add(rankHierarchy[index - 1]);
-    }
-    
-    // Add the rank itself
-    compatibleRanks.add(rankHierarchy[index]);
-    
-    // Add rank one above (if exists)
-    if (index < rankHierarchy.length - 1) {
-      compatibleRanks.add(rankHierarchy[index + 1]);
+
+    for (var i = index - delta; i <= index + delta; i++) {
+      if (i >= 0 && i < rankHierarchy.length) {
+        compatibleRanks.add(rankHierarchy[i]);
+      }
     }
 
     return compatibleRanks;
   }
 
-  /// Normalize rank string (lowercase, handle variations)
-  /// Returns normalized rank or empty string if invalid
+  /// Normalize rank string (lowercase). Returns empty string if invalid.
   static String normalizeRank(String rank) {
     if (rank.isEmpty) {
       return '';
     }
-    
-    // Convert to lowercase and trim
+
     final normalized = rank.toLowerCase().trim();
-    
-    // Check if it's a valid rank
+
     if (rankHierarchy.contains(normalized)) {
       return normalized;
     }
-    
-    // Handle common variations
-    final variations = {
-      'beginner': 'beginner',
-      'novice': 'novice',
-      'apprentice': 'apprentice',
-      'skilled': 'skilled',
-      'advanced': 'advanced',
-      'expert': 'expert',
-      'veteran': 'veteran',
-      'master': 'master',
-      'elite': 'elite',
-      'legend': 'legend',
-    };
-    
-    return variations[normalized] ?? '';
+
+    return '';
   }
 
-  /// Check if a rank is valid
   static bool isValidRank(String? rank) {
     if (rank == null) {
       return false;
@@ -110,9 +73,6 @@ class RankMatcher {
     return getRankIndex(rank) != -1;
   }
 
-  /// Map player rank to YAML difficulty level for computer player AI behavior
-  /// Returns one of: 'easy', 'medium', 'hard', 'expert'
-  /// Defaults to 'medium' if rank is null or invalid
   static String rankToDifficulty(String? rank) {
     if (rank == null) {
       return 'medium';
@@ -123,28 +83,6 @@ class RankMatcher {
       return 'medium';
     }
 
-    // Map ranks to YAML difficulties:
-    // beginner → easy
-    // novice, apprentice → medium
-    // skilled, advanced, expert → hard
-    // veteran, master, elite, legend → expert
-    switch (normalizedRank) {
-      case 'beginner':
-        return 'easy';
-      case 'novice':
-      case 'apprentice':
-        return 'medium';
-      case 'skilled':
-      case 'advanced':
-      case 'expert':
-        return 'hard';
-      case 'veteran':
-      case 'master':
-      case 'elite':
-      case 'legend':
-        return 'expert';
-      default:
-        return 'medium'; // Default fallback
-    }
+    return ProgressionConfigStore.rankToDifficulty(normalizedRank);
   }
 }

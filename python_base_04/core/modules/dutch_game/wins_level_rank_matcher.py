@@ -1,38 +1,22 @@
 """
 Wins → user level → rank (Dutch module).
 
-Rules (product):
-- Every ``WINS_PER_USER_LEVEL`` wins increases **user level** by 1 (level starts at 1).
-- Every ``LEVELS_PER_RANK`` user levels increases **rank** by one step on ``RANK_HIERARCHY``.
-- **Game table** tiers 1–4 (coin fee / room ``game_level``): table *T* requires
-  ``user_level >= T`` (table 1 open to all levels ≥ 1).
-
-Ranks match Flutter ``RankMatcher.rankHierarchy`` and
-``tier_rank_level_matcher.RANK_HIERARCHY`` (duplicated below to avoid importing
-user_management package __init__).
+Rules loaded from progression_catalog (config/progression_config.json).
 """
 
 from __future__ import annotations
 
-import os
-from typing import Optional, Tuple
+from typing import Optional
 from core.modules.user_management_module import tier_rank_level_matcher as matcher
+from core.modules.dutch_game import progression_catalog as pc
 
 # Game table tiers (room game_level / LevelMatcher) — eligibility only
 TABLE_LEVEL_MIN: int = min(matcher.LEVEL_ORDER) if matcher.LEVEL_ORDER else 1
 TABLE_LEVEL_MAX: int = max(matcher.LEVEL_ORDER) if matcher.LEVEL_ORDER else 4
 
-USER_LEVEL_MIN: int = int(os.getenv("DUTCH_USER_LEVEL_MIN", "1"))
-
-# Must stay identical to Flutter rank_matcher / tier_rank_level_matcher.
-_DEFAULT_RANK_HIERARCHY = "beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend"
-RANK_HIERARCHY: Tuple[str, ...] = tuple(
-    x.strip().lower()
-    for x in os.getenv("DUTCH_RANK_HIERARCHY", _DEFAULT_RANK_HIERARCHY).split(",")
-    if x.strip()
-)
-
-DEFAULT_RANK: str = "beginner"
+USER_LEVEL_MIN: int = pc.USER_LEVEL_MIN
+RANK_HIERARCHY = pc.RANK_HIERARCHY
+DEFAULT_RANK: str = pc.DEFAULT_RANK
 
 
 class WinsLevelRankMatcher:
@@ -41,8 +25,8 @@ class WinsLevelRankMatcher:
     user level. **Game table** access uses user level vs room ``game_level`` (1–4).
     """
 
-    WINS_PER_USER_LEVEL: int = int(os.getenv("DUTCH_WINS_PER_USER_LEVEL", "10"))
-    LEVELS_PER_RANK: int = int(os.getenv("DUTCH_LEVELS_PER_RANK", "5"))
+    WINS_PER_USER_LEVEL: int = pc.WINS_PER_USER_LEVEL
+    LEVELS_PER_RANK: int = pc.LEVELS_PER_RANK
 
     @classmethod
     def wins_to_user_level(cls, wins: Optional[int]) -> int:
@@ -53,20 +37,12 @@ class WinsLevelRankMatcher:
 
     @classmethod
     def user_level_to_rank_index(cls, user_level: Optional[int]) -> int:
-        """Index into RANK_HIERARCHY from user level; capped at legend."""
-        if user_level is None:
-            return 0
-        try:
-            lv = int(user_level)
-        except (TypeError, ValueError):
-            return 0
-        lv = max(USER_LEVEL_MIN, lv)
-        idx = (lv - 1) // max(1, cls.LEVELS_PER_RANK)
-        return min(len(RANK_HIERARCHY) - 1, max(0, idx))
+        """Index into RANK_HIERARCHY from user level; per-rank spans from progression catalog."""
+        return pc.user_level_to_rank_index(user_level)
 
     @classmethod
     def user_level_to_rank(cls, user_level: Optional[int]) -> str:
-        return RANK_HIERARCHY[cls.user_level_to_rank_index(user_level)]
+        return pc.user_level_to_rank(user_level)
 
     @classmethod
     def wins_to_rank(cls, wins: Optional[int]) -> str:

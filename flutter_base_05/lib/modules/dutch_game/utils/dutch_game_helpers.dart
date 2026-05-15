@@ -18,6 +18,7 @@ import '../managers/game_coordinator.dart';
 import '../backend_core/utils/level_matcher.dart';
 import 'table_tiers_bootstrap.dart';
 import 'consumables_catalog_bootstrap.dart';
+import 'progression_config_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
 import 'dart:developer' as developer;
 
@@ -722,32 +723,23 @@ class DutchGameHelpers {
     }
   }
 
-  /// Fetch user dutch game statistics from the database
-  /// Uses the dedicated /userauth/dutch/get-user-stats endpoint
-  /// Returns the dutch_game module data including wins, losses, points, coins, level, rank, etc.
-  /// 
-  /// Returns:
-  /// - Map with 'success': true and 'data' containing dutch_game module data on success
-  /// - Map with 'success': false and 'error' message on failure
-  /// - null if dutch_game module doesn't exist for the user
-  static Future<Map<String, dynamic>?> getUserDutchGameData() async {
+  /// Fetch init data: user stats + revision-gated declarative catalogs.
+  /// Uses `GET /userauth/dutch/get-init-data`.
+  static Future<Map<String, dynamic>?> getInitData() async {
     try {
       await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
       await ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats();
+      await ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats();
 
-      
-      
-      // Get the ConnectionsApiModule instance from the global module manager
       final moduleManager = ModuleManager();
-      
       final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
-      
       if (connectionsModule == null) {
         throw Exception('ConnectionsApiModule not available - ensure it is initialized');
       }
 
       final revision = await TableTiersBootstrap.getStoredRevisionForApi();
       final consumablesRevision = await ConsumablesCatalogBootstrap.getStoredRevisionForApi();
+      final progressionRevision = await ProgressionConfigBootstrap.getStoredRevisionForApi();
       final queryParts = <String>[];
       if (revision != null && revision.isNotEmpty) {
         queryParts.add('client_table_tiers_revision=${Uri.encodeQueryComponent(revision)}');
@@ -755,11 +747,13 @@ class DutchGameHelpers {
       if (consumablesRevision != null && consumablesRevision.isNotEmpty) {
         queryParts.add('client_consumables_catalog_revision=${Uri.encodeQueryComponent(consumablesRevision)}');
       }
+      if (progressionRevision != null && progressionRevision.isNotEmpty) {
+        queryParts.add('client_progression_config_revision=${Uri.encodeQueryComponent(progressionRevision)}');
+      }
       final route = queryParts.isEmpty
-          ? '/userauth/dutch/get-user-stats'
-          : '/userauth/dutch/get-user-stats?${queryParts.join('&')}';
-      
-      // Make API call to get user dutch game stats (dedicated endpoint)
+          ? '/userauth/dutch/get-init-data'
+          : '/userauth/dutch/get-init-data?${queryParts.join('&')}';
+
       final response = await connectionsModule.sendGetRequest(route);
       
       // Check if response contains error
@@ -789,6 +783,7 @@ class DutchGameHelpers {
 
       await TableTiersBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await ConsumablesCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
+      await ProgressionConfigBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
 
       try {
         final gRaw = response['global_broadcast_messages'];
@@ -856,6 +851,44 @@ class DutchGameHelpers {
         'data': null,
         'timestamp': DateTime.now().toIso8601String(),
       };
+    }
+  }
+
+  @Deprecated('Use getInitData')
+  static Future<Map<String, dynamic>?> getUserDutchGameData() => getInitData();
+
+  /// Public declarative config (progression, optional table tiers) before login.
+  static Future<bool> fetchPublicInitConfig() async {
+    try {
+      await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
+      await ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats();
+
+      final connectionsModule =
+          ModuleManager().getModuleByType<ConnectionsApiModule>();
+      if (connectionsModule == null) return false;
+
+      final queryParts = <String>[];
+      final tableRev = await TableTiersBootstrap.getStoredRevisionForApi();
+      final progRev = await ProgressionConfigBootstrap.getStoredRevisionForApi();
+      if (tableRev != null && tableRev.isNotEmpty) {
+        queryParts.add('client_table_tiers_revision=${Uri.encodeQueryComponent(tableRev)}');
+      }
+      if (progRev != null && progRev.isNotEmpty) {
+        queryParts.add('client_progression_config_revision=${Uri.encodeQueryComponent(progRev)}');
+      }
+      final route = queryParts.isEmpty
+          ? '/public/dutch/init-config'
+          : '/public/dutch/init-config?${queryParts.join('&')}';
+
+      final response = await connectionsModule.sendGetRequest(route);
+      if (response is! Map || response['success'] != true) return false;
+
+      final envelope = Map<String, dynamic>.from(response);
+      await TableTiersBootstrap.mergeStatsEnvelope(envelope);
+      await ProgressionConfigBootstrap.mergePublicConfigEnvelope(envelope);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -954,18 +987,10 @@ class DutchGameHelpers {
     }
   }
 
-  /// Fetch user dutch_game data from API and update local state
-  /// This is a convenience method that combines getUserDutchGameData() with state update
-  /// 
-  /// Returns:
-  /// - true if data was successfully fetched and state was updated
-  /// - false if there was an error or no data was found
-  static Future<bool> fetchAndUpdateUserDutchGameData() async {
+  /// Fetch init data from API and update local userStats state.
+  static Future<bool> fetchAndUpdateInitData() async {
     try {
-      
-      
-      // Fetch data from API
-      final result = await getUserDutchGameData();
+      final result = await getInitData();
       
       if (result == null || result['success'] != true || result['data'] == null) {
         final error = result?['error'] ?? 'Unknown error';
@@ -991,6 +1016,9 @@ class DutchGameHelpers {
       return false;
     }
   }
+
+  @Deprecated('Use fetchAndUpdateInitData')
+  static Future<bool> fetchAndUpdateUserDutchGameData() => fetchAndUpdateInitData();
 
   /// Get user dutch_game stats from local state
   /// Returns the userStats object if available, or null if not found

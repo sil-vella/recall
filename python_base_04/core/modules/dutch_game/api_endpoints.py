@@ -17,6 +17,7 @@ import uuid
 from . import dutch_notifications
 from . import table_tiers_catalog as ttc
 from . import consumables_catalog as cc
+from . import progression_catalog as prog
 from core.modules.notification_module.global_broadcast_service import load_global_broadcast_payload_for_user
 from .wins_level_rank_matcher import WinsLevelRankMatcher
 from .dutch_achievement_catalog import (
@@ -1253,24 +1254,11 @@ def update_game_stats():
         return jsonify({"success": False, "message": "Failed to update game statistics", "error": str(e)}), 500
 
 
-def get_user_stats():
-    """Get current user's dutch game statistics (JWT protected endpoint)."""
-    try:
-        user_id = request.user_id
-        if not user_id:
-            return jsonify({"success": False, "error": "User not authenticated", "message": "No user ID found in request"}), 401
-        if not _app_manager:
-            return jsonify({"success": False, "error": "Server not initialized"}), 503
-        db_manager = _app_manager.get_db_manager(role="read_write")
-        if not db_manager:
-            return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
-        user = db_manager.find_one("users", {"_id": ObjectId(user_id)})
-        if not user:
-            return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found in database"}), 404
-        modules = user.get('modules', {})
-        dutch_game = modules.get('dutch_game', {})
-        if not dutch_game:
-            stats_data = {
+def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool) -> Dict[str, Any]:
+    """Build client stats payload from users.modules.dutch_game."""
+    if not dutch_game:
+        if full:
+            return {
                 "enabled": False,
                 "wins": 0,
                 "losses": 0,
@@ -1289,87 +1277,33 @@ def get_user_stats():
                 "inventory": _normalize_inventory(None),
                 "dutch_module_initialized": False,
             }
-        else:
-            stats_data = {
-                "enabled": dutch_game.get('enabled', True),
-                "wins": dutch_game.get('wins', 0),
-                "losses": dutch_game.get('losses', 0),
-                "total_matches": dutch_game.get('total_matches', 0),
-                "points": dutch_game.get('points', 0),
-                "coins": dutch_game.get('coins', 0),
-                "level": dutch_game.get('level', matcher.DEFAULT_LEVEL),
-                "rank": dutch_game.get('rank') or matcher.DEFAULT_RANK,
-                "win_rate": dutch_game.get('win_rate', 0.0),
-                "subscription_tier": dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL,
-                "last_match_date": dutch_game.get('last_match_date'),
-                "last_updated": dutch_game.get('last_updated'),
-                "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
-                "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
-                "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
-                "inventory": _normalize_inventory(dutch_game.get("inventory")),
-                "dutch_module_initialized": True,
-            }
-        if stats_data.get('last_match_date') and isinstance(stats_data['last_match_date'], datetime):
-            stats_data['last_match_date'] = stats_data['last_match_date'].isoformat()
-        if stats_data.get('last_updated') and isinstance(stats_data['last_updated'], datetime):
-            stats_data['last_updated'] = stats_data['last_updated'].isoformat()
-        client_rev = (request.args.get("client_table_tiers_revision") or "").strip()
-        client_cons_rev = (request.args.get("client_consumables_catalog_revision") or "").strip()
-        rev = ttc.TABLE_TIERS_REVISION
-        cons_rev = cc.CONSUMABLES_CATALOG_REVISION
-        response_body: Dict[str, Any] = {
-            "success": True,
-            "message": "User statistics retrieved successfully",
-            "data": stats_data,
-            "user_id": str(user_id),
-            "timestamp": datetime.utcnow().isoformat(),
-            "table_tiers_revision": rev,
-            "consumables_catalog_revision": cons_rev,
+        return {
+            "coins": 0,
+            "subscription_tier": matcher.TIER_PROMOTIONAL,
+            "level": matcher.DEFAULT_LEVEL,
+            "rank": matcher.DEFAULT_RANK,
         }
-        try:
-            gb_list = load_global_broadcast_payload_for_user(
-                db_manager,
-                user_id=str(user_id),
-                user_rank=str(stats_data.get("rank") or matcher.DEFAULT_RANK),
-            )
-        except Exception:
-            gb_list = []
-        response_body["global_broadcast_messages"] = gb_list
-        if (not client_rev) or client_rev != rev:
-            public_base = _resolve_public_api_base()
-            response_body["table_tiers"] = ttc.build_client_table_tiers_payload(public_base)
-        if (not client_cons_rev) or client_cons_rev != cons_rev:
-            response_body["consumables_catalog"] = cc.build_client_consumables_payload()
-        return jsonify(response_body), 200
-    except Exception as e:
-        return jsonify({"success": False, "error": "Failed to retrieve user statistics", "message": str(e)}), 500
-
-
-def get_user_stats_service():
-    """Get dutch game stats for a user by user_id (service endpoint: Dart backend, X-Service-Key auth)."""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "error": "Request body required", "message": "Missing request body"}), 400
-        user_id = (data.get("user_id") or data.get("userid") or "").strip()
-        if not user_id:
-            return jsonify({"success": False, "error": "user_id required", "message": "user_id is required in body"}), 400
-        if not _app_manager:
-            return jsonify({"success": False, "error": "Server not initialized"}), 503
-        db_manager = _app_manager.get_db_manager(role="read_write")
-        if not db_manager:
-            return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
-        try:
-            user_id_obj = ObjectId(user_id)
-        except Exception:
-            return jsonify({"success": False, "error": "Invalid user_id", "message": "user_id must be a valid ObjectId"}), 400
-        user = db_manager.find_one("users", {"_id": user_id_obj})
-        if not user:
-            return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found", "data": None}), 404
-        modules = user.get("modules", {})
-        dutch_game = modules.get("dutch_game", {})
-        if not dutch_game:
-            return jsonify({"success": True, "message": "User has no dutch_game module", "data": {"coins": 0, "subscription_tier": matcher.TIER_PROMOTIONAL}, "user_id": user_id, "timestamp": datetime.utcnow().isoformat()}), 200
+    if full:
+        stats_data = {
+            "enabled": dutch_game.get("enabled", True),
+            "wins": dutch_game.get("wins", 0),
+            "losses": dutch_game.get("losses", 0),
+            "total_matches": dutch_game.get("total_matches", 0),
+            "points": dutch_game.get("points", 0),
+            "coins": dutch_game.get("coins", 0),
+            "level": dutch_game.get("level", matcher.DEFAULT_LEVEL),
+            "rank": dutch_game.get("rank") or matcher.DEFAULT_RANK,
+            "win_rate": dutch_game.get("win_rate", 0.0),
+            "subscription_tier": dutch_game.get("subscription_tier") or matcher.TIER_PROMOTIONAL,
+            "last_match_date": dutch_game.get("last_match_date"),
+            "last_updated": dutch_game.get("last_updated"),
+            "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
+            "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
+            "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
+            "inventory": _normalize_inventory(dutch_game.get("inventory")),
+            "dutch_module_initialized": True,
+        }
+    else:
         stats_data = {
             "coins": dutch_game.get("coins", 0),
             "subscription_tier": dutch_game.get("subscription_tier") or matcher.TIER_PROMOTIONAL,
@@ -1380,9 +1314,159 @@ def get_user_stats_service():
             "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
             "inventory": _normalize_inventory(dutch_game.get("inventory")),
         }
-        return jsonify({"success": True, "message": "User statistics retrieved", "data": stats_data, "user_id": user_id, "timestamp": datetime.utcnow().isoformat()}), 200
+    for key in ("last_match_date", "last_updated"):
+        val = stats_data.get(key)
+        if val and isinstance(val, datetime):
+            stats_data[key] = val.isoformat()
+    return stats_data
+
+
+def _client_revision_from_request(*, use_json_body: bool) -> Tuple[str, str, str]:
+    if use_json_body:
+        data = request.get_json(silent=True) or {}
+        client_rev = (data.get("client_table_tiers_revision") or "").strip()
+        client_cons_rev = (data.get("client_consumables_catalog_revision") or "").strip()
+        client_prog_rev = (data.get("client_progression_config_revision") or "").strip()
+    else:
+        client_rev = (request.args.get("client_table_tiers_revision") or "").strip()
+        client_cons_rev = (request.args.get("client_consumables_catalog_revision") or "").strip()
+        client_prog_rev = (request.args.get("client_progression_config_revision") or "").strip()
+    return client_rev, client_cons_rev, client_prog_rev
+
+
+def _attach_declarative_catalogs(
+    response_body: Dict[str, Any],
+    *,
+    client_table_rev: str,
+    client_cons_rev: str,
+    client_prog_rev: str,
+    include_table_tiers: bool = True,
+) -> None:
+    rev = ttc.TABLE_TIERS_REVISION
+    cons_rev = cc.CONSUMABLES_CATALOG_REVISION
+    prog_rev = prog.PROGRESSION_CONFIG_REVISION
+    response_body["table_tiers_revision"] = rev
+    response_body["consumables_catalog_revision"] = cons_rev
+    response_body["progression_config_revision"] = prog_rev
+    if include_table_tiers and ((not client_table_rev) or client_table_rev != rev):
+        public_base = _resolve_public_api_base()
+        response_body["table_tiers"] = ttc.build_client_table_tiers_payload(public_base)
+    if (not client_cons_rev) or client_cons_rev != cons_rev:
+        response_body["consumables_catalog"] = cc.build_client_consumables_payload()
+    if (not client_prog_rev) or client_prog_rev != prog_rev:
+        response_body["progression_config"] = prog.build_client_progression_payload()
+
+
+def get_init_data():
+    """JWT init: user stats + revision-gated declarative catalogs."""
+    try:
+        user_id = request.user_id
+        if not user_id:
+            return jsonify({"success": False, "error": "User not authenticated", "message": "No user ID found in request"}), 401
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
+        user = db_manager.find_one("users", {"_id": ObjectId(user_id)})
+        if not user:
+            return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found in database"}), 404
+        dutch_game = user.get("modules", {}).get("dutch_game", {})
+        stats_data = _dutch_stats_from_module(dutch_game, full=True)
+        client_rev, client_cons_rev, client_prog_rev = _client_revision_from_request(use_json_body=False)
+        response_body: Dict[str, Any] = {
+            "success": True,
+            "message": "Init data retrieved successfully",
+            "data": stats_data,
+            "user_id": str(user_id),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        try:
+            gb_list = load_global_broadcast_payload_for_user(
+                db_manager,
+                user_id=str(user_id),
+                user_rank=str(stats_data.get("rank") or matcher.DEFAULT_RANK),
+            )
+        except Exception:
+            gb_list = []
+        response_body["global_broadcast_messages"] = gb_list
+        _attach_declarative_catalogs(
+            response_body,
+            client_table_rev=client_rev,
+            client_cons_rev=client_cons_rev,
+            client_prog_rev=client_prog_rev,
+        )
+        return jsonify(response_body), 200
     except Exception as e:
-        return jsonify({"success": False, "error": "Failed to retrieve user statistics", "message": str(e)}), 500
+        return jsonify({"success": False, "error": "Failed to retrieve init data", "message": str(e)}), 500
+
+
+def get_user_stats():
+    """Deprecated alias for get_init_data (JWT)."""
+    return get_init_data()
+
+
+def get_init_data_service():
+    """Service init: optional user stats + declarative catalogs (Dart backend)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        user_id = (data.get("user_id") or data.get("userid") or "").strip()
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        client_rev, client_cons_rev, client_prog_rev = _client_revision_from_request(use_json_body=True)
+        response_body: Dict[str, Any] = {
+            "success": True,
+            "message": "Init data retrieved",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        if user_id:
+            db_manager = _app_manager.get_db_manager(role="read_write")
+            if not db_manager:
+                return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
+            try:
+                user_id_obj = ObjectId(user_id)
+            except Exception:
+                return jsonify({"success": False, "error": "Invalid user_id", "message": "user_id must be a valid ObjectId"}), 400
+            user = db_manager.find_one("users", {"_id": user_id_obj})
+            if not user:
+                return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found", "data": None}), 404
+            dutch_game = user.get("modules", {}).get("dutch_game", {})
+            response_body["data"] = _dutch_stats_from_module(dutch_game, full=False)
+            response_body["user_id"] = user_id
+        _attach_declarative_catalogs(
+            response_body,
+            client_table_rev=client_rev,
+            client_cons_rev=client_cons_rev,
+            client_prog_rev=client_prog_rev,
+        )
+        return jsonify(response_body), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": "Failed to retrieve init data", "message": str(e)}), 500
+
+
+def get_user_stats_service():
+    """Deprecated alias for get_init_data_service."""
+    return get_init_data_service()
+
+
+def get_public_init_config():
+    """Public declarative config (no user data) for pre-login clients."""
+    try:
+        client_rev, client_cons_rev, client_prog_rev = _client_revision_from_request(use_json_body=False)
+        response_body: Dict[str, Any] = {
+            "success": True,
+            "message": "Init config retrieved",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        _attach_declarative_catalogs(
+            response_body,
+            client_table_rev=client_rev,
+            client_cons_rev=client_cons_rev,
+            client_prog_rev=client_prog_rev,
+        )
+        return jsonify(response_body), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": "Failed to retrieve init config", "message": str(e)}), 500
 
 
 def get_shop_catalog_service():

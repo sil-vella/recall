@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../modules/dutch_game/backend_core/utils/progression_config_store.dart';
 import '../utils/config.dart';
 
 class PythonApiClient {
@@ -158,11 +159,8 @@ class PythonApiClient {
     }
   }
   
-  /// Get user dutch-game stats (coins, subscription_tier) by userId for join/create room coins check.
-  /// Service endpoint: X-Service-Key auth.
-  Future<Map<String, dynamic>> getUserStatsForJoin(String userId) async {
-    
-
+  /// Load declarative progression config from Python (no user_id).
+  Future<bool> fetchInitConfig() async {
     final useKey = Config.usePythonServiceKey;
     final serviceKey = useKey ? Config.pythonServiceKey : '';
     final headers = <String, String>{
@@ -171,10 +169,64 @@ class PythonApiClient {
     };
 
     try {
+      final body = <String, dynamic>{};
+      final rev = ProgressionConfigStore.cachedRevision;
+      if (rev != null && rev.isNotEmpty) {
+        body['client_progression_config_revision'] = rev;
+      }
       final response = await http.post(
-        Uri.parse('$baseUrl/service/dutch/get-user-stats'),
+        Uri.parse('$baseUrl/service/dutch/get-init-data'),
         headers: headers,
-        body: jsonEncode({'user_id': userId}),
+        body: jsonEncode(body),
+      );
+      if (response.statusCode != 200) {
+        ProgressionConfigStore.ensureEnvFallback();
+        return false;
+      }
+      final result = jsonDecode(response.body) as Map<String, dynamic>;
+      if (result['success'] != true) {
+        ProgressionConfigStore.ensureEnvFallback();
+        return false;
+      }
+      final payload = result['progression_config'];
+      if (payload is Map<String, dynamic>) {
+        ProgressionConfigStore.applyDocument(
+          Map<String, dynamic>.from(payload),
+          revision: result['progression_config_revision']?.toString(),
+        );
+      } else {
+        final revOnly = result['progression_config_revision']?.toString().trim();
+        if (revOnly != null && revOnly.isNotEmpty) {
+          ProgressionConfigStore.updateRevisionOnly(revOnly);
+        }
+      }
+      return true;
+    } catch (_) {
+      ProgressionConfigStore.ensureEnvFallback();
+      return false;
+    }
+  }
+
+  /// Get user dutch-game stats (coins, subscription_tier) by userId for join/create room coins check.
+  /// Service endpoint: X-Service-Key auth.
+  Future<Map<String, dynamic>> getUserStatsForJoin(String userId) async {
+    final useKey = Config.usePythonServiceKey;
+    final serviceKey = useKey ? Config.pythonServiceKey : '';
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (serviceKey.isNotEmpty) 'X-Service-Key': serviceKey,
+    };
+
+    try {
+      final body = <String, dynamic>{'user_id': userId};
+      final rev = ProgressionConfigStore.cachedRevision;
+      if (rev != null && rev.isNotEmpty) {
+        body['client_progression_config_revision'] = rev;
+      }
+      final response = await http.post(
+        Uri.parse('$baseUrl/service/dutch/get-init-data'),
+        headers: headers,
+        body: jsonEncode(body),
       );
 
       

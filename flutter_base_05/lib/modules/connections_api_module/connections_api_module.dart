@@ -189,12 +189,22 @@ class ConnectionsApiModule extends ModuleBase {
     
 
     if (response.statusCode == 401) {
-      // Don't clear tokens here - let AuthManager handle it through its own logic
-      return {
-        "message": "Session expired. Please log in again.",
-        "error": "Unauthorized",
-        "status": 401,
-      };
+      // Prefer server body (login invalid credentials, JWT errors, etc.).
+      // Fall back to session-expired only when the body is missing or not JSON.
+      try {
+        final decodedResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!decodedResponse.containsKey('message') && decodedResponse.containsKey('error')) {
+          decodedResponse['message'] = decodedResponse['error'];
+        }
+        decodedResponse['status'] = 401;
+        return decodedResponse;
+      } catch (_) {
+        return {
+          "message": "Session expired. Please log in again.",
+          "error": "Unauthorized",
+          "status": 401,
+        };
+      }
     } else {
       try {
         final decodedResponse = jsonDecode(response.body) as Map<String, dynamic>;

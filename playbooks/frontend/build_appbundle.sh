@@ -172,18 +172,12 @@ echo ""
 
 set_production_deck_config
 
-# Build --dart-define-from-file from .env.dart.defines.prod
-echo "📝 Dart-define file: $DART_DEFINES_ENV → --dart-define-from-file"
-if [ ! -f "$DART_DEFINES_ENV" ]; then
-  echo "❌ Missing dart-define file: $DART_DEFINES_ENV"
-  exit 1
-fi
-if ! command -v python3 &>/dev/null; then
-  echo "❌ python3 not found — required for env_for_flutter_dart_defines.py"
-  exit 1
-fi
-DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
-python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
+# Build --dart-define-from-file from .env.dart.defines.prod (release only; dev uses .env.dart.defines.local)
+# shellcheck source=flutter_dart_defines_common.sh
+source "$SCRIPT_DIR/flutter_dart_defines_common.sh"
+flutter_dart_defines_require_python || exit 1
+flutter_dart_defines_prepare "$DART_DEFINES_ENV" || exit 1
+flutter_dart_defines_print_summary build
 
 # Build the release App Bundle (AAB) for Play Store
 flutter build appbundle \

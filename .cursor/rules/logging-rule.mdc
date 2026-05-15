@@ -1,86 +1,56 @@
 ---
-description: Use the repo dev logging stack (customlog, DUTCH_DEV_LOG, LOGGING_SWITCH) and global.log wrappers; avoid legacy patterns. Read when adding diagnostics, touching entrypoints, or launch/logging shell scripts.
-alwaysApply: false
+description: Dev logging uses customlog only, inside existing LOGGING_SWITCH blocks. Do not add new log calls or switches unless the user explicitly asks. Always applied.
+alwaysApply: true
 ---
 
-# Dutch dev logging (`[dev]`, switches, `global.log`)
+# Dutch dev logging (`customlog`, `LOGGING_SWITCH`, `global.log`)
 
 Full reference: `Documentation/Logging/LOGGING_SYSTEM.md`.
 
-## What to use
+## Agent policy (strict)
 
-| Stack | API | Import / module |
-|-------|-----|-----------------|
+- **Do not add new `customlog` calls** unless the user **explicitly** asks for more dev logging in that change.
+- **Do not add new `LOGGING_SWITCH` constants** (per-file or per-module) unless the user **explicitly** asks to enable tracing in that file.
+- **Do not add logging wrappers** (`logX`, `_fooDebug`, `logCompiledConfigDefines`, `devLog`, `dev_log`, `Logger`, etc.). The **only** dev trace API is **`customlog`**.
+- **Do not re-enable** logging you removed in the same task unless the user asks.
+- When the user **does** ask for dev logs, use **existing** `LOGGING_SWITCH` in that file if present; otherwise ask before introducing a new switch.
+
+## What to use (when the user requests dev logs)
+
+| Stack | API | Import |
+|-------|-----|--------|
 | Flutter | `customlog('message')` | `utils/dev_logger.dart` |
-| Dart WS (`dart_bkend_base_01`) | `customlog('message')` | `package:dart_game_server/utils/dev_logger.dart` |
-| Python (`python_base_04`) | `customlog("message")` | `from tools.dev_logger import customlog` |
+| Dart WS | `customlog('message')` | `package:dart_game_server/utils/dev_logger.dart` |
+| Python | `customlog("message")` | `from tools.dev_logger import customlog` |
 
-These helpers emit **`[dev] …`** themselves. Do **not** prefix the string with `[dev]` manually unless you have an exceptional reason.
+`customlog` emits **`[dev] …`**. Do **not** prefix messages with `[dev]` manually.
 
-Do **not** reintroduce the removed Flutter `Logger` singleton or alternate names (`devLog`, `dev_log`). Use **`customlog`** only.
+## Mandatory callsite shape
 
-## Mandatory: `customlog` only inside `LOGGING_SWITCH`
-
-**Every** `customlog` call must be a direct descendant of an `if LOGGING_SWITCH` block. **Never** call `customlog` at module import time, in helpers that hide the switch, or “because `DUTCH_DEV_LOG` will no-op anyway.”
-
-- **Dart / Flutter** — braced block required:
+**Every** `customlog` must sit inside an **`if LOGGING_SWITCH`** block (Dart: braced `{ }`; Python: indented suite). No bare `customlog`, no helper that hides the switch.
 
 ```dart
-const bool LOGGING_SWITCH = false; // or true while debugging this file
-
 if (LOGGING_SWITCH) {
-  customlog('MyModule: detail');
+  customlog('ModuleName: detail');
 }
 ```
 
-- **Python** — suite under `if LOGGING_SWITCH:`:
-
 ```python
-LOGGING_SWITCH = False  # or True while debugging this file
-
 if LOGGING_SWITCH:
-    customlog("my_module: detail")
+    customlog("module: detail")
 ```
 
-**Wrong** (forbidden):
+`customlog` also respects **`DUTCH_DEV_LOG`** internally; that does **not** remove the need for **`LOGGING_SWITCH`** at the callsite.
 
-```dart
-customlog('always invoked'); // missing LOGGING_SWITCH
-devLog('…'); // wrong API name
-```
+## Two gates
 
-```python
-customlog("always invoked")  # missing if LOGGING_SWITCH
-```
+1. **`LOGGING_SWITCH`** — compile-time / file-level: if `false`, **do not call** `customlog` in that block.
+2. **`DUTCH_DEV_LOG`** — env / `--dart-define=DUTCH_DEV_LOG=1`: if off, `customlog` no-ops even when called.
 
-The **`customlog` implementation** (`dev_logger.dart` / `dev_logger.py`) applies **`DUTCH_DEV_LOG`** only. It does **not** replace **`LOGGING_SWITCH`** at the callsite.
-
-## Two gates (use both correctly)
-
-1. **`DUTCH_DEV_LOG`** — runtime / compile-time **master gate inside `customlog`** (`1`, `true`, `yes`). If off, **`customlog` is a no-op** — but you must still guard the **call** with **`LOGGING_SWITCH`** (see above).
-   - Flutter: set via **`--dart-define=DUTCH_DEV_LOG=1`** (launch scripts and `run_flutter_app_to_global_log.sh` already do this) and/or env where supported (`dev_logger_io.dart` reads `Platform.environment` on VM).
-   - Flutter **web**: without a dart-define, **`kDebugMode`** can still allow `customlog` — prefer explicit `--dart-define` for parity with devices.
-   - Dart WS: **`Platform.environment['DUTCH_DEV_LOG']`** only — ensure the shell exports it (e.g. `run_dart_ws_to_global_log.sh` sets `DUTCH_DEV_LOG=1` by default).
-   - Python: **`os.environ`** — `run_python_app_to_global_log.sh` exports `DUTCH_DEV_LOG=1` by default.
-
-2. **`LOGGING_SWITCH`** — **per-file / per-entrypoint** `const bool` or module-level bool that **decides whether to call** `customlog` for that block (e.g. `if (LOGGING_SWITCH) { customlog('…'); }`). If `false`, no call — so no output regardless of `DUTCH_DEV_LOG`.
-   - Use **`LOGGING_SWITCH = true`** only where you want optional, easy-to-flip **coarse** tracing (entrypoints, hot paths under investigation). Set **`false`** when you are done debugging that site, or leave as-is and let **release build scripts** flip it in bulk (see `build_*.sh`, Docker helpers) — do **not** revert production tooling unless the user asks.
-
-**Order of checks in code:** **`if (LOGGING_SWITCH) { customlog('…'); }`** first at the callsite; then `customlog` checks **`DUTCH_DEV_LOG`** internally. Both are required; neither replaces the other.
-
-## When to add `customlog`
-
-- Short, **high-signal** lifecycle or handshake messages (startup, auth boundary crossed, rare state transitions).
-- Avoid high-frequency logs (every frame, every WS tick) unless the user explicitly wants a trace.
-
-## `global.log` (merged dev tail)
-
-- **Only** lines that match the **filter contract** are appended (see `LOGGING_SYSTEM.md`): Flutter needs **`I/flutter`/`I flutter` + `[dev]`**; Python/Dart wrappers match **`^\[dev]`** on the line as seen after any tooling prefix.
-- Appending happens when the process is started via **`playbooks/frontend/run_*_to_global_log.sh`** or the matching **VS Code** launch configs — **not** via `launch_chrome.sh` / `launch_oneplus.sh` alone.
-- For debugging, prefer the **process terminal** for full context; use **`tail -f global.log`** when you need a **single merged** dev stream across stacks.
+Launch via **`playbooks/frontend/run_*_to_global_log.sh`** or VS Code configs that use them so defines and `global.log` filtering work.
 
 ## Agent behavior
 
-- When the user asks for “debug prints” or “log this,” add **`if (LOGGING_SWITCH) { customlog('…'); }`** (or the Python equivalent). **Reject** adding bare `customlog` calls.
-- When logs “do not show” in **`global.log`**, verify **`DUTCH_DEV_LOG`**, **`LOGGING_SWITCH`**, and that they run the **`run_*_to_global_log`** wrapper — not only raw `flutter run` / `python app.py`.
-- Do not replace structured production logging paths with **`customlog`**; **`customlog`** is for **opt-in dev noise** only.
+- Prefer fixing bugs without new trace noise.
+- If logs “do not show”, check **`DUTCH_DEV_LOG`**, existing **`LOGGING_SWITCH`**, and that launch used **`run_*_to_global_log`** / dart-define file — not raw `flutter run` without defines.
+- Do not replace production / structured logging with **`customlog`**.

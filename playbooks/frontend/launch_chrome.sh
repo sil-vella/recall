@@ -52,21 +52,12 @@ filter_logs() {
     done
 }
 
-# Dart-define SSOT: .env.dart.defines.local → temp JSON (avoids shell ARG_MAX with many keys).
-if ! command -v python3 &>/dev/null; then
-  echo_and_server_log "❌ python3 not found — required for --dart-define-from-file"
-  exit 1
-fi
-if [ ! -f "$DART_DEFINES_ENV" ]; then
-  echo_and_server_log "❌ Missing dart-define file: $DART_DEFINES_ENV"
-  exit 1
-fi
-DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
-trap 'rm -f "$DART_DEF_JSON"' EXIT
-python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
-export DART_DEF_JSON
-KEYCOUNT="$(python3 -c 'import json,os; print(len(json.load(open(os.environ["DART_DEF_JSON"],encoding="utf-8"))))')"
-echo_and_server_log "   Dart-define-from-file: $KEYCOUNT keys → $DART_DEF_JSON"
+# shellcheck source=flutter_dart_defines_common.sh
+source "$SCRIPT_DIR/flutter_dart_defines_common.sh"
+flutter_dart_defines_require_python || exit 1
+flutter_dart_defines_prepare "$DART_DEFINES_ENV" || exit 1
+trap 'rm -f "${DART_DEF_JSON:-}"' EXIT INT TERM HUP
+flutter_dart_defines_print_summary chrome
 
 # Diagnostic: GOOGLE_CLIENT_ID (helps debug 401 invalid_client)
 GOOGLE_CHECK="$(python3 -c '

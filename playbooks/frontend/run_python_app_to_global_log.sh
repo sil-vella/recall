@@ -5,8 +5,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOG="$REPO_ROOT/global.log"
+LOCAL_ENV="$REPO_ROOT/.env.local"
 
 export DUTCH_DEV_LOG="${DUTCH_DEV_LOG:-1}"
+
+# Same SSOT as docker-compose.debug.yml / launch_oneplus.sh (JWT, ENCRYPTION_KEY, Mongo creds, etc.)
+if [ -f "$LOCAL_ENV" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$LOCAL_ENV"
+  set +a
+else
+  echo "⚠️  Warning: $LOCAL_ENV not found — Config.py will use defaults (e.g. dev ENCRYPTION_KEY)." >&2
+fi
 
 cd "$REPO_ROOT/python_base_04"
 echo "---- run_python_app_to_global_log start $(date '+%Y-%m-%d %H:%M:%S') cwd=$(pwd) ----" >&2

@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # Run Flutter: full stream to terminal; global.log only I/flutter … lines that contain [dev]
-# (repo devLog / debugPrint). No duplicate adb logcat → global.log (that doubled lines and
-# let non-[dev] noise in if anything bypassed grep). Consecutive identical [dev] lines deduped.
+# (repo customlog / debugPrint). No duplicate adb logcat → global.log.
 #
 # Usage:
 #   ./run_flutter_app_to_global_log.sh android <adb_serial>
 #   ./run_flutter_app_to_global_log.sh chrome
 #
-# Requires: .env.dart.defines.local at repo root → temp JSON.
+# Dart-define SSOT: repo-root `.env.dart.defines.local` (see flutter_dart_defines_common.sh).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,6 +14,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOG="$REPO_ROOT/global.log"
 FLUTTER_DIR="$REPO_ROOT/flutter_base_05"
 DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.local"
+
+# shellcheck source=flutter_dart_defines_common.sh
+source "$SCRIPT_DIR/flutter_dart_defines_common.sh"
 
 export DUTCH_DEV_LOG="${DUTCH_DEV_LOG:-1}"
 
@@ -25,23 +27,15 @@ append_banner() {
   echo "---- run_flutter_app_to_global_log $1 $(date '+%Y-%m-%d %H:%M:%S') repo=$REPO_ROOT ----" >&2
 }
 
-if [[ ! -f "$DART_DEFINES_ENV" ]]; then
-  echo "Missing $DART_DEFINES_ENV (dart-define SSOT)." >&2
-  exit 1
-fi
-if ! command -v python3 &>/dev/null; then
-  echo "python3 required for --dart-define-from-file JSON." >&2
-  exit 1
-fi
-
-DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || exit 1
-cleanup_json() { rm -f "$DART_DEF_JSON"; }
+flutter_dart_defines_require_python || exit 1
+flutter_dart_defines_prepare "$DART_DEFINES_ENV" || exit 1
+cleanup_json() { rm -f "${DART_DEF_JSON:-}"; }
 trap cleanup_json EXIT INT TERM HUP
-python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
 
 cd "$FLUTTER_DIR"
 
 append_banner "start mode=$mode"
+flutter_dart_defines_print_summary "$mode"
 
 case "$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')" in
   android)

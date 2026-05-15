@@ -9,7 +9,7 @@
   vars:
     local_env_path: "{{ playbook_dir }}/../../.env.prod"
   tasks:
-    - name: Check if app_dev/.env exists
+    - name: Check if app_dev/.env.prod exists
       stat:
         path: "{{ local_env_path }}"
       register: local_env_check
@@ -18,8 +18,12 @@
       when: local_env_check.stat.exists | default(false)
       shell: |
         python3 << 'PYEOF'
-        import json, os, re
+        import json, os, re, sys
         path = os.environ.get('LOCAL_ENV_PATH', '')
+        required = (
+            'MONGODB_ROOT_PASSWORD', 'MONGODB_PASSWORD', 'REDIS_PASSWORD',
+            'JWT_SECRET_KEY', 'ENCRYPTION_KEY', 'DART_BACKEND_SERVICE_KEY',
+        )
         out = {}
         if path and os.path.isfile(path):
             with open(path) as f:
@@ -30,6 +34,10 @@
                     if m:
                         k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
                         out[k] = v
+        missing = [k for k in required if not (out.get(k) or '').strip()]
+        if missing:
+            print(f'ERROR: .env.prod missing or empty: {", ".join(missing)}', file=sys.stderr)
+            sys.exit(1)
         mapping = {
             'MONGODB_ROOT_PASSWORD': 'mongodb_root_password', 'MONGODB_PASSWORD': 'mongodb_password',
             'REDIS_PASSWORD': 'redis_password', 'JWT_SECRET_KEY': 'jwt_secret_key',

@@ -23,6 +23,59 @@ class Colors:
 # Get script directory and project root
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
+ENV_PROD = PROJECT_ROOT / ".env.prod"
+
+# Deploy/runtime secrets SSOT (same file as 08_deploy_docker_compose.yml → VPS .env).
+# Images do not bake these in; compose passes them at container start.
+REQUIRED_DEPLOY_KEYS = (
+    "MONGODB_ROOT_PASSWORD",
+    "MONGODB_PASSWORD",
+    "REDIS_PASSWORD",
+    "JWT_SECRET_KEY",
+    "ENCRYPTION_KEY",
+    "DART_BACKEND_SERVICE_KEY",
+)
+
+
+def _parse_env_file(path: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
+    if not path.is_file():
+        return out
+    with path.open(encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", line)
+            if not m:
+                continue
+            key, value = m.group(1), m.group(2).strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            out[key] = value
+    return out
+
+
+def _ensure_env_prod_ssot() -> None:
+    if not ENV_PROD.is_file():
+        print(f"{Colors.RED}Missing SSOT: {ENV_PROD}{Colors.NC}", file=sys.stderr)
+        sys.exit(1)
+    values = _parse_env_file(ENV_PROD)
+    missing = [k for k in REQUIRED_DEPLOY_KEYS if not (values.get(k) or "").strip()]
+    if missing:
+        print(
+            f"{Colors.RED}.env.prod missing or empty: {', '.join(missing)}{Colors.NC}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    for key, value in values.items():
+        if key not in os.environ or not os.environ.get(key):
+            os.environ[key] = value
+    print(
+        f"{Colors.GREEN}SSOT OK:{Colors.NC} loaded {len(values)} key(s) from .env.prod "
+        f"(runtime via 08_deploy → VPS .env, not baked into image)"
+    )
+
 
 # Configuration
 DOCKER_USERNAME = os.environ.get('DOCKER_USERNAME', 'silvella')
@@ -218,6 +271,8 @@ def build_and_push():
 def main():
     """Main function."""
     print(f"{Colors.BLUE}=== Docker Build and Push Script ==={Colors.NC}\n")
+
+    _ensure_env_prod_ssot()
 
     # Check if Docker is running
     if not check_docker():

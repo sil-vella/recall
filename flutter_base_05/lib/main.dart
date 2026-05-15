@@ -17,6 +17,7 @@ import 'utils/consts/theme_consts.dart';
 import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 import 'modules/admobs/admob_bootstrap.dart';
 import 'utils/dev_logger.dart';
+import 'utils/consts/config.dart';
 
 // ignore: constant_identifier_names — set false when not debugging this entrypoint (release tooling may flip).
 const bool LOGGING_SWITCH = true;
@@ -39,6 +40,27 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (LOGGING_SWITCH) {
     customlog('main.dart entry');
+    customlog(
+      'Config defines: API_URL=${Config.apiUrl} WS_URL=${Config.wsUrl} '
+      'BUILD_MODE=${Config.buildMode} APP_VERSION=${Config.appVersion} '
+      'platform=${Config.platform} apiKeySet=${Config.apiKey.isNotEmpty}',
+    );
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      final api = Config.apiUrl.toLowerCase();
+      final ws = Config.wsUrl.toLowerCase();
+      if (api.contains('localhost') || api.contains('127.0.0.1')) {
+        customlog(
+          'Config warning: API_URL is loopback — physical Android cannot reach host via '
+          'localhost; use LAN IP in .env.dart.defines.local',
+        );
+      }
+      if (api.contains('10.0.2.2')) {
+        customlog('Config warning: API_URL uses 10.0.2.2 (emulator-only); physical devices need LAN IP');
+      }
+      if (ws.contains('localhost') || ws.contains('127.0.0.1')) {
+        customlog('Config warning: WS_URL is loopback — use ws://<LAN-IP>:8080 on physical devices');
+      }
+    }
   }
   _applyAndroidImmersiveBottomBar();
 

@@ -1,5 +1,5 @@
 ---
-description: Dev logging uses customlog only, inside existing LOGGING_SWITCH blocks. Do not add new log calls or switches unless the user explicitly asks. Always applied.
+description: Dev logging uses customlog only, each call gated by if LOGGING_SWITCH. New customlog allowed; add file-level LOGGING_SWITCH when missing. Always applied.
 alwaysApply: true
 ---
 
@@ -7,15 +7,14 @@ alwaysApply: true
 
 Full reference: `Documentation/Logging/LOGGING_SYSTEM.md`.
 
-## Agent policy (strict)
+## Agent policy
 
-- **Do not add new `customlog` calls** unless the user **explicitly** asks for more dev logging in that change.
-- **Do not add new `LOGGING_SWITCH` constants** (per-file or per-module) unless the user **explicitly** asks to enable tracing in that file.
+- **`customlog` is allowed** in any change **as long as** every call sits inside an **`if LOGGING_SWITCH`** block (see [Mandatory callsite shape](#mandatory-callsite-shape)). That gate may be a **logging-only** `if (LOGGING_SWITCH) { ... }` you add for the trace; it does **not** have to be nested inside some other pre-existing condition in the file.
+- **Reuse** an existing **`LOGGING_SWITCH`** in the file when one is already defined. If the file has **no** switch yet, add a **file-level** `LOGGING_SWITCH` (Dart: `const bool LOGGING_SWITCH = false;` near the top; Python: module-level `LOGGING_SWITCH = False`) so new `customlog` calls have a single compile-time gate—default **off** unless the user asks to turn tracing on in that file.
 - **Do not add logging wrappers** (`logX`, `_fooDebug`, `logCompiledConfigDefines`, `devLog`, `dev_log`, `Logger`, etc.). The **only** dev trace API is **`customlog`**.
 - **Do not re-enable** logging you removed in the same task unless the user asks.
-- When the user **does** ask for dev logs, use **existing** `LOGGING_SWITCH` in that file if present; otherwise ask before introducing a new switch.
 
-## What to use (when the user requests dev logs)
+## What to use
 
 | Stack | API | Import |
 |-------|-----|--------|
@@ -27,7 +26,7 @@ Full reference: `Documentation/Logging/LOGGING_SYSTEM.md`.
 
 ## Mandatory callsite shape
 
-**Every** `customlog` must sit inside an **`if LOGGING_SWITCH`** block (Dart: braced `{ }`; Python: indented suite). No bare `customlog`, no helper that hides the switch.
+**Every** `customlog` must be invoked only from inside an **`if LOGGING_SWITCH`** block (Dart: braced `{ }`; Python: indented suite). No bare `customlog`, no helper that hides the switch.
 
 ```dart
 if (LOGGING_SWITCH) {
@@ -51,6 +50,6 @@ Launch via **`playbooks/frontend/run_*_to_global_log.sh`** or VS Code configs th
 
 ## Agent behavior
 
-- Prefer fixing bugs without new trace noise.
-- If logs “do not show”, check **`DUTCH_DEV_LOG`**, existing **`LOGGING_SWITCH`**, and that launch used **`run_*_to_global_log`** / dart-define file — not raw `flutter run` without defines.
+- Prefer fixing bugs without unnecessary trace noise; add logs when they help trace a flow or debug.
+- If logs “do not show”, check **`DUTCH_DEV_LOG`**, **`LOGGING_SWITCH`**, and that launch used **`run_*_to_global_log`** / dart-define file — not raw `flutter run` without defines.
 - Do not replace production / structured logging with **`customlog`**.

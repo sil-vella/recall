@@ -114,9 +114,9 @@ class DutchEventHandlerCallbacks {
     for (final id in newlyEarned) {
       final ctx = NavigationManager().navigatorKey.currentContext;
       if (ctx == null || !ctx.mounted) return;
+      final title = DutchAchievementCatalog.displayTitle(id);
       final entry = DutchAchievementEntry.byId(id);
-      final title = entry?.title ?? 'Achievement';
-      final body = entry?.description ?? id;
+      final body = entry?.description ?? '';
       try {
         
         await Navigator.of(ctx, rootNavigator: true).push<void>(

@@ -9,16 +9,16 @@ This folder documents every **server-authoritative declarative catalog** for the
 | [PROGRESSION.md](./PROGRESSION.md) | Rank hierarchy, wins→level→rank, matchmaking, rank→AI difficulty, subscription tier ids | [progression_config.json](../../python_base_04/core/modules/dutch_game/config/progression_config.json) |
 | [CONSUMABLES.md](./CONSUMABLES.md) | Shop items: boosters, booster packs, card backs, table designs | [consumables_catalog.json](../../python_base_04/core/modules/dutch_game/config/consumables_catalog.json) |
 | [TABLE_TIERS.md](./TABLE_TIERS.md) | Room table tiers (fees, titles, styles) and special-event presets | [table_tiers.json](../../python_base_04/core/modules/dutch_game/config/table_tiers.json) |
+| [ACHIEVEMENTS.md](./ACHIEVEMENTS.md) | Achievement ids, titles, descriptions, unlock rules (win streak, event win) | [achievements_config.json](../../python_base_04/core/modules/dutch_game/config/achievements_config.json) |
 
 ## How catalogs reach clients
 
 See [INIT_DATA.md](./INIT_DATA.md) for the unified **`get-init-data`** envelope, revision query params, SharedPreferences caching, and public pre-login config.
 
-## Related (not JSON declarative)
+## Related
 
 | Document | Notes |
 |----------|--------|
-| [ACHIEVEMENTS.md](./ACHIEVEMENTS.md) | Achievements are defined in **Python + Flutter code catalogs** (must stay in sync); unlocked state is per-user in Mongo. |
 | [../Consumables/DECLARATIVE_CATALOG.md](../Consumables/DECLARATIVE_CATALOG.md) | Extended consumables ops guide (examples, troubleshooting). |
 | [../Dutch_game/CONSUMABLES_COSMETICS_MVP.md](../Dutch_game/CONSUMABLES_COSMETICS_MVP.md) | MVP product / API overview. |
 

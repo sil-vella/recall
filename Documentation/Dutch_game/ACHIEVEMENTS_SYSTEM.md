@@ -7,7 +7,7 @@ This document describes how the Dutch achievements system works across Python ba
 - Achievement unlock logic is computed server-side at match-stat update time.
 - Achievement state is persisted under the user document in `modules.dutch_game`.
 - Client reads a normalized list of unlocked IDs from user stats endpoints.
-- Client maps IDs to local title/description metadata for list UI and fullscreen celebrations.
+- Client maps IDs to title/description from **`AchievementsCatalogStore`**, populated by revision-gated **`achievements_catalog`** on init (see `Documentation/SSOT_DECLARATIONS/INIT_DATA.md`).
 
 ---
 
@@ -15,7 +15,10 @@ This document describes how the Dutch achievements system works across Python ba
 
 ### Backend (source of truth)
 
-- Catalog and unlock utilities:
+- Declarative JSON + catalog loader (revision, client payload, unlock evaluation):
+  - `python_base_04/core/modules/dutch_game/config/achievements_config.json`
+  - `python_base_04/core/modules/dutch_game/achievements_catalog.py`
+- Thin re-export (optional imports):
   - `python_base_04/core/modules/dutch_game/dutch_achievement_catalog.py`
 - Match-end stat update and persistence:
   - `python_base_04/core/modules/dutch_game/api_endpoints.py` (`update_game_stats`)
@@ -24,8 +27,10 @@ This document describes how the Dutch achievements system works across Python ba
 
 ### Flutter (presentation)
 
-- Local display catalog (must mirror backend IDs):
-  - `flutter_base_05/lib/modules/dutch_game/utils/dutch_achievement_catalog.dart`
+- Hydrated display catalog (from init `achievements_catalog` JSON):
+  - `flutter_base_05/lib/modules/dutch_game/utils/achievements_catalog_store.dart`
+  - `flutter_base_05/lib/modules/dutch_game/utils/achievements_catalog_bootstrap.dart`
+  - `flutter_base_05/lib/modules/dutch_game/utils/dutch_achievement_catalog.dart` (facade: `all`, `displayTitle`)
 - Achievements screen:
   - `flutter_base_05/lib/modules/dutch_game/screens/achievements/achievements_screen.dart`
 - Match-end celebration orchestration:
@@ -41,12 +46,14 @@ This document describes how the Dutch achievements system works across Python ba
 
 ## Catalog definition
 
-In `dutch_achievement_catalog.py`, achievements are declared as ordered entries:
+Achievements are declared in **`achievements_config.json`** and normalized at import by **`achievements_catalog.py`**.
 
-- `win_streak_2` (`min_win_streak = 2`)
-- `win_streak_5` (`min_win_streak = 5`)
+Supported unlock types (v1):
 
-The catalog order is meaningful because unlock scanning is performed end-to-end in that order during stats updates.
+- **`win_streak`** — `unlock.min` threshold compared to post-match win streak.
+- **`event_win`** — requires `is_winner`, and request body `special_event_id` (from Dart `game_state`) matching `unlock.special_event_id`.
+
+Catalog order is preserved; `compute_new_unlocks` scans entries in JSON array order.
 
 ## Unlock evaluation
 
@@ -57,8 +64,10 @@ During `update_game_stats` in `api_endpoints.py`:
    - winner -> `current + 1`
    - non-winner -> `0`
 3. Read already unlocked IDs from `modules.dutch_game.achievements.unlocked`.
-4. Compute newly unlocked IDs by comparing streak against catalog thresholds and skipping already-unlocked entries.
+4. Compute newly unlocked IDs via `compute_new_unlocks(..., is_winner=..., special_event_id=...)` (streak + optional event win).
 5. Persist streak fields and any newly unlocked achievements in one update operation.
+
+**Event matches:** the Dart WebSocket server sends top-level `special_event_id` on `POST /service/dutch/update-game-stats` (from `game_state.special_event_id`) so `event_win` achievements unlock for human winners.
 
 ## Persistence format
 
@@ -117,11 +126,11 @@ The list is derived server-side from the persisted unlocked map via `achievement
 
 ## Fetch/update local state
 
-`DutchGameHelpers.fetchAndUpdateUserDutchGameData()`:
+`DutchGameHelpers.fetchAndUpdateInitData()` (alias `fetchAndUpdateUserDutchGameData`):
 
-1. Calls `GET /userauth/dutch/get-user-stats`.
-2. Extracts `data` payload.
-3. Stores it in Dutch module state as `userStats`.
+1. Calls `GET /userauth/dutch/get-init-data` (with revision query params).
+2. Merges declarative envelopes (including `achievements_catalog`) into prefs + stores.
+3. Stores `data` in Dutch module state as `userStats`.
 
 `DutchGameHelpers.getUserDutchGameStats()` then provides read access to this cached `userStats`.
 
@@ -132,7 +141,7 @@ The list is derived server-side from the persisted unlocked map via `achievement
 - Loads fresh user stats through `fetchAndUpdateUserDutchGameData()`.
 - Reads unlocked IDs from `userStats['achievements_unlocked_ids']`.
 - Renders streak summary card (`win_streak_current`, `win_streak_best`).
-- Renders all entries from local `DutchAchievementCatalog.all`.
+- Renders all entries from `DutchAchievementCatalog.all` (backed by `AchievementsCatalogStore`).
 - Marks each entry unlocked/locked based on membership in unlocked ID set.
 
 ---
@@ -165,19 +174,11 @@ Duplicate suppression uses signatures in callback state to reduce repeated pushe
 
 ---
 
-## Catalog Synchronization Requirement
+## Catalog Synchronization
 
-IDs must remain synchronized between:
+Titles/descriptions and rule definitions are **revision-synced** from the server JSON (`achievements_config.json` / `achievements_catalog` payload). Unlockable IDs are still only those evaluated in Python at `update-game-stats`.
 
-- Python catalog: `dutch_achievement_catalog.py`
-- Flutter catalog: `dutch_achievement_catalog.dart`
-
-If an ID exists only on one side:
-
-- Backend-only ID: unlock persists and appears in `achievements_unlocked_ids`, but client may show fallback title/description in celebration flow.
-- Flutter-only ID: displayed as lockable UI item but never unlocks from backend data.
-
-Recommended rule: treat backend as source of truth; update Flutter catalog in same change when backend catalog changes.
+IDs for **event rewards** should match `special_events[].metadata.rewards.achievement` in `table_tiers.json`.
 
 ---
 
@@ -185,15 +186,14 @@ Recommended rule: treat backend as source of truth; update Flutter catalog in sa
 
 ## Backend
 
-1. Add `AchievementDef` entry in `python_base_04/.../dutch_achievement_catalog.py`.
-2. Ensure threshold logic is representable by existing fields or extend evaluator logic.
-3. Keep ID stable (never rename in-place once shipped unless migration is planned).
+1. Add an entry to `python_base_04/.../config/achievements_config.json` (`id`, `title`, `description`, `unlock`).
+2. For special events, set `unlock.type` to `event_win` and `special_event_id` to the event’s stable id; align `table_tiers.json` reward `achievement` with the same `id`.
+3. Restart/redeploy Python so `achievements_catalog_revision` changes.
 
 ## Flutter
 
-1. Add matching `id/title/description` to `flutter_base_05/.../dutch_achievement_catalog.dart`.
-2. Verify `AchievementsScreen` renders correctly (locked/unlocked states).
-3. Verify match-end celebration resolves title/description by ID and displays expected text.
+1. No code change required for titles/descriptions when the client receives a fresh `achievements_catalog` (stale revision on next init).
+2. Verify `AchievementsScreen` and celebration flows after deploy.
 
 ## Validation checklist
 
@@ -202,6 +202,8 @@ Recommended rule: treat backend as source of truth; update Flutter catalog in sa
 - `achievements_unlocked_ids` includes new ID via stats endpoint.
 - Achievements list shows unlocked tile state.
 - Celebration appears once and in expected modal order.
+
+**Worked examples (streak + event) and how to add a new `unlock.type`:** [../SSOT_DECLARATIONS/ACHIEVEMENTS.md](../SSOT_DECLARATIONS/ACHIEVEMENTS.md).
 
 ---
 
@@ -216,6 +218,7 @@ Recommended rule: treat backend as source of truth; update Flutter catalog in sa
 
 ## Related Docs
 
+- `Documentation/SSOT_DECLARATIONS/ACHIEVEMENTS.md` — JSON SSOT, examples, new unlock types
 - `Documentation/Dutch_game/NOTIFICATION_SYSTEM.md`
 - `Documentation/Dutch_game/PLAYER_PROFILE_DATA.md`
 - `Documentation/Dutch_game/STATE_MANAGEMENT.md`

@@ -11,8 +11,11 @@ import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
+import '../utils/dev_logger.dart';
 
-// Logging switch for this file
+/// Dev trace for random join / special-event WS handling (`DUTCH_DEV_LOG` also gates [customlog]).
+/// Set `DUTCH_DEV_LOG=1` (or `true`/`yes`) in the server environment for stderr lines.
+const bool LOGGING_SWITCH = true;
 
 /// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
 /// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.
@@ -1404,7 +1407,10 @@ class MessageHandler {
     }
     
     if (userId == null) {
-      
+      if (LOGGING_SWITCH) {
+        customlog('join_random_game: abort — no userId for session');
+      }
+
       _sendError(sessionId, 'User ID not available. Please reconnect.');
       return;
     }
@@ -1434,8 +1440,15 @@ class MessageHandler {
     if (rawSpecialEventId is String && rawSpecialEventId.trim().isNotEmpty) {
       parsedSpecialEventId = rawSpecialEventId.trim();
     }
-    
-    
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'join_random_game: userId=$userId game_level=$requestedGameLevel '
+        'isClearAndCollect=$isClearAndCollect '
+        'special_event_id=${parsedSpecialEventId ?? '(vanilla)'}',
+      );
+    }
+
     // Log user account type for registration differences testing
     try {
       final profileResult = await _server.pythonClient.getUserProfile(userId);
@@ -1462,15 +1475,26 @@ class MessageHandler {
 
       // Vanilla random join must not land in special-event lanes; event join must only pool matching `special_event_id`.
       availableRooms = _filterRoomsBySpecialEventLane(availableRooms, parsedSpecialEventId);
-      
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'join_random_game: pooled_public_rooms=${availableRooms.length} '
+          '(rank+table_level+event_lane)',
+        );
+      }
 
       if (availableRooms.isNotEmpty) {
         // Pick a random room
         final random = Random();
         final selectedRoom = availableRooms[random.nextInt(availableRooms.length)];
-        
-        
-        
+
+        if (LOGGING_SWITCH) {
+          customlog(
+            'join_random_game: join_existing room_id=${selectedRoom.roomId} '
+            'special_event_id=${parsedSpecialEventId ?? '(vanilla)'}',
+          );
+        }
+
         // Use existing join room logic
         _handleJoinRoom(sessionId, {
           'room_id': selectedRoom.roomId,
@@ -1489,6 +1513,11 @@ class MessageHandler {
       final uid = userId;
       final joinerUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
       if (!WinsLevelRankMatcher.userMayJoinGameTable(joinerUserLevel, requestedGameLevel)) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'join_random_game: reject user_level=$joinerUserLevel < required for table=$requestedGameLevel',
+          );
+        }
         _server.sendToSession(sessionId, {
           'event': 'join_room_error',
           'message':
@@ -1501,7 +1530,12 @@ class MessageHandler {
       
       _verifyCoinsForJoin(uid, requestedGameLevel).then((ok) {
         if (!ok) {
-          
+          if (LOGGING_SWITCH) {
+            customlog(
+              'join_random_game: insufficient_coins userId=$uid game_level=$requestedGameLevel',
+            );
+          }
+
           _server.sendToSession(
             sessionId,
             _joinRoomCoinErrorPayload(
@@ -1518,6 +1552,11 @@ class MessageHandler {
           gameTableLevel: requestedGameLevel,
         );
         if (seAttach.error != null) {
+          if (LOGGING_SWITCH) {
+            customlog(
+              'join_random_game: special_event_resolve_error ${seAttach.error}',
+            );
+          }
           _server.sendToSession(sessionId, {
             'event': 'join_room_error',
             'message': seAttach.error!,
@@ -1631,11 +1670,20 @@ class MessageHandler {
         delaySeconds,
         (roomId) => _startMatchForRandomJoin(roomId),
       );
-      
-      
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'join_random_game: created room_id=$roomId persisted_special_event_id='
+          '${persistedSpecialEventId ?? '(none)'} delay_s=$delaySeconds',
+        );
+      }
+
       });
     } catch (e) {
-      
+      if (LOGGING_SWITCH) {
+        customlog('join_random_game: catch $e');
+      }
+
       _server.sendToSession(sessionId, {
         'event': 'join_room_error',
         'message': 'Failed to join random game: $e',

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "achievements": [
+    {
+      "id": "win_streak_2",
+      "title": "Hot hand",
+      "description": "Win 2 matches in a row.",
+      "unlock": { "type": "win_streak", "min": 2 }
+    },
+    {
+      "id": "win_streak_5",
+      "title": "On a roll",
+      "description": "Win 5 matches in a row.",
+      "unlock": { "type": "win_streak", "min": 5 }
+    },
+    {
+      "id": "winter_duels_winner",
+      "title": "Winter Duels winner",
+      "description": "Won the Winter Duels special event.",
+      "unlock": { "type": "event_win", "special_event_id": "winter_duels" }
+    }
+  ]
+}

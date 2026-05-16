@@ -43,7 +43,16 @@ class BannerAdModule extends ModuleBase {
   /// Bumped when a slot's [AdWidget] host changes so the next mount gets a fresh key.
   final Map<String, int> _slotAdWidgetGeneration = <String, int>{};
 
-  void _notifyFrame() => _frameTick.value++;
+  bool _disposed = false;
+
+  /// Schedules a tick bump **after** the current frame so [releaseSlot] during [deactivate]
+  /// does not notify [ValueListenableBuilder] listeners while the framework is still building.
+  void _notifyFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) return;
+      _frameTick.value++;
+    });
+  }
 
   /// Returns a new banner host widget for [slot]. Only the owning host builds [AdWidget].
   Widget show(BuildContext context, {required String slot}) {
@@ -204,6 +213,7 @@ class BannerAdModule extends ModuleBase {
 
   @override
   void dispose() {
+    _disposed = true;
     _loadsInFlight.clear();
     _slotOwnerBySlot.clear();
     _slotAdWidgetGeneration.clear();

@@ -3,9 +3,15 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../utils/consts/config.dart';
 import '../../../backend_core/utils/level_matcher.dart';
 import '../../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
+import '../../../../../utils/dev_logger.dart';
+
+/// Dev trace for Quick join / Special events lobby UI (`DUTCH_DEV_LOG` also gates [customlog]).
+// ignore: constant_identifier_names — set false when not tracing this flow (release tooling may flip).
+const bool LOGGING_SWITCH = true;
 
 // Enable for random game join debugging (logs to console / server.log)
 
@@ -102,9 +108,23 @@ List<JoinRandomCarouselEntry> buildJoinRandomCarouselEntries() {
       LevelMatcher.specialEvents.map((m) => Map<String, dynamic>.from(m)).toList().reversed;
   final out = <JoinRandomCarouselEntry>[
     ...eventsReversed.map(JoinRandomEventEntry.new),
-    ...LevelMatcher.levelOrder.map((l) => JoinRandomTierEntry(l)),
+    ...LevelMatcher.levelOrder.map(JoinRandomTierEntry.new),
   ];
   return out;
+}
+
+/// Standard table tiers only (Quick Join tab).
+List<JoinRandomCarouselEntry> buildJoinRandomTierEntries() {
+  LevelMatcher.ensureHydratedMinimal();
+  return LevelMatcher.levelOrder.map(JoinRandomTierEntry.new).toList();
+}
+
+/// Catalog special events only (newest-first), matching former combined carousel order.
+List<JoinRandomCarouselEntry> buildJoinRandomSpecialEventEntries() {
+  LevelMatcher.ensureHydratedMinimal();
+  final eventsReversed =
+      LevelMatcher.specialEvents.map((m) => Map<String, dynamic>.from(m)).toList().reversed;
+  return eventsReversed.map(JoinRandomEventEntry.new).toList();
 }
 
 /// Page index aligned with **[special_events reversed] + [tiers]** — lands on highest unlocked tier.
@@ -113,6 +133,14 @@ int defaultCarouselIndexForHighestUnlockedTier(List<JoinRandomCarouselEntry> ent
   for (var i = 0; i < entries.length; i++) {
     final e = entries[i];
     if (e is JoinRandomTierEntry && e.level == best) return i;
+  }
+  return 0;
+}
+
+/// First unlocked carousel page (for special events — falls back to `0` if all locked).
+int defaultCarouselIndexFirstUnlocked(List<JoinRandomCarouselEntry> entries) {
+  for (var i = 0; i < entries.length; i++) {
+    if (!joinRandomEntryLocked(entries[i])) return i;
   }
   return 0;
 }
@@ -184,6 +212,96 @@ int? joinRandomCarouselIndexForRouteHints(
   return null;
 }
 
+/// [joinRandomCarouselIndexForRouteHints] restricted to standard tier entries.
+int? joinRandomTierCarouselIndexForRouteHints(
+  List<JoinRandomCarouselEntry> entries, {
+  int? gameLevel,
+  String? tableHint,
+}) {
+  if (entries.isEmpty) return null;
+
+  if (gameLevel != null && gameLevel >= 1) {
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e is JoinRandomTierEntry && e.level == gameLevel) return i;
+    }
+  }
+
+  final hint = tableHint?.trim();
+  if (hint != null && hint.isNotEmpty) {
+    final parsedLevel = int.tryParse(hint);
+    if (parsedLevel != null && parsedLevel >= 1) {
+      for (var i = 0; i < entries.length; i++) {
+        final e = entries[i];
+        if (e is JoinRandomTierEntry && e.level == parsedLevel) return i;
+      }
+    }
+    final hs = joinRandomTableHintSlug(hint);
+    if (hs.isEmpty) return null;
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e is! JoinRandomTierEntry) continue;
+      final title = joinRandomTableHintSlug(joinRandomCarouselTitle(e));
+      if (title == hs || (hs.length >= 2 && (title.contains(hs) || hs.contains(title)))) {
+        return i;
+      }
+      if (joinRandomTableHintSlug('${e.level}') == hs) return i;
+    }
+  }
+
+  return null;
+}
+
+/// [joinRandomCarouselIndexForRouteHints] restricted to special-event entries.
+int? joinRandomEventCarouselIndexForRouteHints(
+  List<JoinRandomCarouselEntry> entries, {
+  String? eventId,
+  int? gameLevel,
+  String? tableHint,
+}) {
+  if (entries.isEmpty) return null;
+
+  final eid = eventId?.trim();
+  if (eid != null && eid.isNotEmpty) {
+    final slug = joinRandomTableHintSlug(eid);
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e is! JoinRandomEventEntry) continue;
+      final id = joinRandomTableHintSlug(e.id);
+      if (id == slug || id.contains(slug) || slug.contains(id)) return i;
+      final t = joinRandomTableHintSlug(joinRandomCarouselTitle(e));
+      if (t == slug || (slug.length >= 2 && (t.contains(slug) || slug.contains(t)))) return i;
+    }
+  }
+
+  if (gameLevel != null && gameLevel >= 1) {
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e is JoinRandomEventEntry && resolvedGameLevelForSpecialEvent(e.raw) == gameLevel) {
+        return i;
+      }
+    }
+  }
+
+  final hint = tableHint?.trim();
+  if (hint != null && hint.isNotEmpty) {
+    final hs = joinRandomTableHintSlug(hint);
+    if (hs.isEmpty) return null;
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e is! JoinRandomEventEntry) continue;
+      final title = joinRandomTableHintSlug(joinRandomCarouselTitle(e));
+      if (title == hs || (hs.length >= 2 && (title.contains(hs) || hs.contains(title)))) {
+        return i;
+      }
+      final id = joinRandomTableHintSlug(e.id);
+      if (id == hs || (hs.length >= 2 && (id.contains(hs) || hs.contains(id)))) return i;
+    }
+  }
+
+  return null;
+}
+
 int joinRandomDisplayCoins(JoinRandomCarouselEntry e) {
   if (e is JoinRandomTierEntry) return LevelMatcher.levelToCoinFee(e.level);
   if (e is JoinRandomEventEntry) {
@@ -243,6 +361,7 @@ class _JoinRandomTableCarousel extends StatefulWidget {
   final bool lockedInteraction;
 
   const _JoinRandomTableCarousel({
+    super.key,
     required this.entries,
     required this.selectedIndex,
     required this.onPageIndexChanged,
@@ -539,6 +658,109 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
   }
 }
 
+/// Quick Join vs Special events — matches leaderboard period toggle styling.
+class _JoinRandomSubTabBar extends StatelessWidget {
+  const _JoinRandomSubTabBar({
+    required this.tabIndex,
+    required this.onChanged,
+  });
+
+  /// `0` = Quick join (standard tiers), `1` = Special events.
+  final int tabIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final inactiveBg = AppColors.accentContrast.withValues(alpha: 0.28);
+    final inactiveFg = AppColors.textOnPrimary.withValues(alpha: 0.45);
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.scaffoldDeepPlumColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cardVariant,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => onChanged(0),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
+                ),
+                child: Semantics(
+                  label: 'Join random: Quick join tab',
+                  identifier: 'join_random_subtab_quick_join',
+                  button: true,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: tabIndex == 0 ? AppColors.accentContrast : inactiveBg,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        bottomLeft: Radius.circular(12),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Quick join',
+                      style: AppTextStyles.bodyMedium(
+                        color: tabIndex == 0 ? AppColors.textOnAccent : inactiveFg,
+                      ).copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => onChanged(1),
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+                child: Semantics(
+                  label: 'Join random: Special events tab',
+                  identifier: 'join_random_subtab_special_events',
+                  button: true,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: tabIndex == 1 ? AppColors.accentContrast : inactiveBg,
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(12),
+                        bottomRight: Radius.circular(12),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Special events',
+                      style: AppTextStyles.bodyMedium(
+                        color: tabIndex == 1 ? AppColors.textOnAccent : inactiveFg,
+                      ).copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Widget to join a random available game
 ///
 /// Provides a single button that:
@@ -559,10 +781,19 @@ class JoinRandomGameWidget extends StatefulWidget {
 
 class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   bool _isLoading = false;
-  late List<JoinRandomCarouselEntry> _entries;
-  late int _carouselIndex;
+  static const int _tabQuickJoin = 0;
+  static const int _tabSpecialEvents = 1;
+
+  int _joinRandomSubTab = _tabQuickJoin;
+
+  late List<JoinRandomCarouselEntry> _tierEntries;
+  late List<JoinRandomCarouselEntry> _eventEntries;
+  late int _tierCarouselIndex;
+  late int _eventCarouselIndex;
+
   /// [GoRouterState.uri.query] last applied for carousel hints (re-apply when query changes).
   String? _lastJoinRandomRouteQueryApplied;
+
   /// Carousel identity for resync after [LevelMatcher] catalog merge.
   static String? _carouselEntryKey(JoinRandomCarouselEntry e) {
     if (e is JoinRandomTierEntry) return 't:${e.level}';
@@ -570,24 +801,61 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     return null;
   }
 
+  List<JoinRandomCarouselEntry> get _activeEntries =>
+      _joinRandomSubTab == _tabSpecialEvents ? _eventEntries : _tierEntries;
+
+  int get _activeCarouselIndex =>
+      _joinRandomSubTab == _tabSpecialEvents ? _eventCarouselIndex : _tierCarouselIndex;
+
+  void _setActiveCarouselIndex(int i) {
+    if (_joinRandomSubTab == _tabSpecialEvents) {
+      _eventCarouselIndex = i;
+    } else {
+      _tierCarouselIndex = i;
+    }
+  }
+
   void _resyncCarouselFromCatalog() {
-    final anchor = _entries.isEmpty
+    final tierAnchorKey = _tierEntries.isEmpty
         ? null
         : _carouselEntryKey(
-            _entries[_carouselIndex.clamp(0, _entries.length - 1)],
+            _tierEntries[_tierCarouselIndex.clamp(0, _tierEntries.length - 1)],
           );
-    final next = buildJoinRandomCarouselEntries();
-    var idx = defaultCarouselIndexForHighestUnlockedTier(next);
-    if (anchor != null) {
-      for (var i = 0; i < next.length; i++) {
-        if (_carouselEntryKey(next[i]) == anchor) {
-          idx = i;
+    final eventAnchorKey = _eventEntries.isEmpty
+        ? null
+        : _carouselEntryKey(
+            _eventEntries[_eventCarouselIndex.clamp(0, _eventEntries.length - 1)],
+          );
+
+    final nextTiers = buildJoinRandomTierEntries();
+    final nextEvents = buildJoinRandomSpecialEventEntries();
+
+    var tierIdx = defaultCarouselIndexForHighestUnlockedTier(nextTiers);
+    if (tierAnchorKey != null) {
+      for (var i = 0; i < nextTiers.length; i++) {
+        if (_carouselEntryKey(nextTiers[i]) == tierAnchorKey) {
+          tierIdx = i;
           break;
         }
       }
     }
-    _entries = next;
-    _carouselIndex = next.isEmpty ? 0 : idx.clamp(0, next.length - 1);
+
+    var eventIdx = defaultCarouselIndexFirstUnlocked(nextEvents);
+    if (eventAnchorKey != null) {
+      for (var i = 0; i < nextEvents.length; i++) {
+        if (_carouselEntryKey(nextEvents[i]) == eventAnchorKey) {
+          eventIdx = i;
+          break;
+        }
+      }
+    }
+
+    _tierEntries = nextTiers;
+    _eventEntries = nextEvents;
+    _tierCarouselIndex =
+        nextTiers.isEmpty ? 0 : tierIdx.clamp(0, nextTiers.length - 1);
+    _eventCarouselIndex =
+        nextEvents.isEmpty ? 0 : eventIdx.clamp(0, nextEvents.length - 1);
   }
 
   void _onCatalogMerged() {
@@ -596,8 +864,11 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     setState(() {});
   }
 
-  JoinRandomCarouselEntry get _currentEntry =>
-      _entries.isEmpty ? JoinRandomTierEntry(1) : _entries[_carouselIndex.clamp(0, _entries.length - 1)];
+  JoinRandomCarouselEntry get _currentEntry {
+    final list = _activeEntries;
+    if (list.isEmpty) return JoinRandomTierEntry(1);
+    return list[_activeCarouselIndex.clamp(0, list.length - 1)];
+  }
 
   JoinRandomSelection get _selection => joinRandomSelectionForEntry(_currentEntry);
 
@@ -605,15 +876,28 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   void initState() {
     super.initState();
     LevelMatcher.ensureHydratedMinimal();
-    _entries = buildJoinRandomCarouselEntries();
-    _carouselIndex = defaultCarouselIndexForHighestUnlockedTier(_entries);
-    if (_entries.isEmpty) {
-      _carouselIndex = 0;
+    _tierEntries = buildJoinRandomTierEntries();
+    _eventEntries = buildJoinRandomSpecialEventEntries();
+    _tierCarouselIndex = defaultCarouselIndexForHighestUnlockedTier(_tierEntries);
+    if (_tierEntries.isEmpty) {
+      _tierCarouselIndex = 0;
     } else {
-      _carouselIndex = _carouselIndex.clamp(0, _entries.length - 1);
+      _tierCarouselIndex = _tierCarouselIndex.clamp(0, _tierEntries.length - 1);
+    }
+    _eventCarouselIndex = defaultCarouselIndexFirstUnlocked(_eventEntries);
+    if (_eventEntries.isEmpty) {
+      _eventCarouselIndex = 0;
+    } else {
+      _eventCarouselIndex = _eventCarouselIndex.clamp(0, _eventEntries.length - 1);
     }
     LevelMatcher.catalogChangeVersion.addListener(_onCatalogMerged);
     _setupWebSocketListeners();
+    if (LOGGING_SWITCH) {
+      customlog(
+        'JoinRandomGameWidget: panel mounted tier_count=${_tierEntries.length} '
+        'event_count=${_eventEntries.length} (tap Classic / Clear and Collect for emit logs)',
+      );
+    }
   }
 
   @override
@@ -636,29 +920,84 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     if (q == _lastJoinRandomRouteQueryApplied) return;
 
     final p = uri.queryParameters;
+    final subTabParam = (p['join_random_tab'] ?? p['quick_join_tab'])?.toLowerCase().trim();
     final eventId = (p['event_id'] ?? p['event'])?.trim();
     final gl = int.tryParse(p['game_level'] ?? '');
     final table = (p['table'] ?? p['carousel'] ?? p['game_table'])?.trim();
-    final hasHint = (eventId != null && eventId.isNotEmpty) ||
+    final hasCarouselHint = (eventId != null && eventId.isNotEmpty) ||
         (gl != null && gl >= 1) ||
         (table != null && table.isNotEmpty);
-    if (!hasHint) return;
+    final hasSubTabHint = subTabParam != null && subTabParam.isNotEmpty;
+    if (!hasCarouselHint && !hasSubTabHint) return;
 
     _lastJoinRandomRouteQueryApplied = q;
 
-    final idx = joinRandomCarouselIndexForRouteHints(
-      _entries,
-      eventId: eventId,
-      gameLevel: (gl != null && gl >= 1) ? gl : null,
-      tableHint: table,
-    );
-    if (idx == null) return;
-    final clamped = idx.clamp(0, _entries.length - 1);
-    if (clamped == _carouselIndex) return;
-    setState(() => _carouselIndex = clamped);
+    var newSubTab = _joinRandomSubTab;
+    int? newTierIdx;
+    int? newEventIdx;
+
+    if (subTabParam == 'special' ||
+        subTabParam == 'special_events' ||
+        subTabParam == 'events') {
+      newSubTab = _tabSpecialEvents;
+    } else if (subTabParam == 'quick' ||
+        subTabParam == 'tables' ||
+        subTabParam == 'quick_join') {
+      newSubTab = _tabQuickJoin;
+    }
+
+    if (eventId != null && eventId.isNotEmpty) {
+      newSubTab = _tabSpecialEvents;
+      final idx = joinRandomEventCarouselIndexForRouteHints(
+        _eventEntries,
+        eventId: eventId,
+        gameLevel: (gl != null && gl >= 1) ? gl : null,
+        tableHint: table,
+      );
+      if (idx != null) newEventIdx = idx;
+    } else if (hasCarouselHint) {
+      final tierIdx = joinRandomTierCarouselIndexForRouteHints(
+        _tierEntries,
+        gameLevel: (gl != null && gl >= 1) ? gl : null,
+        tableHint: table,
+      );
+      if (tierIdx != null) {
+        newSubTab = _tabQuickJoin;
+        newTierIdx = tierIdx;
+      } else {
+        final eventIdx = joinRandomEventCarouselIndexForRouteHints(
+          _eventEntries,
+          gameLevel: (gl != null && gl >= 1) ? gl : null,
+          tableHint: table,
+        );
+        if (eventIdx != null) {
+          newSubTab = _tabSpecialEvents;
+          newEventIdx = eventIdx;
+        }
+      }
+    }
+
+    final tierClampMax = _tierEntries.isEmpty ? 0 : _tierEntries.length - 1;
+    final eventClampMax = _eventEntries.isEmpty ? 0 : _eventEntries.length - 1;
+
+    setState(() {
+      _joinRandomSubTab = newSubTab;
+      final tIdx = newTierIdx;
+      if (tIdx != null) {
+        _tierCarouselIndex = tIdx.clamp(0, tierClampMax);
+      }
+      final eIdx = newEventIdx;
+      if (eIdx != null) {
+        _eventCarouselIndex = eIdx.clamp(0, eventClampMax);
+      }
+    });
   }
 
-  bool _isCurrentLocked() => joinRandomEntryLocked(_currentEntry);
+  bool _isCurrentLocked() {
+    final list = _activeEntries;
+    if (list.isEmpty) return true;
+    return joinRandomEntryLocked(_currentEntry);
+  }
 
   void _onJoinRoomError(dynamic data) {
     if (mounted) {
@@ -701,9 +1040,14 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     if (_isCurrentLocked()) {
       if (mounted) {
         final req = joinRandomRequiredPlayerLevel(_currentEntry);
+        final isEventsTab = _joinRandomSubTab == _tabSpecialEvents;
         final msg = req != null
-            ? 'This option is locked. Reach player level $req to play here, or swipe to an unlocked table.'
-            : 'This option is locked. Swipe to an unlocked table.';
+            ? (isEventsTab
+                ? 'This event is locked. Reach player level $req to play here, or swipe to another event.'
+                : 'This option is locked. Reach player level $req to play here, or swipe to an unlocked table.')
+            : (isEventsTab
+                ? 'This option is locked. Swipe to an unlocked event.'
+                : 'This option is locked. Swipe to an unlocked table.');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -722,9 +1066,48 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     });
 
     try {
-      final isReady = await DutchGameHelpers.ensureWebSocketReady();
-      
+      if (LOGGING_SWITCH) {
+        customlog(
+          'JoinRandomGameWidget: tap received isClearAndCollect=$isClearAndCollect '
+          '(calling ensureWebSocketReady)',
+        );
+      }
+      final isReady = await DutchGameHelpers.ensureWebSocketReady().timeout(
+        const Duration(seconds: 45),
+        onTimeout: () {
+          if (LOGGING_SWITCH) {
+            customlog(
+              'JoinRandomGameWidget: ensureWebSocketReady outer TIMEOUT (45s) — '
+              'check API token refresh, WS_URL=${Config.wsUrl}, device network',
+            );
+          }
+          return false;
+        },
+      );
+
+      if (LOGGING_SWITCH) {
+        customlog('JoinRandomGameWidget: ensureWebSocketReady => $isReady');
+      }
+
       if (!isReady) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'JoinRandomGameWidget: abort before joinRandomGame — WebSocket not ready '
+            '(see login state / WS init; account screen may open for auth)',
+          );
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Not connected to the game server yet. Check you are logged in and on the network, then try again.',
+                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+              ),
+              backgroundColor: AppColors.warningColor,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
         return;
       }
 
@@ -734,6 +1117,18 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
               specialEventRaw != null
           ? (specialEventRaw['id'] ?? specialEventRaw['event_id'])?.toString().trim()
           : null;
+
+      if (LOGGING_SWITCH) {
+        final tab =
+            _joinRandomSubTab == _tabSpecialEvents ? 'special_events' : 'quick_join';
+        final se = specialEventId?.trim();
+        customlog(
+          'JoinRandomGameWidget: join tab=$tab game_level=$gameLevel '
+          'isClearAndCollect=$isClearAndCollect special_event_id='
+          '${(se != null && se.isNotEmpty) ? se : '(none)'}',
+        );
+      }
+
       final result = await DutchGameHelpers.joinRandomGame(
         isClearAndCollect: isClearAndCollect,
         gameLevel: gameLevel,
@@ -759,6 +1154,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         throw Exception(errorMessage);
       }
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        customlog('JoinRandomGameWidget: join failed $e');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -820,8 +1218,11 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final list = _activeEntries;
     final tableLocked = _isCurrentLocked();
     final reqLevel = joinRandomRequiredPlayerLevel(_currentEntry);
+    final isEventsTab = _joinRandomSubTab == _tabSpecialEvents;
+    final eventsEmpty = isEventsTab && list.isEmpty;
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
@@ -847,34 +1248,64 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _JoinRandomSubTabBar(
+                    tabIndex: _joinRandomSubTab,
+                    onChanged: (i) {
+                      if (_joinRandomSubTab == i) return;
+                      setState(() => _joinRandomSubTab = i);
+                    },
+                  ),
+                  SizedBox(height: AppPadding.mediumPadding.top),
                   Text(
-                    'Quick Join',
+                    isEventsTab ? 'Special events' : 'Quick join',
                     style: AppTextStyles.headingSmall().copyWith(color: AppColors.white),
                   ),
                   SizedBox(height: AppPadding.mediumPadding.top),
                   Text(
-                    'Join a random available game',
+                    isEventsTab
+                        ? 'Pick a limited-time table, then join a random available game'
+                        : 'Join a random available game',
                     style: AppTextStyles.label().copyWith(
                       color: AppColors.textSecondary,
                     ),
                   ),
                   SizedBox(height: AppPadding.defaultPadding.top),
                   Text(
-                    'Table level',
+                    isEventsTab ? 'Event' : 'Table level',
                     style: AppTextStyles.label().copyWith(
                       color: AppColors.white,
                     ),
                   ),
                   SizedBox(height: AppPadding.smallPadding.top),
-                  _JoinRandomTableCarousel(
-                    entries: _entries,
-                    selectedIndex: _carouselIndex,
-                    lockedInteraction: _isLoading,
-                    onPageIndexChanged: (i) {
-                      setState(() => _carouselIndex = i);
-                    },
-                  ),
-                  if (tableLocked) ...[
+                  if (eventsEmpty)
+                    Semantics(
+                      label: 'join_random_no_special_events',
+                      identifier: 'join_random_no_special_events',
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
+                        child: Text(
+                          'No special events right now. Check back later.',
+                          style: AppTextStyles.caption().copyWith(
+                            color: AppColors.textSecondary,
+                            height: 1.35,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  else
+                    _JoinRandomTableCarousel(
+                      key: ValueKey<String>(
+                        'join_random_carousel_${_joinRandomSubTab}_${list.length}',
+                      ),
+                      entries: list,
+                      selectedIndex: _activeCarouselIndex,
+                      lockedInteraction: _isLoading,
+                      onPageIndexChanged: (i) {
+                        setState(() => _setActiveCarouselIndex(i));
+                      },
+                    ),
+                  if (!eventsEmpty && tableLocked) ...[
                     SizedBox(height: AppPadding.smallPadding.top),
                     Semantics(
                       label: 'join_random_table_locked_notice',
@@ -882,9 +1313,13 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                       child: SizedBox(
                         width: double.infinity,
                         child: Text(
-                          reqLevel != null
-                              ? 'This option is locked for your account. Reach player level $reqLevel to play here, or swipe to an unlocked table.'
-                              : 'This option is locked. Swipe to an unlocked table or event.',
+                          isEventsTab
+                              ? (reqLevel != null
+                                  ? 'This event is locked for your account. Reach player level $reqLevel to play here, or swipe to another event.'
+                                  : 'This option is locked. Swipe to an unlocked event.')
+                              : (reqLevel != null
+                                  ? 'This option is locked for your account. Reach player level $reqLevel to play here, or swipe to an unlocked table.'
+                                  : 'This option is locked. Swipe to an unlocked table.'),
                           style: AppTextStyles.caption().copyWith(
                             color: AppColors.warningColor,
                             height: 1.35,
@@ -909,7 +1344,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                     child: SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _isLoading ? null : () => _handleJoinRandomGame(isClearAndCollect: false),
+                        onPressed: (_isLoading || eventsEmpty)
+                            ? null
+                            : () => _handleJoinRandomGame(isClearAndCollect: false),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.accentColor,
                           foregroundColor: AppColors.textOnAccent,
@@ -943,7 +1380,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                     child: SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _isLoading ? null : () => _handleJoinRandomGame(isClearAndCollect: true),
+                        onPressed: (_isLoading || eventsEmpty)
+                            ? null
+                            : () => _handleJoinRandomGame(isClearAndCollect: true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.accentColor,
                           foregroundColor: AppColors.textOnAccent,

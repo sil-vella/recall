@@ -18,15 +18,9 @@ from . import dutch_notifications
 from . import table_tiers_catalog as ttc
 from . import consumables_catalog as cc
 from . import progression_catalog as prog
+from . import achievements_catalog as achcat
 from core.modules.notification_module.global_broadcast_service import load_global_broadcast_payload_for_user
 from .wins_level_rank_matcher import WinsLevelRankMatcher
-from .dutch_achievement_catalog import (
-    achievements_unlocked_ids_sorted,
-    compute_new_unlocks,
-    next_win_streak,
-    parse_stored_streak,
-    unlocked_achievement_ids_from_dutch_game,
-)
 
 dutch_api = Blueprint('dutch_api', __name__)
 
@@ -1058,6 +1052,8 @@ def update_game_stats():
         ended_at_utc = datetime.now(timezone.utc)
         updated_players = []
         errors = []
+        _raw_se = data.get("special_event_id") or data.get("specialEventId")
+        match_special_event_id = str(_raw_se).strip() if _raw_se else ""
         for player_result in game_results:
             try:
                 user_id_str = player_result.get('user_id')
@@ -1128,10 +1124,15 @@ def update_game_stats():
                     current_user_level = matcher.DEFAULT_LEVEL
                 level_changed = target_user_level != current_user_level
 
-                streak_before = parse_stored_streak(dutch_game.get("win_streak_current"))
-                new_win_streak = next_win_streak(streak_before, bool(is_winner))
-                already_unlocked = unlocked_achievement_ids_from_dutch_game(dutch_game)
-                newly_unlocked_achievements = compute_new_unlocks(new_win_streak, already_unlocked)
+                streak_before = achcat.parse_stored_streak(dutch_game.get("win_streak_current"))
+                new_win_streak = achcat.next_win_streak(streak_before, bool(is_winner))
+                already_unlocked = achcat.unlocked_achievement_ids_from_dutch_game(dutch_game)
+                newly_unlocked_achievements = achcat.compute_new_unlocks(
+                    new_win_streak,
+                    already_unlocked,
+                    is_winner=bool(is_winner),
+                    special_event_id=match_special_event_id or None,
+                )
                 raw_best = dutch_game.get("win_streak_best", 0)
                 try:
                     prev_best = max(0, int(raw_best))
@@ -1271,8 +1272,8 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
                 "subscription_tier": matcher.TIER_PROMOTIONAL,
                 "last_match_date": None,
                 "last_updated": None,
-                "win_streak_current": parse_stored_streak(None),
-                "win_streak_best": parse_stored_streak(None),
+                "win_streak_current": achcat.parse_stored_streak(None),
+                "win_streak_best": achcat.parse_stored_streak(None),
                 "achievements_unlocked_ids": [],
                 "inventory": _normalize_inventory(None),
                 "dutch_module_initialized": False,
@@ -1297,9 +1298,9 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             "subscription_tier": dutch_game.get("subscription_tier") or matcher.TIER_PROMOTIONAL,
             "last_match_date": dutch_game.get("last_match_date"),
             "last_updated": dutch_game.get("last_updated"),
-            "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
-            "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
-            "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
+            "win_streak_current": achcat.parse_stored_streak(dutch_game.get("win_streak_current")),
+            "win_streak_best": achcat.parse_stored_streak(dutch_game.get("win_streak_best")),
+            "achievements_unlocked_ids": achcat.achievements_unlocked_ids_sorted(dutch_game),
             "inventory": _normalize_inventory(dutch_game.get("inventory")),
             "dutch_module_initialized": True,
         }
@@ -1309,9 +1310,9 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             "subscription_tier": dutch_game.get("subscription_tier") or matcher.TIER_PROMOTIONAL,
             "level": dutch_game.get("level", matcher.DEFAULT_LEVEL),
             "rank": dutch_game.get("rank") or matcher.DEFAULT_RANK,
-            "win_streak_current": parse_stored_streak(dutch_game.get("win_streak_current")),
-            "win_streak_best": parse_stored_streak(dutch_game.get("win_streak_best")),
-            "achievements_unlocked_ids": achievements_unlocked_ids_sorted(dutch_game),
+            "win_streak_current": achcat.parse_stored_streak(dutch_game.get("win_streak_current")),
+            "win_streak_best": achcat.parse_stored_streak(dutch_game.get("win_streak_best")),
+            "achievements_unlocked_ids": achcat.achievements_unlocked_ids_sorted(dutch_game),
             "inventory": _normalize_inventory(dutch_game.get("inventory")),
         }
     for key in ("last_match_date", "last_updated"):
@@ -1321,17 +1322,19 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
     return stats_data
 
 
-def _client_revision_from_request(*, use_json_body: bool) -> Tuple[str, str, str]:
+def _client_revision_from_request(*, use_json_body: bool) -> Tuple[str, str, str, str]:
     if use_json_body:
         data = request.get_json(silent=True) or {}
         client_rev = (data.get("client_table_tiers_revision") or "").strip()
         client_cons_rev = (data.get("client_consumables_catalog_revision") or "").strip()
         client_prog_rev = (data.get("client_progression_config_revision") or "").strip()
+        client_ach_rev = (data.get("client_achievements_catalog_revision") or "").strip()
     else:
         client_rev = (request.args.get("client_table_tiers_revision") or "").strip()
         client_cons_rev = (request.args.get("client_consumables_catalog_revision") or "").strip()
         client_prog_rev = (request.args.get("client_progression_config_revision") or "").strip()
-    return client_rev, client_cons_rev, client_prog_rev
+        client_ach_rev = (request.args.get("client_achievements_catalog_revision") or "").strip()
+    return client_rev, client_cons_rev, client_prog_rev, client_ach_rev
 
 
 def _attach_declarative_catalogs(
@@ -1340,14 +1343,17 @@ def _attach_declarative_catalogs(
     client_table_rev: str,
     client_cons_rev: str,
     client_prog_rev: str,
+    client_ach_rev: str,
     include_table_tiers: bool = True,
 ) -> None:
     rev = ttc.TABLE_TIERS_REVISION
     cons_rev = cc.CONSUMABLES_CATALOG_REVISION
     prog_rev = prog.PROGRESSION_CONFIG_REVISION
+    ach_rev = achcat.ACHIEVEMENTS_CONFIG_REVISION
     response_body["table_tiers_revision"] = rev
     response_body["consumables_catalog_revision"] = cons_rev
     response_body["progression_config_revision"] = prog_rev
+    response_body["achievements_catalog_revision"] = ach_rev
     if include_table_tiers and ((not client_table_rev) or client_table_rev != rev):
         public_base = _resolve_public_api_base()
         response_body["table_tiers"] = ttc.build_client_table_tiers_payload(public_base)
@@ -1355,6 +1361,8 @@ def _attach_declarative_catalogs(
         response_body["consumables_catalog"] = cc.build_client_consumables_payload()
     if (not client_prog_rev) or client_prog_rev != prog_rev:
         response_body["progression_config"] = prog.build_client_progression_payload()
+    if (not client_ach_rev) or client_ach_rev != ach_rev:
+        response_body["achievements_catalog"] = achcat.build_client_achievements_payload()
 
 
 def get_init_data():
@@ -1373,7 +1381,7 @@ def get_init_data():
             return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found in database"}), 404
         dutch_game = user.get("modules", {}).get("dutch_game", {})
         stats_data = _dutch_stats_from_module(dutch_game, full=True)
-        client_rev, client_cons_rev, client_prog_rev = _client_revision_from_request(use_json_body=False)
+        client_rev, client_cons_rev, client_prog_rev, client_ach_rev = _client_revision_from_request(use_json_body=False)
         response_body: Dict[str, Any] = {
             "success": True,
             "message": "Init data retrieved successfully",
@@ -1395,6 +1403,7 @@ def get_init_data():
             client_table_rev=client_rev,
             client_cons_rev=client_cons_rev,
             client_prog_rev=client_prog_rev,
+            client_ach_rev=client_ach_rev,
         )
         return jsonify(response_body), 200
     except Exception as e:
@@ -1413,7 +1422,7 @@ def get_init_data_service():
         user_id = (data.get("user_id") or data.get("userid") or "").strip()
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
-        client_rev, client_cons_rev, client_prog_rev = _client_revision_from_request(use_json_body=True)
+        client_rev, client_cons_rev, client_prog_rev, client_ach_rev = _client_revision_from_request(use_json_body=True)
         response_body: Dict[str, Any] = {
             "success": True,
             "message": "Init data retrieved",
@@ -1438,6 +1447,7 @@ def get_init_data_service():
             client_table_rev=client_rev,
             client_cons_rev=client_cons_rev,
             client_prog_rev=client_prog_rev,
+            client_ach_rev=client_ach_rev,
         )
         return jsonify(response_body), 200
     except Exception as e:
@@ -1452,7 +1462,7 @@ def get_user_stats_service():
 def get_public_init_config():
     """Public declarative config (no user data) for pre-login clients."""
     try:
-        client_rev, client_cons_rev, client_prog_rev = _client_revision_from_request(use_json_body=False)
+        client_rev, client_cons_rev, client_prog_rev, client_ach_rev = _client_revision_from_request(use_json_body=False)
         response_body: Dict[str, Any] = {
             "success": True,
             "message": "Init config retrieved",
@@ -1463,6 +1473,7 @@ def get_public_init_config():
             client_table_rev=client_rev,
             client_cons_rev=client_cons_rev,
             client_prog_rev=client_prog_rev,
+            client_ach_rev=client_ach_rev,
         )
         return jsonify(response_body), 200
     except Exception as e:
@@ -2948,6 +2959,85 @@ def _viewer_period_stats_from_summaries(
     return {"wins": 0, "rank_tier": matcher.DEFAULT_RANK, "in_period": False}
 
 
+def _build_achievements_leaderboard_rows(
+    db_manager, limit: int
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """All-time leaderboard: users ranked by count of ``modules.dutch_game.achievements.unlocked`` keys."""
+    cap = max(int(limit), 1)
+    pipeline = [
+        {
+            "$match": {
+                "status": "active",
+                "modules.dutch_game.achievements.unlocked": {"$exists": True, "$type": "object"},
+            }
+        },
+        {
+            "$addFields": {
+                "_unlocked_arr": {
+                    "$objectToArray": {"$ifNull": ["$modules.dutch_game.achievements.unlocked", {}]}
+                }
+            }
+        },
+        {"$addFields": {"achievement_count": {"$size": "$_unlocked_arr"}}},
+        {"$match": {"achievement_count": {"$gt": 0}}},
+        {
+            "$project": {
+                "achievement_count": 1,
+                "achievement_ids": {
+                    "$map": {"input": "$_unlocked_arr", "as": "u", "in": "$$u.k"}
+                },
+            }
+        },
+        {"$sort": {"achievement_count": -1}},
+        {"$limit": cap + 1},
+    ]
+    docs = list(db_manager.db["users"].aggregate(pipeline))
+    truncated = len(docs) > cap
+    if truncated:
+        docs = docs[:cap]
+    username_by_id: Dict[str, str] = {}
+    if docs:
+        oids = [doc["_id"] for doc in docs]
+        for u in db_manager.find("users", {"_id": {"$in": oids}}):
+            uid = str(u.get("_id", ""))
+            username_by_id[uid] = (u.get("username") or "") or ""
+    rows: List[Dict[str, Any]] = []
+    for doc in docs:
+        uid = str(doc["_id"])
+        ids_raw = doc.get("achievement_ids") or []
+        ids = sorted({str(x) for x in ids_raw if str(x).strip()})
+        rows.append(
+            {
+                "user_id": uid,
+                "username": username_by_id.get(uid, ""),
+                "count": int(doc.get("achievement_count") or len(ids)),
+                "achievement_ids": ids,
+            }
+        )
+    return rows, truncated
+
+
+def _viewer_achievements_from_rows(
+    rows: List[Dict[str, Any]], viewer_uid: str, udoc: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
+    for idx, row in enumerate(rows):
+        if row.get("user_id") == viewer_uid:
+            return {
+                "rank": idx + 1,
+                "count": int(row.get("count") or 0),
+                "achievement_ids": list(row.get("achievement_ids") or []),
+                "in_leaderboard": True,
+            }
+    dg = ((udoc or {}).get("modules") or {}).get("dutch_game") or {}
+    ids = achcat.achievements_unlocked_ids_sorted(dg) if isinstance(dg, dict) else []
+    return {
+        "rank": None,
+        "count": len(ids),
+        "achievement_ids": ids,
+        "in_leaderboard": False,
+    }
+
+
 def get_period_wins_leaderboard_bundle_public():
     """Public (no auth): **single response** with current UTC month **and** year period standings.
 
@@ -2959,6 +3049,9 @@ def get_period_wins_leaderboard_bundle_public():
     Optional history (for hall-of-fame / history UIs): ``history_months`` / ``historyMonths`` (0–60, default 0),
     ``history_years`` / ``historyYears`` (0–20, default 0). Each completed period includes ``winners`` (tied for
     most wins in that window). Current calendar month/year are still under ``monthly`` / ``yearly``.
+
+    ``achievements``: all-time rows sorted by unlocked achievement count (``count``, ``achievement_ids`` per user).
+    Optional ``viewer.achievements`` when ``user_id`` is set.
 
     **Caveat:** ``rank_tier`` reflects the user document at request time, not at each win.
     """
@@ -3002,6 +3095,8 @@ def get_period_wins_leaderboard_bundle_public():
         m_truncated = len(m_summ) >= max_entries
         y_truncated = len(y_summ) >= max_entries
 
+        ach_rows, ach_truncated = _build_achievements_leaderboard_rows(db_manager, max_entries)
+
         viewer_out: Optional[Dict[str, Any]] = None
         raw_viewer_uid = (request.args.get("user_id") or request.args.get("userId") or "").strip()
         if raw_viewer_uid:
@@ -3017,6 +3112,7 @@ def get_period_wins_leaderboard_bundle_public():
                     "username": uname,
                     "monthly": _viewer_period_stats_from_summaries(m_summ, viewer_oid),
                     "yearly": _viewer_period_stats_from_summaries(y_summ, viewer_oid),
+                    "achievements": _viewer_achievements_from_rows(ach_rows, raw_viewer_uid, udoc),
                 }
 
         payload: Dict[str, Any] = {
@@ -3039,6 +3135,10 @@ def get_period_wins_leaderboard_bundle_public():
                 "range_end_exclusive_utc": y_end.isoformat(),
                 "truncated": y_truncated,
                 "rows": y_rows,
+            },
+            "achievements": {
+                "truncated": ach_truncated,
+                "rows": ach_rows,
             },
         }
         if hist_months > 0:

@@ -23,6 +23,7 @@ import '../dutch_game/screens/shop/dutch_cosmetics_shop_screen.dart';
 import '../dutch_game/screens/admin_tournaments_screen/admin_tournaments_screen.dart';
 import '../dutch_game/screens/leaderboard/leaderboard_screen.dart';
 import '../dutch_game/screens/leaderboard/leaderboard_history_screen.dart';
+import '../dutch_game/screens/leaderboard/leaderboard_achievements_screen.dart';
 import '../dutch_game/screens/achievements/achievements_screen.dart';
 
 /// Dutch Game Module
@@ -326,6 +327,14 @@ class DutchGameMain extends ModuleBase {
     navigationManager.registerRoute(
       path: '/dutch/leaderboard/history',
       screen: (BuildContext context) => const LeaderboardHistoryScreen(),
+      drawerTitle: null,
+      drawerIcon: null,
+      drawerPosition: 999,
+    );
+
+    navigationManager.registerRoute(
+      path: '/dutch/leaderboard/achievements',
+      screen: (BuildContext context) => const LeaderboardAchievementsScreen(),
       drawerTitle: null,
       drawerIcon: null,
       drawerPosition: 999,

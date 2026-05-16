@@ -26,6 +26,7 @@ Always present:
 | `table_tiers_revision` | Current server hash |
 | `consumables_catalog_revision` | Current server hash |
 | `progression_config_revision` | Current server hash |
+| `achievements_catalog_revision` | Current server hash |
 | `global_broadcast_messages` | Rank-filtered broadcasts (not declarative) |
 
 Present **only when client revision is missing or stale**:
@@ -35,6 +36,7 @@ Present **only when client revision is missing or stale**:
 | `table_tiers` | [TABLE_TIERS.md](./TABLE_TIERS.md) | [table_tiers.json](../../python_base_04/core/modules/dutch_game/config/table_tiers.json) |
 | `consumables_catalog` | [CONSUMABLES.md](./CONSUMABLES.md) | [consumables_catalog.json](../../python_base_04/core/modules/dutch_game/config/consumables_catalog.json) |
 | `progression_config` | [PROGRESSION.md](./PROGRESSION.md) | [progression_config.json](../../python_base_04/core/modules/dutch_game/config/progression_config.json) |
+| `achievements_catalog` | [ACHIEVEMENTS.md](./ACHIEVEMENTS.md) | [achievements_config.json](../../python_base_04/core/modules/dutch_game/config/achievements_config.json) |
 
 ## Client revision query parameters
 
@@ -43,6 +45,7 @@ Present **only when client revision is missing or stale**:
 | `client_table_tiers_revision` | Table tiers + special events |
 | `client_consumables_catalog_revision` | Consumables / cosmetics shop |
 | `client_progression_config_revision` | Progression rules |
+| `client_achievements_catalog_revision` | Achievements metadata + unlock rule definitions (client receives full doc for UI; unlocks still server-evaluated) |
 
 Service `POST` uses the same names in the JSON body.
 
@@ -52,17 +55,19 @@ Service `POST` uses the same names in the JSON body.
    - `TableTiersBootstrap.hydrateFromPrefsBeforeStats()`
    - `ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats()`
    - `ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats()`
+   - `AchievementsCatalogBootstrap.hydrateFromPrefsBeforeStats()`
 2. **Request** — `DutchGameHelpers.getInitData()` → `GET /userauth/dutch/get-init-data?...`
 3. **After response** — merge envelopes into prefs + in-memory stores; read `data` → `StateManager` `userStats`
 4. **Convenience** — `fetchAndUpdateInitData()` (alias: deprecated `fetchAndUpdateUserDutchGameData`)
 
-**Pre-login:** `fetchPublicInitConfig()` → `GET /public/dutch/init-config` (progression + optional table tiers; no user stats).
+**Pre-login:** `fetchPublicInitConfig()` → `GET /public/dutch/init-config` (progression + optional table tiers + achievements metadata; no user stats).
 
 | Bootstrap | Prefs keys |
 |-----------|------------|
 | Table tiers | `dutch_table_tiers_revision`, `dutch_table_tiers_doc_json` |
 | Consumables | `dutch_consumables_catalog_revision`, `dutch_consumables_catalog_doc_json` |
 | Progression | `dutch_progression_config_revision`, `dutch_progression_config_doc_json` |
+| Achievements | `dutch_achievements_catalog_revision`, `dutch_achievements_catalog_doc_json` |
 
 ## Dart game server
 

@@ -280,6 +280,8 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
           padding: AppPadding.defaultPadding.copyWith(bottom: 8),
           child: _LeaderboardActionsRow(
             onHistory: () => NavigationManager().navigateTo('/dutch/leaderboard/history'),
+            onAchievements: () =>
+                NavigationManager().navigateTo('/dutch/leaderboard/achievements'),
             onRefresh: _load,
           ),
         ),
@@ -511,10 +513,12 @@ class _PodiumPlace extends StatelessWidget {
 class _LeaderboardActionsRow extends StatelessWidget {
   const _LeaderboardActionsRow({
     required this.onHistory,
+    required this.onAchievements,
     required this.onRefresh,
   });
 
   final VoidCallback onHistory;
+  final VoidCallback onAchievements;
   final VoidCallback onRefresh;
 
   @override
@@ -523,35 +527,64 @@ class _LeaderboardActionsRow extends StatelessWidget {
       foregroundColor: AppColors.textOnPrimary,
       side: BorderSide(color: AppColors.casinoBorderColor),
       backgroundColor: AppColors.widgetContainerBackground,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: Semantics(
-            identifier: 'leaderboard_history',
-            button: true,
-            label: 'Leaderboard history',
-            child: OutlinedButton.icon(
-              onPressed: onHistory,
-              style: buttonStyle,
-              icon: const Icon(Icons.history, size: 20),
-              label: Text('History', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+        Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                identifier: 'leaderboard_history',
+                button: true,
+                label: 'Leaderboard history',
+                child: OutlinedButton.icon(
+                  onPressed: onHistory,
+                  style: buttonStyle,
+                  icon: const Icon(Icons.history, size: 20),
+                  label: Text(
+                    'History',
+                    style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+                  ),
+                ),
+              ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Semantics(
+                identifier: 'leaderboard_achievements',
+                button: true,
+                label: 'Achievement ranks',
+                child: OutlinedButton.icon(
+                  onPressed: onAchievements,
+                  style: buttonStyle,
+                  icon: const Icon(Icons.workspace_premium, size: 20),
+                  label: Text(
+                    'Achievements',
+                    style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Semantics(
-            identifier: 'leaderboard_refresh',
-            button: true,
-            label: 'Refresh leaderboard',
+        const SizedBox(height: 8),
+        Semantics(
+          identifier: 'leaderboard_refresh',
+          button: true,
+          label: 'Refresh leaderboard',
+          child: SizedBox(
+            width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: onRefresh,
               style: buttonStyle,
               icon: const Icon(Icons.refresh, size: 20),
-              label: Text('Refresh', style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+              label: Text(
+                'Refresh',
+                style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+              ),
             ),
           ),
         ),

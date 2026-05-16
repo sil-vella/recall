@@ -19,8 +19,14 @@ import '../backend_core/utils/level_matcher.dart';
 import 'table_tiers_bootstrap.dart';
 import 'consumables_catalog_bootstrap.dart';
 import 'progression_config_bootstrap.dart';
+import 'achievements_catalog_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
 import 'dart:developer' as developer;
+import '../../../utils/dev_logger.dart';
+
+/// Dev trace for join-random / special-event client emit path (`DUTCH_DEV_LOG` also gates [customlog]).
+// ignore: constant_identifier_names — set false when not tracing this flow (release tooling may flip).
+const bool LOGGING_SWITCH = true;
 
 /// Convenient helper methods for dutch game operations
 /// Provides type-safe, validated methods for common game actions
@@ -312,19 +318,27 @@ class DutchGameHelpers {
     BuildContext? context,
     bool allowTransportResetRetry = true,
   }) async {
-    
-    
+    if (LOGGING_SWITCH) {
+      customlog(
+        'DutchGameHelpers.ensureWebSocketReady: start allowTransportResetRetry=$allowTransportResetRetry',
+      );
+    }
+
     // Check if user is logged in
     final stateManager = StateManager();
     final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
     final isLoggedIn = loginState['isLoggedIn'] == true;
-    
-    
+
+    if (LOGGING_SWITCH) {
+      customlog('DutchGameHelpers.ensureWebSocketReady: isLoggedIn=$isLoggedIn');
+    }
+
     if (!isLoggedIn) {
-      
-      
       // Check SharedPreferences for username and email
       try {
+        if (LOGGING_SWITCH) {
+          customlog('DutchGameHelpers.ensureWebSocketReady: guest / not-logged-in path');
+        }
         final sharedPref = SharedPrefManager();
         await sharedPref.initialize();
         final username = sharedPref.getString('username');
@@ -368,16 +382,24 @@ class DutchGameHelpers {
         );
         
         if (result['success'] != null) {
-          
-          
+          if (LOGGING_SWITCH) {
+            customlog('DutchGameHelpers.ensureWebSocketReady: registerGuestUser ok, wait login state');
+          }
+
           // Wait for login process to fully complete
           final loginCompleted = await _waitForLoginCompletion();
           if (!loginCompleted) {
-            
+            if (LOGGING_SWITCH) {
+              customlog('DutchGameHelpers.ensureWebSocketReady: _waitForLoginCompletion => false');
+            }
+
             return false;
           }
-          
-          
+
+          if (LOGGING_SWITCH) {
+            customlog('DutchGameHelpers.ensureWebSocketReady: recurse after guest');
+          }
+
           // Recursively retry - now user should be fully logged in
           // Pass context to avoid re-fetching it
           return await ensureWebSocketReady(
@@ -397,9 +419,26 @@ class DutchGameHelpers {
     // Get WebSocket manager (same path as AppManager app init: JWT + listeners + connect).
     final wsManager = WebSocketManager.instance;
 
-    
-    final ready = await wsManager.ensureInitializedAndConnected();
-    
+    if (LOGGING_SWITCH) {
+      customlog('DutchGameHelpers.ensureWebSocketReady: calling ensureInitializedAndConnected');
+    }
+
+    final ready = await wsManager.ensureInitializedAndConnected().timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'DutchGameHelpers.ensureWebSocketReady: ensureInitializedAndConnected TIMEOUT (30s)',
+          );
+        }
+        return false;
+      },
+    );
+
+    if (LOGGING_SWITCH) {
+      customlog('DutchGameHelpers.ensureWebSocketReady: ensureInitializedAndConnected => $ready');
+    }
+
     if (!ready) {
       
       if (allowTransportResetRetry) {
@@ -412,12 +451,31 @@ class DutchGameHelpers {
     
     // Wait for authentication to complete (with timeout; backend may call Python to validate token)
     const int authTimeoutSeconds = 10;
-    
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'DutchGameHelpers.ensureWebSocketReady: _waitForAuthentication up to ${authTimeoutSeconds}s',
+      );
+    }
+
     bool authCompleted = await _waitForAuthentication(timeoutSeconds: authTimeoutSeconds);
     if (!authCompleted) {
-      // One retry: re-emit authenticate in case the first response was lost or backend was slow
-      
-      await wsManager.emitAuthenticate();
+      if (LOGGING_SWITCH) {
+        customlog(
+          'DutchGameHelpers.ensureWebSocketReady: auth not ready, emitAuthenticate (bounded 20s)',
+        );
+      }
+      // [emitAuthenticate] awaits [getCurrentToken] (may refresh) — can hang without a cap.
+      try {
+        await wsManager.emitAuthenticate().timeout(
+          const Duration(seconds: 20),
+          onTimeout: () {
+            if (LOGGING_SWITCH) {
+              customlog('DutchGameHelpers.ensureWebSocketReady: emitAuthenticate TIMEOUT');
+            }
+          },
+        );
+      } catch (_) {}
       authCompleted = await _waitForAuthentication(timeoutSeconds: authTimeoutSeconds);
     }
     if (!authCompleted) {
@@ -429,9 +487,11 @@ class DutchGameHelpers {
       }
       return false;
     }
-    
-    
-    
+
+    if (LOGGING_SWITCH) {
+      customlog('DutchGameHelpers.ensureWebSocketReady: done => true');
+    }
+
     return true;
   }
   
@@ -542,6 +602,15 @@ class DutchGameHelpers {
     bool hasRetriedForSession = false,
   }) async {
     try {
+      if (LOGGING_SWITCH) {
+        final se = (specialEventId ?? '').trim();
+        customlog(
+          'DutchGameHelpers.joinRandomGame: entry game_level=$gameLevel '
+          'isClearAndCollect=$isClearAndCollect '
+          'special_event_id=${se.isNotEmpty ? se : '(none)'} '
+          'hasRetriedForSession=$hasRetriedForSession',
+        );
+      }
       // 🎯 CRITICAL: Clear all existing game state before starting new game
       // This prevents overlapping or old game state from interfering
       await clearAllGameStateBeforeNewGame();
@@ -557,7 +626,11 @@ class DutchGameHelpers {
         if (hasRetriedForSession) {
           throw Exception('WebSocket session is unstable - please retry.');
         }
-        
+
+        if (LOGGING_SWITCH) {
+          customlog('DutchGameHelpers.joinRandomGame: retry — unstable session pre-emit');
+        }
+
         WebSocketManager.instance.resetTransportState(reason: 'join_random_unstable_session_pre_emit');
         return joinRandomGame(
           isClearAndCollect: isClearAndCollect,
@@ -575,8 +648,16 @@ class DutchGameHelpers {
         'randomJoinIsClearAndCollect': isClearAndCollect, // Store for use in start_match
         'pending_start_match_source': 'random_join',
       });
-      
-      
+
+      if (LOGGING_SWITCH) {
+        final se = specialEventId?.trim();
+        customlog(
+          'DutchGameHelpers.joinRandomGame: emit game_level=$gameLevel '
+          'isClearAndCollect=$isClearAndCollect '
+          'special_event_id=${(se != null && se.isNotEmpty) ? se : '(none)'}',
+        );
+      }
+
       // Emit join_random_game event via validated event emitter with isClearAndCollect flag
       
       await _eventEmitter.emit(
@@ -594,7 +675,11 @@ class DutchGameHelpers {
         if (hasRetriedForSession) {
           throw Exception('WebSocket session changed while joining random game.');
         }
-        
+
+        if (LOGGING_SWITCH) {
+          customlog('DutchGameHelpers.joinRandomGame: retry — session changed during emit');
+        }
+
         WebSocketManager.instance.resetTransportState(reason: 'join_random_session_changed_during_emit');
         return joinRandomGame(
           isClearAndCollect: isClearAndCollect,
@@ -613,6 +698,9 @@ class DutchGameHelpers {
       };
       
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        customlog('DutchGameHelpers.joinRandomGame: error $e');
+      }
       // Clear flag on error
       updateUIState({
         'isRandomJoinInProgress': false,
@@ -730,6 +818,7 @@ class DutchGameHelpers {
       await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
       await ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats();
       await ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats();
+      await AchievementsCatalogBootstrap.hydrateFromPrefsBeforeStats();
 
       final moduleManager = ModuleManager();
       final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
@@ -740,6 +829,7 @@ class DutchGameHelpers {
       final revision = await TableTiersBootstrap.getStoredRevisionForApi();
       final consumablesRevision = await ConsumablesCatalogBootstrap.getStoredRevisionForApi();
       final progressionRevision = await ProgressionConfigBootstrap.getStoredRevisionForApi();
+      final achievementsRevision = await AchievementsCatalogBootstrap.getStoredRevisionForApi();
       final queryParts = <String>[];
       if (revision != null && revision.isNotEmpty) {
         queryParts.add('client_table_tiers_revision=${Uri.encodeQueryComponent(revision)}');
@@ -749,6 +839,10 @@ class DutchGameHelpers {
       }
       if (progressionRevision != null && progressionRevision.isNotEmpty) {
         queryParts.add('client_progression_config_revision=${Uri.encodeQueryComponent(progressionRevision)}');
+      }
+      if (achievementsRevision != null && achievementsRevision.isNotEmpty) {
+        queryParts.add(
+            'client_achievements_catalog_revision=${Uri.encodeQueryComponent(achievementsRevision)}');
       }
       final route = queryParts.isEmpty
           ? '/userauth/dutch/get-init-data'
@@ -784,6 +878,7 @@ class DutchGameHelpers {
       await TableTiersBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await ConsumablesCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await ProgressionConfigBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
+      await AchievementsCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
 
       try {
         final gRaw = response['global_broadcast_messages'];
@@ -862,6 +957,7 @@ class DutchGameHelpers {
     try {
       await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
       await ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats();
+      await AchievementsCatalogBootstrap.hydrateFromPrefsBeforeStats();
 
       final connectionsModule =
           ModuleManager().getModuleByType<ConnectionsApiModule>();
@@ -870,11 +966,15 @@ class DutchGameHelpers {
       final queryParts = <String>[];
       final tableRev = await TableTiersBootstrap.getStoredRevisionForApi();
       final progRev = await ProgressionConfigBootstrap.getStoredRevisionForApi();
+      final achRev = await AchievementsCatalogBootstrap.getStoredRevisionForApi();
       if (tableRev != null && tableRev.isNotEmpty) {
         queryParts.add('client_table_tiers_revision=${Uri.encodeQueryComponent(tableRev)}');
       }
       if (progRev != null && progRev.isNotEmpty) {
         queryParts.add('client_progression_config_revision=${Uri.encodeQueryComponent(progRev)}');
+      }
+      if (achRev != null && achRev.isNotEmpty) {
+        queryParts.add('client_achievements_catalog_revision=${Uri.encodeQueryComponent(achRev)}');
       }
       final route = queryParts.isEmpty
           ? '/public/dutch/init-config'
@@ -886,6 +986,7 @@ class DutchGameHelpers {
       final envelope = Map<String, dynamic>.from(response);
       await TableTiersBootstrap.mergeStatsEnvelope(envelope);
       await ProgressionConfigBootstrap.mergePublicConfigEnvelope(envelope);
+      await AchievementsCatalogBootstrap.mergePublicConfigEnvelope(envelope);
       return true;
     } catch (_) {
       return false;

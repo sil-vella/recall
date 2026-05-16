@@ -50,6 +50,8 @@ class PythonApiClient {
     String? roomId,
     /// When false, Python skips winner pot credit (with promotional tier in same SSOT).
     bool? isCoinRequired,
+    /// Resolves event_win achievements in Python when the match was a special-event room.
+    String? specialEventId,
   }) async {
     
 
@@ -66,6 +68,7 @@ class PythonApiClient {
       if (isTournament) 'is_tournament': true,
       if (isTournament && tournamentData != null && tournamentData.isNotEmpty) 'tournament_data': tournamentData,
       if (isCoinRequired != null) 'is_coin_required': isCoinRequired,
+      if (specialEventId != null && specialEventId.isNotEmpty) 'special_event_id': specialEventId,
     };
 
     try {

@@ -12,7 +12,12 @@ from decimal import Decimal
 
 from bson import ObjectId
 
-from utils.dutch_game_credits import credit_dutch_game_coins
+from utils.coin_catalog import get_subscriber_coin_bonus_percent
+from utils.dutch_game_credits import (
+    credit_dutch_game_coins,
+    effective_coin_grant,
+    get_dutch_game_subscription_tier,
+)
 class StripeModule(BaseModule):
     def __init__(self, app_manager=None):
         """Initialize the StripeModule."""
@@ -542,14 +547,23 @@ class StripeModule(BaseModule):
             except Exception:
                 return
 
-            credit_dutch_game_coins(self.db_manager, oid, coins)
+            base_coins = coins
+            tier = get_dutch_game_subscription_tier(self.db_manager, oid)
+            bonus_percent = get_subscriber_coin_bonus_percent()
+            coins_to_credit = effective_coin_grant(base_coins, tier, bonus_percent)
+            subscriber_bonus = coins_to_credit > base_coins
+
+            credit_dutch_game_coins(self.db_manager, oid, coins_to_credit)
 
             self.db_manager.insert(
                 "stripe_coin_purchases",
                 {
                     "checkout_session_id": session_id,
                     "user_id": user_id_str,
-                    "coins": coins,
+                    "base_coins": base_coins,
+                    "coins": coins_to_credit,
+                    "coins_credited": coins_to_credit,
+                    "subscriber_bonus_applied": subscriber_bonus,
                     "package_key": meta.get("package_key", ""),
                     "created_at": datetime.utcnow().isoformat(),
                 },

@@ -20,6 +20,33 @@ def _raw_catalog() -> Dict[str, Any]:
         return json.load(f)
 
 
+def get_subscriber_coin_bonus_percent() -> int:
+    """Percent extra coins for premium tier (e.g. 11 => +11% coins)."""
+    raw = _raw_catalog()
+    try:
+        return max(0, int(raw.get("subscriber_coin_bonus_percent") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def get_premium_subscription_config() -> Dict[str, Any]:
+    """Play subscription product id and base plan ids from catalog."""
+    raw = _raw_catalog()
+    prem = raw.get("premium_subscription")
+    if not isinstance(prem, dict):
+        return {}
+    product_id = str(prem.get("product_id") or "").strip()
+    base_plans = prem.get("base_plans") if isinstance(prem.get("base_plans"), dict) else {}
+    return {
+        "product_id": product_id,
+        "base_plans": {
+            "monthly": str(base_plans.get("monthly") or "").strip(),
+            "yearly": str(base_plans.get("yearly") or "").strip(),
+        },
+        "benefits_short": str(prem.get("benefits_short") or "").strip(),
+    }
+
+
 def get_in_app_product_coins() -> Dict[str, int]:
     """Native store product id -> coin amount (key `in_app_products` in JSON; legacy `revenuecat_products` supported)."""
     raw = _raw_catalog()

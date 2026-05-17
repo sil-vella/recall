@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/00_base/screen_base.dart';
@@ -16,6 +17,7 @@ import '../../utils/analytics_service.dart';
 import '../../utils/coin_catalog.dart';
 import '../../utils/consts/config.dart';
 import '../../utils/consts/theme_consts.dart';
+import '../../utils/play_purchase_token.dart';
 
 /// **Web**: Stripe Checkout via `/userauth/stripe/create-coin-checkout-session`.
 /// **Android**: Google Play Billing + server verify `/userauth/play/verify-coin-purchase`.
@@ -42,14 +44,26 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   StreamSubscription<List<PurchaseDetails>>? _playPurchaseSub;
   bool _playBillingAvailable = false;
   Map<String, ProductDetails> _playProductDetails = {};
+  GooglePlayProductDetails? _premiumPlayDetails;
+  final Map<String, String> _premiumOfferTokenByBasePlan = {};
   String? _playBusyProductId;
+  String? _premiumBusyBasePlanId;
+  String? _pendingPremiumBasePlanId;
   bool _rewardedAdBusy = false;
+  String? _premiumExpiresAt;
 
   bool get _nativeMobile => !kIsWeb;
 
   bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   bool get _isIos => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  String? _subscriptionTier() {
+    final stats = DutchGameHelpers.getUserDutchGameStats();
+    return stats?['subscription_tier']?.toString();
+  }
+
+  bool get _isPremium => (_subscriptionTier()?.trim().toLowerCase() ?? '') == 'premium';
 
   Future<void> _bootstrapCatalog() async {
     await CoinCatalog.ensureLoaded();
@@ -89,15 +103,111 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       final id = row['product_id']?.toString();
       if (id != null && id.isNotEmpty) ids.add(id);
     }
+    final premId = CoinCatalog.premiumSubscriptionProductId;
+    if (premId.isNotEmpty) {
+      ids.add(premId);
+    }
     if (ids.isEmpty) return;
 
     final resp = await _playIap.queryProductDetails(ids);
     if (!mounted) return;
     final map = <String, ProductDetails>{};
+    GooglePlayProductDetails? premDetails;
+    final offerTokens = <String, String>{};
     for (final p in resp.productDetails) {
-      map[p.id] = p;
+      if (p.id == premId && p is GooglePlayProductDetails) {
+        premDetails = p;
+        final offers = p.productDetails.subscriptionOfferDetails ?? [];
+        for (final offer in offers) {
+          final basePlan = offer.basePlanId;
+          if (basePlan.isNotEmpty) {
+            offerTokens[basePlan] = offer.offerIdToken;
+          }
+        }
+      } else {
+        map[p.id] = p;
+      }
     }
-    setState(() => _playProductDetails = map);
+    setState(() {
+      _playProductDetails = map;
+      _premiumPlayDetails = premDetails;
+      _premiumOfferTokenByBasePlan
+        ..clear()
+        ..addAll(offerTokens);
+    });
+    await _refreshSubscriptionStatus();
+  }
+
+  Future<void> _refreshSubscriptionStatus() async {
+    if (!_isAndroid || !mounted) return;
+    final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+    if (api == null) return;
+    try {
+      final raw = await api.sendGetRequest('/userauth/play/subscription-status');
+      if (raw is! Map || raw['success'] != true) return;
+      final refreshed = raw['refreshed'] == true;
+      if (refreshed) {
+        await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+      }
+      if (!mounted) return;
+      final exp = raw['expires_at']?.toString();
+      setState(() => _premiumExpiresAt = (exp != null && exp.isNotEmpty) ? exp : null);
+    } catch (_) {}
+  }
+
+  Future<void> _buyPremiumSubscription(String basePlanId) async {
+    final details = _premiumPlayDetails;
+    final offerToken = _premiumOfferTokenByBasePlan[basePlanId];
+    if (details == null || offerToken == null || offerToken.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Premium subscription is not available right now.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      return;
+    }
+    setState(() {
+      _premiumBusyBasePlanId = basePlanId;
+      _pendingPremiumBasePlanId = basePlanId;
+    });
+    try {
+      final param = GooglePlayPurchaseParam(
+        productDetails: details,
+        offerToken: offerToken,
+      );
+      final started = await _playIap.buyNonConsumable(purchaseParam: param);
+      if (!started && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not start subscription.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Subscription purchase failed. Try again later.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _premiumBusyBasePlanId = null);
+    }
   }
 
   Future<void> _handlePlayPurchases(List<PurchaseDetails> purchases) async {
@@ -128,14 +238,100 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           break;
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _verifyPlayPurchaseOnServer(purchase);
+          if (purchase.productID == CoinCatalog.premiumSubscriptionProductId) {
+            await _verifyPlaySubscriptionOnServer(purchase);
+          } else {
+            await _verifyPlayPurchaseOnServer(purchase);
+          }
           break;
       }
     }
   }
 
+  Future<void> _verifyPlaySubscriptionOnServer(PurchaseDetails purchase) async {
+    final token = playPurchaseToken(purchase);
+    if (token.isEmpty) {
+      if (purchase.pendingCompletePurchase) {
+        await _playIap.completePurchase(purchase);
+      }
+      return;
+    }
+
+    final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+    if (api == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot reach server to confirm subscription.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    final basePlanId = _pendingPremiumBasePlanId ?? '';
+    try {
+      final raw = await api.sendPostRequest('/userauth/play/verify-subscription', {
+        'purchase_token': token,
+        'subscription_id': CoinCatalog.premiumSubscriptionProductId,
+        if (basePlanId.isNotEmpty) 'base_plan_id': basePlanId,
+      });
+      if (raw is! Map) {
+        throw Exception('Unexpected response');
+      }
+      final map = Map<String, dynamic>.from(raw);
+      if (map['success'] != true) {
+        final msg = map['error']?.toString() ?? 'Subscription verification failed';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg, style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+              backgroundColor: AppColors.primaryColor,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (purchase.pendingCompletePurchase) {
+        await _playIap.completePurchase(purchase);
+      }
+      _pendingPremiumBasePlanId = null;
+      await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+      if (!mounted) return;
+      final exp = map['expires_at']?.toString();
+      setState(() => _premiumExpiresAt = (exp != null && exp.isNotEmpty) ? exp : null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Premium active. Ads are off and coin packs include +${CoinCatalog.subscriberCoinBonusPercent}%.',
+            style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+          ),
+          backgroundColor: AppColors.primaryColor,
+        ),
+      );
+      await AnalyticsService.logEvent(name: 'play_premium_subscription_verified');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not verify subscription. Reopen this screen to retry.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _verifyPlayPurchaseOnServer(PurchaseDetails purchase) async {
-    final token = purchase.purchaseID ?? '';
+    final token = playPurchaseToken(purchase);
     final productId = purchase.productID;
     if (token.isEmpty) {
       if (purchase.pendingCompletePurchase) {
@@ -188,10 +384,15 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       }
       await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
       if (mounted) {
+        final credited = map['coins_credited'];
+        final bonus = map['subscriber_bonus_applied'] == true;
+        final msg = credited != null
+            ? (bonus ? '+$credited coins (Premium +${CoinCatalog.subscriberCoinBonusPercent}%).' : '+$credited coins added.')
+            : 'Coins added to your balance.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Coins added to your balance.',
+              msg,
               style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
             ),
             backgroundColor: AppColors.primaryColor,
@@ -614,6 +815,8 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
               if (_isAndroid) ...[
+                if (_playBillingAvailable) _buildPremiumSection(),
+                if (_playBillingAvailable) SizedBox(height: AppPadding.defaultPadding.top),
                 Text('Coin packages', style: AppTextStyles.headingSmall()),
                 const SizedBox(height: 8),
                 Text(
@@ -656,7 +859,19 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                   'App Store billing is not enabled in this build. Use the web app (Stripe) to buy coins.',
                   style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  'Premium subscription (ad-free + bonus coins) is available on Android via Google Play.',
+                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                ),
                 SizedBox(height: AppPadding.defaultPadding.top),
+              ],
+              if (kIsWeb) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Premium subscription is available on the Android app via Google Play.',
+                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                ),
               ],
               Text(
                 kIsWeb || _nativeMobile
@@ -693,10 +908,139 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     );
   }
 
+  Widget _buildPremiumSection() {
+    return Semantics(
+      identifier: 'coin_screen_premium_subscribe',
+      container: true,
+      child: Container(
+        width: double.infinity,
+        padding: AppPadding.cardPadding,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppBorderRadius.smallRadius,
+          border: Border.all(color: AppColors.accentColor, width: 1.5),
+        ),
+        child: _isPremium ? _buildPremiumActiveContent() : _buildPremiumSubscribeContent(),
+      ),
+    );
+  }
+
+  Widget _buildPremiumActiveContent() {
+    final exp = _premiumExpiresAt;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Premium active', style: AppTextStyles.headingSmall()),
+        const SizedBox(height: 6),
+        Text(
+          CoinCatalog.premiumBenefitsShort,
+          style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+        ),
+        if (exp != null && exp.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Renews / expires: $exp',
+            style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
+          ),
+        ],
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: () => ConnectionsApiModule.launchUrl(
+            'https://play.google.com/store/account/subscriptions',
+          ),
+          child: const Text('Manage on Google Play'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPremiumSubscribeContent() {
+    final monthlyPlan = CoinCatalog.premiumBasePlanMonthly;
+    final yearlyPlan = CoinCatalog.premiumBasePlanYearly;
+    final prem = _premiumPlayDetails;
+    final monthlyPrice = prem != null ? _priceForBasePlan(monthlyPlan) : '—';
+    final yearlyPrice = prem != null ? _priceForBasePlan(yearlyPlan) : '—';
+    final bonus = CoinCatalog.subscriberCoinBonusPercent;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Premium', style: AppTextStyles.headingSmall()),
+        const SizedBox(height: 6),
+        Text(
+          CoinCatalog.premiumBenefitsShort,
+          style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '• Ad-free app experience\n• +$bonus% coins on every coin pack',
+          style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton(
+                onPressed: (_premiumBusyBasePlanId != null || prem == null)
+                    ? null
+                    : () => _buyPremiumSubscription(monthlyPlan),
+                child: _premiumBusyBasePlanId == monthlyPlan
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.textOnPrimary,
+                        ),
+                      )
+                    : Text('Monthly\n$monthlyPrice', textAlign: TextAlign.center),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: (_premiumBusyBasePlanId != null || prem == null)
+                    ? null
+                    : () => _buyPremiumSubscription(yearlyPlan),
+                child: _premiumBusyBasePlanId == yearlyPlan
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.textOnPrimary,
+                        ),
+                      )
+                    : Text('Yearly\n$yearlyPrice', textAlign: TextAlign.center),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _priceForBasePlan(String basePlanId) {
+    final details = _premiumPlayDetails;
+    if (details == null || basePlanId.isEmpty) return '—';
+    final offers = details.productDetails.subscriptionOfferDetails ?? [];
+    for (final offer in offers) {
+      if (offer.basePlanId == basePlanId) {
+        final phases = offer.pricingPhases;
+        if (phases.isNotEmpty) {
+          return phases.first.formattedPrice;
+        }
+      }
+    }
+    return details.price;
+  }
+
   Widget _buildPlayPackageRow(Map<String, dynamic> row) {
     final productId = row['product_id'] as String? ?? '';
     final label = row['label'] as String? ?? productId;
     final isPopular = row['isPopular'] == true;
+    final baseCoins = (row['coins'] as num?)?.toInt() ?? 0;
+    final effectiveCoins = CoinCatalog.effectiveCoinsForTier(baseCoins, _subscriptionTier());
     final details = _playProductDetails[productId];
     final priceText = details?.price ?? (row['priceLabel'] as String? ?? '—');
     final busy = _playBusyProductId == productId;
@@ -744,6 +1088,13 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                   _coinPackDescriptionFromRow(row),
                   style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
                 ),
+                if (_isPremium && effectiveCoins > baseCoins) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Premium: $baseCoins → $effectiveCoins coins',
+                    style: AppTextStyles.bodySmall(color: AppColors.accentColor),
+                  ),
+                ],
               ],
             ),
           ),
@@ -751,7 +1102,12 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           Text(priceText, style: AppTextStyles.headingSmall()),
           const SizedBox(width: 8),
           FilledButton(
-            onPressed: (busy || details == null) ? null : () => _buyPlayProduct(details),
+            onPressed: (busy || details == null)
+                ? null
+                : () {
+                    final d = details;
+                    if (d != null) _buyPlayProduct(d);
+                  },
             child: busy
                 ? SizedBox(
                     width: 20,

@@ -1,5 +1,14 @@
 {
   "schema_version": 2,
+  "subscriber_coin_bonus_percent": 11,
+  "premium_subscription": {
+    "product_id": "premium_subscription",
+    "base_plans": {
+      "monthly": "premium-auto-renew-monthly",
+      "yearly": "premium-auto-renew-yearly"
+    },
+    "benefits_short": "Ad-free play and +11% coins on every coin pack"
+  },
   "coin_pack_description_template": "Adds {coins} coins to your balance. Coins are used for table fees and in-game purchases.",
   "in_app_products": {
     "coins_100": 100,

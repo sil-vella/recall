@@ -33,3 +33,19 @@ def get_dutch_game_coin_balance(db_manager: Any, user_oid: ObjectId) -> int:
     doc = db_manager.find_one("users", {"_id": user_oid}) or {}
     dg = (doc.get("modules") or {}).get("dutch_game") or {}
     return int(dg.get("coins") or 0)
+
+
+def get_dutch_game_subscription_tier(db_manager: Any, user_oid: ObjectId) -> str:
+    doc = db_manager.find_one("users", {"_id": user_oid}) or {}
+    dg = (doc.get("modules") or {}).get("dutch_game") or {}
+    return str(dg.get("subscription_tier") or "").strip().lower()
+
+
+def effective_coin_grant(base_coins: int, subscription_tier: str, bonus_percent: int) -> int:
+    """Premium subscribers receive +bonus_percent% coins (e.g. 11 => base * 111 // 100)."""
+    base = int(base_coins)
+    if base <= 0:
+        return 0
+    if str(subscription_tier).strip().lower() != "premium" or int(bonus_percent) <= 0:
+        return base
+    return (base * (100 + int(bonus_percent))) // 100

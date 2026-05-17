@@ -10,7 +10,31 @@ class CoinCatalog {
   static Map<String, int>? _inAppProducts;
   static List<Map<String, dynamic>>? _recommendedUi;
   static List<Map<String, dynamic>>? _playRecommendedUi;
+  static int _subscriberCoinBonusPercent = 0;
+  static Map<String, dynamic> _premiumSubscription = const {};
   static bool _loadFailed = false;
+
+  static int get subscriberCoinBonusPercent => _subscriberCoinBonusPercent;
+
+  static String get premiumSubscriptionProductId =>
+      (_premiumSubscription['product_id'] as String?)?.trim() ?? '';
+
+  static String get premiumBasePlanMonthly =>
+      ((_premiumSubscription['base_plans'] as Map?)?['monthly'] as String?)?.trim() ?? '';
+
+  static String get premiumBasePlanYearly =>
+      ((_premiumSubscription['base_plans'] as Map?)?['yearly'] as String?)?.trim() ?? '';
+
+  static String get premiumBenefitsShort =>
+      (_premiumSubscription['benefits_short'] as String?)?.trim() ??
+      'Ad-free play and +11% coins on every coin pack';
+
+  /// Display coins after subscriber bonus (server is authoritative).
+  static int effectiveCoinsForTier(int baseCoins, String? subscriptionTier) {
+    final tier = subscriptionTier?.trim().toLowerCase() ?? '';
+    if (tier != 'premium' || _subscriberCoinBonusPercent <= 0) return baseCoins;
+    return (baseCoins * (100 + _subscriberCoinBonusPercent)) ~/ 100;
+  }
 
   static Map<String, int> get inAppProducts =>
       Map<String, int>.unmodifiable(_inAppProducts ?? const {});
@@ -27,6 +51,9 @@ class CoinCatalog {
     try {
       final raw = await rootBundle.loadString('assets/dutch_coin_catalog.json');
       final map = jsonDecode(raw) as Map<String, dynamic>;
+      _subscriberCoinBonusPercent = (map['subscriber_coin_bonus_percent'] as num?)?.toInt() ?? 0;
+      final prem = map['premium_subscription'];
+      _premiumSubscription = prem is Map ? Map<String, dynamic>.from(prem) : {};
       final ip = map['in_app_products'] as Map<String, dynamic>? ??
           map['revenuecat_products'] as Map<String, dynamic>? ??
           {};
@@ -49,6 +76,8 @@ class CoinCatalog {
       _inAppProducts = {};
       _recommendedUi = [];
       _playRecommendedUi = [];
+      _subscriberCoinBonusPercent = 0;
+      _premiumSubscription = {};
     }
   }
 }

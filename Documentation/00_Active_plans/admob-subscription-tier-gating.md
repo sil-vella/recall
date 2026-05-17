@@ -1,6 +1,6 @@
 # AdMob gated by subscription tier (Play premium) + daily coins & rewarded boosts
 
-**Status**: Partial — Flutter ad gating + rewarded coin claim landed; Play subscription → `premium`, daily 25, and 3-ad milestone remain open  
+**Status**: Partial — Play premium subscription + +11% coin perk shipped (2026-05-16); daily 25, 3-ad milestone, RTDN, SSV remain open  
 **Created**: 2026-05-11  
 **Last Updated**: 2026-05-16
 
@@ -11,7 +11,7 @@
 | **Subscription product** | `premium_subscription` | Single product; query this ID in Flutter `queryProductDetails` / Play verify API |
 | **Base plan (monthly)** | `premium-auto-renew-monthly` | Auto-renewing monthly — map to ~$3.99/mo list price in Console |
 | **Base plan (yearly)** | `premium-auto-renew-yearly` | Auto-renewing yearly — map to ~$34.99/yr list price in Console |
-| **Store benefits (marketing)** | Ad free · Extra % on purchased coin packs | App: ad free = `subscription_tier` **`premium`**; coin perk = server/catalog (not built yet) |
+| **Store benefits (marketing)** | Ad free · Extra % on purchased coin packs | App: ad free = `subscription_tier` **`premium`**; coin perk = **+11%** via `subscriber_coin_bonus_percent` in catalog |
 
 **Code contract (when implementing):**
 
@@ -39,15 +39,17 @@ Legacy plan names (`premium_monthly`, `premium_yearly` as separate product IDs) 
 | **AdMob modules** | Registered in `module_registry.dart`: banner, interstitial, rewarded, `AdvertsModule`, `PromotionalAdsModule`; `admob_bootstrap.dart` in `main.dart` | See `Documentation/Admobs/README.md`. |
 | **Rewarded coins (interim)** | `AdmobRewardsModule`: `POST /userauth/admob/claim-rewarded-ad` | **+25 per completed ad** (config `ADMOB_REWARDED_COINS_PER_CLAIM`, default 25), **daily cap** `ADMOB_REWARDED_DAILY_CAP` (default **20**/UTC day). Idempotent `client_nonce`. **403** for `premium`. No AdMob SSV yet. |
 | **Flutter rewarded UI** | `coin_purchase_screen.dart` → `RewardedAdModule` + claim API | Not the planned 0/3 milestone UI. |
-| **Play coin IAP** | `play_billing_module`: `/userauth/play/verify-coin-purchase` | Consumable coin packs only; **does not** set `subscription_tier`. |
-| **Tier plumbing** | `subscription_tier` on Dutch stats; `tier_rank_level_matcher.py` (`promotional`, `regular`, `premium`) | New users get `promotional` or `regular`; **`premium` only if set server-side** (no sub purchase path yet). |
+| **Play coin IAP** | `play_billing_module`: `/userauth/play/verify-coin-purchase` | Consumables; **+11% coins** when tier is `premium`. |
+| **Play subscription** | `POST /userauth/play/verify-subscription`, `GET /userauth/play/subscription-status` | Sets `subscription_tier` = `premium` when Play sub active; reverts to **`regular`** on lapse. Ledger: `play_subscriptions`. |
+| **Flutter Premium UI** | `coin_purchase_screen.dart` — Premium card above coin packs (Android) | Monthly/yearly via `premium_subscription`; manage link when active. |
+| **Tier plumbing** | `subscription_tier` on Dutch stats; `tier_rank_level_matcher.py` | `premium` after verified Play subscription. |
 
-**Not implemented vs this plan:** Play subscription products ($3.99 / $34.99), backend verify-subscription → `premium`, tier revert on lapse, subscriber 10% coin perk, daily 25 claim endpoint/UI, **3 ads → +25** milestone (shipped **1 ad → +25** instead), AdMob SSV, dedicated app-resume tier refresh after subscription purchase.
+**Still open:** Play RTDN webhooks, daily 25 claim, **3 ads → +25** milestone (shipped **1 ad → +25**), AdMob SSV, Stripe subscription SKU, app-wide resume tier refresh.
 
 ## Context (already in repo)
 - Flutter reads `subscription_tier` from Dutch user stats (`DutchGameHelpers.getSubscriptionTier`, `userStats['subscription_tier']` in game UI). **`promotional`** = free-play path; **`regular`** / **`premium`** = coin economy when the match requires coins.
 - Canonical paid tier string for **ad removal**: **`premium`** (matches `AdExperiencePolicy` and `AdmobRewardsModule`).
-- Backend / DB playbooks reference `modules.subscription.plan` / Dutch `subscription_tier`; **`play_billing_module`** handles **consumable coins** only today.
+- Backend syncs `modules.subscription` (`enabled`, `plan`, `expires_at`) on verify; lapse reverts tier to **`regular`**.
 
 ## Premium subscription pricing & coin perk (USD)
 
@@ -71,14 +73,14 @@ Implementation notes:
 - [x] Create subscription product **`premium_subscription`** with base plans **`premium-auto-renew-monthly`**, **`premium-auto-renew-yearly`** (active 2026-05-16).
 - [ ] Confirm **list prices** in Console match targets: **$3.99/mo**, **$34.99/yr** (or **$29.99/yr** if using sharper annual variant) across key regions.
 - [ ] Link subscription to correct application id / upload key on release and internal testing tracks.
-- [x] Document product / base plan ids (see **Play Console — configured** above); add to `dutch_coin_catalog.json` or a small `premium_subscription_catalog.json` when implementing Flutter.
+- [x] Document product / base plan ids in `dutch_coin_catalog.json` (`premium_subscription`, base plans, `subscriber_coin_bonus_percent`: 11).
 - [ ] Configure license testers / internal testing to validate purchase → entitlement flow before production.
 
 ### Backend: tie Play subscription → premium tier
-- [ ] On successful Play subscription verification (or existing webhook), set Dutch-facing **`subscription_tier`** to **`premium`**.
-- [ ] On expiry / cancel / revoke, revert tier to non-premium (e.g. `regular` or `promotional`—**pick one contract** and document here when implemented).
+- [x] On successful Play subscription verification, set **`subscription_tier`** to **`premium`** (`verify-subscription`).
+- [x] On expiry / cancel (re-verify inactive), revert tier to **`regular`**.
 - [x] Dutch stats payload includes **`subscription_tier`** (existing `get-user-stats` / init paths).
-- [ ] Apply **subscriber coin perk** on authoritative purchase path: **10% off** list or **+11% coins** for same price; avoid client-only price mutation for real money.
+- [x] **+11% coins** on Play coin verify and Stripe coin webhook when tier is `premium` (`effective_coin_grant` in `dutch_game_credits.py`).
 
 ### Flutter: gate AdMob by tier
 - [x] Central helper: **`AdExperiencePolicy.showMonetizedAds`** (equivalent to planned `shouldShowAdsForTier`; premium → false).
@@ -86,7 +88,8 @@ Implementation notes:
 - [x] **`BannerAdModule`**: skip load when monetized ads off.
 - [x] **`PromotionalAdsModule`** / switch-screen interstitial: skip when monetized ads off.
 - [x] **`RewardedAdModule`** + coin screen: hidden for premium; server returns `PREMIUM_NO_ADS`.
-- [ ] Refresh tier on **app resume** after subscription purchase (partial today: `fetchAndUpdateUserDutchGameData` after coin IAP / rewarded claim / account screen—not after sub flow because sub flow does not exist).
+- [x] Refresh tier after subscription purchase (`verify-subscription` + `fetchAndUpdateUserDutchGameData`); **`subscription-status`** on coin screen load.
+- [ ] App-wide tier refresh on **resume** (not only coin screen).
 
 ### QA & rollout
 - [ ] Matrix: premium vs non-premium × cold start × post-purchase × subscription lapse.
@@ -108,17 +111,14 @@ Implementation notes:
 - [ ] **Anti-abuse** — milestone caps per plan; optional SSV / Play Integrity. Client `SharedPref` `rewarded_ad_views` is **not** used for grants.
 
 ## Current Progress
-- **Done:** Client-side AdMob gating by `premium`; full AdMob module stack; server rewarded claim (+25/ad, daily cap); coin-shop rewarded UI; Play **consumable** coin verification.
-- **In progress / gap:** Play **subscription verify** → `premium` tier (Console product live: `premium_subscription`); subscriber coin perk; daily 25; align rewarded economics to **3 ads → +25** (or update product spec to keep 1-ad model); AdMob SSV; subscription lapse QA.
+- **Done:** AdMob gating; Play **subscription verify** + coin screen Premium UI; **+11%** coin perk (Play + Stripe); rewarded interim flow; consumable coin IAP.
+- **Open:** License-tester QA; Play RTDN; daily 25; 3-ad milestone vs 1-ad model; AdMob SSV.
 
 ## Next Steps
-1. ~~Create Play Console subscription SKUs~~ — done: `premium_subscription` + monthly/yearly base plans.
-2. Add backend **`POST /userauth/play/verify-subscription`** (Subscriptions API) → set/revert `modules.dutch_game.subscription_tier` = `premium`.
-3. Flutter: query `premium_subscription`, purchase monthly/yearly offers, call verify, `fetchAndUpdateUserDutchGameData()`, fire `subscription_active` hook.
-4. Implement subscriber **10% / +11%** in catalog or checkout APIs (`dutch_coin_catalog.json` + verify paths).
-5. Decide: keep **1 ad = +25** (current) or implement **daily 25 + 3-ad milestone**; then add endpoints/UI accordingly.
-6. Add AdMob **SSV** before scaling rewarded grants in production.
-7. QA matrix: premium tier (test purchase) × ads off × subscription lapse.
+1. License-tester QA: subscribe → `premium` → ads off → coin pack +11% → cancel → `regular` on refresh.
+2. Play RTDN for subscription lapse without opening coin screen.
+3. Decide daily 25 / 3-ad milestone vs keep 1-ad model.
+4. AdMob SSV for production rewarded grants.
 
 ## Files touched / reference (implementation)
 
@@ -132,12 +132,16 @@ Implementation notes:
 - `flutter_base_05/lib/modules/promotional_ads_module/promotional_ads_module.dart`
 - `flutter_base_05/lib/modules/promotional_ads_module/ads_navigator_observer.dart`
 - `flutter_base_05/lib/core/managers/module_registry.dart`
-- `flutter_base_05/lib/screens/coin_purchase_screen/coin_purchase_screen.dart`
+- `flutter_base_05/lib/screens/coin_purchase_screen/coin_purchase_screen.dart` — Premium subscribe + coin packs
+- `flutter_base_05/lib/utils/play_purchase_token.dart`
+- `flutter_base_05/assets/dutch_coin_catalog.json`
 - `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart`
 
-**Backend (implemented / pending):**
-- `python_base_04/core/modules/admob_rewards_module/admob_rewards_main.py` — rewarded claim (done)
-- `python_base_04/core/modules/play_billing_module/play_billing_main.py` — coin IAP only (subscription TBD)
+**Backend (implemented):**
+- `python_base_04/core/modules/admob_rewards_module/admob_rewards_main.py` — rewarded claim
+- `python_base_04/core/modules/play_billing_module/play_billing_main.py` — coin IAP + subscription verify/status
+- `python_base_04/utils/dutch_game_credits.py` — `effective_coin_grant`
+- `python_base_04/tests/unit/test_subscriber_coin_bonus.py`
 - `python_base_04/core/modules/user_management_module/tier_rank_level_matcher.py` — tier constants
 - `python_base_04/utils/config/config.py` — `ADMOB_REWARDED_*` env defaults
 

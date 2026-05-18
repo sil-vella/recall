@@ -285,7 +285,9 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       }
       final map = Map<String, dynamic>.from(raw);
       if (map['success'] != true) {
-        final msg = map['error']?.toString() ?? 'Subscription verification failed';
+        final err = map['error']?.toString() ?? 'Subscription verification failed';
+        final hint = map['message']?.toString();
+        final msg = (hint != null && hint.isNotEmpty) ? '$err — $hint' : err;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -950,8 +952,46 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           ),
           child: const Text('Manage on Google Play'),
         ),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: _restorePlayPurchases,
+          child: const Text('Sync subscription with server'),
+        ),
       ],
     );
+  }
+
+  Future<void> _restorePlayPurchases() async {
+    if (!_isAndroid) return;
+    try {
+      await _playIap.restorePurchases();
+      await _refreshSubscriptionStatus();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isPremium
+                  ? 'Subscription synced.'
+                  : 'Checked Google Play. If you subscribed, ensure the server has Play API configured, then try again.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not restore purchases from Google Play.',
+              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            ),
+            backgroundColor: AppColors.primaryColor,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildPremiumSubscribeContent() {
@@ -1015,6 +1055,11 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: _restorePlayPurchases,
+          child: const Text('Already subscribed? Sync with server'),
         ),
       ],
     );

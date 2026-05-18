@@ -384,10 +384,22 @@ class AppManager:
                     from core.managers.jwt_manager import TokenType
                     payload = self.jwt_manager.verify_token(token, TokenType.ACCESS)
                     if not payload:
+                        code = getattr(
+                            self.jwt_manager, 'last_verify_failure_code', None
+                        ) or 'TOKEN_INVALID'
+                        if code == 'SESSION_SUPERSEDED':
+                            message = (
+                                'This account was signed in on another device. '
+                                'Please log in again.'
+                            )
+                        elif code == 'TOKEN_EXPIRED':
+                            message = 'Please login again to get a fresh token.'
+                        else:
+                            message = 'Please login again to get a fresh token.'
                         return jsonify({
                             'error': 'Invalid or expired token',
-                            'message': 'Please login again to get a fresh token.',
-                            'code': 'TOKEN_INVALID'
+                            'message': message,
+                            'code': code,
                         }), 401
                     
                     # Set user context for the request

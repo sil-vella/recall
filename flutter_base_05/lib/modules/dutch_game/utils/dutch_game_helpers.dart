@@ -26,7 +26,7 @@ import '../../../utils/dev_logger.dart';
 
 /// Dev trace for join-random / special-event client emit path (`DUTCH_DEV_LOG` also gates [customlog]).
 // ignore: constant_identifier_names — set false when not tracing this flow (release tooling may flip).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Convenient helper methods for dutch game operations
 /// Provides type-safe, validated methods for common game actions
@@ -853,11 +853,24 @@ class DutchGameHelpers {
       // Check if response contains error
       if (response is Map && response.containsKey('error')) {
         final errorMessage = response['message'] ?? response['error'] ?? 'Failed to fetch user stats';
-        // Session expired / Unauthorized is expected when not logged in yet (e.g. before guest creation)
-        final isSessionOrAuth = errorMessage.toString().toLowerCase().contains('session expired') ||
-            errorMessage.toString().toLowerCase().contains('please log in again') ||
+        final code = response['code']?.toString();
+        final errLower = errorMessage.toString().toLowerCase();
+        // Session / JWT errors are expected when not logged in yet (e.g. before guest creation).
+        final isSessionOrAuth = code == 'JWT_REQUIRED' ||
+            code == 'TOKEN_INVALID' ||
+            errLower.contains('session expired') ||
+            errLower.contains('please log in again') ||
+            errLower.contains('please login again') ||
             (response['error']?.toString().toLowerCase() == 'unauthorized');
-        
+
+        if (isSessionOrAuth) {
+          return {
+            'success': false,
+            'authExpected': true,
+            'data': null,
+          };
+        }
+
         return {
           'success': false,
           'error': errorMessage,

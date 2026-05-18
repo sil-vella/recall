@@ -409,6 +409,9 @@ class GamePlayScreen extends BaseScreen {
   bool get useGlobalKeyForAppBarFeatureSlot => true;
 
   @override
+  bool get showAdBannerBars => false;
+
+  @override
   Decoration? getBackground(BuildContext context) {
     final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final level = resolveDutchGamePlayTableLevel(dutch);

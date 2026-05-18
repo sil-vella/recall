@@ -13,6 +13,10 @@ class CollapsibleSectionWidget extends StatefulWidget {
   final bool initiallyExpanded;
   final bool? isExpanded; // External control for accordion behavior (nullable for optional use)
   final VoidCallback? onExpandedChanged; // Callback when expansion state changes
+  /// Accent green bar + [textOnAccent] title/chevron (customize My Packs); default lobby plum when false.
+  final bool accentHeaderStyle;
+  /// Slightly smaller title and tighter header padding (customize shop categories).
+  final bool compactHeader;
 
   const CollapsibleSectionWidget({
     Key? key,
@@ -23,7 +27,12 @@ class CollapsibleSectionWidget extends StatefulWidget {
     this.initiallyExpanded = false,
     this.isExpanded,
     this.onExpandedChanged,
+    this.accentHeaderStyle = false,
+    this.compactHeader = false,
   }) : super(key: key);
+
+  static const EdgeInsets _compactHeaderPadding =
+      EdgeInsets.symmetric(horizontal: 10, vertical: 6);
 
   @override
   State<CollapsibleSectionWidget> createState() => _CollapsibleSectionWidgetState();
@@ -89,13 +98,23 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
 
   @override
   Widget build(BuildContext context) {
-    final baseBackground = AppColors.accentContrast.withValues(alpha: 0.36);
-    final activeBackground = AppColors.scaffoldBackgroundColor.withValues(alpha: 0.72);
-    final borderColor = _isExpanded
-        ? AppColors.accentColor.withValues(alpha: 0.8)
-        : AppColors.accentContrast.withValues(alpha: 0.65);
-    final iconTone = _isExpanded ? AppColors.accentColor2 : AppColors.white;
-    final chevronTone = _isExpanded ? AppColors.accentColor : AppColors.textSecondary;
+    final baseBackground = widget.accentHeaderStyle
+        ? AppColors.accentColor
+        : AppColors.accentContrast.withValues(alpha: 0.36);
+    final activeBackground = widget.accentHeaderStyle
+        ? AppColors.accentColor
+        : AppColors.scaffoldBackgroundColor.withValues(alpha: 0.72);
+    final borderColor = widget.accentHeaderStyle
+        ? AppColors.accentColor.withValues(alpha: 0.85)
+        : (_isExpanded
+            ? AppColors.accentColor.withValues(alpha: 0.8)
+            : AppColors.accentContrast.withValues(alpha: 0.65));
+    final iconTone = widget.accentHeaderStyle
+        ? AppColors.textOnAccent
+        : (_isExpanded ? AppColors.accentColor2 : AppColors.white);
+    final chevronTone = widget.accentHeaderStyle
+        ? AppColors.textOnAccent
+        : (_isExpanded ? AppColors.accentColor : AppColors.textSecondary);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -119,7 +138,9 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
                     ),
                   Container(
                     width: double.infinity,
-                    padding: AppPadding.cardPadding,
+                    padding: widget.compactHeader
+                        ? CollapsibleSectionWidget._compactHeaderPadding
+                        : AppPadding.cardPadding,
                     decoration: BoxDecoration(
                       color: widget.headerBackdrop == null
                           ? (_isExpanded ? activeBackground : baseBackground)
@@ -133,13 +154,23 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
                     child: Row(
                       children: [
                         Expanded(
-                          child: DutchSectionHeader(
-                            title: widget.title,
-                            icon: widget.icon,
-                            dense: true,
-                            semanticIdentifier: 'lobby_section_${widget.title.toLowerCase().replaceAll(' ', '_')}',
-                            trailing: null,
-                          ),
+                          child: widget.accentHeaderStyle
+                              ? _AccentAccordionHeader(
+                                  title: widget.title,
+                                  icon: widget.icon,
+                                  compact: widget.compactHeader,
+                                  semanticIdentifier:
+                                      'lobby_section_${widget.title.toLowerCase().replaceAll(' ', '_')}',
+                                )
+                              : DutchSectionHeader(
+                                  title: widget.title,
+                                  icon: widget.icon,
+                                  dense: true,
+                                  compact: widget.compactHeader,
+                                  semanticIdentifier:
+                                      'lobby_section_${widget.title.toLowerCase().replaceAll(' ', '_')}',
+                                  trailing: null,
+                                ),
                         ),
                         AnimatedRotation(
                           turns: _isExpanded ? 0.5 : 0.0,
@@ -182,6 +213,55 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Accent-green accordion tab title row (background on the parent container).
+class _AccentAccordionHeader extends StatelessWidget {
+  const _AccentAccordionHeader({
+    required this.title,
+    this.icon,
+    this.compact = false,
+    this.semanticIdentifier,
+  });
+
+  final String title;
+  final IconData? icon;
+  final bool compact;
+  final String? semanticIdentifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = (compact
+            ? AppTextStyles.bodyMedium(color: AppColors.textOnAccent)
+            : AppTextStyles.headingSmall(color: AppColors.textOnAccent))
+        .copyWith(fontWeight: FontWeight.w700);
+    return Semantics(
+      identifier: semanticIdentifier,
+      header: true,
+      label: title,
+      child: Padding(
+        padding: compact
+            ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
+            : const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: compact ? 16 : 18, color: AppColors.textOnAccent),
+              SizedBox(width: compact ? 6 : 8),
+            ],
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: titleStyle,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -35,6 +35,9 @@ class JWTManager:
         # Flask app reference for route registration
         self.app = None
 
+        # Set on failed verify_token (middleware maps to 401 code/message).
+        self.last_verify_failure_code: Optional[str] = None
+
     def _get_client_fingerprint(self) -> str:
         """Generate a unique client fingerprint based on IP and User-Agent."""
         try:
@@ -93,16 +96,22 @@ class JWTManager:
     def verify_token(self, token: str, expected_type: Optional[TokenType] = None, skip_revoke: bool = False) -> Optional[Dict[str, Any]]:
         """Verify a JWT token and return its payload if valid.
         When skip_revoke=True (e.g. Dart backend calling with X-Service-Key), Redis revoke check is skipped."""
-        
+        self.last_verify_failure_code = None
+
         try:
             # First decode the token to get its type
             try:
                 payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            except InvalidTokenError as e:
+            except ExpiredSignatureError:
+                self.last_verify_failure_code = "TOKEN_EXPIRED"
+                return None
+            except InvalidTokenError:
+                self.last_verify_failure_code = "TOKEN_INVALID"
                 return None
                 
             # Check if token is revoked (skip when service-authenticated: Dart backend already trusted via X-Service-Key)
             if not skip_revoke and self._is_token_revoked(token):
+                self.last_verify_failure_code = "TOKEN_REVOKED"
                 return None
 
             # Single-session / takeover: auth_gen must match Redis (tokens without claim are legacy)
@@ -113,8 +122,10 @@ class JWTManager:
                     token_gen_int = int(token_auth_gen)
                     server_gen = self.redis_manager.get_user_auth_generation(str(user_id_for_gen))
                     if token_gen_int != server_gen:
+                        self.last_verify_failure_code = "SESSION_SUPERSEDED"
                         return None
                 except (TypeError, ValueError):
+                    self.last_verify_failure_code = "TOKEN_INVALID"
                     return None
 
             # Verify fingerprint if present in token
@@ -125,31 +136,40 @@ class JWTManager:
                 is_server_to_server = 'Dart' in user_agent
                 if not is_server_to_server:
                     if current_fingerprint and token_fingerprint != current_fingerprint:
+                        self.last_verify_failure_code = "TOKEN_INVALID"
                         return None
 
             # Verify token type if specified
             if expected_type:
                 token_type = payload.get("type")
                 if not token_type:
+                    self.last_verify_failure_code = "TOKEN_INVALID"
                     return None
                 if token_type != expected_type.value:
+                    self.last_verify_failure_code = "TOKEN_INVALID"
                     return None
 
             # Comprehensive claims validation
             if not self._validate_token_claims(payload):
+                self.last_verify_failure_code = "TOKEN_INVALID"
                 return None
 
             return payload
             
         except ExpiredSignatureError:
+            self.last_verify_failure_code = "TOKEN_EXPIRED"
             return None
         except InvalidSignatureError:
+            self.last_verify_failure_code = "TOKEN_INVALID"
             return None
         except InvalidAudienceError:
+            self.last_verify_failure_code = "TOKEN_INVALID"
             return None
         except InvalidIssuerError:
+            self.last_verify_failure_code = "TOKEN_INVALID"
             return None
-        except Exception as e:
+        except Exception:
+            self.last_verify_failure_code = "TOKEN_VALIDATION_ERROR"
             return None
 
     def _validate_token_claims(self, payload: Dict[str, Any]) -> bool:

@@ -115,7 +115,9 @@ class AuthManager extends ChangeNotifier {
         await _secureStorage.write(key: 'refresh_token_ttl', value: refreshTokenTtl.toString());
         _refreshTokenTtl = refreshTokenTtl;
       }
-      
+
+      _hasTriggeredAuthHook = false;
+      notifyListeners();
     } catch (e) {
       rethrow;
     }
@@ -243,22 +245,33 @@ class AuthManager extends ChangeNotifier {
   /// Skips [public/login] and [public/register]. For other routes, tries one silent refresh; if that
   /// fails or the 401 was from [public/refresh], clears local auth and fires [refresh_token_expired]
   /// so [LoginModule] can navigate and tear down (including WebSocket).
-  Future<void> handleHttp401Response(String requestPath) async {
-    if (_handlingHttp401) return;
+  ///
+  /// Returns `true` when a new access token was stored (caller may retry the request).
+  Future<bool> handleHttp401Response(
+    String requestPath, {
+    Map<String, dynamic>? body,
+  }) async {
+    if (_handlingHttp401) return false;
     final p = requestPath.toLowerCase();
     if (p.contains('/public/login') || p.contains('/public/register')) {
-      return;
+      return false;
     }
     _handlingHttp401 = true;
     try {
+      final code = body?['code']?.toString();
       if (p.contains('/public/refresh')) {
-        await _signOutAfterUnauthorizedApi();
-        return;
+        await _signOutAfterUnauthorizedApi(
+          code: code ?? 'REFRESH_INVALID',
+          reason: 'refresh_token_expired',
+        );
+        return false;
       }
       final refreshed = await _trySilentTokenRefresh();
       if (!refreshed) {
-        await _signOutAfterUnauthorizedApi();
+        await _signOutAfterUnauthorizedApi(code: code, reason: 'api_unauthorized');
+        return false;
       }
+      return true;
     } finally {
       _handlingHttp401 = false;
     }
@@ -276,15 +289,25 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
-  Future<void> _signOutAfterUnauthorizedApi() async {
+  Future<void> _signOutAfterUnauthorizedApi({
+    String? code,
+    String reason = 'api_unauthorized',
+  }) async {
+    if (_hasTriggeredAuthHook) {
+      return;
+    }
     await clearSessionAuthData(keepLoginFormFields: true, prefs: _sharedPref);
     _currentStatus = AuthStatus.tokenExpired;
     _hasTriggeredAuthHook = true;
     notifyListeners();
+    final message = code == 'SESSION_SUPERSEDED'
+        ? 'This account was signed in on another device. Please log in again.'
+        : 'Your session is no longer valid. Please sign in again.';
     HooksManager().triggerHookWithData('refresh_token_expired', {
       'status': 'refresh_token_expired',
-      'reason': 'api_unauthorized',
-      'message': 'Your session is no longer valid. Please sign in again.',
+      'reason': reason,
+      'code': code,
+      'message': message,
     });
   }
 
@@ -508,16 +531,14 @@ class AuthManager extends ChangeNotifier {
         // Clear stored data since refresh failed
         await _clearStoredData();
         
-        // Trigger token refresh failed hook for actual refresh failure
         if (!_hasTriggeredAuthHook) {
           _hasTriggeredAuthHook = true;
-          final hooksManager = HooksManager();
-          hooksManager.triggerHookWithData('auth_token_refresh_failed', {
+          HooksManager().triggerHookWithData('auth_token_refresh_failed', {
             'status': 'token_refresh_failed',
-            'reason': 'refresh_attempt_failed',
+            'reason': 'token_refresh_failed',
+            'code': 'REFRESH_INVALID',
             'message': 'Token refresh failed. Please log in again.',
           });
-        } else {
         }
         return null;
       }
@@ -610,7 +631,16 @@ class AuthManager extends ChangeNotifier {
           // Clear all stored data - do NOT restore guest credentials
           // This prevents auto-login with converted accounts
           await _clearStoredData();
-          
+
+          if (!_hasTriggeredAuthHook) {
+            _hasTriggeredAuthHook = true;
+            HooksManager().triggerHookWithData('auth_required', {
+              'status': 'session_expired',
+              'reason': 'session_idle_expired',
+              'message': 'Session expired due to inactivity. Please log in again.',
+            });
+          }
+
           _currentStatus = AuthStatus.sessionExpired;
           _isValidating = false;
           notifyListeners();

@@ -11,7 +11,7 @@ import '../../../../../utils/dev_logger.dart';
 
 /// Dev trace for Quick join / Special events lobby UI (`DUTCH_DEV_LOG` also gates [customlog]).
 // ignore: constant_identifier_names — set false when not tracing this flow (release tooling may flip).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 // Enable for random game join debugging (logs to console / server.log)
 

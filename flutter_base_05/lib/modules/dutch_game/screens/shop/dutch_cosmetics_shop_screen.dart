@@ -12,6 +12,7 @@ import '../game_play/utils/table_design_style_helpers.dart';
 import '../../utils/dutch_game_helpers.dart';
 import '../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../widgets/card_widget.dart';
+import '../lobby_room/widgets/collapsible_section_widget.dart';
 
 class DutchCustomizeScreen extends BaseScreen {
   final bool equipOnly;
@@ -41,6 +42,11 @@ class DutchCustomizeScreen extends BaseScreen {
 }
 
 class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
+  static const String _kAccordionMyPacks = 'My Packs';
+  static const String _kAccordionConsumables = 'Consumables';
+  static const String _kAccordionCardBacks = 'Card Backs';
+  static const String _kAccordionTable = 'Table';
+
   /// Dark scrim behind title / price only.
   static final Color _kTextScrimFill = AppColors.darkGray.withValues(alpha: 0.92);
 
@@ -51,6 +57,9 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   List<Map<String, dynamic>> _catalog = const [];
   Map<String, dynamic> _inventory = const {};
   String _selectedItemId = '';
+
+  /// Accordion section open (lobby-style); consumables default.
+  String? _expandedSection = _kAccordionConsumables;
 
   /// Last [GoRouterState.uri.query] applied for deep-link highlight (re-run when query changes).
   String? _lastCustomizeRouteQueryApplied;
@@ -119,7 +128,22 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
       return;
     }
     _pendingCustomizeHighlightHint = null;
-    setState(() => _selectedItemId = resolved);
+    String? expandSection;
+    for (final item in _catalog) {
+      if (item['item_id']?.toString() == resolved) {
+        final type = item['item_type']?.toString() ?? '';
+        if ((type == 'card_back' || type == 'table_design') && _isOwned(item)) {
+          expandSection = _kAccordionMyPacks;
+        } else {
+          expandSection = _accordionTitleForItem(item);
+        }
+        break;
+      }
+    }
+    setState(() {
+      _selectedItemId = resolved;
+      if (expandSection != null) _expandedSection = expandSection;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final ctx = _itemScrollKeys[resolved]?.currentContext;
@@ -216,6 +240,37 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     return int.tryParse(p?.toString() ?? '') ?? 0;
   }
 
+  /// Tile label without catalog category prefix (section header already shows category).
+  String _itemShortTitle(Map<String, dynamic> item) {
+    final raw = (item['display_name']?.toString() ?? 'Item').trim();
+    if (raw.isEmpty) return 'Item';
+
+    final type = item['item_type']?.toString() ?? '';
+    String? prefix;
+    if (type == 'card_back') {
+      prefix = 'Card Back ';
+    } else if (type == 'table_design') {
+      prefix = 'Table Design ';
+    }
+
+    if (prefix != null && raw.length > prefix.length) {
+      final lower = raw.toLowerCase();
+      final prefixLower = prefix.toLowerCase();
+      if (lower.startsWith(prefixLower)) {
+        final short = raw.substring(prefix.length).trim();
+        if (short.isNotEmpty) return short;
+      }
+    }
+    return raw;
+  }
+
+  String _accordionTitleForItem(Map<String, dynamic> item) {
+    final type = item['item_type']?.toString() ?? '';
+    if (type == 'card_back') return _kAccordionCardBacks;
+    if (type == 'table_design') return _kAccordionTable;
+    return _kAccordionConsumables;
+  }
+
   String _sectionKey(Map<String, dynamic> item) {
     final group = (item['category_group']?.toString() ?? '').trim();
     final theme = (item['category_theme']?.toString() ?? '').trim();
@@ -227,18 +282,18 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     return 'consumables';
   }
 
+  /// Inner gold bar label — theme only when grouped under an accordion (no repeated "Card backs - ").
   String _sectionLabel(String key) {
     if (key.contains('::')) {
-      final parts = key.split('::');
-      final group = parts.first.replaceAll('_', ' ');
-      final theme = parts.last.replaceAll('_', ' ');
-      return '${group[0].toUpperCase()}${group.substring(1)} - ${theme[0].toUpperCase()}${theme.substring(1)}';
+      final theme = key.split('::').last.replaceAll('_', ' ').trim();
+      if (theme.isEmpty) return '';
+      return '${theme[0].toUpperCase()}${theme.substring(1)}';
     }
-    final txt = key.replaceAll('_', ' ');
+    final txt = key.replaceAll('_', ' ').trim();
+    if (txt.isEmpty) return '';
     return txt[0].toUpperCase() + txt.substring(1);
   }
 
-  /// After [My Packs]: consumables core → other consumables → card backs → table designs → anything else.
   void _sortShopSectionKeys(List<String> keys) {
     int rank(String key) {
       if (key == 'consumables::core') return 0;
@@ -252,6 +307,34 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
       final cmp = rank(a).compareTo(rank(b));
       if (cmp != 0) return cmp;
       return a.compareTo(b);
+    });
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupByCategory(List<Map<String, dynamic>> items) {
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final item in items) {
+      final key = _sectionKey(item);
+      grouped.putIfAbsent(key, () => <Map<String, dynamic>>[]).add(item);
+    }
+    for (final list in grouped.values) {
+      _sortByDisplayName(list);
+    }
+    return grouped;
+  }
+
+  void _sortByDisplayName(List<Map<String, dynamic>> items) {
+    items.sort(
+      (a, b) => (a['display_name']?.toString() ?? '').compareTo(b['display_name']?.toString() ?? ''),
+    );
+  }
+
+  void _handleSectionToggled(String sectionTitle) {
+    setState(() {
+      if (_expandedSection == sectionTitle) {
+        _expandedSection = null;
+      } else {
+        _expandedSection = sectionTitle;
+      }
     });
   }
 
@@ -318,71 +401,172 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     final myPacks = _myPackItems(visible);
     final myPackIds = _myPackItemIds(myPacks);
 
-    final grouped = <String, List<Map<String, dynamic>>>{};
+    final consumables = <Map<String, dynamic>>[];
+    final cardBacks = <Map<String, dynamic>>[];
+    final tables = <Map<String, dynamic>>[];
     for (final item in visible) {
       final id = item['item_id']?.toString() ?? '';
       final type = item['item_type']?.toString() ?? '';
       if ((type == 'card_back' || type == 'table_design') && myPackIds.contains(id)) {
         continue;
       }
-      final key = _sectionKey(item);
-      grouped.putIfAbsent(key, () => <Map<String, dynamic>>[]).add(item);
-    }
-    final sectionKeys = grouped.keys.toList();
-    _sortShopSectionKeys(sectionKeys);
-
-    Widget packGrid(List<Map<String, dynamic>> items) {
-      if (items.isEmpty) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            'No packs yet — shop below.',
-            style: AppTextStyles.bodySmall(color: AppColors.lightGray),
-          ),
-        );
+      if (type == 'card_back') {
+        cardBacks.add(item);
+      } else if (type == 'table_design') {
+        tables.add(item);
+      } else {
+        consumables.add(item);
       }
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: AppPadding.smallPadding.left,
-          mainAxisSpacing: AppPadding.smallPadding.top,
-          childAspectRatio: 0.90,
-        ),
-        itemCount: items.length,
-        itemBuilder: (context, index) => _buildItemTile(items[index], showPrice: false),
-      );
     }
-
     return RefreshIndicator(
       color: AppColors.accentColor,
       onRefresh: _loadData,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppPadding.defaultPadding,
-        children: [
-          _sectionHeader('My Packs'),
-          packGrid(myPacks),
-          SizedBox(height: AppPadding.largePadding.top),
-          for (final section in sectionKeys) ...[
-            _sectionHeader(_sectionLabel(section)),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: AppPadding.smallPadding.left,
-                mainAxisSpacing: AppPadding.smallPadding.top,
-                childAspectRatio: 0.90,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1000),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: AppPadding.defaultPadding,
+            children: [
+              CollapsibleSectionWidget(
+                title: _kAccordionMyPacks,
+                icon: Icons.backpack_outlined,
+                accentHeaderStyle: true,
+                isExpanded: _expandedSection == _kAccordionMyPacks,
+                onExpandedChanged: () => _handleSectionToggled(_kAccordionMyPacks),
+                child: _myPacksAccordionContent(myPacks),
               ),
-              itemCount: grouped[section]!.length,
-              itemBuilder: (context, index) => _buildItemTile(grouped[section]![index]),
-            ),
-            SizedBox(height: AppPadding.smallPadding.top),
-          ],
-        ],
+              CollapsibleSectionWidget(
+                title: _kAccordionConsumables,
+                icon: Icons.shopping_bag_outlined,
+                isExpanded: _expandedSection == _kAccordionConsumables,
+                onExpandedChanged: () => _handleSectionToggled(_kAccordionConsumables),
+                child: _categorizedAccordionContent(
+                  consumables,
+                  emptyMessage: 'No consumables in the shop right now.',
+                ),
+              ),
+              CollapsibleSectionWidget(
+                title: _kAccordionCardBacks,
+                icon: Icons.style_outlined,
+                isExpanded: _expandedSection == _kAccordionCardBacks,
+                onExpandedChanged: () => _handleSectionToggled(_kAccordionCardBacks),
+                child: _categorizedAccordionContent(
+                  cardBacks,
+                  emptyMessage: 'No card backs in the shop right now.',
+                ),
+              ),
+              CollapsibleSectionWidget(
+                title: _kAccordionTable,
+                icon: Icons.table_restaurant_outlined,
+                isExpanded: _expandedSection == _kAccordionTable,
+                onExpandedChanged: () => _handleSectionToggled(_kAccordionTable),
+                child: _categorizedAccordionContent(
+                  tables,
+                  emptyMessage: 'No table designs in the shop right now.',
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  /// Owned packs grid inside the My Packs accordion (defaults closed).
+  Widget _myPacksAccordionContent(List<Map<String, dynamic>> myPacks) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppPadding.defaultPadding.left),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.widgetContainerBackground,
+          borderRadius: AppBorderRadius.largeRadius,
+          border: Border.all(color: AppColors.casinoBorderColor),
+        ),
+        child: Padding(
+          padding: AppPadding.cardPadding,
+          child: _shopItemGrid(
+            myPacks,
+            showPrice: false,
+            emptyMessage: 'No packs yet — shop below.',
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Category blocks (gold title + opaque panel) inside an accordion section.
+  Widget _categorizedAccordionContent(
+    List<Map<String, dynamic>> items, {
+    required String emptyMessage,
+  }) {
+    if (items.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppPadding.defaultPadding.left),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.widgetContainerBackground,
+            borderRadius: AppBorderRadius.largeRadius,
+            border: Border.all(color: AppColors.casinoBorderColor),
+          ),
+          child: Padding(
+            padding: AppPadding.cardPadding,
+            child: Text(
+              emptyMessage,
+              style: AppTextStyles.bodySmall(color: AppColors.lightGray),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final grouped = _groupByCategory(items);
+    final sectionKeys = grouped.keys.toList();
+    _sortShopSectionKeys(sectionKeys);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final key in sectionKeys)
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppPadding.defaultPadding.left),
+            child: _shopSection(
+              title: _sectionLabel(key),
+              child: _shopItemGrid(grouped[key]!),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _shopItemGrid(
+    List<Map<String, dynamic>> items, {
+    bool showPrice = true,
+    String? emptyMessage,
+  }) {
+    if (items.isEmpty) {
+      if (emptyMessage == null || emptyMessage.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          emptyMessage,
+          style: AppTextStyles.bodySmall(color: AppColors.lightGray),
+        ),
+      );
+    }
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: AppPadding.smallPadding.left,
+        mainAxisSpacing: AppPadding.smallPadding.top,
+        childAspectRatio: 0.80,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) => _buildItemTile(items[index], showPrice: showPrice),
     );
   }
 
@@ -417,20 +601,52 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     );
   }
 
-  /// Accent strip aligned with [ModalTemplateWidget] headers and achievement summary cards.
-  Widget _sectionHeader(String title) {
+  /// Opaque panel for a shop category — matches lobby / achievements containers.
+  Widget _shopSection({required String title, required Widget child}) {
     return Padding(
-      padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top, top: AppPadding.smallPadding.top),
+      padding: EdgeInsets.only(bottom: AppPadding.largePadding.top),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.accentColor,
-          borderRadius: AppBorderRadius.smallRadius,
+          color: AppColors.widgetContainerBackground,
+          borderRadius: AppBorderRadius.largeRadius,
+          border: Border.all(color: AppColors.casinoBorderColor),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.black.withValues(alpha: AppOpacity.shadow),
+              blurRadius: AppSizes.shadowBlur,
+              offset: AppSizes.shadowOffset,
+            ),
+          ],
         ),
-        child: Padding(
-          padding: AppPadding.cardPadding,
-          child: Text(
-            title,
-            style: AppTextStyles.headingSmall(color: AppColors.textOnAccent),
+        child: ClipRRect(
+          borderRadius: AppBorderRadius.largeRadius,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _sectionHeader(title),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Full-width gold bar with black title ([matchPotGold] — theme-independent).
+  Widget _sectionHeader(String title) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.matchPotGold,
+        border: Border(
+          bottom: BorderSide(color: AppColors.casinoBorderColor),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Text(
+          title,
+          style: AppTextStyles.bodyMedium(color: AppColors.black).copyWith(
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -471,8 +687,8 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
       builder: (context, c) {
         if (type == 'card_back') {
           const aspect = 0.63;
-          final maxW = math.min(78.0, c.maxWidth);
-          final maxH = math.min(102.0, c.maxHeight);
+          final maxW = math.min(92.0, c.maxWidth);
+          final maxH = math.min(118.0, c.maxHeight);
           var h = maxH;
           var w = h * aspect;
           if (w > maxW) {
@@ -498,8 +714,8 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
           );
         }
         if (type == 'table_design') {
-          final maxW = math.min(96.0, c.maxWidth);
-          final maxH = math.min(90.0, c.maxHeight);
+          final maxW = math.min(110.0, c.maxWidth);
+          final maxH = math.min(104.0, c.maxHeight);
           const surfaceAspect = 1.55;
           var w = maxW;
           var h = w / surfaceAspect;
@@ -509,7 +725,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
           }
           return _miniTableDesignPreview(skinId: id, width: w, height: h);
         }
-        final side = math.min(48.0, math.min(c.maxWidth, c.maxHeight) * 0.5);
+        final side = math.min(58.0, math.min(c.maxWidth, c.maxHeight) * 0.55);
         final icon = type.contains('boost') ? Icons.bolt : Icons.shopping_bag_outlined;
         return Icon(
           icon,
@@ -698,21 +914,20 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
               ),
             ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Column(
+          child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _textScrim(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                  padding: EdgeInsets.zero,
                   child: Text(
-                    item['display_name']?.toString() ?? 'Item',
+                    _itemShortTitle(item),
                     style: AppTextStyles.caption(color: AppColors.white).copyWith(
                       fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                      fontSize: 12,
                     ),
                     maxLines: selected ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
                 Expanded(
@@ -721,16 +936,11 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                     children: [
                       Expanded(
                         child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                            child: _centeredItemPreview(item),
-                          ),
+                          child: _centeredItemPreview(item),
                         ),
                       ),
                       if (selected)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Column(
+                        Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -753,8 +963,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                                 ),
                               ],
                             ],
-                          ),
-                        )
+                          )
                       else
                         Align(
                           alignment: Alignment.bottomCenter,
@@ -770,7 +979,6 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                 ),
               ],
             ),
-          ),
         ),
       ),
     ),

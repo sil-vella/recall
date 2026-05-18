@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/navigation_manager.dart';
@@ -20,7 +21,7 @@ import '../../utils/dev_logger.dart';
 import 'package:image_picker/image_picker.dart';
 
 // ignore: constant_identifier_names — flip false when done debugging login UI (see Documentation/Logging/LOGGING_SYSTEM.md).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class AccountScreen extends BaseScreen {
   const AccountScreen({Key? key}) : super(key: key);
@@ -81,6 +82,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     // Load preserved credentials in post-frame so form is populated before first paint when possible
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _checkForGuestCredentials();
+      _applyAuthQueryNotice();
     });
     _trackScreenView();
     // Always refetch profile on account screen entry
@@ -92,6 +94,36 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     });
   }
   
+  /// Show auth notice from LoginModule navigation (`auth_message` / `auth_reason` query params).
+  void _applyAuthQueryNotice() {
+    if (!mounted) return;
+    try {
+      final params = GoRouterState.of(context).uri.queryParameters;
+      final message = params['auth_message'];
+      final reason = params['auth_reason'];
+      if (message == null || message.isEmpty) {
+        return;
+      }
+      setState(() {
+        _errorMessage = message;
+        _successMessage = null;
+      });
+      if (LOGGING_SWITCH) {
+        customlog('AccountScreen: auth notice reason=$reason message=$message');
+      }
+      if (reason != null || message.isNotEmpty) {
+        context.go('/account');
+      }
+    } catch (e) {
+      // Router not ready yet — Uri.base fallback (e.g. web deep link).
+      final params = Uri.base.queryParameters;
+      final message = params['auth_message'];
+      if (message != null && message.isNotEmpty && mounted) {
+        setState(() => _errorMessage = message);
+      }
+    }
+  }
+
   /// Track screen view
   Future<void> _trackScreenView() async {
     try {

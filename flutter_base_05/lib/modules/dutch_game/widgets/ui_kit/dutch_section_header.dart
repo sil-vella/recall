@@ -14,6 +14,7 @@ class DutchSectionHeader extends StatelessWidget {
     this.trailing,
     this.subtitle,
     this.dense = false,
+    this.compact = false,
     this.semanticIdentifier,
   });
 
@@ -22,14 +23,17 @@ class DutchSectionHeader extends StatelessWidget {
   final Widget? trailing;
   final String? subtitle;
   final bool dense;
+  final bool compact;
   final String? semanticIdentifier;
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = dense ? 18.0 : 22.0;
-    final padding = dense
-        ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
-        : const EdgeInsets.symmetric(horizontal: 12, vertical: 10);
+    final iconSize = compact ? 16.0 : (dense ? 18.0 : 22.0);
+    final padding = compact
+        ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
+        : (dense
+            ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 10));
 
     return Semantics(
       identifier: semanticIdentifier,
@@ -52,9 +56,11 @@ class DutchSectionHeader extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: (dense
+                    style: (compact
                             ? AppTextStyles.bodyMedium(color: AppColors.white)
-                            : AppTextStyles.headingSmall(color: AppColors.white))
+                            : (dense
+                                ? AppTextStyles.bodyMedium(color: AppColors.white)
+                                : AppTextStyles.headingSmall(color: AppColors.white)))
                         .copyWith(fontWeight: FontWeight.w700),
                   ),
                   if (subtitle != null && subtitle!.isNotEmpty) ...[

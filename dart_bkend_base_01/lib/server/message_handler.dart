@@ -15,7 +15,7 @@ import '../utils/dev_logger.dart';
 
 /// Dev trace for random join / special-event WS handling (`DUTCH_DEV_LOG` also gates [customlog]).
 /// Set `DUTCH_DEV_LOG=1` (or `true`/`yes`) in the server environment for stderr lines.
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
 /// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.

@@ -6,7 +6,7 @@ import 'lib/server/http_notify_handler.dart';
 import 'lib/server/websocket_server.dart';
 
 // ignore: constant_identifier_names — set false when not debugging this entrypoint (release tooling may flip).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 void main(List<String> args) async {
   if (LOGGING_SWITCH) {

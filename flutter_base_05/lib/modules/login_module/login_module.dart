@@ -19,9 +19,10 @@ import '../../utils/consts/config.dart';
 import '../../utils/analytics_service.dart';
 import '../../utils/dev_logger.dart';
 import 'utils/ws_jwt_access_expiry.dart';
+import 'auth_session_messages.dart';
 
 // ignore: constant_identifier_names — flip false when done debugging (see Documentation/Logging/LOGGING_SYSTEM.md).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
@@ -79,41 +80,39 @@ class LoginModule extends ModuleBase {
     
     // Register hook for refresh token expiration
     hooksManager.registerHookWithData('refresh_token_expired', (data) {
-      _handleRefreshTokenExpired();
+      _handleRefreshTokenExpired(data);
     });
     
     // Register hook for token refresh failure
     hooksManager.registerHookWithData('auth_token_refresh_failed', (data) {
-      _handleTokenRefreshFailed();
+      _handleTokenRefreshFailed(data);
     });
     
     // Register hook for general auth errors
     hooksManager.registerHookWithData('auth_error', (data) {
-      _handleAuthError();
+      _handleAuthError(data);
     });
   }
 
   /// ✅ Handle refresh token expiration
-  void _handleRefreshTokenExpired() {
-    
+  void _handleRefreshTokenExpired(Map<String, dynamic> data) {
+    final reason = data['reason']?.toString() ?? 'refresh_token_expired';
+    final code = data['code']?.toString();
+    final message = AuthSessionMessages.forHook(
+      reason: reason,
+      hookMessage: data['message']?.toString(),
+      code: code,
+    );
+
     if (_currentContext != null) {
-      // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      
-      
+
       if (isLoggedIn) {
-        
         _performSynchronousLogout();
-        _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
-      } else {
-        
-        // Still navigate to account screen even if already logged out
-        _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
       }
-    } else {
-      
+      _navigateToAccountScreen(reason, message);
     }
   }
 
@@ -212,26 +211,23 @@ class LoginModule extends ModuleBase {
   }
 
   /// ✅ Handle token refresh failure
-  void _handleTokenRefreshFailed() {
-    
+  void _handleTokenRefreshFailed(Map<String, dynamic> data) {
+    final reason = data['reason']?.toString() ?? 'token_refresh_failed';
+    final message = AuthSessionMessages.forHook(
+      reason: reason,
+      hookMessage: data['message']?.toString(),
+      code: data['code']?.toString(),
+    );
+
     if (_currentContext != null) {
-      // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      
-      
+
       if (isLoggedIn) {
-        
         _performSynchronousLogout();
-        _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
-      } else {
-        
-        // Still navigate to account screen even if already logged out
-        _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
       }
-    } else {
-      
+      _navigateToAccountScreen(reason, message);
     }
   }
 
@@ -263,26 +259,23 @@ class LoginModule extends ModuleBase {
   }
 
   /// ✅ Handle general auth error
-  void _handleAuthError() {
-    
+  void _handleAuthError(Map<String, dynamic> data) {
+    final reason = data['reason']?.toString() ?? 'auth_error';
+    final message = AuthSessionMessages.forHook(
+      reason: reason,
+      hookMessage: data['message']?.toString(),
+      code: data['code']?.toString(),
+    );
+
     if (_currentContext != null) {
-      // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      
-      
+
       if (isLoggedIn) {
-        
         _performSynchronousLogout();
-        _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
-      } else {
-        
-        // Still navigate to account screen even if already logged out
-        _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
       }
-    } else {
-      
+      _navigateToAccountScreen(reason, message);
     }
   }
 

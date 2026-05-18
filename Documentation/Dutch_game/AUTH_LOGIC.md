@@ -82,7 +82,13 @@ So the auth logic is: **valid = JWT valid + key present in Redis**. No key (or R
 
 ---
 
-## 6. Practical checks if 401 happens on user search
+## 6. Flutter client alignment (session hardening)
+
+- **401 + refresh**: `AuthInterceptor` calls `AuthManager.handleHttp401Response`; on success, retries the request once (`x-auth-retry` header).
+- **Sign-out copy**: Middleware `code` `SESSION_SUPERSEDED` → “signed in on another device”; `TOKEN_INVALID` / refresh failure → standard session messages. See `LoginModule` + `AccountScreen` query `auth_message`.
+- **Pre-login stats**: `getUserStats` treats `JWT_REQUIRED` / expected 401 as `authExpected: true` (no user-facing “session expired” string).
+
+## 7. Practical checks if 401 happens on user search
 
 1. **Redis**: Same instance as at login? Correct host/port (e.g. local `REDIS_PORT=6380` vs Docker). Run Redis and retry.
 2. **TTL**: If the token is old (e.g. > 1h since login and no refresh), Redis key may have expired; log in again or ensure refresh is used and the new access token is sent.

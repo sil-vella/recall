@@ -20,9 +20,10 @@ class ConnectionsApiModule extends ModuleBase {
 
   final String baseUrl;
   AuthManager? _authManager;
+  final AuthInterceptor _authInterceptor = AuthInterceptor();
   /// ✅ Use InterceptedClient instead of normal `http`
-  final InterceptedClient client = InterceptedClient.build(
-    interceptors: [AuthInterceptor()],
+  late final InterceptedClient client = InterceptedClient.build(
+    interceptors: [_authInterceptor],
     requestTimeout: Duration(seconds: Config.httpRequestTimeout),
   );
 
@@ -33,6 +34,7 @@ class ConnectionsApiModule extends ModuleBase {
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
     _authManager = AuthManager();
+    _authInterceptor.attachClient(client);
     _sendTestRequest();
   }
 

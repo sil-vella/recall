@@ -64,6 +64,9 @@ abstract class BaseScreen extends StatefulWidget {
   /// Optional method to provide a custom content main axis size
   MainAxisSize? getContentMainAxisSize(BuildContext context) => null;
 
+  /// When false, [BaseScreen] omits top/bottom AdMob banner bars (e.g. in-game full-bleed UI).
+  bool get showAdBannerBars => true;
+
   @override
   BaseScreenState createState();
 }
@@ -72,6 +75,10 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   late final AppManager appManager;
   final ModuleManager _moduleManager = ModuleManager();
   BannerAdModule? bannerAdModule;
+
+  /// One [BannerAd] + [AdWidget] per screen instance (never reuse keys across routes).
+  final Key topBannerHostKey = UniqueKey();
+  final Key bottomBannerHostKey = UniqueKey();
 
   /// Drains pending `instant_ws` rows (same modal path as periodic check) when [NotificationsModule] signals new items.
   void _onPendingWsInstantQueued() {
@@ -441,11 +448,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       // Register global app bar features for this screen (ALWAYS)
       _registerGlobalAppBarFeatures();
       
-      // AdMob banner preload (native, non-premium only).
-      if (!kIsWeb && bannerAdModule != null && AdExperiencePolicy.showMonetizedAds) {
-        appManager.triggerBottomBannerBarHook(context);
-        appManager.triggerTopBannerBarHook(context);
-      }
+      // Banner loads via [AdvertsModule] + per-screen hosts only (no per-screen preload hooks).
 
       // App-wide: show instant-type notification modals when unread (any screen)
       final notifMod = _moduleManager.getModuleByType<NotificationsModule>();
@@ -749,63 +752,34 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                 // ),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    return ListenableBuilder(
-                      listenable: StateManager(),
-                      builder: (context, _) {
-                        // TEMP: snack-bar reserved strip disabled — re-enable [totalBottomSpace] + [SizedBox] below if needed.
-                        final monetized = AdExperiencePolicy.showMonetizedAds;
-                        final topBannerHeight = kIsWeb
-                            ? 0.0
-                            : (monetized &&
-                                    bannerAdModule != null &&
-                                    Config.admobsTopBanner.trim().isNotEmpty
-                                ? 50.0
-                                : 0.0);
-
-                        final bottomBannerHeight = kIsWeb
-                            ? 0.0
-                            : (monetized &&
-                                    bannerAdModule != null &&
-                                    Config.admobsBottomBanner.trim().isNotEmpty
-                                ? 50.0
-                                : 0.0);
-
-                        return Column(
-                          mainAxisSize: MainAxisSize.max,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            FeatureSlot(
-                              scopeKey: widget.runtimeType.toString(),
-                              slotId: 'header',
-                              title: 'Notices',
-                            ),
-
-                            if (topBannerHeight > 0)
-                              SizedBox(
-                                height: topBannerHeight,
-                                child: Center(
-                                  child: bannerAdModule!.show(context, slot: 'top'),
-                                ),
-                              ),
-
-                            Expanded(
-                              child: LayoutBuilder(
-                                builder: (context, contentConstraints) {
-                                  return buildContent(context);
-                                },
-                              ),
-                            ),
-
-                            if (bottomBannerHeight > 0)
-                              SizedBox(
-                                height: bottomBannerHeight,
-                                child: Center(
-                                  child: bannerAdModule!.show(context, slot: 'bottom'),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
+                    return Column(
+                      mainAxisSize: MainAxisSize.max,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FeatureSlot(
+                          scopeKey: widget.runtimeType.toString(),
+                          slotId: 'header',
+                          title: 'Notices',
+                        ),
+                        if (widget.showAdBannerBars)
+                          _AdBannerBar(
+                            bannerAdModule: bannerAdModule,
+                            slot: 'top',
+                            hostKey: topBannerHostKey,
+                          ),
+                        Expanded(
+                          child: ListenableBuilder(
+                            listenable: StateManager(),
+                            builder: (context, _) => buildContent(context),
+                          ),
+                        ),
+                        if (widget.showAdBannerBars)
+                          _AdBannerBar(
+                            bannerAdModule: bannerAdModule,
+                            slot: 'bottom',
+                            hostKey: bottomBannerHostKey,
+                          ),
+                      ],
                     );
                   },
                 ),
@@ -994,6 +968,60 @@ class BaseTextField extends StatelessWidget {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
+    );
+  }
+}
+
+/// Top/bottom banner chrome; host stays mounted (clip/hide) so [AdWidget] is not recreated.
+class _AdBannerBar extends StatelessWidget {
+  const _AdBannerBar({
+    required this.bannerAdModule,
+    required this.slot,
+    required this.hostKey,
+  });
+
+  final BannerAdModule? bannerAdModule;
+  final String slot;
+  final Key hostKey;
+
+  static const double _kBannerHeight = 50.0;
+
+  bool _shouldShow() {
+    if (kIsWeb || bannerAdModule == null) return false;
+    if (!AdExperiencePolicy.showMonetizedAds) return false;
+    final unitId = slot == 'bottom'
+        ? Config.admobsBottomBanner
+        : Config.admobsTopBanner;
+    return unitId.trim().isNotEmpty;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (bannerAdModule == null) return const SizedBox.shrink();
+
+    final host = bannerAdModule!.show(
+      context,
+      slot: slot,
+      hostKey: hostKey,
+    );
+
+    return ListenableBuilder(
+      listenable: StateManager(),
+      builder: (context, _) {
+        final visible = _shouldShow();
+        return SizedBox(
+          height: visible ? _kBannerHeight : 0,
+          child: ClipRect(
+            child: IgnorePointer(
+              ignoring: !visible,
+              child: Opacity(
+                opacity: visible ? 1 : 0,
+                child: Center(child: host),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

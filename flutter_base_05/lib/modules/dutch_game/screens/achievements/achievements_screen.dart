@@ -152,13 +152,16 @@ class _StreakSummaryCard extends StatelessWidget {
     return Container(
       padding: AppPadding.largePadding,
       decoration: BoxDecoration(
-        color: AppColors.widgetContainerBackground,
+        color: AppColors.accentContrast,
         borderRadius: AppBorderRadius.largeRadius,
-        border: Border.all(color: AppColors.borderDefault, width: 1),
+        border: Border.all(
+          color: AppColors.matchPotGold.withValues(alpha: 0.45),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.local_fire_department, color: AppColors.accentColor, size: 32),
+          Icon(Icons.local_fire_department, color: AppColors.matchPotGold, size: 32),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -166,7 +169,7 @@ class _StreakSummaryCard extends StatelessWidget {
               children: [
                 Text(
                   'Win streak',
-                  style: AppTextStyles.headingSmall(color: AppColors.white),
+                  style: AppTextStyles.headingSmall(color: AppColors.matchPotGold),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -199,14 +202,14 @@ class _AchievementTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone = unlocked ? AppColors.accentColor : AppColors.lightGray;
+    final tone = unlocked ? AppColors.matchPotGold : AppColors.lightGray;
     return Container(
       padding: AppPadding.largePadding,
       decoration: BoxDecoration(
         color: AppColors.widgetContainerBackground,
         borderRadius: AppBorderRadius.largeRadius,
         border: Border.all(
-          color: unlocked ? AppColors.accentColor.withValues(alpha: 0.45) : AppColors.borderDefault,
+          color: unlocked ? AppColors.matchPotGold.withValues(alpha: 0.45) : AppColors.borderDefault,
           width: 1,
         ),
       ),
@@ -225,7 +228,9 @@ class _AchievementTile extends StatelessWidget {
               children: [
                 Text(
                   entry.title,
-                  style: AppTextStyles.headingSmall(color: AppColors.white),
+                  style: AppTextStyles.headingSmall(
+                    color: unlocked ? AppColors.matchPotGold : AppColors.white,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(

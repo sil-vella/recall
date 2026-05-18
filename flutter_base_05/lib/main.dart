@@ -20,7 +20,7 @@ import 'utils/dev_logger.dart';
 import 'utils/consts/config.dart';
 
 // ignore: constant_identifier_names — set false when not debugging this entrypoint (release tooling may flip).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Hides the Android system navigation bar so the app uses the full screen height;
 /// the bar can be revealed briefly with an edge swipe. Status bar stays visible.

@@ -1559,9 +1559,13 @@ class UserManagementModule(BaseModule):
             # Verify refresh token
             payload = jwt_manager.verify_token(refresh_token, TokenType.REFRESH)
             if not payload:
+                code = getattr(
+                    jwt_manager, 'last_verify_failure_code', None
+                ) or 'REFRESH_INVALID'
                 return jsonify({
                     "success": False,
-                    "error": "Invalid or expired refresh token"
+                    "error": "Invalid or expired refresh token",
+                    "code": code,
                 }), 401
             
             # Get user data
@@ -1571,7 +1575,8 @@ class UserManagementModule(BaseModule):
             if not user:
                 return jsonify({
                     "success": False,
-                    "error": "User not found"
+                    "error": "User not found",
+                    "code": "USER_NOT_FOUND",
                 }), 401
             
             # Get the original email from the login request

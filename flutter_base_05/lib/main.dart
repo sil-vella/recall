@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, PlatformDispatcher, defaultTargetPlatform, TargetPlatform;
 import 'dart:async';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -22,6 +23,12 @@ import 'utils/consts/config.dart';
 // ignore: constant_identifier_names — set false when not debugging this entrypoint (release tooling may flip).
 const bool LOGGING_SWITCH = false;
 
+/// Matches [flutter_native_splash] `color` / `android_12.color` in pubspec.yaml.
+const Color _kNativeSplashGreen = Color(0xFF2A5C32);
+
+/// Full-bleed splash used in Flutter after the Android 12 icon splash (WebP in assets).
+const String _kBootstrapSplashAsset = 'assets/images/splash_screen.webp';
+
 /// Hides the Android system navigation bar so the app uses the full screen height;
 /// the bar can be revealed briefly with an edge swipe. Status bar stays visible.
 void _applyAndroidImmersiveBottomBar() {
@@ -36,8 +43,9 @@ void _applyAndroidImmersiveBottomBar() {
 }
 
 Future<void> main() async {
-  // Ensure Flutter bindings are initialized
-  WidgetsFlutterBinding.ensureInitialized();
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  // Keeps native splash visible until [FlutterNativeSplash.remove] (full bleed on Android 12+).
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   if (LOGGING_SWITCH) {
     customlog('main.dart entry');
     customlog(
@@ -107,6 +115,9 @@ Future<void> main() async {
   // Register core providers
   ProviderManager().registerCoreProviders();
 
+  // Warm splash bytes before first frame so bootstrap UI is not a black gap after native splash.
+  await _warmBootstrapSplashAsset();
+
   runApp(
     MultiProvider(
       providers: [
@@ -126,7 +137,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  bool _isInitializing = false;
+  bool _isInitializing = true;
+  bool _initStarted = false;
 
   @override
   void initState() {
@@ -151,13 +163,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _initializeApp() async {
-    if (_isInitializing) {
+    if (_initStarted) {
       return;
     }
-
-    setState(() {
-      _isInitializing = true;
-    });
+    _initStarted = true;
 
     try {
       final appManager = Provider.of<AppManager>(context, listen: false);
@@ -180,13 +189,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         await appManager.initializeApp(context);
       }
 
-      // Trigger rebuild after initialization is complete
       if (mounted) {
         setState(() {
           _isInitializing = false;
         });
       }
-
     } catch (e, st) {
       debugPrint('[MyApp] _initializeApp failed: $e\n$st');
       if (mounted) {
@@ -202,24 +209,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     final appManager = Provider.of<AppManager>(context);
     final navigationManager = Provider.of<NavigationManager>(context, listen: false);
 
-    // Show loading screen while initializing
     if (_isInitializing || !appManager.isInitialized) {
-      return MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text('Initializing app...', style: AppTextStyles.bodyMedium().copyWith(
-                  color: AppColors.textOnPrimary,
-                )),
-              ],
-            ),
-          ),
-        ),
-      );
+      return const _AppBootstrapSplash();
     }
 
     final router = navigationManager.router;
@@ -245,6 +236,67 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           child: child ?? const SizedBox.shrink(),
         );
       },
+    );
+  }
+}
+
+Future<void> _warmBootstrapSplashAsset() async {
+  try {
+    await rootBundle.load(_kBootstrapSplashAsset);
+  } catch (e, st) {
+    debugPrint('[main] bootstrap splash asset load failed: $e\n$st');
+  }
+}
+
+/// Full-bleed splash while modules initialize (replaces Android 12 icon splash).
+class _AppBootstrapSplash extends StatefulWidget {
+  const _AppBootstrapSplash();
+
+  @override
+  State<_AppBootstrapSplash> createState() => _AppBootstrapSplashState();
+}
+
+class _AppBootstrapSplashState extends State<_AppBootstrapSplash> {
+  static bool _nativeSplashRemoved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onFirstSplashFrame());
+  }
+
+  Future<void> _onFirstSplashFrame() async {
+    if (!mounted) return;
+    final provider = const AssetImage(_kBootstrapSplashAsset);
+    await precacheImage(provider, context);
+    if (!mounted) return;
+    if (!_nativeSplashRemoved) {
+      _nativeSplashRemoved = true;
+      FlutterNativeSplash.remove();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        scaffoldBackgroundColor: _kNativeSplashGreen,
+      ),
+      home: Scaffold(
+        backgroundColor: _kNativeSplashGreen,
+        body: SizedBox.expand(
+          child: Image.asset(
+            _kBootstrapSplashAsset,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('[AppBootstrapSplash] image error: $error');
+              return const ColoredBox(color: _kNativeSplashGreen);
+            },
+          ),
+        ),
+      ),
     );
   }
 }

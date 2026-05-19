@@ -222,6 +222,38 @@
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
 
+    - name: Stat Google Play service account JSON on controller
+      stat:
+        path: "{{ local_repo_root }}/secrets/google-play-publisher.json"
+      register: google_play_sa_local
+      delegate_to: localhost
+      become: false
+
+    - name: Ensure secrets dir on VPS for Play Publisher API (Flask mount /app/secrets)
+      file:
+        path: "{{ data_dir }}/secrets"
+        state: directory
+        mode: '0700'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+
+    - name: Copy Google Play service account JSON to VPS
+      copy:
+        src: "{{ local_repo_root }}/secrets/google-play-publisher.json"
+        dest: "{{ data_dir }}/secrets/google-play-publisher.json"
+        mode: '0600'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+      when: google_play_sa_local.stat.exists | default(false)
+
+    - name: Warn when Google Play service account JSON is missing locally
+      debug:
+        msg: >
+          WARNING: {{ local_repo_root }}/secrets/google-play-publisher.json not found.
+          Play coin/subscription verify will return 503 until you add the file and redeploy.
+          See Documentation/python_base_04/GOOGLE_PLAY_BILLING.md
+      when: not (google_play_sa_local.stat.exists | default(false))
+
     - name: Ensure MongoDB data dir is owned by UID 1001 (Bitnami MongoDB default user)
       file:
         path: "{{ data_dir }}/mongodb"

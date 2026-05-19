@@ -529,9 +529,23 @@ class PlayBillingModule(BaseModule):
     def health_check(self) -> dict[str, Any]:
         pkg = (Config.GOOGLE_PLAY_PACKAGE_NAME or "").strip()
         sa = (Config.GOOGLE_PLAY_SERVICE_ACCOUNT_FILE or "").strip()
-        ok = bool(pkg) and bool(sa) and os.path.isfile(sa)
+        pkg_ok = bool(pkg)
+        sa_path_set = bool(sa)
+        sa_file_ok = sa_path_set and os.path.isfile(sa)
+        ok = pkg_ok and sa_file_ok
+        if ok:
+            details = f"package={pkg} service_account_file={sa}"
+        elif not pkg_ok:
+            details = "GOOGLE_PLAY_PACKAGE_NAME is not set (add to .env.prod and redeploy)"
+        elif not sa_path_set:
+            details = "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE is not set (use /app/secrets/google-play-publisher.json in container)"
+        else:
+            details = f"GOOGLE_PLAY_SERVICE_ACCOUNT_FILE not readable: {sa} (mount secrets/ on VPS and redeploy flask)"
         return {
             "module": self.module_name,
             "status": "healthy" if ok else "degraded",
-            "details": "GOOGLE_PLAY_* paths configured" if ok else "Set GOOGLE_PLAY_PACKAGE_NAME and a readable GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
+            "details": details,
+            "package_configured": pkg_ok,
+            "service_account_path_set": sa_path_set,
+            "service_account_file_readable": sa_file_ok,
         }

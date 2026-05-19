@@ -88,6 +88,7 @@ services:
     volumes:
       - /opt/apps/reignofplay/dutch/data/mobile_release.json:/app/data/mobile_release.json:ro
       - /opt/apps/reignofplay/dutch/data/avatars:/app/data/avatars
+      - /opt/apps/reignofplay/dutch/data/secrets:/app/secrets:ro
     depends_on:
       - dutch_mongodb-external
       - dutch_redis-external

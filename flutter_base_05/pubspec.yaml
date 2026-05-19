@@ -80,18 +80,18 @@ flutter:
 
 flutter_native_splash:
   color: "#2a5c32"
-  image: assets/images/splash_screen.webp
+  image: assets/images/splash_screen.png
   android: true
   ios: true
   web: false
   android_gravity: fill
   ios_content_mode: scaleToFill
   fullscreen: true
-  # API 31+: OS shows a centered masked icon, not a full-bleed bitmap (see Android splash-screen docs).
-  # Use a 960×960 (with icon background) asset with important art inside the ~640dp circle, same green as [color].
+  # Android 12+: only solid window color + centered icon (masked circle). Not full-bleed.
+  # https://developer.android.com/develop/ui/views/launch/splash-screen
   android_12:
     color: "#2a5c32"
-    image: assets/images/splash_screen.webp
+    image: assets/images/splash_android12_icon.png
     icon_background_color: "#2a5c32"
 flutter_launcher_icons:
   android: true

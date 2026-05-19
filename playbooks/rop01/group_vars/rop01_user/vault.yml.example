@@ -1,3 +1,6 @@
+# DEPRECATED for new secrets: use app_dev/.env.prod (parsed by 08_deploy_docker_compose.yml).
+# Vault is optional legacy; production deploy SSOT is .env.prod → templates/env.j2 → VPS .env.
+#
 # Example variable names for VPS .env (used by 08_deploy_docker_compose.yml).
 # Copy to vault.yml, fill in real values, then encrypt:
 #   ansible-vault create playbooks/rop01/group_vars/rop01_user/vault.yml
@@ -13,9 +16,9 @@ dart_backend_service_key: ""
 dutch_mt_dashboard_service_key: ""
 google_client_id: ""
 google_client_secret: ""
-# Android coin IAP (Flask play_billing_module → Android Publisher API). Paths are on the VPS host / inside container.
-google_play_package_name: ""
-google_play_service_account_file: ""
+# Play Billing — use .env.prod instead: GOOGLE_PLAY_PACKAGE_NAME, GOOGLE_PLAY_SERVICE_ACCOUNT_FILE
+# google_play_package_name: ""
+# google_play_service_account_file: ""
 app_version: "2.0.0"
 app_download_base_url: "https://dutch.reignofplay.com/downloads"
 # credit_system_api_key: ""

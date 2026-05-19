@@ -19,6 +19,7 @@ import '../../utils/consts/theme_consts.dart';
 import '../../utils/profile_photo_helper.dart';
 import '../../utils/dev_logger.dart';
 import 'package:image_picker/image_picker.dart';
+import 'widgets/premium_subscription_section.dart';
 
 // ignore: constant_identifier_names — flip false when done debugging login UI (see Documentation/Logging/LOGGING_SYSTEM.md).
 const bool LOGGING_SWITCH = false;
@@ -1448,6 +1449,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                     ),
                   ),
                   
+                  const SizedBox(height: 24),
+
+                  const PremiumSubscriptionSection(),
+
                   const SizedBox(height: 24),
                   
                   // Game Statistics Card

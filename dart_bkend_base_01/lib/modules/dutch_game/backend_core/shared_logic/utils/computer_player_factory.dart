@@ -344,7 +344,7 @@ class ComputerPlayerFactory {
     // Jack swap flow: build game data → strategy loop (probability then try strategy; if no valid swap, continue to next) → pass playerIds and cardIds to SSOT.
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
     const jackSwapStrategies = [
-      {'id': 'final_round_caller_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
+      {'id': 'dutch_caller_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
       {'id': 'collection_three_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
       {'id': 'one_card_player_priority', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
       {'id': 'lowest_opponent_higher_own', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
@@ -1703,9 +1703,9 @@ class ComputerPlayerFactory {
         // Rule 1: When isClearAndCollect, swap involving players with 3+ in collection (last in list)
         return _selectCollectionThreeSwap(actingPlayerId, gameData);
       
-      case 'final_round_caller_swap':
-        // Rule: When final round is active, swap with caller: if we know caller's cards, swap our higher with their lower; else swap our highest with any of their cards
-        return _selectFinalRoundCallerSwap(actingPlayerId, actingPlayer, allPlayers, gameState);
+      case 'dutch_caller_swap':
+        // Rule: When Dutch phase is active, swap with caller: if we know caller's cards, swap our higher with their lower; else swap our highest with any of their cards
+        return _selectDutchCallerSwap(actingPlayerId, actingPlayer, allPlayers, gameState);
       
       case 'one_card_player_priority':
         // Rule 2: Swap involving a player who has only 1 card (priority); other card from any other player
@@ -1967,19 +1967,19 @@ class ComputerPlayerFactory {
         .toList();
   }
   
-  /// Rule: Final round caller swap — when final round is active, swap with the caller.
+  /// Rule: Dutch caller swap — when Dutch phase is active, swap with the caller.
   /// If we know cards from the caller's hand (in our known_cards): swap our higher-value card with their lower.
   /// If we don't know any caller cards: swap our highest-value card (from known_cards) with any card from their hand.
   /// Uses same points logic as lowest_opponent_higher_own (card['points']).
-  Map<String, dynamic> _selectFinalRoundCallerSwap(
+  Map<String, dynamic> _selectDutchCallerSwap(
     String actingPlayerId,
     Map<String, dynamic> actingPlayer,
     Map<String, dynamic> allPlayers,
     Map<String, dynamic> gameState,
   ) {
-    final finalRoundActive = gameState['finalRoundActive'] as bool? ?? false;
-    final callerId = gameState['finalRoundCalledBy']?.toString();
-    if (!finalRoundActive || callerId == null || callerId.isEmpty) {
+    final dutchActive = gameState['dutchActive'] as bool? ?? false;
+    final callerId = gameState['dutchCalledBy']?.toString();
+    if (!dutchActive || callerId == null || callerId.isEmpty) {
       
       return _emptyJackSwapResult(actingPlayerId);
     }

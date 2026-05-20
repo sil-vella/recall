@@ -21,7 +21,7 @@ The Dutch game supports two game modes (see [State Management Documentation](./S
 - ⚠️ **Collection Card Validation**: Only enforced in collection mode
 - ⚠️ **Four-of-a-Kind Win Condition**: Only checked in collection mode
 
-All other actions (draw card, play card, same rank play, queen peek, jack swap, call final round) work in both modes.
+All other actions (draw card, play card, same rank play, queen peek, jack swap, call Dutch) work in both modes.
 
 ---
 
@@ -91,7 +91,7 @@ All player actions originate from the **Game Play Screen** (`game_play_screen.da
 | Action | Event Name | Trigger Location | Status Required |
 |--------|-----------|------------------|-----------------|
 | **Start Match** | `start_match` | GameInfoWidget | `waiting` (practice only) |
-| **Call Final Round** | `call_final_round` | MyHandWidget | `playing_card` (when game active, player's turn, final round not already active) |
+| **Call Dutch** | `call_dutch` | MyHandWidget | `playing_card` (when game active, player's turn, Dutch phase not already active) |
 
 ---
 
@@ -191,7 +191,7 @@ All player actions originate from the **Game Play Screen** (`game_play_screen.da
 │  │  - handleCollectFromDiscard()                            │  │
 │  │  - handleQueenPeek()                                     │  │
 │  │  - handleJackSwap()                                      │  │
-│  │  - handleCallFinalRound()                                │  │
+│  │  - handleCallDutch()                                │  │
 │  │  - Validates action                                      │  │
 │  │  - Updates game state                                    │  │
 │  │  - Processes game logic                                  │  │
@@ -418,7 +418,7 @@ PlayerAction.execute()
    - `PlayerAction.queenPeek()` - Create queen peek action
    - `PlayerAction.jackSwap()` - Create jack swap action
    - `PlayerAction.startMatch()` - Create start match action
-   - `PlayerAction.callFinalRound()` - Create call final round action
+   - `PlayerAction.callDutch()` - Create call Dutch action
 
 2. **Execution:**
    - `PlayerAction.execute()` - Validates and emits event
@@ -454,9 +454,9 @@ PlayerAction.execute()
 - `queen_peek` → `PlayerAction.queenPeek()`
 - `initial_peek` → `PlayerAction.completedInitialPeek()` (after 2 cards)
 
-**Call Final Round Button:**
-- Visible when: `isGameActive && isMyTurn && playerStatus == 'playing_card' && !finalRoundActive && !hasPlayerCalledFinalRound`
-- Handler: `_handleCallFinalRound()` creates `PlayerAction.callFinalRound()`
+**Call Dutch Button:**
+- Visible when: `isGameActive && isMyTurn && playerStatus == 'playing_card' && !dutchActive && !hasPlayerCalledDutch`
+- Handler: `_handleCallDutch()` creates `PlayerAction.callDutch()`
 
 **Rapid-Click Prevention:**
 - Uses `_isProcessingAction` flag
@@ -528,9 +528,9 @@ switch (event) {
   case 'completed_initial_peek':
     await _handleCompletedInitialPeek(roomId, round, sessionId, data);
     break;
-  case 'call_final_round':
+  case 'call_dutch':
   case 'call_cleco':
-    await round.handleCallFinalRound(playerId, gamesMap: gamesMap);
+    await round.handleCallDutch(playerId, gamesMap: gamesMap);
     break;
 }
 ```
@@ -609,23 +609,23 @@ switch (event) {
    - Starts first turn if all completed
    - Broadcasts state update
 
-8. **handleCallFinalRound()**
+8. **handleCallDutch()**
    - Validates game is active
-   - Validates final round not already active
+   - Validates Dutch phase not already active
    - Validates player is active and in game
-   - Sets `_finalRoundCaller` to calling player's ID
-   - Sets `finalRoundActive` flag to `true`
-   - Sets `hasCalledFinalRound` flag for calling player
-   - Marks calling player as completed in final round
+   - Sets `_dutchCaller` to calling player's ID
+   - Sets `dutchActive` flag to `true`
+   - Sets `hasCalledDutch` flag for calling player
+   - Marks calling player as completed in Dutch phase
    - Checks if all active players have already completed their turn
-   - If all completed, immediately ends final round and calculates winners
+   - If all completed, immediately ends Dutch phase and calculates winners
    - Otherwise, allows remaining players one last turn
-   - Broadcasts state update with final round status
-   - When final round completes, calculates winners based on:
+   - Broadcasts state update with Dutch phase status
+   - When Dutch phase completes, calculates winners based on:
      - Lowest points wins
      - If points tie, fewer cards wins
-     - If still tied, final round caller wins (if involved in tie)
-   - Sets `winType: 'lowest_points'` for winners (not 'final_round' - the win reason is lowest points, final round is just the game phase)
+     - If still tied, Dutch phase caller wins (if involved in tie)
+   - Sets `winType: 'lowest_points'` for winners (not 'final_round' - the win reason is lowest points, Dutch phase is just the game phase)
 
 **State Management:**
 - Uses `GameStateCallback` interface for state updates
@@ -919,37 +919,37 @@ switch (event) {
 - **Rank-Based Matching**: Computer players are created with difficulty matching the room difficulty (selected in lobby)
 - See [Rank-Based Matching](#rank-based-matching) section for details
 
-### 9. Call Final Round Action
+### 9. Call Dutch Action
 
 **Flow:**
-1. User clicks "Call Final Round" button (when game active, player's turn, final round not already active)
-2. `MyHandWidget._handleCallFinalRound()` creates `PlayerAction.callFinalRound()`
-3. Action executes and emits `call_final_round` event
-4. Backend `handleCallFinalRound()` processes:
+1. User clicks "Call Dutch" button (when game active, player's turn, Dutch phase not already active)
+2. `MyHandWidget._handleCallDutch()` creates `PlayerAction.callDutch()`
+3. Action executes and emits `call_dutch` event
+4. Backend `handleCallDutch()` processes:
    - Validates game is active
-   - Validates final round not already active
+   - Validates Dutch phase not already active
    - Validates player is active and in game
-   - Sets `_finalRoundCaller` to calling player's ID
-   - Sets `finalRoundActive` flag to `true`
-   - Sets `hasCalledFinalRound` flag for calling player
-   - Marks calling player as completed in final round
+   - Sets `_dutchCaller` to calling player's ID
+   - Sets `dutchActive` flag to `true`
+   - Sets `hasCalledDutch` flag for calling player
+   - Marks calling player as completed in Dutch phase
    - Checks if all active players have already completed their turn
-   - If all completed, immediately ends final round and calculates winners
+   - If all completed, immediately ends Dutch phase and calculates winners
    - Otherwise, allows remaining players one last turn
-5. State update broadcasts with final round status
-6. When final round completes (all active players have had their turn):
+5. State update broadcasts with Dutch phase status
+6. When Dutch phase completes (all active players have had their turn):
    - Calculates points for all active players
    - ⚠️ **Points calculation includes ALL cards in `player['hand']`** - Collection rank cards **ARE** included in point totals (they exist in both `hand` and `collection_rank_cards`)
    - Sorts by lowest points, then fewer cards
-   - Applies tie-breaking: if points and cards tie, final round caller wins (if involved in tie)
+   - Applies tie-breaking: if points and cards tie, Dutch phase caller wins (if involved in tie)
    - Sets `winType: 'lowest_points'` for winners
    - Ends game and shows winners modal
 
 **Special Handling:**
-- Only available when game is active, it's player's turn, and final round hasn't been called
-- Each player can only call final round once
+- Only available when game is active, it's player's turn, and Dutch phase hasn't been called
+- Each player can only call Dutch once
 - After calling, all active players get one last turn
-- Winner determination uses lowest points (not "final round" as win reason)
+- Winner determination uses lowest points (not "Dutch phase" as win reason)
 - Final round caller only matters for tie-breaking, not as the win reason itself
 - Win reason displayed in winners modal: "Lowest Points" (not "Final Round")
 - ⚠️ **Collection cards included in points**: In collection mode, collection cards are stored in BOTH `hand` and `collection_rank_cards`, so they contribute to point totals (see [Collection Cards Verification](./COLLECTION_CARDS_VERIFICATION.md) for details)
@@ -1208,8 +1208,8 @@ Player ranks are mapped to YAML difficulty levels for AI behavior:
 ### Potential Additions
 
 1. **Call Dutch Action:**
-   - Backend logic exists (same as `call_final_round`)
-   - Currently uses same handler as `call_final_round`
+   - Backend logic exists (same as `call_dutch`)
+   - Currently uses same handler as `call_dutch`
    - May be renamed or consolidated in future
 
 2. **Replace Drawn Card Action:**

@@ -11,13 +11,13 @@ Clear all cards from your hand or end the game with the least points possible.
 • **Clear and collect mode** - Collect cards from discard pile if they match your collection rank. Collecting all 4 cards of your rank wins the game.
 
 
-**Final Round:**
-If you think you have the least points during your turn, you can call **final round** just before you play a card. This will trigger the final round - this was your final round so you won't play again.
+**Dutch:**
+If you think you have the least points during your turn, you can call **Dutch** just before you play a card. This will trigger the Dutch phase - this was your final turn so you won't play again.
 
 **Winning:**
 • Player with **no cards** wins
 • Player with **least points** wins
 • If same points, player with **least cards** wins
-• If same points and same cards, player who **called final round** wins
+• If same points and same cards, player who **called Dutch** wins
 
 • **Clear and collect mode** - Player that collects all 4 cards of their rank wins

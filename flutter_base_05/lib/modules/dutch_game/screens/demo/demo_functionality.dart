@@ -139,8 +139,8 @@ class DemoFunctionality {
           return await _handleInitialPeek(payload);
         case 'completed_initial_peek':
           return await _handleCompletedInitialPeek(payload);
-        case 'call_final_round':
-          return await _handleCallFinalRound(payload);
+        case 'call_dutch':
+          return await _handleCallDutch(payload);
         case 'collect_from_discard':
           return await _handleCollectFromDiscard(payload);
         case 'use_special_power':
@@ -1845,11 +1845,10 @@ class DemoFunctionality {
     return {'success': true, 'mode': 'demo'};
   }
 
-  /// Handle call final round action in demo mode
-  /// Handle call final round action in demo mode
-  /// Sets finalRoundActive flag and marks player as having called final round
+  /// Handle call Dutch action in demo mode
+  /// Sets dutchActive flag and marks player as having called Dutch
   /// Player can still play cards after calling Dutch
-  Future<Map<String, dynamic>> _handleCallFinalRound(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> _handleCallDutch(Map<String, dynamic> payload) async {
     
     
     
@@ -1895,13 +1894,13 @@ class DemoFunctionality {
     
     
     
-    // Update game state to indicate final round is active
+    // Update game state to indicate Dutch phase is active
     final updatedGameState = Map<String, dynamic>.from(latestGameState);
-    updatedGameState['finalRoundCalledBy'] = userId;
-    updatedGameState['finalRoundActive'] = true;
+    updatedGameState['dutchCalledBy'] = userId;
+    updatedGameState['dutchActive'] = true;
     
-    // Update player's hasCalledFinalRound flag
-    userPlayer['hasCalledFinalRound'] = true;
+    // Update player's hasCalledDutch flag
+    userPlayer['hasCalledDutch'] = true;
     // Keep player status as 'playing_card' so they can still play their card
     userPlayer['status'] = 'playing_card';
     
@@ -1938,7 +1937,7 @@ class DemoFunctionality {
     // Combine all state updates into a single atomic update
     stateUpdater.updateStateSync({
       'currentGameId': currentGameId,
-      'games': updatedGames, // SSOT with final round info
+      'games': updatedGames, // SSOT with Dutch phase info
       'currentPlayer': userPlayer,
       'currentPlayerStatus': 'playing_card',
       'playerStatus': 'playing_card',
@@ -1952,7 +1951,7 @@ class DemoFunctionality {
     
     
     
-    return {'success': true, 'mode': 'demo', 'finalRoundActive': true, 'finalRoundCalledBy': userId};
+    return {'success': true, 'mode': 'demo', 'dutchActive': true, 'dutchCalledBy': userId};
   }
 
   /// Handle collect from discard action in demo mode
@@ -2138,9 +2137,9 @@ class DemoFunctionality {
     final updatedGameState = Map<String, dynamic>.from(latestGameState);
     updatedGameState['players'] = updatedPlayers;
     
-    // Ensure finalRoundActive is false (needed for Call Final Round button visibility)
-    updatedGameState['finalRoundActive'] = false;
-    updatedGameState['finalRoundCalledBy'] = null;
+    // Ensure dutchActive is false (needed for Call Dutch button visibility)
+    updatedGameState['dutchActive'] = false;
+    updatedGameState['dutchCalledBy'] = null;
     
     // If user is involved, set currentPlayer to user player
     if (userInvolved) {
@@ -2153,8 +2152,8 @@ class DemoFunctionality {
       }
       if (userPlayer != null) {
         updatedGameState['currentPlayer'] = userPlayer;
-        // Ensure user player doesn't have hasCalledFinalRound set (needed for button visibility)
-        userPlayer['hasCalledFinalRound'] = false;
+        // Ensure user player doesn't have hasCalledDutch set (needed for button visibility)
+        userPlayer['hasCalledDutch'] = false;
         // Update the player in the list
         for (int i = 0; i < updatedPlayers.length; i++) {
           if (updatedPlayers[i] is Map<String, dynamic> && 
@@ -2240,7 +2239,7 @@ class DemoFunctionality {
     final stateUpdater = DutchGameStateUpdater.instance;
     
     // Step 1: Update SSOT and main state fields using updateStateSync
-    // Also ensure isGameActive and isMyTurn are set for Call Final Round button visibility
+    // Also ensure isGameActive and isMyTurn are set for Call Dutch button visibility
     // Note: isMyTurn must be set at top level of dutchGameState, not just in game data
     if (userInvolved) {
       // Update isMyTurn in the game data first
@@ -2264,8 +2263,8 @@ class DemoFunctionality {
         'currentPlayer': updatedGameState['currentPlayer'],
         'currentPlayerStatus': 'playing_card',
         'playerStatus': 'playing_card',
-        'isGameActive': true, // Required for Call Final Round button
-        'isMyTurn': true, // Required for Call Final Round button (top level)
+        'isGameActive': true, // Required for Call Dutch button
+        'isMyTurn': true, // Required for Call Dutch button (top level)
         'demoInstructionsPhase': 'call_dutch', // Show call dutch instructions after swap
       });
     }

@@ -96,6 +96,15 @@ class DutchAnimRuntime extends ChangeNotifier {
   }
 
   void enqueueGameAnimation(Map<String, dynamic> payload) {
+    final action = payload['action_type']?.toString() ?? '';
+    if (action == 'initial_peek' && _eventData.isNotEmpty) {
+      final tail = _eventData.last;
+      if (tail['action_type']?.toString() == 'initial_peek') {
+        _mergeInitialPeekInto(tail, payload);
+        notifyListeners();
+        return;
+      }
+    }
     _eventSeq++;
     final entry = Map<String, dynamic>.from(payload);
     entry['_seq'] = _eventSeq;
@@ -103,7 +112,9 @@ class DutchAnimRuntime extends ChangeNotifier {
     _eventData.add(entry);
     if (LOGGING_SWITCH) {
       final action = entry['action_type']?.toString() ?? '';
-      if (action == 'jack_swap' || action == 'queen_peek') {
+      if (action == 'jack_swap' ||
+          action == 'queen_peek' ||
+          action == 'initial_peek') {
         final cards = entry['cards'] as List? ?? [];
         customlog(
           'DutchAnimRuntime.enqueue: action=$action seq=$_eventSeq cards=${cards.length} queueLen=${_eventData.length}',
@@ -113,12 +124,47 @@ class DutchAnimRuntime extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Combine slot hints so phase-end peeks paint in one overlay pass (not FIFO per player).
+  void _mergeInitialPeekInto(
+    Map<String, dynamic> tail,
+    Map<String, dynamic> incoming,
+  ) {
+    final merged = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    void addFrom(List? cards) {
+      if (cards == null) return;
+      for (final c in cards) {
+        if (c is! Map) continue;
+        final owner = c['owner_id']?.toString() ?? '';
+        final hi = c['hand_index'];
+        final hiStr = hi?.toString() ?? '';
+        if (owner.isEmpty || hiStr.isEmpty) continue;
+        final key = '$owner|$hiStr';
+        if (seen.add(key)) {
+          merged.add(Map<String, dynamic>.from(c));
+        }
+      }
+    }
+    addFrom(tail['cards'] as List?);
+    addFrom(incoming['cards'] as List?);
+    if (merged.isNotEmpty) {
+      tail['cards'] = merged;
+    }
+    final ctx = Map<String, dynamic>.from(
+      tail['context'] is Map ? tail['context'] as Map : <String, dynamic>{},
+    );
+    ctx['batch'] = true;
+    tail['context'] = ctx;
+  }
+
   void dequeueHead() {
     if (_eventData.isEmpty) return;
     final removed = _eventData.removeAt(0);
     if (LOGGING_SWITCH) {
       final action = removed['action_type']?.toString() ?? '';
-      if (action == 'jack_swap' || action == 'queen_peek') {
+      if (action == 'jack_swap' ||
+          action == 'queen_peek' ||
+          action == 'initial_peek') {
         customlog(
           'DutchAnimRuntime.dequeue: action=$action seq=${removed['_seq']} remaining=${_eventData.length}',
         );

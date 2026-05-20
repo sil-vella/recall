@@ -70,12 +70,12 @@ class DutchGameRound {
   // Winners list - stores winner information when game ends
   List<Map<String, dynamic>> _winnersList = [];
   
-  // Final round caller - stores the player ID who called final round
-  String? _finalRoundCaller;
+  // Dutch caller - stores the player ID who called Dutch
+  String? _dutchCaller;
   
-  // Track which players have had their turn in the final round
-  // Used to determine when final round is complete
-  Set<String> _finalRoundPlayersCompleted = {};
+  // Track which players have had their turn in the Dutch phase
+  // Used to determine when the Dutch phase is complete
+  Set<String> _dutchPlayersCompleted = {};
   
   // Track if onGameEnded has already been called to prevent duplicate stats updates
   bool _gameEndedCallbackCalled = false;
@@ -1056,25 +1056,25 @@ class DutchGameRound {
     }
   }
 
-  /// When the same-rank window ends, CPU initiator may call [handleCallFinalRound] (same SSOT as humans).
+  /// When the same-rank window ends, CPU initiator may call [handleCallDutch] (same SSOT as humans).
   /// Dispatches by [_getComputerDifficulty]; per-difficulty methods hold the real conditions (stubs for now).
-  bool _shouldCpuCallFinalRoundAfterPlay(String playerId, Map<String, dynamic> gameState) {
+  bool _shouldCpuCallDutchAfterPlay(String playerId, Map<String, dynamic> gameState) {
     final difficulty = _getComputerDifficulty(gameState, playerId).toLowerCase();
     switch (difficulty) {
       case 'easy':
-        return _shouldCpuCallFinalRoundAfterPlayEasy(playerId, gameState);
+        return _shouldCpuCallDutchAfterPlayEasy(playerId, gameState);
       case 'hard':
-        return _shouldCpuCallFinalRoundAfterPlayHard(playerId, gameState);
+        return _shouldCpuCallDutchAfterPlayHard(playerId, gameState);
       case 'expert':
-        return _shouldCpuCallFinalRoundAfterPlayExpert(playerId, gameState);
+        return _shouldCpuCallDutchAfterPlayExpert(playerId, gameState);
       case 'medium':
       default:
-        return _shouldCpuCallFinalRoundAfterPlayMedium(playerId, gameState);
+        return _shouldCpuCallDutchAfterPlayMedium(playerId, gameState);
     }
   }
 
-  /// Easy: call final round when this CPU's hand has 4 points or less.
-  bool _shouldCpuCallFinalRoundAfterPlayEasy(String playerId, Map<String, dynamic> gameState) {
+  /// Easy: call Dutch when this CPU's hand has 4 points or less.
+  bool _shouldCpuCallDutchAfterPlayEasy(String playerId, Map<String, dynamic> gameState) {
     final players = gameState['players'] as List<dynamic>? ?? [];
     Map<String, dynamic>? self;
     for (final p in players) {
@@ -1087,8 +1087,8 @@ class DutchGameRound {
     return _calculatePlayerPoints(self, gameState) <= 4;
   }
 
-  /// Medium: call final round when this CPU has 2 points or less and exactly one card in hand.
-  bool _shouldCpuCallFinalRoundAfterPlayMedium(String playerId, Map<String, dynamic> gameState) {
+  /// Medium: call Dutch when this CPU has 2 points or less and exactly one card in hand.
+  bool _shouldCpuCallDutchAfterPlayMedium(String playerId, Map<String, dynamic> gameState) {
     final players = gameState['players'] as List<dynamic>? ?? [];
     Map<String, dynamic>? self;
     for (final p in players) {
@@ -1102,8 +1102,8 @@ class DutchGameRound {
     return _calculatePlayerPoints(self, gameState) <= 2;
   }
 
-  /// Hard: call final round only when this CPU's hand has 0 points.
-  bool _shouldCpuCallFinalRoundAfterPlayHard(String playerId, Map<String, dynamic> gameState) {
+  /// Hard: call Dutch only when this CPU's hand has 0 points.
+  bool _shouldCpuCallDutchAfterPlayHard(String playerId, Map<String, dynamic> gameState) {
     final players = gameState['players'] as List<dynamic>? ?? [];
     Map<String, dynamic>? self;
     for (final p in players) {
@@ -1165,9 +1165,9 @@ class DutchGameRound {
     return n;
   }
 
-  /// Expert: call final round only when hand is 0 points, this player ties the smallest hand size,
+  /// Expert: call Dutch only when hand is 0 points, this player ties the smallest hand size,
   /// and all four jacks are in the discard pile.
-  bool _shouldCpuCallFinalRoundAfterPlayExpert(String playerId, Map<String, dynamic> gameState) {
+  bool _shouldCpuCallDutchAfterPlayExpert(String playerId, Map<String, dynamic> gameState) {
     final players = gameState['players'] as List<dynamic>? ?? [];
     Map<String, dynamic>? self;
     for (final p in players) {
@@ -1183,12 +1183,12 @@ class DutchGameRound {
     return true;
   }
 
-  Future<void> _invokeCpuCallFinalRoundAfterSameRankWindowIfNeeded(String playerId) async {
+  Future<void> _invokeCpuCallDutchAfterSameRankWindowIfNeeded(String playerId) async {
     if (_isGameEnded()) return;
     final gameState = _getCurrentGameState();
     if (gameState == null) return;
-    if (!_shouldCpuCallFinalRoundAfterPlay(playerId, gameState)) return;
-    final ok = await handleCallFinalRound(playerId);
+    if (!_shouldCpuCallDutchAfterPlay(playerId, gameState)) return;
+    final ok = await handleCallDutch(playerId);
     
   }
 
@@ -1539,7 +1539,7 @@ class DutchGameRound {
               
               // Note: Do NOT call _moveToNextPlayer() here
               // The same rank window (triggered in handlePlayCard) will handle moving to next player
-              // Flow: _handleSameRankWindow(initiator) -> timer -> _endSameRankWindow() (CPU final round) -> ...
+              // Flow: _handleSameRankWindow(initiator) -> timer -> _endSameRankWindow() (CPU Dutch) -> ...
             }
           } else {
             
@@ -2305,10 +2305,10 @@ class DutchGameRound {
     }
   }
 
-  /// Handle calling final round - player signals the final round of the game
-  /// After final round is called, all players get one last turn, then game ends and winners are calculated
+  /// Handle calling Dutch - player signals the last round of the game
+  /// After Dutch is called, all players get one last turn, then game ends and winners are calculated
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
-  Future<bool> handleCallFinalRound(String playerId, {Map<String, dynamic>? gamesMap}) async {
+  Future<bool> handleCallDutch(String playerId, {Map<String, dynamic>? gamesMap}) async {
     try {
       
       
@@ -2328,24 +2328,24 @@ class DutchGameRound {
         
       }
       
-      // Check if game has ended - cannot call final round after game ends
+      // Check if game has ended - cannot call Dutch after game ends
       if (_isGameEnded()) {
         
         
         _stateCallback.onActionError(
-          'Cannot call final round - game has ended',
+          'Cannot call Dutch - game has ended',
           data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
         );
         
         return false;
       }
       
-      // Check if final round has already been called
-      if (_finalRoundCaller != null) {
+      // Check if Dutch has already been called
+      if (_dutchCaller != null) {
         
         
         _stateCallback.onActionError(
-          'Final round has already been called',
+          'Dutch has already been called',
           data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
         );
         
@@ -2369,39 +2369,39 @@ class DutchGameRound {
         
         
         _stateCallback.onActionError(
-          'Cannot call final round - player is not active',
+          'Cannot call Dutch - player is not active',
           data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
         );
         
         return false;
       }
       
-      // Set final round caller
-      _finalRoundCaller = playerId;
+      // Set Dutch caller
+      _dutchCaller = playerId;
       
       
-      // Clear final round players completed set (will be populated as players complete their turns)
-      _finalRoundPlayersCompleted.clear();
+      // Clear Dutch players completed set (will be populated as players complete their turns)
+      _dutchPlayersCompleted.clear();
       
       // Mark the caller as having completed their turn (they called it after their turn)
-      _finalRoundPlayersCompleted.add(playerId);
+      _dutchPlayersCompleted.add(playerId);
       
       
-      // Update game state to indicate final round is active
-      gameState['finalRoundCalledBy'] = playerId;
-      gameState['finalRoundActive'] = true;
+      // Update game state to indicate Dutch is active
+      gameState['dutchCalledBy'] = playerId;
+      gameState['dutchActive'] = true;
       
-      // Update player's hasCalledFinalRound flag
-      player['hasCalledFinalRound'] = true;
+      // Update player's hasCalledDutch flag
+      player['hasCalledDutch'] = true;
       
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
-      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'call_final_round');
+      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'call_dutch');
       
       // Broadcast state update
       _stateCallback.onGameStateChanged({
-        'games': currentGames, // Updated games map with final round info
-        'finalRoundCalledBy': playerId,
-        'finalRoundActive': true,
+        'games': currentGames, // Updated games map with Dutch info
+        'dutchCalledBy': playerId,
+        'dutchActive': true,
       });
       
       
@@ -2413,9 +2413,9 @@ class DutchGameRound {
       
       
       // If all active players have completed their turn, end the game immediately
-      if (_finalRoundPlayersCompleted.length >= activePlayerIds.length) {
+      if (_dutchPlayersCompleted.length >= activePlayerIds.length) {
         
-        _endFinalRoundAndCalculateWinners();
+        _endDutchAndCalculateWinners();
         return true;
       }
       
@@ -4207,7 +4207,7 @@ class DutchGameRound {
       _flushWrongSameRankPenaltyBeforeSameRankWindowEnds();
       
       
-      final initiatorForFinalRound = _sameRankWindowInitiatorPlayerId;
+      final initiatorForDutch = _sameRankWindowInitiatorPlayerId;
       _sameRankWindowInitiatorPlayerId = null;
       
       // Check if game has ended (winners exist) - prevent progression if game is over
@@ -4229,17 +4229,17 @@ class DutchGameRound {
       });
       
       
-      if (initiatorForFinalRound != null) {
+      if (initiatorForDutch != null) {
         final gs = _getCurrentGameState();
         if (gs != null) {
           final players = gs['players'] as List<Map<String, dynamic>>? ?? [];
           final initiator = players.firstWhere(
-            (p) => p['id']?.toString() == initiatorForFinalRound,
+            (p) => p['id']?.toString() == initiatorForDutch,
             orElse: () => <String, dynamic>{},
           );
           final isHuman = initiator['isHuman'] as bool? ?? true;
           if (initiator.isNotEmpty && !isHuman) {
-            await _invokeCpuCallFinalRoundAfterSameRankWindowIfNeeded(initiatorForFinalRound);
+            await _invokeCpuCallDutchAfterSameRankWindowIfNeeded(initiatorForDutch);
           }
         }
       }
@@ -4532,10 +4532,10 @@ class DutchGameRound {
     }
   }
 
-  /// End the final round and calculate winners based on points
-  /// Called when all players have completed their turn in the final round
-  /// The final round caller (_finalRoundCaller) gets special tie-breaking logic
-  void _endFinalRoundAndCalculateWinners() {
+  /// End the Dutch and calculate winners based on points
+  /// Called when all players have completed their turn in the Dutch
+  /// The Dutch caller (_dutchCaller) gets special tie-breaking logic
+  void _endDutchAndCalculateWinners() {
     try {
       
       
@@ -4573,7 +4573,7 @@ class DutchGameRound {
         
       }
       
-      // Find winners: lowest points wins, if tie then fewer cards, if still tie then final round caller wins
+      // Find winners: lowest points wins, if tie then fewer cards, if still tie then Dutch caller wins
       final sortedPlayers = playerScores.values.toList()
         ..sort((a, b) {
           // First sort by points (ascending)
@@ -4584,11 +4584,11 @@ class DutchGameRound {
           final cardDiff = (a['cardCount'] as int) - (b['cardCount'] as int);
           if (cardDiff != 0) return cardDiff;
           
-          // If still equal, final round caller wins
+          // If still equal, Dutch caller wins
           final aId = a['playerId'] as String;
           final bId = b['playerId'] as String;
-          if (aId == _finalRoundCaller) return -1; // a wins
-          if (bId == _finalRoundCaller) return 1;  // b wins
+          if (aId == _dutchCaller) return -1; // a wins
+          if (bId == _dutchCaller) return 1;  // b wins
           
           return 0; // No preference if neither is caller
         });
@@ -4610,22 +4610,22 @@ class DutchGameRound {
       ).toList();
       
       // Handle tie-breaking according to game rules:
-      // - If points and cards tie: Final round caller wins if involved in tie
+      // - If points and cards tie: Dutch caller wins if involved in tie
       // - Otherwise, it's a draw (all tied players win)
-      if (winners.length > 1 && _finalRoundCaller != null) {
-        // Check if final round caller is among the tied players
-        final callerInTie = winners.any((w) => (w['playerId'] as String) == _finalRoundCaller);
+      if (winners.length > 1 && _dutchCaller != null) {
+        // Check if Dutch caller is among the tied players
+        final callerInTie = winners.any((w) => (w['playerId'] as String) == _dutchCaller);
         
         if (callerInTie) {
-          // Final round caller is in the tie - they win
+          // Dutch caller is in the tie - they win
           final callerWinner = winners.firstWhere(
-            (w) => (w['playerId'] as String) == _finalRoundCaller,
+            (w) => (w['playerId'] as String) == _dutchCaller,
           );
           winners.clear();
           winners.add(callerWinner);
           
         } else {
-          // Final round caller is NOT in the tie - it's a draw (all tied players win)
+          // Dutch caller is NOT in the tie - it's a draw (all tied players win)
           
         }
       } else if (winners.length == 1) {
@@ -4639,7 +4639,7 @@ class DutchGameRound {
         _winnersList.add({
           'playerId': winner['playerId'],
           'playerName': winner['playerName'],
-          'winType': 'lowest_points',  // Win reason: lowest points (final round caller only matters for tie-breaking)
+          'winType': 'lowest_points',  // Win reason: lowest points (Dutch caller only matters for tie-breaking)
           'points': winner['points'],
           'cardCount': winner['cardCount'],
         });
@@ -4763,8 +4763,8 @@ class DutchGameRound {
   /// Check if the game should end (unified game ending check)
   /// This method checks for:
   /// 1. Empty hand win condition (player has no cards left)
-  /// 2. Final round called (player called final round to end the game)
-  /// 3. Final round completion (after final round is called)
+  /// 2. Dutch called (player called Dutch to end the game)
+  /// 3. Dutch completion (after Dutch is called)
   void _checkGameEnding() {
     try {
       // Prevent duplicate processing if onGameEnded has already been called
@@ -5737,29 +5737,29 @@ class DutchGameRound {
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       final currentPlayer = _resolveCurrentPlayer(gameState);
       
-      // Check if final round is active and if we've completed it
+      // Check if Dutch is active and if we've completed it
       // This check happens BEFORE moving to next player, so currentPlayer is the one who just finished
-      if (_finalRoundCaller != null && currentPlayer != null) {
+      if (_dutchCaller != null && currentPlayer != null) {
         
         
-        // Mark the current player (who just finished their turn) as completed in final round
+        // Mark the current player (who just finished their turn) as completed in Dutch
         final currentPlayerId = currentPlayer['id']?.toString() ?? '';
         if (currentPlayerId.isNotEmpty) {
-          _finalRoundPlayersCompleted.add(currentPlayerId);
+          _dutchPlayersCompleted.add(currentPlayerId);
           
         }
         
-        // Get all active players to check if final round is complete
+        // Get all active players to check if Dutch is complete
         final activePlayers = players.where((p) => (p['isActive'] as bool? ?? true) == true).toList();  // Default to true if missing
         final activePlayerIds = activePlayers.map((p) => p['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
         
-        // Check if all active players have completed their turn in the final round
-        if (_finalRoundPlayersCompleted.length >= activePlayerIds.length) {
+        // Check if all active players have completed their turn in the Dutch
+        if (_dutchPlayersCompleted.length >= activePlayerIds.length) {
           
           
-          // Final round is complete - end the game and calculate winners based on points
-          // The caller (_finalRoundCaller) needs special logic during winner decision
-          _endFinalRoundAndCalculateWinners();
+          // Dutch is complete - end the game and calculate winners based on points
+          // The caller (_dutchCaller) needs special logic during winner decision
+          _endDutchAndCalculateWinners();
           return;
         } else {
           

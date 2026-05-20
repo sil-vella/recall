@@ -237,7 +237,7 @@ The Dutch game module state is stored under the key `'dutch_game'` in `StateMana
           //   'default': int,           // Default fallback timer (current: 30s)
           // Note: Timer values are declared in game_registry.dart switch cases.
           // See PHASE_BASED_TIMER_SYSTEM.md for complete documentation.
-          'dutchCalledBy': String?,   // Player ID who called Dutch (final round)
+          'dutchCalledBy': String?,   // Player ID who called Dutch (Dutch phase)
           'winners': List<Player>?,
         },
       },
@@ -986,7 +986,7 @@ final playerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
 - `state['protectedCardsToPeekTimestamp']` - Protection timestamp
 - `state['isGameActive']` - Game active flag
 - `state['isMyTurn']` - Whether it's current user's turn
-- `state['games'][gameId]['gameData']['game_state']` - For timer config, phase, final round status
+- `state['games'][gameId]['gameData']['game_state']` - For timer config, phase, Dutch phase status
 - `state['actionError']` - Action error messages
 
 **Dependencies** (from `_widgetDependencies`):
@@ -1080,7 +1080,7 @@ changedFields = {'isMyTurn'}
 - **Draw Pile**: Reads `game_state['drawPile']` directly (needs full list for stacking effect)
 - **Discard Pile**: Reads `game_state['discardPile']` directly (needs full list)
 - **Opponents Panel**: Reads `game_state['players']` for timer config and phase
-- **My Hand**: Reads `game_state` for timer config, phase, final round status
+- **My Hand**: Reads `game_state` for timer config, phase, Dutch phase status
 
 **Why Direct Reads:**
 - Some widgets need data not included in slices (e.g., full pile lists for animations)

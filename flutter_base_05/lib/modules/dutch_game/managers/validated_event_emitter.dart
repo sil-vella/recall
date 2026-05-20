@@ -82,8 +82,7 @@ class DutchGameEventEmitter {
     'play_card': {'game_id', 'card_id', 'replace_index'}, // player_id auto-added
     'replace_drawn_card': {'game_id', 'card_index'}, // player_id auto-added
     'play_drawn_card': {'game_id'}, // player_id auto-added
-    'call_dutch': {'game_id'}, // player_id auto-added (deprecated, use call_final_round)
-    'call_final_round': {'game_id'}, // player_id auto-added
+    'call_dutch': {'game_id'}, // player_id auto-added
     'leave_room': {'game_id', 'reason'}, // Changed from 'leave_game' to match backend handler
     'leave_game': {'game_id', 'reason'}, // Keep for backward compatibility
     'draw_card': {'game_id', 'source'}, // player_id auto-added
@@ -341,7 +340,7 @@ class DutchGameEventEmitter {
       // Note: player_id is now sessionId (not userId) since player IDs = sessionIds
       final eventsNeedingPlayerId = {
         'play_card', 'replace_drawn_card', 'play_drawn_card', 
-        'call_dutch', 'call_final_round', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'queen_peek', 'completed_initial_peek', 'collect_from_discard'
+        'call_dutch', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'queen_peek', 'completed_initial_peek', 'collect_from_discard'
       };
       
       if (eventsNeedingPlayerId.contains(eventType)) {

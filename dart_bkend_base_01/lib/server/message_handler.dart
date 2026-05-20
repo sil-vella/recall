@@ -289,7 +289,6 @@ class MessageHandler {
       case 'discard_card':
       case 'take_from_discard':
       case 'call_dutch':
-      case 'call_final_round':
       case 'same_rank_play':
       case 'jack_swap':
       case 'queen_peek':

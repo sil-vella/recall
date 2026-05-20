@@ -31,8 +31,8 @@ This document catalogs **every instance** of frontend state updating during Dutc
   'discardPile': List<Card>,     // Full card data
   'originalDeck': List<Card>,   // Full card data for lookups
   'timerConfig': Map<String, int>, // Phase-based timer configuration
-  'finalRoundActive': bool,
-  'finalRoundCalledBy': String?,
+  'dutchActive': bool,
+  'dutchCalledBy': String?,
   'winners': List<Player>?,
   // ... other game state fields
 }

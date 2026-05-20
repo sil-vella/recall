@@ -325,8 +325,8 @@ class AppColors {
   /// Lighter gold companion to [matchPotGold] for gradients (e.g. promotion headlines, badges).
   static const Color matchPotGoldLight = Color(0xFFFFE082); // Material amber 100
 
-  /// My-hand "Call Final Round" / final-round status chip background.
-  static const Color callFinalRoundChipBackground = Color(0xFFF55333);
+  /// My-hand "Call Dutch" / Dutch-phase status chip background.
+  static const Color callDutchChipBackground = Color(0xFFF55333);
 
   // Text color variants
   static Color get textPrimary => darkGray;

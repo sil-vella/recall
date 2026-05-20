@@ -14,8 +14,7 @@ enum PlayerActionType {
   replaceCard,
   
   // Special actions
-  callDutch, // Deprecated, use callFinalRound
-  callFinalRound,
+  callDutch,
   playSameRank,
   useSpecialPower,
   initialPeek,
@@ -180,7 +179,7 @@ class PlayerAction {
             },
           );
           break;
-        case PlayerActionType.callFinalRound:
+        case PlayerActionType.callDutch:
           await analyticsModule.trackEvent(
             eventType: 'dutch_called',
             eventData: {
@@ -444,14 +443,14 @@ class PlayerAction {
     );
   }
 
-  /// Call final round - signals the final round of the game
+  /// Call Dutch - signals the final round of the game
   /// After calling, all players get one last turn, then game ends and winners are calculated
-  static PlayerAction callFinalRound({
+  static PlayerAction callDutch({
     required String gameId,
   }) {
     return PlayerAction._(
-      actionType: PlayerActionType.callFinalRound,
-      eventName: 'call_final_round',
+      actionType: PlayerActionType.callDutch,
+      eventName: 'call_dutch',
       payload: {
         'game_id': gameId,
         // player_id will be automatically included by the event emitter

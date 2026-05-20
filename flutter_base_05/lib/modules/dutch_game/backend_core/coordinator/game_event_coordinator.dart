@@ -12,11 +12,15 @@ const bool LOGGING_SWITCH = true;
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
+  /// Let clients finish opponent peek glow before phase transition rebuilds layout.
+  static const Duration _initialPeekBatchGlowLead = Duration(milliseconds: 1500);
+
   final RoomManager roomManager;
   final WebSocketServer server;
   final _registry = GameRegistry.instance;
   final _store = GameStateStore.instance;
   final Map<String, Timer?> _initialPeekTimers = {};
+  final Map<String, Set<String>> _initialPeekGlowEmittedByRoom = {};
 
   /// Serialize game events per room so async handlers never interleave (race on shared state).
   final Map<String, Future<void>> _roomEventTail = {};
@@ -286,12 +290,11 @@ class GameEventCoordinator {
             );
           }
           break;
-        case 'call_final_round':
-        case 'call_dutch': // Keep for backward compatibility
+        case 'call_dutch':
           final gamesMap = _getCurrentGamesMap(roomId);
           final playerId = _getPlayerIdFromSession(sessionId, roomId);
           if (playerId != null && playerId.isNotEmpty) {
-            await round.handleCallFinalRound(
+            await round.handleCallDutch(
               playerId,
               gamesMap: gamesMap,
             );
@@ -1345,6 +1348,26 @@ class GameEventCoordinator {
         'points': 0,
       }).toList();
       playerInGamesMap['cardsToPeek'] = idOnlyCardsToPeek;
+
+      int? glowIdx1;
+      int? glowIdx2;
+      final humanHandForGlow = playerInGamesMap['hand'] as List<dynamic>? ?? [];
+      for (int i = 0; i < humanHandForGlow.length; i++) {
+        final c = humanHandForGlow[i];
+        if (c is! Map) continue;
+        final id = (c['cardId'] ?? c['id'])?.toString() ?? '';
+        if (cardIds.isNotEmpty && id == cardIds[0]) glowIdx1 = i;
+        if (cardIds.length > 1 && id == cardIds[1]) glowIdx2 = i;
+      }
+      if (glowIdx1 != null && glowIdx2 != null) {
+        _emitInitialPeekGlowAnimation(
+          callback,
+          roomId,
+          playerId,
+          glowIdx1,
+          glowIdx2,
+        );
+      }
       
       // Use callback method to broadcast (matches draw card pattern)
       callback.broadcastGameStateExcept(playerId, {
@@ -1596,6 +1619,9 @@ class GameEventCoordinator {
         return;
       }
       final playersInGamesMap = gameData['players'] as List<dynamic>? ?? [];
+      final callback = ServerGameStateCallbackImpl(roomId, server);
+      final batchGlowCards = <Map<String, dynamic>>[];
+      final emittedGlow = _initialPeekGlowEmittedByRoom[roomId];
 
       // Declare initial_peek actions for all players BEFORE clearing cardsToPeek
       for (final player in players) {
@@ -1669,7 +1695,18 @@ class GameEventCoordinator {
           
           continue;
         }
-        
+
+        if (emittedGlow == null || !emittedGlow.contains(playerId)) {
+          batchGlowCards.add(<String, dynamic>{
+            'owner_id': playerId,
+            'hand_index': card1Index,
+          });
+          batchGlowCards.add(<String, dynamic>{
+            'owner_id': playerId,
+            'hand_index': card2Index,
+          });
+        }
+
         // Declare action using queue format (consistent with other actions)
         // CRITICAL: Use card1Index and card2Index calculated for THIS specific player
         final actionName = 'initial_peek_${_generateActionId()}';
@@ -1705,6 +1742,23 @@ class GameEventCoordinator {
         
       }
 
+      if (batchGlowCards.length >= 2) {
+        callback.emitGameAnimation({
+          'action_type': 'initial_peek',
+          'cards': batchGlowCards,
+          'context': <String, dynamic>{'batch': true},
+        });
+        for (final c in batchGlowCards) {
+          final pid = c['owner_id']?.toString();
+          if (pid != null && pid.isNotEmpty) {
+            _initialPeekGlowEmittedByRoom
+                .putIfAbsent(roomId, () => <String>{})
+                .add(pid);
+          }
+        }
+        await Future.delayed(_initialPeekBatchGlowLead);
+      }
+
       // Clear cardsToPeek for all players (store + games map SSOT)
       for (final player in players) {
         if (player is Map<String, dynamic>) {
@@ -1728,7 +1782,6 @@ class GameEventCoordinator {
       final gamesForEmit = _getCurrentGamesMap(roomId);
 
       // Broadcast phase transition: clear peek slices for every client + games map
-      final callback = ServerGameStateCallbackImpl(roomId, server);
       callback.onGameStateChanged({
         'games': gamesForEmit,
         'myCardsToPeek': <Map<String, dynamic>>[],
@@ -1744,10 +1797,45 @@ class GameEventCoordinator {
     }
   }
 
+  /// Broadcast id-only glow hints on two hand slots (all clients), like [queen_peek].
+  void _emitInitialPeekGlowAnimation(
+    ServerGameStateCallbackImpl callback,
+    String roomId,
+    String playerId,
+    int card1Index,
+    int card2Index, {
+    bool skipIfAlreadyEmitted = false,
+  }) {
+    if (skipIfAlreadyEmitted) {
+      final emitted = _initialPeekGlowEmittedByRoom[roomId];
+      if (emitted != null && emitted.contains(playerId)) {
+        return;
+      }
+    }
+    callback.emitGameAnimation({
+      'action_type': 'initial_peek',
+      'cards': [
+        <String, dynamic>{
+          'owner_id': playerId,
+          'hand_index': card1Index,
+        },
+        <String, dynamic>{
+          'owner_id': playerId,
+          'hand_index': card2Index,
+        },
+      ],
+      'context': <String, dynamic>{'player_id': playerId},
+    });
+    _initialPeekGlowEmittedByRoom
+        .putIfAbsent(roomId, () => <String>{})
+        .add(playerId);
+  }
+
   /// Cleanup resources for a room
   void cleanup(String roomId) {
     _initialPeekTimers[roomId]?.cancel();
     _initialPeekTimers.remove(roomId);
+    _initialPeekGlowEmittedByRoom.remove(roomId);
   }
 }
 

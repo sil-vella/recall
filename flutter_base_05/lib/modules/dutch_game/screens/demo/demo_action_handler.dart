@@ -511,7 +511,7 @@ class DemoActionHandler {
                (currentStatus == 'waiting' || currentStatus == 'playing_card');
       
       case 'call_dutch':
-        // Call dutch completes when status changes from playing_card to same_rank_window (after call_final_round and card played)
+        // Call dutch completes when status changes from playing_card to same_rank_window (after call_dutch and card played)
         return previousStatus == 'playing_card' && currentStatus == 'same_rank_window';
       
       case 'collect_rank':

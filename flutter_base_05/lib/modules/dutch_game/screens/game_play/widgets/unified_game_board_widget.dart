@@ -171,8 +171,8 @@ Map<String, dynamic> _unifiedBoardViewSlice(Map<String, dynamic> d) {
     'boardGameState': <String, dynamic>{
       'phase': gs['phase'],
       'timerConfig': timerConfigForSlice,
-      'finalRoundActive': gs['finalRoundActive'] ?? false,
-      'finalRoundCalledBy': gs['finalRoundCalledBy']?.toString(),
+      'dutchActive': gs['dutchActive'] ?? false,
+      'dutchCalledBy': gs['dutchCalledBy']?.toString(),
       'players': List<dynamic>.from(gs['players'] as List? ?? []),
     },
     'userStats': Map<String, dynamic>.from(d['userStats'] as Map? ?? {}),
@@ -221,8 +221,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   int _initialPeekSelectionCount = 0;
   List<String> _initialPeekSelectedCardIds = [];
   bool _isProcessingAction = false;
-  /// True immediately when user taps "Call Final Round"; shows "Final Round Active" until state catches up.
-  bool _callFinalRoundTappedPending = false;
+  /// True immediately when user taps "Call Dutch"; shows "Dutch Active" until state catches up.
+  bool _callDutchTappedPending = false;
   bool _isMyHandCardsToPeekProtected = false;
   List<dynamic>? _protectedMyHandCardsToPeek;
   Timer? _myHandCardsToPeekProtectionTimer;
@@ -348,7 +348,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     setState(() {});
   }
 
-  /// Hides the real hand card at [playerId]/[handIndex] while [DutchCardAnimOverlay] masks that slot.
+  /// Hides the real hand card at [playerId]/[handIndex] during flight/swap overlays (not peek glow).
   Widget _wrapHandSlotAnimMask(String playerId, int handIndex, Widget child) {
     if (DutchAnimRuntime.instance.isAnimMaskedHandSlot(playerId, handIndex)) {
       return IgnorePointer(
@@ -525,7 +525,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   void _resetLocalPlayFlagsForNewDeal() {
-    _callFinalRoundTappedPending = false;
+    _callDutchTappedPending = false;
     _isProcessingAction = false;
     _clickedCardId = null;
     _clickedPileType = null;
@@ -798,8 +798,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final gamePhase = board['gamePhase']?.toString() ?? 'waiting';
     final isInitialPeekPhase = gamePhase == 'initial_peek';
     final currentPlayerStatus = _getCurrentUserStatus();
-
-    
+    final dutchActive = bgs['dutchActive'] as bool? ?? false;
+    final dutchCalledBy = bgs['dutchCalledBy']?.toString();
 
     final sideColumnOpp = cardTableOrientation == CardTableOrientation.landscapeFromLeft ||
         cardTableOrientation == CardTableOrientation.landscapeFromRight;
@@ -816,6 +816,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       isInitialPeekPhase,
       phase,
       timerConfig,
+      dutchActive: dutchActive,
+      dutchCalledBy: dutchCalledBy,
       cardTableOrientation: cardTableOrientation,
       centerVerticallyInSideColumn: sideColumnOpp,
     );
@@ -836,10 +838,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, String? phase, Map<String, int>? timerConfig, {required CardTableOrientation cardTableOrientation, bool centerVerticallyInSideColumn = false}) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, String? phase, Map<String, int>? timerConfig, {required bool dutchActive, String? dutchCalledBy, required CardTableOrientation cardTableOrientation, bool centerVerticallyInSideColumn = false}) {
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
-    final hasCalledDutch = player['hasCalledDutch'] ?? false;
+    final playerId = player['id']?.toString() ?? '';
+    final isDutchCaller = _isPlayerDutchCaller(player, dutchCalledBy: dutchCalledBy);
+    final inDutchPhase = dutchActive && isGameActive;
+    final showDutchCallerHud = isDutchCaller && inDutchPhase;
     final playerStatus = player['status']?.toString() ?? 'unknown';
     
     // For timer calculation, always use playerStatus (opponent's actual status)
@@ -959,9 +964,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
     // In opponent slots, "current turn" already means this seat is the active actor.
     // Do not gate on isCurrentPlayer here, otherwise highlights never appear.
-    final isOpponentTurn = isCurrentTurn;
-    final highlightOpponentSeat = isOpponentTurn && isGameActive;
-    
+    final isActiveSeat = isCurrentTurn && isGameActive;
+    // Dutch caller: avatar ring + label only — no full-seat border (draw/play use seat glow).
+    final emphasizeAvatar = showDutchCallerHud || isActiveSeat;
+    final highlightSeat = isGameActive && isActiveSeat && !showDutchCallerHud;
+    final seatGlowColor = timerColor;
+    final showAnimatedTimer =
+        shouldShowTimer && isActiveSeat && !showDutchCallerHud;
+    final hudLabel = _buildHudSeatLabel(
+      isDutchCaller: showDutchCallerHud,
+      isActiveSeat: isActiveSeat && !showDutchCallerHud,
+    );
+    final avatarChild = _buildPlayerProfilePicture(
+      playerId,
+      profilePictureUrl: player['profile_picture']?.toString(),
+      diameter: _kHudAvatarInRing,
+    );
 
     final Widget? opponentHandHudBar = hand.isEmpty
         ? null
@@ -969,49 +987,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedScale(
-                scale: highlightOpponentSeat ? 1.08 : 1.0,
+                scale: emphasizeAvatar ? 1.08 : 1.0,
                 duration: const Duration(milliseconds: 180),
                 curve: Curves.easeOutCubic,
-                child: shouldShowTimer
-                    ? CircularTimerWidget(
-                        key: ValueKey('timer_${player['id']}_${playerStatus}'),
-                        durationSeconds: effectiveTimer,
-                        size: highlightOpponentSeat ? (_kHudRingOuter + 4) : _kHudRingOuter,
-                        strokeWidth: highlightOpponentSeat ? (_kHudRingStroke + 0.5) : _kHudRingStroke,
-                        color: timerColor,
-                        backgroundColor: AppColors.surfaceVariant,
-                        centerChild: _buildPlayerProfilePicture(
-                          player['id']?.toString() ?? '',
-                          profilePictureUrl: player['profile_picture']?.toString(),
-                          diameter: _kHudAvatarInRing,
-                        ),
-                      )
-                    : _buildPlayerProfilePicture(
-                        player['id']?.toString() ?? '',
-                        profilePictureUrl: player['profile_picture']?.toString(),
-                      ),
+                child: _buildHudAvatarRing(
+                  isDutchCaller: showDutchCallerHud,
+                  showAnimatedTimer: showAnimatedTimer,
+                  durationSeconds: effectiveTimer,
+                  timerColor: timerColor,
+                  centerChild: avatarChild,
+                  emphasize: emphasizeAvatar,
+                  timerKeySuffix: '${playerId}_$playerStatus',
+                ),
               ),
-              if (hasCalledDutch || isOpponentTurn) ...[
+              if (hudLabel != null) ...[
                 const SizedBox(width: 8),
-                if (hasCalledDutch) ...[
-                  Icon(Icons.flag, size: 16, color: AppColors.errorColor),
-                  if (isOpponentTurn) const SizedBox(width: 4),
-                ],
-                if (isOpponentTurn)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentColor2,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      'TURN',
-                      style: AppTextStyles.overline().copyWith(
-                        color: AppColors.textOnAccent,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
+                hudLabel,
               ],
             ],
           );
@@ -1039,18 +1030,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         final decoratedHandPanel = AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: EdgeInsets.all(highlightOpponentSeat ? 4 : 0),
+          padding: EdgeInsets.all(highlightSeat ? 4 : 0),
           decoration: BoxDecoration(
-            color: highlightOpponentSeat ? timerColor.withOpacity(0.12) : null,
+            color: highlightSeat ? seatGlowColor.withOpacity(0.12) : null,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: highlightOpponentSeat ? timerColor : Colors.transparent,
-              width: highlightOpponentSeat ? 2.0 : 0.0,
+              color: highlightSeat ? seatGlowColor : Colors.transparent,
+              width: highlightSeat ? 2.0 : 0.0,
             ),
-            boxShadow: highlightOpponentSeat
+            boxShadow: highlightSeat
                 ? [
                     BoxShadow(
-                      color: timerColor.withOpacity(0.35),
+                      color: seatGlowColor.withOpacity(0.35),
                       blurRadius: 10,
                       spreadRadius: 1,
                     ),
@@ -1455,9 +1446,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       onTap: () => _handleOpponentCardClick(card, playerId),
     );
     
-    // Apply glow effect based on current player status (for jack_swap and queen_peek)
-    final glowColor = currentPlayerStatus != null 
-        ? _getGlowColorForCards(currentPlayerStatus, false) 
+    // Per-card status glow (jack swap / playing). Peek hints use [DutchCardAnimOverlay] border only.
+    final glowColor = currentPlayerStatus != null
+        ? _getGlowColorForCards(currentPlayerStatus, false)
         : null;
     
     if (glowColor != null && _glowAnimation != null) {
@@ -1644,6 +1635,116 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
+  /// Orange ring/chip/border for the player who called Dutch (matches table Dutch glow).
+  static const Color _dutchHighlightColor = AppColors.callDutchChipBackground;
+
+  bool _isPlayerDutchCaller(
+    Map<String, dynamic> player, {
+    String? dutchCalledBy,
+  }) {
+    final playerId = player['id']?.toString() ?? '';
+    if (player['hasCalledDutch'] == true) return true;
+    final callerId = dutchCalledBy?.trim() ?? '';
+    return callerId.isNotEmpty && playerId == callerId;
+  }
+
+  /// Avatar HUD ring: static orange when [isDutchCaller], else animated timer or plain avatar.
+  Widget _buildHudAvatarRing({
+    required bool isDutchCaller,
+    required bool showAnimatedTimer,
+    required int durationSeconds,
+    required Color timerColor,
+    required Widget centerChild,
+    bool emphasize = false,
+    String? timerKeySuffix,
+  }) {
+    final size = emphasize ? (_kHudRingOuter + 4) : _kHudRingOuter;
+    final sw = emphasize ? (_kHudRingStroke + 0.5) : _kHudRingStroke;
+    final inner = (size - 2 * sw - 2).clamp(0.0, double.infinity);
+
+    if (isDutchCaller) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            SizedBox(
+              width: size,
+              height: size,
+              child: CircularProgressIndicator(
+                value: 1.0,
+                strokeWidth: sw,
+                backgroundColor: AppColors.surfaceVariant,
+                valueColor: const AlwaysStoppedAnimation<Color>(_dutchHighlightColor),
+              ),
+            ),
+            SizedBox(
+              width: inner,
+              height: inner,
+              child: ClipOval(child: centerChild),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (showAnimatedTimer) {
+      return CircularTimerWidget(
+        key: ValueKey('timer_${timerKeySuffix ?? 'hud'}'),
+        durationSeconds: durationSeconds,
+        size: size,
+        strokeWidth: sw,
+        color: timerColor,
+        backgroundColor: AppColors.surfaceVariant,
+        centerChild: centerChild,
+      );
+    }
+
+    return centerChild;
+  }
+
+  /// "Dutch" on caller seat, "TURN" on active non-caller during normal play.
+  Widget? _buildHudSeatLabel({
+    required bool isDutchCaller,
+    required bool isActiveSeat,
+  }) {
+    if (isDutchCaller) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: _dutchHighlightColor,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          'Dutch',
+          style: AppTextStyles.overline().copyWith(
+            color: AppColors.textOnAccent,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+    }
+    if (isActiveSeat) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.accentColor2,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          'TURN',
+          style: AppTextStyles.overline().copyWith(
+            color: AppColors.textOnAccent,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+    }
+    return null;
+  }
+
   Color _getStatusChipColor(String status) {
     switch (status) {
       case 'waiting':
@@ -1712,13 +1813,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         // During playing: apply to all cards in my hand
         return isMyHand ? _getStatusChipColor(currentPlayerStatus) : null;
       case 'jack_swap':
-      case 'queen_peek':
-        // During jack swap/queen peek: apply to all cards in all hands
+        // During jack swap: apply to all cards in all hands (flights mask + decoration).
         return _getStatusChipColor(currentPlayerStatus);
-      case 'initial_peek':
       case 'same_rank_window':
-        // During initial peek/same rank: apply to my hand only
+        // During same rank: apply to my hand only
         return isMyHand ? _getStatusChipColor(currentPlayerStatus) : null;
+      case 'queen_peek':
+      case 'initial_peek':
+        // Peek slot hints are overlay border glow only (see [DutchCardAnimOverlay]).
+        return null;
       default:
         return null;
     }
@@ -2398,8 +2501,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final playerStatus = _getCurrentUserStatus(); // Use same source as status chip
     final currentGameId = board['currentGameId']?.toString() ?? '';
     final gameState = board['boardGameState'] as Map<String, dynamic>? ?? {};
-    final finalRoundActive = gameState['finalRoundActive'] as bool? ?? false;
-    final finalRoundCalledBy = gameState['finalRoundCalledBy']?.toString();
+    final dutchActive = gameState['dutchActive'] as bool? ?? false;
+    final dutchCalledBy = gameState['dutchCalledBy']?.toString();
     // Get timer from game_state timerConfig (added during game initialization)
     // Safely convert Map<String, dynamic> to Map<String, int>
     final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
@@ -2493,11 +2596,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
     final currentUserProfilePicture = currentUserPlayer?['profile_picture']?.toString();
     
-    final hasPlayerCalledFinalRound = gameState['players'] != null
+    final hasPlayerCalledDutch = gameState['players'] != null
         ? (gameState['players'] as List<dynamic>?)
             ?.any((p) => p is Map<String, dynamic> && 
                 p['id']?.toString() == myBoardPlayerId && 
-                p['hasCalledFinalRound'] == true) ?? false
+                p['hasCalledDutch'] == true) ?? false
         : false;
     
     final actionError = board['actionError'] as Map<String, dynamic>?;
@@ -2553,35 +2656,41 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         ? 'Event'
         : _friendlyCardBackLabel(myEquippedCardBackId);
 
+    final myPlayerId = _myBoardPlayerId(board);
+    final isLocalDutchCaller = hasPlayerCalledDutch ||
+        (dutchActive &&
+            dutchCalledBy != null &&
+            dutchCalledBy.isNotEmpty &&
+            dutchCalledBy == myPlayerId);
+    final showLocalDutchCallerHud = isLocalDutchCaller && dutchActive && isGameActive;
+    final showMyHandTimer =
+        playerStatus != 'waiting' && !showLocalDutchCallerHud && isMyTurn;
+
     final Widget? myFirstCardHandHud = cards.isEmpty
         ? null
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (playerStatus != 'waiting')
-                CircularTimerWidget(
-                  key: ValueKey('timer_myhand_${playerStatus}'),
-                  durationSeconds: turnTimeLimit,
-                  size: _kHudRingOuter,
-                  strokeWidth: _kHudRingStroke,
-                  color: timerColor,
-                  backgroundColor: AppColors.surfaceVariant,
-                  centerChild: _buildPlayerProfilePicture(
-                    _myBoardPlayerId(board),
-                    profilePictureUrl: currentUserProfilePicture,
-                    diameter: _kHudAvatarInRing,
-                  ),
-                )
-              else
-                _buildPlayerProfilePicture(
-                  _myBoardPlayerId(board),
+              _buildHudAvatarRing(
+                isDutchCaller: showLocalDutchCallerHud,
+                showAnimatedTimer: showMyHandTimer,
+                durationSeconds: turnTimeLimit,
+                timerColor: timerColor,
+                centerChild: _buildPlayerProfilePicture(
+                  myPlayerId,
                   profilePictureUrl: currentUserProfilePicture,
+                  diameter: _kHudAvatarInRing,
                 ),
+                emphasize: showLocalDutchCallerHud || (isMyTurn && !showLocalDutchCallerHud),
+                timerKeySuffix: 'myhand_$playerStatus',
+              ),
             ],
           );
-    
+
+    // Dutch caller: orange avatar ring only — no hand-panel border like draw/play.
     final highlightMyHandSection = isGameActive && isMyTurn;
-    // My hand section: column with (1) header row = You + status chip (+ optional Call Final Round), (2) cards with HUD on index 0
+    final myHandGlowColor = timerColor;
+    // My hand section: column with (1) header row = You + status chip (+ optional Call Dutch), (2) cards with HUD on index 0
     return Container(
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
@@ -2589,7 +2698,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Row 1: label + status chip (+ optional Call Final Round). Profile + timer sit on first card.
+            // Row 1: label + status chip (+ optional Call Dutch). Profile + timer sit on first card.
             Row(
               children: [
                 Text(
@@ -2624,13 +2733,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     ),
                   ),
                 const Spacer(),
-                if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !finalRoundActive && !hasPlayerCalledFinalRound && !_callFinalRoundTappedPending) ...[
+                if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !dutchActive && !hasPlayerCalledDutch && !_callDutchTappedPending) ...[
                   GestureDetector(
-                    onTap: () => _handleCallFinalRound(context, currentGameId),
+                    onTap: () => _handleCallDutch(context, currentGameId),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.callFinalRoundChipBackground,
+                        color: AppColors.callDutchChipBackground,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
@@ -2643,7 +2752,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Call Final Round',
+                            'Call Dutch',
                             style: AppTextStyles.bodySmall().copyWith(
                               color: AppColors.textOnAccent,
                               fontSize: 10,
@@ -2655,18 +2764,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     ),
                   ),
                   const SizedBox(width: 8),
-                ] else if (finalRoundActive || _callFinalRoundTappedPending) ...[
+                ] else if (dutchActive || _callDutchTappedPending) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.callFinalRoundChipBackground,
+                      color: AppColors.callDutchChipBackground,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          (finalRoundActive && finalRoundCalledBy == _myBoardPlayerId(board))
+                          (dutchActive && dutchCalledBy == _myBoardPlayerId(board))
                               ? Icons.flag
                               : Icons.flag_outlined,
                           size: 12,
@@ -2674,9 +2783,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          (finalRoundActive && finalRoundCalledBy == _myBoardPlayerId(board))
-                              ? 'You Called Final Round'
-                              : 'Final Round Active',
+                          (dutchActive && dutchCalledBy == _myBoardPlayerId(board))
+                              ? 'You Called Dutch'
+                              : 'Dutch Active',
                           style: AppTextStyles.bodySmall().copyWith(
                             color: AppColors.textOnAccent,
                             fontSize: 10,
@@ -2702,16 +2811,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               curve: Curves.easeOutCubic,
               padding: EdgeInsets.all(highlightMyHandSection ? 4 : 0),
               decoration: BoxDecoration(
-                color: highlightMyHandSection ? timerColor.withOpacity(0.12) : null,
+                color: highlightMyHandSection ? myHandGlowColor.withOpacity(0.12) : null,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: highlightMyHandSection ? timerColor : Colors.transparent,
+                  color: highlightMyHandSection ? myHandGlowColor : Colors.transparent,
                   width: highlightMyHandSection ? 2.0 : 0.0,
                 ),
                 boxShadow: highlightMyHandSection
                     ? [
                         BoxShadow(
-                          color: timerColor.withOpacity(0.35),
+                          color: myHandGlowColor.withOpacity(0.35),
                           blurRadius: 10,
                           spreadRadius: 1,
                         ),
@@ -3383,7 +3492,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return myHand['playerStatus']?.toString() ?? 'unknown';
   }
 
-  Future<void> _handleCallFinalRound(BuildContext context, String gameId) async {
+  Future<void> _handleCallDutch(BuildContext context, String gameId) async {
     
     if (_isProcessingAction) {
       
@@ -3396,13 +3505,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     try {
       setState(() {
         _isProcessingAction = true;
-        _callFinalRoundTappedPending = true; // Show "Final Round Active" immediately
+        _callDutchTappedPending = true; // Show "Dutch Active" immediately
       });
       
       
-      final callFinalRoundAction = PlayerAction.callFinalRound(gameId: gameId);
+      final callDutchAction = PlayerAction.callDutch(gameId: gameId);
       
-      await callFinalRoundAction.execute();
+      await callDutchAction.execute();
       
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
@@ -3416,7 +3525,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       if (mounted) {
         setState(() {
           _isProcessingAction = false;
-          _callFinalRoundTappedPending = false; // Restore button on failure
+          _callDutchTappedPending = false; // Restore button on failure
         });
         
       }
@@ -3685,9 +3794,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       onTap: () => _handleMyHandCardSelection(context, index, cardMap),
     );
     
-    // Apply glow effect based on current player status
-    final glowColor = currentPlayerStatus != null 
-        ? _getGlowColorForCards(currentPlayerStatus, true) 
+    // Per-card status glow; queen/init peek use overlay border glow only.
+    final glowColor = currentPlayerStatus != null
+        ? _getGlowColorForCards(currentPlayerStatus, true)
         : null;
     
     if (glowColor != null && _glowAnimation != null) {

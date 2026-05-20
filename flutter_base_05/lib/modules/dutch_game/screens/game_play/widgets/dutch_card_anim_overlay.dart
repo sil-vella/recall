@@ -65,7 +65,7 @@ double _seatRadiansForHandRect(
   return mappedRadians;
 }
 
-enum _PlanTag { none, linear, jackSwap, queenPeek }
+enum _PlanTag { none, linear, jackSwap, queenPeek, initialPeek }
 
 /// One card flying from [from] rect to [to] rect (anchor-relative pixels).
 class _CardFlightData {
@@ -88,12 +88,20 @@ class _AnimPlan {
   const _AnimPlan.linear(this.a)
       : tag = _PlanTag.linear,
         b = null,
-        peekTarget = null;
+        peekTarget = null,
+        peekTargets = null;
   const _AnimPlan.jackSwap(this.a, this.b)
       : tag = _PlanTag.jackSwap,
-        peekTarget = null;
+        peekTarget = null,
+        peekTargets = null;
   const _AnimPlan.queenPeek(this.peekTarget)
       : tag = _PlanTag.queenPeek,
+        peekTargets = null,
+        a = null,
+        b = null;
+  const _AnimPlan.initialPeek(this.peekTargets)
+      : tag = _PlanTag.initialPeek,
+        peekTarget = null,
         a = null,
         b = null;
 
@@ -101,6 +109,7 @@ class _AnimPlan {
   final _CardFlightData? a;
   final _CardFlightData? b;
   final Map<String, double>? peekTarget;
+  final List<Map<String, double>>? peekTargets;
 }
 
 /// FIFO card flights from [DutchAnimRuntime]: frozen A→B rects, one [AnimationController] tween
@@ -115,12 +124,18 @@ class DutchCardAnimOverlay extends StatefulWidget {
 
 class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     with SingleTickerProviderStateMixin {
+  static const Duration _flightAnimDuration = Duration(milliseconds: 420);
+  static const Duration _peekGlowDuration = Duration(milliseconds: 1400);
+
   final DutchAnimRuntime _runtime = DutchAnimRuntime.instance;
 
   AnimationController? _controller;
   int? _runningSeq;
   int _stallFrames = 0;
   static const int _maxStallFrames = 24;
+  /// Peek glow needs layout after [game_animation]; allow more frames before giving up.
+  static const int _maxStallFramesPeek = 96;
+  Timer? _peekGlowCompleteTimer;
 
   _PlanTag _activePlan = _PlanTag.none;
 
@@ -137,6 +152,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
   double _jackToRadiansB = 0;
 
   Map<String, double>? _peekTargetRect;
+  List<Map<String, double>>? _peekTargetRects;
 
   /// Static ghost during [play_card] / [same_rank_play]: next [reposition]'s `from` rect, else draw pile.
   Map<String, double>? _playDeckGhostRect;
@@ -162,7 +178,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 420),
+      duration: _flightAnimDuration,
       animationBehavior: AnimationBehavior.preserve,
     )
       ..addStatusListener(_onAnimStatus)
@@ -176,11 +192,42 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
   @override
   void dispose() {
+    _peekGlowCompleteTimer?.cancel();
     _runtime.removeListener(_onRuntime);
     _controller?.removeListener(_onAnimTick);
     _controller?.removeStatusListener(_onAnimStatus);
     _controller?.dispose();
     super.dispose();
+  }
+
+  void _cancelPeekGlowCompleteTimer() {
+    _peekGlowCompleteTimer?.cancel();
+    _peekGlowCompleteTimer = null;
+  }
+
+  bool _isPeekGlowAction(String action) =>
+      action == 'initial_peek' || action == 'queen_peek';
+
+  void _schedulePeekGlowComplete(int seq) {
+    _cancelPeekGlowCompleteTimer();
+    _peekGlowCompleteTimer = Timer(_peekGlowDuration, () {
+      if (!mounted) return;
+      if (_runningSeq != seq) return;
+      _finishPeekGlowPlayback();
+    });
+  }
+
+  void _finishPeekGlowPlayback() {
+    _cancelPeekGlowCompleteTimer();
+    _runtime.dequeueHead();
+    _syncHandMaskFromQueueHead();
+    _runningSeq = null;
+    _stallFrames = 0;
+    if (mounted) {
+      _kick();
+      setState(() {});
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _kick());
   }
 
   void _onRuntime() {
@@ -201,6 +248,11 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
   void _onAnimStatus(AnimationStatus s) {
     if (s != AnimationStatus.completed) return;
+    // Peek glow completion is timer-driven so phase/state rebuilds cannot cut it short.
+    if (_activePlan == _PlanTag.queenPeek ||
+        _activePlan == _PlanTag.initialPeek) {
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_controller == null || _controller!.status != AnimationStatus.completed) return;
@@ -232,6 +284,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     _jackFromRadiansB = 0;
     _jackToRadiansB = 0;
     _peekTargetRect = null;
+    _peekTargetRects = null;
   }
 
   /// Rect for the static ghost during a play flight: queued [reposition]'s `from`, else draw pile.
@@ -330,6 +383,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       'same_rank_penalty_rebound',
       'jack_swap',
       'queen_peek',
+      'initial_peek',
     };
     return supported.contains(action);
   }
@@ -400,8 +454,15 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         }
       }
       _stallFrames++;
-      if (_stallFrames > _maxStallFrames) {
-        
+      final maxStall = _isPeekGlowAction(action)
+          ? _maxStallFramesPeek
+          : _maxStallFrames;
+      if (_stallFrames > maxStall) {
+        if (LOGGING_SWITCH && _isPeekGlowAction(action)) {
+          customlog(
+            'DutchCardAnimOverlay: $action stall timeout frames=$_stallFrames',
+          );
+        }
         _runtime.dequeueHead();
         _stallFrames = 0;
         if (mounted) setState(() {});
@@ -420,8 +481,21 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       );
     }
     _applyPlan(plan, head as Map<String, dynamic>);
-    
+    final peekGlow = plan.tag == _PlanTag.queenPeek ||
+        plan.tag == _PlanTag.initialPeek;
+    final targetDuration =
+        peekGlow ? _peekGlowDuration : _flightAnimDuration;
+    if (_controller!.duration != targetDuration) {
+      if (!peekGlow) {
+        _controller!.stop();
+      }
+      _controller!.duration = targetDuration;
+    }
+
     if (mounted) setState(() {});
+    if (peekGlow) {
+      _schedulePeekGlowComplete(seq!);
+    }
     _controller!.forward(from: 0.0);
   }
 
@@ -467,6 +541,13 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         break;
       case _PlanTag.queenPeek:
         _peekTargetRect = Map<String, double>.from(plan.peekTarget!);
+        _peekTargetRects = null;
+        break;
+      case _PlanTag.initialPeek:
+        _peekTargetRect = null;
+        _peekTargetRects = plan.peekTargets!
+            .map((r) => Map<String, double>.from(r))
+            .toList();
         break;
       case _PlanTag.none:
         break;
@@ -493,15 +574,8 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       if (o0.isNotEmpty && i0 != null) keys.add(DutchAnimRuntime.handSlotMaskKey(o0, i0));
       return keys;
     }
-    if (action == 'queen_peek') {
-      if (cards.isEmpty) return keys;
-      final c0 = cards.first;
-      if (c0 is! Map) return keys;
-      final owner = c0['owner_id']?.toString() ?? '';
-      final hi = _parseHandIndex(c0['hand_index']);
-      if (owner.isNotEmpty && hi != null) {
-        keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
-      }
+    // Peek hints: overlay border glow only — do not hide real hand cards (no slot mask).
+    if (action == 'queen_peek' || action == 'initial_peek') {
       return keys;
     }
     if (action == 'play_card' || action == 'same_rank_play') return keys;
@@ -549,7 +623,48 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
             _jackModelB != null;
       case _PlanTag.queenPeek:
         return _peekTargetRect != null;
+      case _PlanTag.initialPeek:
+        return _peekTargetRects != null && _peekTargetRects!.isNotEmpty;
     }
+  }
+
+  Widget _peekGlowPulseFrame(Map<String, double> r, Color glowColor, double t) {
+    // Two gentle pulses; use |sin| so shadow radii never go negative (asserts in debug).
+    final pulse = math.sin(math.pi * t * 2).abs();
+    final glow = glowColor.withValues(
+      alpha: (0.35 + 0.45 * pulse).clamp(0.0, 1.0),
+    );
+    final left = r['left'];
+    final top = r['top'];
+    final width = r['width'];
+    final height = r['height'];
+    if (left == null || top == null || width == null || height == null) {
+      return const SizedBox.shrink();
+    }
+    return Positioned(
+      left: left - 4,
+      top: top - 4,
+      width: width + 8,
+      height: height + 8,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: glow,
+            width: (2.5 + pulse * 2).clamp(0.5, 8.0),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.accentColor.withValues(
+                alpha: (0.25 + 0.35 * pulse).clamp(0.0, 1.0),
+              ),
+              blurRadius: (10 + 18 * pulse).clamp(0.0, 40.0),
+              spreadRadius: (1 + 3 * pulse).clamp(0.0, 12.0),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   _AnimPlan? _resolveAnimPlan(
@@ -792,6 +907,21 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       return _AnimPlan.queenPeek(r);
     }
 
+    if (action == 'initial_peek') {
+      if (cards.length < 2) return null;
+      final rects = <Map<String, double>>[];
+      for (final c in cards) {
+        if (c is! Map) continue;
+        final owner = c['owner_id']?.toString() ?? '';
+        final hi = _parseHandIndex(c['hand_index']);
+        if (owner.isEmpty || hi == null) continue;
+        final r = rectFor(owner, hi);
+        if (r != null) rects.add(r);
+      }
+      if (rects.length < 2) return null;
+      return _AnimPlan.initialPeek(rects);
+    }
+
     return null;
   }
 
@@ -811,12 +941,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
     final t = _controller!.value;
 
-    if (_activePlan == _PlanTag.queenPeek) {
-      final r = _peekTargetRect!;
-      final pulse = sin(pi * t);
-      final glow = AppColors.statusQueenPeek.withValues(
-        alpha: (0.35 + 0.45 * pulse).clamp(0.0, 1.0),
-      );
+    if (_activePlan == _PlanTag.queenPeek && _peekTargetRect != null) {
       return TickerMode(
         enabled: true,
         child: RepaintBoundary(
@@ -824,27 +949,30 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                Positioned(
-                  left: r['left']! - 4,
-                  top: r['top']! - 4,
-                  width: r['width']! + 8,
-                  height: r['height']! + 8,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: glow, width: 2.5 + pulse * 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.accentColor.withValues(
-                            alpha: (0.25 + 0.35 * pulse).clamp(0.0, 1.0),
-                          ),
-                          blurRadius: 10 + 18 * pulse,
-                          spreadRadius: 1 + 3 * pulse,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                _peekGlowPulseFrame(_peekTargetRect!, AppColors.statusQueenPeek, t),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_activePlan == _PlanTag.initialPeek &&
+        _peekTargetRects != null &&
+        _peekTargetRects!.isNotEmpty) {
+      return TickerMode(
+        enabled: true,
+        child: RepaintBoundary(
+          child: IgnorePointer(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                for (final r in _peekTargetRects!)
+                  if (r['left'] != null &&
+                      r['top'] != null &&
+                      r['width'] != null &&
+                      r['height'] != null)
+                    _peekGlowPulseFrame(r, AppColors.statusInitialPeek, t),
               ],
             ),
           ),

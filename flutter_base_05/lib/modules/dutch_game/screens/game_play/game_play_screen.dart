@@ -145,15 +145,15 @@ class InnerShadowPainter extends CustomPainter {
   }
 }
 
-/// Stroked rounded-rect ring only (no fill) — wide glow band + crisp inner rim for final round.
+/// Stroked rounded-rect ring only (no fill) — wide glow band + crisp inner rim for Dutch phase.
 /// Alpha across the band: 1 from inner edge through midpoint, then linear to 0 at outer edge.
 /// Avoids [BoxDecoration] shadows which bleed across the whole felt.
-class _FinalRoundEdgeGlowPainter extends CustomPainter {
+class _DutchPhaseEdgeGlowPainter extends CustomPainter {
   final double borderRadius;
   final double pulse;
   final Color color;
 
-  _FinalRoundEdgeGlowPainter({
+  _DutchPhaseEdgeGlowPainter({
     required this.borderRadius,
     required this.pulse,
     required this.color,
@@ -211,7 +211,7 @@ class _FinalRoundEdgeGlowPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FinalRoundEdgeGlowPainter oldDelegate) {
+  bool shouldRepaint(_DutchPhaseEdgeGlowPainter oldDelegate) {
     return oldDelegate.pulse != pulse ||
         oldDelegate.borderRadius != borderRadius ||
         oldDelegate.color != color;
@@ -219,16 +219,16 @@ class _FinalRoundEdgeGlowPainter extends CustomPainter {
 }
 
 /// Pulsing glow on the inner felt edge only (ring, not a full-surface overlay).
-class _FinalRoundInnerGlowPulse extends StatefulWidget {
+class _DutchPhaseInnerGlowPulse extends StatefulWidget {
   final double borderRadius;
 
-  const _FinalRoundInnerGlowPulse({required this.borderRadius});
+  const _DutchPhaseInnerGlowPulse({required this.borderRadius});
 
   @override
-  State<_FinalRoundInnerGlowPulse> createState() => _FinalRoundInnerGlowPulseState();
+  State<_DutchPhaseInnerGlowPulse> createState() => _DutchPhaseInnerGlowPulseState();
 }
 
-class _FinalRoundInnerGlowPulseState extends State<_FinalRoundInnerGlowPulse>
+class _DutchPhaseInnerGlowPulseState extends State<_DutchPhaseInnerGlowPulse>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
@@ -254,10 +254,10 @@ class _FinalRoundInnerGlowPulseState extends State<_FinalRoundInnerGlowPulse>
       builder: (context, child) {
         final t = Curves.easeInOut.transform(_controller.value);
         return CustomPaint(
-          painter: _FinalRoundEdgeGlowPainter(
+          painter: _DutchPhaseEdgeGlowPainter(
             borderRadius: widget.borderRadius,
             pulse: t,
-            color: AppColors.callFinalRoundChipBackground,
+            color: AppColors.callDutchChipBackground,
           ),
           child: const SizedBox.expand(),
         );
@@ -901,12 +901,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                                     final game = games[gameId] as Map<String, dynamic>?;
                                     final gs = game?['gameData'] as Map<String, dynamic>?;
                                     final gameState = gs?['game_state'] as Map<String, dynamic>?;
-                                    return gameState?['finalRoundActive'] as bool? ?? false;
+                                    return gameState?['dutchActive'] as bool? ?? false;
                                   },
-                                  builder: (context, finalRoundActive, _) {
-                                    if (!finalRoundActive) return const SizedBox.shrink();
+                                  builder: (context, dutchActive, _) {
+                                    if (!dutchActive) return const SizedBox.shrink();
                                     return const IgnorePointer(
-                                      child: _FinalRoundInnerGlowPulse(borderRadius: 8.0),
+                                      child: _DutchPhaseInnerGlowPulse(borderRadius: 8.0),
                                     );
                                   },
                                 ),

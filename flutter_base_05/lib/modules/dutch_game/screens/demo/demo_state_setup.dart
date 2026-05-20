@@ -602,7 +602,7 @@ class DemoStateSetup {
   }
 
   /// Set up state for Call Dutch action
-  /// Game should be started, player in playing_card status, finalRoundActive: false
+  /// Game should be started, player in playing_card status, dutchActive: false
   /// CRITICAL: Hand should only contain 4 face-down ID-only cards (no drawn card)
   Future<Map<String, dynamic>> setupCallDutchState(
     String gameId,
@@ -652,16 +652,16 @@ class DemoStateSetup {
       players[0].remove('drawnCard');
       
       players[0]['hand'] = hand;
-      players[0]['hasCalledFinalRound'] = false;
+      players[0]['hasCalledDutch'] = false;
       players[0]['status'] = 'playing_card';
       players[0]['isCurrentPlayer'] = true;
       
       
     }
 
-    // Ensure finalRoundActive is false and player hasn't called yet
-    updatedState['finalRoundActive'] = false;
-    updatedState['finalRoundCalledBy'] = null;
+    // Ensure dutchActive is false and player hasn't called yet
+    updatedState['dutchActive'] = false;
+    updatedState['dutchCalledBy'] = null;
 
     updatedState['players'] = players;
     updatedState['phase'] = 'playing';

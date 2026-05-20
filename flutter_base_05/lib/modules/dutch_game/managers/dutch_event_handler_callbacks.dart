@@ -1853,7 +1853,9 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     
     if (LOGGING_SWITCH &&
-        (actionType == 'jack_swap' || actionType == 'queen_peek')) {
+        (actionType == 'jack_swap' ||
+            actionType == 'queen_peek' ||
+            actionType == 'initial_peek')) {
       customlog(
         'handleGameAnimation: gameId=$gameId action=$actionType cards=$n$handIdxBrief$ctxBrief',
       );
@@ -2574,13 +2576,17 @@ When anyone has played a card with the **same rank** as your **collection card**
           updates['discardPile'] = discardPile;
           break;
         case 'dutch_called_by':
-          updates['dutchCalledBy'] = updatedGameState['dutch_called_by'];
+        case 'dutchCalledBy':
+          updates['dutchCalledBy'] = updatedGameState['dutchCalledBy'] ??
+              updatedGameState['dutch_called_by'];
           // Track Dutch call event
           final gameMode = updatedGameState['game_mode']?.toString() ?? 'multiplayer';
           _trackGameEvent('dutch_called', {
             'game_id': gameId,
             'game_mode': gameMode,
-            'called_by': updatedGameState['dutch_called_by']?.toString(),
+            'called_by': (updatedGameState['dutchCalledBy'] ??
+                    updatedGameState['dutch_called_by'])
+                ?.toString(),
           });
           break;
         case 'game_ended':

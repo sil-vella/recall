@@ -481,8 +481,7 @@ class DutchGameRound {
   void _updatePlayerStatusInGamesMap(String status, {String? playerId, Map<String, dynamic>? gamesMap}) {
     final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
     final gameId = _gameId;
-    Map<String, dynamic>? humanQueenPeekPlayer;
-    
+
     if (currentGames.containsKey(gameId)) {
       final gameData = currentGames[gameId] as Map<String, dynamic>;
       final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
@@ -496,9 +495,6 @@ class DutchGameRound {
               p['status'] = status;
               if (status == 'queen_peek' && playerId != null) {
                 p['cardsToPeek'] = <Map<String, dynamic>>[];
-                if (p['isHuman'] as bool? ?? false) {
-                  humanQueenPeekPlayer = p;
-                }
               }
             }
           }
@@ -508,19 +504,10 @@ class DutchGameRound {
     
     // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
     _sanitizeDrawnCardsInGamesMap(currentGames, context: 'update_player_status');
-    
-    if (status == 'queen_peek' &&
-        playerId != null &&
-        humanQueenPeekPlayer != null) {
-      if (LOGGING_SWITCH) {
-        customlog('updatePlayerStatus: queen_peek clear stale myCardsToPeek for $playerId');
-      }
-      _stateCallback.sendGameStateToPlayer(playerId, {
-        'myCardsToPeek': <Map<String, dynamic>>[],
-        'games': currentGames,
-      });
-    }
-    
+
+    // Do not send empty myCardsToPeek on queen_peek entry — handleQueenPeek sends full peek data;
+    // clearing here races the client and hides the reveal until the next scoped update.
+
     // Broadcast the update with playerStatus in main state
     _stateCallback.onGameStateChanged({
       'games': currentGames,
@@ -787,12 +774,24 @@ class DutchGameRound {
 
       final discardPile = _ensureCardMapList(gameState['discardPile']);
       if (discardPile.isEmpty) return false;
-      final top = discardPile.last;
-      if (top is! Map || top['cardId']?.toString() != cardId) {
-        
+      // Wrong play may no longer be pile top if another same-rank play landed during the delay.
+      var removeIndex = -1;
+      for (var i = discardPile.length - 1; i >= 0; i--) {
+        final entry = discardPile[i];
+        if (entry is Map && entry['cardId']?.toString() == cardId) {
+          removeIndex = i;
+          break;
+        }
+      }
+      if (removeIndex < 0) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'wrongSameRank phase2: cardId=$cardId not found in discard pile (len=${discardPile.length})',
+          );
+        }
         return false;
       }
-      discardPile.removeLast();
+      discardPile.removeAt(removeIndex);
       gameState['discardPile'] = discardPile;
 
       final players = gameState['players'] as List<dynamic>? ?? [];
@@ -3251,6 +3250,14 @@ class DutchGameRound {
         return false;
       }
 
+      if (_wrongPenaltyPlayerId != null && !_wrongPenaltyPhase2Applied) {
+        _stateCallback.onActionError(
+          'Resolving a wrong same-rank play — try again in a moment',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        return false;
+      }
+
       final bool phaseAllowsSameRankPlay = _allowSameRankPlayPhase(gameState, playerId);
       final bool isCpuIndexAttempt = cardIndex != null;
       final bool isLateCpuSameRankAttempt = !phaseAllowsSameRankPlay && isCpuIndexAttempt;
@@ -3400,6 +3407,7 @@ class DutchGameRound {
               'card': Map<String, dynamic>.from(playedCardFullData),
             },
           ],
+          context: const {'rejected': true},
         );
 
         _stateCallback.onGameStateChanged({
@@ -3409,7 +3417,10 @@ class DutchGameRound {
         });
 
         _wrongSameRankPenaltyPhase2Timer?.cancel();
-        _wrongSameRankPenaltyPhase2Timer = Timer(const Duration(seconds: 2), _runWrongSameRankPenaltyPhase2);
+        _wrongSameRankPenaltyPhase2Timer = Timer(
+          const Duration(milliseconds: 600),
+          _runWrongSameRankPenaltyPhase2,
+        );
 
         ;
 

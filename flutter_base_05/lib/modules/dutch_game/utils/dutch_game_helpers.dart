@@ -83,6 +83,40 @@ class DutchGameHelpers {
     return cards.any(peekCardHasFullData);
   }
 
+  /// Resolve UI [gamePhase] from WS game_state (`gamePhase` or `phase`).
+  /// When both are missing (games-only patch), keep [fallbackPhase] instead of defaulting to `playing`.
+  static String effectiveUiGamePhase(
+    Map<String, dynamic> gameState, {
+    String? fallbackPhase,
+  }) {
+    final fromGamePhase = gameState['gamePhase']?.toString() ?? '';
+    final fromPhase = gameState['phase']?.toString() ?? '';
+    final raw = fromGamePhase.isNotEmpty ? fromGamePhase : fromPhase;
+    if (raw.isEmpty) {
+      final fb = fallbackPhase?.trim() ?? '';
+      if (fb.isEmpty) return 'playing';
+      return _normalizeUiGamePhase(fb);
+    }
+    return _normalizeUiGamePhase(raw);
+  }
+
+  static String _normalizeUiGamePhase(String raw) {
+    if (raw == 'waiting_for_players') return 'waiting';
+    if (raw == 'game_ended') return 'game_ended';
+    return raw;
+  }
+
+  /// True when any roster player still has [same_rank_window] status (partial WS patches may omit phase).
+  static bool anyPlayerInSameRankWindow(Map<String, dynamic> gameState) {
+    final players = gameState['players'] as List? ?? [];
+    for (final p in players) {
+      if (p is Map && p['status']?.toString() == 'same_rank_window') {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Prefer full peek payloads over id-only when merging client state.
   /// Empty [incoming] is authoritative (server cleared peek) — never keep stale [existing].
   static List<dynamic> preferFullPeekCards(

@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 
 import '../../../utils/platform/shared_imports.dart';
+import '../../../../../core/managers/state_manager.dart';
 import '../../../../../utils/dev_logger.dart';
+import '../../../managers/dutch_event_handler_callbacks.dart';
+import 'dutch_hand_feed_formatter.dart';
 
 const bool LOGGING_SWITCH = true;
 
@@ -38,11 +41,26 @@ class DutchAnimRuntime extends ChangeNotifier {
   /// in-flight overlay tween (see [DutchCardAnimOverlay]). Same keys as layout slot paths.
   final Set<String> _animMaskedHandSlots = {};
 
+  static const int _maxHandFeedLines = 3;
+  final List<String> _handFeedLines = [];
+  int _sameRankPlayCount = 0;
+
   /// Mask key for [isAnimMaskedHandSlot]; matches layout `'$playerId|$handIndex'`.
   static String handSlotMaskKey(String playerId, int handIndex) => '$playerId|$handIndex';
 
   bool isAnimMaskedHandSlot(String playerId, int handIndex) =>
       _animMaskedHandSlots.contains(handSlotMaskKey(playerId, handIndex));
+
+  /// Up to [_maxHandFeedLines] event lines for the my-hand feed (same-rank v1).
+  List<String> get handFeedLines => List<String>.unmodifiable(_handFeedLines);
+
+  int get sameRankPlayCount => _sameRankPlayCount;
+
+  /// For [UnifiedGameBoardWidget] to rebuild the feed strip without [StateManager] patches.
+  String get handFeedSignature {
+    if (_handFeedLines.isEmpty && _sameRankPlayCount == 0) return '';
+    return '${_handFeedLines.join('\x1e')}|$_sameRankPlayCount';
+  }
 
   /// For listeners that should rebuild only when the mask set changes (not on every [mergeLayout]).
   String get handAnimMaskSignature {
@@ -91,8 +109,98 @@ class DutchAnimRuntime extends ChangeNotifier {
     _cardPositionsVersion = 0;
     _lastLayoutSignature = null;
     _animMaskedHandSlots.clear();
+    _clearHandFeed(notify: false);
     
     notifyListeners();
+  }
+
+  /// Resets same-rank ordinal counter for a new window (feed lines are not cleared here).
+  void onSameRankWindowEntered() {
+    _sameRankPlayCount = 0;
+  }
+
+  void _clearHandFeed({required bool notify}) {
+    final hadLines = _handFeedLines.isNotEmpty;
+    final hadCount = _sameRankPlayCount != 0;
+    _handFeedLines.clear();
+    _sameRankPlayCount = 0;
+    if (notify && (hadLines || hadCount)) {
+      notifyListeners();
+    }
+  }
+
+  /// Append a feed line from [game_animation] (same-rank plays and penalty rebound only).
+  void appendHandFeedFromGameAnimation(
+    Map<String, dynamic> payload, {
+    required String currentUserId,
+  }) {
+    final action = payload['action_type']?.toString() ?? '';
+    final ownerId = DutchHandFeedFormatter.ownerIdFromAnimationPayload(payload);
+    if (ownerId == null) return;
+
+    final opponents = _opponentsFromState();
+    String? line;
+    if (action == 'same_rank_play') {
+      final ctx = payload['context'];
+      final rejected = ctx is Map && ctx['rejected'] == true;
+      final card = DutchHandFeedFormatter.cardFromAnimationPayload(payload);
+      if (rejected) {
+        line = DutchHandFeedFormatter.messageForWrongSameRankAttempt(
+          actingPlayerId: ownerId,
+          currentUserId: currentUserId,
+          opponents: opponents,
+          card: card,
+        );
+      } else {
+        _sameRankPlayCount++;
+        line = DutchHandFeedFormatter.messageForSameRankPlay(
+          actingPlayerId: ownerId,
+          currentUserId: currentUserId,
+          opponents: opponents,
+          playOrdinal: _sameRankPlayCount,
+          card: card,
+        );
+      }
+    } else if (action == 'same_rank_penalty_rebound') {
+      line = DutchHandFeedFormatter.messageForWrongSameRankPenalty(
+        actingPlayerId: ownerId,
+        currentUserId: currentUserId,
+        opponents: opponents,
+      );
+    } else {
+      return;
+    }
+
+    if (line.isEmpty) return;
+    _handFeedLines.add(line);
+    while (_handFeedLines.length > _maxHandFeedLines) {
+      _handFeedLines.removeAt(0);
+    }
+    if (LOGGING_SWITCH) {
+      customlog('DutchAnimRuntime.handFeed: $line');
+    }
+    notifyListeners();
+  }
+
+  List<dynamic> _opponentsFromState() {
+    final dutch =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final panel = dutch['opponentsPanel'] as Map<String, dynamic>? ?? {};
+    final fromPanel = panel['opponents'] as List? ?? [];
+    if (fromPanel.isNotEmpty) {
+      return List<dynamic>.from(fromPanel);
+    }
+    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+    final gameId = dutch['currentGameId']?.toString() ?? '';
+    final games = dutch['games'] as Map<String, dynamic>? ?? {};
+    final game = games[gameId] as Map<String, dynamic>?;
+    final gs =
+        (game?['gameData'] as Map<String, dynamic>?)?['game_state'] as Map<String, dynamic>?;
+    final players = gs?['players'] as List? ?? [];
+    return players
+        .whereType<Map<String, dynamic>>()
+        .where((p) => p['id']?.toString() != currentUserId)
+        .toList();
   }
 
   void enqueueGameAnimation(Map<String, dynamic> payload) {

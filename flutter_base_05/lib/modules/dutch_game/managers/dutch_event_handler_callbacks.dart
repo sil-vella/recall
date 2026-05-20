@@ -1358,7 +1358,12 @@ When anyone has played a card with the **same rank** as your **collection card**
         myCardsToPeekForPatch = [];
       } else if (status == 'queen_peek' &&
           !DutchGameHelpers.peekListHasFullData(myCardsToPeekForPatch)) {
-        myCardsToPeekForPatch = [];
+        if (existingPeekForMerge != null &&
+            DutchGameHelpers.peekListHasFullData(existingPeekForMerge)) {
+          myCardsToPeekForPatch = existingPeekForMerge;
+        } else {
+          myCardsToPeekForPatch = [];
+        }
       }
 
       // Update main game state with player information
@@ -1679,15 +1684,17 @@ When anyone has played a card with the **same rank** as your **collection card**
     // Get fresh games map after widget sync (it may have been updated)
     final currentGamesAfterSync = _getCurrentGamesMap();
     
-    // Normalize backend phase to UI phase (same logic as handleGameStateUpdated)
-    final rawPhase = gameState['phase']?.toString();
-    String uiPhase;
-    if (rawPhase == 'waiting_for_players') {
-      uiPhase = 'waiting';
-    } else if (rawPhase == 'game_ended') {
-      uiPhase = 'game_ended';
-    } else {
-      uiPhase = rawPhase ?? 'playing';
+    final prevPhase =
+        (StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ??
+                {})['gamePhase']
+            ?.toString();
+    var uiPhase = DutchGameHelpers.effectiveUiGamePhase(
+      gameState,
+      fallbackPhase: prevPhase?.isNotEmpty == true ? prevPhase : 'playing',
+    );
+    if (uiPhase != 'same_rank_window' &&
+        DutchGameHelpers.anyPlayerInSameRankWindow(gameState)) {
+      uiPhase = 'same_rank_window';
     }
     final stateAfterSync = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final kickedModalShownFor = stateAfterSync['kickedModalShownFor']?.toString() ?? '';
@@ -1861,6 +1868,13 @@ When anyone has played a card with the **same rank** as your **collection card**
       );
     }
     DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));
+    if (actionType == 'same_rank_play' ||
+        actionType == 'same_rank_penalty_rebound') {
+      DutchAnimRuntime.instance.appendHandFeedFromGameAnimation(
+        Map<String, dynamic>.from(data),
+        currentUserId: getCurrentUserId(),
+      );
+    }
   }
 
   /// Handle game_state_updated event
@@ -2234,18 +2248,24 @@ When anyone has played a card with the **same rank** as your **collection card**
     final currentUserPlayerStatus = myPlayerForInstructions?['status']?.toString();
     
     
-    // Normalize backend phase to UI phase
-    final rawPhase = gameState['phase']?.toString();
-    
-    String uiPhase;
-    if (rawPhase == 'waiting_for_players') {
-      uiPhase = 'waiting';
-    } else if (rawPhase == 'game_ended') {
-      uiPhase = 'game_ended';
-    } else {
-      uiPhase = rawPhase ?? 'playing';
+    final stateBeforePhase =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final previousUiPhase = stateBeforePhase['gamePhase']?.toString() ?? '';
+    var uiPhase = DutchGameHelpers.effectiveUiGamePhase(
+      gameState,
+      fallbackPhase: previousUiPhase.isNotEmpty ? previousUiPhase : 'playing',
+    );
+    if (uiPhase != 'same_rank_window' &&
+        DutchGameHelpers.anyPlayerInSameRankWindow(gameState)) {
+      uiPhase = 'same_rank_window';
     }
-    
+    final rawPhase = gameState['phase']?.toString() ??
+        gameState['gamePhase']?.toString() ??
+        uiPhase;
+    if (uiPhase == 'same_rank_window' &&
+        previousUiPhase != 'same_rank_window') {
+      DutchAnimRuntime.instance.onSameRankWindowEntered();
+    }
 
     // Extract winners list if game has ended - check both data and gameState
     final winners = data['winners'] as List<dynamic>? ?? gameState['winners'] as List<dynamic>?;
@@ -2296,7 +2316,12 @@ When anyone has played a card with the **same rank** as your **collection card**
       myCardsToPeekFinal = [];
     } else if (currentUserPlayerStatus == 'queen_peek' &&
         !DutchGameHelpers.peekListHasFullData(myCardsToPeekFinal)) {
-      myCardsToPeekFinal = [];
+      if (previousMyCardsToPeek != null &&
+          DutchGameHelpers.peekListHasFullData(previousMyCardsToPeek)) {
+        myCardsToPeekFinal = previousMyCardsToPeek;
+      } else {
+        myCardsToPeekFinal = [];
+      }
     } else if (currentUserPlayerStatus == 'peeking') {
       myCardsToPeekFinal = myCardsToPeekFinal
           .whereType<Map<String, dynamic>>()

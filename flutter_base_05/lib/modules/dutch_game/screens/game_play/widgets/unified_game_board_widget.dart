@@ -3672,12 +3672,38 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  /// Get current user's status from the same source as PlayerStatusChip
-  /// This ensures consistency between status chip and card lighting
+  /// Current user status from SSOT, with same-rank window inferred from [gamePhase]/roster.
   String _getCurrentUserStatus() {
     final dutchGameState = _dutchGameState();
-    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
-    return myHand['playerStatus']?.toString() ?? 'unknown';
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final game = games[currentGameId] as Map<String, dynamic>?;
+    final gameState =
+        (game?['gameData'] as Map<String, dynamic>?)?['game_state']
+            as Map<String, dynamic>? ??
+        {};
+    final seatId = DutchEventHandlerCallbacks.getCurrentUserId();
+    final loginUserId = DutchEventHandlerCallbacks.getCurrentLoginUserId();
+    String status = 'unknown';
+    for (final p in gameState['players'] as List? ?? []) {
+      if (p is! Map<String, dynamic>) continue;
+      final pid = p['id']?.toString() ?? '';
+      final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+      if (pid == seatId || (loginUserId.isNotEmpty && uid == loginUserId)) {
+        status = p['status']?.toString() ?? 'unknown';
+        break;
+      }
+    }
+    final gamePhase = dutchGameState['gamePhase']?.toString() ??
+        gameState['phase']?.toString() ??
+        gameState['gamePhase']?.toString() ??
+        '';
+    if (status != 'same_rank_window' &&
+        (gamePhase == 'same_rank_window' ||
+            DutchGameHelpers.anyPlayerInSameRankWindow(gameState))) {
+      return 'same_rank_window';
+    }
+    return status;
   }
 
   Future<void> _handleCallDutch(BuildContext context, String gameId) async {

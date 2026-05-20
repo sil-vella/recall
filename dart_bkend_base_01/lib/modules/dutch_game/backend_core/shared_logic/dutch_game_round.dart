@@ -247,12 +247,18 @@ class DutchGameRound {
     if (player.isEmpty) {
       return false;
     }
-    if ((player['status']?.toString() ?? '') != 'same_rank_window') {
-      _stateCallback.onActionError(
-        'Same rank play not available for your player state',
-        data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
-      );
-      return false;
+    final playerStatus = player['status']?.toString() ?? '';
+    if (playerStatus != 'same_rank_window') {
+      // Play-action timer expiry can set currentPlayer to waiting while phase is still same_rank_window.
+      if (playerStatus == 'waiting') {
+        _updatePlayerStatusInGamesMap('same_rank_window', playerId: playerId);
+      } else {
+        _stateCallback.onActionError(
+          'Same rank play not available for your player state',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        return false;
+      }
     }
     return true;
   }
@@ -4207,6 +4213,9 @@ class DutchGameRound {
       ;
       
       _sameRankWindowInitiatorPlayerId = initiatorPlayerId;
+
+      // Draw/play timers must not fire during the window (would set currentPlayer to waiting).
+      _cancelNormalTurnAdvanceTimers();
       
       // Update all players' status to same_rank_window
       _updatePlayerStatusInGamesMap('same_rank_window', playerId: null);
@@ -6489,6 +6498,10 @@ class DutchGameRound {
       return;
     }
     final guardState = _getCurrentGameState();
+    if (guardState != null &&
+        _effectiveGamePhase(guardState) == 'same_rank_window') {
+      return;
+    }
     if (guardState != null) {
       final currentPlayer = _stateCallback.getMainStateCurrentPlayer() ?? guardState['currentPlayer'] as Map<String, dynamic>?;
       final currentPlayerId = currentPlayer?['id']?.toString();
@@ -6519,6 +6532,10 @@ class DutchGameRound {
         );
         
         if (player.isNotEmpty) {
+          final st = player['status']?.toString() ?? '';
+          if (st == 'same_rank_window') {
+            return;
+          }
           // Clear drawnCard property (card is now in hand, not "drawn")
           // Remove the key entirely to ensure it's not visible to other players
           if (player.containsKey('drawnCard')) {

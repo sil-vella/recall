@@ -4,12 +4,14 @@
 /// for dutch sessions, including turn rotation, card actions, and AI decision making.
 
 import 'dart:math';
+import 'package:dart_game_server/utils/dev_logger.dart';
 import '../../utils/platform/shared_imports.dart';
 import '../utils/rank_matcher.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
+const bool LOGGING_SWITCH = true;
 
 class DutchGameRound {
   final GameStateCallback _stateCallback;
@@ -444,11 +446,42 @@ class DutchGameRound {
     }
   }
 
+  bool _playerIdMatches(Map<String, dynamic> player, String id) {
+    return player['id']?.toString() == id;
+  }
+
+  bool _cardIdMatches(Map<String, dynamic> card, String cardId) {
+    return card['cardId']?.toString() == cardId;
+  }
+
+  int _findPlayerIndexInRoster(List<Map<String, dynamic>> players, String playerId) {
+    for (int i = 0; i < players.length; i++) {
+      if (_playerIdMatches(players[i], playerId)) return i;
+    }
+    return -1;
+  }
+
+  /// Next seat in [players] roster order, skipping inactive players.
+  int? _nextActivePlayerIndex(List<Map<String, dynamic>> players, int currentIndex) {
+    if (players.isEmpty || currentIndex < 0) return null;
+    final n = players.length;
+    for (int step = 1; step <= n; step++) {
+      final idx = (currentIndex + step) % n;
+      if (players[idx]['isActive'] as bool? ?? true) return idx;
+    }
+    return null;
+  }
+
+  String _rosterIdsBrief(List<Map<String, dynamic>> players) {
+    return players.map((p) => p['id']?.toString() ?? '?').join(',');
+  }
+
   /// Helper method to update player status in games map and broadcast via onGameStateChanged
   /// Replaces onPlayerStatusChanged to avoid redundant broadcasts
   void _updatePlayerStatusInGamesMap(String status, {String? playerId, Map<String, dynamic>? gamesMap}) {
     final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
     final gameId = _gameId;
+    Map<String, dynamic>? humanQueenPeekPlayer;
     
     if (currentGames.containsKey(gameId)) {
       final gameData = currentGames[gameId] as Map<String, dynamic>;
@@ -458,8 +491,15 @@ class DutchGameRound {
         if (gameStateData != null) {
           final players = (gameStateData['players'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
           for (final p in players) {
-            if (playerId == null || p['id'] == playerId) {
+            final matches = playerId == null || _playerIdMatches(p, playerId);
+            if (matches) {
               p['status'] = status;
+              if (status == 'queen_peek' && playerId != null) {
+                p['cardsToPeek'] = <Map<String, dynamic>>[];
+                if (p['isHuman'] as bool? ?? false) {
+                  humanQueenPeekPlayer = p;
+                }
+              }
             }
           }
         }
@@ -468,6 +508,18 @@ class DutchGameRound {
     
     // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
     _sanitizeDrawnCardsInGamesMap(currentGames, context: 'update_player_status');
+    
+    if (status == 'queen_peek' &&
+        playerId != null &&
+        humanQueenPeekPlayer != null) {
+      if (LOGGING_SWITCH) {
+        customlog('updatePlayerStatus: queen_peek clear stale myCardsToPeek for $playerId');
+      }
+      _stateCallback.sendGameStateToPlayer(playerId, {
+        'myCardsToPeek': <Map<String, dynamic>>[],
+        'games': currentGames,
+      });
+    }
     
     // Broadcast the update with playerStatus in main state
     _stateCallback.onGameStateChanged({
@@ -642,6 +694,9 @@ class DutchGameRound {
     _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
     final c = _missedActionCounts[playerId] ?? 0;
     
+    if (LOGGING_SWITCH) {
+      customlog('_recordHumanTimerMissAndAdvanceOrKick: playerId=$playerId missCount=$c');
+    }
     if (c >= 2) {
       _pendingMoveToNextPlayerTimer?.cancel();
       _pendingMoveToNextPlayerTimer = null;
@@ -1483,10 +1538,11 @@ class DutchGameRound {
         case 'play_card':
           final missed = decision['missed'] as bool? ?? false;
           if (missed) {
-            ;
+            if (LOGGING_SWITCH) {
+              customlog('computer play_card missed: playerId=$playerId');
+            }
             // Increment missed action counter
             _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
-            ;
             // Check if threshold reached (2 missed actions)
             if (_missedActionCounts[playerId] == 2) {
               _pendingMoveToNextPlayerTimer?.cancel();
@@ -1904,32 +1960,37 @@ class DutchGameRound {
     
     ;
     
-    // Find current player index
-    final currentIndex = players.indexWhere((p) => p['id'] == currentPlayerId);
+    // Find current player index (stable string ids — hum_*, comp_*, etc.)
+    final currentIndex = _findPlayerIndexInRoster(players, currentPlayerId);
     if (currentIndex == -1) {
-      ;
-      
-      // Current player not found, find human player
+      if (LOGGING_SWITCH) {
+        customlog(
+          '_getNextPlayer: current not in roster id=$currentPlayerId roster=${_rosterIdsBrief(players)}',
+        );
+      }
       final humanPlayer = players.firstWhere(
         (p) => p['isHuman'] == true,
         orElse: () => <String, dynamic>{},
       );
-      
       if (humanPlayer.isNotEmpty) {
-        ;
         return humanPlayer;
-      } else {
-        // Fallback to first player
-        ;
-        return players.first;
       }
+      return players.first;
     }
-    
-    ;
-    
-    // Get next player (wrap around)
-    final nextIndex = (currentIndex + 1) % players.length;
+
+    final nextIndex = _nextActivePlayerIndex(players, currentIndex);
+    if (nextIndex == null) {
+      if (LOGGING_SWITCH) {
+        customlog('_getNextPlayer: no active next after index=$currentIndex');
+      }
+      return null;
+    }
     final nextPlayer = players[nextIndex];
+    if (LOGGING_SWITCH) {
+      customlog(
+        '_getNextPlayer: $currentPlayerId[$currentIndex] -> ${nextPlayer['id']}[$nextIndex]',
+      );
+    }
     
     ;
     
@@ -3494,12 +3555,18 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
-      
+      if (LOGGING_SWITCH) {
+        customlog(
+          'handleJackSwap: enter actor=$actingPlayerId '
+          'first=$firstCardId@$firstPlayerId second=$secondCardId@$secondPlayerId',
+        );
+      }
       if (_winnersList.isNotEmpty) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog('handleJackSwap: abort winners already set');
+        }
         return false;
       }
-      ;
 
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -3509,16 +3576,16 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog('handleJackSwap: abort gameState null');
+        }
         return false;
-      }
-      
-      if (gamesMap != null) {
-        ;
       }
 
       if (!_allowSpecialWindowHead(gameState, actingPlayerId, 'jack_swap')) {
-        
+        if (LOGGING_SWITCH) {
+          customlog('handleJackSwap: _allowSpecialWindowHead denied actor=$actingPlayerId');
+        }
         return false;
       }
 
@@ -3532,25 +3599,22 @@ class DutchGameRound {
         ;
       }
       
-      // Try both direct comparison and toString comparison for robustness
       final firstPlayer = players.firstWhere(
-        (p) {
-          final pId = p['id'];
-          return pId == firstPlayerId || pId?.toString() == firstPlayerId;
-        },
+        (p) => _playerIdMatches(p, firstPlayerId),
         orElse: () => <String, dynamic>{},
       );
 
       final secondPlayer = players.firstWhere(
-        (p) {
-          final pId = p['id'];
-          return pId == secondPlayerId || pId?.toString() == secondPlayerId;
-        },
+        (p) => _playerIdMatches(p, secondPlayerId),
         orElse: () => <String, dynamic>{},
       );
 
       if (firstPlayer.isEmpty || secondPlayer.isEmpty) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog(
+            'handleJackSwap: player not found first=$firstPlayerId second=$secondPlayerId',
+          );
+        }
         return false;
       }
       
@@ -3565,7 +3629,11 @@ class DutchGameRound {
       final secondResolved = _getCardInHandByCardIdOrIndex(secondPlayer, secondPlayerHand, secondCardId);
 
       if (firstResolved == null || secondResolved == null) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog(
+            'handleJackSwap: card not in hand first=$firstCardId second=$secondCardId',
+          );
+        }
         return false;
       }
 
@@ -3579,7 +3647,9 @@ class DutchGameRound {
       final secondCardFullData = _stateCallback.getCardById(gameState, secondCardId);
       
       if (firstCardFullData == null || secondCardFullData == null) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog('handleJackSwap: getCardById failed');
+        }
         return false;
       }
 
@@ -3696,6 +3766,11 @@ class DutchGameRound {
           'acting_player_id': actingPlayerId,
         },
       );
+      if (LOGGING_SWITCH) {
+        customlog(
+          'handleJackSwap: swapped idx $firstCardIndex@$firstPlayerId <-> $secondCardIndex@$secondPlayerId anim emitted',
+        );
+      }
 
       _stateCallback.onGameStateChanged({
         'games': currentGames, // Games map with modifications (drawnCard sanitized)
@@ -3785,11 +3860,17 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'handleQueenPeek: enter peeker=$peekingPlayerId targetOwner=$targetPlayerId cardId=$targetCardId',
+        );
+      }
       if (_winnersList.isNotEmpty) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog('handleQueenPeek: abort winners already set');
+        }
         return false;
       }
-      ;
 
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -3811,27 +3892,34 @@ class DutchGameRound {
 
       // Find the target player (card owner)
       final targetPlayer = players.firstWhere(
-        (p) => p['id'] == targetPlayerId,
+        (p) => _playerIdMatches(p, targetPlayerId),
         orElse: () => <String, dynamic>{},
       );
 
       if (targetPlayer.isEmpty) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog('handleQueenPeek: target player not found owner=$targetPlayerId');
+        }
         return false;
       }
 
       // Find the peeking player (current player using Queen power)
       final peekingPlayer = players.firstWhere(
-        (p) => p['id'] == peekingPlayerId,
+        (p) => _playerIdMatches(p, peekingPlayerId),
         orElse: () => <String, dynamic>{},
       );
 
       if (peekingPlayer.isEmpty) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog('handleQueenPeek: peeking player not found id=$peekingPlayerId');
+        }
         return false;
       }
 
       if (!_allowSpecialWindowHead(gameState, peekingPlayerId, 'queen_peek')) {
+        if (LOGGING_SWITCH) {
+          customlog('handleQueenPeek: _allowSpecialWindowHead denied peeker=$peekingPlayerId');
+        }
         return false;
       }
 
@@ -3840,11 +3928,10 @@ class DutchGameRound {
       Map<String, dynamic>? targetCard;
       int? targetCardIndex;
       final drawnCard = targetPlayer['drawnCard'] as Map<String, dynamic>?;
-      if (drawnCard != null && drawnCard['cardId'] == targetCardId) {
+      if (drawnCard != null && _cardIdMatches(drawnCard, targetCardId)) {
         targetCard = drawnCard;
         // For drawnCard, use -1 as index (special marker for drawn card)
         targetCardIndex = -1;
-        ;
       }
 
       // If not found in drawnCard, search in hand
@@ -3852,7 +3939,7 @@ class DutchGameRound {
         final targetPlayerHand = targetPlayer['hand'] as List<dynamic>? ?? [];
         for (int i = 0; i < targetPlayerHand.length; i++) {
           final card = targetPlayerHand[i];
-          if (card != null && card is Map<String, dynamic> && card['cardId'] == targetCardId) {
+          if (card != null && card is Map<String, dynamic> && _cardIdMatches(card, targetCardId)) {
             targetCard = card;
             targetCardIndex = i;
             break;
@@ -3861,7 +3948,9 @@ class DutchGameRound {
       }
 
       if (targetCard == null) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog('handleQueenPeek: card not in hand/drawnArea cardId=$targetCardId');
+        }
         return false;
       }
 
@@ -3873,11 +3962,31 @@ class DutchGameRound {
       // Get full card data (convert from ID-only if needed)
       final fullCardData = _stateCallback.getCardById(gameState, targetCardId);
       if (fullCardData == null) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog(
+            'handleQueenPeek: getCardById failed peeker=$peekingPlayerId '
+            'target=$targetPlayerId cardId=$targetCardId index=$targetCardIndex',
+          );
+        }
+        _stateCallback.onActionError(
+          'Could not resolve card for queen peek',
+          data: <String, dynamic>{
+            'card_id': targetCardId,
+            'target_player_id': targetPlayerId,
+          },
+        );
         return false;
       }
 
-      ;
+      final fullCardPayload = Map<String, dynamic>.from(fullCardData);
+      if (LOGGING_SWITCH) {
+        customlog(
+          'handleQueenPeek: resolved peeker=$peekingPlayerId target=$targetPlayerId '
+          'cardId=$targetCardId index=$targetCardIndex '
+          'rank=${fullCardPayload['rank']} suit=${fullCardPayload['suit']} '
+          'ownHand=${targetPlayerId == peekingPlayerId}',
+        );
+      }
 
       // Clear any existing cards_to_peek from previous peeks (backend line 1304)
       final existingCardsToPeek = peekingPlayer['cardsToPeek'] as List<dynamic>? ?? [];
@@ -3931,21 +4040,24 @@ class DutchGameRound {
       ;
 
       // STEP 2: Set cardsToPeek to full card data and send only to peeking player
-      peekingPlayer['cardsToPeek'] = [fullCardData];
+      peekingPlayer['cardsToPeek'] = [fullCardPayload];
       
       if (isHuman) {
         // For human players, also update main state myCardsToPeek
         _stateCallback.sendGameStateToPlayer(peekingPlayerId, {
-          'myCardsToPeek': [fullCardData],
+          'myCardsToPeek': [fullCardPayload],
           'games': currentGames,
         });
-        ;
+        if (LOGGING_SWITCH) {
+          customlog(
+            'handleQueenPeek: sent full myCardsToPeek to human peeker=$peekingPlayerId',
+          );
+        }
       } else {
         // For computer players, just send games map update
         _stateCallback.sendGameStateToPlayer(peekingPlayerId, {
           'games': currentGames,
         });
-        ;
       }
       
       ;
@@ -5694,7 +5806,7 @@ class DutchGameRound {
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
-      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      final currentPlayer = _resolveCurrentPlayer(gameState);
       
       // Check if final round is active and if we've completed it
       // This check happens BEFORE moving to next player, so currentPlayer is the one who just finished
@@ -5735,24 +5847,33 @@ class DutchGameRound {
       _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
       ;
       
-      // Find current player index
-      int currentIndex = -1;
-      for (int i = 0; i < players.length; i++) {
-        if (players[i]['id'] == currentPlayerId) {
-          currentIndex = i;
-          break;
-        }
-      }
-      
+      final currentIndex = _findPlayerIndexInRoster(players, currentPlayerId);
       if (currentIndex == -1) {
-        ;
+        if (LOGGING_SWITCH) {
+          customlog(
+            'executeMoveToNextPlayerCore: abort current not in roster '
+            'id=$currentPlayerId roster=${_rosterIdsBrief(players)} '
+            'resolvedCurrent=${currentPlayer['id']}',
+          );
+        }
         return;
       }
-      
-      // Move to next player (or first if at end)
-      final nextIndex = (currentIndex + 1) % players.length;
+
+      final nextIndex = _nextActivePlayerIndex(players, currentIndex);
+      if (nextIndex == null) {
+        if (LOGGING_SWITCH) {
+          customlog('executeMoveToNextPlayerCore: abort no active next after $currentIndex');
+        }
+        return;
+      }
       final nextPlayer = players[nextIndex];
       final nextPlayerId = nextPlayer['id']?.toString() ?? '';
+      if (LOGGING_SWITCH) {
+        customlog(
+          'executeMoveToNextPlayerCore: $currentPlayerId[$currentIndex] -> '
+          '$nextPlayerId[$nextIndex] roster=${_rosterIdsBrief(players)}',
+        );
+      }
       
       // Update current player in game state
       gameState['currentPlayer'] = nextPlayer;
@@ -5784,7 +5905,7 @@ class DutchGameRound {
           if (gameStateData != null) {
             final players = (gameStateData['players'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
             for (final p in players) {
-              if (p['id'] == nextPlayerId) {
+              if (_playerIdMatches(p, nextPlayerId)) {
                 p['status'] = 'drawing_card';
                 break;
               }
@@ -6340,6 +6461,9 @@ class DutchGameRound {
     _playActionTimer?.cancel();
     _playActionTimer = null;
     
+    if (LOGGING_SWITCH) {
+      customlog('onDrawActionTimerExpired: miss playerId=$playerId');
+    }
     _recordHumanTimerMissAndAdvanceOrKick(playerId);
   }
 
@@ -6425,6 +6549,9 @@ class DutchGameRound {
       ;
     }
     
+    if (LOGGING_SWITCH) {
+      customlog('onPlayActionTimerExpired: miss playerId=$playerId');
+    }
     _recordHumanTimerMissAndAdvanceOrKick(playerId);
   }
 

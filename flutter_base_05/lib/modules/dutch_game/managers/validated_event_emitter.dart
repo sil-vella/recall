@@ -19,6 +19,10 @@ enum EventTransportMode {
 /// Ensures all events follow consistent structure and validation rules
 /// Supports dual transport: WebSocket (multiplayer) or Practice (local)
 class DutchGameEventEmitter {
+  /// Multiplayer seat ids (`hum_<userId>`), practice, demo, legacy prefixes, ObjectId, UUID.
+  static const String _playerSeatIdPattern =
+      r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|hum_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$';
+
   static DutchGameEventEmitter? _instance;
   static DutchGameEventEmitter get instance {
     _instance ??= DutchGameEventEmitter._internal();
@@ -249,8 +253,8 @@ class DutchGameEventEmitter {
     ),
     'first_player_id': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
-      description: 'First player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, demo_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+      pattern: _playerSeatIdPattern,
+      description: 'First player seat id (hum_, player_, practice_session_, etc.)',
     ),
     'second_card_id': DutchEventFieldSpec(
       type: String,
@@ -259,8 +263,8 @@ class DutchGameEventEmitter {
     ),
     'second_player_id': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
-      description: 'Second player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, demo_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+      pattern: _playerSeatIdPattern,
+      description: 'Second player seat id (hum_, player_, practice_session_, etc.)',
     ),
     'queen_peek_card_id': DutchEventFieldSpec(
       type: String,
@@ -269,13 +273,13 @@ class DutchGameEventEmitter {
     ),
     'queen_peek_player_id': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
-      description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, demo_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+      pattern: _playerSeatIdPattern,
+      description: 'Player seat id whose card to peek at',
     ),
     'ownerId': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
-      description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, demo_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+      pattern: _playerSeatIdPattern,
+      description: 'Owner seat id of the card being peeked at',
     ),
     'showInstructions': DutchEventFieldSpec(
       type: bool,
@@ -337,7 +341,7 @@ class DutchGameEventEmitter {
       // Note: player_id is now sessionId (not userId) since player IDs = sessionIds
       final eventsNeedingPlayerId = {
         'play_card', 'replace_drawn_card', 'play_drawn_card', 
-        'call_dutch', 'call_final_round', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'completed_initial_peek', 'collect_from_discard'
+        'call_dutch', 'call_final_round', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'queen_peek', 'completed_initial_peek', 'collect_from_discard'
       };
       
       if (eventsNeedingPlayerId.contains(eventType)) {

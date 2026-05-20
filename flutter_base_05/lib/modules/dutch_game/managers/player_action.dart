@@ -1,8 +1,10 @@
-
 import 'validated_event_emitter.dart';
 import '../../dutch_game/managers/dutch_game_state_updater.dart';
+import '../../../utils/dev_logger.dart';
 import '../../../core/managers/module_manager.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Player action types for the Dutch game
 enum PlayerActionType {
@@ -92,12 +94,33 @@ class PlayerAction {
       // This prevents the frontend from overriding backend status updates
       
       
+      if (LOGGING_SWITCH && actionType == PlayerActionType.queenPeek) {
+        customlog(
+          'PlayerAction.queenPeek emit: game_id=${payload['game_id']} '
+          'card_id=${payload['card_id']} ownerId=${payload['ownerId']}',
+        );
+      }
+      if (LOGGING_SWITCH && actionType == PlayerActionType.jackSwap) {
+        customlog(
+          'PlayerAction.jackSwap emit: game_id=${payload['game_id']} '
+          'first=${payload['first_card_id']}@${payload['first_player_id']} '
+          'second=${payload['second_card_id']}@${payload['second_player_id']}',
+        );
+      }
+
       // Use event emitter for both practice and multiplayer games
       // The event emitter will route to practice bridge if transport mode is practice
       await _eventEmitter.emit(
         eventType: eventName,
         data: payload,
       );
+
+      if (LOGGING_SWITCH && actionType == PlayerActionType.queenPeek) {
+        customlog('PlayerAction.queenPeek emit: completed');
+      }
+      if (LOGGING_SWITCH && actionType == PlayerActionType.jackSwap) {
+        customlog('PlayerAction.jackSwap emit: completed');
+      }
       
       
       // Do NOT clear Jack swap selections here. Match queen peek behavior:
@@ -107,7 +130,12 @@ class PlayerAction {
       //   timer; only when state shows player 'waiting' (e.g. timer expired) do we clear and advance.
 
     } catch (e) {
-      
+      if (LOGGING_SWITCH && actionType == PlayerActionType.queenPeek) {
+        customlog('PlayerAction.queenPeek emit failed: $e');
+      }
+      if (LOGGING_SWITCH && actionType == PlayerActionType.jackSwap) {
+        customlog('PlayerAction.jackSwap emit failed: $e');
+      }
       rethrow;
     }
   }
@@ -305,7 +333,11 @@ class PlayerAction {
       if (_firstSelectedCardId == null) {
         _firstSelectedCardId = cardId;
         _firstSelectedPlayerId = playerId;
-        
+        if (LOGGING_SWITCH) {
+          customlog(
+            'PlayerAction.jackSwap select: 1/2 cardId=$cardId playerId=$playerId gameId=$gameId',
+          );
+        }
         return; // Wait for second card
       }
       
@@ -313,16 +345,22 @@ class PlayerAction {
       if (_secondSelectedCardId == null) {
         _secondSelectedCardId = cardId;
         _secondSelectedPlayerId = playerId;
-        
-        
+        if (LOGGING_SWITCH) {
+          customlog(
+            'PlayerAction.jackSwap select: 2/2 cardId=$cardId playerId=$playerId gameId=$gameId',
+          );
+        }
         // Both cards selected, execute the swap through normal execute() flow
         final jackSwapAction = PlayerAction.jackSwap(gameId: gameId);
         await jackSwapAction.execute();
-      } else {
-        
+      } else if (LOGGING_SWITCH) {
+        customlog('PlayerAction.jackSwap select: ignored (already have 2 cards)');
       }
       
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        customlog('PlayerAction.jackSwap select failed: $e');
+      }
       rethrow;
     }
   }

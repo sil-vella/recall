@@ -2,17 +2,17 @@
 # Enable/disable predefined hands dealing
 enabled: true
 
-# Predefined hands for each player (player_0 = four jacks; player_1 = two jacks + fillers; player_2 & player_3 = two 4s each)
+# Predefined hands for each player (player_0 = two jacks + two queens; player_1 = two jacks + fillers; player_2 & player_3 = two 4s each)
 hands:
-  player_0:  # All jacks (one per suit)
+  player_0:  # Last two queens (queen peek / multi testing)
     - rank: "jack"
       suit: "hearts"
     - rank: "jack"
       suit: "diamonds"
-    - rank: "jack"
-      suit: "clubs"
-    - rank: "jack"
-      suit: "spades"
+    - rank: "queen"
+      suit: "hearts"
+    - rank: "queen"
+      suit: "diamonds"
 
   player_1:  # Two jacks (extra copies — testing deck has 4 jacks/suit) + two other cards
     - rank: "jack"

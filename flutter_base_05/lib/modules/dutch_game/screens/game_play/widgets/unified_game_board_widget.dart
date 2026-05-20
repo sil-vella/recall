@@ -18,8 +18,10 @@ import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../demo/demo_functionality.dart';
 import '../../../utils/dutch_game_helpers.dart';
+import '../../../../../utils/dev_logger.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
+const bool LOGGING_SWITCH = true;
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;
@@ -583,25 +585,37 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
     final currentTurnIndex = (opponentsPanel['currentTurnIndex'] as num?)?.toInt() ?? -1;
     final cardsToPeekFromState = board['myCardsToPeek'] as List<dynamic>? ?? [];
+    final playerStatus = board['playerStatus']?.toString() ?? 'unknown';
+    final gamePhaseForPeek =
+        (board['boardGameState'] as Map<String, dynamic>? ?? {})['phase']
+            ?.toString();
+    final peekRevealAllowed = DutchGameHelpers.statusAllowsPeekReveal(
+      playerStatus,
+      gamePhase: gamePhaseForPeek,
+    );
 
-    if (cardsToPeekFromState.isNotEmpty && !_isCardsToPeekProtected) {
-      final hasFullCardData = cardsToPeekFromState.any((card) {
-        if (card is Map<String, dynamic>) {
-          return card.containsKey('suit') || card.containsKey('rank');
-        }
-        return false;
+    if (!peekRevealAllowed && _isCardsToPeekProtected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _clearCardsToPeekProtection();
       });
-      if (hasFullCardData) {
+    }
+
+    if (peekRevealAllowed &&
+        playerStatus == 'initial_peek' &&
+        cardsToPeekFromState.isNotEmpty &&
+        !_isCardsToPeekProtected) {
+      if (DutchGameHelpers.peekListHasFullData(cardsToPeekFromState)) {
         _protectCardsToPeek(cardsToPeekFromState);
       }
     }
 
-    final cardsToPeek = _isCardsToPeekProtected && _protectedCardsToPeek != null
+    final cardsToPeek = peekRevealAllowed &&
+            _isCardsToPeekProtected &&
+            _protectedCardsToPeek != null
         ? _protectedCardsToPeek!
-        : cardsToPeekFromState;
+        : (peekRevealAllowed ? cardsToPeekFromState : <dynamic>[]);
 
     final isGameActive = board['isGameActive'] ?? false;
-    final playerStatus = board['playerStatus']?.toString() ?? 'unknown';
 
     return _OppBoardContext._(
       cardsToPeek: cardsToPeek,
@@ -1599,26 +1613,27 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             );
             await queenPeekAction.execute();
           } catch (e) {
-            // Game feedback: snackbars removed
+            if (LOGGING_SWITCH) {
+              customlog('queenPeek opponent tap failed: $e');
+            }
           }
         } else if (currentPlayerStatus == 'jack_swap') {
           try {
-            
-            
             await PlayerAction.selectCardForJackSwap(
               cardId: cardId,
               playerId: cardOwnerId,
               gameId: currentGameId,
             );
-            final selectionCount = PlayerAction.getJackSwapSelectionCount();
-            
-            if (selectionCount == 1) {
-              // Game feedback: snackbars removed
-            } else if (selectionCount == 2) {
-              // Game feedback: snackbars removed
+            if (LOGGING_SWITCH) {
+              customlog(
+                'jackSwap opponent tap: cardId=$cardId owner=$cardOwnerId '
+                'selections=${PlayerAction.getJackSwapSelectionCount()}',
+              );
             }
           } catch (e) {
-            // Game feedback: snackbars removed
+            if (LOGGING_SWITCH) {
+              customlog('jackSwap opponent tap failed: $e');
+            }
           }
         }
       } else {
@@ -2284,15 +2299,28 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final gameStateForPeek = board['boardGameState'] as Map<String, dynamic>? ?? {};
     final playersForPeek = gameStateForPeek['players'] as List<dynamic>? ?? [];
     
-    // Get current user ID
-    final loginStateForPeek = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserIdForPeek = loginStateForPeek['userId']?.toString() ?? '';
+    // Seat id (session) with login userId fallback — matches getCurrentUserId()
+    final currentUserIdForPeek = DutchEventHandlerCallbacks.getCurrentUserId();
+    final loginUserIdForPeek = DutchEventHandlerCallbacks.getCurrentLoginUserId();
     
     // Find current user's player data in game state (SSOT)
-    final myPlayerInGameState = playersForPeek.firstWhere(
-      (p) => p is Map<String, dynamic> && p['id']?.toString() == currentUserIdForPeek,
-      orElse: () => <String, dynamic>{},
-    ) as Map<String, dynamic>;
+    Map<String, dynamic> myPlayerInGameState = <String, dynamic>{};
+    for (final p in playersForPeek) {
+      if (p is Map<String, dynamic> && p['id']?.toString() == currentUserIdForPeek) {
+        myPlayerInGameState = p;
+        break;
+      }
+    }
+    if (myPlayerInGameState.isEmpty && loginUserIdForPeek.isNotEmpty) {
+      for (final p in playersForPeek) {
+        if (p is! Map<String, dynamic>) continue;
+        final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+        if (uid == loginUserIdForPeek) {
+          myPlayerInGameState = p;
+          break;
+        }
+      }
+    }
     
     final cardsToPeekFromGameState = myPlayerInGameState['cardsToPeek'] as List<dynamic>? ?? [];
     
@@ -2311,32 +2339,59 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       });
     }
     
-    // Use widget-level timer instead of timestamp from state
-    // When protectedCardsToPeek is set, start the 5-second protection timer
-    if (protectedCardsToPeek != null && !_isMyHandCardsToPeekProtected) {
+    final playerStatusForHand = board['playerStatus']?.toString() ??
+        _getCurrentUserStatus();
+    final gamePhaseForHand =
+        gameStateForPeek['phase']?.toString();
+    final peekRevealAllowed = DutchGameHelpers.statusAllowsPeekReveal(
+      playerStatusForHand,
+      gamePhase: gamePhaseForHand,
+    );
+
+    if (!peekRevealAllowed && _isMyHandCardsToPeekProtected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _clearMyHandCardsToPeekProtection();
+      });
+    }
+
+    // Protection only during initial_peek (never carry initial peek into normal play)
+    if (peekRevealAllowed &&
+        playerStatusForHand == 'initial_peek' &&
+        protectedCardsToPeek != null &&
+        !_isMyHandCardsToPeekProtected) {
       _protectMyHandCardsToPeek(protectedCardsToPeek);
     }
-    
-    // Only protect if cardsToPeek is not empty (check both sources)
-    if (!isCardsToPeekEmpty && !_isMyHandCardsToPeekProtected) {
-      final cardsToCheck = cardsToPeekFromState.isNotEmpty ? cardsToPeekFromState : cardsToPeekFromGameState;
-      final hasFullCardData = cardsToCheck.any((card) {
-        if (card is Map<String, dynamic>) {
-          final hasSuit = card.containsKey('suit') && card['suit'] != '?' && card['suit'] != null;
-          final hasRank = card.containsKey('rank') && card['rank'] != '?' && card['rank'] != null;
-          return hasSuit || hasRank;
-        }
-        return false;
-      });
-      if (hasFullCardData) {
+
+    if (peekRevealAllowed &&
+        playerStatusForHand == 'initial_peek' &&
+        !isCardsToPeekEmpty &&
+        !_isMyHandCardsToPeekProtected) {
+      final cardsToCheck =
+          cardsToPeekFromState.isNotEmpty ? cardsToPeekFromState : cardsToPeekFromGameState;
+      if (DutchGameHelpers.peekListHasFullData(cardsToCheck)) {
         _protectMyHandCardsToPeek(cardsToCheck);
       }
     }
-    
-    // Use protected cards if available, otherwise use state (prioritize state over game state)
-    final cardsToPeek = _isMyHandCardsToPeekProtected && _protectedMyHandCardsToPeek != null
-        ? _protectedMyHandCardsToPeek!
-        : (cardsToPeekFromState.isNotEmpty ? cardsToPeekFromState : cardsToPeekFromGameState);
+
+    var cardsToPeek = <dynamic>[];
+    if (peekRevealAllowed) {
+      final mergedPeek = DutchGameHelpers.preferFullPeekCards(
+        cardsToPeekFromState.isNotEmpty
+            ? cardsToPeekFromState
+            : cardsToPeekFromGameState,
+        _isMyHandCardsToPeekProtected ? _protectedMyHandCardsToPeek : null,
+      );
+      cardsToPeek = _isMyHandCardsToPeekProtected &&
+              _protectedMyHandCardsToPeek != null
+          ? _protectedMyHandCardsToPeek!
+          : mergedPeek;
+      if (playerStatusForHand == 'peeking') {
+        cardsToPeek = cardsToPeek
+            .whereType<Map<String, dynamic>>()
+            .where(DutchGameHelpers.peekCardHasFullData)
+            .toList();
+      }
+    }
     
     final isGameActive = board['isGameActive'] ?? false;
     final isMyTurn = board['isMyTurn'] ?? false;
@@ -2731,10 +2786,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               return const SizedBox.shrink();
             }
 
-            final currentPlayerStatus = _getCurrentUserStatus();
+            final bgsInner = board['boardGameState'] as Map<String, dynamic>? ?? {};
+            final playerStatusForHand = board['playerStatus']?.toString() ??
+                _getCurrentUserStatus();
+            final gamePhaseForHand = bgsInner['phase']?.toString();
+            final currentPlayerStatus = playerStatusForHand;
             final drawnCard = board['myDrawnCard'] as Map<String, dynamic>?;
             final drawnCardId = drawnCard?['cardId']?.toString();
-            final bgsInner = board['boardGameState'] as Map<String, dynamic>? ?? {};
             final players = bgsInner['players'] as List<dynamic>? ?? [];
             final myPid = _myBoardPlayerId(board);
             
@@ -2864,6 +2922,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               }
             }
           }
+          if (LOGGING_SWITCH &&
+              cardId != null &&
+              cardsToPeek.isNotEmpty &&
+              (playerStatusForHand == 'peeking' ||
+                  playerStatusForHand == 'initial_peek' ||
+                  (playerStatusForHand == 'waiting' &&
+                      gamePhaseForHand == 'initial_peek'))) {
+            final used = peekedCardData != null
+                ? DutchGameHelpers.peekCardForDisplay(peekedCardData)
+                : cardMap;
+            customlog(
+              'buildMyHand peek reveal: status=$playerStatusForHand phase=$gamePhaseForHand '
+              'cardId=$cardId matched=${peekedCardData != null} '
+              'rank=${used['rank']} suit=${used['suit']}',
+            );
+          }
           
           // Check if this card is in player's collection_rank_cards
           Map<String, dynamic>? collectionRankCardData;
@@ -2896,7 +2970,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               cardDataToUse = peekedCardData ?? collectionRankCardData ?? cardMap;
             }
           } else {
-            cardDataToUse = peekedCardData ?? collectionRankCardData ?? cardMap;
+            cardDataToUse = peekedCardData != null
+                ? DutchGameHelpers.peekCardForDisplay(peekedCardData)
+                : (collectionRankCardData ?? cardMap);
           }
           
           // If this is a collection rank card, render the stack (only once, at the first collection card)
@@ -3391,19 +3467,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           await sameRankAction.execute();
         } else if (currentPlayerStatus == 'jack_swap') {
           final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-          
-          
-          await PlayerAction.selectCardForJackSwap(
-            cardId: card['cardId']?.toString() ?? '',
-            playerId: currentUserId,
-            gameId: currentGameId,
-          );
-          final selectionCount = PlayerAction.getJackSwapSelectionCount();
-          
-          if (selectionCount == 1) {
-            // Game feedback: snackbars removed
-          } else if (selectionCount == 2) {
-            // Game feedback: snackbars removed
+          try {
+            await PlayerAction.selectCardForJackSwap(
+              cardId: card['cardId']?.toString() ?? '',
+              playerId: currentUserId,
+              gameId: currentGameId,
+            );
+            if (LOGGING_SWITCH) {
+              customlog(
+                'jackSwap my-hand tap: cardId=${card['cardId']} playerId=$currentUserId '
+                'selections=${PlayerAction.getJackSwapSelectionCount()}',
+              );
+            }
+          } catch (e) {
+            if (LOGGING_SWITCH) {
+              customlog('jackSwap my-hand tap failed: $e');
+            }
           }
         } else if (currentPlayerStatus == 'queen_peek') {
           final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
@@ -3412,7 +3491,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             cardId: card['cardId']?.toString() ?? '',
             ownerId: currentUserId,
           );
-          await queenPeekAction.execute();
+          try {
+            await queenPeekAction.execute();
+          } catch (e) {
+            if (LOGGING_SWITCH) {
+              customlog('queenPeek tap failed: $e');
+            }
+          }
         } else if (currentPlayerStatus == 'initial_peek') {
           final cardId = card['cardId']?.toString() ?? '';
           if (cardId.isEmpty) {

@@ -1,0 +1,127 @@
+---
+description: Dutch deck YAML, predefined hands, reshuffling — Flutter assets and Dart backend config paths
+globs: "**/deck_config.yaml,**/predefined_hands.yaml,**/yaml_config_parser.dart,**/deck_factory.dart,**/predefined_hands_loader.dart,**/game_event_coordinator.dart,dart_bkend_base_01/lib/modules/dutch_game/**"
+alwaysApply: false
+---
+
+# Dutch deck and declarative hands configuration
+
+Full reference: `Documentation/Dutch_game/DECK_CREATION_RESHUFFLING_AND_CONFIG.md` (deck/reshuffle; paths there may say `cleco_game` — use `dutch_game` below).
+
+Shared deal logic: `game_event_coordinator.dart` (Flutter + `dart_bkend_base_01` copies). Both use `DECK_CONFIG_PATH = 'assets/deck_config.yaml'` in `shared_imports.dart` but **resolve to different files per platform**.
+
+## Config file map (edit the side that runs the match)
+
+| Purpose | **Flutter** (practice, client-side match start) | **Dart backend** (WS server deals) |
+|--------|--------------------------------------------------|--------------------------------------|
+| Deck composition | `flutter_base_05/assets/deck_config.yaml` | `dart_bkend_base_01/lib/modules/dutch_game/config/deck_config.yaml` |
+| Predefined hands | `flutter_base_05/assets/predefined_hands.yaml` | `dart_bkend_base_01/lib/modules/dutch_game/config/predefined_hands.yaml` |
+
+**Keep both deck YAML files in sync** (ranks, points, powers, `demo_deck`, `deck_stats`). Predefined hands should match on both sides if server-hosted games use fixed deals.
+
+There is **no** `backend_core/config/deck_config.yaml` on the backend anymore — only `lib/modules/dutch_game/config/`.
+
+---
+
+## Flutter
+
+### Loading
+- `DeckConfig.fromFile` → `rootBundle.loadString('assets/deck_config.yaml')` (`yaml_config_parser.dart` in `flutter_base_05`)
+- `PredefinedHandsLoader` → `assets/predefined_hands.yaml`
+- Register both in `flutter_base_05/pubspec.yaml` under `flutter: assets:`
+
+### Do not use for Flutter runtime
+- `flutter_base_05/lib/modules/dutch_game/backend_core/config/` (not bundled; reference only)
+
+### Implementation
+- `flutter_base_05/lib/modules/dutch_game/utils/platform/yaml_config_parser.dart`
+- `flutter_base_05/lib/modules/dutch_game/utils/platform/predefined_hands_loader.dart`
+- `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/utils/deck_factory.dart`
+- `flutter_base_05/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart`
+
+---
+
+## Dart backend (`dart_bkend_base_01`)
+
+### Loading
+- `DeckConfig.fromFile('assets/deck_config.yaml')` resolves to **`lib/modules/dutch_game/config/deck_config.yaml`** via `File.readAsString` (`yaml_config_parser.dart`)
+- `PredefinedHandsLoader` reads **`lib/modules/dutch_game/config/predefined_hands.yaml`**; missing file → `{enabled: false}`
+- Paths are **relative to the server process working directory** (typically `dart_bkend_base_01/` when running the game server). If deck load fails, check cwd matches that layout.
+
+### Implementation (mirror of Flutter shared logic)
+- `dart_bkend_base_01/lib/modules/dutch_game/utils/platform/yaml_config_parser.dart`
+- `dart_bkend_base_01/lib/modules/dutch_game/utils/platform/predefined_hands_loader.dart`
+- `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/deck_factory.dart`
+- `dart_bkend_base_01/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart`
+- `dart_bkend_base_01/lib/modules/dutch_game/utils/platform/shared_imports.dart` (`DECK_CONFIG_PATH`)
+
+### Backend-only note
+- Repo copy of `deck_config.yaml` may ship with `testing_mode: true` for dev — set `false` for production parity with Flutter release builds.
+
+---
+
+## Deck config (`deck_config.yaml`) — same schema on both sides
+
+### Global switch
+
+```yaml
+deck_settings:
+  include_jokers: true
+  testing_mode: false   # true → testing_deck; false → standard_deck
+```
+
+### Deck sections
+- **`standard_deck`** — full 54-card production deck
+- **`testing_deck`** — used when `testing_mode: true`
+- **`demo_deck`** — 20 cards (aces + extra J/Q, no jokers); selected when match starts with **`showInstructions: true`** (`deckTypeOverride: 'demo'`)
+
+Per rank: `points`, `special_power` (`peek_at_card` | `switch_cards` | null), `quantity_per_suit`. Jokers: `quantity_total`, `suit: "joker"`. Also maintain `deck_stats`, `card_display`, `special_powers`.
+
+### Runtime deck selection (both coordinators)
+1. `showInstructions == true` → **demo**
+2. Else → `deck_settings.testing_mode` → **testing** or **standard**
+3. `YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH, deckTypeOverride: ...)` → `buildDeck()` shuffles
+
+---
+
+## Predefined / declarative hands (`predefined_hands.yaml`) — both sides
+
+```yaml
+enabled: true          # false = random deal
+hands:
+  player_0:            # 0-based, exactly 4 cards
+    - rank: "jack"
+      suit: "hearts"
+initial_discard:       # in YAML; not applied in coordinator yet
+  rank: "ace"
+  suit: "clubs"
+```
+
+### Behavior (same on Flutter and Dart backend)
+- Deal at match start when `enabled: true`
+- Pull cards by rank+suit from built deck; fallback random if not found
+- All predefined ranks must exist in active deck or predefined hands disabled for entire deal
+- `showInstructions` does not control predefined hands; deck choice does (demo vs standard/testing)
+- Production APK: `playbooks/frontend/build_apk.sh` sets Flutter `enabled: false` — set backend `enabled: false` for production server too
+
+---
+
+## Reshuffling
+
+Automatic in `dutch_game_round.dart` (Flutter + backend shared logic): discard pile except top → shuffled into draw pile (face-down). No YAML.
+
+---
+
+## Agent checklist
+
+| Task | Flutter | Dart backend |
+|------|---------|--------------|
+| Change deck composition | `flutter_base_05/assets/deck_config.yaml` | `dart_bkend_base_01/lib/modules/dutch_game/config/deck_config.yaml` |
+| Fixed test hands | `flutter_base_05/assets/predefined_hands.yaml` | `dart_bkend_base_01/lib/modules/dutch_game/config/predefined_hands.yaml` |
+| Demo / instructions deck | `demo_deck` in both deck YAMLs | same |
+| Production | `testing_mode: false`, hands `enabled: false` | same on server YAML |
+| Parser / deal bugs | `flutter_base_05/.../yaml_config_parser.dart`, coordinator | `dart_bkend_base_01/.../` equivalents |
+
+- Edit **both** deck YAMLs when changing ranks/powers unless intentionally client-only
+- Do not change coordinator deal logic for config tweaks; prefer YAML
+- After deck edits: update `deck_stats`, verify predefined ranks exist in active deck section

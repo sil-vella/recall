@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:async';
 
+import 'package:dart_game_server/utils/dev_logger.dart';
 import '../../utils/platform/shared_imports.dart';
+
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
+
+const bool LOGGING_SWITCH = true;
 
 String _deriveWireCurrentPlayerStatus(Map<String, dynamic> gameState) {
   final cp = gameState['currentPlayer'];
@@ -288,12 +292,26 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final filteredGameState = _filterGameStateForFrontend(gameState);
       final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
       final ownerId = server.getRoomOwner(roomId);
+      final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
+      if (LOGGING_SWITCH &&
+          onlyPlayerId != null &&
+          sharedUpdates.containsKey('myCardsToPeek')) {
+        final first = myCardsToPeekFromState?.isNotEmpty == true
+            ? myCardsToPeekFromState!.first
+            : null;
+        if (first is Map<String, dynamic>) {
+          customlog(
+            'emitGameStateScoped: myCardsToPeek to player=$onlyPlayerId '
+            'rank=${first['rank']} suit=${first['suit']} cardId=${first['cardId']}',
+          );
+        }
+      }
       final basePayload = _gameStateUpdatedPayloadBase(
         filteredGameState: filteredGameState,
         turnEvents: turnEvents,
         stateVersion: _nextStateVersion(),
         ownerId: ownerId,
-        myCardsToPeekFromState: state['myCardsToPeek'] as List<dynamic>?,
+        myCardsToPeekFromState: myCardsToPeekFromState,
         cardsToPeekFromState: state['cards_to_peek'] as List<dynamic>?,
         winners: sharedUpdates['winners'] as List<dynamic>?,
       );

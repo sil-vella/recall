@@ -3,6 +3,9 @@ import 'dart:async';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
+import '../../../../utils/dev_logger.dart';
+
+const bool LOGGING_SWITCH = true;
 
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
@@ -145,6 +148,17 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       
       final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
       final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
+      if (LOGGING_SWITCH && updates.containsKey('myCardsToPeek')) {
+        final first = myCardsToPeekFromState?.isNotEmpty == true
+            ? myCardsToPeekFromState!.first
+            : null;
+        if (first is Map<String, dynamic>) {
+          customlog(
+            'sendGameStateToPlayer: myCardsToPeek to player=$playerId '
+            'rank=${first['rank']} suit=${first['suit']} cardId=${first['cardId']}',
+          );
+        }
+      }
       final stateVersion = _store.bumpOutboundStateVersion(roomId);
 
       final wsTarget =

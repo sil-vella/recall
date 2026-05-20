@@ -2,17 +2,17 @@
 # Enable/disable predefined hands dealing
 enabled: true
 
-# Predefined hands for each player (player_1 = all jacks; player_2 & player_3 = two 4s each)
+# Predefined hands for each player (player_0 = two jacks + two queens; player_1 = all jacks; player_2 & player_3 = two 4s each)
 hands:
-  player_0:  # Non-special cards
-    - rank: "6"
-      suit: "clubs"
-    - rank: "5"
-      suit: "spades"
+  player_0:  # Last two queens (queen peek / multi testing) — keep in sync with dart_bkend predefined_hands.yaml
     - rank: "jack"
-      suit: "clubs"
+      suit: "hearts"
+    - rank: "jack"
+      suit: "diamonds"
     - rank: "queen"
-      suit: "spades"
+      suit: "hearts"
+    - rank: "queen"
+      suit: "diamonds"
 
   player_1:  # All jacks
     - rank: "jack"

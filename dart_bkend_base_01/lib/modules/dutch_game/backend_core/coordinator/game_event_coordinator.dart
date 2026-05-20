@@ -1,3 +1,4 @@
+import 'package:dart_game_server/utils/dev_logger.dart';
 import '../../utils/platform/shared_imports.dart';
 import '../utils/rank_matcher.dart';
 import '../utils/level_matcher.dart';
@@ -8,6 +9,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
+const bool LOGGING_SWITCH = true;
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -193,6 +195,11 @@ class GameEventCoordinator {
         case 'queen_peek':
           final cardId = (data['card_id'] as String?) ?? (data['cardId'] as String?);
           final ownerId = data['ownerId'] as String?;
+          if (LOGGING_SWITCH) {
+            customlog(
+              'coordinator queen_peek: session=$sessionId room=$roomId cardId=$cardId ownerId=$ownerId',
+            );
+          }
           
           if (cardId != null && cardId.isNotEmpty && ownerId != null && ownerId.isNotEmpty) {
             // Use sessionId as peeking player ID (player_id from event should be sessionId)
@@ -203,25 +210,35 @@ class GameEventCoordinator {
             
             if (peekingPlayerId != null && peekingPlayerId.isNotEmpty) {
               final gamesMap = _getCurrentGamesMap(roomId);
-              await round.handleQueenPeek(
+              final ok = await round.handleQueenPeek(
                 peekingPlayerId: peekingPlayerId,
                 targetCardId: cardId,
                 targetPlayerId: ownerId,
                 gamesMap: gamesMap,
               );
+              if (LOGGING_SWITCH) {
+                customlog('coordinator queen_peek: handleQueenPeek ok=$ok peeker=$peekingPlayerId');
+              }
+            } else if (LOGGING_SWITCH) {
+              customlog('coordinator queen_peek: no peekingPlayerId for session=$sessionId');
             }
+          } else if (LOGGING_SWITCH) {
+            customlog('coordinator queen_peek: missing cardId or ownerId');
           }
           break;
         case 'jack_swap':
-          
           final actingPlayerId = _getPlayerIdFromSession(sessionId, roomId);
           final firstCardId = (data['first_card_id'] as String?) ?? (data['firstCardId'] as String?);
           final firstPlayerId = (data['first_player_id'] as String?) ?? (data['firstPlayerId'] as String?);
           final secondCardId = (data['second_card_id'] as String?) ?? (data['secondCardId'] as String?);
           final secondPlayerId = (data['second_player_id'] as String?) ?? (data['secondPlayerId'] as String?);
-          
-          
-          
+          if (LOGGING_SWITCH) {
+            customlog(
+              'coordinator jack_swap: session=$sessionId room=$roomId actor=$actingPlayerId '
+              'first=$firstCardId@$firstPlayerId second=$secondCardId@$secondPlayerId',
+            );
+          }
+
           if (actingPlayerId == null || actingPlayerId.isEmpty) {
             server.sendToSession(sessionId, {
               'event': 'error',
@@ -236,7 +253,7 @@ class GameEventCoordinator {
               secondCardId != null && secondCardId.isNotEmpty &&
               secondPlayerId != null && secondPlayerId.isNotEmpty) {
             final gamesMap = _getCurrentGamesMap(roomId);
-            await round.handleJackSwap(
+            final ok = await round.handleJackSwap(
               firstCardId: firstCardId,
               firstPlayerId: firstPlayerId,
               secondCardId: secondCardId,
@@ -244,8 +261,13 @@ class GameEventCoordinator {
               actingPlayerId: actingPlayerId,
               gamesMap: gamesMap,
             );
+            if (LOGGING_SWITCH) {
+              customlog('coordinator jack_swap: handleJackSwap ok=$ok actor=$actingPlayerId');
+            }
           } else {
-            
+            if (LOGGING_SWITCH) {
+              customlog('coordinator jack_swap: missing required fields');
+            }
             server.sendToSession(sessionId, {
               'event': 'jack_swap_error',
               'room_id': roomId,

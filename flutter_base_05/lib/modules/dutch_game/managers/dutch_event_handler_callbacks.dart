@@ -19,10 +19,29 @@ import '../screens/promotion/dutch_promotion_screen.dart';
 import '../screens/promotion/dutch_win_celebration_screen.dart';
 import '../screens/promotion/dutch_achievement_celebration_screen.dart';
 import '../utils/dutch_achievement_catalog.dart';
+import '../../../utils/dev_logger.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
+  /// Dev log summary for peek lists (all entries, not only [List.first]).
+  static String peekListLogSummary(List<dynamic> cards) {
+    final parts = <String>[];
+    for (var i = 0; i < cards.length; i++) {
+      final c = cards[i];
+      if (c is Map<String, dynamic>) {
+        parts.add(
+          '[$i] ${c['cardId']}:${c['rank']}/${c['suit']}',
+        );
+      } else {
+        parts.add('[$i] ?');
+      }
+    }
+    return parts.isEmpty ? '(none)' : parts.join(' ');
+  }
+
   static final Map<String, int> _lastStateVersionByGameId = <String, int>{};
   static final Map<String, String> _lastEventSignatureByGameId = <String, String>{};
   static String? _cachedCurrentUserId;
@@ -1249,7 +1268,8 @@ When anyone has played a card with the **same rank** as your **collection card**
       final hand = myPlayer['hand'] as List<dynamic>? ?? [];
       final cardsToPeek = myPlayer['cardsToPeek'] as List<dynamic>? ?? [];
       final drawnCard = myPlayer['drawnCard'] as Map<String, dynamic>?;
-      
+      final status = myPlayer['status']?.toString() ?? 'unknown';
+
       // Check if cardsToPeek contains full card data (for protection mechanism)
       final hasFullCardData = cardsToPeek.isNotEmpty && cardsToPeek.any((card) {
         if (card is Map<String, dynamic>) {
@@ -1261,20 +1281,27 @@ When anyone has played a card with the **same rank** as your **collection card**
       });
       
       
-      if (cardsToPeek.isNotEmpty && hasFullCardData) {
-        
-        // Store protected data in main state so widgets can access it
-        // This persists even when cardsToPeek is cleared
-        // Use widget-level timer instead of timestamp in state
+      final gamePhaseForPeek =
+          (gameState['phase'] ?? gameState['gamePhase'])?.toString();
+      if (cardsToPeek.isNotEmpty &&
+          hasFullCardData &&
+          DutchGameHelpers.statusAllowsPeekReveal(
+            status,
+            gamePhase: gamePhaseForPeek,
+          )) {
+        // Store protected data only during initial_peek (brief UI persistence)
         if (mainStatePatch != null) {
           mainStatePatch['protectedCardsToPeek'] = cardsToPeek;
         } else {
           _updateMainGameState({
-            'protectedCardsToPeek': cardsToPeek, // Store protected data
-            // Removed protectedCardsToPeekTimestamp - widget will use internal timer
+            'protectedCardsToPeek': cardsToPeek,
           });
         }
-      } else if (cardsToPeek.isEmpty) {
+      } else if (cardsToPeek.isEmpty ||
+          !DutchGameHelpers.statusAllowsPeekReveal(
+            status,
+            gamePhase: gamePhaseForPeek,
+          )) {
         // CRITICAL: Clear protectedCardsToPeek when cardsToPeek is empty
         // This ensures the widget doesn't show stale protected data
         
@@ -1289,10 +1316,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       
       // Extract score (can be 'points' or 'score' field)
       final score = myPlayer['score'] as int? ?? myPlayer['points'] as int? ?? 0;
-      
-      // Extract status
-      final status = myPlayer['status']?.toString() ?? 'unknown';
-      
+
       // Determine if it's current player's turn
       // Check both gameState['currentPlayer'] and player['isCurrentPlayer']
       final currentPlayerRaw = gameState['currentPlayer'];
@@ -1318,6 +1342,25 @@ When anyone has played a card with the **same rank** as your **collection card**
         widgetUpdates['turn_events'] = turnEvents;
       }
       
+      // Do not downgrade full peek data to id-only from game_state.players
+      final existingPeekForMerge = mainStatePatch != null
+          ? mainStatePatch['myCardsToPeek'] as List<dynamic>?
+          : (StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ??
+                  {})['myCardsToPeek'] as List<dynamic>?;
+      var myCardsToPeekForPatch = DutchGameHelpers.preferFullPeekCards(
+        cardsToPeek,
+        existingPeekForMerge,
+      );
+      if (!DutchGameHelpers.statusAllowsPeekReveal(
+        status,
+        gamePhase: gamePhaseForPeek,
+      )) {
+        myCardsToPeekForPatch = [];
+      } else if (status == 'queen_peek' &&
+          !DutchGameHelpers.peekListHasFullData(myCardsToPeekForPatch)) {
+        myCardsToPeekForPatch = [];
+      }
+
       // Update main game state with player information
       if (mainStatePatch != null) {
         mainStatePatch.addAll({
@@ -1325,7 +1368,7 @@ When anyone has played a card with the **same rank** as your **collection card**
           'myScore': score,
           'isMyTurn': isCurrentPlayer,
           'myDrawnCard': drawnCard,
-          'myCardsToPeek': cardsToPeek,
+          'myCardsToPeek': myCardsToPeekForPatch,
         });
       } else {
         _updateMainGameState({
@@ -1333,7 +1376,7 @@ When anyone has played a card with the **same rank** as your **collection card**
           'myScore': score,
           'isMyTurn': isCurrentPlayer,
           'myDrawnCard': drawnCard,
-          'myCardsToPeek': cardsToPeek,
+          'myCardsToPeek': myCardsToPeekForPatch,
         });
       }
       
@@ -1587,19 +1630,25 @@ When anyone has played a card with the **same rank** as your **collection card**
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
     
     // Find the current user's player data
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
+    final seatId = getCurrentUserId();
+    final loginUserId = getCurrentLoginUserId();
     Map<String, dynamic>? myPlayer;
-    try {
-      myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
-        (player) => player['id'] == currentUserId,
-      );
-    } catch (e) {
-      myPlayer = null;
+    for (final p in players) {
+      if (p is! Map<String, dynamic>) continue;
+      final pid = p['id']?.toString() ?? '';
+      final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+      if (pid == seatId || (loginUserId.isNotEmpty && uid == loginUserId)) {
+        myPlayer = p;
+        break;
+      }
     }
     
-    // Extract opponent players (excluding current user)
-    final opponents = players.where((player) => player['id'] != currentUserId).toList();
+    // Extract opponent players (excluding current user seat)
+    final opponents = players.where((p) {
+      if (p is! Map<String, dynamic>) return false;
+      final pid = p['id']?.toString() ?? '';
+      return pid != seatId;
+    }).toList();
     
     // Update the game data with the new game state using helper method
     _updateGameData(gameId, {
@@ -1611,7 +1660,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       // Note: gamePhase is now managed in main state only - derived from main state in gameInfo slice
       'gameStatus': gameState['status'] ?? 'active',
       'isGameActive': true,
-      'isRoomOwner': startedBy == currentUserId,  // ✅ Set ownership based on who started the game
+      'isRoomOwner': startedBy == seatId || startedBy == loginUserId,
       
       // Update game-specific fields for widget slices
       'drawPileCount': drawPile.length,
@@ -1642,10 +1691,8 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     final stateAfterSync = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final kickedModalShownFor = stateAfterSync['kickedModalShownFor']?.toString() ?? '';
-    final seatId = getCurrentUserId();
-    final loginUidForRoster = loginState['userId']?.toString() ?? '';
     final stillOnRosterAfterKickFlag =
-        _localUserOnPlayerList(players, seatId, loginUidForRoster);
+        _localUserOnPlayerList(players, seatId, loginUserId);
     if (kickedModalShownFor == gameId && !stillOnRosterAfterKickFlag) {
       // Keep kicked-user modal visible: `_addSessionMessage(showModal:true)` sets `gamePhase=game_ended`,
       // but this normal update path could otherwise overwrite it back to `playing`.
@@ -1720,11 +1767,10 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     
     // Find the current user's player data
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
-    
-    // Check if this turn is for the current user
-    final isMyTurn = playerId == currentUserId;
+    final seatId = getCurrentUserId();
+    final loginUserId = getCurrentLoginUserId();
+    final isMyTurn = playerId == seatId ||
+        (loginUserId.isNotEmpty && playerId == 'hum_$loginUserId');
     
     if (isMyTurn) {
       
@@ -1806,6 +1852,12 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
     }
     
+    if (LOGGING_SWITCH &&
+        (actionType == 'jack_swap' || actionType == 'queen_peek')) {
+      customlog(
+        'handleGameAnimation: gameId=$gameId action=$actionType cards=$n$handIdxBrief$ctxBrief',
+      );
+    }
     DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));
   }
 
@@ -1848,6 +1900,17 @@ When anyone has played a card with the **same rank** as your **collection card**
       return;
     }
     final myCardsToPeekFromEvent = data['myCardsToPeek'] as List<dynamic>?; // Extract root-level myCardsToPeek if present
+    if (LOGGING_SWITCH && myCardsToPeekFromEvent != null) {
+      if (myCardsToPeekFromEvent.isEmpty) {
+        customlog('handleGameStateUpdated: myCardsToPeekFromEvent cleared (empty)');
+      } else {
+        customlog(
+          'handleGameStateUpdated: myCardsToPeekFromEvent len=${myCardsToPeekFromEvent.length} '
+          'cards=${peekListLogSummary(myCardsToPeekFromEvent)} '
+          'wireStatus=${data['current_player_status']}',
+        );
+      }
+    }
     
     // 🔍 DEBUG: Check drawnCard data in received game_state
     final players = gameState['players'] as List<dynamic>? ?? [];
@@ -2204,6 +2267,58 @@ When anyone has played a card with the **same rank** as your **collection card**
     if (existingCurrentGameId.isNotEmpty && existingCurrentGameId != gameId) {
       consolidatedMainStatePatch['kickedModalShownFor'] = '';
     }
+
+    final stateBeforeMainPatch =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final previousMyCardsToPeek =
+        stateBeforeMainPatch['myCardsToPeek'] as List<dynamic>?;
+    List<dynamic> myCardsToPeekFinal;
+    if (myCardsToPeekFromEvent != null) {
+      myCardsToPeekFinal = DutchGameHelpers.preferFullPeekCards(
+        myCardsToPeekFromEvent,
+        previousMyCardsToPeek,
+      );
+    } else {
+      final syncedPeek =
+          consolidatedMainStatePatch['myCardsToPeek'] as List<dynamic>? ??
+              <dynamic>[];
+      myCardsToPeekFinal = DutchGameHelpers.preferFullPeekCards(
+        syncedPeek,
+        previousMyCardsToPeek,
+      );
+    }
+    if (!DutchGameHelpers.statusAllowsPeekReveal(
+      currentUserPlayerStatus,
+      gamePhase: rawPhase,
+    )) {
+      myCardsToPeekFinal = [];
+    } else if (currentUserPlayerStatus == 'queen_peek' &&
+        !DutchGameHelpers.peekListHasFullData(myCardsToPeekFinal)) {
+      myCardsToPeekFinal = [];
+    } else if (currentUserPlayerStatus == 'peeking') {
+      myCardsToPeekFinal = myCardsToPeekFinal
+          .whereType<Map<String, dynamic>>()
+          .where(DutchGameHelpers.peekCardHasFullData)
+          .toList();
+    }
+    if (LOGGING_SWITCH) {
+      final wireCurrentId = currentPlayerFromState?['id']?.toString() ??
+          (currentPlayer is Map ? currentPlayer['id']?.toString() : null) ??
+          data['current_player']?.toString();
+      final turnLine =
+          'handleGameStateUpdated: myStatus=$currentUserPlayerStatus '
+          'currentPlayer=$wireCurrentId seat=$currentUserId '
+          'isMyTurn=${currentPlayerFromState?['id']?.toString() == currentUserId}';
+      if (myCardsToPeekFinal.isNotEmpty) {
+        customlog(
+          '$turnLine peek len=${myCardsToPeekFinal.length} '
+          'cards=${peekListLogSummary(myCardsToPeekFinal)}',
+        );
+      } else {
+        customlog('$turnLine peek empty');
+      }
+    }
+
     consolidatedMainStatePatch.addAll({
       'currentGameId': gameId,  // Always set currentGameId (CRITICAL for game play screen to update)
       'games': currentGamesAfterSync, // Updated games map with widget data synced
@@ -2215,9 +2330,12 @@ When anyone has played a card with the **same rank** as your **collection card**
       'roundStatus': roundStatus,
       'discardPile': discardPile, // Updated discard pile for centerBoard slice
       'turn_events': turnEvents, // Include turn_events for animations (critical for widget slice recomputation)
-      if (myCardsToPeekFromEvent != null) 'myCardsToPeek': myCardsToPeekFromEvent,
-      if (myCardsToPeekFromEvent != null && myCardsToPeekFromEvent.isEmpty)
-        'protectedCardsToPeek': null,
+      'myCardsToPeek': myCardsToPeekFinal,
+      if (myCardsToPeekFinal.isEmpty)
+        'protectedCardsToPeek': null
+      else if (rawPhase == 'initial_peek' &&
+          DutchGameHelpers.peekListHasFullData(myCardsToPeekFinal))
+        'protectedCardsToPeek': myCardsToPeekFinal,
     });
     
     // Trigger instructions if showInstructions is enabled

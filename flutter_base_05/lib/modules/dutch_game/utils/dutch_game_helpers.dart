@@ -67,6 +67,54 @@ class DutchGameHelpers {
     return dutchState['isRandomJoinInProgress'] == true;
   }
 
+  /// True when a peek card map has real rank/suit (not id-only `?` placeholders).
+  static bool peekCardHasFullData(dynamic card) {
+    if (card is! Map<String, dynamic>) return false;
+    final suit = card['suit']?.toString();
+    final rank = card['rank']?.toString();
+    return suit != null &&
+        suit != '?' &&
+        rank != null &&
+        rank != '?';
+  }
+
+  /// True when any entry in [cards] has full peek data.
+  static bool peekListHasFullData(List<dynamic> cards) {
+    return cards.any(peekCardHasFullData);
+  }
+
+  /// Prefer full peek payloads over id-only when merging client state.
+  /// Empty [incoming] is authoritative (server cleared peek) — never keep stale [existing].
+  static List<dynamic> preferFullPeekCards(
+    List<dynamic> incoming,
+    List<dynamic>? existing,
+  ) {
+    if (incoming.isEmpty) return incoming;
+    if (peekListHasFullData(incoming)) return incoming;
+    if (existing != null && peekListHasFullData(existing)) return existing;
+    return incoming;
+  }
+
+  /// Only these player statuses may reveal hand cards via peek lists.
+  ///
+  /// After [completed_initial_peek] the server sets the human to `waiting` while
+  /// [game_state.phase] stays `initial_peek` until the phase timer ends — peek
+  /// cards must stay visible during that window.
+  static bool statusAllowsPeekReveal(String? status, {String? gamePhase}) {
+    if (status == 'initial_peek' || status == 'peeking') {
+      return true;
+    }
+    if (gamePhase == 'initial_peek' && status == 'waiting') {
+      return true;
+    }
+    return false;
+  }
+
+  /// Copy peek payload for UI (face-up) even when stored maps omit [isFaceDown].
+  static Map<String, dynamic> peekCardForDisplay(Map<String, dynamic> card) {
+    return Map<String, dynamic>.from(card)..['isFaceDown'] = false;
+  }
+
   static const String _kLastMultiplayerRoomIdKey = 'dutch_last_multiplayer_room_id';
 
   /// Persist last `room_*` id for reconnect `resume_room` fallback (SharedPreferences).

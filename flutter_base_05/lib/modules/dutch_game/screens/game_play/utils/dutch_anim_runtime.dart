@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 
 import '../../../utils/platform/shared_imports.dart';
+import '../../../../../utils/dev_logger.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// In-memory animation bus for Dutch: **not** written through [StateManager], so updating
 /// queue or layout rects does **not** notify `dutch_game` listeners or rebuild unrelated widgets.
@@ -98,14 +101,29 @@ class DutchAnimRuntime extends ChangeNotifier {
     entry['_seq'] = _eventSeq;
     entry['_receivedAt'] = DateTime.now().millisecondsSinceEpoch;
     _eventData.add(entry);
-    
+    if (LOGGING_SWITCH) {
+      final action = entry['action_type']?.toString() ?? '';
+      if (action == 'jack_swap' || action == 'queen_peek') {
+        final cards = entry['cards'] as List? ?? [];
+        customlog(
+          'DutchAnimRuntime.enqueue: action=$action seq=$_eventSeq cards=${cards.length} queueLen=${_eventData.length}',
+        );
+      }
+    }
     notifyListeners();
   }
 
   void dequeueHead() {
     if (_eventData.isEmpty) return;
     final removed = _eventData.removeAt(0);
-    
+    if (LOGGING_SWITCH) {
+      final action = removed['action_type']?.toString() ?? '';
+      if (action == 'jack_swap' || action == 'queen_peek') {
+        customlog(
+          'DutchAnimRuntime.dequeue: action=$action seq=${removed['_seq']} remaining=${_eventData.length}',
+        );
+      }
+    }
     notifyListeners();
   }
 

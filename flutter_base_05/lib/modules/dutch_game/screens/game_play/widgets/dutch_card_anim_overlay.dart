@@ -8,6 +8,9 @@ import '../../../models/card_display_config.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../utils/dutch_anim_runtime.dart';
+import '../../../../../utils/dev_logger.dart';
+
+const bool LOGGING_SWITCH = true;
 
 
 /// Same angles as [CardWidget]'s [RotatedBox] quarter-turns (radians, clockwise).
@@ -380,7 +383,15 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       }
       if (action == 'jack_swap') {
         final cards = head['cards'] as List? ?? [];
+        if (LOGGING_SWITCH) {
+          customlog(
+            'DutchCardAnimOverlay: jack_swap stall plan=null cards=${cards.length} stallFrames=$_stallFrames',
+          );
+        }
         if (cards.length < 2) {
+          if (LOGGING_SWITCH) {
+            customlog('DutchCardAnimOverlay: jack_swap dequeue (cards<2)');
+          }
           _runtime.dequeueHead();
           _stallFrames = 0;
           if (mounted) setState(() {});
@@ -403,6 +414,11 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     }
     _stallFrames = 0;
     _runningSeq = seq;
+    if (LOGGING_SWITCH && action == 'jack_swap') {
+      customlog(
+        'DutchCardAnimOverlay: jack_swap start seq=$seq plan=${plan.tag}',
+      );
+    }
     _applyPlan(plan, head as Map<String, dynamic>);
     
     if (mounted) setState(() {});
@@ -705,7 +721,12 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     }
 
     if (action == 'jack_swap') {
-      if (cards.length < 2) return null;
+      if (cards.length < 2) {
+        if (LOGGING_SWITCH) {
+          customlog('DutchCardAnimOverlay.resolve: jack_swap cards<2');
+        }
+        return null;
+      }
       final c0 = cards[0];
       final c1 = cards[1];
       if (c0 is! Map || c1 is! Map) return null;
@@ -713,10 +734,31 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       final o1 = c1['owner_id']?.toString() ?? '';
       final i0 = _parseHandIndex(c0['hand_index']);
       final i1 = _parseHandIndex(c1['hand_index']);
-      if (o0.isEmpty || o1.isEmpty || i0 == null || i1 == null) return null;
+      if (o0.isEmpty || o1.isEmpty || i0 == null || i1 == null) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'DutchCardAnimOverlay.resolve: jack_swap missing owner/index '
+            'o0=$o0 i0=$i0 o1=$o1 i1=$i1',
+          );
+        }
+        return null;
+      }
       final r0 = rectFor(o0, i0);
       final r1 = rectFor(o1, i1);
-      if (r0 == null || r1 == null) return null;
+      if (r0 == null || r1 == null) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'DutchCardAnimOverlay.resolve: jack_swap missing layout rect '
+            'o0=$o0@$i0 o1=$o1@$i1',
+          );
+        }
+        return null;
+      }
+      if (LOGGING_SWITCH) {
+        customlog(
+          'DutchCardAnimOverlay.resolve: jack_swap ok $o0@$i0 <-> $o1@$i1',
+        );
+      }
       final seat0 = _tableOrientationToRadians(_seatOrientationForPlayer(anim, o0));
       final seat1 = _tableOrientationToRadians(_seatOrientationForPlayer(anim, o1));
       // Jack swap: always face-down ghosts (no rank/suit from server payload on the flight tiles).

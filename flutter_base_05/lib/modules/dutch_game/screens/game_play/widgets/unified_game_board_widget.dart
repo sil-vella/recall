@@ -10,6 +10,7 @@ import '../../../widgets/dutch_slice_builder.dart';
 import '../utils/dutch_anim_layout_reporter.dart';
 import '../utils/dutch_anim_runtime.dart';
 import '../utils/dutch_opponent_seat_layout.dart';
+import '../utils/dutch_turn_feed_formatter.dart';
 import 'dutch_card_anim_overlay.dart';
 import 'player_status_chip_widget.dart';
 import 'circular_timer_widget.dart';
@@ -100,11 +101,11 @@ _HandHudCorner _handHudCornerForTableOrientation(CardTableOrientation o) {
   }
 }
 
-/// One my-hand feed line held in widget state until its 5s UI timer expires.
-class _HandFeedUiEntry {
-  _HandFeedUiEntry({required this.id, required this.text});
+/// One turn-feed line in widget state until its 5s UI timer expires.
+class _TurnFeedUiEntry {
+  _TurnFeedUiEntry({required this.feedId, required this.text});
 
-  final String id;
+  final String feedId;
   final String text;
   Timer? expiryTimer;
 }
@@ -297,6 +298,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Anchor for anim rects ([DutchAnimRuntime] card positions / overlay are in this box's coordinates).
   final GlobalKey _animStackAnchorKey = GlobalKey(debugLabel: 'anim_stack_anchor');
 
+  /// Measures my-hand block height so turn-feed overlay can float above it (no layout space).
+  final GlobalKey _myHandSectionKey = GlobalKey(debugLabel: 'my_hand_section');
+  double _feedOverlayBottomInset = 0;
+
   bool _animLayoutCommitScheduled = false;
 
   /// Avoid mergeLayout loops when layout post-frame runs repeatedly with same geometry.
@@ -305,13 +310,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Dedupe [DutchAnimRuntime] notifies: mask and/or anim queue length (for my-hand row stability).
   String _lastAnimRuntimeStabilitySig = '';
 
-  static const int _maxHandFeedUiLines = 3;
-  static const Duration _handFeedUiLineDuration = Duration(seconds: 5);
-
-  int _handFeedUiEntrySeq = 0;
-  final List<_HandFeedUiEntry> _handFeedUiEntries = [];
-  /// Prevents re-showing a line after its 5s UI timer (runtime may still hold it briefly).
-  final Set<String> _handFeedTextsEverIngested = {};
+  // ========== Turn feed (local cache; not bound to dutch_game slice) ==========
+  final Set<String> _seenTurnFeedIds = {};
+  final List<_TurnFeedUiEntry> _turnFeedUiEntries = [];
+  String? _turnFeedBoundGameId;
+  String _lastTurnFeedIngestSig = '';
 
   Map<String, dynamic> _dutchGameState() =>
       StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? const {};
@@ -335,98 +338,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
     DutchAnimRuntime.instance.addListener(_onAnimRuntimeForHandMask);
     _lastAnimRuntimeStabilitySig = _computeAnimRuntimeStabilitySig();
+    StateManager().addListener(_onStateManagerForTurnFeed);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_ingestTurnFeedFromState()) setState(() {});
+    });
   }
 
   String _computeAnimRuntimeStabilitySig() {
     final snap = DutchAnimRuntime.instance.snapshotForAnim();
     final q = snap[DutchAnimRuntime.eventDataKey] as List? ?? [];
-    return '${DutchAnimRuntime.instance.handAnimMaskSignature}|'
-        '${DutchAnimRuntime.instance.handFeedSignature}|'
-        '${q.length}';
-  }
-
-  Widget _buildMyHandEventFeed() {
-    if (_handFeedUiEntries.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return IgnorePointer(
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.primaryColor.withValues(alpha: 0.42),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < _handFeedUiEntries.length; i++) ...[
-              if (i > 0) const SizedBox(height: 4),
-              Text(
-                _handFeedUiEntries[i].text,
-                textAlign: TextAlign.center,
-                softWrap: true,
-                style: AppTextStyles.bodySmall().copyWith(
-                  color: AppColors.white,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _ingestHandFeedFromRuntime() {
-    final runtimeLines = DutchAnimRuntime.instance.handFeedLines;
-    if (runtimeLines.isEmpty) return;
-    final onScreen = _handFeedUiEntries.map((e) => e.text).toSet();
-    for (final line in runtimeLines) {
-      if (line.isEmpty ||
-          onScreen.contains(line) ||
-          _handFeedTextsEverIngested.contains(line)) {
-        continue;
-      }
-      _pushHandFeedUiLine(line);
-    }
-  }
-
-  void _pushHandFeedUiLine(String text) {
-    if (text.isEmpty) return;
-    _handFeedTextsEverIngested.add(text);
-    final id = 'hf_${_handFeedUiEntrySeq++}';
-    final entry = _HandFeedUiEntry(id: id, text: text);
-    entry.expiryTimer = Timer(_handFeedUiLineDuration, () {
-      if (!mounted) return;
-      setState(() {
-        _removeHandFeedUiEntry(id);
-      });
-    });
-    _handFeedUiEntries.add(entry);
-    while (_handFeedUiEntries.length > _maxHandFeedUiLines) {
-      final oldest = _handFeedUiEntries.removeAt(0);
-      oldest.expiryTimer?.cancel();
-    }
-  }
-
-  void _removeHandFeedUiEntry(String id) {
-    for (var i = 0; i < _handFeedUiEntries.length; i++) {
-      if (_handFeedUiEntries[i].id == id) {
-        _handFeedUiEntries[i].expiryTimer?.cancel();
-        _handFeedUiEntries.removeAt(i);
-        return;
-      }
-    }
-  }
-
-  void _clearHandFeedUiCache() {
-    for (final e in _handFeedUiEntries) {
-      e.expiryTimer?.cancel();
-    }
-    _handFeedUiEntries.clear();
-    _handFeedTextsEverIngested.clear();
+    return '${DutchAnimRuntime.instance.handAnimMaskSignature}|${q.length}';
   }
 
   void _onAnimRuntimeForHandMask() {
@@ -434,15 +356,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final sig = _computeAnimRuntimeStabilitySig();
     if (sig == _lastAnimRuntimeStabilitySig) return;
     _lastAnimRuntimeStabilitySig = sig;
-    final runtimeLines = DutchAnimRuntime.instance.handFeedLines;
-    // Full wipe only when anim runtime resets (new game / game switch), not on phase changes.
-    if (runtimeLines.isEmpty) {
-      if (_handFeedUiEntries.isNotEmpty) {
-        _clearHandFeedUiCache();
-      }
-    } else {
-      _ingestHandFeedFromRuntime();
-    }
     setState(() {});
   }
 
@@ -541,10 +454,154 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
+  String _turnFeedIngestSignature(List<dynamic> turnFeed) {
+    if (turnFeed.isEmpty) return '0:';
+    final last = turnFeed.last;
+    if (last is Map) {
+      return '${turnFeed.length}:${last['feed_id']?.toString() ?? ''}';
+    }
+    return '${turnFeed.length}:';
+  }
+
+  void _clearTurnFeedUiCache() {
+    for (final e in _turnFeedUiEntries) {
+      e.expiryTimer?.cancel();
+    }
+    _turnFeedUiEntries.clear();
+    _seenTurnFeedIds.clear();
+    _lastTurnFeedIngestSig = '';
+  }
+
+  void _pushTurnFeedUiLine(String feedId, String text) {
+    while (_turnFeedUiEntries.length >= 3) {
+      final oldest = _turnFeedUiEntries.removeAt(0);
+      oldest.expiryTimer?.cancel();
+    }
+    final entry = _TurnFeedUiEntry(feedId: feedId, text: text);
+    _turnFeedUiEntries.add(entry);
+    entry.expiryTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      final idx = _turnFeedUiEntries.indexWhere((e) => e.feedId == feedId);
+      if (idx < 0) return;
+      _turnFeedUiEntries[idx].expiryTimer?.cancel();
+      _turnFeedUiEntries.removeAt(idx);
+      setState(() {});
+    });
+  }
+
+  bool _ingestTurnFeedFromState() {
+    final dutch = _dutchGameState();
+    final gameId = dutch['currentGameId']?.toString() ?? '';
+    if (gameId != _turnFeedBoundGameId) {
+      _clearTurnFeedUiCache();
+      _turnFeedBoundGameId = gameId.isEmpty ? null : gameId;
+    }
+
+    final turnFeedRaw = dutch['turn_feed'] as List<dynamic>? ?? [];
+    final sig = _turnFeedIngestSignature(turnFeedRaw);
+    if (sig == _lastTurnFeedIngestSig) return false;
+    _lastTurnFeedIngestSig = sig;
+
+    if (turnFeedRaw.isEmpty) {
+      final hadCache = _turnFeedUiEntries.isNotEmpty || _seenTurnFeedIds.isNotEmpty;
+      _clearTurnFeedUiCache();
+      return hadCache;
+    }
+
+    final opponentsPanel = dutch['opponentsPanel'] as Map<String, dynamic>? ?? {};
+    final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
+    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+
+    var changed = false;
+    for (final raw in turnFeedRaw) {
+      if (raw is! Map) continue;
+      final entry = Map<String, dynamic>.from(raw);
+      final feedId = entry['feed_id']?.toString() ?? '';
+      if (feedId.isEmpty || _seenTurnFeedIds.contains(feedId)) continue;
+
+      final text = DutchTurnFeedFormatter.formatTurnFeedEntry(
+        entry: entry,
+        currentUserId: currentUserId,
+        opponents: opponents,
+      );
+      if (text == null || text.isEmpty) continue;
+
+      _seenTurnFeedIds.add(feedId);
+      _pushTurnFeedUiLine(feedId, text);
+      changed = true;
+    }
+    return changed;
+  }
+
+  void _onStateManagerForTurnFeed() {
+    if (!mounted) return;
+    if (_ingestTurnFeedFromState()) {
+      setState(() {});
+    }
+  }
+
+  void _scheduleFeedOverlayInsetUpdate() {
+    if (_turnFeedUiEntries.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _myHandSectionKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return;
+      const gapAboveMyHand = 16.0;
+      final inset = box.size.height + gapAboveMyHand;
+      if ((inset - _feedOverlayBottomInset).abs() > 0.5) {
+        setState(() => _feedOverlayBottomInset = inset);
+      }
+    });
+  }
+
+  Widget _buildTurnFeedOverlay() {
+    if (_turnFeedUiEntries.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return IgnorePointer(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.primaryColor.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final entry in _turnFeedUiEntries)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: AppColors.white.withValues(alpha: 0.28),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  entry.text,
+                  textAlign: TextAlign.center,
+                  softWrap: true,
+                  style: AppTextStyles.bodyMedium(
+                    color: AppColors.white,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    StateManager().removeListener(_onStateManagerForTurnFeed);
+    _clearTurnFeedUiCache();
     DutchAnimRuntime.instance.removeListener(_onAnimRuntimeForHandMask);
-    _clearHandFeedUiCache();
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
     _selectedCardOverlayTimer?.cancel();
@@ -566,37 +623,42 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             LayoutBuilder(
               builder: (context, constraints) {
                 
-                // Top strip (intrinsic height) → middle (fills) → my hand (intrinsic height)
+                // Top strip (intrinsic height) → middle (fills) → my hand (intrinsic height).
+                // Turn-feed overlay is a [Stack] sibling (Positioned), not a Column child.
                 final ctx = _prepareOppBoardContext(board);
-                
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                if (_turnFeedUiEntries.isNotEmpty) {
+                  _scheduleFeedOverlayInsetUpdate();
+                }
+
+                return Stack(
+                  clipBehavior: Clip.none,
+                  fit: StackFit.expand,
                   children: [
-                    _buildTopOppStrip(board, ctx),
-                    if (ctx.buckets.top.isNotEmpty) const SizedBox(height: 8),
-                    Expanded(
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.bottomCenter,
-                        children: [
-                          Positioned.fill(
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: _buildMiddlePlayRow(board, ctx),
-                            ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildTopOppStrip(board, ctx),
+                        if (ctx.buckets.top.isNotEmpty) const SizedBox(height: 8),
+                        Expanded(
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: _buildMiddlePlayRow(board, ctx),
                           ),
-                          if (_handFeedUiEntries.isNotEmpty)
-                            Positioned(
-                              left: AppPadding.mediumPadding.left,
-                              right: AppPadding.mediumPadding.right,
-                              bottom: 4,
-                              child: _buildMyHandEventFeed(),
-                            ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 16),
+                        KeyedSubtree(
+                          key: _myHandSectionKey,
+                          child: _buildMyHand(board),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    _buildMyHand(board),
+                    if (_turnFeedUiEntries.isNotEmpty)
+                      Positioned(
+                        left: AppPadding.mediumPadding.left,
+                        right: AppPadding.mediumPadding.right,
+                        bottom: _feedOverlayBottomInset,
+                        child: _buildTurnFeedOverlay(),
+                      ),
                   ],
                 );
               },
@@ -1078,14 +1140,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final suppressSeatChrome = isInitialPeekPhase;
     // Dutch caller: avatar ring + label only — no full-seat border (draw/play use seat glow).
     final emphasizeAvatar = showDutchCallerHud ||
-        (!suppressSeatChrome &&
-            isActiveSeat &&
-            !_seatStatusUsesCardGlowOnly(playerStatus));
+        (!suppressSeatChrome && isActiveSeat);
     final highlightSeat = !suppressSeatChrome &&
         isGameActive &&
         isActiveSeat &&
-        !showDutchCallerHud &&
-        !_seatStatusUsesCardGlowOnly(playerStatus);
+        !showDutchCallerHud;
     final seatGlowColor = timerColor;
     final showAnimatedTimer = !suppressSeatChrome &&
         shouldShowTimer &&
@@ -1856,6 +1915,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       case 'drawing_card':
       case 'playing_card':
       case 'initial_peek':
+      case 'jack_swap':
       case 'queen_peek':
       case 'peeking':
         return true;
@@ -1863,9 +1923,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         return false;
     }
   }
-
-  /// Jack swap uses per-card glow only (no seat panel border/background).
-  bool _seatStatusUsesCardGlowOnly(String status) => status == 'jack_swap';
 
   /// Status driving my-hand per-card glow (player status with phase fallbacks).
   String _myHandCardGlowStatus(String playerStatus, String? gamePhase) {
@@ -1996,7 +2053,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  /// Opponent card glow while the local user picks targets for jack swap or queen peek.
+  /// Opponent per-card glow: only while the local user is jack swapping or queen peeking.
+  /// Opponent's own jack/queen window uses seat panel highlight, not card glow.
   String _opponentSeatGlowStatusForLocalUser(
     String localUserStatus,
     String seatStatus,
@@ -2007,11 +2065,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       case 'queen_peek':
         return 'queen_peek';
       default:
+        if (seatStatus == 'jack_swap' || seatStatus == 'queen_peek') {
+          return 'waiting';
+        }
         return seatStatus;
     }
   }
 
-  /// Card glow from [seatStatus] (this seat's SSOT status, or local jack/queen action on opponents).
+  /// Card glow from [seatStatus]. Opponent jack/queen glow only via [_opponentSeatGlowStatusForLocalUser].
   /// My-hand [drawing_card] uses draw-pile glow only — no per-card glow.
   Color? _getGlowColorForCards(String seatStatus, {required bool isMyHand}) {
     switch (seatStatus) {

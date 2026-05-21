@@ -1868,15 +1868,6 @@ When anyone has played a card with the **same rank** as your **collection card**
       );
     }
     DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));
-    if (actionType == 'same_rank_play' ||
-        actionType == 'same_rank_penalty_rebound' ||
-        actionType == 'jack_swap' ||
-        actionType == 'queen_peek') {
-      DutchAnimRuntime.instance.appendHandFeedFromGameAnimation(
-        Map<String, dynamic>.from(data),
-        currentUserId: getCurrentUserId(),
-      );
-    }
   }
 
   /// Handle game_state_updated event
@@ -1898,6 +1889,8 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
     final turnEvents = data['turn_events'] as List<dynamic>? ?? []; // Extract turn_events for animations
+    final turnFeedRaw = data['turn_feed'] as List<dynamic>? ?? [];
+    final turnFeed = turnFeedRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     final stateVersion = _extractStateVersion(data, gameState);
     final signature = _buildEventSignature(
       'game_state_updated',
@@ -2264,11 +2257,6 @@ When anyone has played a card with the **same rank** as your **collection card**
     final rawPhase = gameState['phase']?.toString() ??
         gameState['gamePhase']?.toString() ??
         uiPhase;
-    if (uiPhase == 'same_rank_window' &&
-        previousUiPhase != 'same_rank_window') {
-      DutchAnimRuntime.instance.onSameRankWindowEntered();
-    }
-
     // Extract winners list if game has ended - check both data and gameState
     final winners = data['winners'] as List<dynamic>? ?? gameState['winners'] as List<dynamic>?;
     
@@ -2359,6 +2347,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       'roundStatus': roundStatus,
       'discardPile': discardPile, // Updated discard pile for centerBoard slice
       'turn_events': turnEvents, // Include turn_events for animations (critical for widget slice recomputation)
+      'turn_feed': turnFeed,
       'myCardsToPeek': myCardsToPeekFinal,
       if (myCardsToPeekFinal.isEmpty)
         'protectedCardsToPeek': null

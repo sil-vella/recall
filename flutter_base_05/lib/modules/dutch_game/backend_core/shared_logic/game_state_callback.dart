@@ -62,6 +62,9 @@ abstract class GameStateCallback {
   /// Returns a copy of the current turn_events list
   List<Map<String, dynamic>> getCurrentTurnEvents();
 
+  /// Get current turn_feed list from main state (structured my-hand feed entries).
+  List<Map<String, dynamic>> getCurrentTurnFeed();
+
   /// Get currentPlayer from main state
   /// Returns the currentPlayer map or null if not available
   Map<String, dynamic>? getMainStateCurrentPlayer();

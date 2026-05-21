@@ -81,6 +81,12 @@ class DutchGameRound {
   // Track if onGameEnded has already been called to prevent duplicate stats updates
   bool _gameEndedCallbackCalled = false;
 
+  /// Same-rank play ordinal within the current turn (reset when [turn_feed] clears).
+  int _sameRankPlayOrdinal = 0;
+
+  /// Monotonic feed entry counter for [turn_feed] (reset when feed clears on next turn).
+  int _turnFeedEntrySeq = 0;
+
   /// True after [dispose]; blocks stale timer/async callbacks from advancing a torn-down round.
   bool _disposed = false;
 
@@ -726,6 +732,159 @@ class DutchGameRound {
     };
   }
 
+  List<Map<String, dynamic>> _getCurrentTurnFeed() {
+    return _stateCallback.getCurrentTurnFeed();
+  }
+
+  Map<String, dynamic> _createTurnFeedEntry({
+    required String actionType,
+    required String actingPlayerId,
+    required int handIndex,
+    int? playOrdinal,
+    String? targetPlayerId,
+    List<int>? handIndices,
+  }) {
+    _turnFeedEntrySeq++;
+    final entry = <String, dynamic>{
+      'feed_id': '${_gameId}_tf_${_turnFeedEntrySeq}_${DateTime.now().microsecondsSinceEpoch}',
+      'action_type': actionType,
+      'acting_player_id': actingPlayerId,
+      'hand_index': handIndex,
+    };
+    if (playOrdinal != null) {
+      entry['play_ordinal'] = playOrdinal;
+    }
+    if (targetPlayerId != null && targetPlayerId.isNotEmpty) {
+      entry['target_player_id'] = targetPlayerId;
+    }
+    if (handIndices != null && handIndices.isNotEmpty) {
+      entry['hand_indices'] = handIndices;
+    }
+    return entry;
+  }
+
+  String? _actingPlayerIdFromAnimPayload({
+    required String actionType,
+    required List<Map<String, dynamic>> cards,
+    Map<String, dynamic>? context,
+  }) {
+    if (context != null) {
+      if (actionType == 'jack_swap') {
+        final id = context['acting_player_id']?.toString() ?? '';
+        if (id.isNotEmpty) return id;
+      }
+      if (actionType == 'queen_peek') {
+        final id = context['peeking_player_id']?.toString() ?? '';
+        if (id.isNotEmpty) return id;
+      }
+    }
+    if (cards.isEmpty) return null;
+    final owner = cards.first['owner_id']?.toString() ?? '';
+    return owner.isEmpty ? null : owner;
+  }
+
+  int _handIndexFromAnimCard(Map<String, dynamic> card) {
+    final hi = card['hand_index'];
+    if (hi is int) return hi;
+    if (hi is num) return hi.toInt();
+    return int.tryParse(hi?.toString() ?? '') ?? -1;
+  }
+
+  /// Appends a structured feed entry and returns the updated list for state patches.
+  List<Map<String, dynamic>> _appendTurnFeed({
+    required String actionType,
+    required String actingPlayerId,
+    required int handIndex,
+    int? playOrdinal,
+    String? targetPlayerId,
+    List<int>? handIndices,
+  }) {
+    final feed = List<Map<String, dynamic>>.from(_getCurrentTurnFeed())
+      ..add(_createTurnFeedEntry(
+        actionType: actionType,
+        actingPlayerId: actingPlayerId,
+        handIndex: handIndex,
+        playOrdinal: playOrdinal,
+        targetPlayerId: targetPlayerId,
+        handIndices: handIndices,
+      ));
+    return feed;
+  }
+
+  /// Records a turn_feed entry for feed-eligible animations (not merged into [_emitActionAnimation]).
+  List<Map<String, dynamic>>? _turnFeedAfterAnimation({
+    required String actionType,
+    required List<Map<String, dynamic>> cards,
+    Map<String, dynamic>? context,
+  }) {
+    if (actionType == 'same_rank_play' &&
+        context != null &&
+        context['rejected'] == true) {
+      return null;
+    }
+    const eligible = {
+      'same_rank_play',
+      'same_rank_penalty_rebound',
+      'jack_swap',
+      'queen_peek',
+    };
+    if (!eligible.contains(actionType)) return null;
+
+    final actingId = _actingPlayerIdFromAnimPayload(
+      actionType: actionType,
+      cards: cards,
+      context: context,
+    );
+    if (actingId == null || actingId.isEmpty) return null;
+
+    final handIndex =
+        cards.isEmpty ? -1 : _handIndexFromAnimCard(cards.first);
+
+    int? playOrdinal;
+    if (actionType == 'same_rank_play') {
+      _sameRankPlayOrdinal++;
+      playOrdinal = _sameRankPlayOrdinal;
+    }
+
+    String? targetPlayerId;
+    if (actionType == 'queen_peek' && context != null) {
+      targetPlayerId = context['target_player_id']?.toString();
+    }
+
+    List<int>? handIndices;
+    if (actionType == 'jack_swap' && cards.length >= 2) {
+      handIndices = cards.map(_handIndexFromAnimCard).toList();
+    }
+
+    return _appendTurnFeed(
+      actionType: actionType,
+      actingPlayerId: actingId,
+      handIndex: handIndex,
+      playOrdinal: playOrdinal,
+      targetPlayerId: targetPlayerId,
+      handIndices: handIndices,
+    );
+  }
+
+  /// Broadcasts a turn_feed line when draw/play action timer expires.
+  void _emitTurnFeedTimerMiss({
+    required String playerId,
+    required String actionType,
+  }) {
+    if (actionType != 'timer_miss_draw' && actionType != 'timer_miss_play') {
+      return;
+    }
+    final feed = _appendTurnFeed(
+      actionType: actionType,
+      actingPlayerId: playerId,
+      handIndex: -1,
+    );
+    _stateCallback.onGameStateChanged({
+      'games': _stateCallback.currentGamesMap,
+      'turn_feed': feed,
+    });
+  }
+
   /// Room-wide animation hint before state updates. Does not merge the game state store.
   ///
   /// [actionType]: e.g. draw, play_card, same_rank_play, same_rank_penalty_rebound,
@@ -841,9 +1000,14 @@ class DutchGameRound {
         actionType: 'same_rank_penalty_rebound',
         cards: [reboundCard],
       );
+      final penaltyFeed = _turnFeedAfterAnimation(
+        actionType: 'same_rank_penalty_rebound',
+        cards: [reboundCard],
+      );
       _stateCallback.onGameStateChanged({
         'games': currentGames,
         'discardPile': discardPile,
+        if (penaltyFeed != null) 'turn_feed': penaltyFeed,
       });
 
       _wrongPenaltyPhase2Applied = true;
@@ -3488,21 +3652,27 @@ class DutchGameRound {
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       _sanitizeDrawnCardsInGamesMap(currentGamesForSameRank, context: 'same_rank_play');
 
+      final sameRankAnimCards = [
+        {
+          'owner_id': playerId,
+          'hand_index': cardIndexForRest,
+          'card': Map<String, dynamic>.from(playedCardFullData),
+        },
+      ];
       _emitActionAnimation(
         actionType: 'same_rank_play',
-        cards: [
-          {
-            'owner_id': playerId,
-            'hand_index': cardIndexForRest,
-            'card': Map<String, dynamic>.from(playedCardFullData),
-          },
-        ],
+        cards: sameRankAnimCards,
+      );
+      final sameRankFeed = _turnFeedAfterAnimation(
+        actionType: 'same_rank_play',
+        cards: sameRankAnimCards,
       );
 
       _stateCallback.onGameStateChanged({
         'games': currentGamesForSameRank, // Games map with modifications (drawnCard sanitized)
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn event for animation
+        if (sameRankFeed != null) 'turn_feed': sameRankFeed,
       });
       
       // Action will be cleared in _moveToNextPlayer after animations complete
@@ -3765,23 +3935,28 @@ class DutchGameRound {
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       _sanitizeDrawnCardsInGamesMap(currentGames, context: 'jack_swap');
 
+      final jackAnimCards = [
+        {
+          'owner_id': firstPlayerId,
+          'hand_index': firstCardIndex,
+          'card': Map<String, dynamic>.from(firstCardFullData),
+        },
+        {
+          'owner_id': secondPlayerId,
+          'hand_index': secondCardIndex,
+          'card': Map<String, dynamic>.from(secondCardFullData),
+        },
+      ];
+      final jackContext = {'acting_player_id': actingPlayerId};
       _emitActionAnimation(
         actionType: 'jack_swap',
-        cards: [
-          {
-            'owner_id': firstPlayerId,
-            'hand_index': firstCardIndex,
-            'card': Map<String, dynamic>.from(firstCardFullData),
-          },
-          {
-            'owner_id': secondPlayerId,
-            'hand_index': secondCardIndex,
-            'card': Map<String, dynamic>.from(secondCardFullData),
-          },
-        ],
-        context: {
-          'acting_player_id': actingPlayerId,
-        },
+        cards: jackAnimCards,
+        context: jackContext,
+      );
+      final jackFeed = _turnFeedAfterAnimation(
+        actionType: 'jack_swap',
+        cards: jackAnimCards,
+        context: jackContext,
       );
       if (LOGGING_SWITCH) {
         customlog(
@@ -3792,6 +3967,7 @@ class DutchGameRound {
       _stateCallback.onGameStateChanged({
         'games': currentGames, // Games map with modifications (drawnCard sanitized)
         'turn_events': turnEvents, // Add turn events for animations
+        if (jackFeed != null) 'turn_feed': jackFeed,
       });
       
       // Do not clear action here: queue format is consumed by UI for animation; clearing would remove it before UI reads it (same as play_card, drawn_card, etc.)
@@ -4037,22 +4213,30 @@ class DutchGameRound {
       }];
       peekingPlayer['cardsToPeek'] = idOnlyCardToPeek;
 
+      final queenAnimCards = [
+        <String, dynamic>{
+          'owner_id': targetPlayerId,
+          'hand_index': targetCardIndex,
+        },
+      ];
+      final queenContext = {
+        'peeking_player_id': peekingPlayerId,
+        'target_player_id': targetPlayerId,
+      };
       _emitActionAnimation(
         actionType: 'queen_peek',
-        cards: [
-          <String, dynamic>{
-            'owner_id': targetPlayerId,
-            'hand_index': targetCardIndex,
-          },
-        ],
-        context: {
-          'peeking_player_id': peekingPlayerId,
-          'target_player_id': targetPlayerId,
-        },
+        cards: queenAnimCards,
+        context: queenContext,
+      );
+      final queenFeed = _turnFeedAfterAnimation(
+        actionType: 'queen_peek',
+        cards: queenAnimCards,
+        context: queenContext,
       );
 
       _stateCallback.broadcastGameStateExcept(peekingPlayerId, {
         'games': currentGames,
+        if (queenFeed != null) 'turn_feed': queenFeed,
       });
       ;
 
@@ -5879,6 +6063,9 @@ class DutchGameRound {
         return;
       }
 
+      _sameRankPlayOrdinal = 0;
+      _turnFeedEntrySeq = 0;
+
       final nextIndex = _nextActivePlayerIndex(players, currentIndex);
       if (nextIndex == null) {
         if (LOGGING_SWITCH) {
@@ -5943,6 +6130,7 @@ class DutchGameRound {
         'currentPlayer': nextPlayer, // Also update main state's currentPlayer field for immediate access
         'playerStatus': 'drawing_card', // Update main state playerStatus
         'turn_events': [], // Clear all turn events for new turn
+        'turn_feed': [], // Clear feed for new turn
       });
       ;
       
@@ -6484,6 +6672,7 @@ class DutchGameRound {
     if (LOGGING_SWITCH) {
       customlog('onDrawActionTimerExpired: miss playerId=$playerId');
     }
+    _emitTurnFeedTimerMiss(playerId: playerId, actionType: 'timer_miss_draw');
     _recordHumanTimerMissAndAdvanceOrKick(playerId);
   }
 
@@ -6580,6 +6769,7 @@ class DutchGameRound {
     if (LOGGING_SWITCH) {
       customlog('onPlayActionTimerExpired: miss playerId=$playerId');
     }
+    _emitTurnFeedTimerMiss(playerId: playerId, actionType: 'timer_miss_play');
     _recordHumanTimerMissAndAdvanceOrKick(playerId);
   }
 

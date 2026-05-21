@@ -113,9 +113,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final state = _store.getState(roomId);
       final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
       
-      // Extract turn_events from root state
+      // Extract turn_events / turn_feed from root state
       final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
-      
+      final turnFeed = state['turn_feed'] as List<dynamic>? ?? [];
+
       // Handle phase normalization (same as _applyValidatedUpdates)
       if (updates.containsKey('gamePhase')) {
         final phase = updates['gamePhase']?.toString();
@@ -168,6 +169,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'game_id': roomId,
         'game_state': filteredGameState,
         'turn_events': turnEvents,
+        'turn_feed': turnFeed,
         'state_version': stateVersion,
         if (ownerId != null) 'owner_id': ownerId,
         if (myCardsToPeekFromState != null) 'myCardsToPeek': myCardsToPeekFromState,
@@ -194,9 +196,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final state = _store.getState(roomId);
       final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
       
-      // Extract turn_events from root state
+      // Extract turn_events / turn_feed from root state
       final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
-      
+      final turnFeed = state['turn_feed'] as List<dynamic>? ?? [];
+
       // Handle phase normalization (same as _applyValidatedUpdates)
       if (updates.containsKey('gamePhase')) {
         final phase = updates['gamePhase']?.toString();
@@ -242,6 +245,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'game_id': roomId,
         'game_state': filteredGameState,
         'turn_events': turnEvents,
+        'turn_feed': turnFeed,
         'state_version': stateVersion,
         if (winners != null) 'winners': winners, // Include winners list for game end notification
         if (ownerId != null) 'owner_id': ownerId,
@@ -301,11 +305,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final state = _store.getState(roomId);
     final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
     
-    // Extract turn_events from root state (they're stored at root level, not in game_state)
+    // Extract turn_events / turn_feed from root state (not inside game_state)
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
-    
-    
-    
+    final turnFeed = state['turn_feed'] as List<dynamic>? ?? [];
+
     // CRITICAL: If gamePhase is in updates, copy it to game_state['phase'] for client broadcast
     // Frontend expects gamePhase in game_state['phase'], not at root level
     if (updates.containsKey('gamePhase')) {
@@ -363,6 +366,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'game_id': roomId,
       'game_state': filteredGameState,
       'turn_events': turnEvents, // Include turn_events for animations
+      'turn_feed': turnFeed,
       'state_version': stateVersion,
       if (winners != null) 'winners': winners, // Include winners list for game end notification
       if (ownerId != null) 'owner_id': ownerId,
@@ -428,10 +432,19 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   List<Map<String, dynamic>> getCurrentTurnEvents() {
     final state = _store.getState(roomId);
     final currentTurnEvents = state['turn_events'] as List<dynamic>? ?? [];
-    
-    // Return a copy of the current events
+
     return List<Map<String, dynamic>>.from(
-      currentTurnEvents.map((e) => e as Map<String, dynamic>)
+      currentTurnEvents.map((e) => e as Map<String, dynamic>),
+    );
+  }
+
+  @override
+  List<Map<String, dynamic>> getCurrentTurnFeed() {
+    final state = _store.getState(roomId);
+    final currentTurnFeed = state['turn_feed'] as List<dynamic>? ?? [];
+
+    return List<Map<String, dynamic>>.from(
+      currentTurnFeed.map((e) => Map<String, dynamic>.from(e as Map)),
     );
   }
 

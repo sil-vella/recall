@@ -1593,6 +1593,7 @@ class DutchGameHelpers {
         updates['discardPile'] = <Map<String, dynamic>>[];
         updates['drawPileCount'] = 0;
         updates['turn_events'] = <Map<String, dynamic>>[];
+        updates['turn_feed'] = <Map<String, dynamic>>[];
         DutchAnimRuntime.instance.reset();
         
         // Clear round information
@@ -1648,6 +1649,7 @@ class DutchGameHelpers {
         
         // Clear turn events (animation queue: [DutchAnimRuntime.instance.reset] below)
         'turn_events': <Map<String, dynamic>>[],
+        'turn_feed': <Map<String, dynamic>>[],
         
         // Clear messages state (including modal state)
         'messages': {

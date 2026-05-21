@@ -560,6 +560,7 @@ class DutchGameModule {
         'game_id': roomId,
         'game_state': gameState,
         'turn_events': [], // No turn events for leave
+        'turn_feed': [],
         if (ownerId != null) 'owner_id': ownerId,
         'timestamp': DateTime.now().toIso8601String(),
       });

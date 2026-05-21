@@ -30,6 +30,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
   // UI state
   final List<CardData> cardsToPeek;
   final List<Map<String, dynamic>> turnEvents;
+  final List<Map<String, dynamic>> turnFeed;
   final Map<String, dynamic>? actionError;
   final Map<String, dynamic> messages;
   final Map<String, dynamic> instructions;
@@ -51,6 +52,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
     required this.opponentsPanel,
     required this.cardsToPeek,
     required this.turnEvents,
+    required this.turnFeed,
     this.actionError,
     required this.messages,
     required this.instructions,
@@ -85,6 +87,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
       ),
       cardsToPeek: const [],
       turnEvents: const [],
+      turnFeed: const [],
       messages: const {'session': [], 'rooms': {}},
       instructions: const {'isVisible': false, 'title': '', 'content': '', 'key': '', 'dontShowAgain': {}},
       // Removed lastUpdated - causes unnecessary state updates
@@ -106,6 +109,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
     OpponentsPanelState? opponentsPanel,
     List<CardData>? cardsToPeek,
     List<Map<String, dynamic>>? turnEvents,
+    List<Map<String, dynamic>>? turnFeed,
     Map<String, dynamic>? actionError,
     Map<String, dynamic>? messages,
     Map<String, dynamic>? instructions,
@@ -125,6 +129,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
       opponentsPanel: opponentsPanel ?? this.opponentsPanel,
       cardsToPeek: cardsToPeek ?? this.cardsToPeek,
       turnEvents: turnEvents ?? this.turnEvents,
+      turnFeed: turnFeed ?? this.turnFeed,
       actionError: actionError ?? this.actionError,
       messages: messages ?? this.messages,
       instructions: instructions ?? this.instructions,
@@ -148,6 +153,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
       'opponentsPanel': opponentsPanel.toJson(),
       'cards_to_peek': cardsToPeek.map((c) => c.toJson()).toList(),
       'turn_events': turnEvents,
+      'turn_feed': turnFeed,
       if (actionError != null) 'actionError': actionError,
       'messages': messages,
       'instructions': instructions,
@@ -176,7 +182,10 @@ class DutchGameState extends ImmutableState with EquatableMixin {
     
     final turnEventsRaw = json['turn_events'] as List<dynamic>? ?? [];
     final turnEvents = turnEventsRaw.map((e) => e as Map<String, dynamic>).toList();
-    
+
+    final turnFeedRaw = json['turn_feed'] as List<dynamic>? ?? [];
+    final turnFeed = turnFeedRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
     return DutchGameState(
       isLoading: json['isLoading'] as bool? ?? false,
       isConnected: json['isConnected'] as bool? ?? false,
@@ -191,6 +200,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
       opponentsPanel: opponentsPanel,
       cardsToPeek: cardsToPeek,
       turnEvents: turnEvents,
+      turnFeed: turnFeed,
       actionError: json['actionError'] as Map<String, dynamic>?,
       messages: json['messages'] as Map<String, dynamic>? ?? {'session': [], 'rooms': {}},
       instructions: json['instructions'] as Map<String, dynamic>? ?? {'isVisible': false, 'title': '', 'content': ''},
@@ -202,7 +212,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
   List<Object?> get props => [
     isLoading, isConnected, currentRoomId, isInRoom, currentGameId,
     games, joinedGames, totalJoinedGames, myHand, centerBoard, opponentsPanel,
-    cardsToPeek, turnEvents, actionError, messages, instructions
+    cardsToPeek, turnEvents, turnFeed, actionError, messages, instructions
     // Removed lastUpdated - causes unnecessary state updates
   ];
   

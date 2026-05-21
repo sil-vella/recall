@@ -92,6 +92,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   String _buildBroadcastSignature({
     required Map<String, dynamic> filteredGameState,
     required List<dynamic> turnEvents,
+    required List<dynamic> turnFeed,
     required String? ownerId,
     required List<dynamic>? myCardsToPeekFromState,
     required List<dynamic>? cardsToPeekFromState,
@@ -100,6 +101,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     return jsonEncode(<String, dynamic>{
       'game_state': filteredGameState,
       'turn_events': turnEvents,
+      'turn_feed': turnFeed,
       'owner_id': ownerId,
       'myCardsToPeek': myCardsToPeekFromState,
       'cards_to_peek': cardsToPeekFromState,
@@ -199,6 +201,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   Map<String, dynamic> _gameStateUpdatedPayloadBase({
     required Map<String, dynamic> filteredGameState,
     required List<dynamic> turnEvents,
+    required List<dynamic> turnFeed,
     required int stateVersion,
     String? ownerId,
     List<dynamic>? myCardsToPeekFromState,
@@ -210,6 +213,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'game_id': roomId,
       'game_state': filteredGameState,
       'turn_events': turnEvents,
+      'turn_feed': turnFeed,
       'state_version': stateVersion,
       if (filteredGameState['currentPlayer'] != null) 'current_player': filteredGameState['currentPlayer'],
       'current_player_status': _deriveWireCurrentPlayerStatus(filteredGameState),
@@ -291,6 +295,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
 
       final filteredGameState = _filterGameStateForFrontend(gameState);
       final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+      final turnFeed = state['turn_feed'] as List<dynamic>? ?? [];
       final ownerId = server.getRoomOwner(roomId);
       final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
       if (LOGGING_SWITCH &&
@@ -309,6 +314,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final basePayload = _gameStateUpdatedPayloadBase(
         filteredGameState: filteredGameState,
         turnEvents: turnEvents,
+        turnFeed: turnFeed,
         stateVersion: _nextStateVersion(),
         ownerId: ownerId,
         myCardsToPeekFromState: myCardsToPeekFromState,
@@ -335,12 +341,14 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
     final filteredGameState = _filterGameStateForFrontend(gameState);
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+    final turnFeed = state['turn_feed'] as List<dynamic>? ?? [];
     final myCardsToPeekFromState = state['myCardsToPeek'] as List<dynamic>?;
     final cardsToPeekFromState = state['cards_to_peek'] as List<dynamic>?;
     final ownerId = server.getRoomOwner(roomId);
     final payload = _gameStateUpdatedPayloadBase(
       filteredGameState: filteredGameState,
       turnEvents: turnEvents,
+      turnFeed: turnFeed,
       stateVersion: _nextStateVersion(),
       ownerId: ownerId,
       myCardsToPeekFromState: myCardsToPeekFromState,
@@ -371,11 +379,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final state = _store.getState(roomId);
     final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
     
-    // Extract turn_events from root state (they're stored at root level, not in game_state)
+    // Extract turn_events / turn_feed from root state (not inside game_state)
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
-    
-    
-    
+    final turnFeed = state['turn_feed'] as List<dynamic>? ?? [];
+
     // CRITICAL: If gamePhase is in updates, copy it to game_state['phase'] for client broadcast
     // Frontend expects gamePhase in game_state['phase'], not at root level
     if (updates.containsKey('gamePhase')) {
@@ -437,6 +444,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final broadcastSignature = _buildBroadcastSignature(
       filteredGameState: filteredGameState,
       turnEvents: turnEvents,
+      turnFeed: turnFeed,
       ownerId: ownerId,
       myCardsToPeekFromState: myCardsToPeekFromState,
       cardsToPeekFromState: cardsToPeekFromState,
@@ -452,13 +460,14 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     final payload = _gameStateUpdatedPayloadBase(
       filteredGameState: filteredGameState,
       turnEvents: turnEvents,
+      turnFeed: turnFeed,
       stateVersion: _nextStateVersion(),
       ownerId: ownerId,
       myCardsToPeekFromState: myCardsToPeekFromState,
       cardsToPeekFromState: cardsToPeekFromState,
       winners: winners,
     );
-    
+
     _emitPayloadToRoomSessions(payload);
   }
 
@@ -517,10 +526,19 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   List<Map<String, dynamic>> getCurrentTurnEvents() {
     final state = _store.getState(roomId);
     final currentTurnEvents = state['turn_events'] as List<dynamic>? ?? [];
-    
-    // Return a copy of the current events
+
     return List<Map<String, dynamic>>.from(
-      currentTurnEvents.map((e) => e as Map<String, dynamic>)
+      currentTurnEvents.map((e) => e as Map<String, dynamic>),
+    );
+  }
+
+  @override
+  List<Map<String, dynamic>> getCurrentTurnFeed() {
+    final state = _store.getState(roomId);
+    final currentTurnFeed = state['turn_feed'] as List<dynamic>? ?? [];
+
+    return List<Map<String, dynamic>>.from(
+      currentTurnFeed.map((e) => Map<String, dynamic>.from(e as Map)),
     );
   }
 

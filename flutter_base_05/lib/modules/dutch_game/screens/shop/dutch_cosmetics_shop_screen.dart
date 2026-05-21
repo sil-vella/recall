@@ -948,20 +948,11 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                                 _tilePrimaryAction('Buy', () => _purchase(item)),
                               if (canEquip && owned && !equipped)
                                 _tilePrimaryAction('Use', () => _equip(item)),
-                              if (canEquip && equipped) ...[
+                              if (canEquip && equipped)
                                 _tileSecondaryAction(
-                                  'Unuse',
+                                  'Current: Deselect',
                                   () => _unequip(type == 'card_back' ? 'card_back' : 'table_design'),
                                 ),
-                                _textScrim(
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
-                                  child: Text(
-                                    'In use',
-                                    textAlign: TextAlign.center,
-                                    style: AppTextStyles.overline(color: AppColors.white.withValues(alpha: 0.9)),
-                                  ),
-                                ),
-                              ],
                             ],
                           )
                       else

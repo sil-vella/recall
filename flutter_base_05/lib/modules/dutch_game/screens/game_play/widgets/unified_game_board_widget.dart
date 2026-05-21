@@ -28,20 +28,6 @@ const double _kHudRingOuter = 34.0;
 const double _kHudRingStroke = 3.0;
 const double _kHudAvatarInRing = _kHudRingOuter - 2 * _kHudRingStroke - 2.0;
 
-String _friendlyCardBackLabel(String cardBackId) {
-  switch (cardBackId) {
-    case 'card_back_ember':
-      return 'Ember';
-    case 'card_back_ocean':
-      return 'Ocean';
-    default:
-      if (cardBackId.isEmpty) return 'Default';
-      final base = cardBackId.replaceFirst('card_back_', '').replaceAll('_', ' ').trim();
-      if (base.isEmpty) return 'Default';
-      return base[0].toUpperCase() + base.substring(1);
-  }
-}
-
 bool _isSpecialEventActiveInState(Map<String, dynamic> dutchGameState) {
   final currentGameId = dutchGameState['currentGameId']?.toString().trim() ?? '';
   if (currentGameId.isEmpty) return false;
@@ -2026,9 +2012,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   /// Card glow from [seatStatus] (this seat's SSOT status, or local jack/queen action on opponents).
+  /// My-hand [drawing_card] uses draw-pile glow only — no per-card glow.
   Color? _getGlowColorForCards(String seatStatus, {required bool isMyHand}) {
     switch (seatStatus) {
       case 'drawing_card':
+        return null;
       case 'playing_card':
       case 'same_rank_window':
       case 'initial_peek':
@@ -2860,15 +2848,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // For timer color, always get the status chip color (including same_rank_window)
     final timerColor = _getStatusChipColor(playerStatus);
-    final myUserStats = _dutchGameState()['userStats'] as Map<String, dynamic>? ?? {};
-    final myInventory = myUserStats['inventory'] as Map<String, dynamic>? ?? {};
-    final myCosmetics = myInventory['cosmetics'] as Map<String, dynamic>? ?? {};
-    final myEquipped = myCosmetics['equipped'] as Map<String, dynamic>? ?? {};
-    final myEquippedCardBackId = myEquipped['card_back_id']?.toString() ?? '';
     final isSpecialEventActive = _isSpecialEventActiveInState(_dutchGameState());
-    final equippedLabel = isSpecialEventActive
-        ? 'Event'
-        : _friendlyCardBackLabel(myEquippedCardBackId);
 
     final myPlayerId = _myBoardPlayerId(board);
     final isLocalDutchCaller = hasPlayerCalledDutch ||
@@ -2926,37 +2906,54 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             // Row 1: label + status chip (+ optional Call Dutch). Profile + timer sit on first card.
             Row(
               children: [
-                Text(
-                  'You',
-                  style: AppTextStyles.headingSmall(),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.white.withValues(alpha: 0.62),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  child: Text(
+                    'You',
+                    style: AppTextStyles.label(
+                      color: AppColors.textPrimary,
+                    ).copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      height: 1,
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                if (!isSpecialEventActive)
-                  GestureDetector(
-                    onTap: _showInPlayCustomizeModal,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.borderDefault),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.tune, size: 12, color: AppColors.textSecondary),
-                          const SizedBox(width: 4),
-                          Text(
-                            equippedLabel,
-                            style: AppTextStyles.overline().copyWith(
-                              color: AppColors.textSecondary,
-                              fontSize: 8,
+                if (!isSpecialEventActive) ...[
+                  const SizedBox(width: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.accentContrast.withValues(alpha: 0.62),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Semantics(
+                      label: 'Customize cosmetics',
+                      button: true,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showInPlayCustomizeModal(),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: Icon(
+                              Icons.palette_outlined,
+                              size: 22,
+                              color: AppColors.white,
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
+                ],
                 const Spacer(),
                 if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !dutchActive && !hasPlayerCalledDutch && !_callDutchTappedPending) ...[
                   GestureDetector(
@@ -3670,7 +3667,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                                           ),
                                           textStyle: AppTextStyles.label(color: AppColors.white),
                                         ),
-                                        child: const Text('Unuse'),
+                                        child: const Text('Current: Deselect'),
                                       ),
                                   ],
                                 ),

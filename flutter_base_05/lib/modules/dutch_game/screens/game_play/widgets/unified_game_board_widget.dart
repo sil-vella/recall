@@ -375,17 +375,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final entry in _handFeedUiEntries)
+            for (var i = 0; i < _handFeedUiEntries.length; i++) ...[
+              if (i > 0) const SizedBox(height: 4),
               Text(
-                entry.text,
+                _handFeedUiEntries[i].text,
                 textAlign: TextAlign.center,
+                softWrap: true,
                 style: AppTextStyles.bodySmall().copyWith(
                   color: AppColors.white,
                   fontSize: 14,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
+            ],
           ],
         ),
       ),
@@ -1090,12 +1091,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Initial peek: avatar only on the hand HUD — no seat panel glow, timer ring, or labels.
     final suppressSeatChrome = isInitialPeekPhase;
     // Dutch caller: avatar ring + label only — no full-seat border (draw/play use seat glow).
-    final emphasizeAvatar =
-        showDutchCallerHud || (!suppressSeatChrome && isActiveSeat);
+    final emphasizeAvatar = showDutchCallerHud ||
+        (!suppressSeatChrome &&
+            isActiveSeat &&
+            !_seatStatusUsesCardGlowOnly(playerStatus));
     final highlightSeat = !suppressSeatChrome &&
         isGameActive &&
         isActiveSeat &&
-        !showDutchCallerHud;
+        !showDutchCallerHud &&
+        !_seatStatusUsesCardGlowOnly(playerStatus);
     final seatGlowColor = timerColor;
     final showAnimatedTimer = !suppressSeatChrome &&
         shouldShowTimer &&
@@ -1866,13 +1870,43 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       case 'drawing_card':
       case 'playing_card':
       case 'initial_peek':
-      case 'jack_swap':
       case 'queen_peek':
       case 'peeking':
         return true;
       default:
         return false;
     }
+  }
+
+  /// Jack swap uses per-card glow only (no seat panel border/background).
+  bool _seatStatusUsesCardGlowOnly(String status) => status == 'jack_swap';
+
+  /// Status driving my-hand per-card glow (player status with phase fallbacks).
+  String _myHandCardGlowStatus(String playerStatus, String? gamePhase) {
+    if (playerStatus == 'initial_peek' || gamePhase == 'initial_peek') {
+      return 'initial_peek';
+    }
+    if (playerStatus == 'same_rank_window' || gamePhase == 'same_rank_window') {
+      return 'same_rank_window';
+    }
+    return playerStatus;
+  }
+
+  /// Avatar ring timer on first card HUD (all action phases including same-rank).
+  bool _myHandShowsAvatarTimer({
+    required bool showLocalDutchCallerHud,
+    required String playerStatus,
+    required String? gamePhase,
+    required bool isMyTurn,
+  }) {
+    if (showLocalDutchCallerHud) return false;
+    if (playerStatus == 'initial_peek' || gamePhase == 'initial_peek') {
+      return true;
+    }
+    if (playerStatus == 'same_rank_window' || gamePhase == 'same_rank_window') {
+      return true;
+    }
+    return playerStatus != 'waiting' && isMyTurn;
   }
 
   /// "Dutch" on caller seat, "TURN" on active non-caller during normal play.
@@ -1952,28 +1986,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
-  /// Reusable glow effect decoration builder.
-  /// Full opacity, tight spread (less blur/spread for a more visible edge glow).
-  /// [statusColor] The color to use for the glow (from _getStatusChipColor)
-  /// [glowOpacity] The current animation opacity value (from _glowAnimation)
+  /// Shared glow for draw pile, my-hand cards, and opponent cards (same size/opacity).
   BoxDecoration? _buildGlowDecoration(Color statusColor, double glowOpacity) {
     return BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       boxShadow: [
         BoxShadow(
-          color: statusColor.withValues(alpha: 1.0 * glowOpacity),
-          blurRadius: 4,
-          spreadRadius: 0,
+          color: statusColor.withValues(alpha: glowOpacity),
+          blurRadius: 6,
+          spreadRadius: 2,
         ),
         BoxShadow(
-          color: statusColor.withValues(alpha: 0.85 * glowOpacity),
-          blurRadius: 8,
-          spreadRadius: 0.5,
+          color: statusColor.withValues(alpha: 0.92 * glowOpacity),
+          blurRadius: 14,
+          spreadRadius: 3.5,
         ),
         BoxShadow(
-          color: statusColor.withValues(alpha: 0.6 * glowOpacity),
-          blurRadius: 12,
-          spreadRadius: 1,
+          color: statusColor.withValues(alpha: 0.7 * glowOpacity),
+          blurRadius: 22,
+          spreadRadius: 5,
         ),
       ],
     );
@@ -1997,15 +2028,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Card glow from [seatStatus] (this seat's SSOT status, or local jack/queen action on opponents).
   Color? _getGlowColorForCards(String seatStatus, {required bool isMyHand}) {
     switch (seatStatus) {
+      case 'drawing_card':
       case 'playing_card':
+      case 'same_rank_window':
+      case 'initial_peek':
+      case 'peeking':
         return isMyHand ? _getStatusChipColor(seatStatus) : null;
       case 'jack_swap':
       case 'queen_peek':
         return _getStatusChipColor(seatStatus);
-      case 'same_rank_window':
-        return isMyHand ? _getStatusChipColor(seatStatus) : null;
-      case 'initial_peek':
-        return isMyHand ? _getStatusChipColor(seatStatus) : null;
       default:
         return null;
     }
@@ -2249,7 +2280,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   animation: _glowAnimation!,
                   builder: (context, child) {
                     final glowOpacity = _glowAnimation!.value;
-                    final glowDecoration = _buildGlowDecoration(statusChipColor, glowOpacity);
+                    final glowDecoration = _buildGlowDecoration(
+                      statusChipColor,
+                      glowOpacity,
+                    );
                     return Container(
                       decoration: glowDecoration,
                       child: drawPileContent,
@@ -2843,12 +2877,21 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             dutchCalledBy.isNotEmpty &&
             dutchCalledBy == myPlayerId);
     final showLocalDutchCallerHud = isLocalDutchCaller && dutchActive && isGameActive;
-    final isLocalInitialPeek = playerStatus == 'initial_peek';
-    final showMyHandTimer = !showLocalDutchCallerHud &&
-        (isLocalInitialPeek ||
-            (playerStatus != 'waiting' && isMyTurn));
+    final gamePhaseForMyHand = gameState['phase']?.toString();
+    final isInInitialPeek =
+        playerStatus == 'initial_peek' || gamePhaseForMyHand == 'initial_peek';
+    final isInSameRank =
+        playerStatus == 'same_rank_window' ||
+        gamePhaseForMyHand == 'same_rank_window';
+    final showMyHandTimer = _myHandShowsAvatarTimer(
+      showLocalDutchCallerHud: showLocalDutchCallerHud,
+      playerStatus: playerStatus,
+      gamePhase: gamePhaseForMyHand,
+      isMyTurn: isMyTurn,
+    );
     final emphasizeMyHandAvatar = showLocalDutchCallerHud ||
-        isLocalInitialPeek ||
+        isInInitialPeek ||
+        isInSameRank ||
         (isMyTurn && !showLocalDutchCallerHud);
 
     final Widget? myFirstCardHandHud = cards.isEmpty
@@ -2872,12 +2915,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             ],
           );
 
-    // Dutch caller: orange avatar ring only — no full hand-panel border like draw/play.
-    // Initial peek: local user gets panel glow + avatar timer even when isMyTurn is false.
-    final highlightMyHandSection = isGameActive &&
-        !showLocalDutchCallerHud &&
-        (isMyTurn || isLocalInitialPeek);
-    final myHandGlowColor = timerColor;
     // My hand section: column with (1) header row = You + status chip (+ optional Call Dutch), (2) cards with HUD on index 0
     return Container(
       child: Padding(
@@ -2993,42 +3030,20 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               ],
             ),
             const SizedBox(height: 16),
-            // Row 2: cards only, taking all available horizontal space
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.all(highlightMyHandSection ? 4 : 0),
-              decoration: BoxDecoration(
-                color: highlightMyHandSection ? myHandGlowColor.withOpacity(0.12) : null,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: highlightMyHandSection ? myHandGlowColor : Colors.transparent,
-                  width: highlightMyHandSection ? 2.0 : 0.0,
-                ),
-                boxShadow: highlightMyHandSection
-                    ? [
-                        BoxShadow(
-                          color: myHandGlowColor.withOpacity(0.35),
-                          blurRadius: 10,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : const [],
-              ),
-              child: cards.isEmpty
-                  ? _buildMyHandEmptyHand()
-                  : SizedBox(
-                      width: double.infinity,
-                      child: _buildMyHandCardsGrid(
-                        cards,
-                        cardsToPeek,
-                        selectedIndex,
-                        board,
-                        isMyTurn,
-                        firstCardHandHud: myFirstCardHandHud,
-                      ),
+            // Row 2: cards only (per-card glow; no seat/panel highlight).
+            cards.isEmpty
+                ? _buildMyHandEmptyHand()
+                : SizedBox(
+                    width: double.infinity,
+                    child: _buildMyHandCardsGrid(
+                      cards,
+                      cardsToPeek,
+                      selectedIndex,
+                      board,
+                      isMyTurn,
+                      firstCardHandHud: myFirstCardHandHud,
                     ),
-            ),
+                  ),
           ],
         ),
       ),
@@ -3087,7 +3102,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             final playerStatusForHand = board['playerStatus']?.toString() ??
                 _getCurrentUserStatus();
             final gamePhaseForHand = bgsInner['phase']?.toString();
-            final currentPlayerStatus = playerStatusForHand;
+            final currentPlayerStatus =
+                _myHandCardGlowStatus(playerStatusForHand, gamePhaseForHand);
             final drawnCard = board['myDrawnCard'] as Map<String, dynamic>?;
             final drawnCardId = drawnCard?['cardId']?.toString();
             final players = bgsInner['players'] as List<dynamic>? ?? [];
@@ -3177,8 +3193,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               }
             }
         
-        // Get current player status for glow effect (using same source as status chip)
-        final currentPlayerStatusForGlow = _getCurrentUserStatus();
+        final currentPlayerStatusForGlow =
+            _myHandCardGlowStatus(playerStatusForHand, gamePhaseForHand);
         
         // Build all card widgets with fixed dimensions
         List<Widget> cardWidgets = [];

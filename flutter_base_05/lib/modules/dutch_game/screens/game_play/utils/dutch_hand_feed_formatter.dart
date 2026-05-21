@@ -1,6 +1,6 @@
 import 'dutch_opponent_seat_layout.dart';
 
-/// Formats my-hand feed lines for same-rank window events (animation-driven).
+/// Formats my-hand feed lines for special-action animations (animation-driven).
 class DutchHandFeedFormatter {
   DutchHandFeedFormatter._();
 
@@ -30,22 +30,12 @@ class DutchHandFeedFormatter {
     return 'Seat ?';
   }
 
-  static String? cardRankSuitParenthetical(Map<String, dynamic>? card) {
-    if (card == null) return null;
-    final rank = card['rank']?.toString() ?? '';
-    final suit = card['suit']?.toString() ?? '';
-    if (rank.isEmpty || rank == '?' || suit.isEmpty || suit == '?') {
-      return null;
-    }
-    return '$rank of $suit';
-  }
-
+  /// Valid same-rank play — ordinal index only (no card rank/suit).
   static String messageForSameRankPlay({
     required String actingPlayerId,
     required String currentUserId,
     required List<dynamic> opponents,
     required int playOrdinal,
-    Map<String, dynamic>? card,
   }) {
     final who = actingPlayerLabel(
       actingPlayerId: actingPlayerId,
@@ -53,34 +43,45 @@ class DutchHandFeedFormatter {
       opponents: opponents,
     );
     final ordinal = _ordinal(playOrdinal);
-    final detail = cardRankSuitParenthetical(card);
-    final suffix = detail != null ? ' ($detail)' : '';
     if (who == 'You') {
-      return 'You have played the $ordinal card during same rank$suffix';
+      return 'You played the $ordinal card in same rank';
     }
-    return '$who has played the $ordinal card during same rank$suffix';
+    return '$who played the $ordinal card in same rank';
   }
 
-  /// Phase-1 wrong attempt (card briefly hits discard; rebound follows).
-  static String messageForWrongSameRankAttempt({
+  static String messageForJackSwap({
     required String actingPlayerId,
     required String currentUserId,
     required List<dynamic> opponents,
-    Map<String, dynamic>? card,
   }) {
     final who = actingPlayerLabel(
       actingPlayerId: actingPlayerId,
       currentUserId: currentUserId,
       opponents: opponents,
     );
-    final detail = cardRankSuitParenthetical(card);
-    final suffix = detail != null ? ' ($detail)' : '';
     if (who == 'You') {
-      return 'You played the wrong rank during same rank$suffix';
+      return 'You swapped 2 cards';
     }
-    return '$who played the wrong rank during same rank$suffix';
+    return '$who swapped 2 cards';
   }
 
+  static String messageForQueenPeek({
+    required String actingPlayerId,
+    required String currentUserId,
+    required List<dynamic> opponents,
+  }) {
+    final who = actingPlayerLabel(
+      actingPlayerId: actingPlayerId,
+      currentUserId: currentUserId,
+      opponents: opponents,
+    );
+    if (who == 'You') {
+      return 'You peeked at a card';
+    }
+    return '$who peeked at a card';
+  }
+
+  /// Wrong same-rank — penalty draw only (no card details).
   static String messageForWrongSameRankPenalty({
     required String actingPlayerId,
     required String currentUserId,
@@ -92,9 +93,9 @@ class DutchHandFeedFormatter {
       opponents: opponents,
     );
     if (who == 'You') {
-      return 'You got a penalty card for wrong same rank';
+      return 'You were given a penalty card';
     }
-    return '$who got a penalty card for wrong same rank';
+    return '$who was given a penalty card';
   }
 
   static String _ordinal(int n) {
@@ -113,6 +114,26 @@ class DutchHandFeedFormatter {
     }
   }
 
+  /// Player who performed the action (varies by [actionType] / [context]).
+  static String? actingPlayerIdFromAnimationPayload(
+    String actionType,
+    Map<String, dynamic> payload,
+  ) {
+    final ctx = payload['context'];
+    if (ctx is Map) {
+      final ctxMap = Map<String, dynamic>.from(ctx);
+      if (actionType == 'jack_swap') {
+        final id = ctxMap['acting_player_id']?.toString() ?? '';
+        if (id.isNotEmpty) return id;
+      }
+      if (actionType == 'queen_peek') {
+        final id = ctxMap['peeking_player_id']?.toString() ?? '';
+        if (id.isNotEmpty) return id;
+      }
+    }
+    return ownerIdFromAnimationPayload(payload);
+  }
+
   /// [owner_id] from first [cards] entry in a [game_animation] payload.
   static String? ownerIdFromAnimationPayload(Map<String, dynamic> payload) {
     final cards = payload['cards'] as List? ?? [];
@@ -121,20 +142,5 @@ class DutchHandFeedFormatter {
     if (c0 is! Map) return null;
     final owner = c0['owner_id']?.toString() ?? '';
     return owner.isEmpty ? null : owner;
-  }
-
-  static Map<String, dynamic>? cardFromAnimationPayload(Map<String, dynamic> payload) {
-    final cards = payload['cards'] as List? ?? [];
-    if (cards.isEmpty) return null;
-    final c0 = cards.first;
-    if (c0 is! Map) return null;
-    final card = c0['card'];
-    if (card is Map<String, dynamic>) {
-      return Map<String, dynamic>.from(card);
-    }
-    if (card is Map) {
-      return Map<String, dynamic>.from(card);
-    }
-    return null;
   }
 }

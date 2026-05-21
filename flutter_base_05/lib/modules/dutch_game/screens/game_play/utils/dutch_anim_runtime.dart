@@ -129,41 +129,48 @@ class DutchAnimRuntime extends ChangeNotifier {
     }
   }
 
-  /// Append a feed line from [game_animation] (same-rank plays and penalty rebound only).
+  /// Append a feed line from [game_animation] (same-rank, jack swap, queen peek).
   void appendHandFeedFromGameAnimation(
     Map<String, dynamic> payload, {
     required String currentUserId,
   }) {
     final action = payload['action_type']?.toString() ?? '';
-    final ownerId = DutchHandFeedFormatter.ownerIdFromAnimationPayload(payload);
-    if (ownerId == null) return;
+    final actingId = DutchHandFeedFormatter.actingPlayerIdFromAnimationPayload(
+      action,
+      payload,
+    );
+    if (actingId == null) return;
 
     final opponents = _opponentsFromState();
     String? line;
     if (action == 'same_rank_play') {
       final ctx = payload['context'];
       final rejected = ctx is Map && ctx['rejected'] == true;
-      final card = DutchHandFeedFormatter.cardFromAnimationPayload(payload);
       if (rejected) {
-        line = DutchHandFeedFormatter.messageForWrongSameRankAttempt(
-          actingPlayerId: ownerId,
-          currentUserId: currentUserId,
-          opponents: opponents,
-          card: card,
-        );
-      } else {
-        _sameRankPlayCount++;
-        line = DutchHandFeedFormatter.messageForSameRankPlay(
-          actingPlayerId: ownerId,
-          currentUserId: currentUserId,
-          opponents: opponents,
-          playOrdinal: _sameRankPlayCount,
-          card: card,
-        );
+        return;
       }
+      _sameRankPlayCount++;
+      line = DutchHandFeedFormatter.messageForSameRankPlay(
+        actingPlayerId: actingId,
+        currentUserId: currentUserId,
+        opponents: opponents,
+        playOrdinal: _sameRankPlayCount,
+      );
     } else if (action == 'same_rank_penalty_rebound') {
       line = DutchHandFeedFormatter.messageForWrongSameRankPenalty(
-        actingPlayerId: ownerId,
+        actingPlayerId: actingId,
+        currentUserId: currentUserId,
+        opponents: opponents,
+      );
+    } else if (action == 'jack_swap') {
+      line = DutchHandFeedFormatter.messageForJackSwap(
+        actingPlayerId: actingId,
+        currentUserId: currentUserId,
+        opponents: opponents,
+      );
+    } else if (action == 'queen_peek') {
+      line = DutchHandFeedFormatter.messageForQueenPeek(
+        actingPlayerId: actingId,
         currentUserId: currentUserId,
         opponents: opponents,
       );

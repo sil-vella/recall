@@ -1869,7 +1869,9 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));
     if (actionType == 'same_rank_play' ||
-        actionType == 'same_rank_penalty_rebound') {
+        actionType == 'same_rank_penalty_rebound' ||
+        actionType == 'jack_swap' ||
+        actionType == 'queen_peek') {
       DutchAnimRuntime.instance.appendHandFeedFromGameAnimation(
         Map<String, dynamic>.from(data),
         currentUserId: getCurrentUserId(),

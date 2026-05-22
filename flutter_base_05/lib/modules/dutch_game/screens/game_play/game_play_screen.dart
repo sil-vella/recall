@@ -5,6 +5,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../../utils/widgets/felt_texture_widget.dart';
+import '../../../../core/managers/auth_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../backend_core/utils/level_matcher.dart';
@@ -461,6 +462,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    AuthManager().updateMainAppState('active_game');
+    unawaited(AuthManager().ensureTokensFreshForGameplay());
     unawaited(WakelockPlus.enable());
     final dutch0 = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     _cachedPlayTableLevel = resolveDutchGamePlayTableLevel(dutch0);
@@ -529,6 +532,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AuthManager().updateMainAppState('idle');
     unawaited(WakelockPlus.disable());
     StateManager().removeListener(_onStateManagerForTableStyle);
     

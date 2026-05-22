@@ -490,7 +490,12 @@ class DutchGameRound {
 
   /// Helper method to update player status in games map and broadcast via onGameStateChanged
   /// Replaces onPlayerStatusChanged to avoid redundant broadcasts
-  void _updatePlayerStatusInGamesMap(String status, {String? playerId, Map<String, dynamic>? gamesMap}) {
+  void _updatePlayerStatusInGamesMap(
+    String status, {
+    String? playerId,
+    Map<String, dynamic>? gamesMap,
+    List<Map<String, dynamic>>? turnFeed,
+  }) {
     final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
     final gameId = _gameId;
 
@@ -521,10 +526,14 @@ class DutchGameRound {
     // clearing here races the client and hides the reveal until the next scoped update.
 
     // Broadcast the update with playerStatus in main state
-    _stateCallback.onGameStateChanged({
+    final patch = <String, dynamic>{
       'games': currentGames,
       'playerStatus': status, // Update main state playerStatus
-    });
+    };
+    if (turnFeed != null) {
+      patch['turn_feed'] = turnFeed;
+    }
+    _stateCallback.onGameStateChanged(patch);
   }
   
   /// Initialize the round with the current game state
@@ -947,6 +956,33 @@ class DutchGameRound {
       'games': _stateCallback.currentGamesMap,
       'turn_feed': feed,
     });
+  }
+
+  /// Appends a turn_feed line when [_processNextSpecialCard] selects a player from the queue.
+  /// Does not broadcast — caller merges [turnFeed] into the status patch for that selection.
+  List<Map<String, dynamic>>? _appendTurnFeedSpecialCanForSelection({
+    required String playerId,
+    required String specialPower,
+  }) {
+    final actionType = specialPower == 'jack_swap'
+        ? 'jack_swap_can'
+        : specialPower == 'queen_peek'
+            ? 'queen_peek_can'
+            : null;
+    if (actionType == null) return null;
+    final feed = _appendTurnFeed(
+      actionType: actionType,
+      actingPlayerId: playerId,
+      handIndex: -1,
+    );
+    if (LOGGING_SWITCH) {
+      customlog(
+        'TurnFeedSpecialCan: gameId=$_gameId action=$actionType playerId=$playerId '
+        'isHuman=${_isHumanPlayerId(playerId)} feedLen=${feed.length} '
+        'phase=special_play_selection',
+      );
+    }
+    return feed;
   }
 
   /// Room-wide animation hint before state updates. Does not merge the game state store.
@@ -5682,12 +5718,27 @@ class DutchGameRound {
       ;
       ;
       
-      // Set player status based on special power
+      // Queue head selected for special play: feed "can …" now (before swap/peek handler or CPU YAML).
       if (specialPower == 'jack_swap') {
-        
-        _updatePlayerStatusInGamesMap('jack_swap', playerId: playerId);
+        final canFeed = _appendTurnFeedSpecialCanForSelection(
+          playerId: playerId,
+          specialPower: specialPower,
+        );
+        _updatePlayerStatusInGamesMap(
+          'jack_swap',
+          playerId: playerId,
+          turnFeed: canFeed,
+        );
       } else if (specialPower == 'queen_peek') {
-        _updatePlayerStatusInGamesMap('queen_peek', playerId: playerId);
+        final canFeed = _appendTurnFeedSpecialCanForSelection(
+          playerId: playerId,
+          specialPower: specialPower,
+        );
+        _updatePlayerStatusInGamesMap(
+          'queen_peek',
+          playerId: playerId,
+          turnFeed: canFeed,
+        );
       } else {
         ;
         // Remove this card and move to next

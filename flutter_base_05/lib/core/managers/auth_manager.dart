@@ -44,8 +44,19 @@ class AuthManager extends ChangeNotifier {
 
   /// Prevents concurrent [handleHttp401Response] runs (parallel 401s).
   bool _handlingHttp401 = false;
-  
 
+  /// Deferred sign-out when HTTP auth fails during [isGameplayProtectionActive].
+  Map<String, dynamic>? _pendingAuthSignOut;
+
+  /// True during lobby queue, active table, or post-match UI — forced sign-out is deferred.
+  static bool isGameplayProtectionActive() {
+    final stateManager = StateManager();
+    final mainState = stateManager.getMainAppState<String>('main_state') ?? 'unknown';
+    return _isProtectedMainState(mainState);
+  }
+
+  static bool _isProtectedMainState(String mainState) =>
+      mainState == 'active_game' || mainState == 'pre_game' || mainState == 'post_game';
 
   factory AuthManager() => _instance;
   AuthManager._internal();
@@ -289,9 +300,54 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
+  /// Applies deferred sign-out after leaving a protected match state (see [updateMainAppState]).
+  Future<void> flushPendingAuthSignOut() async {
+    final pending = _pendingAuthSignOut;
+    if (pending == null) return;
+    _pendingAuthSignOut = null;
+    await _executeSignOutAfterUnauthorizedApi(
+      code: pending['code']?.toString(),
+      reason: pending['reason']?.toString() ?? 'api_unauthorized',
+      hookMessage: pending['message']?.toString(),
+    );
+  }
+
+  void _queuePendingAuthSignOut({
+    String? code,
+    required String reason,
+    String? hookMessage,
+  }) {
+    if (_pendingAuthSignOut != null) return;
+    final message = hookMessage ??
+        (code == 'SESSION_SUPERSEDED'
+            ? 'This account was signed in on another device. Please log in again.'
+            : reason == 'refresh_token_expired'
+                ? 'Refresh token has expired. Please log in again.'
+                : reason == 'token_refresh_failed'
+                    ? 'Token refresh failed. Please log in again.'
+                    : 'Your session is no longer valid. Please sign in again.');
+    _pendingAuthSignOut = {
+      'reason': reason,
+      'code': code,
+      'message': message,
+    };
+  }
+
   Future<void> _signOutAfterUnauthorizedApi({
     String? code,
     String reason = 'api_unauthorized',
+  }) async {
+    if (isGameplayProtectionActive()) {
+      _queuePendingAuthSignOut(code: code, reason: reason);
+      return;
+    }
+    await _executeSignOutAfterUnauthorizedApi(code: code, reason: reason);
+  }
+
+  Future<void> _executeSignOutAfterUnauthorizedApi({
+    String? code,
+    String reason = 'api_unauthorized',
+    String? hookMessage,
   }) async {
     if (_hasTriggeredAuthHook) {
       return;
@@ -300,15 +356,42 @@ class AuthManager extends ChangeNotifier {
     _currentStatus = AuthStatus.tokenExpired;
     _hasTriggeredAuthHook = true;
     notifyListeners();
-    final message = code == 'SESSION_SUPERSEDED'
-        ? 'This account was signed in on another device. Please log in again.'
-        : 'Your session is no longer valid. Please sign in again.';
+    final message = hookMessage ??
+        (code == 'SESSION_SUPERSEDED'
+            ? 'This account was signed in on another device. Please log in again.'
+            : 'Your session is no longer valid. Please sign in again.');
     HooksManager().triggerHookWithData('refresh_token_expired', {
       'status': 'refresh_token_expired',
       'reason': reason,
       'code': code,
       'message': message,
     });
+  }
+
+  /// HTTP Authorization during a match: refresh when likely expired; never sign out here.
+  Future<String?> getTokenForApiRequest() async {
+    if (!isGameplayProtectionActive()) {
+      return getCurrentValidToken();
+    }
+    final token = await getAccessToken();
+    if (token == null) return null;
+    if (await _isTokenLikelyExpired()) {
+      final refreshed = await refreshToken();
+      if (refreshed != null && refreshed.isNotEmpty) {
+        return refreshed;
+      }
+    }
+    return token;
+  }
+
+  /// Best-effort access-token refresh when entering game play (multiplayer or practice).
+  Future<void> ensureTokensFreshForGameplay() async {
+    if (_connectionModule == null) return;
+    final access = await getAccessToken();
+    if (access == null) return;
+    if (await _isTokenLikelyExpired()) {
+      await refreshToken();
+    }
   }
 
   /// ✅ Refresh token (no cooldown)
@@ -505,21 +588,10 @@ class AuthManager extends ChangeNotifier {
       final isRefreshTokenExpired = await _isRefreshTokenLikelyExpired();
       
       if (isRefreshTokenExpired) {
-        
-        // Clear stored data since both tokens are expired
-        await _clearStoredData();
-        
-        // Trigger refresh token expired hook (LoginModule will handle navigation)
-        if (!_hasTriggeredAuthHook) {
-          _hasTriggeredAuthHook = true;
-          final hooksManager = HooksManager();
-          hooksManager.triggerHookWithData('refresh_token_expired', {
-            'status': 'refresh_token_expired',
-            'reason': 'refresh_token_expired',
-            'message': 'Refresh token has expired. Please log in again.',
-          });
-        } else {
-        }
+        await _notifySessionInvalid(
+          reason: 'refresh_token_expired',
+          message: 'Refresh token has expired. Please log in again.',
+        );
         return null;
       }
       
@@ -527,19 +599,11 @@ class AuthManager extends ChangeNotifier {
       if (newToken != null) {
         return newToken;
       } else {
-        
-        // Clear stored data since refresh failed
-        await _clearStoredData();
-        
-        if (!_hasTriggeredAuthHook) {
-          _hasTriggeredAuthHook = true;
-          HooksManager().triggerHookWithData('auth_token_refresh_failed', {
-            'status': 'token_refresh_failed',
-            'reason': 'token_refresh_failed',
-            'code': 'REFRESH_INVALID',
-            'message': 'Token refresh failed. Please log in again.',
-          });
-        }
+        await _notifySessionInvalid(
+          reason: 'token_refresh_failed',
+          code: 'REFRESH_INVALID',
+          message: 'Token refresh failed. Please log in again.',
+        );
         return null;
       }
     } else {
@@ -818,12 +882,37 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
-  /// ✅ Update main app state for testing (can be called from UI)
+  Future<void> _notifySessionInvalid({
+    required String reason,
+    String? code,
+    required String message,
+  }) async {
+    if (isGameplayProtectionActive()) {
+      _queuePendingAuthSignOut(code: code, reason: reason, hookMessage: message);
+      return;
+    }
+    await _clearStoredData();
+    if (_hasTriggeredAuthHook) return;
+    _hasTriggeredAuthHook = true;
+    final hookName = reason == 'token_refresh_failed'
+        ? 'auth_token_refresh_failed'
+        : 'refresh_token_expired';
+    HooksManager().triggerHookWithData(hookName, {
+      'status': hookName,
+      'reason': reason,
+      if (code != null) 'code': code,
+      'message': message,
+    });
+  }
+
+  /// Updates [main_state] (`idle`, `pre_game`, `active_game`, `post_game`). Call from match UI.
   void updateMainAppState(String state) {
     final stateManager = StateManager();
-    stateManager.updateMainAppState("main_state", state);
-    
-    // Check if we have a queued refresh and app is not in game state
+    final previous = stateManager.getMainAppState<String>('main_state') ?? 'unknown';
+    stateManager.updateMainAppState('main_state', state);
+    if (_isProtectedMainState(previous) && !_isProtectedMainState(state)) {
+      unawaited(flushPendingAuthSignOut());
+    }
     checkQueuedTokenRefresh();
   }
 

@@ -267,6 +267,7 @@ class AnalyticsModule extends ModuleBase {
   
   /// Flush queued events to backend
   Future<void> _flushEventQueue() async {
+    if (AuthManager.isGameplayProtectionActive()) return;
     if (_eventQueue.isEmpty) return;
     
     try {

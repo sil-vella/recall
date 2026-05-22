@@ -127,6 +127,12 @@ class DutchTurnFeedFormatter {
         }
         return 'Wrong same rank attempt. $who was given a penalty card';
 
+      case 'jack_swap_can':
+        return '$who can swap cards';
+
+      case 'queen_peek_can':
+        return '$who can peek at a card';
+
       case 'jack_swap':
         return '$who swapped cards';
 

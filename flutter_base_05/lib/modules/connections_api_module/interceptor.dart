@@ -38,7 +38,7 @@ class AuthInterceptor implements InterceptorContract {
       return request;
     }
 
-    final token = await _authManager!.getCurrentValidToken();
+    final token = await _authManager!.getTokenForApiRequest();
     if (token != null) {
       request.headers['Authorization'] = 'Bearer $token';
     }

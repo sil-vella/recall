@@ -886,6 +886,8 @@ def _insert_match_win_outcome_additive(
     is_tournament: bool,
     tournament_id: Optional[str],
     game_mode: Optional[str],
+    end_points: int = 0,
+    duration_seconds: int = 0,
 ) -> None:
     """Single additive insert for one match win. Duplicate (room_id, user_id) is ignored (no races, no double count)."""
     doc = {
@@ -895,6 +897,8 @@ def _insert_match_win_outcome_additive(
         "is_tournament": is_tournament,
         "tournament_id": tournament_id,
         "game_mode": game_mode,
+        "end_points": max(0, int(end_points)),
+        "duration_seconds": max(0, int(duration_seconds)),
     }
     try:
         db_manager.db[MATCH_WIN_OUTCOMES_COLL].insert_one(doc)
@@ -1078,6 +1082,13 @@ def update_game_stats():
                 subscription_tier = dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL
                 inventory = _normalize_inventory(dutch_game.get("inventory"))
                 is_winner = player_result.get('is_winner', False)
+                match_end_points = _int_from_game_result_row(
+                    player_result, "total_end_points", "totalEndPoints"
+                )
+                match_duration_seconds = _int_from_game_result_row(
+                    player_result, "duration_seconds", "durationSeconds", "duration"
+                )
+                match_duration_seconds = min(max(0, match_duration_seconds), 86400)
                 pot = player_result.get('pot', 0)
                 coins_to_add = 0
                 base_win_coins = 0
@@ -1164,8 +1175,16 @@ def update_game_stats():
                     set_fields["modules.dutch_game.inventory"] = inventory
 
                 update_operation = {'$set': set_fields}
+                inc_fields: Dict[str, Any] = {}
                 if coins_to_add > 0:
-                    update_operation['$inc'] = {'modules.dutch_game.coins': coins_to_add}
+                    inc_fields['modules.dutch_game.coins'] = coins_to_add
+                if is_winner:
+                    inc_fields['modules.dutch_game.points'] = match_end_points
+                    inc_fields['modules.dutch_game.win_duration_seconds_total'] = (
+                        match_duration_seconds
+                    )
+                if inc_fields:
+                    update_operation['$inc'] = inc_fields
                 result = db_manager.db["users"].update_one({"_id": user_id}, update_operation)
                 modified_count = result.modified_count if result else 0
                 if modified_count > 0:
@@ -1209,6 +1228,8 @@ def update_game_stats():
                             is_tournament=is_tournament,
                             tournament_id=tid_out,
                             game_mode=player_result.get("game_mode"),
+                            end_points=match_end_points,
+                            duration_seconds=match_duration_seconds,
                         )
                     analytics_service = _app_manager.services_manager.get_service('analytics_service') if _app_manager else None
                     if analytics_service:
@@ -1265,6 +1286,8 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
                 "losses": 0,
                 "total_matches": 0,
                 "points": 0,
+                "win_duration_seconds_total": 0,
+                "avg_win_duration_seconds": None,
                 "coins": 0,
                 "level": matcher.DEFAULT_LEVEL,
                 "rank": matcher.DEFAULT_RANK,
@@ -1285,12 +1308,17 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             "rank": matcher.DEFAULT_RANK,
         }
     if full:
+        wins_n = int(dutch_game.get("wins", 0) or 0)
+        win_dur_total = int(dutch_game.get("win_duration_seconds_total", 0) or 0)
+        avg_win_dur = (float(win_dur_total) / float(wins_n)) if wins_n > 0 else None
         stats_data = {
             "enabled": dutch_game.get("enabled", True),
-            "wins": dutch_game.get("wins", 0),
+            "wins": wins_n,
             "losses": dutch_game.get("losses", 0),
             "total_matches": dutch_game.get("total_matches", 0),
             "points": dutch_game.get("points", 0),
+            "win_duration_seconds_total": win_dur_total,
+            "avg_win_duration_seconds": avg_win_dur,
             "coins": dutch_game.get("coins", 0),
             "level": dutch_game.get("level", matcher.DEFAULT_LEVEL),
             "rank": dutch_game.get("rank") or matcher.DEFAULT_RANK,
@@ -2669,12 +2697,37 @@ def get_tournaments_list_public():
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
 
 
+def _period_wins_group_and_sort_stages() -> List[Dict[str, Any]]:
+    """Group period wins with tie-break fields; sort wins desc, points asc, avg win seconds asc."""
+    return [
+        {
+            "$group": {
+                "_id": "$user_id",
+                "wins": {"$sum": 1},
+                "period_points": {"$sum": {"$ifNull": ["$end_points", 0]}},
+                "period_win_seconds": {"$sum": {"$ifNull": ["$duration_seconds", 0]}},
+            }
+        },
+        {
+            "$addFields": {
+                "avg_win_seconds": {
+                    "$cond": [
+                        {"$gt": ["$wins", 0]},
+                        {"$divide": ["$period_win_seconds", "$wins"]},
+                        999999999,
+                    ]
+                }
+            }
+        },
+        {"$sort": {"wins": -1, "period_points": 1, "avg_win_seconds": 1, "_id": 1}},
+    ]
+
+
 def _aggregate_period_wins_summaries(coll, start: datetime, end: datetime) -> List[Dict[str, Any]]:
-    """Full standings for the window: [{ _id: ObjectId, wins: int }, ...] sorted like the leaderboard."""
+    """Full standings for the window sorted by wins, period_points, avg_win_seconds."""
     pipeline = [
         {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
-        {"$group": {"_id": "$user_id", "wins": {"$sum": 1}}},
-        {"$sort": {"wins": -1, "_id": 1}},
+        *_period_wins_group_and_sort_stages(),
     ]
     return list(coll.aggregate(pipeline))
 
@@ -2690,7 +2743,7 @@ def _aggregate_period_wins_summaries_with_rank_tiers(
     cap = max(1, min(int(max_entries), 10000))
     pipeline = [
         {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
-        {"$group": {"_id": "$user_id", "wins": {"$sum": 1}}},
+        *_period_wins_group_and_sort_stages(),
         {
             "$lookup": {
                 "from": "users",
@@ -2725,7 +2778,6 @@ def _aggregate_period_wins_summaries_with_rank_tiers(
             }
         },
         {"$project": {"_u": 0}},
-        {"$sort": {"wins": -1, "_id": 1}},
         {"$limit": cap},
     ]
     return list(coll.aggregate(pipeline))
@@ -2742,7 +2794,7 @@ def _aggregate_period_wins_summaries_rank_tier(
     default_r = matcher.DEFAULT_RANK
     pipeline = [
         {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
-        {"$group": {"_id": "$user_id", "wins": {"$sum": 1}}},
+        *_period_wins_group_and_sort_stages(),
         {
             "$lookup": {
                 "from": "users",
@@ -2775,7 +2827,6 @@ def _aggregate_period_wins_summaries_rank_tier(
             }
         },
         {"$match": {"_norm_rank": canonical_rank_tier}},
-        {"$sort": {"wins": -1, "_id": 1}},
         {"$project": {"_u": 0, "_norm_rank": 0}},
     ]
     return list(coll.aggregate(pipeline))
@@ -2936,12 +2987,18 @@ def _bundle_rows_from_summaries_with_tiers(summaries: List[Dict[str, Any]]) -> L
         uid = doc["_id"]
         rt_raw = doc.get("rank_tier")
         rt = matcher.normalize_rank(str(rt_raw) if rt_raw is not None else "") or matcher.DEFAULT_RANK
+        avg_ws = doc.get("avg_win_seconds")
+        if avg_ws is None and int(doc.get("wins") or 0) > 0:
+            pws = int(doc.get("period_win_seconds") or 0)
+            avg_ws = float(pws) / float(int(doc.get("wins") or 0))
         out.append(
             {
                 "user_id": str(uid),
                 "username": (doc.get("username") or "") or "",
                 "wins": int(doc.get("wins") or 0),
                 "rank_tier": rt,
+                "period_points": int(doc.get("period_points") or 0),
+                "avg_win_seconds": avg_ws,
             }
         )
     return out
@@ -3042,7 +3099,8 @@ def get_period_wins_leaderboard_bundle_public():
     """Public (no auth): **single response** with current UTC month **and** year period standings.
 
     Each row includes ``rank_tier`` (player's current stored competitive rank) so clients can filter by tier locally.
-    Rows are sorted by wins desc; ``max_entries`` caps each period (default 2500, max 10000).
+    Rows are sorted by wins desc, then period win points sum asc, then avg win duration asc;
+    ``max_entries`` caps each period (default 2500, max 10000).
 
     Query: ``max_entries`` / ``maxEntries``; optional ``user_id`` / ``userId`` for ``viewer`` (monthly + yearly stats).
 

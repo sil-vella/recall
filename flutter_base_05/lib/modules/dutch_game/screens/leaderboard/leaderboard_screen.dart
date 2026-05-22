@@ -327,6 +327,37 @@ String _displayNameFromPeriodRow(Map<String, dynamic> row) {
   return 'Player';
 }
 
+int _periodPointsFromRow(Map<String, dynamic> row) {
+  final v = row['period_points'];
+  if (v is num) return v.round();
+  return int.tryParse(v?.toString() ?? '') ?? 0;
+}
+
+double? _avgWinSecondsFromRow(Map<String, dynamic> row) {
+  final raw = row['avg_win_seconds'];
+  if (raw is num) return raw.toDouble();
+  final parsed = double.tryParse(raw?.toString() ?? '');
+  if (parsed != null) return parsed;
+  final wins = (row['wins'] as num?)?.toInt() ?? int.tryParse(row['wins']?.toString() ?? '') ?? 0;
+  if (wins <= 0) return null;
+  final pws = row['period_win_seconds'];
+  final total = pws is num
+      ? pws.toDouble()
+      : double.tryParse(pws?.toString() ?? '');
+  if (total == null) return null;
+  return total / wins;
+}
+
+/// Wall-clock average win time as ``Xh Ym Zs`` (non-negative seconds).
+String _formatDurationHrMinSec(num? totalSeconds) {
+  var sec = (totalSeconds is num) ? totalSeconds.round() : 0;
+  if (sec < 0) sec = 0;
+  final h = sec ~/ 3600;
+  final m = (sec % 3600) ~/ 60;
+  final s = sec % 60;
+  return '${h}h ${m}m ${s}s';
+}
+
 /// Viewer subtitle from bundle ``viewer.monthly`` / ``viewer.yearly`` and client-filtered rows.
 String? _viewerLine({
   required String? uid,
@@ -443,6 +474,10 @@ class _PodiumPlace extends StatelessWidget {
     final hasData = row != null;
     final name = hasData ? _displayNameFromPeriodRow(row!) : '—';
     final wins = hasData ? (row!['wins']?.toString() ?? '0') : '';
+    final periodPts = hasData ? _periodPointsFromRow(row!) : 0;
+    final avgSec = hasData ? _avgWinSecondsFromRow(row!) : null;
+    final avgTimeLabel =
+        avgSec != null ? _formatDurationHrMinSec(avgSec) : null;
     final iconSize = place == 1 ? 36.0 : 28.0;
     final topPad = place == 1 ? 0.0 : 10.0;
 
@@ -476,6 +511,17 @@ class _PodiumPlace extends StatelessWidget {
               textAlign: TextAlign.center,
               style: AppTextStyles.caption(color: AppColors.textSecondary),
             ),
+            Text(
+              '$periodPts pts',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.caption(color: AppColors.textTertiary),
+            ),
+            if (avgTimeLabel != null)
+              Text(
+                avgTimeLabel,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.caption(color: AppColors.textTertiary),
+              ),
           ],
           const SizedBox(height: 8),
           Container(
@@ -802,6 +848,13 @@ class _PeriodLeaderboardBody extends StatelessWidget {
         final isFirstPlace = rankNum == 1;
         final name = _displayNameFromPeriodRow(row);
         final wins = row['wins']?.toString() ?? '0';
+        final periodPts = _periodPointsFromRow(row);
+        final avgSec = _avgWinSecondsFromRow(row);
+        final avgTimeLabel = avgSec != null ? _formatDurationHrMinSec(avgSec) : '—';
+        final statColor = isFirstPlace
+            ? AppColors.matchPotGold
+            : AppColors.white.withValues(alpha: 0.72);
+        final statCaption = AppTextStyles.caption(color: AppColors.textSecondary);
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
           decoration: BoxDecoration(
@@ -853,13 +906,20 @@ class _PeriodLeaderboardBody extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                '$wins wins',
-                style: AppTextStyles.bodyMedium(
-                  color: isFirstPlace
-                      ? AppColors.matchPotGold
-                      : AppColors.white.withValues(alpha: 0.72),
-                ).copyWith(fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$wins wins',
+                    style: AppTextStyles.bodyMedium(color: statColor).copyWith(
+                      fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text('$periodPts pts', style: statCaption),
+                  Text(avgTimeLabel, style: statCaption),
+                ],
               ),
             ],
           ),

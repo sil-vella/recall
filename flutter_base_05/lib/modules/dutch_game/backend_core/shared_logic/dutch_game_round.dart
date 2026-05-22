@@ -624,6 +624,10 @@ class DutchGameRound {
       
       // Initialize round timing
       final currentTime = DateTime.now().millisecondsSinceEpoch / 1000;
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      if (gameState['match_play_started_at_ms'] == null) {
+        gameState['match_play_started_at_ms'] = nowMs;
+      }
       gameState['roundStartTime'] = currentTime;
       gameState['currentTurnStartTime'] = currentTime;
       gameState['roundStatus'] = 'active';

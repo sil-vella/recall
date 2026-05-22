@@ -132,6 +132,7 @@
                 "losses": "number",
                 "total_matches": "number",
                 "points": "number",
+                "win_duration_seconds_total": "number",
                 "coins": "number",
                 "level": "number",
                 "rank": "string",
@@ -223,6 +224,7 @@
                 "losses": 0,
                 "total_matches": 0,
                 "points": 0,
+                "win_duration_seconds_total": 0,
                 "coins": 0,
                 "level": 1,
                 "rank": "beginner",
@@ -240,6 +242,12 @@
                 needsDutchUpdate = true;
                 updateFields["modules.dutch_game.coins"] = 0;
                 print("  🔄 Adding coins field to existing dutch_game for user: " + user.username + " (" + user.email + ")");
+              }
+              if (user.modules.dutch_game.win_duration_seconds_total === undefined) {
+                needsUpdate = true;
+                needsDutchUpdate = true;
+                updateFields["modules.dutch_game.win_duration_seconds_total"] = 0;
+                print("  🔄 Adding win_duration_seconds_total to dutch_game for user: " + user.username + " (" + user.email + ")");
               }
               if (user.modules.dutch_game.subscription_tier === undefined) {
                 needsUpdate = true;
@@ -507,7 +515,8 @@
             print("  ✓ dutch_match_win_outcomes indexes already present or partial create");
           }
           print("  📋 Doc shape: { room_id (string), user_id (ObjectId), ended_at (UTC),");
-          print("      is_tournament (bool), tournament_id (optional string), game_mode (optional string) }");
+          print("      is_tournament (bool), tournament_id (optional string), game_mode (optional string),");
+          print("      end_points (int, hand points on win), duration_seconds (int, win match wall-clock) }");
 
           // ========================================
           // FINAL SUMMARY

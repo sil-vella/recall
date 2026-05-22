@@ -93,6 +93,8 @@ ids.forEach(function (uid, uidx) {
         is_tournament: false,
         tournament_id: null,
         game_mode: "seed_batch_apr2026",
+        end_points: Math.floor(Math.random() * 40) + 1,
+        duration_seconds: Math.floor(Math.random() * 900) + 60,
       });
     } catch (e) {
       if (e.code === 11000) {
@@ -104,6 +106,8 @@ ids.forEach(function (uid, uidx) {
           is_tournament: false,
           tournament_id: null,
           game_mode: "seed_batch_apr2026",
+          end_points: Math.floor(Math.random() * 40) + 1,
+          duration_seconds: Math.floor(Math.random() * 900) + 60,
         });
       } else {
         throw e;

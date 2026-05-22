@@ -7,6 +7,28 @@ import '../../../../utils/dev_logger.dart';
 
 const bool LOGGING_SWITCH = true;
 
+/// Wall-clock seconds from first round start to game end (capped at 24h).
+int _matchDurationSecondsFromGameState(Map<String, dynamic> gameState) {
+  final nowMs = DateTime.now().millisecondsSinceEpoch;
+  final rawStarted = gameState['match_play_started_at_ms'];
+  int startedMs;
+  if (rawStarted is int) {
+    startedMs = rawStarted;
+  } else if (rawStarted is num) {
+    startedMs = rawStarted.round();
+  } else {
+    final rst = gameState['roundStartTime'];
+    if (rst is num) {
+      startedMs = (rst * 1000).round();
+    } else {
+      return 0;
+    }
+  }
+  var sec = ((nowMs - startedMs) / 1000).floor();
+  if (sec < 0) sec = 0;
+  if (sec > 86400) sec = 86400;
+  return sec;
+}
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -576,6 +598,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       
 
     try {
+      final state = _store.getState(roomId);
+      final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+      final matchDurationSeconds = _matchDurationSecondsFromGameState(gameState);
+
       // Build list of winner player IDs for quick lookup
       final winnerPlayerIds = winners.map((w) => w['playerId']?.toString() ?? '').toSet();
       
@@ -624,12 +650,27 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         // If multiple winners, pot will be split equally among winners
         final playerPot = isWinner ? (pot > 0 && winners.isNotEmpty ? (pot / winners.length).round() : 0) : 0;
         
-        gameResults.add({
+        final rawPts = player['end_game_total_points'];
+        final rawCards = player['end_game_card_count'];
+        final totalEndPoints = rawPts is int
+            ? rawPts
+            : int.tryParse('$rawPts') ?? 0;
+        final endCardCount = rawCards is int
+            ? rawCards
+            : int.tryParse('$rawCards') ?? 0;
+
+        final row = <String, dynamic>{
           'user_id': userId,
           'is_winner': isWinner,
-          'pot': playerPot, // Pot amount for this player (full pot if single winner, split if multiple winners)
+          'pot': playerPot,
           'win_type': winType,
-        });
+          'total_end_points': totalEndPoints,
+          'end_card_count': endCardCount,
+        };
+        if (isWinner) {
+          row['duration_seconds'] = matchDurationSeconds;
+        }
+        gameResults.add(row);
         
         
       }
@@ -639,12 +680,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         return;
       }
 
-      final state = _store.getState(roomId);
-      final gameStateForCoins = state['game_state'] as Map<String, dynamic>? ?? {};
-      final rawCoinReq = gameStateForCoins['isCoinRequired'];
+      final rawCoinReq = gameState['isCoinRequired'];
       final isCoinRequired = rawCoinReq is bool ? rawCoinReq : true;
       String? specialEventId;
-      final rawSe = gameStateForCoins['special_event_id'];
+      final rawSe = gameState['special_event_id'];
       if (rawSe != null) {
         final t = rawSe.toString().trim();
         if (t.isNotEmpty) specialEventId = t;

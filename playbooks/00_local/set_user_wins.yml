@@ -1,9 +1,10 @@
 ---
 # Set a user's modules.dutch_game.wins in local MongoDB by fixed user_id,
-# and recompute level/rank from env-configured progression mapping.
+# and recompute level/rank from progression_config.json (same rules as Python backend).
 # Run:
 #   ansible-playbook -i playbooks/00_local/inventory.ini playbooks/00_local/set_user_wins.yml
-- name: Load app_dev/.env.local for MongoDB and Dutch progression mapping values (optional)
+#   ansible-playbook ... --extra-vars "target_wins_input=159"
+- name: Load app_dev/.env.local for MongoDB and optional progression overrides
   hosts: localhost
   connection: local
   gather_facts: false
@@ -34,10 +35,8 @@
                         out[k] = v
         result = {
             'mongodb_password': out.get('MONGODB_PASSWORD', ''),
-            'dutch_wins_per_user_level': out.get('DUTCH_WINS_PER_USER_LEVEL', ''),
-            'dutch_levels_per_rank': out.get('DUTCH_LEVELS_PER_RANK', ''),
-            'dutch_rank_hierarchy': out.get('DUTCH_RANK_HIERARCHY', ''),
-            'dutch_user_level_min': out.get('DUTCH_USER_LEVEL_MIN', '')
+            'dutch_progression_path': out.get('DUTCH_PROGRESSION_PATH', ''),
+            'dutch_progression_json': out.get('DUTCH_PROGRESSION_JSON', ''),
         }
         print(json.dumps(result))
         PYEOF
@@ -50,10 +49,8 @@
     - name: Set env facts from app_dev/.env.local
       set_fact:
         mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
-        dutch_wins_per_user_level_env: "{{ (env_json.stdout | from_json).dutch_wins_per_user_level }}"
-        dutch_levels_per_rank_env: "{{ (env_json.stdout | from_json).dutch_levels_per_rank }}"
-        dutch_rank_hierarchy_env: "{{ (env_json.stdout | from_json).dutch_rank_hierarchy }}"
-        dutch_user_level_min_env: "{{ (env_json.stdout | from_json).dutch_user_level_min }}"
+        dutch_progression_path_env: "{{ (env_json.stdout | from_json).dutch_progression_path }}"
+        dutch_progression_json_env: "{{ (env_json.stdout | from_json).dutch_progression_json }}"
       when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
 
 - name: Set user wins and derived level/rank (local Docker)
@@ -68,10 +65,8 @@
     mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('6R3jjsvVhIRP20zMiHdkBzNKx') }}"
     mongodb_container_name: "dutch_external_app_mongodb"
     target_user_id: "69aae0b0095ba0c771e43091"
-    wins_per_user_level: "{{ ((hostvars['localhost'] | default({})).get('dutch_wins_per_user_level_env') | default('') | trim) or '10' }}"
-    levels_per_rank: "{{ ((hostvars['localhost'] | default({})).get('dutch_levels_per_rank_env') | default('') | trim) or '5' }}"
-    rank_hierarchy_csv: "{{ ((hostvars['localhost'] | default({})).get('dutch_rank_hierarchy_env') | default('') | trim) or 'beginner,novice,apprentice,skilled,advanced,expert,veteran,master,elite,legend' }}"
-    user_level_min: "{{ ((hostvars['localhost'] | default({})).get('dutch_user_level_min_env') | default('') | trim) or '1' }}"
+    python_base_root: "{{ playbook_dir }}/../../python_base_04"
+    progression_config_path: "{{ playbook_dir }}/../../python_base_04/core/modules/dutch_game/config/progression_config.json"
   tasks:
     - name: Validate target wins input
       assert:
@@ -79,33 +74,73 @@
           - target_wins_input is match('^[0-9]+$')
         fail_msg: "Wins must be an integer >= 0."
 
-    - name: Resolve mapping inputs and computed level/rank from target wins
-      set_fact:
-        target_wins: "{{ target_wins_input | int }}"
-        wins_per_user_level_int: "{{ wins_per_user_level | int }}"
-        levels_per_rank_int: "{{ levels_per_rank | int }}"
-        user_level_min_int: "{{ user_level_min | int }}"
-        rank_hierarchy_list: "{{ rank_hierarchy_csv.split(',') | map('trim') | reject('equalto', '') | list }}"
-        computed_level_raw: "{{ 1 + ((target_wins_input | int) // (wins_per_user_level | int)) }}"
-        normalized_level: "{{ [user_level_min | int, (1 + ((target_wins_input | int) // (wins_per_user_level | int)))] | max }}"
-        rank_index_raw: "{{ (([user_level_min | int, (1 + ((target_wins_input | int) // (wins_per_user_level | int)))] | max) - 1) // (levels_per_rank | int) }}"
+    - name: Compute level and rank from progression_config.json (SSOT)
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, sys
+        root = os.environ.get("PYTHON_BASE_ROOT", "")
+        if root:
+            sys.path.insert(0, root)
+        path = (os.environ.get("DUTCH_PROGRESSION_PATH") or "").strip()
+        if not path:
+            path = (os.environ.get("PROGRESSION_CONFIG_DEFAULT") or "").strip()
+        if path:
+            os.environ["DUTCH_PROGRESSION_PATH"] = path
+        overlay = (os.environ.get("DUTCH_PROGRESSION_JSON") or "").strip()
+        if overlay:
+            os.environ["DUTCH_PROGRESSION_JSON"] = overlay
+        wins = int(os.environ.get("TARGET_WINS", "0"))
+        from core.modules.dutch_game.wins_level_rank_matcher import WinsLevelRankMatcher as W
+        from core.modules.dutch_game import progression_catalog as pc
+        level = W.wins_to_user_level(wins)
+        rank = W.user_level_to_rank(level)
+        print(
+            json.dumps(
+                {
+                    "target_wins": wins,
+                    "normalized_level": level,
+                    "target_rank": rank,
+                    "wins_per_user_level": pc.WINS_PER_USER_LEVEL,
+                    "levels_per_rank_by_rank": pc.LEVELS_PER_RANK_MAP,
+                    "rank_hierarchy": list(pc.RANK_HIERARCHY),
+                    "progression_config_revision": pc.PROGRESSION_CONFIG_REVISION,
+                    "progression_config_path": path or str(pc._DEFAULT_JSON_PATH),
+                }
+            )
+        )
+        PYEOF
+      register: progression_compute_out
+      changed_when: false
+      environment:
+        PYTHON_BASE_ROOT: "{{ python_base_root }}"
+        TARGET_WINS: "{{ target_wins_input }}"
+        DUTCH_PROGRESSION_PATH: "{{ (hostvars['localhost'] | default({})).get('dutch_progression_path_env') | default('') | trim }}"
+        DUTCH_PROGRESSION_JSON: "{{ (hostvars['localhost'] | default({})).get('dutch_progression_json_env') | default('') | trim }}"
+        PROGRESSION_CONFIG_DEFAULT: "{{ progression_config_path }}"
 
-    - name: Validate mapping inputs from .env/defaults
-      assert:
-        that:
-          - (wins_per_user_level_int | int) >= 1
-          - (levels_per_rank_int | int) >= 1
-          - (user_level_min_int | int) >= 0
-          - rank_hierarchy_list | length > 0
-        fail_msg: >-
-          Invalid mapping inputs. Need DUTCH_WINS_PER_USER_LEVEL >= 1,
-          DUTCH_LEVELS_PER_RANK >= 1, DUTCH_USER_LEVEL_MIN >= 0,
-          and non-empty DUTCH_RANK_HIERARCHY.
-
-    - name: Compute clamped rank index and target rank
+    - name: Extract progression compute JSON line
       set_fact:
-        rank_index: "{{ [0, [rank_index_raw | int, (rank_hierarchy_list | length) - 1] | min] | max }}"
-        target_rank: "{{ rank_hierarchy_list[[0, [rank_index_raw | int, (rank_hierarchy_list | length) - 1] | min] | max] }}"
+        progression_compute_json_line: "{{ (progression_compute_out.stdout_lines | select('match', '^\\{') | list | first) | default('') }}"
+
+    - name: Fail if progression compute produced no JSON
+      fail:
+        msg: "Failed to compute level/rank from progression_config.json. stdout={{ progression_compute_out.stdout }}"
+      when: progression_compute_json_line | length == 0
+
+    - name: Parse progression compute result
+      set_fact:
+        progression_compute: >-
+          {{
+            progression_compute_json_line
+            if (progression_compute_json_line is mapping)
+            else (progression_compute_json_line | from_json)
+          }}
+
+    - name: Set target wins, level, and rank from progression compute
+      set_fact:
+        target_wins: "{{ progression_compute.target_wins }}"
+        normalized_level: "{{ progression_compute.normalized_level }}"
+        target_rank: "{{ progression_compute.target_rank }}"
 
     - name: Lookup user by target user_id and read current wins/level/rank
       shell: |
@@ -232,17 +267,17 @@
             else (user_after_json_line | from_json)
           }}
 
-    - name: Show before/after summary and mapping inputs
+    - name: Show before/after summary and progression SSOT inputs
       debug:
         msg:
           - "Email: {{ user_lookup_data.email }}"
           - "User ID: {{ user_lookup_data.user_id }}"
-          - "Mapping inputs -> DUTCH_WINS_PER_USER_LEVEL: {{ wins_per_user_level_int }}, DUTCH_LEVELS_PER_RANK: {{ levels_per_rank_int }}, DUTCH_RANK_HIERARCHY: {{ rank_hierarchy_list | join(',') }}, DUTCH_USER_LEVEL_MIN: {{ user_level_min_int }}"
-          - "Requested wins input: {{ target_wins }}"
-          - "Computed levelRaw (1 + wins//step): {{ computed_level_raw }}"
-          - "Computed normalizedLevel: {{ normalized_level }}"
-          - "Computed rankIndex (raw): {{ rank_index_raw }}, rankIndex (clamped): {{ rank_index }}"
-          - "Computed targetRank: {{ target_rank }}"
+          - "Progression SSOT: {{ progression_compute.progression_config_path }}"
+          - "Revision: {{ progression_compute.progression_config_revision }}"
+          - "wins_per_user_level: {{ progression_compute.wins_per_user_level }}"
+          - "levels_per_rank: {{ progression_compute.levels_per_rank_by_rank }}"
+          - "Requested wins: {{ target_wins }}"
+          - "Computed level: {{ normalized_level }}, rank: {{ target_rank }}"
           - "Before -> wins: {{ user_lookup_data.wins_before }}, level: {{ user_lookup_data.level_before }}, rank: {{ user_lookup_data.rank_before }}"
           - "After  -> wins: {{ user_after_data.wins_after }}, level: {{ user_after_data.level_after }}, rank: {{ user_after_data.rank_after }}"
           - "Update output: {{ wins_update_out.stdout_lines | join(' ') }}"

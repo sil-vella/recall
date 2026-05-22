@@ -328,6 +328,10 @@ class AppColors {
   /// My-hand "Call Dutch" / Dutch-phase status chip background.
   static const Color callDutchChipBackground = Color(0xFFF55333);
 
+  /// Active-seat HUD chip (TURN / JACK / PEEK) on game board — app bar plum, accent green text.
+  static const Color turnChipBackground = Color(0xFF5C3F54); // Light plum ([accentContrast], app bar)
+  static const Color turnChipText = Color(0xFF8BC34A); // Dutch theme accent green
+
   // Text color variants
   static Color get textPrimary => darkGray;
   static Color get textSecondary => lightGray;

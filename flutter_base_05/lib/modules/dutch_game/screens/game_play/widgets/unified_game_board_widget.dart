@@ -512,6 +512,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
     final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
 
+    if (LOGGING_SWITCH) {
+      final oppBrief = opponents.map((o) {
+        if (o is! Map) return '?';
+        return o['id']?.toString() ?? '';
+      }).join(',');
+      customlog(
+        'TurnFeedIngest: gameId=$gameId rawCount=${turnFeedRaw.length} '
+        'currentUserId=$currentUserId opponentIds=[$oppBrief] seen=${_seenTurnFeedIds.length}',
+      );
+    }
+
     var changed = false;
     for (final raw in turnFeedRaw) {
       if (raw is! Map) continue;
@@ -525,6 +536,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         opponents: opponents,
       );
       if (text == null || text.isEmpty) continue;
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'TurnFeedIngest: push feedId=$feedId action=${entry['action_type']} '
+          'acting=${entry['acting_player_id']} hand_index=${entry['hand_index']} '
+          'hand_indices=${entry['hand_indices']} text="$text"',
+        );
+      }
 
       _seenTurnFeedIds.add(feedId);
       _pushTurnFeedUiLine(feedId, text);
@@ -1983,13 +2002,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: AppColors.accentColor2,
+          color: AppColors.turnChipBackground,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
           label,
           style: AppTextStyles.overline().copyWith(
-            color: AppColors.textOnAccent,
+            color: AppColors.turnChipText,
             fontWeight: FontWeight.w700,
           ),
         ),

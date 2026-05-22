@@ -721,6 +721,20 @@ class DutchGameRound {
     }
   }
 
+  bool _isHumanPlayerId(String playerId) {
+    final gs = _getCurrentGameState();
+    if (gs == null) return true;
+    final players = gs['players'] as List<dynamic>? ?? [];
+    for (final raw in players) {
+      if (raw is! Map) continue;
+      final p = Map<String, dynamic>.from(raw);
+      if (p['id']?.toString() == playerId) {
+        return p['isHuman'] as bool? ?? true;
+      }
+    }
+    return true;
+  }
+
   /// Get current turn_events list
   /// Returns a copy of the current turn_events list
   List<Map<String, dynamic>> _getCurrentTurnEvents() {
@@ -747,6 +761,7 @@ class DutchGameRound {
     int? playOrdinal,
     String? targetPlayerId,
     List<int>? handIndices,
+    List<Map<String, dynamic>>? swapSlots,
   }) {
     _turnFeedEntrySeq++;
     final entry = <String, dynamic>{
@@ -763,6 +778,17 @@ class DutchGameRound {
     }
     if (handIndices != null && handIndices.isNotEmpty) {
       entry['hand_indices'] = handIndices;
+    }
+    if (swapSlots != null && swapSlots.isNotEmpty) {
+      entry['swap_slots'] = swapSlots;
+    }
+    if (LOGGING_SWITCH) {
+      customlog(
+        'TurnFeedCreate: gameId=$_gameId action=$actionType '
+        'acting=$actingPlayerId hand_index=$handIndex hand_indices=$handIndices '
+        'swap_slots=$swapSlots play_ordinal=$playOrdinal target=$targetPlayerId '
+        'feed_id=${entry['feed_id']}',
+      );
     }
     return entry;
   }
@@ -802,6 +828,7 @@ class DutchGameRound {
     int? playOrdinal,
     String? targetPlayerId,
     List<int>? handIndices,
+    List<Map<String, dynamic>>? swapSlots,
   }) {
     final feed = List<Map<String, dynamic>>.from(_getCurrentTurnFeed())
       ..add(_createTurnFeedEntry(
@@ -811,6 +838,7 @@ class DutchGameRound {
         playOrdinal: playOrdinal,
         targetPlayerId: targetPlayerId,
         handIndices: handIndices,
+        swapSlots: swapSlots,
       ));
     return feed;
   }
@@ -856,8 +884,32 @@ class DutchGameRound {
     }
 
     List<int>? handIndices;
+    List<Map<String, dynamic>>? swapSlots;
     if (actionType == 'jack_swap' && cards.length >= 2) {
       handIndices = cards.map(_handIndexFromAnimCard).toList();
+      swapSlots = cards
+          .map(
+            (c) => <String, dynamic>{
+              'player_id': c['owner_id']?.toString() ?? '',
+              'hand_index': _handIndexFromAnimCard(c),
+            },
+          )
+          .toList();
+    }
+
+    if (LOGGING_SWITCH) {
+      final cardIdxParts = <String>[];
+      for (final c in cards) {
+        cardIdxParts.add(
+          'owner=${c['owner_id']} hand_index=${c['hand_index']}',
+        );
+      }
+      customlog(
+        'TurnFeedAfterAnim: gameId=$_gameId action=$actionType acting=$actingId '
+        'resolved_hand_index=$handIndex hand_indices=$handIndices swap_slots=$swapSlots '
+        'cards=[$cardIdxParts] '
+        'context_acting=${context?['acting_player_id']} context_peeker=${context?['peeking_player_id']}',
+      );
     }
 
     return _appendTurnFeed(
@@ -867,13 +919,15 @@ class DutchGameRound {
       playOrdinal: playOrdinal,
       targetPlayerId: targetPlayerId,
       handIndices: handIndices,
+      swapSlots: swapSlots,
     );
   }
 
-  /// Broadcasts a turn_feed line when draw/play action timer expires.
+  /// Broadcasts a turn_feed line when draw/play is missed (timer expiry or computer YAML).
   void _emitTurnFeedTimerMiss({
     required String playerId,
     required String actionType,
+    String source = 'timer',
   }) {
     if (actionType != 'timer_miss_draw' && actionType != 'timer_miss_play') {
       return;
@@ -883,6 +937,12 @@ class DutchGameRound {
       actingPlayerId: playerId,
       handIndex: -1,
     );
+    if (LOGGING_SWITCH) {
+      customlog(
+        'TurnFeedTimerMiss: gameId=$_gameId action=$actionType playerId=$playerId '
+        'isHuman=${_isHumanPlayerId(playerId)} source=$source feedLen=${feed.length}',
+      );
+    }
     _stateCallback.onGameStateChanged({
       'games': _stateCallback.currentGamesMap,
       'turn_feed': feed,
@@ -1712,8 +1772,15 @@ class DutchGameRound {
           final missed = decision['missed'] as bool? ?? false;
           if (missed) {
             if (LOGGING_SWITCH) {
-              customlog('computer play_card missed: playerId=$playerId');
+              customlog(
+                'ComputerMissPlay: playerId=$playerId isHuman=false emitting turn_feed',
+              );
             }
+            _emitTurnFeedTimerMiss(
+              playerId: playerId,
+              actionType: 'timer_miss_play',
+              source: 'computer_yaml',
+            );
             // Increment missed action counter
             _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
             // Check if threshold reached (2 missed actions)
@@ -6674,7 +6741,10 @@ class DutchGameRound {
     _playActionTimer = null;
     
     if (LOGGING_SWITCH) {
-      customlog('onDrawActionTimerExpired: miss playerId=$playerId');
+      customlog(
+        'onDrawActionTimerExpired: miss playerId=$playerId '
+        'isHuman=${_isHumanPlayerId(playerId)}',
+      );
     }
     _emitTurnFeedTimerMiss(playerId: playerId, actionType: 'timer_miss_draw');
     _recordHumanTimerMissAndAdvanceOrKick(playerId);
@@ -6771,7 +6841,10 @@ class DutchGameRound {
     }
     
     if (LOGGING_SWITCH) {
-      customlog('onPlayActionTimerExpired: miss playerId=$playerId');
+      customlog(
+        'onPlayActionTimerExpired: miss playerId=$playerId '
+        'isHuman=${_isHumanPlayerId(playerId)}',
+      );
     }
     _emitTurnFeedTimerMiss(playerId: playerId, actionType: 'timer_miss_play');
     _recordHumanTimerMissAndAdvanceOrKick(playerId);

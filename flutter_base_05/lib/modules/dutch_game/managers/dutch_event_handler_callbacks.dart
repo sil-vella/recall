@@ -1891,6 +1891,17 @@ When anyone has played a card with the **same rank** as your **collection card**
     final turnEvents = data['turn_events'] as List<dynamic>? ?? []; // Extract turn_events for animations
     final turnFeedRaw = data['turn_feed'] as List<dynamic>? ?? [];
     final turnFeed = turnFeedRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    if (LOGGING_SWITCH && turnFeed.isNotEmpty) {
+      for (final e in turnFeed) {
+        customlog(
+          'handleGameStateUpdated: turn_feed gameId=$gameId '
+          'feed_id=${e['feed_id']} action=${e['action_type']} '
+          'acting=${e['acting_player_id']} hand_index=${e['hand_index']} '
+          'hand_indices=${e['hand_indices']} swap_slots=${e['swap_slots']} '
+          'play_ordinal=${e['play_ordinal']}',
+        );
+      }
+    }
     final stateVersion = _extractStateVersion(data, gameState);
     final signature = _buildEventSignature(
       'game_state_updated',

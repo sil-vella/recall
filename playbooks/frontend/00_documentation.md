@@ -15,6 +15,7 @@ Scripts:
 **Purpose**:
 - Launches the Flutter web app (`flutter_base_05`) in Chrome on your Mac.
 - **Dart-define SSOT:** repo-root `.env.local` (see `playbooks/frontend/dart_defines_from_env.sh`). Set `API_URL`, `WS_URL`, JWT, AdMob, Stripe there — scripts do not override them.
+- **Social share (optional):** `PLAY_STORE_URL`, `APP_STORE_URL` — store links appended when users share win/level-up/rank-up from celebration screens (defaults to Play listing for `com.reignofplay.dutch`; set `APP_STORE_URL` before iOS release).
 
 **What it runs**:
 - `cd flutter_base_05`

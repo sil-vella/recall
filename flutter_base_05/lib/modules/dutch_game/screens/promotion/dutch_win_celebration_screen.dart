@@ -7,7 +7,9 @@ import '../../../../core/managers/module_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
 import '../../../audio_module/audio_module.dart';
+import '../../utils/dutch_share_moment.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
+import '../../widgets/ui_kit/dutch_share_cta_button.dart';
 import 'widgets/dutch_promotion_burst.dart' show DutchPromotionBurst, kDutchPromotionBurstForegroundSpacer;
 
 /// Full-screen celebration shown when the current user wins a match.
@@ -151,12 +153,27 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
                       const SizedBox(height: 28),
                       FadeTransition(
                         opacity: entryFade,
-                        child: DutchAnimatedCtaButton(
-                          label: 'Continue',
-                          onPressed: _close,
-                          leadingIcon: Icons.check_circle_outline,
-                          expand: false,
-                          semanticIdentifier: 'win_celebration_continue',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Center(
+                              child: DutchAnimatedCtaButton(
+                                label: 'Continue',
+                                onPressed: _close,
+                                leadingIcon: Icons.check_circle_outline,
+                                expand: false,
+                                semanticIdentifier: 'win_celebration_continue',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Center(
+                              child: DutchShareCtaButton(
+                                moment: DutchShareMoment.win,
+                                winnerMessage: widget.winnerMessage,
+                                semanticIdentifier: 'win_celebration_share',
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

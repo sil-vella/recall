@@ -467,6 +467,10 @@ The application supports multiple build configurations:
 - **iOS**: App Store and enterprise builds
 - **Web**: Progressive Web App builds
 
+## Social share (Dutch celebrations)
+
+Win, level-up, and rank-up fullscreen screens expose a **Share** button that calls the native OS share sheet via `share_plus` (`DutchShareHelper` in `lib/modules/dutch_game/utils/`). Shared text includes celebration copy plus a store URL from compile-time defines `PLAY_STORE_URL` and `APP_STORE_URL` (see `Config` and repo-root `.env.dart.defines.*` consumed by `playbooks/frontend/flutter_dart_defines_common.sh`). Analytics: `dutch_share_tapped` and `dutch_share_completed`.
+
 ## Conclusion
 
 The Flutter Base 05 architecture provides a solid foundation for building scalable, maintainable Flutter applications. The modular design, comprehensive state management, and robust authentication system make it suitable for enterprise-level applications.

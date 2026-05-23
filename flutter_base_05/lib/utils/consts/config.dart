@@ -128,4 +128,17 @@ class Config {
     'DUTCH_TABLES_JSON',
     defaultValue: '',
   );
+
+  /// Play Store listing for share-to-social copy (override via --dart-define).
+  static const String playStoreUrl = String.fromEnvironment(
+    'PLAY_STORE_URL',
+    defaultValue:
+        'https://play.google.com/store/apps/details?id=com.reignofplay.dutch',
+  );
+
+  /// App Store listing for share-to-social copy on iOS (override via --dart-define).
+  static const String appStoreUrl = String.fromEnvironment(
+    'APP_STORE_URL',
+    defaultValue: '',
+  );
 }

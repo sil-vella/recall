@@ -9,7 +9,9 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
 import '../../../audio_module/audio_module.dart';
 import '../../backend_core/utils/dutch_rank_level_change_checker.dart';
+import '../../utils/dutch_share_moment.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
+import '../../widgets/ui_kit/dutch_share_cta_button.dart';
 import 'widgets/dutch_promotion_before_after.dart';
 import 'widgets/dutch_promotion_burst.dart'
     show DutchPromotionBurst, kDutchPromotionBurstForegroundSpacer;
@@ -334,31 +336,49 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
 
   Widget _buildActions() {
     final isRankPromotion = widget.kind == DutchPromotionKind.rankUp;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    final shareMoment = widget.kind == DutchPromotionKind.levelUp
+        ? DutchShareMoment.levelUp
+        : DutchShareMoment.rankUp;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Flexible(
-          child: DutchAnimatedCtaButton(
-            label: 'Continue',
-            onPressed: _onContinue,
-            leadingIcon: Icons.check_circle_outline,
-            expand: false,
-            semanticIdentifier: 'promotion_continue',
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: DutchAnimatedCtaButton(
+                label: 'Continue',
+                onPressed: _onContinue,
+                leadingIcon: Icons.check_circle_outline,
+                expand: false,
+                semanticIdentifier: 'promotion_continue',
+              ),
+            ),
+            if (isRankPromotion) ...[
+              const SizedBox(width: 12),
+              Flexible(
+                child: DutchAnimatedCtaButton(
+                  label: 'Leaderboard',
+                  onPressed: _onViewLeaderboard,
+                  leadingIcon: Icons.emoji_events_outlined,
+                  variant: DutchCtaVariant.ghost,
+                  expand: false,
+                  semanticIdentifier: 'promotion_leaderboard',
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: DutchShareCtaButton(
+            moment: shareMoment,
+            change: widget.change,
+            semanticIdentifier: isRankPromotion
+                ? 'promotion_rank_share'
+                : 'promotion_level_share',
           ),
         ),
-        if (isRankPromotion) ...[
-          const SizedBox(width: 12),
-          Flexible(
-            child: DutchAnimatedCtaButton(
-              label: 'Leaderboard',
-              onPressed: _onViewLeaderboard,
-              leadingIcon: Icons.emoji_events_outlined,
-              variant: DutchCtaVariant.ghost,
-              expand: false,
-              semanticIdentifier: 'promotion_leaderboard',
-            ),
-          ),
-        ],
       ],
     );
   }

@@ -601,6 +601,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       final state = _store.getState(roomId);
       final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
       final matchDurationSeconds = _matchDurationSecondsFromGameState(gameState);
+      final dutchCallerPlayerId = (gameState['dutchCalledBy'] ??
+              gameState['dutch_called_by'])
+          ?.toString()
+          .trim();
 
       // Build list of winner player IDs for quick lookup
       final winnerPlayerIds = winners.map((w) => w['playerId']?.toString() ?? '').toSet();
@@ -669,6 +673,11 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         };
         if (isWinner) {
           row['duration_seconds'] = matchDurationSeconds;
+        }
+        if (dutchCallerPlayerId != null &&
+            dutchCallerPlayerId.isNotEmpty &&
+            dutchCallerPlayerId == playerId) {
+          row['dutch_called'] = true;
         }
         gameResults.add(row);
         

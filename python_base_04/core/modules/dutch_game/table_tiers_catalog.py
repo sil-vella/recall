@@ -303,6 +303,76 @@ LEVEL_TO_MIN_USER_LEVEL: Dict[int, int] = {
     t["level"]: t["min_user_level"] for t in _CANONICAL_DOC.get("tiers", []) if isinstance(t, dict)
 }
 
+_SPECIAL_EVENTS_BY_ID: Dict[str, Dict[str, Any]] = {
+    str(e["id"]): dict(e)
+    for e in (_CANONICAL_DOC.get("special_events") or [])
+    if isinstance(e, dict) and str(e.get("id") or "").strip()
+}
+
+
+def special_event_row_by_id(event_id: str) -> Optional[Dict[str, Any]]:
+    """Catalog ``special_events`` row by stable ``id``, or None."""
+    eid = str(event_id or "").strip()
+    if not eid or not _EVENT_ID_RE.match(eid):
+        return None
+    row = _SPECIAL_EVENTS_BY_ID.get(eid)
+    return deepcopy(row) if row else None
+
+
+def special_event_coin_fee(event_id: str, *, default_fee: int = 25) -> int:
+    row = _SPECIAL_EVENTS_BY_ID.get(str(event_id or "").strip())
+    if not row:
+        return default_fee
+    try:
+        cf = int(row.get("coin_fee"))
+    except (TypeError, ValueError):
+        return default_fee
+    return cf if cf >= 1 else default_fee
+
+
+def special_event_reward_coins(event_id: str) -> int:
+    """Bonus coins from ``metadata.rewards.coins`` added to ``match_pot`` (not per-player)."""
+    row = _SPECIAL_EVENTS_BY_ID.get(str(event_id or "").strip())
+    if not row:
+        return 0
+    meta = row.get("metadata")
+    if not isinstance(meta, dict):
+        return 0
+    rewards = meta.get("rewards")
+    if not isinstance(rewards, dict):
+        return 0
+    raw = rewards.get("coins")
+    if raw is None:
+        return 0
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return 0
+
+
+def special_event_min_user_level(event_id: str, *, default_level: int = 1) -> int:
+    row = _SPECIAL_EVENTS_BY_ID.get(str(event_id or "").strip())
+    if not row:
+        return default_level
+    try:
+        mul = int(row.get("min_user_level"))
+    except (TypeError, ValueError):
+        return default_level
+    return mul if mul >= 1 else default_level
+
+
+def compute_match_pot(
+    *,
+    coin_cost_per_player: int,
+    active_player_count: int,
+    reward_coins_bonus: int = 0,
+) -> int:
+    """Entry fees × players + optional special-event reward bonus."""
+    fee = max(0, int(coin_cost_per_player))
+    n = max(0, int(active_player_count))
+    bonus = max(0, int(reward_coins_bonus))
+    return fee * n + bonus
+
 
 def _build_public_asset_relpath(filename: str, *, default_subdir: str = "") -> Optional[str]:
     """

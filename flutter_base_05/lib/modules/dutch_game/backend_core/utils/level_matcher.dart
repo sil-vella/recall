@@ -303,6 +303,58 @@ class LevelMatcher {
   static int get maxConfiguredTableLevel =>
       levelOrder.isEmpty ? 4 : levelOrder.reduce((a, b) => a > b ? a : b);
 
+  static int specialEventCoinFeeFromRow(Map<String, dynamic> row, {int defaultFee = 25}) {
+    final cf = row['coin_fee'];
+    final fee = cf is int ? cf : int.tryParse('$cf');
+    if (fee != null && fee >= 1) return fee;
+    return defaultFee;
+  }
+
+  static int specialEventCoinFeeById(String eventId, {int defaultFee = 25}) {
+    final row = specialEventRowById(eventId);
+    if (row == null) return defaultFee;
+    return specialEventCoinFeeFromRow(row, defaultFee: defaultFee);
+  }
+
+  static int specialEventRewardCoinsFromRow(Map<String, dynamic> row) {
+    final meta = row['metadata'];
+    if (meta is! Map) return 0;
+    final rewards = meta['rewards'];
+    if (rewards is! Map) return 0;
+    final c = rewards['coins'];
+    if (c is int) return c < 0 ? 0 : c;
+    final parsed = int.tryParse('$c');
+    return parsed != null && parsed > 0 ? parsed : 0;
+  }
+
+  static int specialEventMinUserLevelFromRow(Map<String, dynamic> row, {int defaultLevel = 1}) {
+    final raw = row['min_user_level'];
+    final v = raw is int ? raw : int.tryParse('$raw');
+    if (v != null && v >= 1) return v;
+    return defaultLevel;
+  }
+
+  static int gameLevelForSpecialEventRoom(Map<String, dynamic> row) {
+    ensureHydratedMinimal();
+    final gl = row['game_level'];
+    final glInt = gl is int ? gl : int.tryParse('$gl');
+    if (glInt != null && glInt >= 1 && isValidLevel(glInt)) {
+      return glInt;
+    }
+    return specialEventMinUserLevelFromRow(row);
+  }
+
+  static int computeMatchPot({
+    required int coinCostPerPlayer,
+    required int activePlayerCount,
+    int rewardCoinsBonus = 0,
+  }) {
+    final fee = coinCostPerPlayer < 0 ? 0 : coinCostPerPlayer;
+    final n = activePlayerCount < 0 ? 0 : activePlayerCount;
+    final bonus = rewardCoinsBonus < 0 ? 0 : rewardCoinsBonus;
+    return fee * n + bonus;
+  }
+
   static String levelToTitle(int? level, {String? defaultTitle}) {
     ensureHydratedMinimal();
     if (level == null) {

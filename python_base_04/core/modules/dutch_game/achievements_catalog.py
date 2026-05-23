@@ -74,11 +74,48 @@ def _normalize_achievement_entry(raw: Dict[str, Any]) -> Optional[Dict[str, Any]
         se = str(unlock.get("special_event_id") or "").strip()
         if not se:
             return None
+        raw_min = unlock.get("min", 1)
+        try:
+            vmin = max(1, int(raw_min))
+        except (TypeError, ValueError):
+            vmin = 1
         return {
             "id": ach_id,
             "title": title,
             "description": desc,
-            "unlock": {"type": "event_win", "special_event_id": se},
+            "unlock": {
+                "type": "event_win",
+                "special_event_id": se,
+                "min": vmin,
+            },
+        }
+    if utype == "total_wins":
+        try:
+            vmin = max(1, int(unlock.get("min")))
+        except (TypeError, ValueError):
+            return None
+        return {
+            "id": ach_id,
+            "title": title,
+            "description": desc,
+            "unlock": {"type": "total_wins", "min": vmin},
+        }
+    if utype == "match_flag":
+        flag = str(unlock.get("flag") or "").strip().lower()
+        if not flag:
+            return None
+        requires_win = unlock.get("requires_win", True)
+        if not isinstance(requires_win, bool):
+            requires_win = True
+        return {
+            "id": ach_id,
+            "title": title,
+            "description": desc,
+            "unlock": {
+                "type": "match_flag",
+                "flag": flag,
+                "requires_win": requires_win,
+            },
         }
     return None
 
@@ -167,15 +204,87 @@ def parse_stored_streak(raw: Any) -> int:
     return max(0, v)
 
 
+def _truthy_flag(raw: Any) -> bool:
+    if raw is True:
+        return True
+    if isinstance(raw, str):
+        return raw.strip().lower() in ("1", "true", "yes")
+    if isinstance(raw, (int, float)):
+        return int(raw) != 0
+    return False
+
+
+def parse_special_event_wins(dutch_game: Dict[str, Any]) -> Dict[str, int]:
+    """Lifetime wins per catalog ``special_events`` id from ``modules.dutch_game.special_event_wins``."""
+    raw = dutch_game.get("special_event_wins")
+    if not isinstance(raw, dict):
+        return {}
+    out: Dict[str, int] = {}
+    for key, val in raw.items():
+        eid = str(key).strip()
+        if not eid:
+            continue
+        try:
+            out[eid] = max(0, int(val))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def special_event_win_count_after_match(
+    stored: Dict[str, int],
+    special_event_id: str,
+    *,
+    is_winner: bool,
+) -> int:
+    """Post-match win count for [special_event_id] (increments by 1 when winner in that event)."""
+    eid = (special_event_id or "").strip()
+    if not eid:
+        return 0
+    before = max(0, int(stored.get(eid, 0)))
+    if is_winner:
+        return before + 1
+    return before
+
+
+def match_flags_from_game_result_row(
+    row: Dict[str, Any],
+    *,
+    is_winner: bool,
+) -> Set[str]:
+    """Derive match-scoped flags from a single Dart ``game_results`` row."""
+    flags: Set[str] = set()
+    if not isinstance(row, dict):
+        return flags
+    win_type = str(row.get("win_type") or row.get("winType") or "").strip().lower()
+    if is_winner and win_type == "empty_hand":
+        flags.add("empty_hand")
+    if _truthy_flag(row.get("dutch_called")) or _truthy_flag(row.get("dutchCalled")):
+        flags.add("dutch_called")
+    return flags
+
+
 def compute_new_unlocks(
     win_streak_after: int,
     already_unlocked: Set[str],
     *,
     is_winner: bool = False,
     special_event_id: Optional[str] = None,
+    special_event_win_count_after: int = 0,
+    total_wins_after: int = 0,
+    match_flags: Optional[Set[str]] = None,
 ) -> List[str]:
     """Return achievement ids newly earned this match (catalog order)."""
     se = (special_event_id or "").strip()
+    try:
+        event_wins_after = max(0, int(special_event_win_count_after))
+    except (TypeError, ValueError):
+        event_wins_after = 0
+    flags = {str(f).strip().lower() for f in (match_flags or set()) if str(f).strip()}
+    try:
+        wins_after = max(0, int(total_wins_after))
+    except (TypeError, ValueError):
+        wins_after = 0
     out: List[str] = []
     for entry in _ACHIEVEMENTS_ORDERED:
         eid = str(entry.get("id") or "")
@@ -196,6 +305,27 @@ def compute_new_unlocks(
             if not is_winner or not se:
                 continue
             need = str(unlock.get("special_event_id") or "").strip()
-            if need and se == need:
+            if not need or need != se:
+                continue
+            try:
+                vmin = max(1, int(unlock.get("min", 1)))
+            except (TypeError, ValueError):
+                vmin = 1
+            if event_wins_after >= vmin:
                 out.append(eid)
+        elif utype == "total_wins":
+            try:
+                vmin = int(unlock.get("min"))
+            except (TypeError, ValueError):
+                continue
+            if wins_after >= vmin:
+                out.append(eid)
+        elif utype == "match_flag":
+            need_flag = str(unlock.get("flag") or "").strip().lower()
+            if not need_flag or need_flag not in flags:
+                continue
+            requires_win = unlock.get("requires_win", True)
+            if requires_win and not is_winner:
+                continue
+            out.append(eid)
     return out

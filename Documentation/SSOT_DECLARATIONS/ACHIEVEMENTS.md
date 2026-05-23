@@ -25,7 +25,11 @@ Each entry:
 - `title`, `description` — client-visible strings.
 - `unlock` — rule object:
   - `{ "type": "win_streak", "min": <int> }` — unlock when post-match win streak ≥ `min`.
-  - `{ "type": "event_win", "special_event_id": "<string>" }` — unlock when the player won the match **and** the Dart backend sends `special_event_id` on `update-game-stats` matching this id.
+  - `{ "type": "total_wins", "min": <int> }` — unlock when post-match lifetime `modules.dutch_game.wins` ≥ `min`.
+  - `{ "type": "match_flag", "flag": "<string>", "requires_win": true }` — unlock when the player’s `game_results` row carries the flag (see below) and, if `requires_win` is true (default), they won the match.
+  - `{ "type": "event_win", "special_event_id": "<string>", "min": <int> }` — unlock when the player won the match, `special_event_id` on `update-game-stats` matches, and lifetime wins in that event lane are ≥ `min` (default **1**). Counts live in `modules.dutch_game.special_event_wins.<special_event_id>`.
+
+**Match flags (v1):** Dart sets `dutch_called: true` on the caller’s row (`game_state.dutchCalledBy`). `empty_hand` is derived server-side from `win_type` / `winType` == `empty_hand` on winners.
 
 ## Client sync
 
@@ -37,6 +41,7 @@ Flutter hydrates titles/descriptions via init / public init-config (`achievement
 
 ```text
 modules.dutch_game.achievements.unlocked.<achievement_id>
+modules.dutch_game.special_event_wins.<special_event_id>   # int, per-event lane wins
 modules.dutch_game.win_streak_current / win_streak_best
 ```
 
@@ -84,13 +89,16 @@ Use a stable **event id** that matches the room / `table_tiers` special event (a
 {
   "id": "spring_showdown_winner",
   "title": "Spring Showdown champion",
-  "description": "Won the Spring Showdown event.",
+  "description": "Win the Spring Showdown event 3 times.",
   "unlock": {
     "type": "event_win",
-    "special_event_id": "spring_showdown"
+    "special_event_id": "spring_showdown",
+    "min": 3
   }
 }
 ```
+
+Omit `min` or set `"min": 1` for a single event win (default).
 
 **2.** In **`table_tiers.json`**, for that event’s `metadata.rewards`, set:
 
@@ -104,7 +112,7 @@ Use a stable **event id** that matches the room / `table_tiers` special event (a
 
 ## Adding a new unlock type
 
-Shipped **v1** rules are only **`win_streak`** and **`event_win`**. To introduce another `unlock.type` (e.g. `total_wins`, login streak, owns-item), extend the stack in a coordinated way.
+Shipped **v1** rules: **`win_streak`**, **`total_wins`**, **`match_flag`**, **`event_win`**. To introduce another `unlock.type` (e.g. login streak, owns-item), extend the stack in a coordinated way.
 
 ### 1. Define the JSON contract
 
@@ -128,7 +136,7 @@ In [`achievements_catalog.py`](../../python_base_04/core/modules/dutch_game/achi
 
 In the same module, **`compute_new_unlocks`**: add a branch for the new type.
 
-Any data the rule needs (e.g. total wins after the match) must be passed as new keyword arguments. Today the signature includes `win_streak_after`, `already_unlocked`, `is_winner`, and `special_event_id`; extend it (e.g. `total_wins_after`) and thread those values from the caller.
+Any data the rule needs (e.g. total wins after the match) must be passed as new keyword arguments. Today the signature includes `win_streak_after`, `already_unlocked`, `is_winner`, `special_event_id`, `total_wins_after`, and `match_flags`; extend it and thread those values from the caller.
 
 ### 4. Provide data at the right trigger
 

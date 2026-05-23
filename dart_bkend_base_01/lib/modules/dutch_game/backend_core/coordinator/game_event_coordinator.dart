@@ -870,11 +870,27 @@ class GameEventCoordinator {
 
     // showInstructions was already extracted earlier for deck selection
     
-    // Display pot: table fee × all seated players (room-wide). Promotional tier is per-user at
-    // deduct / Python stats time — it does not reduce match_pot for regular players' UI.
-    final coinCost = LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25);
+    // Pot: per-player entry fees × seated players; special events use catalog coin_fee + rewards.coins bonus.
     final activePlayerCount = players.length;
-    final pot = coinCost * activePlayerCount;
+    final persistedSeId = current['special_event_id']?.toString().trim();
+    final roomSeId = roomInfo?.specialEventId?.trim();
+    final specialEventId = (persistedSeId != null && persistedSeId.isNotEmpty)
+        ? persistedSeId
+        : (roomSeId != null && roomSeId.isNotEmpty ? roomSeId : null);
+    var coinCost = LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25);
+    var rewardCoinsBonus = 0;
+    if (specialEventId != null) {
+      final seRow = LevelMatcher.specialEventRowById(specialEventId);
+      if (seRow != null) {
+        coinCost = LevelMatcher.specialEventCoinFeeFromRow(seRow);
+        rewardCoinsBonus = LevelMatcher.specialEventRewardCoinsFromRow(seRow);
+      }
+    }
+    final pot = LevelMatcher.computeMatchPot(
+      coinCostPerPlayer: coinCost,
+      activePlayerCount: activePlayerCount,
+      rewardCoinsBonus: rewardCoinsBonus,
+    );
     
     
     
@@ -902,6 +918,7 @@ class GameEventCoordinator {
         'match_class': 'standard', // Placeholder for future match class system
         'coin_cost_per_player': coinCost,
         'match_pot': pot,
+        if (rewardCoinsBonus > 0) 'special_event_reward_coins': rewardCoinsBonus,
         'isCoinRequired': isCoinRequired,
         'isClearAndCollect': () {
           try {
@@ -924,14 +941,16 @@ class GameEventCoordinator {
       if (isTournament) gameState['is_tournament'] = true;
       if (tournamentData != null && tournamentData.isNotEmpty) gameState['tournament_data'] = tournamentData;
 
-      final persistedSeId = current['special_event_id']?.toString();
       final persistedSeModal = current['special_event_end_match_modal'];
-      if (persistedSeId != null && persistedSeId.trim().isNotEmpty) {
-        gameState['special_event_id'] = persistedSeId.trim();
+      if (specialEventId != null) {
+        gameState['special_event_id'] = specialEventId;
       }
       if (persistedSeModal is Map && persistedSeModal.isNotEmpty) {
-        gameState['special_event_end_match_modal'] =
-            Map<String, dynamic>.from(persistedSeModal.map((k, v) => MapEntry(k.toString(), v)));
+        final modal = Map<String, dynamic>.from(
+          persistedSeModal.map((k, v) => MapEntry(k.toString(), v)),
+        );
+        modal['text'] = 'You won $pot coins!';
+        gameState['special_event_end_match_modal'] = modal;
       }
       
       
@@ -960,9 +979,10 @@ class GameEventCoordinator {
     final deductOk = await _deductEntryCoinsOnMatchStart(
       roomId: roomId,
       players: players,
-      gameLevel: gameLevel,
+      gameLevel: specialEventId != null ? null : gameLevel,
       isCoinRequired: isCoinRequired,
       coinCost: coinCost,
+      specialEventId: specialEventId,
       sessionId: sessionId,
     );
     if (!deductOk) {
@@ -1007,6 +1027,7 @@ class GameEventCoordinator {
     required int? gameLevel,
     required bool isCoinRequired,
     required int coinCost,
+    String? specialEventId,
     required String sessionId,
   }) async {
     if (roomId.startsWith('practice_room_')) {
@@ -1031,6 +1052,7 @@ class GameEventCoordinator {
       playerIds: humanMongoIds,
       coins: coinCost,
       gameTableLevel: gameLevel,
+      specialEventId: specialEventId,
       isCoinRequired: isCoinRequired,
     );
     if (result['success'] != true) {

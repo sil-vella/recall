@@ -51,7 +51,7 @@ Achievements are declared in **`achievements_config.json`** and normalized at im
 Supported unlock types (v1):
 
 - **`win_streak`** — `unlock.min` threshold compared to post-match win streak.
-- **`event_win`** — requires `is_winner`, and request body `special_event_id` (from Dart `game_state`) matching `unlock.special_event_id`.
+- **`event_win`** — requires `is_winner`, request `special_event_id` matching `unlock.special_event_id`, and `modules.dutch_game.special_event_wins.<id>` ≥ `unlock.min` (default **1**) after the match.
 
 Catalog order is preserved; `compute_new_unlocks` scans entries in JSON array order.
 
@@ -117,6 +117,7 @@ Both user stats endpoints include:
 - `win_streak_current`
 - `win_streak_best`
 - `achievements_unlocked_ids` (sorted list of unlocked IDs)
+- `special_event_wins` (map of event id → lifetime win count in that lane)
 
 The list is derived server-side from the persisted unlocked map via `achievements_unlocked_ids_sorted(...)`.
 
@@ -141,8 +142,9 @@ The list is derived server-side from the persisted unlocked map via `achievement
 - Loads fresh user stats through `fetchAndUpdateUserDutchGameData()`.
 - Reads unlocked IDs from `userStats['achievements_unlocked_ids']`.
 - Renders streak summary card (`win_streak_current`, `win_streak_best`).
-- Renders all entries from `DutchAchievementCatalog.all` (backed by `AchievementsCatalogStore`).
+- Renders all entries from `DutchAchievementCatalog.all` (backed by `AchievementsCatalogStore`, including each row’s `unlock` rule).
 - Marks each entry unlocked/locked based on membership in unlocked ID set.
+- For **locked** rows, shows progress (`current / required`) and a bar via `achievement_progress.dart` (`win_streak`, `total_wins`, `event_win`; `match_flag` shows `0 / 1`).
 
 ---
 

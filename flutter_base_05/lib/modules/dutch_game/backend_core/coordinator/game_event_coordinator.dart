@@ -1,5 +1,6 @@
 import '../../utils/platform/shared_imports.dart';
 import '../../../../utils/dev_logger.dart';
+import '../utils/level_matcher.dart';
 import '../utils/rank_matcher.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../services/game_registry.dart';
@@ -868,10 +869,24 @@ class GameEventCoordinator {
 
     // showInstructions was already extracted earlier for deck selection
     
-    // Calculate pot: coin_cost × number_of_active_players (regardless of subscription tier)
-    final coinCost = 25;
     final activePlayerCount = players.length;
-    final pot = coinCost * activePlayerCount;
+    final persistedSeId = current['special_event_id']?.toString().trim();
+    final specialEventId =
+        (persistedSeId != null && persistedSeId.isNotEmpty) ? persistedSeId : null;
+    var coinCost = 25;
+    var rewardCoinsBonus = 0;
+    if (specialEventId != null) {
+      final seRow = LevelMatcher.specialEventRowById(specialEventId);
+      if (seRow != null) {
+        coinCost = LevelMatcher.specialEventCoinFeeFromRow(seRow);
+        rewardCoinsBonus = LevelMatcher.specialEventRewardCoinsFromRow(seRow);
+      }
+    }
+    final pot = LevelMatcher.computeMatchPot(
+      coinCostPerPlayer: coinCost,
+      activePlayerCount: activePlayerCount,
+      rewardCoinsBonus: rewardCoinsBonus,
+    );
     
     
     
@@ -898,6 +913,8 @@ class GameEventCoordinator {
         'match_class': 'standard', // Placeholder for future match class system
         'coin_cost_per_player': coinCost,
         'match_pot': pot,
+        if (rewardCoinsBonus > 0) 'special_event_reward_coins': rewardCoinsBonus,
+        if (specialEventId != null) 'special_event_id': specialEventId,
         'isCoinRequired': isCoinRequired,
         'isClearAndCollect': () {
           try {

@@ -1138,11 +1138,24 @@ def update_game_stats():
                 streak_before = achcat.parse_stored_streak(dutch_game.get("win_streak_current"))
                 new_win_streak = achcat.next_win_streak(streak_before, bool(is_winner))
                 already_unlocked = achcat.unlocked_achievement_ids_from_dutch_game(dutch_game)
+                se_wins_stored = achcat.parse_special_event_wins(dutch_game)
+                se_win_count_after = achcat.special_event_win_count_after_match(
+                    se_wins_stored,
+                    match_special_event_id,
+                    is_winner=bool(is_winner),
+                )
+                row_match_flags = achcat.match_flags_from_game_result_row(
+                    player_result if isinstance(player_result, dict) else {},
+                    is_winner=bool(is_winner),
+                )
                 newly_unlocked_achievements = achcat.compute_new_unlocks(
                     new_win_streak,
                     already_unlocked,
                     is_winner=bool(is_winner),
                     special_event_id=match_special_event_id or None,
+                    special_event_win_count_after=se_win_count_after,
+                    total_wins_after=new_wins,
+                    match_flags=row_match_flags,
                 )
                 raw_best = dutch_game.get("win_streak_best", 0)
                 try:
@@ -1165,6 +1178,10 @@ def update_game_stats():
                 }
                 if rank_should_increase:
                     set_fields['modules.dutch_game.rank'] = target_rank
+                if match_special_event_id and bool(is_winner):
+                    set_fields[
+                        f"modules.dutch_game.special_event_wins.{match_special_event_id}"
+                    ] = se_win_count_after
                 for ach_id in newly_unlocked_achievements:
                     set_fields[f"modules.dutch_game.achievements.unlocked.{ach_id}"] = {
                         "unlocked_at": current_timestamp,
@@ -1298,6 +1315,7 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
                 "win_streak_current": achcat.parse_stored_streak(None),
                 "win_streak_best": achcat.parse_stored_streak(None),
                 "achievements_unlocked_ids": [],
+                "special_event_wins": {},
                 "inventory": _normalize_inventory(None),
                 "dutch_module_initialized": False,
             }
@@ -1329,6 +1347,7 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             "win_streak_current": achcat.parse_stored_streak(dutch_game.get("win_streak_current")),
             "win_streak_best": achcat.parse_stored_streak(dutch_game.get("win_streak_best")),
             "achievements_unlocked_ids": achcat.achievements_unlocked_ids_sorted(dutch_game),
+            "special_event_wins": achcat.parse_special_event_wins(dutch_game),
             "inventory": _normalize_inventory(dutch_game.get("inventory")),
             "dutch_module_initialized": True,
         }
@@ -1341,6 +1360,7 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             "win_streak_current": achcat.parse_stored_streak(dutch_game.get("win_streak_current")),
             "win_streak_best": achcat.parse_stored_streak(dutch_game.get("win_streak_best")),
             "achievements_unlocked_ids": achcat.achievements_unlocked_ids_sorted(dutch_game),
+            "special_event_wins": achcat.parse_special_event_wins(dutch_game),
             "inventory": _normalize_inventory(dutch_game.get("inventory")),
         }
     for key in ("last_match_date", "last_updated"):
@@ -1871,12 +1891,33 @@ def _deduct_game_coins_from_body(data: Dict[str, Any]):
             "errors": errors,
         }), 500
 
-    # Room table tier (1–4): fee is defined by table, not user progression level.
+    # Room table tier (1–4) or special-event lane (catalog ``special_events``).
     game_table_level = data.get('game_table_level')
     coins = data.get('coins')
+    _raw_se = data.get("special_event_id") or data.get("specialEventId")
+    special_event_id = str(_raw_se).strip() if _raw_se else ""
+    from . import table_tiers_catalog as ttcat
+
     # Used for eligibility (user level gate). If game_table_level is missing, we may infer from coins.
     table_level_for_gate: Optional[int] = None
-    if game_table_level is not None:
+    special_event_min_level: Optional[int] = None
+    if special_event_id:
+        if ttcat.special_event_row_by_id(special_event_id) is None:
+            return jsonify({
+                "success": False,
+                "error": "unknown_special_event",
+                "message": f"Unknown special_event_id: {special_event_id}",
+            }), 400
+        catalog_fee = ttcat.special_event_coin_fee(special_event_id, default_fee=25)
+        if coins is not None and coins != catalog_fee:
+            return jsonify({
+                "success": False,
+                "error": "coins_mismatch",
+                "message": f"coins must match special event fee ({catalog_fee}) for special_event_id={special_event_id}",
+            }), 400
+        coins = catalog_fee
+        special_event_min_level = ttcat.special_event_min_user_level(special_event_id)
+    elif game_table_level is not None:
         try:
             gt = int(game_table_level)
         except (TypeError, ValueError):
@@ -1936,7 +1977,13 @@ def _deduct_game_coins_from_body(data: Dict[str, Any]):
                 user_level = int(user_level_raw)
             except (TypeError, ValueError):
                 user_level = matcher.DEFAULT_LEVEL
-            if table_level_for_gate is not None:
+            if special_event_min_level is not None:
+                if user_level < special_event_min_level:
+                    errors.append(
+                        f"User level too low for special event: user {player_id_str} level={user_level} requires={special_event_min_level}"
+                    )
+                    continue
+            elif table_level_for_gate is not None:
                 if not WinsLevelRankMatcher.user_may_join_game_table(user_level, table_level_for_gate):
                     errors.append(
                         f"User level too low for table tier: user {player_id_str} level={user_level} table={table_level_for_gate}"

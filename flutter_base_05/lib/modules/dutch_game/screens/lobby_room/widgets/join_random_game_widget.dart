@@ -82,24 +82,10 @@ JoinRandomSelection joinRandomSelectionForEntry(JoinRandomCarouselEntry e) {
   throw StateError('Unknown JoinRandomCarouselEntry');
 }
 
-/// Resolves WS `game_level` for a catalog special event (`game_level` field, else coin_fee tier match).
+/// Room `game_level` for a catalog special event (explicit `game_level` or `min_user_level`).
 int resolvedGameLevelForSpecialEvent(Map<String, dynamic> raw) {
   LevelMatcher.ensureHydratedMinimal();
-  final gl = raw['game_level'];
-  final glInt = gl is int ? gl : int.tryParse('$gl');
-  if (glInt != null &&
-      glInt >= 1 &&
-      LevelMatcher.isValidLevel(glInt)) {
-    return glInt;
-  }
-  final cf = raw['coin_fee'];
-  final fee = cf is int ? cf : int.tryParse('$cf');
-  if (fee != null && fee >= 0) {
-    for (final lvl in LevelMatcher.levelOrder) {
-      if (LevelMatcher.levelToCoinFee(lvl) == fee) return lvl;
-    }
-  }
-  return LevelMatcher.levelOrder.isNotEmpty ? LevelMatcher.levelOrder.first : 1;
+  return LevelMatcher.gameLevelForSpecialEventRoom(raw);
 }
 
 List<JoinRandomCarouselEntry> buildJoinRandomCarouselEntries() {

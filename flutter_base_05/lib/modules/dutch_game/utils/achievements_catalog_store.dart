@@ -6,13 +6,14 @@ class AchievementsCatalogStore {
 
   static final ValueNotifier<int> changeVersion = ValueNotifier<int>(0);
 
-  static final List<Map<String, String>> _entries = [];
+  static final List<Map<String, dynamic>> _entries = [];
 
   /// True after at least one successful apply from server or prefs.
   static bool _hasDocument = false;
   static bool get hasDocument => _hasDocument;
 
-  static List<Map<String, String>> get rawEntries => List.unmodifiable(_entries);
+  static List<Map<String, dynamic>> get rawEntries =>
+      List<Map<String, dynamic>>.unmodifiable(_entries);
 
   static void ensureEmptyFallback() {
     _entries.clear();
@@ -31,10 +32,17 @@ class AchievementsCatalogStore {
         final id = item['id']?.toString().trim() ?? '';
         if (id.isEmpty || seen.contains(id)) continue;
         seen.add(id);
+        final unlockRaw = item['unlock'];
+        final unlock = unlockRaw is Map
+            ? Map<String, dynamic>.from(
+                unlockRaw.map((k, v) => MapEntry(k.toString(), v)),
+              )
+            : null;
         _entries.add({
           'id': id,
           'title': item['title']?.toString().trim() ?? id,
           'description': item['description']?.toString().trim() ?? '',
+          if (unlock != null && unlock.isNotEmpty) 'unlock': unlock,
         });
       }
     }
@@ -45,7 +53,9 @@ class AchievementsCatalogStore {
   static String displayTitle(String id) {
     if (id.isEmpty) return id;
     for (final e in _entries) {
-      if (e['id'] == id) return e['title'] ?? id;
+      if (e['id']?.toString() == id) {
+        return e['title']?.toString() ?? id;
+      }
     }
     return _humanizeId(id);
   }

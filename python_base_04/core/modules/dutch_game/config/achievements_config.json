@@ -8,16 +8,82 @@
       "unlock": { "type": "win_streak", "min": 2 }
     },
     {
+      "id": "win_streak_3",
+      "title": "Threepeat",
+      "description": "Win 3 matches in a row.",
+      "unlock": { "type": "win_streak", "min": 3 }
+    },
+    {
       "id": "win_streak_5",
       "title": "On a roll",
       "description": "Win 5 matches in a row.",
       "unlock": { "type": "win_streak", "min": 5 }
     },
     {
-      "id": "winter_duels_winner",
-      "title": "Winter Duels winner",
-      "description": "Won the Winter Duels special event.",
-      "unlock": { "type": "event_win", "special_event_id": "winter_duels" }
+      "id": "win_streak_7",
+      "title": "Lucky seven",
+      "description": "Win 7 matches in a row.",
+      "unlock": { "type": "win_streak", "min": 7 }
+    },
+    {
+      "id": "win_streak_10",
+      "title": "Unstoppable",
+      "description": "Win 10 matches in a row.",
+      "unlock": { "type": "win_streak", "min": 10 }
+    },
+    {
+      "id": "first_blood",
+      "title": "First victory",
+      "description": "Win your first match.",
+      "unlock": { "type": "total_wins", "min": 1 }
+    },
+    {
+      "id": "centurion",
+      "title": "Centurion",
+      "description": "Win 100 matches.",
+      "unlock": { "type": "total_wins", "min": 100 }
+    },
+    {
+      "id": "called_dutch",
+      "title": "Dutch caller",
+      "description": "Win a match after calling Dutch.",
+      "unlock": { "type": "match_flag", "flag": "dutch_called", "requires_win": true }
+    },
+    {
+      "id": "empty_hand",
+      "title": "Clean sweep",
+      "description": "Win a match with no cards left in your hand.",
+      "unlock": { "type": "match_flag", "flag": "empty_hand", "requires_win": true }
+    },
+    {
+      "id": "cards_night_winner",
+      "title": "Cards Night champion",
+      "description": "Win a Cards Night special event match.",
+      "unlock": { "type": "event_win", "special_event_id": "cards_night", "min": 1 }
+    },
+    {
+      "id": "dutch_explorer_winner",
+      "title": "Dutch Explorer",
+      "description": "Win a Dutch Explorer special event match.",
+      "unlock": { "type": "event_win", "special_event_id": "dutch_explorer", "min": 1 }
+    },
+    {
+      "id": "the_challenger_winner",
+      "title": "The Challenger",
+      "description": "Win a Challenger special event match.",
+      "unlock": { "type": "event_win", "special_event_id": "the_challenger", "min": 1 }
+    },
+    {
+      "id": "dutch_hobbyist_winner",
+      "title": "Dutch Hobbyist",
+      "description": "Win a Dutch Hobbyist special event match.",
+      "unlock": { "type": "event_win", "special_event_id": "dutch_hobbyist", "min": 1 }
+    },
+    {
+      "id": "dutch_fan_winner",
+      "title": "Dutch Fan",
+      "description": "Win a Dutch Fan special event match.",
+      "unlock": { "type": "event_win", "special_event_id": "dutch_fan", "min": 1 }
     }
   ]
 }

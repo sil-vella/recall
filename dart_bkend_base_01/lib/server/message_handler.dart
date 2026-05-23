@@ -112,7 +112,11 @@ class MessageHandler {
   /// [roomGameTableLevel] is the room's table tier (1–4); required coins come from [LevelMatcher] only.
   /// Returns true only if subscription_tier is explicitly 'promotional' (skip coins) or coins >= required.
   /// No default tier; if no tier and no stats, fail (same as frontend).
-  Future<bool> _verifyCoinsForJoin(String userId, int roomGameTableLevel) async {
+  Future<bool> _verifyCoinsForJoin(
+    String userId,
+    int roomGameTableLevel, {
+    String? specialEventId,
+  }) async {
     try {
       final result = await _server.pythonClient.getUserStatsForJoin(userId);
       if (result['success'] != true) {
@@ -129,7 +133,10 @@ class MessageHandler {
         
         return false;
       }
-      final required = LevelMatcher.tableLevelToCoinFee(roomGameTableLevel, defaultFee: 25);
+      final se = specialEventId?.trim();
+      final required = (se != null && se.isNotEmpty)
+          ? LevelMatcher.specialEventCoinFeeById(se)
+          : LevelMatcher.tableLevelToCoinFee(roomGameTableLevel, defaultFee: 25);
       final ok = coins >= required;
       
       return ok;
@@ -144,8 +151,12 @@ class MessageHandler {
     required String message,
     required String roomId,
     required int gameLevel,
+    String? specialEventId,
   }) {
-    final requiredCoins = LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25);
+    final se = specialEventId?.trim();
+    final requiredCoins = (se != null && se.isNotEmpty)
+        ? LevelMatcher.specialEventCoinFeeById(se)
+        : LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25);
     return {
       'event': 'join_room_error',
       'message': message,
@@ -179,14 +190,6 @@ class MessageHandler {
       return (
         error:
             'Your player level is too low for this special event (requires level $minEvtLvl).',
-        persistedId: null,
-        modal: null,
-      );
-    }
-    final resolved = LevelMatcher.resolvedGameTableLevelForSpecialEvent(row);
-    if (resolved != gameTableLevel) {
-      return (
-        error: 'Special event does not match selected table tier.',
         persistedId: null,
         modal: null,
       );
@@ -843,16 +846,8 @@ class MessageHandler {
         });
         return;
       }
-      final resolved = LevelMatcher.resolvedGameTableLevelForSpecialEvent(row0);
-      if (gameLevel != null && gameLevel != resolved) {
-        _server.sendToSession(sessionId, {
-          'event': 'create_room_error',
-          'message': 'Special event does not match selected table tier.',
-          'timestamp': DateTime.now().toIso8601String(),
-        });
-        return;
-      }
-      effectiveGameLevel = gameLevel ?? resolved;
+      effectiveGameLevel =
+          gameLevel ?? LevelMatcher.gameLevelForSpecialEventRoom(row0);
       final se = _resolveSpecialEventForRoomCreation(
         sessionId: sessionId,
         rawSpecialEventId: parsedCreateSpecialEventId,
@@ -1058,7 +1053,22 @@ class MessageHandler {
     if (addCreatorToRoom) {
       final createGameLevel = effectiveGameLevel;
       final creatorUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
-      if (!WinsLevelRankMatcher.userMayJoinGameTable(creatorUserLevel, createGameLevel)) {
+      final createSe = createRoomSpecialEventId?.trim();
+      if (createSe != null && createSe.isNotEmpty) {
+        final seRow = LevelMatcher.specialEventRowById(createSe);
+        final requiredEvt = seRow != null
+            ? LevelMatcher.specialEventMinUserLevelFromRow(seRow)
+            : 1;
+        if (creatorUserLevel < requiredEvt) {
+          _server.sendToSession(sessionId, {
+            'event': 'create_room_error',
+            'message':
+                'Your level ($creatorUserLevel) is too low for this special event (requires level $requiredEvt).',
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          return;
+        }
+      } else if (!WinsLevelRankMatcher.userMayJoinGameTable(creatorUserLevel, createGameLevel)) {
         _server.sendToSession(sessionId, {
           'event': 'create_room_error',
           'message':
@@ -1069,7 +1079,11 @@ class MessageHandler {
         return;
       }
       
-      _verifyCoinsForJoin(userId, createGameLevel).then((ok) {
+      _verifyCoinsForJoin(
+        userId,
+        createGameLevel,
+        specialEventId: createSe,
+      ).then((ok) {
         if (!ok) {
           
           _server.sendToSession(sessionId, {
@@ -1179,7 +1193,22 @@ class MessageHandler {
 
     final joinLevel = room.gameLevel ?? gameLevel;
     final joinerUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
-    if (!WinsLevelRankMatcher.userMayJoinGameTable(joinerUserLevel, joinLevel)) {
+    final roomSpecialEventId = room.specialEventId?.trim();
+    if (roomSpecialEventId != null && roomSpecialEventId.isNotEmpty) {
+      final seRow = LevelMatcher.specialEventRowById(roomSpecialEventId);
+      final requiredEvt = seRow != null
+          ? LevelMatcher.specialEventMinUserLevelFromRow(seRow)
+          : 1;
+      if (joinerUserLevel < requiredEvt) {
+        _server.sendToSession(sessionId, {
+          'event': 'join_room_error',
+          'message':
+              'Your level ($joinerUserLevel) is too low for this special event (requires level $requiredEvt).',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        return;
+      }
+    } else if (!WinsLevelRankMatcher.userMayJoinGameTable(joinerUserLevel, joinLevel)) {
       _server.sendToSession(sessionId, {
         'event': 'join_room_error',
         'message':
@@ -1306,7 +1335,11 @@ class MessageHandler {
       return;
     }
     
-    _verifyCoinsForJoin(ju, joinLevel).then((ok) {
+    _verifyCoinsForJoin(
+      ju,
+      joinLevel,
+      specialEventId: roomSpecialEventId,
+    ).then((ok) {
       if (!ok) {
         
         _server.sendToSession(
@@ -1315,6 +1348,7 @@ class MessageHandler {
             message: 'Insufficient coins to join this game. Check your balance.',
             roomId: jr,
             gameLevel: joinLevel,
+            specialEventId: roomSpecialEventId,
           ),
         );
         return;
@@ -1511,7 +1545,27 @@ class MessageHandler {
 
       final uid = userId;
       final joinerUserLevel = _server.getUserLevelForSession(sessionId) ?? 1;
-      if (!WinsLevelRankMatcher.userMayJoinGameTable(joinerUserLevel, requestedGameLevel)) {
+      final seIdForJoin = parsedSpecialEventId?.trim();
+      if (seIdForJoin != null && seIdForJoin.isNotEmpty) {
+        final seRow = LevelMatcher.specialEventRowById(seIdForJoin);
+        final requiredEvt = seRow != null
+            ? LevelMatcher.specialEventMinUserLevelFromRow(seRow)
+            : 1;
+        if (joinerUserLevel < requiredEvt) {
+          if (LOGGING_SWITCH) {
+            customlog(
+              'join_random_game: reject user_level=$joinerUserLevel < special_event min=$requiredEvt',
+            );
+          }
+          _server.sendToSession(sessionId, {
+            'event': 'join_room_error',
+            'message':
+                'Your level ($joinerUserLevel) is too low for this special event (requires level $requiredEvt).',
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          return;
+        }
+      } else if (!WinsLevelRankMatcher.userMayJoinGameTable(joinerUserLevel, requestedGameLevel)) {
         if (LOGGING_SWITCH) {
           customlog(
             'join_random_game: reject user_level=$joinerUserLevel < required for table=$requestedGameLevel',
@@ -1527,7 +1581,11 @@ class MessageHandler {
         return;
       }
       
-      _verifyCoinsForJoin(uid, requestedGameLevel).then((ok) {
+      _verifyCoinsForJoin(
+        uid,
+        requestedGameLevel,
+        specialEventId: seIdForJoin,
+      ).then((ok) {
         if (!ok) {
           if (LOGGING_SWITCH) {
             customlog(
@@ -1541,6 +1599,7 @@ class MessageHandler {
               message: 'Insufficient coins to join a game. Check your balance.',
               roomId: '',
               gameLevel: requestedGameLevel,
+              specialEventId: seIdForJoin,
             )..['join_source'] = 'join_random_game',
           );
           return;

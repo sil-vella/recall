@@ -13,7 +13,15 @@ class LevelMatcher {
 
   /// Builtin tiers + one special event so `_resolveSpecialEventForRoomCreation` works when no JSON file is found.
   static const String _builtinJson = r'''{"schema_version":1,"special_events":[
-{"id":"winter_duels","title":"Winter Duels","coin_fee":50,"min_user_level":2,
+{"id":"cards_night","title":"Cards Night","coin_fee":25,"min_user_level":1,
+"metadata":{"end_match_modal":{"text":"You won 50 coins!"}}},
+{"id":"dutch_explorer","title":"Dutch Explorer","coin_fee":25,"min_user_level":1,
+"metadata":{"end_match_modal":{"text":"You won 50 coins!"}}},
+{"id":"the_challenger","title":"The Challenger","coin_fee":30,"min_user_level":1,
+"metadata":{"end_match_modal":{"text":"You won 60 coins!"}}},
+{"id":"dutch_hobbyist","title":"Dutch Hobbyist","coin_fee":50,"min_user_level":2,
+"metadata":{"end_match_modal":{"text":"You won 100 coins!"}}},
+{"id":"dutch_fan","title":"Dutch Fan","coin_fee":50,"min_user_level":2,
 "metadata":{"end_match_modal":{"text":"You won 100 coins!"}}}],"tiers":[
 {"level":1,"title":"Home Table","coin_fee":25,"min_user_level":1},
 {"level":2,"title":"Local Table","coin_fee":50,"min_user_level":2},
@@ -335,4 +343,65 @@ class LevelMatcher {
 
   static List<String> get allTitles =>
       levelOrder.map((l) => levelToTitleMap[l]!).toList();
+
+  /// Entry fee per player from a ``special_events`` catalog row.
+  static int specialEventCoinFeeFromRow(Map<String, dynamic> row, {int defaultFee = 25}) {
+    final cf = row['coin_fee'];
+    final fee = cf is int ? cf : int.tryParse('$cf');
+    if (fee != null && fee >= 1) return fee;
+    return defaultFee;
+  }
+
+  static int specialEventCoinFeeById(String eventId, {int defaultFee = 25}) {
+    final row = specialEventRowById(eventId);
+    if (row == null) return defaultFee;
+    return specialEventCoinFeeFromRow(row, defaultFee: defaultFee);
+  }
+
+  /// ``metadata.rewards.coins`` — lump sum added to ``match_pot`` (on top of entry fees).
+  static int specialEventRewardCoinsFromRow(Map<String, dynamic> row) {
+    final meta = row['metadata'];
+    if (meta is! Map) return 0;
+    final rewards = meta['rewards'];
+    if (rewards is! Map) return 0;
+    final c = rewards['coins'];
+    if (c is int) return c < 0 ? 0 : c;
+    final parsed = int.tryParse('$c');
+    return parsed != null && parsed > 0 ? parsed : 0;
+  }
+
+  static int specialEventRewardCoinsById(String eventId) {
+    final row = specialEventRowById(eventId);
+    if (row == null) return 0;
+    return specialEventRewardCoinsFromRow(row);
+  }
+
+  static int specialEventMinUserLevelFromRow(Map<String, dynamic> row, {int defaultLevel = 1}) {
+    final raw = row['min_user_level'];
+    final v = raw is int ? raw : int.tryParse('$raw');
+    if (v != null && v >= 1) return v;
+    return defaultLevel;
+  }
+
+  /// ``game_level`` for room metadata: explicit ``game_level`` on event, else ``min_user_level``.
+  static int gameLevelForSpecialEventRoom(Map<String, dynamic> row) {
+    _ensureLoaded();
+    final gl = row['game_level'];
+    final glInt = gl is int ? gl : int.tryParse('$gl');
+    if (glInt != null && glInt >= 1 && isValidLevel(glInt)) {
+      return glInt;
+    }
+    return specialEventMinUserLevelFromRow(row);
+  }
+
+  static int computeMatchPot({
+    required int coinCostPerPlayer,
+    required int activePlayerCount,
+    int rewardCoinsBonus = 0,
+  }) {
+    final fee = coinCostPerPlayer < 0 ? 0 : coinCostPerPlayer;
+    final n = activePlayerCount < 0 ? 0 : activePlayerCount;
+    final bonus = rewardCoinsBonus < 0 ? 0 : rewardCoinsBonus;
+    return fee * n + bonus;
+  }
 }

@@ -57,6 +57,12 @@ Defines **room table tiers** (lobby `game_level`: title, coin fee, min user leve
 
 Distinct string `id` (not a table level). Used for special-match presets: metadata, rewards placeholder, optional banner/video/audio asset filenames resolved to URLs on the server for client download.
 
+**Match economy (special events only):**
+
+- Entry fee per player = row `coin_fee` (not vanilla tier `coin_fee` unless the event defines `game_level`).
+- Winner pot at match start = `(coin_fee × seated players) + metadata.rewards.coins` (reward bonus is lump-sum added to `match_pot`, not a separate server credit).
+- Join / deduct gates use event `min_user_level` and event `coin_fee`, not tier mapping by fee.
+
 ## Server behavior
 
 - Builds client payload with `build_client_table_tiers_payload(public_base)` — adds `back_graphic_url` etc.

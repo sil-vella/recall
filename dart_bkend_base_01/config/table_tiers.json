@@ -48,24 +48,20 @@
   ],
   "special_events": [
     {
-      "id": "winter_duels",
-      "title": "Winter Duels",
-      "description": "Optional copy for UI.",
-      "coin_fee": 50,
-      "min_user_level": 2,
+      "id": "cards_night",
+      "title": "Cards Night",
+      "description": "A cozy starter event table for new players.",
+      "coin_fee": 25,
+      "min_user_level": 1,
       "metadata": {
-        "match_type": "bracket",
-        "anything": true,
-        "banner_image_file": "winter_duels_banner.webp",
-        "intro_video_file": "winter_duels_intro.mp4",
-        "audio_file": "winter_duels_theme.mp3",
+        "banner_image_file": "cards_night_banner.webp",
         "rewards": {
-          "coins": "100",
-          "achievement": "winter_duels_winner"
+          "coins": "50",
+          "achievement": "cards_night_winner"
         },
         "end_match_modal": {
-          "text": "You won 100 coins!",
-          "background_image_file": "winter_duels_background.webp",
+          "text": "You won 50 coins!",
+          "background_image_file": "cards_night_background.webp",
           "cta_text": {
             "text": "View Achievements",
             "action": "view_achievements",
@@ -74,10 +70,121 @@
         }
       },
       "style": {
-        "felt_hex": "#2F6FA7",
-        "spotlight_hex": "#A9D8FF",
-        "back_graphic_file": "winter_ice_table_back.webp",
-        "overlay_image_file": "winter_ice_table_back.webp"
+        "felt_hex": "#4E8065",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "home-table-backgraphic_002.webp"
+      }
+    },
+    {
+      "id": "dutch_explorer",
+      "title": "Dutch Explorer",
+      "description": "Learn the lanes — same rules, event flair.",
+      "coin_fee": 25,
+      "min_user_level": 1,
+      "metadata": {
+        "banner_image_file": "dutch_explorer_banner.webp",
+        "rewards": {
+          "coins": "50",
+          "achievement": "dutch_explorer_winner"
+        },
+        "end_match_modal": {
+          "text": "You won 50 coins!",
+          "background_image_file": "dutch_explorer_background.webp",
+          "cta_text": {
+            "text": "View Achievements",
+            "action": "view_achievements",
+            "redirect_to_screen": "achievements"
+          }
+        }
+      },
+      "style": {
+        "felt_hex": "#3D6B6B",
+        "spotlight_hex": "#B8E6D8",
+        "back_graphic_file": "home-table-backgraphic_002.webp"
+      }
+    },
+    {
+      "id": "the_challenger",
+      "title": "The Challenger",
+      "description": "Step up with a slightly higher entry.",
+      "coin_fee": 30,
+      "min_user_level": 1,
+      "metadata": {
+        "banner_image_file": "the_challenger_banner.webp",
+        "rewards": {
+          "coins": "60",
+          "achievement": "the_challenger_winner"
+        },
+        "end_match_modal": {
+          "text": "You won 60 coins!",
+          "background_image_file": "the_challenger_background.webp",
+          "cta_text": {
+            "text": "View Achievements",
+            "action": "view_achievements",
+            "redirect_to_screen": "achievements"
+          }
+        }
+      },
+      "style": {
+        "felt_hex": "#7A5C3E",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "home-table-backgraphic_002.webp"
+      }
+    },
+    {
+      "id": "dutch_hobbyist",
+      "title": "Dutch Hobbyist",
+      "description": "For players ready to leave the home table.",
+      "coin_fee": 50,
+      "min_user_level": 2,
+      "metadata": {
+        "banner_image_file": "dutch_hobbyist_banner.webp",
+        "rewards": {
+          "coins": "100",
+          "achievement": "dutch_hobbyist_winner"
+        },
+        "end_match_modal": {
+          "text": "You won 100 coins!",
+          "background_image_file": "dutch_hobbyist_background.webp",
+          "cta_text": {
+            "text": "View Achievements",
+            "action": "view_achievements",
+            "redirect_to_screen": "achievements"
+          }
+        }
+      },
+      "style": {
+        "felt_hex": "#514E80",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "local-table-backgraphic.webp"
+      }
+    },
+    {
+      "id": "dutch_fan",
+      "title": "Dutch Fan",
+      "description": "Show your love for the game at local stakes.",
+      "coin_fee": 50,
+      "min_user_level": 2,
+      "metadata": {
+        "banner_image_file": "dutch_fan_banner.webp",
+        "rewards": {
+          "coins": "100",
+          "achievement": "dutch_fan_winner"
+        },
+        "end_match_modal": {
+          "text": "You won 100 coins!",
+          "background_image_file": "dutch_fan_background.webp",
+          "cta_text": {
+            "text": "View Achievements",
+            "action": "view_achievements",
+            "redirect_to_screen": "achievements"
+          }
+        }
+      },
+      "style": {
+        "felt_hex": "#6B3D4E",
+        "spotlight_hex": "#FFD4A3",
+        "back_graphic_file": "local-table-backgraphic.webp"
       }
     }
   ]

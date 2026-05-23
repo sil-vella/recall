@@ -277,6 +277,7 @@ class PythonApiClient {
     required List<String> playerIds,
     required int coins,
     int? gameTableLevel,
+    String? specialEventId,
     bool isCoinRequired = true,
   }) async {
     
@@ -293,6 +294,8 @@ class PythonApiClient {
       'player_ids': playerIds,
       'coins': coins,
       if (gameTableLevel != null) 'game_table_level': gameTableLevel,
+      if (specialEventId != null && specialEventId.isNotEmpty)
+        'special_event_id': specialEventId,
       'is_coin_required': isCoinRequired,
     };
 

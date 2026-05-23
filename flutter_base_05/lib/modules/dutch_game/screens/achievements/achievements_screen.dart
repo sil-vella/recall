@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../utils/achievement_progress.dart';
 import '../../utils/dutch_achievement_catalog.dart';
 import '../../utils/dutch_game_helpers.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
@@ -125,18 +126,39 @@ class _AchievementsScreenState extends BaseScreenState<AchievementsScreen> {
           ),
           ...DutchAchievementCatalog.all.map((entry) {
             final done = _unlocked.contains(entry.id);
+            final progress = achievementProgressFor(
+              entry: entry,
+              unlocked: done,
+              stats: DutchGameHelpers.getUserDutchGameStats(),
+            );
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Semantics(
                 identifier: 'achievement_row_${entry.id}',
-                label: '${entry.title}, ${done ? "unlocked" : "locked"}',
-                child: _AchievementTile(entry: entry, unlocked: done),
+                label: _semanticsLabel(entry, done, progress),
+                child: _AchievementTile(
+                  entry: entry,
+                  unlocked: done,
+                  progress: progress,
+                ),
               ),
             );
           }),
         ],
       ),
     );
+  }
+
+  String _semanticsLabel(
+    DutchAchievementEntry entry,
+    bool unlocked,
+    AchievementProgress? progress,
+  ) {
+    if (unlocked) return '${entry.title}, unlocked';
+    if (progress != null) {
+      return '${entry.title}, locked, ${progress.current} of ${progress.required}';
+    }
+    return '${entry.title}, locked';
   }
 }
 
@@ -195,10 +217,12 @@ class _AchievementTile extends StatelessWidget {
   const _AchievementTile({
     required this.entry,
     required this.unlocked,
+    this.progress,
   });
 
   final DutchAchievementEntry entry;
   final bool unlocked;
+  final AchievementProgress? progress;
 
   @override
   Widget build(BuildContext context) {
@@ -237,6 +261,23 @@ class _AchievementTile extends StatelessWidget {
                   entry.description,
                   style: AppTextStyles.bodyMedium(color: AppColors.lightGray),
                 ),
+                if (!unlocked && progress != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    '${progress!.label}: ${progress!.current} / ${progress!.required}',
+                    style: AppTextStyles.bodySmall(color: AppColors.matchPotGold),
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: AppBorderRadius.smallRadius,
+                    child: LinearProgressIndicator(
+                      value: progress!.fraction,
+                      minHeight: 6,
+                      backgroundColor: AppColors.borderDefault,
+                      color: AppColors.matchPotGold,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

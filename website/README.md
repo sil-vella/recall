@@ -14,7 +14,7 @@ This avoids `/css/`, `/js/`, and `/images/`, which are easy to confuse with othe
 
 ## Nginx (VPS, manual)
 
-Place these **before** any regex that proxies unknown paths to Flask (same idea as `/sponsors/`). `^~` stops regex search so these win over the catch-all proxy.
+Place these **before** any regex that proxies unknown paths to Flask (same idea as `/app_media/`). `^~` stops regex search so these win over the catch-all proxy.
 
 ```nginx
 location ^~ /static_landing_css/ {
@@ -48,4 +48,4 @@ cd /path/to/app_dev
 ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/17_upload_dutch_landing_site.yml -e vm_name=rop01
 ```
 
-Only updates `index.html` and the three `static_landing_*` trees above — **not** `downloads/`, `sponsors/`, or `sim_players/`.
+Only updates `index.html` and the three `static_landing_*` trees above — **not** `downloads/`, `app_media/`, or `sim_players/`.

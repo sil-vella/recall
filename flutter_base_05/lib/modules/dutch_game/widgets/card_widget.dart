@@ -497,15 +497,15 @@ class CardWidget extends StatelessWidget {
       const int imageVersion = 3;
       final imageUrl = effectiveForceDefaultBack
           ? (currentGameId.isNotEmpty
-              ? '${Config.apiUrl}/sponsors/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
-              : '${Config.apiUrl}/sponsors/media/card_back.webp?v=$imageVersion')
+              ? '${Config.apiUrl}/app_media/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
+              : '${Config.apiUrl}/app_media/media/card_back.webp?v=$imageVersion')
           : equippedCardBackId.isNotEmpty
               ? (currentGameId.isNotEmpty
-                  ? '${Config.apiUrl}/sponsors/media/card_back.webp?skinId=$equippedCardBackId&gameId=$currentGameId&v=$imageVersion'
-                  : '${Config.apiUrl}/sponsors/media/card_back.webp?skinId=$equippedCardBackId&v=$imageVersion')
+                  ? '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$equippedCardBackId&gameId=$currentGameId&v=$imageVersion'
+                  : '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$equippedCardBackId&v=$imageVersion')
               : (currentGameId.isNotEmpty
-                  ? '${Config.apiUrl}/sponsors/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
-                  : '${Config.apiUrl}/sponsors/media/card_back.webp?v=$imageVersion');
+                  ? '${Config.apiUrl}/app_media/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
+                  : '${Config.apiUrl}/app_media/media/card_back.webp?v=$imageVersion');
 
       final useBlueTint = !effectiveForceDefaultBack && equippedCardBackId == 'card_back_ocean';
       final useEmberTint = !effectiveForceDefaultBack && equippedCardBackId == 'card_back_ember';

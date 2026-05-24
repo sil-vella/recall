@@ -7,7 +7,7 @@ import 'ad_registry.dart';
 import 'models/ad_event_type_config.dart';
 import 'models/ad_registration.dart';
 
-/// Loads promotional ads from `${Config.apiUrl}/sponsors/promotional_ads.json` only (no bundled fallback).
+/// Loads promotional ads from `${Config.apiUrl}/app_media/promotional_ads.json` only (no bundled fallback).
 class PromotionalAdsConfigLoader {
   static bool _loaded = false;
 
@@ -27,7 +27,7 @@ class PromotionalAdsConfigLoader {
   static Future<void> _tryLoadFromNetwork() async {
     AdRegistry.instance.clear();
     final base = Config.apiUrl.replaceAll(RegExp(r'/$'), '');
-    final uri = Uri.parse('$base/sponsors/promotional_ads.json').replace(
+    final uri = Uri.parse('$base/app_media/promotional_ads.json').replace(
       queryParameters: {'v': clientManifestQueryVersion.toString()},
     );
     
@@ -43,7 +43,7 @@ class PromotionalAdsConfigLoader {
         return;
       }
       final map = Map<dynamic, dynamic>.from(root);
-      final remoteBase = '$base/sponsors/adverts';
+      final remoteBase = '$base/app_media/adverts';
       final counts = _applyRootMap(map, remoteMediaBaseUrl: remoteBase);
       AdRegistry.instance.shuffleAdsPerType();
       

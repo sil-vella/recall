@@ -4,6 +4,7 @@
 #
 # Usage:
 #   ./run_flutter_app_to_global_log.sh android <adb_serial>
+#   ./run_flutter_app_to_global_log.sh ios <simulator_or_device_id>
 #   ./run_flutter_app_to_global_log.sh chrome
 #
 # Dart-define SSOT: repo-root `.env.dart.defines.local` (see flutter_dart_defines_common.sh).
@@ -20,11 +21,45 @@ source "$SCRIPT_DIR/flutter_dart_defines_common.sh"
 
 export DUTCH_DEV_LOG="${DUTCH_DEV_LOG:-1}"
 
-mode="${1:?usage: $0 android <serial>|chrome}"
+mode="${1:?usage: $0 android <serial>|ios <device_id>|chrome}"
 shift || true
 
 append_banner() {
   echo "---- run_flutter_app_to_global_log $1 $(date '+%Y-%m-%d %H:%M:%S') repo=$REPO_ROOT ----" >&2
+}
+
+# Boot an iOS simulator when [device_id] matches simctl; wait until Flutter lists it.
+ios_ensure_device_ready() {
+  local device_id="$1"
+
+  if ! command -v xcrun &>/dev/null; then
+    echo "xcrun not found — install Xcode command line tools." >&2
+    exit 1
+  fi
+
+  local sim_line=""
+  sim_line="$(xcrun simctl list devices available 2>/dev/null | grep -F "$device_id" | head -1 || true)"
+  if [[ -z "$sim_line" ]]; then
+    # Physical device or unknown id — flutter run --device-timeout waits for attach.
+    return 0
+  fi
+
+  local udid="$device_id"
+  if [[ "$sim_line" =~ \(([0-9A-Fa-f-]{36})\) ]]; then
+    udid="${BASH_REMATCH[1]}"
+  fi
+
+  local boot_state=""
+  boot_state="$(xcrun simctl list devices 2>/dev/null | grep -F "$udid" | grep -oE '(Booted|Shutdown)' | head -1 || true)"
+  if [[ "$boot_state" != "Booted" ]]; then
+    echo "Booting iOS simulator ($udid)..." >&2
+    xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+    echo "Waiting for simulator to finish booting..." >&2
+    xcrun simctl bootstatus "$udid" -b >/dev/null 2>&1 || true
+    open -a Simulator --args -CurrentDeviceUDID "$udid" >/dev/null 2>&1 \
+      || open -a Simulator >/dev/null 2>&1 \
+      || true
+  fi
 }
 
 flutter_dart_defines_require_python || exit 1
@@ -62,6 +97,26 @@ case "$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')" in
     '
     exit "${PIPESTATUS[0]}"
     ;;
+  ios)
+    device_id="${1:?usage: $0 ios <simulator_or_device_id>}"
+    ios_ensure_device_ready "$device_id"
+    flutter run -d "$device_id" \
+      --device-timeout=90 \
+      --dart-define=DUTCH_DEV_LOG=1 \
+      --dart-define-from-file="$DART_DEF_JSON" 2>&1 | awk -v logf="$LOG" '
+      {
+        print
+        if (($0 ~ /I\/flutter/ || $0 ~ /I flutter/) && $0 ~ /\[dev\]/) {
+          if ($0 != prev) {
+            print >> logf
+            fflush(logf)
+            prev = $0
+          }
+        }
+      }
+    '
+    exit "${PIPESTATUS[0]}"
+    ;;
   chrome)
     flutter run -d chrome \
       --dart-define=DUTCH_DEV_LOG=1 \
@@ -80,7 +135,7 @@ case "$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')" in
     exit "${PIPESTATUS[0]}"
     ;;
   *)
-    echo "usage: $0 android <adb_serial>|chrome" >&2
+    echo "usage: $0 android <adb_serial>|ios <device_id>|chrome" >&2
     exit 1
     ;;
 esac

@@ -73,8 +73,8 @@ Each item row is normalized and exposed to clients through API envelopes/catalog
 
 Python resolves paths with:
 
-- Card: `sponsors/media/card_back/<pack_name>/card_back_<pack_name>.webp`  
-- Table overlay: `sponsors/media/table_design/<pack_name>/table_design_overlay_<pack_name>.webp`  
+- Card: `app_media/media/card_back/<pack_name>/card_back_<pack_name>.webp`  
+- Table overlay: `app_media/media/table_design/<pack_name>/table_design_overlay_<pack_name>.webp`  
 
 (`pack_name` = substring after `card_back_` / `table_design_`, lowercased.)
 
@@ -84,16 +84,16 @@ Python resolves paths with:
 
 **Repo layout (local)**
 
-- `sponsors/media/card_back/<pack>/card_back_<pack>.webp`  
-- `sponsors/media/table_design/<pack>/table_design_overlay_<pack>.webp`  
-- Fallbacks: `sponsors/media/card_back.webp`, `sponsors/media/table_logo.webp` (used when file missing).
+- `app_media/media/card_back/<pack>/card_back_<pack>.webp`  
+- `app_media/media/table_design/<pack>/table_design_overlay_<pack>.webp`  
+- Fallbacks: `app_media/media/card_back.webp`, `app_media/media/table_logo.webp` (used when file missing).
 
 **HTTP (Python)**
 
-- Card backs: `GET .../sponsors/media/card_back.webp?skinId=<item_id>&gameId=...&v=...`  
-  → `get_card_back_media()` maps `skinId` to the pack file under `sponsors/media/card_back/...`.  
-- Table overlay: `GET .../sponsors/media/table_design_overlay.webp?skinId=<item_id>&gameId=...&v=...`  
-  → `get_table_design_overlay_media()` maps to `sponsors/media/table_design/...`.
+- Card backs: `GET .../app_media/media/card_back.webp?skinId=<item_id>&gameId=...&v=...`  
+  → `get_card_back_media()` maps `skinId` to the pack file under `app_media/media/card_back/...`.  
+- Table overlay: `GET .../app_media/media/table_design_overlay.webp?skinId=<item_id>&gameId=...&v=...`  
+  → `get_table_design_overlay_media()` maps to `app_media/media/table_design/...`.
 
 **Upload playbooks** (VPS paths mirror local structure)
 
@@ -181,7 +181,7 @@ If you introduce a new `category_group` that must appear in a fixed place (e.g. 
 **File:** `flutter_base_05/lib/modules/dutch_game/widgets/card_widget.dart`
 
 - **Hands only:** callers pass `ownerCardBackId` for player hand cards; discard / default uses `forceDefaultBack` where required.  
-- **Network URL:** `Config.apiUrl` + `/sponsors/media/card_back.webp?skinId=<id>&gameId=...&v=3` (see file for exact query).  
+- **Network URL:** `Config.apiUrl` + `/app_media/media/card_back.webp?skinId=<id>&gameId=...&v=3` (see file for exact query).  
 - **Practice rooms:** `gameId` prefix `practice_room_` forces local `assets/images/card_back.webp`.  
 - **Per-pack polish:** `_cardBackBaseColor`, `_cardBackFrameBorderColor`, optional `ColorFiltered` modulate for specific ids (`card_back_ocean`, `card_back_ember`). **New packs** should add cases here (and optionally tint) so shop and table match.
 
@@ -228,7 +228,7 @@ In `python_base_04/core/modules/dutch_game/config/consumables_catalog.json`, app
 
 Create directory and file (names must match §3):
 
-`sponsors/media/table_design/forest/table_design_overlay_forest.webp`
+`app_media/media/table_design/forest/table_design_overlay_forest.webp`
 
 (`item_id` `table_design_forest` → pack folder **`forest`**.)
 
@@ -277,7 +277,7 @@ If you skip Step D, the pack still **works**: default border + overlay image at 
 
 ### Step B — File on disk
 
-`sponsors/media/card_back/dragon/card_back_dragon.webp`
+`app_media/media/card_back/dragon/card_back_dragon.webp`
 
 ### Step C — Deploy
 

@@ -38,7 +38,7 @@ BOOSTER_ITEM_ID = cc.primary_win_booster_key()
 
 # Store app_manager reference (will be set by module)
 _app_manager = None
-SPONSORS_MEDIA_DIR = Path(__file__).resolve().parents[4] / "sponsors" / "media"
+APP_MEDIA_DIR = Path(__file__).resolve().parents[4] / "app_media" / "media"
 
 # Packaged tier back-graphics (WebP preferred). Served at /public/dutch/table-tier-back/<filename>.
 TABLE_TIER_BACKGRAPHICS_DIR = Path(__file__).resolve().parent / "static" / "table_backgraphics"
@@ -64,7 +64,7 @@ def _resolve_public_api_base() -> str:
 def _table_design_overlay_path_from_skin_id(skin_id: str) -> Optional[Path]:
     """
     New media layout:
-    sponsors/media/table_design/<pack_name>/table_design_overlay_<pack_name>.webp
+    app_media/media/table_design/<pack_name>/table_design_overlay_<pack_name>.webp
     """
     sid = (skin_id or "").strip()
     if not sid.startswith("table_design_"):
@@ -72,13 +72,13 @@ def _table_design_overlay_path_from_skin_id(skin_id: str) -> Optional[Path]:
     pack_name = sid.replace("table_design_", "", 1).strip().lower()
     if not pack_name:
         return None
-    return SPONSORS_MEDIA_DIR / "table_design" / pack_name / f"table_design_overlay_{pack_name}.webp"
+    return APP_MEDIA_DIR / "table_design" / pack_name / f"table_design_overlay_{pack_name}.webp"
 
 
 def _card_back_path_from_skin_id(skin_id: str) -> Optional[Path]:
     """
     New media layout:
-    sponsors/media/card_back/<pack_name>/card_back_<pack_name>.webp
+    app_media/media/card_back/<pack_name>/card_back_<pack_name>.webp
     """
     sid = (skin_id or "").strip()
     if not sid.startswith("card_back_"):
@@ -86,7 +86,7 @@ def _card_back_path_from_skin_id(skin_id: str) -> Optional[Path]:
     pack_name = sid.replace("card_back_", "", 1).strip().lower()
     if not pack_name:
         return None
-    return SPONSORS_MEDIA_DIR / "card_back" / pack_name / f"card_back_{pack_name}.webp"
+    return APP_MEDIA_DIR / "card_back" / pack_name / f"card_back_{pack_name}.webp"
 
 
 def set_app_manager(app_manager):
@@ -1762,10 +1762,10 @@ def get_table_design_overlay_media():
         skin_id = (request.args.get("skinId") or "").strip()
         media_path = _table_design_overlay_path_from_skin_id(skin_id)
         if media_path is None:
-            media_path = SPONSORS_MEDIA_DIR / "table_logo.webp"
+            media_path = APP_MEDIA_DIR / "table_logo.webp"
         if not media_path.exists():
-            fallback_webp = SPONSORS_MEDIA_DIR / "table_logo.webp"
-            fallback_png = SPONSORS_MEDIA_DIR / "table_logo.png"
+            fallback_webp = APP_MEDIA_DIR / "table_logo.webp"
+            fallback_png = APP_MEDIA_DIR / "table_logo.png"
             if fallback_webp.exists():
                 return send_file(fallback_webp, mimetype="image/webp")
             if fallback_png.exists():
@@ -1810,11 +1810,11 @@ def get_card_back_media():
         skin_id = (request.args.get("skinId") or "").strip()
         media_path = _card_back_path_from_skin_id(skin_id)
         if media_path is None:
-            media_path = SPONSORS_MEDIA_DIR / "card_back.webp"
+            media_path = APP_MEDIA_DIR / "card_back.webp"
 
         if not media_path.exists():
-            fallback_webp = SPONSORS_MEDIA_DIR / "card_back.webp"
-            fallback_png = SPONSORS_MEDIA_DIR / "card_back.png"
+            fallback_webp = APP_MEDIA_DIR / "card_back.webp"
+            fallback_png = APP_MEDIA_DIR / "card_back.png"
             if fallback_webp.exists():
                 return send_file(fallback_webp, mimetype="image/webp")
             if fallback_png.exists():

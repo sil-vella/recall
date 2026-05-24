@@ -95,6 +95,44 @@ Win flow uses `primary_win_booster_key()` from first active booster in catalog.
 
 Restart Python after changes.
 
+## Category themes (catalog)
+
+Shop sections use `category_group` + `category_theme` → Flutter key `group::theme` (e.g. `card_backs::fantasy`). See [CONSUMABLES_COSMETICS_MVP.md](../Dutch_game/CONSUMABLES_COSMETICS_MVP.md) §3–4 for `item_id` → media paths.
+
+| `category_group` | `category_theme` | Typical items |
+|------------------|------------------|---------------|
+| `consumables` | `core` | Single booster, pack ×5 |
+| `consumables` | `value` | Bulk booster packs (e.g. ×10) |
+| `card_backs` | `fantasy` | Ember, Dragon, Phoenix, Rune |
+| `card_backs` | `nature` | Ocean, Forest, Aurora |
+| `card_backs` | `sports` | Juventus, Racing |
+| `card_backs` | `classic` | Gold, Ivory |
+| `card_backs` | `cosmic` | Cosmic, Nebula |
+| `card_backs` | `neon` | Neon |
+| `card_backs` | `vintage` | Vintage |
+| `table_designs` | `neon` | Neon |
+| `table_designs` | `royal` | Royal |
+| `table_designs` | `sports` | Juventus, Racing (stripes) |
+| `table_designs` | `nature` | Forest, Moss |
+| `table_designs` | `fantasy` | Crystal, Arcane |
+| `table_designs` | `warm` | Sunset, Ember |
+| `table_designs` | `cosmic` | Galaxy, Nebula |
+| `table_designs` | `classic` | Brass, Mahogany |
+| `table_designs` | `minimal` | Mono |
+
+**Pack media (repo / VPS):**
+
+```text
+app_media/media/card_back/<pack>/card_back_<pack>.webp
+app_media/media/table_design/<pack>/table_design_overlay_<pack>.webp
+```
+
+(`<pack>` = lowercase slug after `card_back_` / `table_design_` in `item_id`.)
+
+Root fallbacks: `app_media/media/card_back.webp`, `app_media/media/table_logo.webp`.
+
+Placeholder generation: `playbooks/00_local/templates/consumables/generate_consumable_placeholder_webps.py` (local) or `playbooks/rop01/generate_consumable_placeholder_webps.py` (deploy tree). Images include a centered **PLACEHOLDER** label on a catalog-colored fill.
+
 ## Extended guide
 
 Step-by-step add/disable items and troubleshooting: [../Consumables/DECLARATIVE_CATALOG.md](../Consumables/DECLARATIVE_CATALOG.md).

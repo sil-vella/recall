@@ -33,6 +33,22 @@
       }
     },
     {
+      "item_id": "coin_booster_win_x1_5_pack10",
+      "item_type": "booster_pack",
+      "category_group": "consumables",
+      "category_theme": "value",
+      "price_coins": 1000,
+      "display_name": "Win Coin Booster x1.5 (x10)",
+      "quantity": 10,
+      "is_active": true,
+      "effects": {
+        "grant": {
+          "booster_key": "coin_booster_win_x1_5",
+          "quantity": 10
+        }
+      }
+    },
+    {
       "item_id": "card_back_ember",
       "item_type": "card_back",
       "category_group": "card_backs",
@@ -72,6 +88,174 @@
       "style": {
         "card_background_color": "#FFFFFF",
         "frame_border_color": "#2A6FB0"
+      }
+    },
+    {
+      "item_id": "card_back_dragon",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 350,
+      "display_name": "Card Back Dragon",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#6A2A84",
+        "frame_border_color": "#D4AF37"
+      }
+    },
+    {
+      "item_id": "card_back_forest",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "nature",
+      "price_coins": 320,
+      "display_name": "Card Back Forest",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#1B4D2F",
+        "frame_border_color": "#D4AF37"
+      }
+    },
+    {
+      "item_id": "card_back_aurora",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "nature",
+      "price_coins": 340,
+      "display_name": "Card Back Aurora",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#1E3A5F",
+        "frame_border_color": "#7EE7D8"
+      }
+    },
+    {
+      "item_id": "card_back_phoenix",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 380,
+      "display_name": "Card Back Phoenix",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#B84A1F",
+        "frame_border_color": "#FFD700"
+      }
+    },
+    {
+      "item_id": "card_back_rune",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 360,
+      "display_name": "Card Back Rune",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#3D2E4F",
+        "frame_border_color": "#C9A227"
+      }
+    },
+    {
+      "item_id": "card_back_racing",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "sports",
+      "price_coins": 480,
+      "display_name": "Card Back Racing",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#1A1A1A",
+        "frame_border_color": "#FFD700"
+      }
+    },
+    {
+      "item_id": "card_back_gold",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "classic",
+      "price_coins": 450,
+      "display_name": "Card Back Gold",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#2A2418",
+        "frame_border_color": "#D4AF37"
+      }
+    },
+    {
+      "item_id": "card_back_ivory",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "classic",
+      "price_coins": 420,
+      "display_name": "Card Back Ivory",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#F5F0E6",
+        "frame_border_color": "#8B7355"
+      }
+    },
+    {
+      "item_id": "card_back_cosmic",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "cosmic",
+      "price_coins": 400,
+      "display_name": "Card Back Cosmic",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#1A1033",
+        "frame_border_color": "#5CE1FF"
+      }
+    },
+    {
+      "item_id": "card_back_nebula",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "cosmic",
+      "price_coins": 420,
+      "display_name": "Card Back Nebula",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#2D1B4E",
+        "frame_border_color": "#E879F9"
+      }
+    },
+    {
+      "item_id": "card_back_neon",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "neon",
+      "price_coins": 350,
+      "display_name": "Card Back Neon",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#0D0221",
+        "frame_border_color": "#00F5D4"
+      }
+    },
+    {
+      "item_id": "card_back_vintage",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "vintage",
+      "price_coins": 380,
+      "display_name": "Card Back Vintage",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#4A2C2A",
+        "frame_border_color": "#C9A86A"
       }
     },
     {
@@ -121,16 +305,185 @@
       }
     },
     {
-      "item_id": "card_back_dragon",
-      "item_type": "card_back",
-      "category_group": "card_backs",
-      "category_theme": "fantasy",
-      "display_name": "Card Back Dragon",
-      "price_coins": 350,
+      "item_id": "table_design_forest",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 600,
+      "display_name": "Table Design Forest",
       "is_active": true,
       "style": {
-        "card_background_color": "#6A2A84",
-        "frame_border_color": "#D4AF37"
+        "border_style": "solid",
+        "border_colors": [
+          "#2D5A3D"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_moss",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 550,
+      "display_name": "Table Design Moss",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#4A6741"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_crystal",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 700,
+      "display_name": "Table Design Crystal",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#6A2A84"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_arcane",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 750,
+      "display_name": "Table Design Arcane",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#3B2D5C"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_racing",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 950,
+      "display_name": "Table Design Racing",
+      "is_active": true,
+      "style": {
+        "border_style": "stripes",
+        "border_colors": [
+          "#000000",
+          "#FFD700"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_sunset",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "warm",
+      "price_coins": 650,
+      "display_name": "Table Design Sunset",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#E85D3D"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_ember",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "warm",
+      "price_coins": 620,
+      "display_name": "Table Design Ember Rim",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#C84A2F"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_galaxy",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 800,
+      "display_name": "Table Design Galaxy",
+      "is_active": true,
+      "style": {
+        "border_style": "stripes",
+        "border_colors": [
+          "#0B1026",
+          "#7B5CFF"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_nebula",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 820,
+      "display_name": "Table Design Nebula",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#4C1D95"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_brass",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 720,
+      "display_name": "Table Design Brass",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#B8860B"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_mahogany",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 680,
+      "display_name": "Table Design Mahogany",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#5C3317"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_mono",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "minimal",
+      "price_coins": 500,
+      "display_name": "Table Design Mono",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#6B7280"
+        ]
       }
     }
   ]

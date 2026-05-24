@@ -227,7 +227,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   String? _lastPhaseForLocalReset;
 
   /// Minimum card width when shrinking hands to fit layout (preserves [CardDimensions.CARD_ASPECT_RATIO]).
-  static const double _kMinCardWidth = 20.0;
+  static const double _kMinCardWidth = 20.0 * CardDimensions.CARD_SIZE_SCALE;
 
   /// Shrinks card width so [slots] cards fit in [availableWidth] (and optionally [availableHeight]).
   Size _adaptiveCardSize({

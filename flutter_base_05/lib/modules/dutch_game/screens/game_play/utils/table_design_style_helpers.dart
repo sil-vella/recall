@@ -82,12 +82,12 @@ class TableDesignStyleHelpers {
   }) {
     if (equippedTableDesignId.isNotEmpty) {
       return currentGameId.isNotEmpty
-          ? '${Config.apiUrl}/sponsors/media/table_design_overlay.webp?skinId=$equippedTableDesignId&gameId=$currentGameId&v=$imageVersion'
-          : '${Config.apiUrl}/sponsors/media/table_design_overlay.webp?skinId=$equippedTableDesignId&v=$imageVersion';
+          ? '${Config.apiUrl}/app_media/media/table_design_overlay.webp?skinId=$equippedTableDesignId&gameId=$currentGameId&v=$imageVersion'
+          : '${Config.apiUrl}/app_media/media/table_design_overlay.webp?skinId=$equippedTableDesignId&v=$imageVersion';
     }
     return currentGameId.isNotEmpty
-        ? '${Config.apiUrl}/sponsors/media/table_logo.webp?gameId=$currentGameId&v=2'
-        : '${Config.apiUrl}/sponsors/media/table_logo.webp?v=2';
+        ? '${Config.apiUrl}/app_media/media/table_logo.webp?gameId=$currentGameId&v=2'
+        : '${Config.apiUrl}/app_media/media/table_logo.webp?v=2';
   }
 }
 

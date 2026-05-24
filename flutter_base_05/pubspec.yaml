@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  google_mobile_ads: ^5.2.0
+  google_mobile_ads: 5.1.0
   provider: ^6.1.1
   http: ^1.1.0
   shared_preferences: ^2.2.2
@@ -45,8 +45,9 @@ dependencies:
   wakelock_plus: ^1.2.8
 
   # Firebase (Analytics, AdMob-ready)
-  firebase_core: ^3.8.0
-  firebase_analytics: ^11.3.3
+  # firebase_core 3.4+ pulls Firebase iOS 11.x with Swift 6 APIs that fail on Xcode 15.2.
+  firebase_core: 3.3.0
+  firebase_analytics: 11.0.0
   in_app_purchase: ^3.2.0
   in_app_purchase_android: ^0.4.0
 
@@ -58,10 +59,16 @@ dev_dependencies:
   flutter_lints: ^2.0.0
   flutter_launcher_icons: ^0.14.1
 
-# wakelock_plus pulls package_info_plus; 9.x Android build uses flutter.compileSdkVersion inside the
-# plugin and can omit Kotlin output from :app javac (cannot find PackageInfoPlugin). 8.x uses compileSdk 34.
+# Xcode 15.2 (macOS Ventura) compatibility — newer SDKs need Xcode 15.3+:
+# - in_app_purchase_storekit 0.4.1+: StoreKit SubscriptionOffer.Signature (iOS 17.4 SDK)
+# - google_mobile_ads 5.2+: Google-Mobile-Ads-SDK 11.6+ / MarketplaceKit
+# - firebase_core 3.4+: Firebase iOS 11.x Swift 6 APIs
+# - google_sign_in_ios 6.x: conflicts with Firebase iOS 10.x
+# wakelock_plus: package_info_plus 9.x breaks Android javac — use 8.3.1.
 dependency_overrides:
   package_info_plus: 8.3.1
+  in_app_purchase_storekit: 0.4.0
+  google_sign_in_ios: 5.7.6
 
 flutter:
   uses-material-design: true

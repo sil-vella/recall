@@ -1561,7 +1561,7 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                               defaultLevel: level,
                             );
                             final isLocked = _currentUserLevel() < requiredLevel;
-                            final titleLine = '$level — $title';
+                            final titleLine = '$title · Lv $requiredLevel';
                             return _buildTableLevelDropdownMenuItem(
                               level: level,
                               isLocked: isLocked,

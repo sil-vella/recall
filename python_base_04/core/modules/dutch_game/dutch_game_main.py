@@ -91,8 +91,8 @@ class DutchGameMain(BaseModule):
             self._register_route_helper("/public/dutch/init-config", api_endpoints.get_public_init_config, methods=["GET"])
             self._register_route_helper("/public/dutch/get-comp-players", api_endpoints.get_comp_players, methods=["POST"])
             self._register_route_helper("/public/dutch/get-tournaments-list", api_endpoints.get_tournaments_list_public, methods=["GET"])
-            self._register_route_helper("/sponsors/media/card_back.webp", api_endpoints.get_card_back_media, methods=["GET"])
-            self._register_route_helper("/sponsors/media/table_design_overlay.webp", api_endpoints.get_table_design_overlay_media, methods=["GET"])
+            self._register_route_helper("/app_media/media/card_back.webp", api_endpoints.get_card_back_media, methods=["GET"])
+            self._register_route_helper("/app_media/media/table_design_overlay.webp", api_endpoints.get_table_design_overlay_media, methods=["GET"])
             self._register_route_helper(
                 "/public/dutch/leaderboard-period-wins",
                 api_endpoints.get_period_wins_leaderboard_public,

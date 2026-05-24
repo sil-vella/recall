@@ -171,7 +171,7 @@ VPS_SSH_TARGET="rop01_user@65.181.125.135" ./playbooks/frontend/build_apk.sh
 1. Sets production deck config (testing_mode=false, predefined_hands enabled=false).
 2. Runs `flutter build web` from `flutter_base_05` with `--dart-define` built only from repo-root `.env.prod`.
 3. Output: `flutter_base_05/build/web/`. Cache-busts `index.html` with `?v=$APP_VERSION` for script/manifest/favicon.
-4. If deploy arg is `vps` (default): rsyncs build to a temp dir on the VPS, then (unless deploying to a subdir) backs up existing root, cleans web root (preserving `sponsors`, `sim_players`, `downloads`, `example`, `.well-known`), copies new files to `/var/www/dutch.reignofplay.com`, sets ownership to `www-data`. Use `./build_web.sh local` to build without deploy.
+4. If deploy arg is `vps` (default): rsyncs build to a temp dir on the VPS, then (unless deploying to a subdir) backs up existing root, cleans web root (preserving `app_media`, `sim_players`, `downloads`, `example`, `.well-known`), copies new files to `/var/www/dutch.reignofplay.com`, sets ownership to `www-data`. Use `./build_web.sh local` to build without deploy.
 
 **Deploying to a subdirectory (`/example/`)**:
 - On the VPS, nginx must expose `location /example/` → `/var/www/dutch.reignofplay.com/example/` (configure manually on the server).

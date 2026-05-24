@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Upload promotional ads manifest + media to the VPS (nginx /sponsors/ tree).
+Upload promotional ads manifest + media to the VPS (nginx /app_media/ tree).
 
-Reads the source manifest from sponsors/promotional_ads.yaml at repo root (YAML),
+Reads the source manifest from app_media/promotional_ads.yaml at repo root (YAML),
 converts to JSON, uploads to:
-  /var/www/dutch.reignofplay.com/sponsors/promotional_ads.json
+  /var/www/dutch.reignofplay.com/app_media/promotional_ads.json
 
-Uploads image/video files from sponsors/media/ to:
-  /var/www/dutch.reignofplay.com/sponsors/adverts/
+Uploads image/video files from app_media/media/ to:
+  /var/www/dutch.reignofplay.com/app_media/adverts/
 
 Only files with common media extensions are copied (.png, .jpg, .jpeg, .gif, .webp, .mp4, .webm).
 card_back.png and table_logo.png in that folder are skipped (use 12_/13_ upload scripts for those).
@@ -50,17 +50,17 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 VPS_SSH_TARGET = os.environ.get('VPS_SSH_TARGET', 'rop01_user@65.181.125.135')
 VPS_SSH_KEY = os.environ.get('VPS_SSH_KEY', os.path.expanduser('~/.ssh/rop01_key'))
 
-REMOTE_ROOT = '/var/www/dutch.reignofplay.com/sponsors'
+REMOTE_ROOT = '/var/www/dutch.reignofplay.com/app_media'
 REMOTE_JSON = f'{REMOTE_ROOT}/promotional_ads.json'
 REMOTE_ADVERTS = f'{REMOTE_ROOT}/adverts'
 REMOTE_TMP_JSON = '/tmp/promotional_ads.json'
 REMOTE_TMP_ADVERTS_DIR = '/tmp/promotional_adverts_upload'
 
-LOCAL_YAML = PROJECT_ROOT / 'sponsors' / 'promotional_ads.yaml'
-LOCAL_MEDIA_DIR = PROJECT_ROOT / 'sponsors' / 'media'
+LOCAL_YAML = PROJECT_ROOT / 'app_media' / 'promotional_ads.yaml'
+LOCAL_MEDIA_DIR = PROJECT_ROOT / 'app_media' / 'media'
 
 MEDIA_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp4', '.webm'}
-# These are uploaded separately to sponsors/media/ via 12_ and 13_ scripts.
+# These are uploaded separately to app_media/media/ via 12_ and 13_ scripts.
 EXCLUDE_FROM_PROMO_BUNDLE = frozenset({'card_back.png', 'table_logo.png'})
 
 
@@ -140,7 +140,7 @@ def main() -> None:
     print(f"{Colors.BLUE}Media files:{Colors.NC} {len(media_files)} under {LOCAL_MEDIA_DIR} (excl. card_back/table_logo)")
     print(f"{Colors.BLUE}Remote JSON:{Colors.NC} {REMOTE_JSON}")
     print(f"{Colors.BLUE}Remote adverts:{Colors.NC} {REMOTE_ADVERTS}")
-    print(f"{Colors.BLUE}Expected manifest URL:{Colors.NC} https://dutch.reignofplay.com/sponsors/promotional_ads.json")
+    print(f"{Colors.BLUE}Expected manifest URL:{Colors.NC} https://dutch.reignofplay.com/app_media/promotional_ads.json")
     print()
 
     if not confirm("Proceed with upload? (y/n): "):
@@ -202,8 +202,8 @@ def main() -> None:
         )
 
     print(f"\n{Colors.GREEN}=== Done ==={Colors.NC}")
-    print(f"Manifest: https://dutch.reignofplay.com/sponsors/promotional_ads.json")
-    print(f"Example media: https://dutch.reignofplay.com/sponsors/adverts/<filename>")
+    print(f"Manifest: https://dutch.reignofplay.com/app_media/promotional_ads.json")
+    print(f"Example media: https://dutch.reignofplay.com/app_media/adverts/<filename>")
 
 
 if __name__ == '__main__':

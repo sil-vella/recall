@@ -88,12 +88,36 @@ int resolvedGameLevelForSpecialEvent(Map<String, dynamic> raw) {
   return LevelMatcher.gameLevelForSpecialEventRoom(raw);
 }
 
+int _joinRandomSpecialEventMinLevel(Map<String, dynamic> raw) {
+  final minU = raw['min_user_level'];
+  final req = minU is int ? minU : int.tryParse('$minU');
+  if (req != null && req >= 1) return req;
+  return resolvedGameLevelForSpecialEvent(raw);
+}
+
+/// Special events for carousel: lowest [coin_fee] first, then lowest [min_user_level].
+List<Map<String, dynamic>> joinRandomSpecialEventsSorted() {
+  LevelMatcher.ensureHydratedMinimal();
+  final copy = LevelMatcher.specialEvents
+      .map((m) => Map<String, dynamic>.from(m))
+      .toList();
+  copy.sort((a, b) {
+    final feeCmp = LevelMatcher.specialEventCoinFeeFromRow(a)
+        .compareTo(LevelMatcher.specialEventCoinFeeFromRow(b));
+    if (feeCmp != 0) return feeCmp;
+    final lvlCmp =
+        _joinRandomSpecialEventMinLevel(a).compareTo(_joinRandomSpecialEventMinLevel(b));
+    if (lvlCmp != 0) return lvlCmp;
+    return (a['id'] ?? '').toString().compareTo((b['id'] ?? '').toString());
+  });
+  return copy;
+}
+
 List<JoinRandomCarouselEntry> buildJoinRandomCarouselEntries() {
   LevelMatcher.ensureHydratedMinimal();
-  final eventsReversed =
-      LevelMatcher.specialEvents.map((m) => Map<String, dynamic>.from(m)).toList().reversed;
+  final eventsSorted = joinRandomSpecialEventsSorted();
   final out = <JoinRandomCarouselEntry>[
-    ...eventsReversed.map(JoinRandomEventEntry.new),
+    ...eventsSorted.map(JoinRandomEventEntry.new),
     ...LevelMatcher.levelOrder.map(JoinRandomTierEntry.new),
   ];
   return out;
@@ -105,15 +129,12 @@ List<JoinRandomCarouselEntry> buildJoinRandomTierEntries() {
   return LevelMatcher.levelOrder.map(JoinRandomTierEntry.new).toList();
 }
 
-/// Catalog special events only (newest-first), matching former combined carousel order.
+/// Catalog special events only (fee asc, then min level asc).
 List<JoinRandomCarouselEntry> buildJoinRandomSpecialEventEntries() {
-  LevelMatcher.ensureHydratedMinimal();
-  final eventsReversed =
-      LevelMatcher.specialEvents.map((m) => Map<String, dynamic>.from(m)).toList().reversed;
-  return eventsReversed.map(JoinRandomEventEntry.new).toList();
+  return joinRandomSpecialEventsSorted().map(JoinRandomEventEntry.new).toList();
 }
 
-/// Page index aligned with **[special_events reversed] + [tiers]** — lands on highest unlocked tier.
+/// Page index aligned with **[special_events sorted] + [tiers]** — lands on highest unlocked tier.
 int defaultCarouselIndexForHighestUnlockedTier(List<JoinRandomCarouselEntry> entries) {
   final best = joinRandomHighestUnlockedTableLevel();
   for (var i = 0; i < entries.length; i++) {
@@ -308,6 +329,14 @@ String joinRandomCarouselTitle(JoinRandomCarouselEntry e) {
   return '';
 }
 
+/// Carousel label: catalog title plus minimum player level (``min_user_level``).
+String joinRandomCarouselDisplayTitle(JoinRandomCarouselEntry e) {
+  final base = joinRandomCarouselTitle(e);
+  final req = joinRandomRequiredPlayerLevel(e);
+  if (req == null || req < 1) return base;
+  return '$base · Lv $req';
+}
+
 bool joinRandomEntryLocked(JoinRandomCarouselEntry e) {
   final userLevel = joinRandomReadUserLevel();
   if (e is JoinRandomTierEntry) {
@@ -339,7 +368,7 @@ int? joinRandomRequiredPlayerLevel(JoinRandomCarouselEntry e) {
   return null;
 }
 
-/// Carousel table picker — [special_events] reversed, then tiers in catalog order.
+/// Carousel table picker — [special_events] sorted (fee, level), then tiers in catalog order.
 class _JoinRandomTableCarousel extends StatefulWidget {
   final List<JoinRandomCarouselEntry> entries;
   final int selectedIndex;
@@ -476,7 +505,7 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
               itemBuilder: (context, index) {
                 final entry = entries[index];
                 final locked = joinRandomEntryLocked(entry);
-                final title = joinRandomCarouselTitle(entry);
+                final title = joinRandomCarouselDisplayTitle(entry);
                 final fee = joinRandomDisplayCoins(entry);
                 return AnimatedBuilder(
                   animation: _pageController,

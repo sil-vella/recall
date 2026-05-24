@@ -2,6 +2,8 @@
 
 This document explains how the **Dutch game consumables/cosmetics catalog** works on the Python backend: where it lives, how it is validated, how **revisions** reach Flutter, and **step-by-step examples** for adding, disabling, or removing shop items **without Flutter code changes** (for supported item types).
 
+**Category themes registry:** [../SSOT_DECLARATIONS/CONSUMABLES.md#category-themes-catalog](../SSOT_DECLARATIONS/CONSUMABLES.md#category-themes-catalog).
+
 For implementation history and checklist status, see the active plan: [Documentation/00_Active_plans/declarative-consumables-backend-ssot.md](../00_Active_plans/declarative-consumables-backend-ssot.md).
 
 ---

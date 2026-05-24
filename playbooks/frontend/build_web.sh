@@ -272,7 +272,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
       # Remove old web files (except static directories that should be preserved)
       echo "🧹 Cleaning web root (preserving static directories)..."
       sudo find "$REMOTE_WEB_ROOT" -mindepth 1 -maxdepth 1 \
-        ! -name "sponsors" \
+        ! -name "app_media" \
         ! -name "sim_players" \
         ! -name "downloads" \
         ! -name "example" \

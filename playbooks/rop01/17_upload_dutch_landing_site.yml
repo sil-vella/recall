@@ -1,7 +1,7 @@
 ---
 # Upload static landing to Dutch nginx docroot only (prefixed paths, not generic /css/ or /js/).
 # Replaces: index.html, files under static_landing_css/, static_landing_js/, static_landing_images/.
-# Does NOT modify: downloads/, sponsors/, sim_players/, or any other paths.
+# Does NOT modify: downloads/, app_media/, sim_players/, or any other paths.
 #
 # Nginx on the VPS must serve these prefixes from disk (before regex proxy to Flask), e.g.:
 #   location ^~ /static_landing_css/ { alias /var/www/dutch.reignofplay.com/static_landing_css/; ... }

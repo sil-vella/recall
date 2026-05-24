@@ -90,18 +90,18 @@ Production **nginx vhosts, TLS, and routing** are maintained **on the server ove
 **Ansible retained for Dutch web** (hosts `{{ vm_name }}_user`):
 - `playbooks/rop01/16_dutch_maintenance.yml` — toggles maintenance snippet + nginx includes; deploys `templates/maintenance.html` into the Dutch docroot.
 - `playbooks/rop01/16_dutch_maintenance_revert.yml` — removes those nginx changes.
-- `playbooks/rop01/17_upload_dutch_landing_site.yml` — copies **only** `app_dev/website/index.html` and files under `website/static_landing_css/`, `website/static_landing_js/`, and `website/static_landing_images/` into `/var/www/dutch.reignofplay.com/` (does not touch `downloads/`, `sponsors/`, `sim_players/`). Nginx must serve those three URL prefixes from disk — see `website/README.md`.
+- `playbooks/rop01/17_upload_dutch_landing_site.yml` — copies **only** `app_dev/website/index.html` and files under `website/static_landing_css/`, `website/static_landing_js/`, and `website/static_landing_images/` into `/var/www/dutch.reignofplay.com/` (does not touch `downloads/`, `app_media/`, `sim_players/`). Nginx must serve those three URL prefixes from disk — see `website/README.md`.
 
 **Reference layout** when editing nginx by hand: static landing + preserved trees under `/var/www/dutch.reignofplay.com`; proxy API routes to Flask `127.0.0.1:5001`; `/ws` to Dart `127.0.0.1:8080`; `/downloads/` from disk. Short cache on `index.html` helps landing updates.
 
 #### Promotional ads (Flutter, static JSON + media)
 
-The app loads promotional ad definitions from nginx under `/sponsors/` (same static tree as card-back images):
+The app loads promotional ad definitions from nginx under `/app_media/` (same static tree as card-back images):
 
-- **Manifest:** `https://dutch.reignofplay.com/sponsors/promotional_ads.json` (JSON converted from `sponsors/promotional_ads.yaml` at repo root during upload).
-- **Media:** `https://dutch.reignofplay.com/sponsors/adverts/<filename>` (images/videos referenced in the manifest).
+- **Manifest:** `https://dutch.reignofplay.com/app_media/promotional_ads.json` (JSON converted from `app_media/promotional_ads.yaml` at repo root during upload).
+- **Media:** `https://dutch.reignofplay.com/app_media/adverts/<filename>` (images/videos referenced in the manifest).
 
-**Update production** after editing the YAML and/or files in `sponsors/media/` (see `sponsors/media/README.txt`):
+**Update production** after editing the YAML and/or files in `app_media/media/` (see `app_media/media/README.txt`):
 
 ```bash
 cd /path/to/app_dev
@@ -111,7 +111,7 @@ python3 playbooks/rop01/15_upload_promotional_bundle.py
 
 Environment variables match the other VPS upload scripts: `VPS_SSH_TARGET`, `VPS_SSH_KEY`. The Flutter client fetches the manifest at startup (`PromotionalAdsConfigLoader`); bump `clientManifestQueryVersion` in that loader if you need to force a fresh fetch past browser caches.
 
-**Local testing (no VPS):** run `python3 playbooks/00_local/sync_promotional_ads_local.py -y`, then `cd playbooks/00_local/sponsors_static && python3 -m http.server 8765`, and point the app at `http://127.0.0.1:8765` via `API_URL`.
+**Local testing (no VPS):** run `python3 playbooks/00_local/sync_promotional_ads_local.py -y`, then `cd playbooks/00_local/app_media_static && python3 -m http.server 8765`, and point the app at `http://127.0.0.1:8765` via `API_URL`.
 
 ---
 

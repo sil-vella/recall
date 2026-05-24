@@ -4,28 +4,28 @@ Local promotional ads sync (same logic as playbooks/rop01/15_upload_promotional_
 without SSH).
 
 Reads:
-  - sponsors/promotional_ads.yaml  (repo root)
-  - sponsors/media/*  (images/videos; card_back.png and table_logo.png are excluded from the adverts copy)
+  - app_media/promotional_ads.yaml  (repo root)
+  - app_media/media/*  (images/videos; card_back.png and table_logo.png are excluded from the adverts copy)
 
-Writes a static site layout under playbooks/00_local/sponsors_static/:
-  sponsors/promotional_ads.json
-  sponsors/adverts/<files>
+Writes a static site layout under playbooks/00_local/app_media_static/:
+  app_media/promotional_ads.json
+  app_media/adverts/<files>
 
 Use this with a simple HTTP server so Flutter can load the same URLs as production:
-  GET ${API_URL}/sponsors/promotional_ads.json
-  GET ${API_URL}/sponsors/adverts/<filename>
+  GET ${API_URL}/app_media/promotional_ads.json
+  GET ${API_URL}/app_media/adverts/<filename>
 
 Requires: PyYAML (pip install pyyaml)
 
 Example:
   python3 playbooks/00_local/sync_promotional_ads_local.py
-  cd playbooks/00_local/sponsors_static && python3 -m http.server 8765
+  cd playbooks/00_local/app_media_static && python3 -m http.server 8765
 
 Then run the app with API_URL pointing at that server, e.g.:
   --dart-define=API_URL=http://127.0.0.1:8765
 
 Environment:
-  LOCAL_SPONSORS_OUT  Override output directory (default: playbooks/00_local/sponsors_static)
+  LOCAL_APP_MEDIA_OUT  Override output directory (default: playbooks/00_local/app_media_static)
 """
 
 from __future__ import annotations
@@ -46,13 +46,13 @@ except ImportError:
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 
-LOCAL_YAML = PROJECT_ROOT / "sponsors" / "promotional_ads.yaml"
-LOCAL_MEDIA_DIR = PROJECT_ROOT / "sponsors" / "media"
+LOCAL_YAML = PROJECT_ROOT / "app_media" / "promotional_ads.yaml"
+LOCAL_MEDIA_DIR = PROJECT_ROOT / "app_media" / "media"
 
 MEDIA_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".webm"}
 EXCLUDE_FROM_PROMO_BUNDLE = frozenset({"card_back.png", "table_logo.png"})
 
-DEFAULT_OUT = SCRIPT_DIR / "sponsors_static"
+DEFAULT_OUT = SCRIPT_DIR / "app_media_static"
 
 
 class Colors:
@@ -101,12 +101,12 @@ def main() -> None:
     args = parser.parse_args()
 
     out_root: Path = args.out if args.out is not None else Path(
-        os.environ.get("LOCAL_SPONSORS_OUT", str(DEFAULT_OUT))
+        os.environ.get("LOCAL_APP_MEDIA_OUT", str(DEFAULT_OUT))
     ).resolve()
 
-    sponsors_dir = out_root / "sponsors"
-    json_path = sponsors_dir / "promotional_ads.json"
-    adverts_dir = sponsors_dir / "adverts"
+    app_media_dir = out_root / "app_media"
+    json_path = app_media_dir / "promotional_ads.json"
+    adverts_dir = app_media_dir / "adverts"
 
     print(f"{Colors.BLUE}=== Local promotional ads sync ==={Colors.NC}\n")
 
@@ -140,7 +140,7 @@ def main() -> None:
             print(f"{Colors.RED}Non-interactive shell: re-run with -y{Colors.NC}", file=sys.stderr)
             sys.exit(1)
 
-    sponsors_dir.mkdir(parents=True, exist_ok=True)
+    app_media_dir.mkdir(parents=True, exist_ok=True)
     adverts_dir.mkdir(parents=True, exist_ok=True)
 
     json_path.write_text(
@@ -171,7 +171,7 @@ def main() -> None:
     print()
     print("  Example: --dart-define=API_URL=http://127.0.0.1:8765")
     print()
-    print("  Manifest URL: http://127.0.0.1:8765/sponsors/promotional_ads.json")
+    print("  Manifest URL: http://127.0.0.1:8765/app_media/promotional_ads.json")
 
 
 if __name__ == "__main__":

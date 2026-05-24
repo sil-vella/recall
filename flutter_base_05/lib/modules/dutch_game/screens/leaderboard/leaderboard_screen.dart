@@ -248,69 +248,79 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
       selectedTier: _selectedRankTier,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          identifier: 'leaderboard_podium',
-          child: Padding(
-            padding: AppPadding.defaultPadding.copyWith(bottom: 8),
-            child: _LeaderboardPodium(
-              rows: _tabIndex == 0 ? monthlyRows : yearlyRows,
-              periodError: _loadError,
+    final periodBody = _tabIndex == 0
+        ? _PeriodLeaderboardBody(
+            error: _loadError,
+            rows: monthlyRows,
+            viewerLine: monthlyViewerLine,
+            truncationNote: _truncationNote(true),
+            periodLabel: _monthlyPeriodTitle(),
+            emptyMessage: _emptyMessageMonthly(),
+            onRetry: _load,
+          )
+        : _PeriodLeaderboardBody(
+            error: _loadError,
+            rows: yearlyRows,
+            viewerLine: yearlyViewerLine,
+            truncationNote: _truncationNote(false),
+            periodLabel: _yearlyPeriodTitle(),
+            emptyMessage: _emptyMessageYearly(),
+            onRetry: _load,
+          );
+
+    return RefreshIndicator(
+      color: AppColors.accentColor,
+      onRefresh: _load,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Semantics(
+              identifier: 'leaderboard_podium',
+              child: Padding(
+                padding: AppPadding.defaultPadding.copyWith(bottom: 8),
+                child: _LeaderboardPodium(
+                  rows: _tabIndex == 0 ? monthlyRows : yearlyRows,
+                  periodError: _loadError,
+                ),
+              ),
             ),
           ),
-        ),
-        Padding(
-          padding: AppPadding.defaultPadding.copyWith(bottom: 8),
-          child: _PeriodTabBar(
-            tabIndex: _tabIndex,
-            onChanged: (i) => setState(() => _tabIndex = i),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: AppPadding.defaultPadding.copyWith(bottom: 8),
+              child: _PeriodTabBar(
+                tabIndex: _tabIndex,
+                onChanged: (i) => setState(() => _tabIndex = i),
+              ),
+            ),
           ),
-        ),
-        Padding(
-          padding: AppPadding.defaultPadding.copyWith(bottom: 8),
-          child: _RankTierChipBar(
-            selectedTier: _selectedRankTier,
-            userRankTier: _viewerRankTier(),
-            onTierChanged: (tier) => setState(() => _selectedRankTier = tier),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: AppPadding.defaultPadding.copyWith(bottom: 8),
+              child: _RankTierChipBar(
+                selectedTier: _selectedRankTier,
+                userRankTier: _viewerRankTier(),
+                onTierChanged: (tier) => setState(() => _selectedRankTier = tier),
+              ),
+            ),
           ),
-        ),
-        Padding(
-          padding: AppPadding.defaultPadding.copyWith(bottom: 8),
-          child: _LeaderboardActionsRow(
-            onHistory: () => NavigationManager().navigateTo('/dutch/leaderboard/history'),
-            onAchievements: () =>
-                NavigationManager().navigateTo('/dutch/leaderboard/achievements'),
-            onRefresh: _load,
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: AppPadding.defaultPadding.copyWith(bottom: 8),
+              child: _LeaderboardActionsRow(
+                onHistory: () =>
+                    NavigationManager().navigateTo('/dutch/leaderboard/history'),
+                onAchievements: () =>
+                    NavigationManager().navigateTo('/dutch/leaderboard/achievements'),
+                onRefresh: _load,
+              ),
+            ),
           ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            color: AppColors.accentColor,
-            onRefresh: _load,
-            child: _tabIndex == 0
-                ? _PeriodLeaderboardBody(
-                    error: _loadError,
-                    rows: monthlyRows,
-                    viewerLine: monthlyViewerLine,
-                    truncationNote: _truncationNote(true),
-                    periodLabel: _monthlyPeriodTitle(),
-                    emptyMessage: _emptyMessageMonthly(),
-                    onRetry: _load,
-                  )
-                : _PeriodLeaderboardBody(
-                    error: _loadError,
-                    rows: yearlyRows,
-                    viewerLine: yearlyViewerLine,
-                    truncationNote: _truncationNote(false),
-                    periodLabel: _yearlyPeriodTitle(),
-                    emptyMessage: _emptyMessageYearly(),
-                    onRetry: _load,
-                  ),
-          ),
-        ),
-      ],
+          ...periodBody.buildSlivers(),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
+      ),
     );
   }
 }
@@ -731,7 +741,7 @@ class _PeriodTabBar extends StatelessWidget {
   }
 }
 
-class _PeriodLeaderboardBody extends StatelessWidget {
+class _PeriodLeaderboardBody {
   const _PeriodLeaderboardBody({
     required this.error,
     required this.rows,
@@ -750,181 +760,197 @@ class _PeriodLeaderboardBody extends StatelessWidget {
   final String emptyMessage;
   final Future<void> Function() onRetry;
 
+  /// List section slivers for the parent [CustomScrollView] (not a nested scroll view).
+  List<Widget> buildSlivers() {
+    if (error != null) {
+      return [
+        SliverPadding(
+          padding: AppPadding.defaultPadding,
+          sliver: SliverToBoxAdapter(
+            child: DutchEmptyStateCard(
+              title: 'Leaderboard unavailable',
+              message: error!,
+              variant: DutchEmptyStateVariant.error,
+              actionLabel: 'Retry',
+              onAction: () => onRetry(),
+              semanticIdentifier: 'leaderboard_error',
+            ),
+          ),
+        ),
+      ];
+    }
+
+    final children = <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: _PeriodLeaderboardHeader(
+          periodLabel: periodLabel,
+          truncationNote: truncationNote,
+          viewerLine: viewerLine,
+        ),
+      ),
+    ];
+
+    if (rows.isEmpty) {
+      children.addAll([
+        const SizedBox(height: 16),
+        DutchEmptyStateCard(
+          message: emptyMessage,
+          icon: Icons.emoji_events_outlined,
+          semanticIdentifier: 'leaderboard_empty',
+        ),
+      ]);
+    } else {
+      for (var i = 0; i < rows.length; i++) {
+        if (i == 0) {
+          children.add(const SizedBox(height: 4));
+        } else {
+          children.add(const SizedBox(height: 6));
+        }
+        children.add(_LeaderboardRankRow(row: rows[i]));
+      }
+    }
+
+    return [
+      SliverPadding(
+        padding: AppPadding.defaultPadding,
+        sliver: SliverList(delegate: SliverChildListDelegate(children)),
+      ),
+    ];
+  }
+}
+
+class _PeriodLeaderboardHeader extends StatelessWidget {
+  const _PeriodLeaderboardHeader({
+    required this.periodLabel,
+    required this.truncationNote,
+    required this.viewerLine,
+  });
+
+  final String periodLabel;
+  final String? truncationNote;
+  final String? viewerLine;
+
   @override
   Widget build(BuildContext context) {
-    if (error != null) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppPadding.defaultPadding,
-        children: [
-          DutchEmptyStateCard(
-            title: 'Leaderboard unavailable',
-            message: error!,
-            variant: DutchEmptyStateVariant.error,
-            actionLabel: 'Retry',
-            onAction: () => onRetry(),
-            semanticIdentifier: 'leaderboard_error',
-          ),
-        ],
-      );
-    }
-    if (rows.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppPadding.defaultPadding,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          periodLabel,
+          style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
+        ),
+        if (truncationNote != null) ...[
+          const SizedBox(height: 4),
           Text(
-            periodLabel,
-            style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
-          ),
-          if (truncationNote != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              truncationNote!,
-              style: AppTextStyles.caption(color: AppColors.textTertiary),
-            ),
-          ],
-          if (viewerLine != null) ...[
-            const SizedBox(height: 6),
-            Semantics(
-              identifier: 'leaderboard_viewer_position',
-              label: viewerLine!,
-              child: Text(
-                viewerLine!,
-                style: AppTextStyles.bodyMedium(color: AppColors.white),
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          DutchEmptyStateCard(
-            message: emptyMessage,
-            icon: Icons.emoji_events_outlined,
-            semanticIdentifier: 'leaderboard_empty',
+            truncationNote!,
+            style: AppTextStyles.caption(color: AppColors.textTertiary),
           ),
         ],
-      );
-    }
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: AppPadding.defaultPadding,
-      itemCount: rows.length + 1,
-      separatorBuilder: (_, i) => i == 0 ? const SizedBox(height: 4) : const SizedBox(height: 6),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  periodLabel,
-                  style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
-                ),
-                if (truncationNote != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    truncationNote!,
-                    style: AppTextStyles.caption(color: AppColors.textTertiary),
-                  ),
-                ],
-                if (viewerLine != null) ...[
-                  const SizedBox(height: 6),
-                  Semantics(
-                    identifier: 'leaderboard_viewer_position',
-                    label: viewerLine!,
-                    child: Text(
-                      viewerLine!,
-                      style: AppTextStyles.bodyMedium(color: AppColors.white),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          );
-        }
-        final row = rows[index - 1];
-        final rank = row['rank']?.toString() ?? '';
-        final rankNum = int.tryParse(rank);
-        final isFirstPlace = rankNum == 1;
-        final name = _displayNameFromPeriodRow(row);
-        final wins = row['wins']?.toString() ?? '0';
-        final periodPts = _periodPointsFromRow(row);
-        final avgSec = _avgWinSecondsFromRow(row);
-        final avgTimeLabel = avgSec != null ? _formatDurationHrMinSec(avgSec) : '—';
-        final statColor = isFirstPlace
-            ? AppColors.matchPotGold
-            : AppColors.white.withValues(alpha: 0.72);
-        final statCaption = AppTextStyles.caption(color: AppColors.textSecondary);
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-          decoration: BoxDecoration(
-            color: isFirstPlace
-                ? AppColors.matchPotGold.withValues(alpha: 0.14)
-                : AppColors.accentContrast.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isFirstPlace
-                  ? AppColors.matchPotGold
-                  : AppColors.accentContrast.withValues(alpha: 0.45),
-              width: isFirstPlace ? 2 : 1,
+        if (viewerLine != null) ...[
+          const SizedBox(height: 6),
+          Semantics(
+            identifier: 'leaderboard_viewer_position',
+            label: viewerLine!,
+            child: Text(
+              viewerLine!,
+              style: AppTextStyles.bodyMedium(color: AppColors.white),
             ),
           ),
-          child: Row(
-            children: [
-              if (rank.isNotEmpty)
-                SizedBox(
-                  width: isFirstPlace ? 52 : 44,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isFirstPlace) ...[
-                        Icon(Icons.emoji_events, size: 18, color: AppColors.matchPotGold),
-                        const SizedBox(width: 4),
-                      ],
-                      Text(
-                        '#$rank',
-                        style: AppTextStyles.bodyMedium(
-                          color: isFirstPlace
-                              ? AppColors.matchPotGold
-                              : AppColors.white.withValues(alpha: 0.88),
-                        ).copyWith(
-                          fontWeight: isFirstPlace ? FontWeight.w800 : FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Expanded(
-                child: Text(
-                  name,
-                  style: AppTextStyles.bodyMedium(
-                    color: isFirstPlace
-                        ? AppColors.white
-                        : AppColors.white.withValues(alpha: 0.92),
-                  ).copyWith(
-                    fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+        ],
+      ],
+    );
+  }
+}
+
+class _LeaderboardRankRow extends StatelessWidget {
+  const _LeaderboardRankRow({required this.row});
+
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    final rank = row['rank']?.toString() ?? '';
+    final rankNum = int.tryParse(rank);
+    final isFirstPlace = rankNum == 1;
+    final name = _displayNameFromPeriodRow(row);
+    final wins = row['wins']?.toString() ?? '0';
+    final periodPts = _periodPointsFromRow(row);
+    final avgSec = _avgWinSecondsFromRow(row);
+    final avgTimeLabel = avgSec != null ? _formatDurationHrMinSec(avgSec) : '—';
+    final statColor = isFirstPlace
+        ? AppColors.matchPotGold
+        : AppColors.white.withValues(alpha: 0.72);
+    final statCaption = AppTextStyles.caption(color: AppColors.textSecondary);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      decoration: BoxDecoration(
+        color: isFirstPlace
+            ? AppColors.matchPotGold.withValues(alpha: 0.14)
+            : AppColors.accentContrast.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isFirstPlace
+              ? AppColors.matchPotGold
+              : AppColors.accentContrast.withValues(alpha: 0.45),
+          width: isFirstPlace ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          if (rank.isNotEmpty)
+            SizedBox(
+              width: isFirstPlace ? 52 : 44,
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (isFirstPlace) ...[
+                    Icon(Icons.emoji_events, size: 18, color: AppColors.matchPotGold),
+                    const SizedBox(width: 4),
+                  ],
                   Text(
-                    '$wins wins',
-                    style: AppTextStyles.bodyMedium(color: statColor).copyWith(
-                      fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
+                    '#$rank',
+                    style: AppTextStyles.bodyMedium(
+                      color: isFirstPlace
+                          ? AppColors.matchPotGold
+                          : AppColors.white.withValues(alpha: 0.88),
+                    ).copyWith(
+                      fontWeight: isFirstPlace ? FontWeight.w800 : FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text('$periodPts pts', style: statCaption),
-                  Text(avgTimeLabel, style: statCaption),
                 ],
               ),
+            ),
+          Expanded(
+            child: Text(
+              name,
+              style: AppTextStyles.bodyMedium(
+                color: isFirstPlace
+                    ? AppColors.white
+                    : AppColors.white.withValues(alpha: 0.92),
+              ).copyWith(
+                fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$wins wins',
+                style: AppTextStyles.bodyMedium(color: statColor).copyWith(
+                  fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text('$periodPts pts', style: statCaption),
+              Text(avgTimeLabel, style: statCaption),
             ],
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

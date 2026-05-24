@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Upload card-back pack files from:
-  sponsors/media/card_back/<pack_name>/card_back_<pack_name>.webp
+  app_media/media/card_back/<pack_name>/card_back_<pack_name>.webp
 
 to:
-  /var/www/dutch.reignofplay.com/sponsors/media/card_back/<pack_name>/card_back_<pack_name>.webp
+  /var/www/dutch.reignofplay.com/app_media/media/card_back/<pack_name>/card_back_<pack_name>.webp
 
 Usage:
   python playbooks/rop01/16_upload_card_back_packs.py --all
@@ -33,8 +33,8 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 VPS_SSH_TARGET = os.environ.get("VPS_SSH_TARGET", "rop01_user@65.181.125.135")
 VPS_SSH_KEY = os.environ.get("VPS_SSH_KEY", os.path.expanduser("~/.ssh/rop01_key"))
 
-LOCAL_BASE_DIR = PROJECT_ROOT / "sponsors" / "media" / "card_back"
-REMOTE_BASE_DIR = "/var/www/dutch.reignofplay.com/sponsors/media/card_back"
+LOCAL_BASE_DIR = PROJECT_ROOT / "app_media" / "media" / "card_back"
+REMOTE_BASE_DIR = "/var/www/dutch.reignofplay.com/app_media/media/card_back"
 
 
 def check_ssh_key() -> bool:
@@ -98,7 +98,7 @@ def upload_file(local_file: Path) -> bool:
 def parse_args():
     parser = argparse.ArgumentParser(description="Upload card-back pack webp files")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--all", action="store_true", help="Upload all packs found under sponsors/media/card_back")
+    group.add_argument("--all", action="store_true", help="Upload all packs found under app_media/media/card_back")
     group.add_argument("--pack", type=str, help="Upload one pack, e.g. juventus")
     return parser.parse_args()
 

@@ -19,7 +19,7 @@ class PromotionalBottomStrip extends StatelessWidget {
   /// Optional bundled asset path (rare; production uses [imageNetworkUrl]).
   final String? imageAssetPath;
 
-  /// Optional HTTPS URL for server-driven ads (`/sponsors/adverts/...`).
+  /// Optional HTTPS URL for server-driven ads (`/app_media/adverts/...`).
   final String? imageNetworkUrl;
 
   Future<void> _open() async {

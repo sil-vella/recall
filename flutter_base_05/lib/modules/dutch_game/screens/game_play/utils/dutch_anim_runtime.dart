@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../../../utils/platform/shared_imports.dart';
 import '../../../../../utils/dev_logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// In-memory animation bus for Dutch: **not** written through [StateManager], so updating
 /// queue or layout rects does **not** notify `dutch_game` listeners or rebuild unrelated widgets.

@@ -22,7 +22,7 @@ import '../../../utils/dutch_game_helpers.dart';
 import '../../../../../utils/dev_logger.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;

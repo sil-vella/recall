@@ -2,7 +2,7 @@ import '../../../../../utils/dev_logger.dart';
 import 'dutch_opponent_seat_layout.dart';
 
 /// When true, logs turn_feed seat resolution and hand_index fields ([LOGGING_SWITCH]).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Formats [turn_feed] entries from game state into short display lines.
 class DutchTurnFeedFormatter {

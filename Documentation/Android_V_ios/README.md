@@ -6,6 +6,8 @@ This document records **dependency pins** in `flutter_base_05/pubspec.yaml` that
 
 **Related:**
 
+- **iOS App Store release (full walkthrough):** [`IOS_APP_STORE_RELEASE_GUIDE.md`](IOS_APP_STORE_RELEASE_GUIDE.md)
+- **iOS release checklist (short):** [`Documentation/flutter_base_05/IOS_RELEASE_CHECKLIST.md`](../flutter_base_05/IOS_RELEASE_CHECKLIST.md)
 - AdMob wiring: [`Documentation/Admobs/README.md`](../Admobs/README.md)
 - Android AdMob native: [`Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md`](../flutter_base_05/ADMOB_NATIVE_SETUP.md)
 - iOS simulator launch: `.vscode/launch.json` → **Dutch: Flutter (iPhone) — .env.dart.defines.local**

@@ -21,7 +21,7 @@ import '../screens/promotion/dutch_achievement_celebration_screen.dart';
 import '../utils/dutch_achievement_catalog.dart';
 import '../../../utils/dev_logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types

@@ -4,7 +4,7 @@ import '../../../utils/dev_logger.dart';
 import '../../../core/managers/module_manager.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Player action types for the Dutch game
 enum PlayerActionType {

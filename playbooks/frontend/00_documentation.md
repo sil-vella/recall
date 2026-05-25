@@ -51,7 +51,28 @@ Use this script for **manual testing on a physical device**.
 
 ---
 
-### 3. `build_apk.sh`
+### 3. `build_ipa.sh`
+
+**Purpose**:
+- Builds a **release IPA** for Dutch (TestFlight / App Store upload).
+- Same production prep as `build_apk.sh` (dart-defines from `.env.dart.defines.prod`, version from `.env.prod`, deck config, `LOGGING_SWITCH` off).
+- Does **not** upload to App Store Connect — use Xcode Organizer or Transporter after the build.
+
+**Prerequisites**:
+- macOS with Xcode; CocoaPods; Apple Developer signing (team `D6J4Y6ZQGV` in `ios/Runner.xcodeproj`).
+- Add `APP_STORE_URL=https://apps.apple.com/app/id…` to `.env.dart.defines.prod` when the numeric App Store ID is known (iOS share links).
+
+**Usage**:
+
+```bash
+./playbooks/frontend/build_ipa.sh
+```
+
+**Full checklist**: `Documentation/flutter_base_05/IOS_RELEASE_CHECKLIST.md`
+
+---
+
+### 4. `build_apk.sh`
 
 **Purpose**:
 - Automates building the **Android release APK** for Dutch.
@@ -162,7 +183,7 @@ VPS_SSH_TARGET="rop01_user@65.181.125.135" ./playbooks/frontend/build_apk.sh
 
 ---
 
-### 4. `build_web.sh`
+### 5. `build_web.sh`
 
 **Purpose**:
 - Builds the Flutter **web** release and uploads it to the VPS so the app is served at **https://dutch.reignofplay.com** (and dutch.reignofplay.com). Nginx document root on the server is `/var/www/dutch.reignofplay.com`.

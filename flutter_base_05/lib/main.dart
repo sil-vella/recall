@@ -18,6 +18,7 @@ import 'utils/consts/theme_consts.dart';
 import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 import 'modules/admobs/admob_bootstrap.dart';
 import 'utils/dev_logger.dart';
+import 'utils/web_bootstrap_log.dart';
 import 'utils/consts/config.dart';
 
 // ignore: constant_identifier_names — set false when not debugging this entrypoint (release tooling may flip).
@@ -43,9 +44,13 @@ void _applyAndroidImmersiveBottomBar() {
 }
 
 Future<void> main() async {
+  webBootstrapLog('main() start');
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  // Keeps native splash visible until [FlutterNativeSplash.remove] (full bleed on Android 12+).
-  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  webBootstrapLog('WidgetsFlutterBinding.ensureInitialized');
+  // Web: pubspec `flutter_native_splash.web: false` — preserve/remove can leave a white overlay.
+  if (!kIsWeb) {
+    FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  }
   if (LOGGING_SWITCH) {
     customlog('main.dart entry');
     customlog(
@@ -72,13 +77,19 @@ Future<void> main() async {
   }
   _applyAndroidImmersiveBottomBar();
 
+  webBootstrapLog('PromotionalAdsConfigLoader.initialize start');
   await PromotionalAdsConfigLoader.initialize();
+  webBootstrapLog('PromotionalAdsConfigLoader.initialize done');
 
-  // Native: UMP (if applicable) + Google Mobile Ads SDK before any ad units load.
+  webBootstrapLog('bootstrapConsentAndMobileAds start');
   await bootstrapConsentAndMobileAds();
+  webBootstrapLog('bootstrapConsentAndMobileAds done');
 
-  // Initialize Firebase (Analytics, AdMob-ready) only when enabled.
-  if (FirebaseRuntimeConfig.isEnabled) {
+  webBootstrapLog(
+    'Firebase gate enabled=${FirebaseRuntimeConfig.isEnabled} '
+    'configured=${DefaultFirebaseOptions.isCurrentPlatformConfigured}',
+  );
+  if (FirebaseRuntimeConfig.isEnabled && DefaultFirebaseOptions.isCurrentPlatformConfigured) {
     try {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp(
@@ -115,8 +126,9 @@ Future<void> main() async {
   // Register core providers
   ProviderManager().registerCoreProviders();
 
-  // Warm splash bytes before first frame so bootstrap UI is not a black gap after native splash.
+  webBootstrapLog('register modules/providers done');
   await _warmBootstrapSplashAsset();
+  webBootstrapLog('runApp');
 
   runApp(
     MultiProvider(
@@ -167,6 +179,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       return;
     }
     _initStarted = true;
+    webBootstrapLog('MyApp._initializeApp start');
 
     try {
       final appManager = Provider.of<AppManager>(context, listen: false);
@@ -186,7 +199,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       
       // Initialize the app and wait for completion
       if (!appManager.isInitialized) {
+        webBootstrapLog('AppManager.initializeApp start');
         await appManager.initializeApp(context);
+        webBootstrapLog('AppManager.initializeApp done');
       }
 
       if (mounted) {
@@ -194,7 +209,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           _isInitializing = false;
         });
       }
+      webBootstrapLog('MyApp._initializeApp complete → MaterialApp.router');
     } catch (e, st) {
+      webBootstrapLog('_initializeApp failed: $e');
       debugPrint('[MyApp] _initializeApp failed: $e\n$st');
       if (mounted) {
         setState(() {
@@ -243,7 +260,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 Future<void> _warmBootstrapSplashAsset() async {
   try {
     await rootBundle.load(_kBootstrapSplashAsset);
+    webBootstrapLog('splash asset loaded');
   } catch (e, st) {
+    webBootstrapLog('splash asset load failed: $e');
     debugPrint('[main] bootstrap splash asset load failed: $e\n$st');
   }
 }
@@ -267,12 +286,17 @@ class _AppBootstrapSplashState extends State<_AppBootstrapSplash> {
 
   Future<void> _onFirstSplashFrame() async {
     if (!mounted) return;
+    webBootstrapLog('bootstrap splash first frame');
+    if (kIsWeb) {
+      return;
+    }
     final provider = const AssetImage(_kBootstrapSplashAsset);
     await precacheImage(provider, context);
     if (!mounted) return;
     if (!_nativeSplashRemoved) {
       _nativeSplashRemoved = true;
       FlutterNativeSplash.remove();
+      webBootstrapLog('FlutterNativeSplash.remove');
     }
   }
 

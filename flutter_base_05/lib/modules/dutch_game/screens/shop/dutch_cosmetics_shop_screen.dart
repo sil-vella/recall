@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/00_base/screen_base.dart';
+import '../../../../../utils/consts/config.dart';
+import '../../../../../utils/dev_logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../utils/consumables_catalog_bootstrap.dart';
 import '../../../../../utils/widgets/felt_texture_widget.dart';
 import '../../models/card_display_config.dart';
 import '../../models/card_model.dart';
@@ -42,6 +45,9 @@ class DutchCustomizeScreen extends BaseScreen {
 }
 
 class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
+  // Tracing shop tile previews (card back / table design show defaults).
+  static const bool LOGGING_SWITCH = true;
+
   static const String _kAccordionMyPacks = 'My Packs';
   static const String _kAccordionConsumables = 'Consumables';
   static const String _kAccordionCardBacks = 'Card Backs';
@@ -178,12 +184,71 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     final catalog = await DutchGameHelpers.getShopCatalog();
     final inventory = await DutchGameHelpers.fetchInventory() ?? {};
     if (!mounted) return;
+    if (LOGGING_SWITCH) {
+      _logCatalogCosmeticDiagnostics(catalog, phase: 'after getShopCatalog');
+    }
     setState(() {
       _catalog = catalog;
       _inventory = inventory;
       _loading = false;
     });
     _tryApplyPendingCustomizeHighlight();
+  }
+
+  void _logCatalogCosmeticDiagnostics(List<Map<String, dynamic>> catalog, {required String phase}) {
+    if (!LOGGING_SWITCH) return;
+    var cardBacks = 0;
+    var tables = 0;
+    var inlineStyle = 0;
+    var bootstrapStyle = 0;
+    for (final item in catalog) {
+      final type = item['item_type']?.toString() ?? '';
+      final id = item['item_id']?.toString() ?? '';
+      if (type == 'card_back') cardBacks++;
+      if (type == 'table_design') tables++;
+      final style = item['style'];
+      if (style is Map && style.isNotEmpty) inlineStyle++;
+      final boot = ConsumablesCatalogBootstrap.getStyleForItem(id);
+      if (boot.isNotEmpty) bootstrapStyle++;
+    }
+    customlog(
+      'CustomizeScreen $phase: catalog=${catalog.length} card_backs=$cardBacks '
+      'table_designs=$tables inlineStyle=$inlineStyle bootstrapStyle=$bootstrapStyle '
+      'bootstrapCache=${ConsumablesCatalogBootstrap.getCachedItems().length}',
+    );
+  }
+
+  void _logItemPreview(Map<String, dynamic> item) {
+    if (!LOGGING_SWITCH) return;
+    final id = item['item_id']?.toString() ?? '';
+    final type = item['item_type']?.toString() ?? '';
+    if (type != 'card_back' && type != 'table_design') return;
+    final inline = item['style'];
+    final inlineKeys = inline is Map ? Map<String, dynamic>.from(inline).keys.join(',') : 'none';
+    final boot = ConsumablesCatalogBootstrap.getStyleForItem(id);
+    final bootKeys = boot.keys.join(',');
+    if (type == 'card_back') {
+      final url = id.isNotEmpty
+          ? '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$id&v=3'
+          : '${Config.apiUrl}/app_media/media/card_back.webp?v=3';
+      customlog(
+        'CustomizeScreen preview card_back: id=$id inlineStyleKeys=$inlineKeys '
+        'bootstrapStyleKeys=$bootKeys imageUrl=$url',
+      );
+      return;
+    }
+    final overlayUrl = TableDesignStyleHelpers.buildOverlayUrl(
+      currentGameId: '',
+      equippedTableDesignId: id,
+      imageVersion: 1,
+    );
+    final borderStyle = TableDesignStyleHelpers.borderStyleForDesign(id);
+    final borderColors = TableDesignStyleHelpers.borderColorsForDesign(id);
+    customlog(
+      'CustomizeScreen preview table_design: id=$id inlineStyleKeys=$inlineKeys '
+      'bootstrapStyleKeys=$bootKeys borderStyle=$borderStyle borderColorCount=${borderColors.length} '
+      'juventus=${TableDesignStyleHelpers.isJuventusTableDesign(id)} overlayUrl=$overlayUrl',
+    );
   }
 
   bool _isOwned(Map<String, dynamic> item) {
@@ -683,6 +748,9 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   Widget _centeredItemPreview(Map<String, dynamic> item) {
     final type = item['item_type']?.toString() ?? '';
     final id = item['item_id']?.toString() ?? '';
+    if (LOGGING_SWITCH) {
+      _logItemPreview(item);
+    }
     return LayoutBuilder(
       builder: (context, c) {
         if (type == 'card_back') {
@@ -737,6 +805,12 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   }
 
   Widget _miniTableDesignPreview({required String skinId, required double width, required double height}) {
+    if (LOGGING_SWITCH) {
+      customlog(
+        'CustomizeScreen _miniTableDesignPreview build: skinId=$skinId '
+        'resolvedBorder=${TableDesignStyleHelpers.outerBorderColorForDesign(skinId)}',
+      );
+    }
     final tableStyle = DutchGamePlayTableStyles.forLevel(1);
     final borderColor = TableDesignStyleHelpers.outerBorderColorForDesign(skinId);
     final borderGlow = TableDesignStyleHelpers.outerBorderGlowForDesign(skinId);
@@ -830,11 +904,19 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                                       alignment: Alignment.center,
                                       width: maxW,
                                       height: maxH,
-                                      errorBuilder: (_, __, ___) => Icon(
-                                        Icons.table_restaurant,
-                                        size: math.min(maxW, maxH) * 0.35,
-                                        color: AppColors.warmSpotlightColor.withValues(alpha: 0.85),
-                                      ),
+                                      errorBuilder: (_, error, __) {
+                                        if (LOGGING_SWITCH) {
+                                          customlog(
+                                            'CustomizeScreen table overlay load failed: '
+                                            'skinId=$skinId url=$overlayUrl error=$error',
+                                          );
+                                        }
+                                        return Icon(
+                                          Icons.table_restaurant,
+                                          size: math.min(maxW, maxH) * 0.35,
+                                          color: AppColors.warmSpotlightColor.withValues(alpha: 0.85),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),

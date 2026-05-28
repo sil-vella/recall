@@ -11,6 +11,7 @@ import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
 import 'websockets/websocket_manager.dart';
+import '../../utils/web_bootstrap_log.dart';
 
 class AppManager extends ChangeNotifier {
   static final AppManager _instance = AppManager._internal();
@@ -46,47 +47,42 @@ class AppManager extends ChangeNotifier {
   Future<void> initializeApp(BuildContext context) async {
     if (!_isInitialized) {
       try {
-        // Register core providers
+        webBootstrapLog('AppManager: registerCoreProviders');
         _registerCoreProviders();
 
-        // Initialize ServicesManager and register core services
         final servicesManager = Provider.of<ServicesManager>(context, listen: false);
+        webBootstrapLog('AppManager: autoRegisterAllServices');
         await servicesManager.autoRegisterAllServices();
 
-        // Initialize AuthManager first
+        webBootstrapLog('AppManager: auth/adapters init');
         _authManager.initialize(context);
-
-        // Initialize AdaptersManager (automatically registers all adapters)
         _adaptersManager.initialize(this);
 
-        // Initialize adapters
+        webBootstrapLog('AppManager: initializeAdapters');
         await _initializeAdapters();
 
-        // Initialize modules (StateManager, NavigationManager, etc.)
+        webBootstrapLog('AppManager: initializeModules');
         await _initializeModules(context);
-        
-        // Register global hooks
+
         _registerGlobalHooks();
-        
-        // Validate session on startup
+
+        webBootstrapLog('AppManager: validateSessionOnStartup');
         final authStatus = await _authManager.validateSessionOnStartup();
-        
-        // WebSocket (Dart game server): init in background so cold start is not blocked when WS is down.
-        // NativeWebSocketAdapter already uses a short connect timeout, but awaiting here still delayed UI.
+        webBootstrapLog('AppManager: authStatus=$authStatus');
+
         if (authStatus == AuthStatus.loggedIn) {
           unawaited(_initWebSocketInBackground());
         }
-        
-        // Handle authentication state
+
+        webBootstrapLog('AppManager: handleAuthState');
         await _authManager.handleAuthState(context, authStatus);
-        
+
         _isInitialized = true;
         notifyListeners();
-        
-        // Mark app as initialized in HooksManager to process pending hooks
         _hooksManager.markAppInitialized();
-        
+        webBootstrapLog('AppManager: initialized');
       } catch (e) {
+        webBootstrapLog('AppManager: initializeApp error $e');
         rethrow;
       }
     }

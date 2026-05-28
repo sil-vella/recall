@@ -42,6 +42,12 @@ const _windowsMeasurementId = String.fromEnvironment('FIREBASE_WINDOWS_MEASUREME
 /// Default [FirebaseOptions] for use with your Firebase apps.
 /// Values come from dart-define (sourced from playbooks/frontend/.env by build/launch scripts).
 class DefaultFirebaseOptions {
+  /// True when [currentPlatform] has the minimum fields required for [Firebase.initializeApp].
+  static bool get isCurrentPlatformConfigured {
+    final o = currentPlatform;
+    return o.apiKey.isNotEmpty && o.appId.isNotEmpty && o.projectId.isNotEmpty;
+  }
+
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
       return web;

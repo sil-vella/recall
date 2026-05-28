@@ -6,15 +6,23 @@
 #   ./run_flutter_app_to_global_log.sh android <adb_serial>
 #   ./run_flutter_app_to_global_log.sh ios <simulator_or_device_id>
 #   ./run_flutter_app_to_global_log.sh chrome
+#   ./run_flutter_app_to_global_log.sh --prod chrome   # .env.dart.defines.prod (release URLs / AdMob)
 #
-# Dart-define SSOT: repo-root `.env.dart.defines.local` (see flutter_dart_defines_common.sh).
+# Dart-define SSOT: `.env.dart.defines.local` (default) or `.env.dart.defines.prod` with --prod.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOG="$REPO_ROOT/global.log"
 FLUTTER_DIR="$REPO_ROOT/flutter_base_05"
-DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.local"
+
+if [[ "${1:-}" == "--prod" ]]; then
+  shift
+  DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.prod"
+  echo "⚠️  Production dart-defines: $DART_DEFINES_ENV (live API/WS/AdMob — same as release builds)" >&2
+else
+  DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.local"
+fi
 
 # shellcheck source=flutter_dart_defines_common.sh
 source "$SCRIPT_DIR/flutter_dart_defines_common.sh"
@@ -118,12 +126,24 @@ case "$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')" in
     exit "${PIPESTATUS[0]}"
     ;;
   chrome)
+    # Web: no Firebase (no FIREBASE_WEB_* / no web SDK config). Native devices keep FIREBASE_SWITCH from env file.
+    # Fixed host/port (matches launch_chrome.sh) — avoids random ports and profile conflicts.
+    export CHROME_EXECUTABLE="${CHROME_EXECUTABLE:-$SCRIPT_DIR/chrome_no_disable_extensions.sh}"
+    chrome_user_data="${CHROME_USER_DATA_DIR:-$HOME/.flutter_chrome_profile}"
+    chrome_profile="${CHROME_PROFILE_DIR:-Default}"
+    echo "Chrome: http://localhost:3002 (user-data-dir=$chrome_user_data, Firebase off)" >&2
     flutter run -d chrome \
       --dart-define=DUTCH_DEV_LOG=1 \
+      --dart-define=FIREBASE_SWITCH=false \
+      --web-port=3002 \
+      --web-hostname=localhost \
+      --web-browser-flag="--user-data-dir=$chrome_user_data" \
+      --web-browser-flag="--profile-directory=$chrome_profile" \
       --dart-define-from-file="$DART_DEF_JSON" 2>&1 | awk -v logf="$LOG" '
       {
         print
-        if (($0 ~ /I\/flutter/ || $0 ~ /I flutter/) && $0 ~ /\[dev\]/) {
+        # Web: logs often lack the Android "I/flutter" prefix; match any [dev] line.
+        if ($0 ~ /\[dev\]/) {
           if ($0 != prev) {
             print >> logf
             fflush(logf)
@@ -135,7 +155,7 @@ case "$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')" in
     exit "${PIPESTATUS[0]}"
     ;;
   *)
-    echo "usage: $0 android <adb_serial>|ios <device_id>|chrome" >&2
+    echo "usage: $0 [--prod] android <adb_serial>|ios <device_id>|chrome" >&2
     exit 1
     ;;
 esac

@@ -124,6 +124,7 @@ echo_and_server_log "⏳ Starting flutter run (compile may take 1–2 min with l
 flutter run \
     -d chrome \
     --dart-define=DUTCH_DEV_LOG=1 \
+    --dart-define=FIREBASE_SWITCH=false \
     --web-port=3002 \
     --web-hostname=localhost \
     --web-browser-flag="--user-data-dir=$CHROME_USER_DATA_DIR" \

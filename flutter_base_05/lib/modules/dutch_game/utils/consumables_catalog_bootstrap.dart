@@ -2,6 +2,10 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../utils/dev_logger.dart';
+
+const bool LOGGING_SWITCH = true;
+
 /// Persists declarative Dutch consumables catalog from `get-user-stats`.
 ///
 /// Efficient path mirrors table tiers:
@@ -77,6 +81,17 @@ class ConsumablesCatalogBootstrap {
     if (rev.isNotEmpty) {
       await prefs.setString(prefRevisionKey, rev);
     }
+    if (LOGGING_SWITCH) {
+      var withStyle = 0;
+      for (final item in items) {
+        final style = item['style'];
+        if (style is Map && style.isNotEmpty) withStyle++;
+      }
+      customlog(
+        'ConsumablesCatalogBootstrap.mergeCatalogItems: count=${items.length} '
+        'withStyle=$withStyle revision=${rev.isEmpty ? "(none)" : rev}',
+      );
+    }
   }
 
   static List<Map<String, dynamic>> getCachedItems() {
@@ -97,8 +112,16 @@ class ConsumablesCatalogBootstrap {
   }
 
   static Map<String, dynamic> getStyleForItem(String itemId) {
-    final item = getCachedItemById(itemId);
+    final id = itemId.trim();
+    final item = getCachedItemById(id);
     final style = item?['style'];
+    if (LOGGING_SWITCH && (id.startsWith('card_back') || id.startsWith('table_design'))) {
+      customlog(
+        'ConsumablesCatalogBootstrap.getStyleForItem: id=$id cachedHit=${item != null} '
+        'styleKeys=${style is Map ? Map<String, dynamic>.from(style).keys.join(",") : "none"} '
+        'cacheSize=${getCachedItems().length}',
+      );
+    }
     if (style is Map) return Map<String, dynamic>.from(style);
     return const <String, dynamic>{};
   }

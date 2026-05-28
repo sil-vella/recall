@@ -51,6 +51,8 @@
 		<false/>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Select a photo for your profile.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Microphone access is used only when audio features require recording.</string>
 		<key>GADApplicationIdentifier</key>
 		<string>$(GAD_APPLICATION_ID)</string>
 	</dict>

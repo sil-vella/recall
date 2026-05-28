@@ -7,6 +7,8 @@ This document records **dependency pins** in `flutter_base_05/pubspec.yaml` that
 **Related:**
 
 - **iOS App Store release (full walkthrough):** [`IOS_APP_STORE_RELEASE_GUIDE.md`](IOS_APP_STORE_RELEASE_GUIDE.md)
+- **iOS IAP setup (match Android coin packs + Premium):** [`IOS_IN_APP_PURCHASES_SETUP.md`](IOS_IN_APP_PURCHASES_SETUP.md)
+- **Coin / IAP product ID SSOT:** [`COIN_CATALOG_SSOT.md`](COIN_CATALOG_SSOT.md)
 - **iOS release checklist (short):** [`Documentation/flutter_base_05/IOS_RELEASE_CHECKLIST.md`](../flutter_base_05/IOS_RELEASE_CHECKLIST.md)
 - AdMob wiring: [`Documentation/Admobs/README.md`](../Admobs/README.md)
 - Android AdMob native: [`Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md`](../flutter_base_05/ADMOB_NATIVE_SETUP.md)

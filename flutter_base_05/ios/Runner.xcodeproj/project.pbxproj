@@ -164,7 +164,6 @@
 				9E5E2443AD15DE7479FE4163 /* Pods-RunnerTests.release.xcconfig */,
 				7AB937BAD77090E2AEBF2348 /* Pods-RunnerTests.profile.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -497,10 +496,13 @@
 				DEVELOPMENT_TEAM = D6J4Y6ZQGV;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Dutch Card Game";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.card-games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 2.0.20;
 				PRODUCT_BUNDLE_IDENTIFIER = com.reignofplay.dutch;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -681,10 +683,13 @@
 				DEVELOPMENT_TEAM = D6J4Y6ZQGV;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Dutch Card Game";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.card-games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 2.0.20;
 				PRODUCT_BUNDLE_IDENTIFIER = com.reignofplay.dutch;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -705,10 +710,13 @@
 				DEVELOPMENT_TEAM = D6J4Y6ZQGV;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Dutch Card Game";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.card-games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 2.0.20;
 				PRODUCT_BUNDLE_IDENTIFIER = com.reignofplay.dutch;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";

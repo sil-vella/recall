@@ -92,8 +92,6 @@ class CardWidget extends StatelessWidget {
     final catalogColor = _parseHexColor(style['card_background_color']?.toString());
     if (catalogColor != null) return catalogColor;
     switch (equippedCardBackId.trim()) {
-      case 'card_back_juventus':
-        return AppColors.white;
       case 'card_back_ocean':
         return AppColors.pokerTableBlue;
       case 'card_back_ember':
@@ -131,8 +129,6 @@ class CardWidget extends StatelessWidget {
     final catalogColor = _parseHexColor(style['frame_border_color']?.toString());
     if (catalogColor != null) return catalogColor;
     switch (equippedCardBackId.trim()) {
-      case 'card_back_juventus':
-        return AppColors.darkGray;
       case 'card_back_ocean':
         return AppColors.matchPotGold;
       case 'card_back_ember':

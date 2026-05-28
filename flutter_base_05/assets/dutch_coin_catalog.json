@@ -1,11 +1,15 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "subscriber_coin_bonus_percent": 11,
   "premium_subscription": {
     "product_id": "premium_subscription",
     "base_plans": {
       "monthly": "premium-auto-renew-monthly",
       "yearly": "premium-auto-renew-yearly"
+    },
+    "apple_product_ids": {
+      "monthly": "premium_auto_renew_monthly",
+      "yearly": "premium_auto_renew_yearly"
     },
     "benefits_short": "Ad-free play and +11% coins on every coin pack"
   },
@@ -34,7 +38,7 @@
     { "key": "grinder", "label": "Coin pack — 1500", "coins": 1500, "priceLabel": "$9.99", "description": "Adds 1500 coins to your balance. Coins are used for table fees and in-game purchases." },
     { "key": "pro", "label": "Coin pack — 3500", "coins": 3500, "priceLabel": "$19.99", "description": "Adds 3500 coins to your balance. Coins are used for table fees and in-game purchases." }
   ],
-  "play_recommended_packages": [
+  "store_recommended_packages": [
     { "product_id": "coins_100", "label": "Coin pack — 100", "coins": 100, "priceLabel": "", "description": "Adds 100 coins to your balance. Coins are used for table fees and in-game purchases." },
     { "product_id": "coins_300", "label": "Coin pack — 300", "coins": 300, "priceLabel": "", "description": "Adds 300 coins to your balance. Coins are used for table fees and in-game purchases." },
     { "product_id": "coin_500", "label": "Coin pack — 500", "coins": 500, "priceLabel": "", "description": "Adds 500 coins to your balance. Coins are used for table fees and in-game purchases." },

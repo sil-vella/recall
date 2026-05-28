@@ -11,7 +11,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class DutchGameRound {
   final GameStateCallback _stateCallback;

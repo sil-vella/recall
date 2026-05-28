@@ -9,7 +9,7 @@ class CoinCatalog {
   /// Play/App Store product id → coins (for future native IAP; catalog key `in_app_products`).
   static Map<String, int>? _inAppProducts;
   static List<Map<String, dynamic>>? _recommendedUi;
-  static List<Map<String, dynamic>>? _playRecommendedUi;
+  static List<Map<String, dynamic>>? _storeRecommendedUi;
   static int _subscriberCoinBonusPercent = 0;
   static Map<String, dynamic> _premiumSubscription = const {};
   static bool _loadFailed = false;
@@ -24,6 +24,16 @@ class CoinCatalog {
 
   static String get premiumBasePlanYearly =>
       ((_premiumSubscription['base_plans'] as Map?)?['yearly'] as String?)?.trim() ?? '';
+
+  /// App Store subscription product IDs (must be Apple-valid: letters/numbers, periods, underscores).
+  /// Falls back to base plan ids for older catalog versions.
+  static String get premiumAppleProductIdMonthly =>
+      ((_premiumSubscription['apple_product_ids'] as Map?)?['monthly'] as String?)?.trim() ??
+      premiumBasePlanMonthly;
+
+  static String get premiumAppleProductIdYearly =>
+      ((_premiumSubscription['apple_product_ids'] as Map?)?['yearly'] as String?)?.trim() ??
+      premiumBasePlanYearly;
 
   static String get premiumBenefitsShort =>
       (_premiumSubscription['benefits_short'] as String?)?.trim() ??
@@ -42,9 +52,13 @@ class CoinCatalog {
   static List<Map<String, dynamic>> get recommendedUiPackages =>
       List<Map<String, dynamic>>.unmodifiable(_recommendedUi ?? const []);
 
-  /// Google Play product rows from [play_recommended_packages] (product_id must exist in in_app_products).
-  static List<Map<String, dynamic>> get playRecommendedPackages =>
-      List<Map<String, dynamic>>.unmodifiable(_playRecommendedUi ?? const []);
+  /// Native store coin pack rows from [store_recommended_packages] (product_id must exist in [in_app_products]).
+  /// Same product IDs for Google Play and App Store Connect.
+  static List<Map<String, dynamic>> get storeRecommendedPackages =>
+      List<Map<String, dynamic>>.unmodifiable(_storeRecommendedUi ?? const []);
+
+  /// Deprecated alias — use [storeRecommendedPackages].
+  static List<Map<String, dynamic>> get playRecommendedPackages => storeRecommendedPackages;
 
   static Future<void> ensureLoaded() async {
     if (_inAppProducts != null || _loadFailed) return;
@@ -60,9 +74,11 @@ class CoinCatalog {
       _inAppProducts = ip.map((k, v) => MapEntry(k, (v as num).toInt()));
       final rec = map['recommended_ui_packages'] as List<dynamic>? ?? [];
       _recommendedUi = rec.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      final playRec = map['play_recommended_packages'] as List<dynamic>? ?? [];
+      final storeRec = map['store_recommended_packages'] as List<dynamic>? ??
+          map['play_recommended_packages'] as List<dynamic>? ??
+          [];
       final built = <Map<String, dynamic>>[];
-      for (final e in playRec) {
+      for (final e in storeRec) {
         if (e is! Map) continue;
         final row = Map<String, dynamic>.from(e);
         final pid = row['product_id']?.toString() ?? '';
@@ -70,12 +86,12 @@ class CoinCatalog {
         row['coins'] = _inAppProducts![pid];
         built.add(row);
       }
-      _playRecommendedUi = built;
+      _storeRecommendedUi = built;
     } catch (e) {
       _loadFailed = true;
       _inAppProducts = {};
       _recommendedUi = [];
-      _playRecommendedUi = [];
+      _storeRecommendedUi = [];
       _subscriberCoinBonusPercent = 0;
       _premiumSubscription = {};
     }

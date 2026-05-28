@@ -1,6 +1,8 @@
 # iOS App Store release checklist (Dutch Card Game)
 
-**Full walkthrough (Apple account → IPA):** [`Documentation/Android_V_ios/IOS_APP_STORE_RELEASE_GUIDE.md`](../Android_V_ios/IOS_APP_STORE_RELEASE_GUIDE.md)
+**Full walkthrough (Apple account → IPA):** [`Documentation/Android_V_ios/IOS_APP_STORE_RELEASE_GUIDE.md`](../Android_V_ios/IOS_APP_STORE_RELEASE_GUIDE.md)  
+**Coin packs + Premium (match Play):** [`Documentation/Android_V_ios/IOS_IN_APP_PURCHASES_SETUP.md`](../Android_V_ios/IOS_IN_APP_PURCHASES_SETUP.md)  
+**Product ID SSOT:** [`Documentation/Android_V_ios/COIN_CATALOG_SSOT.md`](../Android_V_ios/COIN_CATALOG_SSOT.md)
 
 Bundle ID: **`com.reignofplay.dutch`**  
 Team ID (Xcode): **`D6J4Y6ZQGV`**  

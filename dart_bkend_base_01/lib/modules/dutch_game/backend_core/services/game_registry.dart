@@ -8,7 +8,7 @@ import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Wall-clock seconds from first round start to game end (capped at 24h).
 int _matchDurationSecondsFromGameState(Map<String, dynamic> gameState) {

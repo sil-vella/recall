@@ -1,6 +1,7 @@
 """
-Single source of truth for Dutch coin SKUs (future native store product ids + Stripe web packages).
+Single source of truth for Dutch coin SKUs (Google Play, App Store, Stripe web).
 Data file: flutter_base_05/assets/dutch_coin_catalog.json (same path the Flutter app bundles).
+Native UI rows: store_recommended_packages (legacy play_recommended_packages).
 """
 from __future__ import annotations
 
@@ -30,18 +31,23 @@ def get_subscriber_coin_bonus_percent() -> int:
 
 
 def get_premium_subscription_config() -> Dict[str, Any]:
-    """Play subscription product id and base plan ids from catalog."""
+    """Premium subscription IDs for Play (SKU + base plans) and Apple (product IDs)."""
     raw = _raw_catalog()
     prem = raw.get("premium_subscription")
     if not isinstance(prem, dict):
         return {}
     product_id = str(prem.get("product_id") or "").strip()
     base_plans = prem.get("base_plans") if isinstance(prem.get("base_plans"), dict) else {}
+    apple_ids = prem.get("apple_product_ids") if isinstance(prem.get("apple_product_ids"), dict) else {}
     return {
         "product_id": product_id,
         "base_plans": {
             "monthly": str(base_plans.get("monthly") or "").strip(),
             "yearly": str(base_plans.get("yearly") or "").strip(),
+        },
+        "apple_product_ids": {
+            "monthly": str(apple_ids.get("monthly") or "").strip(),
+            "yearly": str(apple_ids.get("yearly") or "").strip(),
         },
         "benefits_short": str(prem.get("benefits_short") or "").strip(),
     }
@@ -63,11 +69,20 @@ def _coin_pack_description(coins: int, row: Dict[str, Any]) -> str:
     return f"Adds {int(coins)} coins to your balance. Coins are used for table fees and in-game purchases."
 
 
-def get_play_recommended_packages() -> List[Dict[str, Any]]:
-    """Rows for Google Play store UI: product_id, label, coins, description, optional priceLabel, optional isPopular."""
+def _store_recommended_rows() -> List[Dict[str, Any]]:
+    """Catalog rows for native store UI (Play + App Store). Prefers `store_recommended_packages`."""
+    raw = _raw_catalog()
+    rows = raw.get("store_recommended_packages")
+    if not rows:
+        rows = raw.get("play_recommended_packages") or []
+    return rows if isinstance(rows, list) else []
+
+
+def get_store_recommended_packages() -> List[Dict[str, Any]]:
+    """Rows for native store UI: product_id, label, coins, description, optional priceLabel, optional isPopular."""
     out: List[Dict[str, Any]] = []
     products = get_in_app_product_coins()
-    for row in _raw_catalog().get("play_recommended_packages") or []:
+    for row in _store_recommended_rows():
         pid = str(row.get("product_id") or "").strip()
         if not pid or pid not in products:
             continue
@@ -84,6 +99,11 @@ def get_play_recommended_packages() -> List[Dict[str, Any]]:
             }
         )
     return out
+
+
+def get_play_recommended_packages() -> List[Dict[str, Any]]:
+    """Deprecated alias for [get_store_recommended_packages]."""
+    return get_store_recommended_packages()
 
 
 def get_stripe_package_rows(config_module: Any) -> Tuple[Dict[str, Any], ...]:

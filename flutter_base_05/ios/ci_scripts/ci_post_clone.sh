@@ -43,6 +43,31 @@ flutter build ios --config-only --no-codesign
 
 cd ios
 rm -rf Pods .symlinks
-pod install --repo-update
+
+# Avoid hard-failing on transient CDN DNS issues.
+# 1) Try plain pod install first (uses cached specs if available).
+# 2) Retry with repo update using exponential backoff.
+if pod install; then
+  echo "pod install succeeded without repo update"
+else
+  echo "pod install failed; retrying with --repo-update"
+  attempts=0
+  max_attempts=4
+  sleep_seconds=5
+  until [ "$attempts" -ge "$max_attempts" ]; do
+    if pod install --repo-update; then
+      echo "pod install --repo-update succeeded"
+      break
+    fi
+    attempts=$((attempts + 1))
+    if [ "$attempts" -ge "$max_attempts" ]; then
+      echo "ERROR: pod install failed after ${max_attempts} attempts"
+      exit 1
+    fi
+    echo "Retry ${attempts}/${max_attempts} after ${sleep_seconds}s..."
+    sleep "$sleep_seconds"
+    sleep_seconds=$((sleep_seconds * 2))
+  done
+fi
 
 echo "===> Post-clone complete"

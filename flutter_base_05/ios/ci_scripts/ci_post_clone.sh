@@ -44,7 +44,7 @@ flutter build ios --config-only --no-codesign
 # Keep Flutter-generated xcconfig aligned with Xcode CURRENT_PROJECT_VERSION (20035).
 GENERATED_XCCONFIG="${FLUTTER_APP_DIR}/ios/Flutter/Generated.xcconfig"
 if [ -f "${GENERATED_XCCONFIG}" ]; then
-  sed -i '' 's/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=20037/' "${GENERATED_XCCONFIG}"
+  sed -i '' 's/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=20039/' "${GENERATED_XCCONFIG}"
 fi
 
 cd ios

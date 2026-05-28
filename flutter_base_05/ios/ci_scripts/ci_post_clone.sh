@@ -32,6 +32,9 @@ fi
 
 flutter --version
 flutter config --no-analytics
+# Temporary compatibility: google_mobile_ads is CocoaPods-only while some plugins
+# can switch to SPM in newer Flutter toolchains.
+flutter config --no-enable-swift-package-manager
 flutter pub get
 flutter precache --ios
 

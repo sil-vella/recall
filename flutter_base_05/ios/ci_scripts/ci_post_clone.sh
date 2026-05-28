@@ -33,8 +33,13 @@ fi
 flutter --version
 flutter config --no-analytics
 flutter pub get
+flutter precache --ios
+
+# Ensure iOS plugin registrant/symlinks are generated before CocoaPods resolution.
+flutter build ios --config-only --no-codesign
 
 cd ios
+rm -rf Pods .symlinks
 pod install --repo-update
 
 echo "===> Post-clone complete"

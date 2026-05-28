@@ -5,16 +5,23 @@ echo "===> Xcode Cloud post-clone start"
 echo "CI_WORKSPACE: ${CI_WORKSPACE:-"(not set)"}"
 echo "PWD: $(pwd)"
 
-# Xcode Cloud usually sets CI_WORKSPACE; fall back to current dir.
-REPO_ROOT="${CI_WORKSPACE:-$(pwd)}"
-cd "${REPO_ROOT}"
+# Derive paths from script location so this works even when CI_WORKSPACE is unset.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+IOS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+FLUTTER_APP_DIR="$(cd "${IOS_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${FLUTTER_APP_DIR}/.." && pwd)"
 
-if [ ! -d "flutter_base_05" ]; then
-  echo "ERROR: flutter_base_05 directory not found at ${REPO_ROOT}"
+echo "SCRIPT_DIR: ${SCRIPT_DIR}"
+echo "IOS_DIR: ${IOS_DIR}"
+echo "FLUTTER_APP_DIR: ${FLUTTER_APP_DIR}"
+echo "REPO_ROOT: ${REPO_ROOT}"
+
+if [ ! -f "${FLUTTER_APP_DIR}/pubspec.yaml" ]; then
+  echo "ERROR: pubspec.yaml not found at ${FLUTTER_APP_DIR}"
   exit 1
 fi
 
-cd flutter_base_05
+cd "${FLUTTER_APP_DIR}"
 
 # Ensure Flutter is available on the runner.
 if ! command -v flutter >/dev/null 2>&1; then

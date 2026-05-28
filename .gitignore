@@ -108,6 +108,9 @@ flutter_base_05/assets/videos/
 *.svg
 *.webp
 
+# Allow iOS app asset catalogs (icons/splash) to be tracked for CI/App Store builds.
+!flutter_base_05/ios/Runner/Assets.xcassets/**/*
+
 # Data directories
 db_data/
 redis_data/

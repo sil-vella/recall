@@ -50,6 +50,8 @@ dependencies:
   firebase_analytics: 11.0.0
   in_app_purchase: ^3.2.0
   in_app_purchase_android: ^0.4.0
+  # Keep compatible with local Dart 3.8.x while satisfying CocoaPods resolution in CI.
+  webview_flutter_wkwebview: 3.23.0
 
 dev_dependencies:
   flutter_test:

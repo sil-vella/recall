@@ -208,8 +208,8 @@ def main() -> int:
             pack = _pack_from_item_id(item_id, "table_design_")
             if not pack:
                 continue
-            out = MEDIA_ROOT / "table_design" / pack / f"table_design_overlay_{pack}.webp"
             rgb = _border_color(style) or default_table_rgb
+            out = MEDIA_ROOT / "table_design" / pack / f"table_design_overlay_{pack}.webp"
             img = _make_table_image(rgb)
             if _write_webp(out, img, args.force):
                 created += 1

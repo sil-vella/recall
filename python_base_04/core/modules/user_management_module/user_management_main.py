@@ -36,7 +36,7 @@ from core.services.analytics_service import AnalyticsService
 from tools.dev_logger import customlog
 
 # Flip False when done debugging auth (see Documentation/Logging/LOGGING_SYSTEM.md).
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class UserManagementModule(BaseModule):

@@ -85,6 +85,10 @@ class TableDesignStyleHelpers {
           ? '${Config.apiUrl}/app_media/media/table_design_overlay.webp?skinId=$equippedTableDesignId&gameId=$currentGameId&v=$imageVersion'
           : '${Config.apiUrl}/app_media/media/table_design_overlay.webp?skinId=$equippedTableDesignId&v=$imageVersion';
     }
+    return buildDefaultTableLogoUrl(currentGameId: currentGameId);
+  }
+
+  static String buildDefaultTableLogoUrl({required String currentGameId}) {
     return currentGameId.isNotEmpty
         ? '${Config.apiUrl}/app_media/media/table_logo.webp?gameId=$currentGameId&v=2'
         : '${Config.apiUrl}/app_media/media/table_logo.webp?v=2';

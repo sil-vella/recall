@@ -19,9 +19,11 @@ import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
+import '../../../../utils/dev_logger.dart';
 import 'utils/table_design_style_helpers.dart';
 
-/// When true, logs screen build and rebuild timing for this screen.
+/// When true, logs table design overlay context on game play screen build.
+const bool LOGGING_SWITCH = false;
 
 /// Custom painter for gradient border - fades from light brown to darker brown
 /// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
@@ -397,6 +399,48 @@ class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
   }
 }
 
+/// Full-bleed table design overlay: scales to cover the felt and stays centered.
+Widget _tableDesignOverlayImage({
+  ImageProvider? image,
+  String? networkUrl,
+  String? fallbackAsset,
+}) {
+  Widget buildImage(ImageProvider provider) {
+    return SizedBox.expand(
+      child: Image(
+        image: provider,
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  if (networkUrl != null && networkUrl.isNotEmpty) {
+    return SizedBox.expand(
+      child: Image.network(
+        networkUrl,
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) {
+          if (fallbackAsset != null && fallbackAsset.isNotEmpty) {
+            return buildImage(AssetImage(fallbackAsset));
+          }
+          return const SizedBox.shrink();
+        },
+      ),
+    );
+  }
+
+  if (image != null) {
+    return buildImage(image);
+  }
+
+  return const SizedBox.shrink();
+}
+
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
 
@@ -691,6 +735,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     final equippedTableDesignId =
         isSpecialEventMatch ? '' : (equipped['table_design_id']?.toString() ?? '');
     final currentGameId = dutchSnapshot['currentGameId']?.toString() ?? '';
+    if (LOGGING_SWITCH) {
+      customlog(
+        'GamePlayScreen table design: skinId=$equippedTableDesignId gameId=$currentGameId '
+        'specialEvent=$isSpecialEventMatch level=$playTableLevel',
+      );
+    }
     final specialEventId = resolvedSpecialEventId;
     final tableStyle = DutchGamePlayTableStyles.resolveStyle(
       level: playTableLevel,
@@ -802,7 +852,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                             equippedTableDesignId: equippedTableDesignId,
                             imageVersion: 1,
                           );
-                          
+
                           return Stack(
                             children: [
                               Positioned.fill(
@@ -828,44 +878,17 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                                     ),
                                   ),
                                 ),
-                              // Table cosmetic overlay: centered and 90% of table area with preserved ratio.
+                              // Table cosmetic overlay: full-bleed, centered cover.
                               Positioned.fill(
-                                child: Center(
-                                  child: SizedBox(
-                                    // Strict 65% width of table; height is capped to 65% only if ratio would overflow.
-                                    width: innerConstraints.maxWidth * 0.65,
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxHeight: innerConstraints.maxHeight * 0.65,
-                                      ),
-                                      child: Opacity(
-                                        opacity: 0.22,
-                                        child: FittedBox(
-                                          fit: BoxFit.fitWidth,
-                                          alignment: Alignment.center,
-                                          child: (isPracticeMode || isSpecialEventMatch)
-                                              ? Image(
-                                                  image: const AssetImage('assets/images/table_logo.webp'),
-                                                  fit: BoxFit.contain,
-                                                  errorBuilder: (context, error, stackTrace) =>
-                                                      const SizedBox.shrink(),
-                                                )
-                                              : Image.network(
-                                                  overlayUrl,
-                                                  fit: BoxFit.contain,
-                                                  errorBuilder: (context, error, stackTrace) {
-                                                    return Image(
-                                                      image: const AssetImage('assets/images/table_logo.webp'),
-                                                      fit: BoxFit.contain,
-                                                      errorBuilder: (context, err, st) =>
-                                                          const SizedBox.shrink(),
-                                                    );
-                                                  },
-                                                ),
+                                child: IgnorePointer(
+                                  child: (isPracticeMode || isSpecialEventMatch)
+                                      ? _tableDesignOverlayImage(
+                                          image: const AssetImage('assets/images/table_logo.webp'),
+                                        )
+                                      : _tableDesignOverlayImage(
+                                          networkUrl: overlayUrl,
+                                          fallbackAsset: 'assets/images/table_logo.webp',
                                         ),
-                                      ),
-                                    ),
-                                  ),
                                 ),
                               ),
                               // Main content - transparent so background shows through

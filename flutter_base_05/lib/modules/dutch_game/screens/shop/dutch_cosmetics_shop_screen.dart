@@ -46,7 +46,7 @@ class DutchCustomizeScreen extends BaseScreen {
 
 class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   // Tracing shop tile previews (card back / table design show defaults).
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
 
   static const String _kAccordionMyPacks = 'My Packs';
   static const String _kAccordionConsumables = 'Consumables';
@@ -55,9 +55,6 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
 
   /// Dark scrim behind title / price only.
   static final Color _kTextScrimFill = AppColors.darkGray.withValues(alpha: 0.92);
-
-  /// Cosmetic overlay on felt — must match [GamePlayScreen] table overlay (`Opacity` child).
-  static const double _kShopTableOverlayOpacity = 0.22;
 
   bool _loading = true;
   List<Map<String, dynamic>> _catalog = const [];
@@ -886,42 +883,26 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                           ),
                         ),
                         Positioned.fill(
-                          child: LayoutBuilder(
-                            builder: (context, inner) {
-                              final maxW = inner.maxWidth * 0.88;
-                              final maxH = inner.maxHeight * 0.88;
-                              return Center(
-                                child: Opacity(
-                                  opacity: _kShopTableOverlayOpacity,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: maxW,
-                                      maxHeight: maxH,
-                                    ),
-                                    child: Image.network(
-                                      overlayUrl,
-                                      fit: BoxFit.contain,
-                                      alignment: Alignment.center,
-                                      width: maxW,
-                                      height: maxH,
-                                      errorBuilder: (_, error, __) {
-                                        if (LOGGING_SWITCH) {
-                                          customlog(
-                                            'CustomizeScreen table overlay load failed: '
-                                            'skinId=$skinId url=$overlayUrl error=$error',
-                                          );
-                                        }
-                                        return Icon(
-                                          Icons.table_restaurant,
-                                          size: math.min(maxW, maxH) * 0.35,
-                                          color: AppColors.warmSpotlightColor.withValues(alpha: 0.85),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
+                          child: SizedBox.expand(
+                            child: Image.network(
+                              overlayUrl,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.center,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, error, __) {
+                              if (LOGGING_SWITCH) {
+                                customlog(
+                                  'CustomizeScreen table overlay load failed: '
+                                  'skinId=$skinId url=$overlayUrl error=$error',
+                                );
+                              }
+                              return Icon(
+                                Icons.table_restaurant,
+                                size: math.min(width, height) * 0.35,
+                                color: AppColors.warmSpotlightColor.withValues(alpha: 0.85),
                               );
                             },
+                            ),
                           ),
                         ),
                       ],

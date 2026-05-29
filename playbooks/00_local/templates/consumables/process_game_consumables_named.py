@@ -4,8 +4,8 @@ Process app_media/game_consumables_named/*.png into catalog media paths.
 
 - Trim transparent / uniform border padding
 - Card backs -> app_media/media/card_back/<pack>/card_back_<pack>.webp (512x716)
-- Table designs -> rotate 90° CCW, then
-  app_media/media/table_design/<pack>/table_design_overlay_<pack>.webp (576x1024)
+- Table designs -> app_media/media/table_design/<pack>/table_design_overlay_<pack>.webp
+  (rotate 90° CCW from landscape source, fit 576x1024 portrait)
 
 Usage:
   python playbooks/00_local/templates/consumables/process_game_consumables_named.py
@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
@@ -35,7 +36,7 @@ CATALOG_PATH = (
 )
 
 CARD_SIZE = (512, 716)
-TABLE_SIZE = (576, 1024)  # portrait (TABLE_SIZE landscape rotated 90°)
+TABLE_SIZE = (576, 1024)  # portrait (landscape source rotated 90°)
 
 
 def _pack_from_item_id(item_id: str, prefix: str) -> Optional[str]:
@@ -99,16 +100,32 @@ def fit_to_size(im: Image.Image, size: Tuple[int, int]) -> Image.Image:
     return ImageOps.fit(im, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
 
 
-def save_webp(im: Image.Image, dest: Path) -> None:
+def save_webp(im: Image.Image, dest: Path, *, preserve_alpha: bool = False) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    rgb = im.convert("RGB")
-    rgb.save(dest, format="WEBP", quality=88, method=6)
+    if preserve_alpha:
+        im.convert("RGBA").save(dest, format="WEBP", quality=88, method=6)
+    else:
+        im.convert("RGB").save(dest, format="WEBP", quality=88, method=6)
+
+
+def _clear_pack_dirs(root: Path) -> None:
+    if not root.is_dir():
+        return
+    for child in root.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child)
+        elif child.is_file() and child.name != ".DS_Store":
+            child.unlink()
 
 
 def main() -> int:
     if not SRC_DIR.is_dir():
         print(f"Missing source dir: {SRC_DIR}", file=sys.stderr)
         return 1
+
+    _clear_pack_dirs(MEDIA_ROOT / "card_back")
+    _clear_pack_dirs(MEDIA_ROOT / "table_design")
+    print(f"Cleared pack dirs under {MEDIA_ROOT / 'card_back'} and {MEDIA_ROOT / 'table_design'}")
 
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     card_ids = [i["item_id"] for i in catalog["items"] if i.get("item_type") == "card_back"]
@@ -129,7 +146,7 @@ def main() -> int:
         im = trim_padding(im)
         im = fit_to_size(im, CARD_SIZE)
         dest = MEDIA_ROOT / "card_back" / pack / f"card_back_{pack}.webp"
-        save_webp(im, dest)
+        save_webp(im, dest, preserve_alpha=False)
         print(f"card_back  {item_id} -> {dest.relative_to(PROJECT_ROOT)} ({im.size[0]}x{im.size[1]})")
         processed += 1
 
@@ -143,15 +160,15 @@ def main() -> int:
             continue
         im = Image.open(src)
         im = trim_padding(im)
-        im = im.rotate(90, expand=True)  # landscape -> portrait
+        im = im.rotate(90, expand=True)
         im = fit_to_size(im, TABLE_SIZE)
         dest = MEDIA_ROOT / "table_design" / pack / f"table_design_overlay_{pack}.webp"
-        save_webp(im, dest)
+        save_webp(im, dest, preserve_alpha=True)
         print(f"table      {item_id} -> {dest.relative_to(PROJECT_ROOT)} ({im.size[0]}x{im.size[1]})")
         processed += 1
 
     if skipped:
-        print(f"\nSkipped (no source PNG): {', '.join(skipped)}", file=sys.stderr)
+        print(f"\nSkipped (no source PNG): {', '.join(sorted(set(skipped)))}", file=sys.stderr)
     print(f"\nDone: {processed} file(s) written under {MEDIA_ROOT.relative_to(PROJECT_ROOT)}")
     return 0 if processed > 0 else 1
 

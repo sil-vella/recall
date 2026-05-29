@@ -63,8 +63,8 @@ def _resolve_public_api_base() -> str:
 
 def _table_design_overlay_path_from_skin_id(skin_id: str) -> Optional[Path]:
     """
-    New media layout:
-    app_media/media/table_design/<pack_name>/table_design_overlay_<pack_name>.webp
+    Media layout:
+      app_media/media/table_design/<pack_name>/table_design_overlay_<pack_name>.webp
     """
     sid = (skin_id or "").strip()
     if not sid.startswith("table_design_"):

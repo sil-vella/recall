@@ -4,7 +4,7 @@ import 'dev_logger.dart';
 
 /// Chrome / web cold-start tracing (VS Code `run_flutter_app_to_global_log.sh chrome`).
 /// File-level switch stays on so [customlog] reaches `global.log` via DUTCH_DEV_LOG.
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Logs `WebBootstrap: …` when [kIsWeb] and [LOGGING_SWITCH].
 void webBootstrapLog(String message) {

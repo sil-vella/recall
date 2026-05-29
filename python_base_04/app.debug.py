@@ -15,7 +15,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from tools.dev_logger import customlog
 
 # Set False when not debugging this entrypoint (release tooling may flip).
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 if LOGGING_SWITCH:
     customlog("app.debug.py entry")
 

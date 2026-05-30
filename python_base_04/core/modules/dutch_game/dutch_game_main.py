@@ -64,6 +64,7 @@ class DutchGameMain(BaseModule):
             self._register_route_helper("/service/dutch/get-init-data", api_endpoints.get_init_data_service, methods=["POST"])
             self._register_route_helper("/service/dutch/deduct-game-coins", api_endpoints.deduct_game_coins_service, methods=["POST"])
             self._register_route_helper("/service/dutch/get-shop-catalog", api_endpoints.get_shop_catalog_service, methods=["POST"])
+            self._register_route_helper("/service/dutch/reload-catalogs", api_endpoints.reload_catalogs_service, methods=["POST"])
             self._register_route_helper("/service/dutch/get-inventory", api_endpoints.get_inventory_service, methods=["POST"])
             self._register_route_helper("/service/dutch/purchase-item", api_endpoints.purchase_item_service, methods=["POST"])
             self._register_route_helper("/service/dutch/equip-cosmetic", api_endpoints.equip_cosmetic_service, methods=["POST"])
@@ -107,6 +108,11 @@ class DutchGameMain(BaseModule):
             self._register_route_helper(
                 "/public/dutch/table-tier-back/<path:filename>",
                 api_endpoints.serve_table_tier_background_public,
+                methods=["GET"],
+            )
+            self._register_route_helper(
+                "/app_media/media/event_media/<event_id>/<path:filename>",
+                api_endpoints.serve_event_media_public,
                 methods=["GET"],
             )
             self._register_route_helper("/userauth/dutch/tournament-signup", api_endpoints.tournament_signup, methods=["POST"], auth="jwt")

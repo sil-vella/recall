@@ -20,6 +20,12 @@ Future<LottieComposition?> _decodeDotLottie(List<int> bytes) {
     bytes,
     filePicker: (files) {
       for (final f in files) {
+        final name = f.name.toLowerCase();
+        if (name.endsWith('.json') && !name.endsWith('manifest.json')) {
+          return f;
+        }
+      }
+      for (final f in files) {
         if (f.name.endsWith('.json')) return f;
       }
       return files.isNotEmpty ? files.first : null;
@@ -61,13 +67,18 @@ Map<String, dynamic>? _resolvedSpecialEventEndModal(Map<String, dynamic>? gameSt
   return LevelMatcher.endMatchModalSnapshotForSpecialEventId(seId);
 }
 
-String? _resolveEndMatchModalBackgroundUrl(Map<String, dynamic> modal) {
+String? _resolveEndMatchModalBackgroundUrl(
+  Map<String, dynamic> modal, {
+  String? eventId,
+}) {
   final url = modal['background_image_url']?.toString().trim();
   if (url != null && url.isNotEmpty) return url;
   final file = modal['background_image_file']?.toString().trim();
   if (file == null || file.isEmpty) return null;
+  final eid = eventId?.trim();
+  if (eid == null || eid.isEmpty) return null;
   final base = Config.apiUrl.replaceAll(RegExp(r'/$'), '');
-  return '$base/public/dutch/table-tier-back/${Uri.encodeComponent(file)}';
+  return '$base/app_media/media/event_media/${Uri.encodeComponent(eid)}/${Uri.encodeComponent(file)}';
 }
 
 void _navigateEndMatchModalCta(Map<String, dynamic> cta, VoidCallback onClose) {
@@ -354,6 +365,7 @@ class GameEndedModalData {
     this.isCoinRequired = true,
     this.tournamentLeaderboard,
     this.specialEventEndMatchModal,
+    this.specialEventId,
   });
 
   final String title;
@@ -388,6 +400,9 @@ class GameEndedModalData {
 
   /// Catalog / server snapshot: `special_events[].metadata.end_match_modal` (hero text, optional art, CTA).
   final Map<String, dynamic>? specialEventEndMatchModal;
+
+  /// `game_state.special_event_id` at capture time (for event_media URL fallback).
+  final String? specialEventId;
 
   /// Single read from [dutchGameState] when scheduling the modal — not used during modal build.
   static GameEndedModalData? fromDutchStateOnce(Map<String, dynamic> dutchGameState) {
@@ -427,9 +442,13 @@ class GameEndedModalData {
     final orderedWinnersRaw = gameState?['winners'] as List<dynamic>?;
     final hasOrderedWinners = orderedWinnersRaw != null && orderedWinnersRaw.isNotEmpty;
     final specialEventEndModal = _resolvedSpecialEventEndModal(gameState);
+    final specialEventId = gameState?['special_event_id']?.toString().trim();
     final specialHeroText = specialEventEndModal?['text']?.toString().trim() ?? '';
     final specialHeroBg = specialEventEndModal != null
-        ? _resolveEndMatchModalBackgroundUrl(specialEventEndModal)
+        ? _resolveEndMatchModalBackgroundUrl(
+            specialEventEndModal,
+            eventId: specialEventId,
+          )
         : null;
     final hasSpecialEndUi =
         specialHeroText.isNotEmpty || (specialHeroBg != null && specialHeroBg.isNotEmpty);
@@ -473,6 +492,7 @@ class GameEndedModalData {
       isCoinRequired: isCoinRequired,
       tournamentLeaderboard: tournamentLeaderboard,
       specialEventEndMatchModal: specialEventEndModal,
+      specialEventId: (specialEventId != null && specialEventId.isNotEmpty) ? specialEventId : null,
     );
   }
 }
@@ -653,9 +673,12 @@ Widget _gameEndedOrderedWinnersColumn(
   );
 }
 
-Widget? _specialEventEndMatchHero(Map<String, dynamic> modal) {
+Widget? _specialEventEndMatchHero(
+  Map<String, dynamic> modal, {
+  String? eventId,
+}) {
   final text = modal['text']?.toString().trim() ?? '';
-  final bgUrl = _resolveEndMatchModalBackgroundUrl(modal);
+  final bgUrl = _resolveEndMatchModalBackgroundUrl(modal, eventId: eventId);
   final hasBg = bgUrl != null && bgUrl.isNotEmpty;
   if (text.isEmpty && !hasBg) return null;
 
@@ -815,7 +838,9 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
     final headerTextColor = ThemeConfig.getTextColorForBackground(headerBackgroundColor);
     final hasRows = d.orderedWinners.isNotEmpty;
     final endModal = d.specialEventEndMatchModal;
-    final heroWidget = endModal != null ? _specialEventEndMatchHero(endModal) : null;
+    final heroWidget = endModal != null
+        ? _specialEventEndMatchHero(endModal, eventId: d.specialEventId)
+        : null;
     Map<String, dynamic>? ctaMap;
     final ctaRaw = endModal?['cta_text'];
     if (ctaRaw is Map) {

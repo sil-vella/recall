@@ -50,7 +50,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
 
   static const String _kAccordionMyPacks = 'My Packs';
   static const String _kAccordionConsumables = 'Consumables';
-  static const String _kAccordionCardBacks = 'Card Backs';
+  static const String _kAccordionCardBacks = 'Card Covers';
   static const String _kAccordionTable = 'Table';
 
   /// Dark scrim behind title / price only.
@@ -308,19 +308,26 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     if (raw.isEmpty) return 'Item';
 
     final type = item['item_type']?.toString() ?? '';
-    String? prefix;
     if (type == 'card_back') {
-      prefix = 'Card Back ';
+      for (final prefix in const ['Card Cover ', 'Card Back ']) {
+        if (raw.length > prefix.length) {
+          final lower = raw.toLowerCase();
+          final prefixLower = prefix.toLowerCase();
+          if (lower.startsWith(prefixLower)) {
+            final short = raw.substring(prefix.length).trim();
+            if (short.isNotEmpty) return short;
+          }
+        }
+      }
     } else if (type == 'table_design') {
-      prefix = 'Table Design ';
-    }
-
-    if (prefix != null && raw.length > prefix.length) {
-      final lower = raw.toLowerCase();
-      final prefixLower = prefix.toLowerCase();
-      if (lower.startsWith(prefixLower)) {
-        final short = raw.substring(prefix.length).trim();
-        if (short.isNotEmpty) return short;
+      const prefix = 'Table Design ';
+      if (raw.length > prefix.length) {
+        final lower = raw.toLowerCase();
+        final prefixLower = prefix.toLowerCase();
+        if (lower.startsWith(prefixLower)) {
+          final short = raw.substring(prefix.length).trim();
+          if (short.isNotEmpty) return short;
+        }
       }
     }
     return raw;
@@ -353,6 +360,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     }
     final txt = key.replaceAll('_', ' ').trim();
     if (txt.isEmpty) return '';
+    if (txt == 'card backs') return 'Card Covers';
     return txt[0].toUpperCase() + txt.substring(1);
   }
 
@@ -515,7 +523,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                 onExpandedChanged: () => _handleSectionToggled(_kAccordionCardBacks),
                 child: _categorizedAccordionContent(
                   cardBacks,
-                  emptyMessage: 'No card backs in the shop right now.',
+                  emptyMessage: 'No card covers in the shop right now.',
                 ),
               ),
               CollapsibleSectionWidget(

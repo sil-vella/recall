@@ -719,16 +719,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     final bool isSpecialEventMatch =
         resolvedSpecialEventId != null && resolvedSpecialEventId.trim().isNotEmpty;
     
-    String eventOverlayUrl = '';
+    String eventTableDesignOverlayUrl = '';
     if (isSpecialEventMatch) {
       final row = LevelMatcher.specialEventRowById(resolvedSpecialEventId);
-      final styleMap = row?['style'];
-      if (styleMap is Map) {
-        final overlayUrl = styleMap['overlay_image_url']?.toString().trim() ?? '';
-        final backGraphicUrl = styleMap['back_graphic_url']?.toString().trim() ?? '';
-        // Backward-compatible fallback: if overlay URL is not present in payload yet,
-        // reuse event back graphic so special-events still replace felt.
-        eventOverlayUrl = overlayUrl.isNotEmpty ? overlayUrl : backGraphicUrl;
+      if (row != null) {
+        eventTableDesignOverlayUrl =
+            LevelMatcher.resolveEventTableDesignOverlayUrl(row) ?? '';
       }
     }
     // Special-event matches own the table cosmetics; ignore user equipped table design.
@@ -746,10 +742,20 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
       level: playTableLevel,
       specialEventId: specialEventId,
     );
-    final borderColor = TableDesignStyleHelpers.outerBorderColorForDesign(equippedTableDesignId);
-    final borderGlow = TableDesignStyleHelpers.outerBorderGlowForDesign(equippedTableDesignId);
-    final borderColors = TableDesignStyleHelpers.borderColorsForDesign(equippedTableDesignId);
-    final isJuventusBorder = TableDesignStyleHelpers.isJuventusTableDesign(equippedTableDesignId);
+    final specialEventBorderStyle =
+        TableDesignStyleHelpers.specialEventBorderStyleMap(specialEventId);
+    final borderColor = isSpecialEventMatch
+        ? TableDesignStyleHelpers.outerBorderColorFromStyle(specialEventBorderStyle)
+        : TableDesignStyleHelpers.outerBorderColorForDesign(equippedTableDesignId);
+    final borderGlow = isSpecialEventMatch
+        ? TableDesignStyleHelpers.outerBorderGlowFromStyle(specialEventBorderStyle)
+        : TableDesignStyleHelpers.outerBorderGlowForDesign(equippedTableDesignId);
+    final borderColors = isSpecialEventMatch
+        ? TableDesignStyleHelpers.borderColorsFromStyle(specialEventBorderStyle)
+        : TableDesignStyleHelpers.borderColorsForDesign(equippedTableDesignId);
+    final isJuventusBorder = isSpecialEventMatch
+        ? TableDesignStyleHelpers.isStripeBorderFromStyle(specialEventBorderStyle)
+        : TableDesignStyleHelpers.isJuventusTableDesign(equippedTableDesignId);
 
     // Tier PNG + opacity on the screen backdrop only ([getBackground] green shows through); table card sits above.
     final content = Stack(
@@ -864,33 +870,28 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                                   enableFeltTexture: !isSpecialEventMatch,
                                 ),
                               ),
-                              if (isSpecialEventMatch && eventOverlayUrl.isNotEmpty)
+                              if (isSpecialEventMatch && eventTableDesignOverlayUrl.isNotEmpty)
                                 Positioned.fill(
                                   child: IgnorePointer(
-                                    child: Opacity(
-                                      opacity: 0.5,
-                                      child: Image.network(
-                                        eventOverlayUrl,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) =>
-                                            const SizedBox.shrink(),
-                                      ),
+                                    child: _tableDesignOverlayImage(
+                                      networkUrl: eventTableDesignOverlayUrl,
+                                      fallbackAsset: 'assets/images/table_logo.webp',
                                     ),
                                   ),
+                                )
+                              else
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: isPracticeMode
+                                        ? _tableDesignOverlayImage(
+                                            image: const AssetImage('assets/images/table_logo.webp'),
+                                          )
+                                        : _tableDesignOverlayImage(
+                                            networkUrl: overlayUrl,
+                                            fallbackAsset: 'assets/images/table_logo.webp',
+                                          ),
+                                  ),
                                 ),
-                              // Table cosmetic overlay: full-bleed, centered cover.
-                              Positioned.fill(
-                                child: IgnorePointer(
-                                  child: (isPracticeMode || isSpecialEventMatch)
-                                      ? _tableDesignOverlayImage(
-                                          image: const AssetImage('assets/images/table_logo.webp'),
-                                        )
-                                      : _tableDesignOverlayImage(
-                                          networkUrl: overlayUrl,
-                                          fallbackAsset: 'assets/images/table_logo.webp',
-                                        ),
-                                ),
-                              ),
                               // Main content - transparent so background shows through
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,

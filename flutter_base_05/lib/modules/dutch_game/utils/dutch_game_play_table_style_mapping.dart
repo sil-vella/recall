@@ -157,6 +157,65 @@ class DutchGamePlayTableStyles {
     }
     return _tableBackGraphicEventFeltFallback(styleMap, fallbackTableLevel);
   }
+
+  /// Special-event lobby carousel: shared ``end_match_modal`` background under felt overlay.
+  static Widget eventBannerFill({
+    required Map<String, dynamic> eventRow,
+    required Map<String, dynamic> styleMap,
+    BoxFit fit = BoxFit.cover,
+    int fallbackTableLevel = 1,
+  }) {
+    LevelMatcher.ensureHydratedMinimal();
+    final eventId = (eventRow['id'] ?? eventRow['event_id'])?.toString().trim() ?? '';
+    final urlRemote = LevelMatcher.resolveEventSharedImageUrl(eventRow) ?? '';
+    final urlOk =
+        urlRemote.isNotEmpty && (urlRemote.startsWith('http://') || urlRemote.startsWith('https://'));
+    if (urlOk) {
+      return Image.network(
+        urlRemote,
+        fit: fit,
+        errorBuilder: (_, __, ___) =>
+            _tableBackGraphicEventFeltFallback(styleMap, fallbackTableLevel),
+      );
+    }
+    if (!kIsWeb && eventId.isNotEmpty) {
+      final cachedPath = LevelMatcher.localEventAuxAssetPath(eventId, 'end_match_background_url');
+      final p = cachedPath ?? '';
+      if (p.isNotEmpty && table_bg_fs.localTableBackGraphicCached(p)) {
+        return table_bg_fs.localTableBgImageFile(p, fit: fit);
+      }
+    }
+    return _tableBackGraphicEventFeltFallback(styleMap, fallbackTableLevel);
+  }
+
+  /// Special-event in-game / lobby table design overlay (``style.overlay_image_*``).
+  static Widget eventTableDesignOverlayFill({
+    required Map<String, dynamic> eventRow,
+    BoxFit fit = BoxFit.cover,
+  }) {
+    LevelMatcher.ensureHydratedMinimal();
+    final eventId = (eventRow['id'] ?? eventRow['event_id'])?.toString().trim() ?? '';
+    final urlRemote = LevelMatcher.resolveEventTableDesignOverlayUrl(eventRow) ?? '';
+    final urlOk =
+        urlRemote.isNotEmpty && (urlRemote.startsWith('http://') || urlRemote.startsWith('https://'));
+    if (urlOk) {
+      return Image.network(
+        urlRemote,
+        fit: fit,
+        alignment: Alignment.center,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      );
+    }
+    if (!kIsWeb && eventId.isNotEmpty) {
+      final cachedPath = LevelMatcher.localEventAuxAssetPath(eventId, 'overlay_image_url');
+      final p = cachedPath ?? '';
+      if (p.isNotEmpty && table_bg_fs.localTableBackGraphicCached(p)) {
+        return table_bg_fs.localTableBgImageFile(p, fit: fit);
+      }
+    }
+    return const SizedBox.shrink();
+  }
+
   /// Solid fill for the entire play [BaseScreen] body (behind header slot, letterbox, etc.).
   /// Intentionally **not** tier-specific so e.g. table 2 can use blue felt on the table only.
   static const Color playScreenBackdropColor = AppColors.pokerTableGreen;

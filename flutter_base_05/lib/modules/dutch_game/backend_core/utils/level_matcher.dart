@@ -34,6 +34,7 @@ class LevelMatcher {
   /// Cached full-bleed graphics downloaded from CDN, absolute paths.
   static final Map<int, String> _localGraphicPathByLevel = {};
   static final Map<String, String> _localGraphicPathByEventId = {};
+  static final Map<String, String> _localEventAuxAssetPathByKey = {};
 
   static final RegExp _eventIdPattern = RegExp(r'^[A-Za-z0-9_-]+$');
 
@@ -137,6 +138,7 @@ class LevelMatcher {
     if (raw is! List) {
       _specialEvents = [];
       _localGraphicPathByEventId.clear();
+      _localEventAuxAssetPathByKey.clear();
       return;
     }
     final next = <Map<String, dynamic>>[];
@@ -156,6 +158,10 @@ class LevelMatcher {
     }
     _specialEvents = next;
     _localGraphicPathByEventId.removeWhere((id, _) => !seen.contains(id));
+    _localEventAuxAssetPathByKey.removeWhere((key, _) {
+      final eventId = key.split('|').first;
+      return !seen.contains(eventId);
+    });
   }
 
   static void _purgeStaleGraphicOverrides() {
@@ -168,6 +174,7 @@ class LevelMatcher {
     if (clearDownloadedGraphics) {
       _localGraphicPathByLevel.clear();
       _localGraphicPathByEventId.clear();
+      _localEventAuxAssetPathByKey.clear();
     }
     final incoming = Map<String, dynamic>.from(doc);
     _applyNormalizedTiers(incoming);
@@ -200,6 +207,7 @@ class LevelMatcher {
         _localGraphicPathByLevel.clear();
         _specialEvents = [];
         _localGraphicPathByEventId.clear();
+        _localEventAuxAssetPathByKey.clear();
       }
     } catch (_) {}
   }
@@ -269,6 +277,66 @@ class LevelMatcher {
     final id = eventId.trim();
     return _localGraphicPathByEventId[id];
   }
+
+  static String _eventAuxAssetCacheKey(String eventId, String assetKey) =>
+      '${eventId.trim()}|${assetKey.trim()}';
+
+  static void setLocalEventAuxAssetPath(String eventId, String assetKey, String absolutePath) {
+    final id = eventId.trim();
+    final key = assetKey.trim();
+    if (id.isEmpty || key.isEmpty || !_eventIdPattern.hasMatch(id)) {
+      return;
+    }
+    final cacheKey = _eventAuxAssetCacheKey(id, key);
+    if (absolutePath.isEmpty) {
+      _localEventAuxAssetPathByKey.remove(cacheKey);
+      return;
+    }
+    _localEventAuxAssetPathByKey[cacheKey] = absolutePath;
+  }
+
+  static String? localEventAuxAssetPath(String eventId, String assetKey) {
+    final id = eventId.trim();
+    if (id.isEmpty) return null;
+    return _localEventAuxAssetPathByKey[_eventAuxAssetCacheKey(id, assetKey.trim())];
+  }
+
+  /// Shared event art: ``metadata.end_match_modal.background_image_*`` (lobby + Game Ended modal).
+  static String? resolveEventSharedImageUrl(Map<String, dynamic> eventRow) {
+    final meta = eventRow['metadata'];
+    if (meta is! Map) return null;
+    final m = Map<String, dynamic>.from(meta.map((k, v) => MapEntry(k.toString(), v)));
+    final injected = m['banner_image_url']?.toString().trim();
+    if (injected != null && injected.isNotEmpty) return injected;
+    final em = m['end_match_modal'];
+    if (em is! Map) return null;
+    final modal = Map<String, dynamic>.from(em.map((k, v) => MapEntry(k.toString(), v)));
+    final url = modal['background_image_url']?.toString().trim();
+    if (url != null && url.isNotEmpty) return url;
+    final file = modal['background_image_file']?.toString().trim();
+    final eid = (eventRow['id'] ?? eventRow['event_id'])?.toString().trim();
+    if (file == null || file.isEmpty || eid == null || eid.isEmpty) return null;
+    final base = Config.apiUrl.replaceAll(RegExp(r'/$'), '');
+    return '$base/app_media/media/event_media/${Uri.encodeComponent(eid)}/${Uri.encodeComponent(file)}';
+  }
+
+  /// In-game table design overlay: ``style.overlay_image_*`` under ``event_media/<id>/``.
+  static String? resolveEventTableDesignOverlayUrl(Map<String, dynamic> eventRow) {
+    final st = eventRow['style'];
+    if (st is! Map) return null;
+    final styleMap = Map<String, dynamic>.from(st.map((k, v) => MapEntry(k.toString(), v)));
+    final url = styleMap['overlay_image_url']?.toString().trim();
+    if (url != null && url.isNotEmpty) return url;
+    final file = styleMap['overlay_image_file']?.toString().trim();
+    final eid = (eventRow['id'] ?? eventRow['event_id'])?.toString().trim();
+    if (file == null || file.isEmpty || eid == null || eid.isEmpty) return null;
+    final base = Config.apiUrl.replaceAll(RegExp(r'/$'), '');
+    return '$base/app_media/media/event_media/${Uri.encodeComponent(eid)}/${Uri.encodeComponent(file)}';
+  }
+
+  /// Lobby carousel backdrop — same asset as [resolveEventSharedImageUrl].
+  static String? resolveEventBannerUrl(Map<String, dynamic> eventRow) =>
+      resolveEventSharedImageUrl(eventRow);
 
   /// `style` map for tier, merged with fallback.
   static Map<String, dynamic> styleForLevel(int level) {

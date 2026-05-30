@@ -4,6 +4,7 @@ import '../../../../../../core/managers/state_manager.dart';
 import '../../../../../../utils/consts/config.dart';
 import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../utils/consumables_catalog_bootstrap.dart';
+import '../../../backend_core/utils/level_matcher.dart';
 
 class TableDesignStyleHelpers {
   static String readEquippedTableDesignId(Map<String, dynamic> dutchState) {
@@ -15,45 +16,49 @@ class TableDesignStyleHelpers {
   }
 
   static Color outerBorderColorForDesign(String tableDesignId) {
-    final colors = borderColorsForDesign(tableDesignId);
-    if (colors.isNotEmpty) return colors.first;
-    switch (tableDesignId.trim()) {
-      case 'table_design_neon':
-        return AppColors.pokerTableBlue;
-      case 'table_design_royal':
-        return AppColors.pokerTableCity;
-      default:
-        return AppColors.casinoOuterBorderColor;
-    }
+    return outerBorderColorFromStyle(ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId));
   }
 
   static Color outerBorderGlowForDesign(String tableDesignId) {
-    final colors = borderColorsForDesign(tableDesignId);
-    if (colors.isNotEmpty) return colors.first.withValues(alpha: 0.55);
-    switch (tableDesignId.trim()) {
-      case 'table_design_neon':
-        return AppColors.pokerTableBlue.withValues(alpha: 0.55);
-      case 'table_design_royal':
-        return AppColors.pokerTableCity.withValues(alpha: 0.55);
-      default:
-        return AppColors.black.withValues(alpha: 0.8);
-    }
+    return outerBorderGlowFromStyle(ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId));
   }
 
   static bool isJuventusTableDesign(String tableDesignId) {
-    return borderStyleForDesign(tableDesignId) == 'stripes' ||
-        tableDesignId.trim() == 'table_design_juventus';
+    return isStripeBorderFromStyle(ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId));
   }
 
   static String borderStyleForDesign(String tableDesignId) {
-    final style = ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId);
+    return borderStyleFromStyle(ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId));
+  }
+
+  static List<Color> borderColorsForDesign(String tableDesignId) {
+    return borderColorsFromStyle(ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId));
+  }
+
+  /// Declarative rim colors from catalog / special-event ``style`` map.
+  static Color outerBorderColorFromStyle(Map<String, dynamic> style) {
+    final colors = borderColorsFromStyle(style);
+    if (colors.isNotEmpty) return colors.first;
+    return AppColors.casinoOuterBorderColor;
+  }
+
+  static Color outerBorderGlowFromStyle(Map<String, dynamic> style) {
+    final colors = borderColorsFromStyle(style);
+    if (colors.isNotEmpty) return colors.first.withValues(alpha: 0.55);
+    return AppColors.black.withValues(alpha: 0.8);
+  }
+
+  static bool isStripeBorderFromStyle(Map<String, dynamic> style) {
+    return borderStyleFromStyle(style) == 'stripes';
+  }
+
+  static String borderStyleFromStyle(Map<String, dynamic> style) {
     final borderStyle = style['border_style']?.toString().trim().toLowerCase() ?? '';
     if (borderStyle == 'stripes') return 'stripes';
     return 'solid';
   }
 
-  static List<Color> borderColorsForDesign(String tableDesignId) {
-    final style = ConsumablesCatalogBootstrap.getStyleForItem(tableDesignId);
+  static List<Color> borderColorsFromStyle(Map<String, dynamic> style) {
     final raw = style['border_colors'];
     if (raw is! List) return const <Color>[];
     final out = <Color>[];
@@ -62,6 +67,17 @@ class TableDesignStyleHelpers {
       if (c != null) out.add(c);
     }
     return out;
+  }
+
+  static Map<String, dynamic> specialEventBorderStyleMap(String? specialEventId) {
+    final eid = specialEventId?.trim() ?? '';
+    if (eid.isEmpty) return const {};
+    final row = LevelMatcher.specialEventRowById(eid);
+    final st = row?['style'];
+    if (st is Map) {
+      return Map<String, dynamic>.from(st.map((k, v) => MapEntry(k.toString(), v)));
+    }
+    return const {};
   }
 
   static Color? _parseHexColor(String? value) {

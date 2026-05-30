@@ -19,6 +19,7 @@ from . import table_tiers_catalog as ttc
 from . import consumables_catalog as cc
 from . import progression_catalog as prog
 from . import achievements_catalog as achcat
+from . import catalog_hot_reload as catalog_reload
 from core.modules.notification_module.global_broadcast_service import load_global_broadcast_payload_for_user
 from .wins_level_rank_matcher import WinsLevelRankMatcher
 
@@ -39,6 +40,7 @@ BOOSTER_ITEM_ID = cc.primary_win_booster_key()
 # Store app_manager reference (will be set by module)
 _app_manager = None
 APP_MEDIA_DIR = Path(__file__).resolve().parents[4] / "app_media" / "media"
+EVENT_MEDIA_DIR = APP_MEDIA_DIR / "event_media"
 
 # Packaged tier back-graphics (WebP preferred). Served at /public/dutch/table-tier-back/<filename>.
 TABLE_TIER_BACKGRAPHICS_DIR = Path(__file__).resolve().parent / "static" / "table_backgraphics"
@@ -1541,6 +1543,26 @@ def get_shop_catalog_service():
         return jsonify({"success": False, "error": "Failed to fetch shop catalog", "message": str(e)}), 500
 
 
+def reload_catalogs_service():
+    """
+    Service endpoint: hot-reload declarative JSON catalogs into this worker's memory.
+
+    Requires ``X-Service-Key`` (same as other ``/service/dutch/*`` routes).
+    Does **not** restart Flask/gunicorn — only re-reads ``table_tiers.json`` and
+    ``consumables_catalog.json`` and rebuilds in-process maps/revisions.
+    """
+    try:
+        result = catalog_reload.reload_all_catalogs()
+        result["timestamp"] = datetime.utcnow().isoformat()
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": "catalog_reload_failed",
+            "message": str(e),
+        }), 500
+
+
 def get_inventory_service():
     """Service endpoint: return Dutch inventory (boosters + cosmetics) for a given user_id."""
     try:
@@ -1777,6 +1799,33 @@ def get_table_design_overlay_media():
         return send_file(media_path, mimetype="image/png")
     except Exception as e:
         return jsonify({"success": False, "error": "failed_to_serve_table_overlay", "message": str(e)}), 500
+
+
+def serve_event_media_public(event_id: str, filename: str):
+    """Public: serve special-event media from app_media/media/event_media/<event_id>/<filename>."""
+    try:
+        eid = str(event_id or "").strip()
+        if not eid or not re.match(r"^[A-Za-z0-9._-]+$", eid):
+            return jsonify({"success": False, "error": "bad_event_id", "message": "invalid event id"}), 400
+        raw = unquote(str(filename or ""))
+        normalized = raw.replace("\\", "/").lstrip("/")
+        parts = [p for p in normalized.split("/") if p not in ("", ".")]
+        if len(parts) != 1 or any(p == ".." for p in parts):
+            return jsonify({"success": False, "error": "bad_filename", "message": "invalid path"}), 400
+        if not re.match(r"^[A-Za-z0-9._-]+$", parts[0]):
+            return jsonify({"success": False, "error": "bad_filename", "message": "invalid characters"}), 400
+        media_path = (EVENT_MEDIA_DIR / eid / parts[0]).resolve()
+        root = (EVENT_MEDIA_DIR / eid).resolve()
+        try:
+            media_path.relative_to(root)
+        except ValueError:
+            return jsonify({"success": False, "error": "not_found"}), 404
+        if not media_path.exists() or not media_path.is_file():
+            return jsonify({"success": False, "error": "media_not_found", "message": f"{eid}/{parts[0]}"}), 404
+        suf = media_path.suffix.lower()
+        return send_file(media_path, mimetype=_BG_EXT_TO_MIME.get(suf, "application/octet-stream"))
+    except Exception as e:
+        return jsonify({"success": False, "error": "failed_to_serve", "message": str(e)}), 500
 
 
 def serve_table_tier_background_public(filename: str):

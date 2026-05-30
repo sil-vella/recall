@@ -1196,8 +1196,8 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       final st = e.raw['style'];
       final styleMap =
           st is Map ? Map<String, dynamic>.from(st) : <String, dynamic>{};
-      return DutchGamePlayTableStyles.tableBackGraphicFillForSpecialEvent(
-        eventId: e.id,
+      return DutchGamePlayTableStyles.eventBannerFill(
+        eventRow: e.raw,
         styleMap: styleMap,
         fallbackTableLevel: gl,
       );
@@ -1231,6 +1231,12 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     return const TableTierFeltPanel(tableLevel: 1);
   }
 
+  Widget _buildEventTableDesignOverlay() {
+    final e = _currentEntry;
+    if (e is! JoinRandomEventEntry) return const SizedBox.shrink();
+    return DutchGamePlayTableStyles.eventTableDesignOverlayFill(eventRow: e.raw);
+  }
+
   @override
   Widget build(BuildContext context) {
     final list = _activeEntries;
@@ -1258,6 +1264,12 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                 ),
               ),
             ),
+            if (isEventsTab)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _buildEventTableDesignOverlay(),
+                ),
+              ),
             Padding(
               padding: AppPadding.cardPadding,
               child: Column(

@@ -33,7 +33,7 @@ class CardSystemDemoWidget extends StatelessWidget {
             _buildRegularCardsDemo(),
             
             const SizedBox(height: 32),
-            _buildSectionTitle('Card Backs (CardWidget with showBack=true)'),
+            _buildSectionTitle('Card Covers (CardWidget with showBack=true)'),
             _buildCardBacksDemo(),
             
             const SizedBox(height: 32),
@@ -254,7 +254,7 @@ class CardSystemDemoWidget extends StatelessWidget {
           config: CardDisplayConfig.forMyHand(),
           showBack: true,
         )),
-        _buildCardWithLabel('Card Back Widget', CardWidget(
+        _buildCardWithLabel('Card Cover Widget', CardWidget(
           card: CardModel(cardId: 'demo_back_widget', rank: '?', suit: '?', points: 0),
           dimensions: dimensions,
           config: CardDisplayConfig.forMyHand(),

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 5,
   "tiers": [
     {
       "level": 1,
@@ -54,7 +54,6 @@
       "coin_fee": 25,
       "min_user_level": 1,
       "metadata": {
-        "banner_image_file": "cards_night_banner.webp",
         "rewards": {
           "coins": "50",
           "achievement": "cards_night_winner"
@@ -72,7 +71,12 @@
       "style": {
         "felt_hex": "#4E8065",
         "spotlight_hex": "#FFD4A3",
-        "back_graphic_file": "home-table-backgraphic_002.webp"
+        "back_graphic_file": "home-table-backgraphic_002.webp",
+        "overlay_image_file": "table_design_overlay_cards_night.webp",
+        "border_style": "solid",
+        "border_colors": [
+          "#988858"
+        ]
       }
     },
     {
@@ -82,7 +86,6 @@
       "coin_fee": 25,
       "min_user_level": 1,
       "metadata": {
-        "banner_image_file": "dutch_explorer_banner.webp",
         "rewards": {
           "coins": "50",
           "achievement": "dutch_explorer_winner"
@@ -100,7 +103,12 @@
       "style": {
         "felt_hex": "#3D6B6B",
         "spotlight_hex": "#B8E6D8",
-        "back_graphic_file": "home-table-backgraphic_002.webp"
+        "back_graphic_file": "home-table-backgraphic_002.webp",
+        "overlay_image_file": "table_design_overlay_dutch_explorer.webp",
+        "border_style": "solid",
+        "border_colors": [
+          "#284868"
+        ]
       }
     },
     {
@@ -110,7 +118,6 @@
       "coin_fee": 30,
       "min_user_level": 1,
       "metadata": {
-        "banner_image_file": "the_challenger_banner.webp",
         "rewards": {
           "coins": "60",
           "achievement": "the_challenger_winner"
@@ -128,7 +135,13 @@
       "style": {
         "felt_hex": "#7A5C3E",
         "spotlight_hex": "#FFD4A3",
-        "back_graphic_file": "home-table-backgraphic_002.webp"
+        "back_graphic_file": "home-table-backgraphic_002.webp",
+        "overlay_image_file": "table_design_overlay_the_challenger.webp",
+        "border_style": "stripes",
+        "border_colors": [
+          "#204080",
+          "#B02828"
+        ]
       }
     },
     {
@@ -138,7 +151,6 @@
       "coin_fee": 50,
       "min_user_level": 2,
       "metadata": {
-        "banner_image_file": "dutch_hobbyist_banner.webp",
         "rewards": {
           "coins": "100",
           "achievement": "dutch_hobbyist_winner"
@@ -156,7 +168,12 @@
       "style": {
         "felt_hex": "#514E80",
         "spotlight_hex": "#FFD4A3",
-        "back_graphic_file": "local-table-backgraphic.webp"
+        "back_graphic_file": "local-table-backgraphic.webp",
+        "overlay_image_file": "table_design_overlay_dutch_hobbyist.webp",
+        "border_style": "solid",
+        "border_colors": [
+          "#485878"
+        ]
       }
     },
     {
@@ -166,7 +183,6 @@
       "coin_fee": 50,
       "min_user_level": 2,
       "metadata": {
-        "banner_image_file": "dutch_fan_banner.webp",
         "rewards": {
           "coins": "100",
           "achievement": "dutch_fan_winner"
@@ -184,7 +200,12 @@
       "style": {
         "felt_hex": "#6B3D4E",
         "spotlight_hex": "#FFD4A3",
-        "back_graphic_file": "local-table-backgraphic.webp"
+        "back_graphic_file": "local-table-backgraphic.webp",
+        "overlay_image_file": "table_design_overlay_dutch_fan.webp",
+        "border_style": "solid",
+        "border_colors": [
+          "#9020D0"
+        ]
       }
     }
   ]

@@ -55,7 +55,24 @@ Defines **room table tiers** (lobby `game_level`: title, coin fee, min user leve
 
 ### `special_events[]`
 
-Distinct string `id` (not a table level). Used for special-match presets: metadata, rewards placeholder, optional banner/video/audio asset filenames resolved to URLs on the server for client download.
+Distinct string `id` (not a table level). Used for special-match presets: metadata, rewards, optional art under `app_media/media/event_media/<id>/`.
+
+**`style` (in-game + lobby):**
+
+| Field | Media / effect |
+|-------|----------------|
+| `felt_hex`, `spotlight_hex` | Felt color |
+| `back_graphic_file` | Screen backdrop (tier-back graphic lane) |
+| `overlay_image_file` | `table_design_overlay_<event_id>.webp` in event folder → in-game + lobby felt overlay |
+| `border_style`, `border_colors` | Outer table rim (solid or `stripes`) |
+
+**`metadata.end_match_modal`:**
+
+| Field | Media / effect |
+|-------|----------------|
+| `background_image_file` | `{event_id}_background.webp` — lobby carousel + Game Ended modal |
+
+Full add workflow: [CATALOG_ADDITION_AND_HOT_RELOAD.md](./CATALOG_ADDITION_AND_HOT_RELOAD.md).
 
 **Match economy (special events only):**
 
@@ -66,7 +83,8 @@ Distinct string `id` (not a table level). Used for special-match presets: metada
 ## Server behavior
 
 - Builds client payload with `build_client_table_tiers_payload(public_base)` — adds `back_graphic_url` etc.
-- Serves static back graphics: `GET /public/dutch/table-tier-back/<filename>`
+- Serves tier back graphics: `GET /public/dutch/table-tier-back/<filename>`
+- Serves special-event media: `GET /app_media/media/event_media/<event_id>/<filename>` (files under `app_media/media/event_media/`)
 - Join/create room: coin fee and `min_user_level` from catalog maps
 
 ## How clients receive the catalog
@@ -90,7 +108,7 @@ Downloads table back graphics to app support dir keyed by revision (non-web).
 |---------|--------|
 | `DUTCH_TABLES_JSON` | Per-level overlay merge into `tiers` (legacy shape: `"1": { title, coin_fee, min_user_level }`) |
 
-Restart Python after JSON changes.
+Hot-reload after JSON edits (no Flask restart): [CATALOG_ADDITION_AND_HOT_RELOAD.md](./CATALOG_ADDITION_AND_HOT_RELOAD.md).
 
 ## Related
 

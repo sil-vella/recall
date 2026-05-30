@@ -15,6 +15,12 @@ Future<LottieComposition?> _decodeDotLottie(List<int> bytes) {
     bytes,
     filePicker: (files) {
       for (final f in files) {
+        final name = f.name.toLowerCase();
+        if (name.endsWith('.json') && !name.endsWith('manifest.json')) {
+          return f;
+        }
+      }
+      for (final f in files) {
         if (f.name.endsWith('.json')) return f;
       }
       return files.isNotEmpty ? files.first : null;

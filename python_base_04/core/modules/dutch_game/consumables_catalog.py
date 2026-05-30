@@ -161,6 +161,37 @@ CONSUMABLES_CATALOG_ITEMS: List[Dict[str, Any]] = list(_CANONICAL_DOC.get("items
 ITEM_BY_ID: Dict[str, Dict[str, Any]] = {i["item_id"]: i for i in CONSUMABLES_CATALOG_ITEMS if isinstance(i, dict)}
 
 
+def reload_from_disk() -> Dict[str, Any]:
+    """
+    Re-read ``consumables_catalog.json`` (+ env overlay) and refresh in-process caches.
+
+    Safe to call while Flask is running; does not restart the server process.
+    """
+    global _CANONICAL_DOC, CONSUMABLES_CATALOG_REVISION
+
+    previous_revision = CONSUMABLES_CATALOG_REVISION
+    doc = _normalize_document(_load_raw_document())
+    items = [i for i in (doc.get("items") or []) if isinstance(i, dict)]
+    item_index = {str(i["item_id"]): i for i in items if i.get("item_id")}
+    new_revision = _compute_revision(doc)
+
+    CONSUMABLES_CATALOG_DOCUMENT.clear()
+    CONSUMABLES_CATALOG_DOCUMENT.update(doc)
+    _CANONICAL_DOC = CONSUMABLES_CATALOG_DOCUMENT
+    CONSUMABLES_CATALOG_REVISION = new_revision
+    CONSUMABLES_CATALOG_ITEMS.clear()
+    CONSUMABLES_CATALOG_ITEMS.extend(items)
+    ITEM_BY_ID.clear()
+    ITEM_BY_ID.update(item_index)
+
+    return {
+        "reloaded": previous_revision != new_revision,
+        "previous_revision": previous_revision,
+        "revision": new_revision,
+        "item_count": len(items),
+    }
+
+
 def build_client_consumables_payload() -> Dict[str, Any]:
     return deepcopy(CONSUMABLES_CATALOG_DOCUMENT)
 

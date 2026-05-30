@@ -8,10 +8,9 @@ Top-level keys:
     Optional declarative assets (server-side only, no app release):
       - ``style.back_graphic_file`` -> ``style.back_graphic_url`` (existing)
       - ``style.overlay_image_file`` -> ``style.overlay_image_url`` (new)
-      - ``metadata.end_match_modal.background_image_file`` -> ``...background_image_url`` (existing)
-      - ``metadata.banner_image_file`` -> ``metadata.banner_image_url`` (new)
-      - ``metadata.intro_video_file`` -> ``metadata.intro_video_url`` (new)
-      - ``metadata.audio_file`` -> ``metadata.audio_url`` (new)
+      - ``metadata.end_match_modal.background_image_file`` -> ``...background_image_url`` (lobby banner uses the same file)
+      - ``metadata.intro_video_file`` -> ``metadata.intro_video_url`` (event_media)
+      - ``metadata.audio_file`` -> ``metadata.audio_url`` (event_media)
 
 Produces maps used by tier_rank_level_matcher and a stable revision/hash for Flutter sync.
 """
@@ -310,6 +309,95 @@ _SPECIAL_EVENTS_BY_ID: Dict[str, Dict[str, Any]] = {
 }
 
 
+def _special_events_index(doc: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    return {
+        str(e["id"]): dict(e)
+        for e in (doc.get("special_events") or [])
+        if isinstance(e, dict) and str(e.get("id") or "").strip()
+    }
+
+
+def _tier_maps_from_doc(doc: Dict[str, Any]) -> Tuple[Dict[int, str], Dict[int, int], Dict[int, int]]:
+    tiers = [t for t in (doc.get("tiers") or []) if isinstance(t, dict)]
+    title: Dict[int, str] = {}
+    fee: Dict[int, int] = {}
+    min_level: Dict[int, int] = {}
+    for row in tiers:
+        lvl = row.get("level")
+        if not isinstance(lvl, int):
+            continue
+        if "title" in row:
+            title[lvl] = str(row["title"])
+        if "coin_fee" in row:
+            try:
+                fee[lvl] = int(row["coin_fee"])
+            except (TypeError, ValueError):
+                pass
+        if "min_user_level" in row:
+            try:
+                min_level[lvl] = int(row["min_user_level"])
+            except (TypeError, ValueError):
+                pass
+    return title, fee, min_level
+
+
+def _sync_tier_rank_matcher_aliases(*, level_order: Tuple[int, ...]) -> None:
+    """Keep imported aliases in other modules consistent after hot reload."""
+    from core.modules.user_management_module import tier_rank_level_matcher as trm
+    from core.modules.dutch_game import wins_level_rank_matcher as wlm
+
+    trm.LEVEL_ORDER = level_order
+    if level_order:
+        wlm.TABLE_LEVEL_MIN = min(level_order)
+        wlm.TABLE_LEVEL_MAX = max(level_order)
+    else:
+        wlm.TABLE_LEVEL_MIN = 1
+        wlm.TABLE_LEVEL_MAX = 4
+
+
+def reload_from_disk() -> Dict[str, Any]:
+    """
+    Re-read ``table_tiers.json`` (+ env overlay) and refresh in-process caches.
+
+    Safe to call while Flask is running; does not restart the server process.
+    """
+    global _CANONICAL_DOC, _LEVEL_ORDER_LIST, TABLE_TIERS_REVISION, LEVEL_ORDER
+
+    previous_revision = TABLE_TIERS_REVISION
+    raw = load_raw_document()
+    doc, order_list = _normalize_document(raw)
+    title_map, fee_map, min_level_map = _tier_maps_from_doc(doc)
+    events_index = _special_events_index(doc)
+    new_order = tuple(order_list)
+    new_revision = _compute_revision(doc)
+
+    TABLE_TIERS_DOCUMENT.clear()
+    TABLE_TIERS_DOCUMENT.update(doc)
+    _CANONICAL_DOC = TABLE_TIERS_DOCUMENT
+    _LEVEL_ORDER_LIST = list(order_list)
+    TABLE_TIERS_REVISION = new_revision
+    LEVEL_ORDER = new_order
+
+    LEVEL_TO_TITLE.clear()
+    LEVEL_TO_TITLE.update(title_map)
+    LEVEL_TO_COIN_FEE.clear()
+    LEVEL_TO_COIN_FEE.update(fee_map)
+    LEVEL_TO_MIN_USER_LEVEL.clear()
+    LEVEL_TO_MIN_USER_LEVEL.update(min_level_map)
+    _SPECIAL_EVENTS_BY_ID.clear()
+    _SPECIAL_EVENTS_BY_ID.update(events_index)
+
+    _sync_tier_rank_matcher_aliases(level_order=new_order)
+
+    return {
+        "reloaded": previous_revision != new_revision,
+        "previous_revision": previous_revision,
+        "revision": new_revision,
+        "tier_count": len(order_list),
+        "special_event_count": len(events_index),
+    }
+
+
 def special_event_row_by_id(event_id: str) -> Optional[Dict[str, Any]]:
     """Catalog ``special_events`` row by stable ``id``, or None."""
     eid = str(event_id or "").strip()
@@ -417,26 +505,59 @@ def _inject_style_back_graphic_url(
     style.pop("back_graphic_file", None)
 
 
+def _event_media_public_url(base: str, event_id: str, filename: str) -> Optional[str]:
+    """``{base}/app_media/media/event_media/<event_id>/<filename>`` — flat filename per event dir."""
+    eid = str(event_id or "").strip()
+    fn = str(filename or "").strip()
+    if not eid or not fn:
+        return None
+    if not _ASSET_SEGMENT_RE.match(eid) or not _ASSET_SEGMENT_RE.match(fn):
+        return None
+    b = base.strip().rstrip("/")
+    if not b:
+        return None
+    return f"{b}/app_media/media/event_media/{quote(eid, safe='')}/{quote(fn, safe='.-_')}"
+
+
+def _inject_event_media_file_url(
+    event_id: str,
+    container: Dict[str, Any],
+    *,
+    source_key: str,
+    target_key: str,
+    base: str,
+) -> None:
+    """Adds ``target_key`` URL from ``source_key`` filename under ``event_media/<event_id>/``."""
+    existing = str(container.get(target_key) or "").strip()
+    if existing.startswith(("http://", "https://")):
+        return
+    fn = str(container.get(source_key) or "").strip()
+    if not fn:
+        return
+    url = _event_media_public_url(base, event_id, fn)
+    if not url:
+        return
+    container[target_key] = url
+    container.pop(source_key, None)
+
+
 def _inject_end_match_modal_background_url(
     modal: Dict[str, Any],
     base: str,
     *,
-    default_subdir: str = "",
+    event_id: str,
 ) -> None:
-    """Adds ``background_image_url`` from packaged filename (same public path as tier back-graphics)."""
+    """Adds ``background_image_url`` from ``background_image_file`` under event_media."""
     existing = str(modal.get("background_image_url") or "").strip()
     if existing.startswith(("http://", "https://")):
-        return
-    b = base.strip().rstrip("/")
-    if not b:
         return
     fn = str(modal.get("background_image_file") or "").strip()
     if not fn:
         return
-    rel = _build_public_asset_relpath(fn, default_subdir=default_subdir)
-    if not rel:
+    url = _event_media_public_url(base, event_id, fn)
+    if not url:
         return
-    modal["background_image_url"] = f"{b}/public/dutch/table-tier-back/{rel}"
+    modal["background_image_url"] = url
     modal.pop("background_image_file", None)
 
 
@@ -470,7 +591,8 @@ def build_client_table_tiers_payload(public_base_url: str) -> Dict[str, Any]:
     Payload for Flutter (includes absolute back_graphic_url), without mutating SERVER canonical revision.
 
     - Resolves filenames from canonical style.back_graphic_file (or CDN back_graphic_url if already absolute).
-    - Applies to ``special_events[].metadata.end_match_modal`` (``background_image_file`` → URL).
+    - Applies to ``special_events[]`` declarative assets under ``app_media/media/event_media/<event_id>/``.
+    - Tier ``style.back_graphic_file`` still resolves via ``/public/dutch/table-tier-back/``.
     - Set DUTCH_PUBLIC_API_BASE (or PUBLIC_APP_URL) when Flask is behind a reverse proxy where request.url_root is wrong.
     """
     doc = deepcopy(TABLE_TIERS_DOCUMENT)
@@ -485,44 +607,39 @@ def build_client_table_tiers_payload(public_base_url: str) -> Dict[str, Any]:
     for ev in doc.get("special_events") or []:
         if not isinstance(ev, dict):
             continue
+        eid = str(ev.get("id") or "").strip()
+        if not eid:
+            continue
         est = ev.get("style")
         if isinstance(est, dict):
-            _inject_style_back_graphic_url(est, base, default_subdir="special_events")
-            _inject_asset_file_url(
+            _inject_style_back_graphic_url(est, base)
+            _inject_event_media_file_url(
+                eid,
                 est,
                 source_key="overlay_image_file",
                 target_key="overlay_image_url",
                 base=base,
-                default_subdir="special_events",
             )
         meta = ev.get("metadata")
         if isinstance(meta, dict):
-            _inject_asset_file_url(
-                meta,
-                source_key="banner_image_file",
-                target_key="banner_image_url",
-                base=base,
-                default_subdir="special_events",
-            )
-            _inject_asset_file_url(
+            _inject_event_media_file_url(
+                eid,
                 meta,
                 source_key="intro_video_file",
                 target_key="intro_video_url",
                 base=base,
-                default_subdir="special_events",
             )
-            _inject_asset_file_url(
+            _inject_event_media_file_url(
+                eid,
                 meta,
                 source_key="audio_file",
                 target_key="audio_url",
                 base=base,
-                default_subdir="special_events",
             )
             em = meta.get("end_match_modal")
             if isinstance(em, dict):
-                _inject_end_match_modal_background_url(
-                    em,
-                    base,
-                    default_subdir="special_events",
-                )
+                _inject_end_match_modal_background_url(em, base, event_id=eid)
+                bg_url = str(em.get("background_image_url") or "").strip()
+                if bg_url:
+                    meta["banner_image_url"] = bg_url
     return doc

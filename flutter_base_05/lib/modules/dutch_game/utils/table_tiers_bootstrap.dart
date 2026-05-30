@@ -204,13 +204,6 @@ class TableTiersBootstrap {
             client: client,
             cacheRoot: cacheRoot,
             eventId: eidRaw,
-            assetKey: 'banner_image_url',
-            url: metaMap['banner_image_url']?.toString(),
-          );
-          await _cacheEventAuxAsset(
-            client: client,
-            cacheRoot: cacheRoot,
-            eventId: eidRaw,
             assetKey: 'intro_video_url',
             url: metaMap['intro_video_url']?.toString(),
           );
@@ -221,6 +214,17 @@ class TableTiersBootstrap {
             assetKey: 'audio_url',
             url: metaMap['audio_url']?.toString(),
           );
+          final endModal = metaMap['end_match_modal'];
+          if (endModal is Map) {
+            final emMap = Map<String, dynamic>.from(endModal);
+            await _cacheEventAuxAsset(
+              client: client,
+              cacheRoot: cacheRoot,
+              eventId: eidRaw,
+              assetKey: 'end_match_background_url',
+              url: emMap['background_image_url']?.toString(),
+            );
+          }
         }
       }
     } finally {
@@ -262,6 +266,9 @@ class TableTiersBootstrap {
         }
         await file.parent.create(recursive: true);
         await file.writeAsBytes(rsp.bodyBytes);
+      }
+      if (file.existsSync() && file.lengthSync() > 0) {
+        LevelMatcher.setLocalEventAuxAssetPath(eventId, assetKey, file.absolute.path);
       }
     } catch (_) {
       // Ignore optional-asset cache failures; runtime can still use remote URL.

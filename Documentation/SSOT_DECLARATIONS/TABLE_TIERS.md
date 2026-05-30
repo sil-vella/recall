@@ -63,7 +63,7 @@ Distinct string `id` (not a table level). Used for special-match presets: metada
 |-------|----------------|
 | `felt_hex`, `spotlight_hex` | Felt color |
 | `back_graphic_file` | Screen backdrop (tier-back graphic lane) |
-| `overlay_image_file` | `table_design_overlay_<event_id>.webp` in event folder → in-game + lobby felt overlay |
+| `overlay_image_file` | `table_design_overlay_<event_id>.webp` in event folder → in-game felt overlay only |
 | `border_style`, `border_colors` | Outer table rim (solid or `stripes`) |
 
 **`metadata.end_match_modal`:**

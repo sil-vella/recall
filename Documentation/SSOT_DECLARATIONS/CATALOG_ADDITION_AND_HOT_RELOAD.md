@@ -56,8 +56,8 @@ app_media/media/event_media/cards_night/
 
 | File | JSON key | Used for |
 |------|----------|----------|
-| `{event_id}_background.webp` | `metadata.end_match_modal.background_image_file` | Lobby Special Events backdrop, Game Ended modal hero |
-| `table_design_overlay_{event_id}.webp` | `style.overlay_image_file` | In-game felt overlay, lobby felt preview (full-bleed, 1024×576 WebP) |
+| `{event_id}_background.webp` | `metadata.end_match_modal.background_image_file` | Lobby Special Events carousel + Game Ended modal hero |
+| `table_design_overlay_{event_id}.webp` | `style.overlay_image_file` | In-game felt overlay only (full-bleed, 1024×576 WebP) |
 
 Optional (same folder): `metadata.intro_video_file`, `metadata.audio_file` → server injects `*_url` under `event_media/<event_id>/`.
 

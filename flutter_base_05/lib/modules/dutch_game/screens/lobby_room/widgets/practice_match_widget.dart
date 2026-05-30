@@ -33,7 +33,10 @@ class PracticeMatchWidget extends StatefulWidget {
 class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
   // State variables
   String _selectedDifficulty = 'medium';
-  bool _isStarting = false;
+  /// null = idle; false = classic start in flight; true = clear-and-collect start in flight.
+  bool? _startingClearAndCollect;
+
+  bool get _isStartInFlight => _startingClearAndCollect != null;
 
   // Difficulty options
   final List<String> _difficultyOptions = [
@@ -45,7 +48,7 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
 
   void _startPractice({required bool isClearAndCollect}) {
     setState(() {
-      _isStarting = true;
+      _startingClearAndCollect = isClearAndCollect;
     });
 
     // Prepare practice settings
@@ -63,7 +66,7 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         setState(() {
-          _isStarting = false;
+          _startingClearAndCollect = null;
         });
       }
     });
@@ -155,14 +158,14 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _isStarting ? null : () => _startPractice(isClearAndCollect: false),
+                  onPressed: _isStartInFlight ? null : () => _startPractice(isClearAndCollect: false),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
                     padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                   ),
                   icon: Icon(Icons.school, size: AppSizes.iconSmall),
-                  label: _isStarting
+                  label: _startingClearAndCollect == false
                       ? SizedBox(
                           height: AppSizes.iconSmall,
                           width: AppSizes.iconSmall,
@@ -190,14 +193,14 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _isStarting ? null : () => _startPractice(isClearAndCollect: true),
+                  onPressed: _isStartInFlight ? null : () => _startPractice(isClearAndCollect: true),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,
                     padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                   ),
                   icon: Icon(Icons.casino, size: AppSizes.iconSmall),
-                  label: _isStarting
+                  label: _startingClearAndCollect == true
                       ? SizedBox(
                           height: AppSizes.iconSmall,
                           width: AppSizes.iconSmall,

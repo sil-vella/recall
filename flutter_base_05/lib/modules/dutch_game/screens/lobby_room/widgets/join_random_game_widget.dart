@@ -368,12 +368,88 @@ int? joinRandomRequiredPlayerLevel(JoinRandomCarouselEntry e) {
   return null;
 }
 
+/// Carousel row labels (tier or special event).
+List<Widget> _carouselEntryTextChildren({
+  required JoinRandomCarouselEntry entry,
+  required bool locked,
+  required String title,
+  required int fee,
+  required double lockedTierIconSize,
+  required Color titleColor,
+  required Color feeColor,
+  required Color eventLabelColor,
+  required Color lockIconColor,
+}) {
+  return [
+    if (entry is JoinRandomEventEntry) ...[
+      Text(
+        'EVENT',
+        style: AppTextStyles.caption().copyWith(
+          color: eventLabelColor,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+        ),
+        textAlign: TextAlign.center,
+      ),
+      SizedBox(height: AppPadding.smallPadding.top * 0.35),
+    ],
+    if (locked) ...[
+      Icon(
+        Icons.lock_outline,
+        size: lockedTierIconSize,
+        color: lockIconColor,
+      ),
+      SizedBox(height: AppPadding.smallPadding.top * 0.75),
+      Text(
+        title,
+        style: AppTextStyles.bodyMedium().copyWith(
+          color: titleColor,
+          fontWeight: FontWeight.w600,
+        ),
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      SizedBox(height: AppPadding.smallPadding.top * 0.5),
+      Text(
+        '${fee}c',
+        style: AppTextStyles.label().copyWith(
+          color: feeColor,
+          fontWeight: FontWeight.w600,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    ] else ...[
+      Text(
+        title,
+        style: AppTextStyles.bodyMedium().copyWith(
+          color: titleColor,
+          fontWeight: FontWeight.w600,
+        ),
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      SizedBox(height: AppPadding.smallPadding.top * 0.5),
+      Text(
+        '${fee}c',
+        style: AppTextStyles.label().copyWith(
+          color: feeColor,
+          fontWeight: FontWeight.w600,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    ],
+  ];
+}
+
 /// Carousel table picker — [special_events] sorted (fee, level), then tiers in catalog order.
 class _JoinRandomTableCarousel extends StatefulWidget {
   final List<JoinRandomCarouselEntry> entries;
   final int selectedIndex;
   final ValueChanged<int> onPageIndexChanged;
   final bool lockedInteraction;
+  final bool showEventTextScrim;
 
   const _JoinRandomTableCarousel({
     super.key,
@@ -381,6 +457,7 @@ class _JoinRandomTableCarousel extends StatefulWidget {
     required this.selectedIndex,
     required this.onPageIndexChanged,
     required this.lockedInteraction,
+    this.showEventTextScrim = false,
   });
 
   @override
@@ -391,6 +468,26 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
   late PageController _pageController;
   int _pageIndex = 0;
   bool _programmaticPage = false;
+
+  /// Dark panel behind carousel labels on special-event art.
+  static final Color _eventCarouselTextScrimFill =
+      AppColors.black.withValues(alpha: 0.78);
+
+  Widget _wrapEventCarouselTextScrim(Widget child) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _eventCarouselTextScrimFill,
+        borderRadius: BorderRadius.circular(AppBorderRadius.medium),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: AppPadding.smallPadding.left,
+          vertical: AppPadding.smallPadding.top * 0.65,
+        ),
+        child: child,
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -507,6 +604,14 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
                 final locked = joinRandomEntryLocked(entry);
                 final title = joinRandomCarouselDisplayTitle(entry);
                 final fee = joinRandomDisplayCoins(entry);
+                final onEventScrim = widget.showEventTextScrim;
+                final titleColor = AppColors.white;
+                final feeColor =
+                    onEventScrim ? AppColors.matchPotGold : AppColors.textSecondary;
+                final eventLabelColor =
+                    onEventScrim ? AppColors.matchPotGoldLight : AppColors.accentColor;
+                final lockIconColor =
+                    onEventScrim ? AppColors.lightGray : AppColors.textSecondary;
                 return AnimatedBuilder(
                   animation: _pageController,
                   builder: (context, child) {
@@ -527,69 +632,40 @@ class _JoinRandomTableCarouselState extends State<_JoinRandomTableCarousel> {
                       opacity: locked ? opacity * 0.65 : opacity,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            if (entry is JoinRandomEventEntry) ...[
-                              Text(
-                                'EVENT',
-                                style: AppTextStyles.caption().copyWith(
-                                  color: AppColors.accentColor,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.6,
+                        child: onEventScrim
+                            ? _wrapEventCarouselTextScrim(
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: _carouselEntryTextChildren(
+                                    entry: entry,
+                                    locked: locked,
+                                    title: title,
+                                    fee: fee,
+                                    lockedTierIconSize: lockedTierIconSize,
+                                    titleColor: titleColor,
+                                    feeColor: feeColor,
+                                    eventLabelColor: eventLabelColor,
+                                    lockIconColor: lockIconColor,
+                                  ),
                                 ),
-                                textAlign: TextAlign.center,
-                              ),
-                              SizedBox(height: AppPadding.smallPadding.top * 0.35),
-                            ],
-                            if (locked) ...[
-                              Icon(
-                                Icons.lock_outline,
-                                size: lockedTierIconSize,
-                                color: AppColors.textSecondary,
-                              ),
-                              SizedBox(height: AppPadding.smallPadding.top * 0.75),
-                              Text(
-                                title,
-                                style: AppTextStyles.bodyMedium().copyWith(
-                                  color: AppColors.white,
-                                  fontWeight: FontWeight.w600,
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: _carouselEntryTextChildren(
+                                  entry: entry,
+                                  locked: locked,
+                                  title: title,
+                                  fee: fee,
+                                  lockedTierIconSize: lockedTierIconSize,
+                                  titleColor: titleColor,
+                                  feeColor: feeColor,
+                                  eventLabelColor: eventLabelColor,
+                                  lockIconColor: lockIconColor,
                                 ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                              SizedBox(height: AppPadding.smallPadding.top * 0.5),
-                              Text(
-                                '${fee}c',
-                                style: AppTextStyles.label().copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ] else ...[
-                              Text(
-                                title,
-                                style: AppTextStyles.bodyMedium().copyWith(
-                                  color: AppColors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              SizedBox(height: AppPadding.smallPadding.top * 0.5),
-                              Text(
-                                '${fee}c',
-                                style: AppTextStyles.label().copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ],
-                        ),
                       ),
                     );
                   },
@@ -795,7 +871,10 @@ class JoinRandomGameWidget extends StatefulWidget {
 }
 
 class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
-  bool _isLoading = false;
+  /// null = idle; false = classic join in flight; true = clear-and-collect join in flight.
+  bool? _joinLoadingClearAndCollect;
+
+  bool get _isJoinInFlight => _joinLoadingClearAndCollect != null;
   static const int _tabQuickJoin = 0;
   static const int _tabSpecialEvents = 1;
 
@@ -1030,7 +1109,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         );
       }
       setState(() {
-        _isLoading = false;
+        _joinLoadingClearAndCollect = null;
       });
     }
   }
@@ -1049,7 +1128,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   }
 
   Future<void> _handleJoinRandomGame({required bool isClearAndCollect}) async {
-    if (_isLoading) return;
+    if (_isJoinInFlight) return;
     
 
     if (_isCurrentLocked()) {
@@ -1077,7 +1156,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     }
 
     setState(() {
-      _isLoading = true;
+      _joinLoadingClearAndCollect = isClearAndCollect;
     });
 
     try {
@@ -1183,7 +1262,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _joinLoadingClearAndCollect = null;
         });
       }
     }
@@ -1231,12 +1310,6 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     return const TableTierFeltPanel(tableLevel: 1);
   }
 
-  Widget _buildEventTableDesignOverlay() {
-    final e = _currentEntry;
-    if (e is! JoinRandomEventEntry) return const SizedBox.shrink();
-    return DutchGamePlayTableStyles.eventTableDesignOverlayFill(eventRow: e.raw);
-  }
-
   @override
   Widget build(BuildContext context) {
     final list = _activeEntries;
@@ -1245,31 +1318,49 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     final isEventsTab = _joinRandomSubTab == _tabSpecialEvents;
     final eventsEmpty = isEventsTab && list.isEmpty;
 
+    /// Special events: felt base, then hero art at reduced opacity so felt shows through.
+    const eventBannerOpacity = 0.58;
+    const eventFeltOpacity = 0.82;
+    const quickJoinFeltOpacity = 0.7;
+
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppBorderRadius.large),
         child: Stack(
           children: [
-            Positioned.fill(
-              child: IgnorePointer(
-                child: _buildBackdrop(),
-              ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Opacity(
-                  opacity: 0.7,
-                  child: _buildFeltOverlay(),
-                ),
-              ),
-            ),
-            if (isEventsTab)
+            if (isEventsTab) ...[
               Positioned.fill(
                 child: IgnorePointer(
-                  child: _buildEventTableDesignOverlay(),
+                  child: Opacity(
+                    opacity: eventFeltOpacity,
+                    child: _buildFeltOverlay(),
+                  ),
                 ),
               ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: eventBannerOpacity,
+                    child: _buildBackdrop(),
+                  ),
+                ),
+              ),
+            ] else ...[
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _buildBackdrop(),
+                ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: quickJoinFeltOpacity,
+                    child: _buildFeltOverlay(),
+                  ),
+                ),
+              ),
+            ],
             Padding(
               padding: AppPadding.cardPadding,
               child: Column(
@@ -1327,7 +1418,8 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                       ),
                       entries: list,
                       selectedIndex: _activeCarouselIndex,
-                      lockedInteraction: _isLoading,
+                      lockedInteraction: _isJoinInFlight,
+                      showEventTextScrim: isEventsTab,
                       onPageIndexChanged: (i) {
                         setState(() => _setActiveCarouselIndex(i));
                       },
@@ -1371,7 +1463,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                     child: SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: (_isLoading || eventsEmpty)
+                        onPressed: (_isJoinInFlight || eventsEmpty)
                             ? null
                             : () => _handleJoinRandomGame(isClearAndCollect: false),
                         style: ElevatedButton.styleFrom(
@@ -1379,7 +1471,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                           foregroundColor: AppColors.textOnAccent,
                           padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                         ),
-                        icon: _isLoading
+                        icon: _joinLoadingClearAndCollect == false
                             ? SizedBox(
                                 height: AppSizes.iconSmall,
                                 width: AppSizes.iconSmall,
@@ -1390,7 +1482,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                               )
                             : const Icon(Icons.shuffle, size: AppSizes.iconSmall),
                         label: Text(
-                          _isLoading ? 'Joining...' : 'Classic',
+                          _joinLoadingClearAndCollect == false ? 'Joining...' : 'Classic',
                           style: AppTextStyles.bodyMedium().copyWith(
                             fontWeight: FontWeight.bold,
                             color: AppColors.textOnAccent,
@@ -1407,7 +1499,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                     child: SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: (_isLoading || eventsEmpty)
+                        onPressed: (_isJoinInFlight || eventsEmpty)
                             ? null
                             : () => _handleJoinRandomGame(isClearAndCollect: true),
                         style: ElevatedButton.styleFrom(
@@ -1415,7 +1507,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                           foregroundColor: AppColors.textOnAccent,
                           padding: EdgeInsets.symmetric(vertical: AppPadding.defaultPadding.top),
                         ),
-                        icon: _isLoading
+                        icon: _joinLoadingClearAndCollect == true
                             ? SizedBox(
                                 height: AppSizes.iconSmall,
                                 width: AppSizes.iconSmall,
@@ -1426,7 +1518,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                               )
                             : const Icon(Icons.casino, size: AppSizes.iconSmall),
                         label: Text(
-                          _isLoading ? 'Joining...' : 'Clear and Collect',
+                          _joinLoadingClearAndCollect == true ? 'Joining...' : 'Clear and Collect',
                           style: AppTextStyles.bodyMedium().copyWith(
                             fontWeight: FontWeight.bold,
                             color: AppColors.textOnAccent,

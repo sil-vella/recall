@@ -80,6 +80,7 @@ flutter:
     - assets/lottie/
     - assets/images/
     - assets/videos/
+    - assets/share/
     - assets/images/backgrounds/
     - assets/images/icons/
     - assets/deck_config.yaml

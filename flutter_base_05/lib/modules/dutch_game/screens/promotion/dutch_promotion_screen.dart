@@ -373,7 +373,6 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
         Center(
           child: DutchShareCtaButton(
             moment: shareMoment,
-            change: widget.change,
             semanticIdentifier: isRankPromotion
                 ? 'promotion_rank_share'
                 : 'promotion_level_share',

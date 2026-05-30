@@ -1,104 +1,149 @@
-import 'package:dutch/modules/dutch_game/backend_core/utils/dutch_rank_level_change_checker.dart';
+import 'package:dutch/modules/dutch_game/utils/dutch_direct_share_channel.dart';
 import 'package:dutch/modules/dutch_game/utils/dutch_share_helper.dart';
+import 'package:dutch/modules/dutch_game/utils/dutch_share_method.dart';
 import 'package:dutch/modules/dutch_game/utils/dutch_share_moment.dart';
+import 'package:dutch/modules/dutch_game/utils/dutch_share_package_names.dart';
+import 'package:dutch/modules/dutch_game/utils/dutch_share_platform.dart';
+import 'package:dutch/modules/dutch_game/utils/dutch_share_template_catalog.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const testStore = 'https://example.com/app';
 
-  group('DutchShareHelper.buildWinPayload', () {
-    test('includes outcome and store URL', () {
-      final p = DutchShareHelper.buildWinPayload(
-        winnerMessage: 'Alice (Dutch Called)',
-        storeUrlOverride: testStore,
-      );
-      expect(p.subject, 'I won in Dutch!');
-      expect(p.text, contains('Alice (Dutch Called)'));
-      expect(p.text, contains(testStore));
-      expect(p.text, contains('Play Dutch Card Game'));
-    });
-
-    test('uses generic body when winner message empty', () {
-      final p = DutchShareHelper.buildWinPayload(
-        winnerMessage: '',
-        storeUrlOverride: testStore,
-      );
-      expect(p.text, contains('I just won a match'));
-      expect(p.text, contains(testStore));
-    });
+  tearDown(() {
+    DutchDirectShareChannel.testShareHandler = null;
+    DutchDirectShareChannel.testIsInstalledHandler = null;
+    DutchDirectShareChannel.testResolveTikTokHandler = null;
   });
 
-  group('DutchShareHelper.buildLevelUpPayload', () {
-    test('includes level transition and wins', () {
-      const change = DutchRankLevelChangeResult(
-        hadBeforeSnapshot: true,
-        rankChanged: false,
-        levelChanged: true,
-        storedRankTrend: StoredTrend.same,
-        storedLevelTrend: StoredTrend.progression,
-        matcherTrend: MatcherTrend.same,
-        levelBefore: 2,
-        levelAfter: 3,
-        winsAfter: 12,
-      );
-      final p = DutchShareHelper.buildLevelUpPayload(
-        change: change,
-        storeUrlOverride: testStore,
-      );
-      expect(p.subject, 'Level up in Dutch!');
-      expect(p.text, contains('Level 2 → 3'));
-      expect(p.text, contains('12 wins'));
-      expect(p.text, contains(testStore));
+  group('DutchShareTemplateCatalog', () {
+    test('defines facebook and tiktok for each moment', () {
+      for (final moment in DutchShareMoment.values) {
+        final platforms = DutchShareTemplateCatalog.platformsFor(moment);
+        expect(platforms, contains(DutchSharePlatform.facebook));
+        expect(platforms, contains(DutchSharePlatform.tiktok));
+      }
     });
-  });
 
-  group('DutchShareHelper.buildRankUpPayload', () {
-    test('capitalizes rank names and includes store URL', () {
-      const change = DutchRankLevelChangeResult(
-        hadBeforeSnapshot: true,
-        rankChanged: true,
-        levelChanged: false,
-        storedRankTrend: StoredTrend.progression,
-        storedLevelTrend: StoredTrend.same,
-        matcherTrend: MatcherTrend.progression,
-        rankBefore: 'silver',
-        rankAfter: 'gold',
-      );
-      final p = DutchShareHelper.buildRankUpPayload(
-        change: change,
-        storeUrlOverride: testStore,
-      );
-      expect(p.subject, 'Rank up in Dutch!');
-      expect(p.text, contains('Rank Silver → Gold'));
-      expect(p.text, contains(testStore));
-    });
-  });
-
-  group('DutchShareHelper.buildPayload', () {
-    test('dispatches by moment', () {
-      final win = DutchShareHelper.buildPayload(
+    test('win facebook uses image and store link', () {
+      final t = DutchShareTemplateCatalog.templateFor(
         moment: DutchShareMoment.win,
-        winnerMessage: 'Test',
-        storeUrlOverride: testStore,
+        platform: DutchSharePlatform.facebook,
       );
-      expect(win.subject, 'I won in Dutch!');
+      expect(t, isNotNull);
+      expect(t!.assetPath, 'assets/share/win/facebook.webp');
+      expect(t.mediaKind.name, 'image');
+      expect(t.textKind.name, 'storeLink');
+    });
 
-      const change = DutchRankLevelChangeResult(
-        hadBeforeSnapshot: true,
-        rankChanged: false,
-        levelChanged: true,
-        storedRankTrend: StoredTrend.same,
-        storedLevelTrend: StoredTrend.progression,
-        matcherTrend: MatcherTrend.same,
-        levelBefore: 1,
-        levelAfter: 2,
+    test('win tiktok uses video and caption', () {
+      final t = DutchShareTemplateCatalog.templateFor(
+        moment: DutchShareMoment.win,
+        platform: DutchSharePlatform.tiktok,
       );
-      final level = DutchShareHelper.buildPayload(
-        moment: DutchShareMoment.levelUp,
-        change: change,
+      expect(t, isNotNull);
+      expect(t!.assetPath, 'assets/share/win/tiktok.mp4');
+      expect(t.mediaKind.name, 'video');
+      expect(t.textKind.name, 'tiktokCaption');
+    });
+  });
+
+  group('DutchShareHelper.shareTextFor', () {
+    test('facebook text is store URL only', () {
+      expect(
+        DutchShareHelper.shareTextFor(
+          textKind: DutchShareTextKind.storeLink,
+          storeUrlOverride: testStore,
+        ),
+        testStore,
+      );
+    });
+
+    test('tiktok caption includes store URL', () {
+      final text = DutchShareHelper.shareTextFor(
+        textKind: DutchShareTextKind.tiktokCaption,
         storeUrlOverride: testStore,
       );
-      expect(level.subject, 'Level up in Dutch!');
+      expect(text, contains(testStore));
+      expect(text, contains('Play Dutch Card Game'));
+    });
+  });
+
+  group('DutchSharePackageNames', () {
+    test('facebook package matches Android manifest query', () {
+      expect(
+        DutchSharePackageNames.packageFor(DutchSharePlatform.facebook),
+        'com.facebook.katana',
+      );
+    });
+
+    test('supports direct android for facebook and tiktok', () {
+      expect(
+        DutchSharePackageNames.supportsDirectAndroidShare(
+          DutchSharePlatform.facebook,
+        ),
+        isTrue,
+      );
+      expect(
+        DutchSharePackageNames.supportsDirectAndroidShare(
+          DutchSharePlatform.tiktok,
+        ),
+        isTrue,
+      );
+    });
+
+    test('tiktok package list matches Kotlin handler order', () {
+      expect(
+        DutchSharePackageNames.tiktokPackages,
+        [
+          'com.zhiliaoapp.musically',
+          'com.ss.android.ugc.trill',
+        ],
+      );
+    });
+  });
+
+  group('DutchDirectShareChannel test hooks', () {
+    test('resolvePackageForPlatform returns facebook when installed', () async {
+      DutchDirectShareChannel.testIsInstalledHandler = (pkg) async {
+        return pkg == DutchSharePackageNames.facebook;
+      };
+      final resolved = await DutchDirectShareChannel.resolvePackageForPlatform(
+        DutchSharePlatform.facebook,
+      );
+      expect(resolved, DutchSharePackageNames.facebook);
+    });
+
+    test('resolvePackageForPlatform uses tiktok resolver', () async {
+      DutchDirectShareChannel.testResolveTikTokHandler = () async {
+        return DutchSharePackageNames.tiktokTrill;
+      };
+      final resolved = await DutchDirectShareChannel.resolvePackageForPlatform(
+        DutchSharePlatform.tiktok,
+      );
+      expect(resolved, DutchSharePackageNames.tiktokTrill);
+    });
+
+    test('shareToApp returns appNotInstalled from test handler', () async {
+      DutchDirectShareChannel.testShareHandler =
+          ({required packageName, required filePath, required mimeType, text}) async {
+        return DutchDirectShareStatus.appNotInstalled;
+      };
+      final status = await DutchDirectShareChannel.shareToApp(
+        packageName: DutchSharePackageNames.facebook,
+        filePath: '/tmp/x.png',
+        mimeType: 'image/png',
+        text: testStore,
+      );
+      expect(status, DutchDirectShareStatus.appNotInstalled);
+    });
+  });
+
+  group('DutchShareMethod', () {
+    test('defines analytics share_method values', () {
+      expect(DutchShareMethod.directAndroid, 'direct_android');
+      expect(DutchShareMethod.sharePlus, 'share_plus');
+      expect(DutchShareMethod.linkOnly, 'link_only');
     });
   });
 

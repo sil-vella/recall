@@ -469,7 +469,7 @@ The application supports multiple build configurations:
 
 ## Social share (Dutch celebrations)
 
-Win, level-up, and rank-up fullscreen screens expose a **Share** button that calls the native OS share sheet via `share_plus` (`DutchShareHelper` in `lib/modules/dutch_game/utils/`). Shared text includes celebration copy plus a store URL from compile-time defines `PLAY_STORE_URL` and `APP_STORE_URL` (see `Config` and repo-root `.env.dart.defines.*` consumed by `playbooks/frontend/flutter_dart_defines_common.sh`). Analytics: `dutch_share_tapped` and `dutch_share_completed`.
+Win, level-up, and rank-up screens use hybrid sharing: **Android** direct intents to Facebook/TikTok; **iOS** / fallback via `share_plus`. Full reference: [`Documentation/Sharing/SHARING_SYSTEM.md`](../Sharing/SHARING_SYSTEM.md).
 
 ## Conclusion
 

@@ -169,7 +169,6 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
                             Center(
                               child: DutchShareCtaButton(
                                 moment: DutchShareMoment.win,
-                                winnerMessage: widget.winnerMessage,
                                 semanticIdentifier: 'win_celebration_share',
                               ),
                             ),

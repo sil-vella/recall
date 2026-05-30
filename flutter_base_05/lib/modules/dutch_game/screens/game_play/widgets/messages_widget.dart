@@ -676,13 +676,15 @@ Widget _gameEndedOrderedWinnersColumn(
 Widget? _specialEventEndMatchHero(
   Map<String, dynamic> modal, {
   String? eventId,
+  bool showWinnerLottie = false,
 }) {
   final text = modal['text']?.toString().trim() ?? '';
   final bgUrl = _resolveEndMatchModalBackgroundUrl(modal, eventId: eventId);
   final hasBg = bgUrl != null && bgUrl.isNotEmpty;
-  if (text.isEmpty && !hasBg) return null;
+  if (text.isEmpty && !hasBg && !showWinnerLottie) return null;
 
   if (hasBg) {
+    final heroHeight = showWinnerLottie ? 190.0 : 140.0;
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Stack(
@@ -690,42 +692,83 @@ Widget? _specialEventEndMatchHero(
         children: [
           Image.network(
             bgUrl,
-            height: 140,
+            height: heroHeight,
             width: double.infinity,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => Container(
-              height: 140,
+              height: heroHeight,
               color: AppColors.cardVariant,
             ),
           ),
           Container(
-            height: 140,
+            height: heroHeight,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.black.withValues(alpha: 0.35),
-                  AppColors.black.withValues(alpha: 0.75),
+                  AppColors.black.withValues(alpha: 0.3),
+                  AppColors.black.withValues(alpha: 0.72),
                 ],
               ),
             ),
           ),
-          if (text.isNotEmpty)
-            Padding(
-              padding: AppPadding.smallPadding,
-              child: Text(
-                text,
-                textAlign: TextAlign.center,
-                style: AppTextStyles.bodyMedium().copyWith(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.w600,
-                  height: 1.35,
-                ),
-              ),
+          Padding(
+            padding: AppPadding.smallPadding,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (showWinnerLottie) ...[
+                  const _WinnerLottieCelebration(size: 76),
+                  if (text.isNotEmpty) SizedBox(height: AppPadding.smallPadding.top * 0.35),
+                ],
+                if (text.isNotEmpty)
+                  Text(
+                    text,
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodyMedium().copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                      shadows: const [
+                        Shadow(
+                          color: AppColors.black,
+                          blurRadius: 6,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
+    );
+  }
+
+  if (showWinnerLottie) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _WinnerLottieCelebration(),
+        if (text.isNotEmpty) ...[
+          SizedBox(height: AppPadding.smallPadding.top * 0.5),
+          Padding(
+            padding: AppPadding.smallPadding,
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMedium().copyWith(
+                color: AppColors.matchPotGold,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -838,9 +881,17 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
     final headerTextColor = ThemeConfig.getTextColorForBackground(headerBackgroundColor);
     final hasRows = d.orderedWinners.isNotEmpty;
     final endModal = d.specialEventEndMatchModal;
+    final showWinnerLottieInHero =
+        hasRows && d.isCurrentUserWinner && endModal != null;
     final heroWidget = endModal != null
-        ? _specialEventEndMatchHero(endModal, eventId: d.specialEventId)
+        ? _specialEventEndMatchHero(
+            endModal,
+            eventId: d.specialEventId,
+            showWinnerLottie: showWinnerLottieInHero,
+          )
         : null;
+    final showStandaloneWinnerLottie =
+        hasRows && d.isCurrentUserWinner && !showWinnerLottieInHero;
     Map<String, dynamic>? ctaMap;
     final ctaRaw = endModal?['cta_text'];
     if (ctaRaw is Map) {
@@ -908,7 +959,7 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
                   ],
                 ),
               ),
-              if (hasRows && d.isCurrentUserWinner) _WinnerTrophyInModal(),
+              if (showStandaloneWinnerLottie) _WinnerTrophyInModal(),
               Flexible(
                 child: SingleChildScrollView(
                   padding: AppPadding.cardPadding,
@@ -1372,13 +1423,17 @@ class _MessagesWidgetState extends State<MessagesWidget> {
   }
 }
 
-/// Lottie celebration above the standings when the current user won (no static trophy icon).
-class _WinnerTrophyInModal extends StatefulWidget {
+/// Embeddable winner Lottie (special-event hero or standalone trophy row).
+class _WinnerLottieCelebration extends StatefulWidget {
+  const _WinnerLottieCelebration({this.size = 90});
+
+  final double size;
+
   @override
-  State<_WinnerTrophyInModal> createState() => _WinnerTrophyInModalState();
+  State<_WinnerLottieCelebration> createState() => _WinnerLottieCelebrationState();
 }
 
-class _WinnerTrophyInModalState extends State<_WinnerTrophyInModal>
+class _WinnerLottieCelebrationState extends State<_WinnerLottieCelebration>
     with TickerProviderStateMixin {
   late AnimationController _entryController;
   late AnimationController _pulseController;
@@ -1423,44 +1478,51 @@ class _WinnerTrophyInModalState extends State<_WinnerTrophyInModal>
     super.dispose();
   }
 
-  static const double _lottieBox = 90;
+  @override
+  Widget build(BuildContext context) {
+    final box = widget.size;
+    return AnimatedBuilder(
+      animation: Listenable.merge([_entryController, _pulseController]),
+      builder: (context, child) {
+        final scale = _entryScale.value * (_entryController.isCompleted ? _pulseScale.value : 1);
+        return Transform.scale(
+          scale: scale,
+          child: child,
+        );
+      },
+      child: SizedBox(
+        width: box,
+        height: box,
+        child: FutureBuilder<LottieComposition?>(
+          future: _compositionFuture,
+          builder: (context, snapshot) {
+            final composition = snapshot.data;
+            if (snapshot.hasError || composition == null) {
+              return SizedBox(width: box, height: box);
+            }
+            return Lottie(
+              composition: composition,
+              fit: BoxFit.contain,
+              repeat: true,
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
 
+/// Lottie celebration above the standings when the current user won (non–special-event).
+class _WinnerTrophyInModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
-      child: Align(
+      child: const Align(
         alignment: Alignment.topCenter,
         child: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: AnimatedBuilder(
-            animation: Listenable.merge([_entryController, _pulseController]),
-            builder: (context, child) {
-              final scale = _entryScale.value * (_entryController.isCompleted ? _pulseScale.value : 1);
-              return Transform.scale(
-                scale: scale,
-                child: child,
-              );
-            },
-            child: SizedBox(
-              width: _lottieBox,
-              height: _lottieBox,
-              child: FutureBuilder<LottieComposition?>(
-                future: _compositionFuture,
-                builder: (context, snapshot) {
-                  final composition = snapshot.data;
-                  if (snapshot.hasError || composition == null) {
-                    return SizedBox(width: _lottieBox, height: _lottieBox);
-                  }
-                  return Lottie(
-                    composition: composition,
-                    fit: BoxFit.contain,
-                    repeat: true,
-                  );
-                },
-              ),
-            ),
-          ),
+          padding: EdgeInsets.only(top: 4),
+          child: _WinnerLottieCelebration(),
         ),
       ),
     );

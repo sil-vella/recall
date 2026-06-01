@@ -398,6 +398,7 @@ Use the same pattern for any temporary catalog validation — **remove test ids 
 | Reload OK but app unchanged | Client still has old revision cached — force init refresh |
 | Event art 404 | Wrong path under `event_media/<id>/` or filename ≠ JSON `*_file` |
 | Shop overlay 404 | Folder `<pack>` ≠ `item_id` suffix after `table_design_` |
+| Card/table preview 404 (skinId routes) | Flask missing `/app_media/media` bind-mount from nginx docroot, or root `card_back.webp` / `table_logo.webp` not uploaded |
 | Border wrong color | Re-run `sync_table_design_border_colors.py` after art swap |
 | Tier fee wrong in match | Hot reload not run, or wrong worker behind LB |
 

@@ -8,6 +8,7 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../../utils/consts/config.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../utils/consumables_catalog_bootstrap.dart';
+import '../screens/game_play/utils/table_design_style_helpers.dart';
 
 /// A reusable card widget for the Dutch game
 /// 
@@ -476,9 +477,11 @@ class CardWidget extends StatelessWidget {
     const double kFrameStroke = 1.2;
 
     Widget artChild;
-    if (isPracticeMode) {
+    final useDefaultCardBackAsset =
+        isPracticeMode || effectiveForceDefaultBack || equippedCardBackId.isEmpty;
+    if (useDefaultCardBackAsset) {
       artChild = Image(
-        image: const AssetImage('assets/images/card_back.webp'),
+        image: const AssetImage(TableDesignStyleHelpers.defaultCardBackAsset),
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           
@@ -491,20 +494,12 @@ class CardWidget extends StatelessWidget {
       );
     } else {
       const int imageVersion = 3;
-      final imageUrl = effectiveForceDefaultBack
-          ? (currentGameId.isNotEmpty
-              ? '${Config.apiUrl}/app_media/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
-              : '${Config.apiUrl}/app_media/media/card_back.webp?v=$imageVersion')
-          : equippedCardBackId.isNotEmpty
-              ? (currentGameId.isNotEmpty
-                  ? '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$equippedCardBackId&gameId=$currentGameId&v=$imageVersion'
-                  : '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$equippedCardBackId&v=$imageVersion')
-              : (currentGameId.isNotEmpty
-                  ? '${Config.apiUrl}/app_media/media/card_back.webp?gameId=$currentGameId&v=$imageVersion'
-                  : '${Config.apiUrl}/app_media/media/card_back.webp?v=$imageVersion');
+      final imageUrl = currentGameId.isNotEmpty
+          ? '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$equippedCardBackId&gameId=$currentGameId&v=$imageVersion'
+          : '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$equippedCardBackId&v=$imageVersion';
 
-      final useBlueTint = !effectiveForceDefaultBack && equippedCardBackId == 'card_back_ocean';
-      final useEmberTint = !effectiveForceDefaultBack && equippedCardBackId == 'card_back_ember';
+      final useBlueTint = equippedCardBackId == 'card_back_ocean';
+      final useEmberTint = equippedCardBackId == 'card_back_ember';
       Widget netImage = Image.network(
         imageUrl,
         fit: BoxFit.contain,
@@ -521,7 +516,7 @@ class CardWidget extends StatelessWidget {
         errorBuilder: (context, error, stackTrace) {
           
           return Image(
-            image: const AssetImage('assets/images/card_back.webp'),
+            image: const AssetImage(TableDesignStyleHelpers.defaultCardBackAsset),
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) {
               

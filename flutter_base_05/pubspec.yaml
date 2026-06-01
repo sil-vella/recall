@@ -80,7 +80,10 @@ flutter:
     - assets/lottie/
     - assets/images/
     - assets/videos/
-    - assets/share/
+    # Celebration share templates (gitignored locally; paths match DutchShareTemplateCatalog).
+    - assets/share/win/
+    - assets/share/level_up/
+    - assets/share/rank_up/
     - assets/images/backgrounds/
     - assets/images/icons/
     - assets/deck_config.yaml

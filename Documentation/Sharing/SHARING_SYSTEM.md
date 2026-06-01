@@ -154,10 +154,12 @@ The share folder is registered explicitly:
 ```yaml
 flutter:
   assets:
-    - assets/share/
+    - assets/share/win/
+    - assets/share/level_up/
+    - assets/share/rank_up/
 ```
 
-Any new file dropped into `assets/share/` (matching catalog paths) is included after `flutter pub get` / rebuild. Update **`DutchShareTemplateCatalog`** if you change filenames or extensions.
+Flutter does not recurse into subfolders from `assets/share/` alone — each moment directory must be listed (or each file path). Update **`DutchShareTemplateCatalog`** if you change filenames or extensions.
 
 ### Media guidelines (recommended)
 

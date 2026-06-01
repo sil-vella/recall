@@ -83,7 +83,12 @@ def upload_file(local_file: Path) -> bool:
         "-i",
         VPS_SSH_KEY,
         VPS_SSH_TARGET,
-        f"mkdir -p {remote_dir} && mv {remote_tmp} {remote_file} && chmod 644 {remote_file}",
+        (
+            f"sudo mkdir -p {remote_dir} && "
+            f"sudo mv {remote_tmp} {remote_file} && "
+            f"sudo chown www-data:www-data {remote_file} && "
+            f"sudo chmod 644 {remote_file}"
+        ),
     ]
     try:
         subprocess.run(ssh_cmd, check=True)

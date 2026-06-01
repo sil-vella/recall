@@ -544,8 +544,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     // Preload card back and special-card backgrounds once when entering game play (match start)
     if (!_cardBackPrecached && mounted) {
       _cardBackPrecached = true;
-      precacheImage(const AssetImage('assets/images/card_back.webp'), context);
-      precacheImage(const AssetImage('assets/images/table_logo.webp'), context);
+      precacheImage(const AssetImage(TableDesignStyleHelpers.defaultCardBackAsset), context);
+      precacheImage(const AssetImage(TableDesignStyleHelpers.defaultTableOverlayAsset), context);
       precacheImage(const AssetImage('assets/images/backgrounds/queen.webp'), context);
       precacheImage(const AssetImage('assets/images/backgrounds/king.webp'), context);
       precacheImage(const AssetImage('assets/images/backgrounds/jack.webp'), context);
@@ -728,8 +728,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
       }
     }
     // Special-event matches own the table cosmetics; ignore user equipped table design.
-    final equippedTableDesignId =
-        isSpecialEventMatch ? '' : (equipped['table_design_id']?.toString() ?? '');
+    final equippedTableDesignId = isSpecialEventMatch
+        ? ''
+        : (equipped['table_design_id']?.toString().trim() ?? '');
     final currentGameId = dutchSnapshot['currentGameId']?.toString() ?? '';
     if (LOGGING_SWITCH) {
       customlog(
@@ -852,8 +853,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                       clipBehavior: Clip.antiAlias, // Smooth edges without black artifacts
                       child: LayoutBuilder(
                         builder: (context, innerConstraints) {
-                          final isPracticeMode = currentGameId.startsWith('practice_room_');
-                          final overlayUrl = TableDesignStyleHelpers.buildOverlayUrl(
+                          final overlayNetworkUrl = TableDesignStyleHelpers.buildOverlayNetworkUrl(
                             currentGameId: currentGameId,
                             equippedTableDesignId: equippedTableDesignId,
                             imageVersion: 1,
@@ -875,21 +875,23 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                                   child: IgnorePointer(
                                     child: _tableDesignOverlayImage(
                                       networkUrl: eventTableDesignOverlayUrl,
-                                      fallbackAsset: 'assets/images/table_logo.webp',
+                                      fallbackAsset: TableDesignStyleHelpers.defaultTableOverlayAsset,
                                     ),
+                                  ),
+                                )
+                              else if (overlayNetworkUrl == null)
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: TableDesignStyleHelpers.defaultTableOverlayImage(),
                                   ),
                                 )
                               else
                                 Positioned.fill(
                                   child: IgnorePointer(
-                                    child: isPracticeMode
-                                        ? _tableDesignOverlayImage(
-                                            image: const AssetImage('assets/images/table_logo.webp'),
-                                          )
-                                        : _tableDesignOverlayImage(
-                                            networkUrl: overlayUrl,
-                                            fallbackAsset: 'assets/images/table_logo.webp',
-                                          ),
+                                    child: _tableDesignOverlayImage(
+                                      networkUrl: overlayNetworkUrl,
+                                      fallbackAsset: TableDesignStyleHelpers.defaultTableOverlayAsset,
+                                    ),
                                   ),
                                 ),
                               // Main content - transparent so background shows through

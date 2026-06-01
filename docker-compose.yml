@@ -81,6 +81,8 @@ services:
       - MOBILE_RELEASE_MANIFEST=/app/data/mobile_release.json
       # Profile avatars: persist across container recreate (Flask serves GET /public/avatar-media/...)
       - AVATAR_STORAGE_DIR=/app/data/avatars
+      # Consumables media: card backs + table design overlays (skinId query routes)
+      - DUTCH_APP_MEDIA_DIR=/app_media/media
       - RATE_LIMIT_ENABLED=false
       - RATE_LIMIT_IP_REQUESTS=1000
       - RATE_LIMIT_IP_WINDOW=60
@@ -89,6 +91,7 @@ services:
       - /opt/apps/reignofplay/dutch/data/mobile_release.json:/app/data/mobile_release.json:ro
       - /opt/apps/reignofplay/dutch/data/avatars:/app/data/avatars
       - /opt/apps/reignofplay/dutch/data/secrets:/app/secrets:ro
+      - /var/www/dutch.reignofplay.com/app_media/media:/app_media/media:ro
     depends_on:
       - dutch_mongodb-external
       - dutch_redis-external

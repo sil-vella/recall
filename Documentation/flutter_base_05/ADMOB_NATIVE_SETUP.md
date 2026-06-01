@@ -11,12 +11,10 @@ Set in `.env.prod`, `.env.local`, or your launch script (see `playbooks/frontend
 | `ADMOB_APPLICATION_ID` | Android AdMob **app** id (`ca-app-pub-…~…`, **not** an ad unit). Same `.env` files as below; Gradle prefers this over `local.properties`. |
 | `ADMOBS_TOP_BANNER01` | Top banner ad unit |
 | `ADMOBS_BOTTOM_BANNER01` | Bottom banner ad unit |
-| `ADMOBS_INTERSTITIAL01` | Full-screen interstitial (navigation gate) |
-| `ADMOBS_REWARDED01` | Rewarded ad unit (coin screen) |
+| `ADMOBS_INTERSTITIAL01` | Full-screen interstitial — **Interstitial_001** `ca-app-pub-6524100109992126/4685169868` (navigation gate) |
+| `ADMOBS_REWARDED01` | Rewarded unit — **Rewarded_001** `ca-app-pub-6524100109992126/8821901598` (coin purchase screen) |
 
-Leave `ADMOBS_INTERSTITIAL01` and `ADMOBS_REWARDED01` **empty** until those units exist in AdMob; the app skips the switch-screen interstitial gate and the rewarded coin card when they are unset (banner-only is supported).
-
-**Defaults in repo:** `lib/utils/consts/config.dart` compiles in the live **banner** unit `ca-app-pub-6524100109992126/3612268528` for top and bottom unless you override with `--dart-define`. Interstitial and rewarded stay opt-in via env.
+**Defaults in repo:** `lib/utils/consts/config.dart` compiles in production banner, **Interstitial_001**, and **Rewarded_001** unless you override with `--dart-define`. For local test app id, use Google sample units in `.env.dart.defines.local` (rewarded: `ca-app-pub-3940256099942544/5224354917`).
 
 For **optional** Google test creatives (different publisher), see [Android test ads](https://developers.google.com/admob/android/test-ads) and set matching **application** id + sample units via `.env.local` / `local.properties` so app id and unit ids stay from the same account.
 
@@ -48,6 +46,8 @@ Example overrides in `.env.prod` (same values as defaults; useful when you add m
 ADMOB_APPLICATION_ID='ca-app-pub-6524100109992126~6470366151'
 ADMOBS_TOP_BANNER01='ca-app-pub-6524100109992126/3612268528'
 ADMOBS_BOTTOM_BANNER01='ca-app-pub-6524100109992126/3612268528'
+ADMOBS_INTERSTITIAL01='ca-app-pub-6524100109992126/4685169868'
+ADMOBS_REWARDED01='ca-app-pub-6524100109992126/8821901598'
 ```
 
 ### Troubleshooting: no banner, `onAdFailedToLoad` code 1
@@ -64,7 +64,7 @@ After the user earns a reward, the app POSTs `/userauth/admob/claim-rewarded-ad`
 
 Configure Flask via env (also in `playbooks/rop01/templates/env.j2`):
 
-- `ADMOB_REWARDED_COINS_PER_CLAIM` (default `25`)
-- `ADMOB_REWARDED_DAILY_CAP` (default `20`)
+- `ADMOB_REWARDED_COINS_PER_CLAIM` (default `10`) — server grant size on claim POST
+- `ADMOB_REWARDED_DAILY_CAP` (default `5`) — **Flutter only** (`Config.admobRewardedDailyCap`, SharedPreferences, UTC day)
 
 Production: add **Google rewarded server-side verification (SSV)** so grants cannot be forged from a generic HTTP client.

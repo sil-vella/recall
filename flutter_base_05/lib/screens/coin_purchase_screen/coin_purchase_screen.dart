@@ -8,8 +8,10 @@ import 'package:uuid/uuid.dart';
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
+import '../../core/services/shared_preferences.dart';
 import '../../modules/admobs/ad_experience_policy.dart';
 import '../../modules/admobs/rewarded/rewarded_ad.dart';
+import '../../modules/admobs/rewarded/rewarded_ad_daily_cap.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../utils/analytics_service.dart';
@@ -495,40 +497,38 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     }
   }
 
+  void _showRewardedSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary)),
+        backgroundColor: AppColors.primaryColor,
+      ),
+    );
+  }
+
   Future<void> _watchRewardedAdForCoins() async {
     if (kIsWeb || Config.admobsRewarded01.trim().isEmpty) {
+      return;
+    }
+
+    final pref = SharedPrefManager();
+    if (!RewardedAdDailyCap.canClaimToday(pref)) {
+      _showRewardedSnack(
+        'Daily limit reached (${RewardedAdDailyCap.dailyCap} ads per day). Try again tomorrow (UTC).',
+      );
       return;
     }
 
     final mod = ModuleManager().getModuleByType<RewardedAdModule>();
     final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
     if (mod == null || api == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Rewards are not available right now.',
-              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
-            ),
-            backgroundColor: AppColors.primaryColor,
-          ),
-        );
-      }
+      _showRewardedSnack('Rewards are not available right now.');
       return;
     }
 
     if (!mod.isReady) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Ad is still loading. Try again in a moment.',
-              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
-            ),
-            backgroundColor: AppColors.primaryColor,
-          ),
-        );
-      }
+      _showRewardedSnack('Ad is still loading. Try again in a moment.');
       unawaited(mod.loadAd());
       return;
     }
@@ -539,6 +539,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       await mod.showAd(
         context,
         onUserEarnedReward: () {
+          unawaited(RewardedAdDailyCap.recordClaim(pref));
           unawaited(_claimRewardedAdCoins(api, clientNonce));
         },
       );
@@ -552,10 +553,17 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     if (mod == null) {
       return const SizedBox.shrink();
     }
+    final pref = SharedPrefManager();
+    final coins = Config.admobRewardedCoinsPerClaim;
+    final cap = RewardedAdDailyCap.dailyCap;
+    final remaining = RewardedAdDailyCap.remainingToday(pref);
+    final atDailyCap = remaining <= 0;
+
     return ValueListenableBuilder<int>(
       valueListenable: mod.stateTick,
       builder: (context, _, __) {
         final ready = mod.isReady;
+        final canWatch = !_rewardedAdBusy && ready && !atDailyCap;
         return Container(
           width: double.infinity,
           padding: AppPadding.cardPadding,
@@ -570,22 +578,37 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
               Text('Free coins', style: AppTextStyles.headingSmall()),
               const SizedBox(height: 6),
               Text(
-                'Watch a short video. Coins are added after the server confirms your reward.',
+                atDailyCap
+                    ? 'You have watched the maximum of $cap ads today (UTC). Come back tomorrow.'
+                    : 'Watch a short video for $coins coins each (resets at midnight UTC).',
                 style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
-              FilledButton(
-                onPressed: (_rewardedAdBusy || !ready) ? null : _watchRewardedAdForCoins,
-                child: _rewardedAdBusy
-                    ? SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.textOnPrimary,
-                        ),
-                      )
-                    : Text(ready ? 'Watch ad for coins' : 'Loading ad…'),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: canWatch ? _watchRewardedAdForCoins : null,
+                      child: _rewardedAdBusy
+                          ? SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.textOnPrimary,
+                              ),
+                            )
+                          : Text(
+                              atDailyCap
+                                  ? 'Daily limit reached'
+                                  : (ready ? 'Watch ad for $coins coins' : 'Loading ad…'),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _RewardedAdsRemainingBadge(remaining: remaining, cap: cap),
+                ],
               ),
             ],
           ),
@@ -822,6 +845,42 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                     ),
                   )
                 : const Text('Buy'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Daily rewarded-ad allowance shown beside the watch button (`remaining` / `cap`).
+class _RewardedAdsRemainingBadge extends StatelessWidget {
+  const _RewardedAdsRemainingBadge({
+    required this.remaining,
+    required this.cap,
+  });
+
+  final int remaining;
+  final int cap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppBorderRadius.smallRadius,
+        border: Border.all(color: AppColors.borderDefault),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$remaining/$cap',
+            style: AppTextStyles.headingSmall(color: AppColors.primaryColor),
+          ),
+          Text(
+            'left',
+            style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
           ),
         ],
       ),

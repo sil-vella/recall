@@ -2257,6 +2257,8 @@ When anyone has played a card with the **same rank** as your **collection card**
     final stateBeforePhase =
         StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final previousUiPhase = stateBeforePhase['gamePhase']?.toString() ?? '';
+    final endGameModalPinned =
+        DutchGameHelpers.shouldKeepEndGameModalVisible(stateBeforePhase);
     var uiPhase = DutchGameHelpers.effectiveUiGamePhase(
       gameState,
       fallbackPhase: previousUiPhase.isNotEmpty ? previousUiPhase : 'playing',
@@ -2264,6 +2266,13 @@ When anyone has played a card with the **same rank** as your **collection card**
     if (uiPhase != 'same_rank_window' &&
         DutchGameHelpers.anyPlayerInSameRankWindow(gameState)) {
       uiPhase = 'same_rank_window';
+    }
+    final kickedModalShownForPhase =
+        stateBeforePhase['kickedModalShownFor']?.toString() ?? '';
+    if (kickedModalShownForPhase == gameId && !userStillInPlayers) {
+      uiPhase = 'game_ended';
+    } else if (endGameModalPinned) {
+      uiPhase = 'game_ended';
     }
     final rawPhase = gameState['phase']?.toString() ??
         gameState['gamePhase']?.toString() ??
@@ -2495,20 +2504,24 @@ When anyone has played a card with the **same rank** as your **collection card**
         afterModalGate: winCelebrationGate,
       );
     } else {
-      // Normal game state update - ensure modal is hidden if game hasn't ended
+      // Normal game state update — hide stale modals only when end-game modal is not pinned open.
       if (uiPhase != 'game_ended') {
-        final currentMessages = StateManager().getModuleState<Map<String, dynamic>>('dutch_game')?['messages'] as Map<String, dynamic>? ?? {};
-        if (currentMessages['isVisible'] == true) {
-          
-          DutchGameHelpers.updateUIState({
-            'messages': {
-              ...currentMessages,
-              'isVisible': false,
-            },
-          });
+        final dutchNow =
+            StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        if (!DutchGameHelpers.shouldKeepEndGameModalVisible(dutchNow)) {
+          final currentMessages =
+              dutchNow['messages'] as Map<String, dynamic>? ?? {};
+          if (currentMessages['isVisible'] == true) {
+            DutchGameHelpers.updateUIState({
+              'messages': {
+                ...currentMessages,
+                'isVisible': false,
+              },
+            });
+          }
         }
       }
-      
+
       // Intentionally skip per-tick info message updates.
       // They create extra state writes and trigger avoidable rebuild churn.
     }
@@ -2575,10 +2588,17 @@ When anyone has played a card with the **same rank** as your **collection card**
       switch (propName) {
         case 'phase':
           // Update main state only - normalize backend phase to UI phase
+          final dutchForPhase =
+              StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+          if (DutchGameHelpers.shouldKeepEndGameModalVisible(dutchForPhase)) {
+            break;
+          }
           final rawPhase = updatedGameState['phase']?.toString();
           final uiPhase = rawPhase == 'waiting_for_players'
               ? 'waiting'
-              : (rawPhase ?? 'playing');
+              : (rawPhase == 'game_ended'
+                  ? 'game_ended'
+                  : (rawPhase ?? 'playing'));
           _updateMainGameState({
             'gamePhase': uiPhase,
           });
@@ -2646,10 +2666,17 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
     
     // Check if game has ended and show winner modal
-    final rawPhase = updatedGameState['phase']?.toString();
-    final uiPhase = rawPhase == 'waiting_for_players'
-        ? 'waiting'
-        : (rawPhase == 'game_ended' ? 'game_ended' : (rawPhase ?? 'playing'));
+    final dutchBeforePartialPhase =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final previousPartialUiPhase =
+        dutchBeforePartialPhase['gamePhase']?.toString() ?? '';
+    var uiPhase = DutchGameHelpers.effectiveUiGamePhase(
+      updatedGameState,
+      fallbackPhase: previousPartialUiPhase.isNotEmpty ? previousPartialUiPhase : 'playing',
+    );
+    if (DutchGameHelpers.shouldKeepEndGameModalVisible(dutchBeforePartialPhase)) {
+      uiPhase = 'game_ended';
+    }
     
     // Extract winners list if game has ended
     final winners = data['winners'] as List<dynamic>? ?? updatedGameState['winners'] as List<dynamic>?;
@@ -2730,20 +2757,24 @@ When anyone has played a card with the **same rank** as your **collection card**
         afterModalGate: winCelebrationGate,
       );
     } else {
-      // Normal partial update - ensure modal is hidden if game hasn't ended
+      // Normal partial update — hide stale modals only when end-game modal is not pinned open.
       if (uiPhase != 'game_ended') {
-        final currentMessages = StateManager().getModuleState<Map<String, dynamic>>('dutch_game')?['messages'] as Map<String, dynamic>? ?? {};
-        if (currentMessages['isVisible'] == true) {
-          
-          DutchGameHelpers.updateUIState({
-            'messages': {
-              ...currentMessages,
-              'isVisible': false,
-            },
-          });
+        final dutchNow =
+            StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        if (!DutchGameHelpers.shouldKeepEndGameModalVisible(dutchNow)) {
+          final currentMessages =
+              dutchNow['messages'] as Map<String, dynamic>? ?? {};
+          if (currentMessages['isVisible'] == true) {
+            DutchGameHelpers.updateUIState({
+              'messages': {
+                ...currentMessages,
+                'isVisible': false,
+              },
+            });
+          }
         }
       }
-      
+
       // Intentionally skip per-tick info message updates to reduce write/rebuild churn.
     }
   }

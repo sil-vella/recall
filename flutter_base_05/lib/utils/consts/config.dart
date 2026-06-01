@@ -76,14 +76,28 @@ class Config {
     defaultValue: 'ca-app-pub-6524100109992126/3612268528',
   );
 
+  /// AdMob placement **Interstitial_001** (navigation-gated switch-screen flow).
   static const String admobsInterstitial01 = String.fromEnvironment(
     'ADMOBS_INTERSTITIAL01',
-    defaultValue: '',
+    defaultValue: 'ca-app-pub-6524100109992126/4685169868',
   );
 
+  /// AdMob placement **Rewarded_001** (coin purchase — watch ad for coins).
   static const String admobsRewarded01 = String.fromEnvironment(
     'ADMOBS_REWARDED01',
-    defaultValue: '',
+    defaultValue: 'ca-app-pub-6524100109992126/8821901598',
+  );
+
+  /// Coins granted per rewarded ad (UI + local cap; server uses `ADMOB_REWARDED_COINS_PER_CLAIM`).
+  static const int admobRewardedCoinsPerClaim = int.fromEnvironment(
+    'ADMOB_REWARDED_COINS_PER_CLAIM',
+    defaultValue: 10,
+  );
+
+  /// Max rewarded ads per user per UTC day (enforced on device only).
+  static const int admobRewardedDailyCap = int.fromEnvironment(
+    'ADMOB_REWARDED_DAILY_CAP',
+    defaultValue: 5,
   );
 
   /// [RequestConfiguration.tagForChildDirectedTreatment]: -1 unspecified, 0 false, 1 true.

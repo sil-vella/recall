@@ -111,6 +111,10 @@ flutter_base_05/assets/videos/
 # Allow iOS app asset catalogs (icons/splash) to be tracked for CI/App Store builds.
 !flutter_base_05/ios/Runner/Assets.xcassets/**/*
 
+# Celebration share templates: keep out of git commits, but do not gitignore — Flutter
+# omits ignored paths from the asset bundle even when listed in pubspec.yaml.
+!flutter_base_05/assets/share/**/*
+
 # Data directories
 db_data/
 redis_data/

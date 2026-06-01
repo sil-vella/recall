@@ -113,6 +113,32 @@ Environment variables match the other VPS upload scripts: `VPS_SSH_TARGET`, `VPS
 
 **Local testing (no VPS):** run `python3 playbooks/00_local/sync_promotional_ads_local.py -y`, then `cd playbooks/00_local/app_media_static && python3 -m http.server 8765`, and point the app at `http://127.0.0.1:8765` via `API_URL`.
 
+#### Consumables cosmetics (card covers + table designs)
+
+Shop card backs and table design overlays use **Flask query-param routes** proxied by nginx:
+
+- `GET /app_media/media/card_back.webp?skinId=card_back_<pack>`
+- `GET /app_media/media/table_design_overlay.webp?skinId=table_design_<pack>`
+
+Pack `.webp` files are uploaded to nginx docroot via `16_upload_card_back_packs.py` and `14_upload_table_design_overlays.py`. **Flask must bind-mount the same tree** or those routes return 404 even when static pack paths work:
+
+```yaml
+# docker-compose.yml — dutch_flask-external.volumes
+- /var/www/dutch.reignofplay.com/app_media/media:/app_media/media:ro
+```
+
+Set `DUTCH_APP_MEDIA_DIR=/app_media/media` in the Flask service environment (see repo `docker-compose.yml`).
+
+**Root fallbacks** (default preview when no skin equipped): upload `card_back.webp` and `table_logo.webp` via `12_upload_card_back_image.py` and `13_upload_table_logo_image.py`. Generate placeholders locally with `generate_consumable_placeholder_webps.py` if missing.
+
+**Verify after deploy:**
+
+```bash
+curl -I "https://dutch.reignofplay.com/app_media/media/card_back.webp?skinId=card_back_forest"
+curl -I "https://dutch.reignofplay.com/app_media/media/table_design_overlay.webp?skinId=table_design_neon"
+curl -I "https://dutch.reignofplay.com/app_media/media/table_logo.webp"
+```
+
 ---
 
 ### 5. Docker & App Deployment (`05_install_docker.yml`, `08_deploy_docker_compose.yml`)

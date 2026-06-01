@@ -9,8 +9,6 @@ Place sponsor media here (repo: app_media/media/ — same relative path on the V
                     — served via https://dutch.reignofplay.com/app_media/media/card_back.webp?skinId=card_back_<pack_name>
 
   table_design/<pack_name>/table_design_overlay_<pack_name>.webp
-                    — Source PNG: app_media/game_consumables_named/table_design_<pack_name>.png
-                    — playbooks/00_local/templates/consumables/process_game_consumables_named.py
                     — playbooks/rop01/14_upload_table_design_overlays.py
                     — served via .../table_design_overlay.webp?skinId=table_design_<pack_name>
 

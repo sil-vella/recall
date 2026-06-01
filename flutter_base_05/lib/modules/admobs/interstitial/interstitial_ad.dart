@@ -10,7 +10,7 @@ import '../../../../core/services/shared_preferences.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
 
-/// Preloads and shows AdMob interstitials (e.g. after navigation gate in [PromotionalAdsModule]).
+/// Preloads and shows AdMob interstitials after the navigation gate in [PromotionalAdsModule].
 class InterstitialAdModule extends ModuleBase {
   InterstitialAdModule(this.adUnitId) : super('admobs_interstitial_ad_module', dependencies: []);
 

@@ -7,12 +7,16 @@ import '../../../utils/consumables_catalog_bootstrap.dart';
 import '../../../backend_core/utils/level_matcher.dart';
 
 class TableDesignStyleHelpers {
+  /// Bundled defaults when no cosmetic is equipped (not loaded from API).
+  static const String defaultTableOverlayAsset = 'assets/images/table_logo.webp';
+  static const String defaultCardBackAsset = 'assets/images/card_back.webp';
+
   static String readEquippedTableDesignId(Map<String, dynamic> dutchState) {
     final userStats = dutchState['userStats'] as Map<String, dynamic>? ?? {};
     final inventory = userStats['inventory'] as Map<String, dynamic>? ?? {};
     final cosmetics = inventory['cosmetics'] as Map<String, dynamic>? ?? {};
     final equipped = cosmetics['equipped'] as Map<String, dynamic>? ?? {};
-    return equipped['table_design_id']?.toString() ?? '';
+    return equipped['table_design_id']?.toString().trim() ?? '';
   }
 
   static Color outerBorderColorForDesign(String tableDesignId) {
@@ -91,23 +95,32 @@ class TableDesignStyleHelpers {
     return Color(parsed);
   }
 
-  static String buildOverlayUrl({
+  /// Network URL for an equipped table design overlay, or null when the bundled default applies.
+  static String? buildOverlayNetworkUrl({
     required String currentGameId,
     required String equippedTableDesignId,
     int imageVersion = 1,
   }) {
-    if (equippedTableDesignId.isNotEmpty) {
-      return currentGameId.isNotEmpty
-          ? '${Config.apiUrl}/app_media/media/table_design_overlay.webp?skinId=$equippedTableDesignId&gameId=$currentGameId&v=$imageVersion'
-          : '${Config.apiUrl}/app_media/media/table_design_overlay.webp?skinId=$equippedTableDesignId&v=$imageVersion';
-    }
-    return buildDefaultTableLogoUrl(currentGameId: currentGameId);
+    final id = equippedTableDesignId.trim();
+    if (id.isEmpty) return null;
+    return currentGameId.isNotEmpty
+        ? '${Config.apiUrl}/app_media/media/table_design_overlay.webp?skinId=$id&gameId=$currentGameId&v=$imageVersion'
+        : '${Config.apiUrl}/app_media/media/table_design_overlay.webp?skinId=$id&v=$imageVersion';
   }
 
-  static String buildDefaultTableLogoUrl({required String currentGameId}) {
-    return currentGameId.isNotEmpty
-        ? '${Config.apiUrl}/app_media/media/table_logo.webp?gameId=$currentGameId&v=2'
-        : '${Config.apiUrl}/app_media/media/table_logo.webp?v=2';
+  /// Bundled default table overlay (no equipped shop cosmetic).
+  static Widget defaultTableOverlayImage({
+    BoxFit fit = BoxFit.cover,
+    Alignment alignment = Alignment.center,
+  }) {
+    return Image.asset(
+      defaultTableOverlayAsset,
+      fit: fit,
+      alignment: alignment,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+    );
   }
 }
 

@@ -106,6 +106,23 @@ class DutchGameHelpers {
     return raw;
   }
 
+  /// True while the end-of-match or kicked modal is open and must stay until the user closes it.
+  ///
+  /// Later WS ticks may send `phase: playing` (or omit phase); handlers must not overwrite
+  /// [gamePhase] or hide [messages.isVisible] while this returns true.
+  static bool shouldKeepEndGameModalVisible(Map<String, dynamic> dutchState) {
+    final messages = dutchState['messages'] as Map<String, dynamic>? ?? {};
+    if (messages['isVisible'] != true) return false;
+
+    if (dutchState['gamePhase']?.toString() == 'game_ended') return true;
+
+    final kickedFor = dutchState['kickedModalShownFor']?.toString() ?? '';
+    if (kickedFor.isNotEmpty) return true;
+
+    final title = messages['title']?.toString() ?? '';
+    return title == 'Game Ended' || title == 'Removed from Game';
+  }
+
   /// True when any roster player still has [same_rank_window] status (partial WS patches may omit phase).
   static bool anyPlayerInSameRankWindow(Map<String, dynamic> gameState) {
     final players = gameState['players'] as List? ?? [];

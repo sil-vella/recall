@@ -1304,7 +1304,7 @@ class _MessagesWidgetState extends State<MessagesWidget> {
         final gamePhase = slice['gamePhase']?.toString() ?? '';
 
         if (_gameEndedData != null) {
-          if (gamePhase != 'game_ended' || !isVisible) {
+          if (!isVisible) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               StateManager().updateModuleState('dutch_game', {
@@ -1317,6 +1317,7 @@ class _MessagesWidgetState extends State<MessagesWidget> {
             });
             return const SizedBox.shrink();
           }
+          // Keep immutable snapshot visible until user closes — ignore phase flicker from WS ticks.
           return _GameEndedModalLayer(
             data: _gameEndedData!,
             onClose: () => _closeMessage(context),

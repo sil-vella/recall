@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,16 +7,14 @@ import '../../core/managers/app_manager.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../utils/consts/config.dart';
+import '../admobs/interstitial/interstitial_ad.dart';
 import '../admobs/ad_experience_policy.dart';
-import 'ad_registry.dart';
-import 'models/ad_event_type_config.dart';
-import 'widgets/switch_screen_ad_overlay.dart';
 
-/// Promotional ads: navigation-gated interstitial (AdMob) + shared [AdRegistry] from server/bundled YAML.
+/// Promotional ads: navigation-gated AdMob interstitial (no custom pre-roll overlay).
 class PromotionalAdsModule extends ModuleBase {
   PromotionalAdsModule() : super('promotional_ads_module', dependencies: []);
 
-  static bool _switchOverlayOpen = false;
+  static bool _interstitialShowInFlight = false;
 
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
@@ -41,27 +40,24 @@ class PromotionalAdsModule extends ModuleBase {
     if (ctx is! BuildContext || !ctx.mounted) {
       return;
     }
-    if (_switchOverlayOpen) {
-      return;
-    }
-    final AdEventTypeConfig? typeCfg = AdRegistry.instance.typeById('switch_screen');
-    if (typeCfg == null) {
+    if (_interstitialShowInFlight) {
       return;
     }
 
-    final delay = typeCfg.delayBeforeSkipSeconds ?? 0;
-
-    _switchOverlayOpen = true;
+    _interstitialShowInFlight = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!ctx.mounted) {
-        _switchOverlayOpen = false;
+        _interstitialShowInFlight = false;
         return;
       }
-      SwitchScreenAdOverlay.show(
-        ctx,
-        delayBeforeSkipSeconds: delay,
-      ).whenComplete(() {
-        _switchOverlayOpen = false;
+      final mod = ModuleManager().getModuleByType<InterstitialAdModule>();
+      if (mod == null || kIsWeb) {
+        _interstitialShowInFlight = false;
+        return;
+      }
+      mod.loadAd();
+      mod.showOrFinish(ctx, () {
+        _interstitialShowInFlight = false;
       });
     });
   }

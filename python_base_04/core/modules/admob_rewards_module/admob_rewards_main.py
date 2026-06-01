@@ -1,6 +1,6 @@
 """
 AdMob rewarded flow: client shows RewardedAd, then POSTs an idempotent claim.
-Caps per UTC day. Does not verify Google SSV yet — add server-side verification for production hardening.
+Daily view cap is enforced on the Flutter client. Does not verify Google SSV yet.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ class AdmobRewardsModule(BaseModule):
         )
 
     def claim_rewarded_ad(self):
-        """JWT: body { client_nonce: str }. Idempotent per (user, nonce); daily cap in Config."""
+        """JWT: body { client_nonce: str }. Idempotent per (user, nonce); credits coins from Config."""
         try:
             user_id = getattr(request, "user_id", None)
             if not user_id:
@@ -62,8 +62,7 @@ class AdmobRewardsModule(BaseModule):
                 return jsonify({"success": False, "error": "client_nonce is required (min 8 chars)"}), 400
 
             coins = int(Config.ADMOB_REWARDED_COINS_PER_CLAIM or 0)
-            daily_cap = int(Config.ADMOB_REWARDED_DAILY_CAP or 0)
-            if coins <= 0 or daily_cap <= 0:
+            if coins <= 0:
                 return jsonify({"success": False, "error": "Rewarded ad grants are not configured"}), 503
 
             try:
@@ -87,22 +86,8 @@ class AdmobRewardsModule(BaseModule):
                 )
 
             now = datetime.now(timezone.utc)
-            day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
             coll = self.db_manager.db[self._CLAIMS]
-            used_today = coll.count_documents({"user_id": oid, "created_at": {"$gte": day_start}})
-            if used_today >= daily_cap:
-                return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "error": "Daily rewarded ad limit reached",
-                            "code": "DAILY_CAP",
-                        }
-                    ),
-                    429,
-                )
-
             existing = self.db_manager.find_one(self._CLAIMS, {"user_id": oid, "client_nonce": client_nonce})
             if existing:
                 bal = get_dutch_game_coin_balance(self.db_manager, oid)

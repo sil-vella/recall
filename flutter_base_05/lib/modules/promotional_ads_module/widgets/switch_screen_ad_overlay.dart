@@ -1,3 +1,10 @@
+// Disabled: custom black-screen + countdown before interstitial.
+// AdMob interstitial is shown directly from [PromotionalAdsModule] after navigation gate.
+//
+// Previous flow: [SwitchScreenAdOverlay.show] → delay / Skip → [InterstitialAdModule.showOrFinish].
+// Kept for reference if a branded pre-roll is needed again.
+
+/*
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -161,3 +168,4 @@ class _SwitchScreenAdDialogState extends State<_SwitchScreenAdDialog> {
     );
   }
 }
+*/

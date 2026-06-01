@@ -39,7 +39,10 @@ BOOSTER_ITEM_ID = cc.primary_win_booster_key()
 
 # Store app_manager reference (will be set by module)
 _app_manager = None
-APP_MEDIA_DIR = Path(__file__).resolve().parents[4] / "app_media" / "media"
+APP_MEDIA_DIR = Path(
+    os.getenv("DUTCH_APP_MEDIA_DIR", "").strip()
+    or (Path(__file__).resolve().parents[4] / "app_media" / "media")
+)
 EVENT_MEDIA_DIR = APP_MEDIA_DIR / "event_media"
 
 # Packaged tier back-graphics (WebP preferred). Served at /public/dutch/table-tier-back/<filename>.

@@ -32,8 +32,8 @@ Web builds do not use AdMob (`kIsWeb` guards); use AdSense keys from env where a
 | **`ADMOB_APPLICATION_ID`** | Android **app** id (`ca-app-pub-XXXXXXXX~YYYYYYYY`). **Not** an ad unit. | Must belong to the **same** AdMob app as every `ADMOBS_*` unit id you use. |
 | **`ADMOBS_TOP_BANNER01`** | Top banner unit | Can equal bottom unit; two `BannerAd` instances are used (see §4). |
 | **`ADMOBS_BOTTOM_BANNER01`** | Bottom banner unit | Skipped on web in `BannerAdModule` hook. |
-| **`ADMOBS_INTERSTITIAL01`** | Interstitial unit | If **empty**, switch-screen interstitial flow is skipped entirely. |
-| **`ADMOBS_REWARDED01`** | Rewarded unit | If **empty**, coin-purchase “watch ad” path is skipped. |
+| **`ADMOBS_INTERSTITIAL01`** | Interstitial unit (**Interstitial_001**) | Default `ca-app-pub-6524100109992126/4685169868`. If **empty**, switch-screen interstitial flow is skipped. |
+| **`ADMOBS_REWARDED01`** | Rewarded unit (**Rewarded_001**) | Default `ca-app-pub-6524100109992126/8821901598`. If **empty**, coin-purchase “watch ad” path is skipped. |
 | **`ADMOB_DEBUG_LOGS`** | Extra `[AdMob]` logs via `dbgAdMob` | `true` / `false`. |
 | **`ADMOB_TAG_FOR_CHILD_DIRECTED_TREATMENT`** | `RequestConfiguration` | `-1` default unspecified; `0` / `1` per SDK. |
 | **`ADMOB_TAG_FOR_UNDER_AGE_OF_CONSENT_REQUEST`** | Same | `-1` default. |
@@ -88,11 +88,11 @@ static const String admobsBottomBanner = String.fromEnvironment(
 );
 static const String admobsInterstitial01 = String.fromEnvironment(
   'ADMOBS_INTERSTITIAL01',
-  defaultValue: '',
+  defaultValue: 'ca-app-pub-6524100109992126/4685169868',
 );
 static const String admobsRewarded01 = String.fromEnvironment(
   'ADMOBS_REWARDED01',
-  defaultValue: '',
+  defaultValue: 'ca-app-pub-6524100109992126/8821901598',
 );
 ```
 
@@ -170,29 +170,19 @@ Match **iOS** `GAD_APPLICATION_ID` to the same test app id when running on iPhon
 
 If `adUnitId` is empty, `initialize` skips `loadAd()`. Loads respect `AdExperiencePolicy.showMonetizedAds`.
 
-### 5.2 Navigation gate + overlay
+### 5.2 Navigation gate → AdMob only
 
-1. **`AdsSwitchScreenNavigatorObserver`** (`lib/modules/promotional_ads_module/ads_navigator_observer.dart`) counts **real** `PageRoute` pushes/replaces (not dialogs). Every **`showAfterScreenChanges`** transitions (from YAML type `switch_screen`, default **3**), it fires hook `switch_screen_ad` with the route’s `BuildContext`.
+1. **`AdsSwitchScreenNavigatorObserver`** counts **real** `PageRoute` pushes/replaces. Every **`showAfterScreenChanges`** transitions (YAML `switch_screen`, default **3**), it fires hook `switch_screen_ad`.
 
-2. **`PromotionalAdsModule`** listens to `switch_screen_ad`. It **returns early** if:
+2. **`PromotionalAdsModule`** calls **`InterstitialAdModule.loadAd()`** then **`showOrFinish`** (no custom pre-roll overlay). Skips when interstitial unit id is empty, user is premium, or a show is already in flight.
 
-   - `Config.admobsInterstitial01.trim().isEmpty`
-   - `!AdExperiencePolicy.showMonetizedAds`
-   - No `switch_screen` entry in `AdRegistry`
-   - Overlay already open
-
-   Otherwise it opens **`SwitchScreenAdOverlay.show`** with `delayBeforeSkipSeconds` from YAML.
-
-3. **`SwitchScreenAdOverlay`** (`widgets/switch_screen_ad_overlay.dart`):
-
-   - Post-frame: `InterstitialAdModule.loadAd()` (refresh inventory before Skip).
-   - After countdown: **`InterstitialAdModule.showOrFinish(context, onClosed)`** — shows interstitial if ready, else closes overlay immediately.
+3. **Close timing:** The app does not add a delay before the AdMob creative. Dismiss is controlled by the ad network (close button timing is not configurable in the Flutter SDK for standard interstitials). YAML `delay_before_skip_seconds` applied only to the legacy overlay (disabled; see commented `switch_screen_ad_overlay.dart`).
 
 ### 5.3 Example env (interstitial enabled)
 
 ```properties
 ADMOB_APPLICATION_ID='ca-app-pub-6524100109992126~6470366151'
-ADMOBS_INTERSTITIAL01='ca-app-pub-6524100109992126/<your-interstitial-unit>'
+ADMOBS_INTERSTITIAL01='ca-app-pub-6524100109992126/4685169868'
 ```
 
 Google’s **test interstitial** unit is commonly `ca-app-pub-3940256099942544/1033173712` — pair with **test app id** `ca-app-pub-3940256099942544~3347511713`.
@@ -233,7 +223,7 @@ Flow sketch:
 
 ```properties
 ADMOB_APPLICATION_ID='ca-app-pub-6524100109992126~6470366151'
-ADMOBS_REWARDED01='ca-app-pub-6524100109992126/<your-rewarded-unit>'
+ADMOBS_REWARDED01='ca-app-pub-6524100109992126/8821901598'
 ```
 
 Google’s **test rewarded** unit is often `ca-app-pub-3940256099942544/5224354917` — again use **test app id** `…3940256099942544~3347511713` on both Android and iOS when testing.

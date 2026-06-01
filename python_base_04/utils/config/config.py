@@ -407,10 +407,10 @@ class Config:
 
     # AdMob rewarded claim (Flask /userauth/admob/claim-rewarded-ad; client after RewardedAd earned)
     ADMOB_REWARDED_COINS_PER_CLAIM = int(
-        get_file_first_config_value("admob_rewarded_coins_per_claim", "ADMOB_REWARDED_COINS_PER_CLAIM", "25")
+        get_file_first_config_value("admob_rewarded_coins_per_claim", "ADMOB_REWARDED_COINS_PER_CLAIM", "10")
     )
     ADMOB_REWARDED_DAILY_CAP = int(
-        get_file_first_config_value("admob_rewarded_daily_cap", "ADMOB_REWARDED_DAILY_CAP", "20")
+        get_file_first_config_value("admob_rewarded_daily_cap", "ADMOB_REWARDED_DAILY_CAP", "5")
     )
 
     # JWT Configuration

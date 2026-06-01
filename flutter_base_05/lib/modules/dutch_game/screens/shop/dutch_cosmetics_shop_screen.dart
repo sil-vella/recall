@@ -227,24 +227,25 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     if (type == 'card_back') {
       final url = id.isNotEmpty
           ? '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$id&v=3'
-          : '${Config.apiUrl}/app_media/media/card_back.webp?v=3';
+          : TableDesignStyleHelpers.defaultCardBackAsset;
       customlog(
         'CustomizeScreen preview card_back: id=$id inlineStyleKeys=$inlineKeys '
         'bootstrapStyleKeys=$bootKeys imageUrl=$url',
       );
       return;
     }
-    final overlayUrl = TableDesignStyleHelpers.buildOverlayUrl(
+    final borderStyle = TableDesignStyleHelpers.borderStyleForDesign(id);
+    final borderColors = TableDesignStyleHelpers.borderColorsForDesign(id);
+    final overlayNetworkUrl = TableDesignStyleHelpers.buildOverlayNetworkUrl(
       currentGameId: '',
       equippedTableDesignId: id,
       imageVersion: 1,
     );
-    final borderStyle = TableDesignStyleHelpers.borderStyleForDesign(id);
-    final borderColors = TableDesignStyleHelpers.borderColorsForDesign(id);
     customlog(
       'CustomizeScreen preview table_design: id=$id inlineStyleKeys=$inlineKeys '
       'bootstrapStyleKeys=$bootKeys borderStyle=$borderStyle borderColorCount=${borderColors.length} '
-      'juventus=${TableDesignStyleHelpers.isJuventusTableDesign(id)} overlayUrl=$overlayUrl',
+      'juventus=${TableDesignStyleHelpers.isJuventusTableDesign(id)} '
+      'overlayNetworkUrl=${overlayNetworkUrl ?? TableDesignStyleHelpers.defaultTableOverlayAsset}',
     );
   }
 
@@ -821,7 +822,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     final borderGlow = TableDesignStyleHelpers.outerBorderGlowForDesign(skinId);
     final borderColors = TableDesignStyleHelpers.borderColorsForDesign(skinId);
     final isJuventus = TableDesignStyleHelpers.isJuventusTableDesign(skinId);
-    final overlayUrl = TableDesignStyleHelpers.buildOverlayUrl(
+    final overlayNetworkUrl = TableDesignStyleHelpers.buildOverlayNetworkUrl(
       currentGameId: '',
       equippedTableDesignId: skinId,
       imageVersion: 1,
@@ -892,25 +893,23 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                         ),
                         Positioned.fill(
                           child: SizedBox.expand(
-                            child: Image.network(
-                              overlayUrl,
-                              fit: BoxFit.cover,
-                              alignment: Alignment.center,
-                              gaplessPlayback: true,
-                              errorBuilder: (_, error, __) {
+                            child: overlayNetworkUrl == null
+                                ? TableDesignStyleHelpers.defaultTableOverlayImage()
+                                : Image.network(
+                                    overlayNetworkUrl,
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.center,
+                                    gaplessPlayback: true,
+                                    errorBuilder: (_, error, __) {
                               if (LOGGING_SWITCH) {
                                 customlog(
                                   'CustomizeScreen table overlay load failed: '
-                                  'skinId=$skinId url=$overlayUrl error=$error',
+                                  'skinId=$skinId url=$overlayNetworkUrl error=$error',
                                 );
                               }
-                              return Icon(
-                                Icons.table_restaurant,
-                                size: math.min(width, height) * 0.35,
-                                color: AppColors.warmSpotlightColor.withValues(alpha: 0.85),
-                              );
+                              return TableDesignStyleHelpers.defaultTableOverlayImage();
                             },
-                            ),
+                                  ),
                           ),
                         ),
                       ],

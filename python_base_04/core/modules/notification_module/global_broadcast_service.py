@@ -77,6 +77,47 @@ def _within_schedule(doc: Dict[str, Any], now: datetime) -> bool:
     return True
 
 
+def _dedupe_candidates_by_msg_id(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Keep one document per non-empty msg_id (newest created_at wins). Rows without msg_id are kept."""
+    by_msg_id: Dict[str, Dict[str, Any]] = {}
+    no_msg_id: List[Dict[str, Any]] = []
+
+    def _created_ts(d: Dict[str, Any]) -> float:
+        c = d.get("created_at")
+        if isinstance(c, datetime):
+            return c.timestamp()
+        return 0.0
+
+    for doc in candidates:
+        mid = (doc.get("msg_id") or "").strip()
+        if not mid:
+            no_msg_id.append(doc)
+            continue
+        prev = by_msg_id.get(mid)
+        if prev is None or _created_ts(doc) >= _created_ts(prev):
+            by_msg_id[mid] = doc
+    return no_msg_id + list(by_msg_id.values())
+
+
+def _load_user_global_read_ids(db_manager, user_oid: ObjectId, gids: List[ObjectId]) -> Set[str]:
+    """Load ack ids using the same raw Mongo path as [mark_global_broadcasts_read]."""
+    read_ids: Set[str] = set()
+    if not gids or not getattr(db_manager, "db", None):
+        return read_ids
+    try:
+        coll = db_manager.db[GLOBAL_BROADCAST_READS_COLL]
+        for doc in coll.find(
+            {"user_id": user_oid, "global_message_id": {"$in": gids}},
+            projection={"global_message_id": 1},
+        ):
+            mid = doc.get("global_message_id")
+            if mid is not None:
+                read_ids.add(str(mid))
+    except Exception:
+        pass
+    return read_ids
+
+
 def _serialize_global_doc(
     doc: Dict[str, Any],
     *,
@@ -153,6 +194,8 @@ def load_global_broadcast_payload_for_user(
             continue
         candidates.append(doc)
 
+    candidates = _dedupe_candidates_by_msg_id(candidates)
+
     def _sort_key(d: Dict[str, Any]) -> float:
         c = d.get("created_at")
         if isinstance(c, datetime):
@@ -175,19 +218,7 @@ def load_global_broadcast_payload_for_user(
             except Exception:
                 continue
         if gids:
-            try:
-                reads = db_manager.find(
-                    GLOBAL_BROADCAST_READS_COLL,
-                    {"user_id": user_oid, "global_message_id": {"$in": gids}},
-                )
-                if isinstance(reads, list):
-                    for r in reads:
-                        if not isinstance(r, dict):
-                            continue
-                        mid = r.get("global_message_id")
-                        read_ids.add(str(mid))
-            except Exception:
-                pass
+            read_ids = _load_user_global_read_ids(db_manager, user_oid, gids)
 
     out: List[Dict[str, Any]] = []
     for doc in candidates:

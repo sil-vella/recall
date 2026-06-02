@@ -16,8 +16,10 @@ import '../widgets/instant_message_modal.dart';
 import '../widgets/instant_notification_response.dart';
 import '../managers/state_manager.dart';
 import '../managers/navigation_manager.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../modules/notifications_module/notifications_module.dart';
+import '../../modules/notifications_module/utils/global_broadcast_modal_filter.dart';
+import '../../modules/notifications_module/utils/notification_inbox_merge.dart';
+import '../../modules/notifications_module/utils/notification_message_cta.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
 
@@ -501,75 +503,9 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       final t = m['type']?.toString() ?? '';
       return t == kNotificationTypeInstant;
     }).toList();
-    return [...unreadGlobals, ...apiList];
-  }
-
-  /// Handles [message.data] for global notification CTAs: in-app navigation with optional query params.
-  ///
-  /// Supported shapes:
-  /// - **String** [deeplink]: `"/dutch/lobby?section=join_random&table=city"` or plain `"/path"`.
-  ///   Optional [deeplink_query] map is merged into query (values stringified).
-  /// - **Map** [deeplink]: `{"path": "/dutch/lobby", "section": "join_random", "table": "city"}` — keys other
-  ///   than `path` / `route` become query parameters.
-  /// - **Flat** alternative: [deeplink_path] string + optional [deeplink_query] map (no [deeplink] key).
-  Future<void> _deeplinkFromGlobalMessage(Map<String, dynamic> message) async {
-    final data = message['data'];
-    if (data is! Map) return;
-
-    String? path;
-    Map<String, dynamic>? query;
-
-    final rawDeeplink = data['deeplink'];
-    if (rawDeeplink is Map) {
-      final m = Map<String, dynamic>.from(rawDeeplink);
-      path = (m.remove('path') ?? m.remove('route'))?.toString().trim();
-      query = m.map((k, v) => MapEntry(k.toString(), v));
-    } else if (rawDeeplink is String) {
-      final link = rawDeeplink.trim();
-      if (link.startsWith('http')) {
-        final uri = Uri.tryParse(link);
-        if (uri != null && await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-        return;
-      }
-      if (link.startsWith('/')) {
-        final uri = Uri.parse('https://_._$link');
-        path = uri.path;
-        if (uri.queryParameters.isNotEmpty) {
-          query = Map<String, dynamic>.from(uri.queryParameters);
-        }
-      }
-    }
-
-    if (path == null || path.isEmpty) {
-      final flat = data['deeplink_path']?.toString().trim();
-      if (flat != null && flat.isNotEmpty) {
-        path = flat;
-      }
-      final dqFlat = data['deeplink_query'];
-      if (dqFlat is Map && dqFlat.isNotEmpty) {
-        query ??= {};
-        dqFlat.forEach((k, v) {
-          query![k.toString()] = v;
-        });
-      }
-    }
-
-    final extra = data['deeplink_query'];
-    if (extra is Map && extra.isNotEmpty) {
-      query ??= {};
-      extra.forEach((k, v) {
-        query![k.toString()] = v;
-      });
-    }
-
-    if (path == null || path.isEmpty) return;
-    if (!path.startsWith('/')) return;
-
-    NavigationManager().navigateTo(
-      path,
-      parameters: query?.map((k, v) => MapEntry(k, v?.toString() ?? '')),
+    return mergeGlobalAndApiInstantInbox(
+      globalUnreadInstant: unreadGlobals,
+      apiList: apiList,
     );
   }
 
@@ -616,7 +552,9 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     }
     if (!mounted) return;
     final api = _moduleManager.getModuleByType<ConnectionsApiModule>();
-    final combined = _mergeInstantModalInbox(mod, list);
+    final merged = _mergeInstantModalInbox(mod, list);
+    final combined = await filterInstantModalMessages(merged);
+    if (!mounted) return;
     await InstantMessageModal.showUnreadInstantModals(
       context,
       messages: combined,
@@ -636,8 +574,10 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                   .where((m) => m['id']?.toString() == messageId)
                   .firstOrNull ??
                   <String, dynamic>{};
-              if (message['origin']?.toString() == 'global') {
-                await _deeplinkFromGlobalMessage(message);
+              if (await tryHandleNotificationMessageCta(message)) {
+                if (messageId.startsWith('glob_')) {
+                  await mod.markGlobalBroadcastsRead([messageId]);
+                }
                 return true;
               }
               return submitInstantNotificationResponse(

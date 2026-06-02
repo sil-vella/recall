@@ -1,5 +1,5 @@
 {
-  "comment": "Source of truth for global_broadcast_messages (synced to Mongo). Examples: Documentation/Notification_Sys/examples/global_broadcast_messages.examples.json. Keep stable _id per row; after changing _id or removing rows, re-run sync so orphans are deleted (else duplicate Welcome modals). Sync local: ansible-playbook -i localhost, -c local playbooks/00_local/sync_global_broadcast_messages.yml. Sync rop01: ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/sync_global_broadcast_messages.yml -e vm_name=rop01 (after source .env.prod).",
+  "comment": "Reference copy of production global_broadcast_messages seed. Not synced automatically.",
   "messages": [
     {
       "_id": "65f0a1b2c3d4e5f607182901",

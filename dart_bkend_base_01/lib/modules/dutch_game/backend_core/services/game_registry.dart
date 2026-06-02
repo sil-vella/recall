@@ -7,6 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
+import 'game_state_frontend_filter.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -209,13 +210,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     }
   }
 
-  /// Filter gameState to remove fields that shouldn't be sent to frontend
-  /// Currently removes originalDeck to reduce payload size
-  Map<String, dynamic> _filterGameStateForFrontend(Map<String, dynamic> gameState) {
-    final filtered = Map<String, dynamic>.from(gameState);
-    filtered.remove('originalDeck');
-    return filtered;
-  }
+  Map<String, dynamic> _filterGameStateForFrontend(Map<String, dynamic> gameState) =>
+      filterGameStateForFrontend(gameState);
 
   /// [Room.isRandomJoin] — included on every `game_state_updated` so the Flutter client can persist
   /// `gameData.is_random_join` (WS payload did not carry it; `isRandomJoinInProgress` clears too early).

@@ -1,0 +1,152 @@
+---
+# Replace VPS MongoDB global_broadcast_messages from JSON (same seed + mongosh logic as 00_local).
+# Orphans not in the JSON are deleted; global_broadcast_reads pruned by default.
+#
+# Source of truth (default): playbooks/00_local/files/global_broadcast_messages.json
+#
+# Usage (from repo root; load prod Mongo password):
+#   set -a && source .env.prod && set +a
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/sync_global_broadcast_messages.yml -e vm_name=rop01
+#
+# Optional:
+#   -e seed_json_path=/abs/path/to/seed.json
+#   -e prune_reads=false
+#   -e allow_empty=true   # wipe all globals + prune reads (dangerous)
+#
+- name: Load MongoDB password from app_dev/.env.prod (optional)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env.prod"
+  tasks:
+    - name: Check if app_dev/.env.prod exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env.prod into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'): continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        result = { 'mongodb_password': out.get('MONGODB_PASSWORD', '') }
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env.prod
+      set_fact:
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
+- name: Render global broadcast sync script (controller)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    database_name: "external_system"
+    global_broadcast_messages_coll: "global_broadcast_messages"
+    global_broadcast_reads_coll: "global_broadcast_reads"
+    seed_json_path: "{{ playbook_dir }}/../00_local/files/global_broadcast_messages.json"
+    prune_reads: true
+    allow_empty: false
+  tasks:
+    - name: Check seed JSON exists
+      stat:
+        path: "{{ seed_json_path }}"
+      register: seed_stat
+
+    - name: Fail if seed JSON missing
+      fail:
+        msg: "Seed file not found: {{ seed_json_path }}"
+      when: not seed_stat.stat.exists | default(false)
+
+    - name: Load seed JSON
+      set_fact:
+        gb_seed: "{{ lookup('file', seed_json_path) | from_json }}"
+
+    - name: Derive messages array (root {messages:[]} or bare array)
+      set_fact:
+        gb_messages: "{{ (gb_seed.messages | default([])) if gb_seed is mapping else (gb_seed | default([])) }}"
+
+    - name: Fail if messages empty (set -e allow_empty=true to wipe collection)
+      fail:
+        msg: "Seed has no messages. Refusing to run (would require allow_empty=true to delete all globals)."
+      when:
+        - not (allow_empty | default(false) | bool)
+        - gb_messages | length == 0
+
+    - name: Render mongosh sync script on controller
+      template:
+        src: "{{ playbook_dir }}/../00_local/templates/sync_global_broadcast_messages.js.j2"
+        dest: /tmp/sync_global_broadcast_messages_rop01.js
+        mode: "0644"
+
+- name: Sync global_broadcast_messages on VPS (Docker MongoDB)
+  hosts: "{{ vm_name | default('rop01') }}_user"
+  become: true
+  gather_facts: false
+  vars:
+    mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
+    mongodb_container_name: "dutch_external_app_mongodb"
+    app_user: "external_app_user"
+    mongodb_auth_db: "external_system"
+  tasks:
+    - name: Require MongoDB password
+      assert:
+        that:
+          - mongodb_password | length > 0
+        fail_msg: >-
+          Set MONGODB_PASSWORD (e.g. source .env.prod) or ensure app_dev/.env.prod
+          exists for the localhost prep play.
+
+    - name: Copy sync script to VPS
+      copy:
+        src: /tmp/sync_global_broadcast_messages_rop01.js
+        dest: /tmp/sync_global_broadcast_messages.js
+        mode: "0644"
+
+    - name: Copy script into MongoDB container
+      shell: sg docker -c 'docker cp /tmp/sync_global_broadcast_messages.js {{ mongodb_container_name }}:/tmp/sync_global_broadcast_messages.js'
+      register: copy_out
+      changed_when: copy_out.rc == 0
+
+    - name: Run sync in MongoDB container
+      shell: |
+        sg docker -c 'docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ mongodb_password }}" --authenticationDatabase {{ mongodb_auth_db }} --quiet /tmp/sync_global_broadcast_messages.js'
+      register: script_out
+      changed_when: true
+
+    - name: Show mongosh stdout
+      debug:
+        msg: "{{ script_out.stdout_lines | default([]) }}"
+
+    - name: Show mongosh stderr if any
+      debug:
+        msg: "{{ script_out.stderr_lines | default([]) }}"
+      when: script_out.stderr_lines | default([]) | length > 0
+
+    - name: Fail if mongosh failed
+      fail:
+        msg: "MongoDB sync failed: rc={{ script_out.rc }}, stderr={{ script_out.stderr | default('') }}"
+      when: script_out.rc != 0
+
+    - name: Remove script from VPS host
+      file:
+        path: /tmp/sync_global_broadcast_messages.js
+        state: absent

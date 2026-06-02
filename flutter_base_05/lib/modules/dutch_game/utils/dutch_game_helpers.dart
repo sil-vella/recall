@@ -42,6 +42,22 @@ class DutchGameHelpers {
     _recentlyLeftGameIds.remove(gameId);
   }
 
+  /// Full draw pile size when server sent a trimmed [drawPile] tail on broadcast.
+  static int drawPileCountFromGameState(Map<String, dynamic> gameState) {
+    final explicit = gameState['drawPileCount'];
+    if (explicit is int) return explicit;
+    if (explicit is num) return explicit.round();
+    return (gameState['drawPile'] as List<dynamic>? ?? []).length;
+  }
+
+  /// Full discard pile size when server sent a trimmed [discardPile] tail on broadcast.
+  static int discardPileCountFromGameState(Map<String, dynamic> gameState) {
+    final explicit = gameState['discardPileCount'];
+    if (explicit is int) return explicit;
+    if (explicit is num) return explicit.round();
+    return (gameState['discardPile'] as List<dynamic>? ?? []).length;
+  }
+
   /// Returns true if [gameId] is still in dutch_game state (in games map, current match id, or lobby room id).
   /// Used by Dutch WS listeners to ignore stale events for games we've left or cleared.
   ///

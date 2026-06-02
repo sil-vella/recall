@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../modules/notifications_module/utils/global_broadcast_modal_filter.dart';
 import '../../utils/consts/theme_consts.dart';
 
 /// Reads [modal_background_enabled] (or legacy [modal_background_image]) from [message] `data`.
@@ -111,11 +112,24 @@ class InstantMessageModal extends StatelessWidget {
   List<ResponseAction> get _responses => ResponseAction.fromMessage(message);
 
   void _onInstantModalClosed() {
-    final id = message['id']?.toString() ?? '';
-    if (id.isNotEmpty && onMarkAsRead != null) {
-      unawaited(onMarkAsRead!(id));
-    }
+    unawaited(_markReadOnce());
     onDismiss();
+  }
+
+  static final Set<String> _markedReadIds = {};
+
+  Future<void> _markReadOnce() async {
+    final id = message['id']?.toString() ?? '';
+    if (id.isEmpty || onMarkAsRead == null || _markedReadIds.contains(id)) return;
+    _markedReadIds.add(id);
+    await onMarkAsRead!(id);
+  }
+
+  Future<void> _closeAfterMarkRead(BuildContext context) async {
+    await _markReadOnce();
+    if (context.mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -207,7 +221,7 @@ class InstantMessageModal extends StatelessWidget {
                                     .toList()
                                 : [
                                     TextButton(
-                                      onPressed: () => Navigator.of(context).pop(),
+                                      onPressed: () => _closeAfterMarkRead(context),
                                       style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
                                       child: Text(
                                         dismissLabel,
@@ -236,7 +250,7 @@ class InstantMessageModal extends StatelessWidget {
     if (id.isEmpty) return;
     final ok = await send(id, r.actionIdentifier);
     if (context.mounted && ok) {
-      Navigator.of(context).pop();
+      await _closeAfterMarkRead(context);
     }
   }
 
@@ -318,7 +332,26 @@ class InstantMessageModal extends StatelessWidget {
     );
   }
 
+  static Future<void> _modalShowChain = Future.value();
+
   static Future<void> showUnreadInstantModals(
+    BuildContext context, {
+    required List<Map<String, dynamic>> messages,
+    required Future<void> Function(String messageId) onMarkAsRead,
+    Future<bool> Function(String messageId, String actionIdentifier)? onSendResponse,
+  }) {
+    _modalShowChain = _modalShowChain.then(
+      (_) => _showUnreadInstantModalsImpl(
+        context,
+        messages: messages,
+        onMarkAsRead: onMarkAsRead,
+        onSendResponse: onSendResponse,
+      ),
+    );
+    return _modalShowChain;
+  }
+
+  static Future<void> _showUnreadInstantModalsImpl(
     BuildContext context, {
     required List<Map<String, dynamic>> messages,
     required Future<void> Function(String messageId) onMarkAsRead,
@@ -326,18 +359,15 @@ class InstantMessageModal extends StatelessWidget {
   }) async {
     if (!context.mounted) return;
     final instantUnread = messages.where((m) {
-      final id = m['id']?.toString() ?? '';
       final type = m['type']?.toString() ?? '';
-      final readAt = m['read_at'];
-      final isUnread = type == kNotificationTypeInstantWs || (readAt == null || readAt == '');
       final isInstant = type == kNotificationTypeInstant || type == kNotificationTypeInstantWs;
-      final idOrKey = id.isNotEmpty ? id : 'ws_${m['timestamp'] ?? m.hashCode}';
-      return isInstant && isUnread && !_shownIds.contains(idOrKey);
+      if (!isInstant) return false;
+      final idOrKey = instantModalSessionKey(m);
+      return !_shownIds.contains(idOrKey);
     }).toList();
     for (final msg in instantUnread) {
       if (!context.mounted) break;
-      final id = msg['id']?.toString() ?? '';
-      final idOrKey = id.isNotEmpty ? id : 'ws_${msg['timestamp'] ?? msg.hashCode}';
+      final idOrKey = instantModalSessionKey(msg);
       _shownIds.add(idOrKey);
       await show(
         context,

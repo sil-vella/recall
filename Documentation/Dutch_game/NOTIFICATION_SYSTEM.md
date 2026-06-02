@@ -2,6 +2,8 @@
 
 Core notification system: backend API, Flutter client, and app-wide instant modals.
 
+**Canonical detail:** [Documentation/Notification_Sys/NOTIFICATION_SYSTEM_FLOW.md](../Notification_Sys/NOTIFICATION_SYSTEM_FLOW.md) (delivery channels, global broadcasts, examples). Quick answer: [Notification_Sys/README.md](../Notification_Sys/README.md).
+
 ---
 
 ## Overview

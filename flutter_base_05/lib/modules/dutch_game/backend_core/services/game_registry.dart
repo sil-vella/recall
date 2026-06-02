@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
+import 'game_state_frontend_filter.dart';
 import '../../../../utils/dev_logger.dart';
 
 const bool LOGGING_SWITCH = false;
@@ -298,13 +299,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     }
   }
 
-  /// Filter gameState to remove fields that shouldn't be sent to frontend
-  /// Currently removes originalDeck to reduce payload size
-  Map<String, dynamic> _filterGameStateForFrontend(Map<String, dynamic> gameState) {
-    final filtered = Map<String, dynamic>.from(gameState);
-    filtered.remove('originalDeck');
-    return filtered;
-  }
+  Map<String, dynamic> _filterGameStateForFrontend(Map<String, dynamic> gameState) =>
+      filterGameStateForFrontend(gameState);
 
   /// Apply updates to GameStateStore and broadcast.
   void _applyValidatedUpdates(Map<String, dynamic> updates) {

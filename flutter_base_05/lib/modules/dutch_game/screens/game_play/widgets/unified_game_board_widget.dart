@@ -1398,10 +1398,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Dutch caller: avatar ring + label only — no full-seat border (draw/play use seat glow).
     final emphasizeAvatar = showDutchCallerHud ||
         (!suppressSeatChrome && isActiveSeat);
-    final showSeatSpotlight = !suppressSeatChrome &&
-        isGameActive &&
-        isActiveSeat &&
-        !showDutchCallerHud;
     final showAnimatedTimer = !suppressSeatChrome &&
         shouldShowTimer &&
         isActiveSeat &&
@@ -1467,27 +1463,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 clipBehavior: Clip.none,
                 children: [
                   decoratedHandPanel,
-                  if (showSeatSpotlight)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: OverflowBox(
-                            minWidth: 0,
-                            minHeight: 0,
-                            maxWidth: double.infinity,
-                            maxHeight: double.infinity,
-                            child: Transform.translate(
-                              offset: _seatHudOffset(seatAvatarLift, cardTableOrientation),
-                              child: _buildSeatAvatarSpotlight(
-                                diameter: _kHudRingOuter * 4.0,
-                                opacity: 0.60,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                   Positioned.fill(
                     child: IgnorePointer(
                       child: Align(
@@ -1971,7 +1946,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     });
   }
 
-  /// Schedules removal of all selected-card overlays (opponent highlight + my hand selection) after 3 seconds.
+  /// White border on tap — matches [CardWidget] selection wrapper.
+  Widget _wrapCardTapSelectionBorder(Widget child, Size cardDimensions) {
+    final borderRadius = CardDimensions.calculateBorderRadius(cardDimensions);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: AppColors.white,
+          width: 3,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: child,
+      ),
+    );
+  }
+
+  /// Schedules removal of selected-card / pile tap overlays after 3 seconds.
   /// Cancels any existing schedule when called again.
   void _startSelectedOverlayClearTimer() {
     _selectedCardOverlayTimer?.cancel();
@@ -1980,6 +1973,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       if (!mounted) return;
       setState(() {
         _clickedCardId = null;
+        _clickedPileType = null;
       });
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
@@ -2246,35 +2240,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           spreadRadius: 0.8,
         ),
       ],
-    );
-  }
-
-  /// 360-degree warm table light under the seat avatar (no layout impact).
-  Widget _buildSeatAvatarSpotlight({
-    required double diameter,
-    required double opacity,
-  }) {
-    return Container(
-      width: diameter,
-      height: diameter,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            AppColors.warmSpotlightColor.withValues(alpha: opacity),
-            AppColors.warmSpotlightColor.withValues(alpha: opacity * 0.35),
-            AppColors.warmSpotlightColor.withValues(alpha: 0),
-          ],
-          stops: const [0.0, 0.62, 1.0],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.warmSpotlightColor.withValues(alpha: opacity * 0.4),
-            blurRadius: 20,
-            spreadRadius: 2.8,
-          ),
-        ],
-      ),
     );
   }
 
@@ -2547,6 +2512,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   ),
                 );
               }
+
+              if (_clickedPileType == 'draw_pile') {
+                drawPileContent =
+                    _wrapCardTapSelectionBorder(drawPileContent, cardDimensions);
+              }
               
               // Wrap with animated glow effect when in drawing status
               if (isDrawingStatus && statusChipColor != null && _glowAnimation != null) {
@@ -2592,6 +2562,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final currentPlayerStatus = centerBoard['playerStatus']?.toString() ?? 'unknown';
     
     if (currentPlayerStatus == 'drawing_card') {
+      setState(() {
+        _clickedPileType = 'draw_pile';
+      });
+      _startSelectedOverlayClearTimer();
       try {
         final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
         if (currentGameId.isEmpty) {
@@ -2602,9 +2576,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           gameId: currentGameId,
         );
         await drawAction.execute();
-        setState(() {
-          _clickedPileType = 'draw_pile';
-        });
       } catch (e) {
         // Game feedback: snackbars removed
       }
@@ -3193,7 +3164,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Row 1: label + status chip (+ optional Call Dutch). Profile + timer sit on first card.
+            // Row 1: You · status chip — spacer — Call Dutch / Dutch status · feed · customize
             Row(
               children: [
                 Container(
@@ -3213,38 +3184,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     ),
                   ),
                 ),
-                if (!isSpecialEventActive) ...[
+                if (playerStatus != 'unknown') ...[
                   const SizedBox(width: 10),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.accentContrast.withValues(alpha: 0.62),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Semantics(
-                      label: 'Customize cosmetics',
-                      button: true,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => _showInPlayCustomizeModal(),
-                          borderRadius: BorderRadius.circular(10),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            child: Icon(
-                              Icons.palette_outlined,
-                              size: 22,
-                              color: AppColors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  PlayerStatusChip(
+                    playerId: _myBoardPlayerId(board),
+                    size: PlayerStatusChipSize.small,
                   ),
-                  const SizedBox(width: 8),
-                  _buildLiveFeedToggleChip(),
                 ],
                 const Spacer(),
                 if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !dutchActive && !hasPlayerCalledDutch && !_callDutchTappedPending) ...[
@@ -3311,11 +3256,38 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   ),
                   const SizedBox(width: 8),
                 ],
-                if (playerStatus != 'unknown')
-                  PlayerStatusChip(
-                    playerId: _myBoardPlayerId(board),
-                    size: PlayerStatusChipSize.small,
+                if (!isSpecialEventActive) ...[
+                  _buildLiveFeedToggleChip(),
+                  const SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.accentContrast.withValues(alpha: 0.62),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Semantics(
+                      label: 'Customize cosmetics',
+                      button: true,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showInPlayCustomizeModal(),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: Icon(
+                              Icons.palette_outlined,
+                              size: 22,
+                              color: AppColors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 16),

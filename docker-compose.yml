@@ -23,18 +23,21 @@ services:
     restart: unless-stopped
 
   # Redis Service (for external app)
+  # Official redis image: bitnami/redis:latest (2026-06) fails chmod on redis.conf under Docker 29+.
   dutch_redis-external:
-    image: bitnami/redis:latest
+    image: redis:8-alpine
     container_name: dutch_external_app_redis
-    user: "${VPS_APP_UID:-1000}:${VPS_APP_GID:-1000}"
     env_file: .env
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - ALLOW_EMPTY_PASSWORD=yes
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --appendonly
+      - "yes"
     ports:
       - "6380:6379"
     volumes:
-      - /opt/apps/reignofplay/dutch/data/redis:/bitnami/redis
+      - /opt/apps/reignofplay/dutch/data/redis/data:/data
     networks:
       - app-network
     restart: unless-stopped

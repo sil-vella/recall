@@ -2,7 +2,113 @@
 
 This document describes the **notification and inbox system as implemented today**: Python persistence and REST, Dart WebSocket relay, Flutter fetch/modals/hooks, types (`type` / `subtype`), and optional modal chrome (URL background). It is the single reference for how to create messages and how the client shows them.
 
-**Related:** global rank-targeted broadcasts ride on **`GET /userauth/dutch/get-user-stats`** — see [Documentation/00_Active_plans/global-broadcast-user-stats.md](../00_Active_plans/global-broadcast-user-stats.md).
+**Index:** [README.md](./README.md) (quick “how do we push?” answer).
+
+**Related:** global rank-targeted broadcasts ride on **`GET /userauth/dutch/get-user-stats`** — see [Documentation/00_Active_plans/global-broadcast-user-stats.md](../00_Active_plans/global-broadcast-user-stats.md) if present in your branch.
+
+---
+
+## 0. How notifications reach users
+
+### 0.1 Terminology: “system notifications” in this repo
+
+| Meaning | Supported today? |
+|---------|------------------|
+| **In-app inbox + modals** — messages in Mongo, REST API, `InstantMessageModal`, notifications screen | **Yes** (this document) |
+| **Real-time while the app is open** — WebSocket events from the Dart game server | **Yes** (`inbox_changed`, `ws_instant_notification`, `restart_invite`) |
+| **OS / device push** — iOS notification center, Android tray, FCM/APNs when app is backgrounded or killed | **No** — not wired; see [§8](#8-os-device-push-not-implemented) |
+
+When product or ops say “push a notification,” they usually mean **create an inbox row in Python** (and optionally rely on WebSocket so an **online** user sees a modal immediately). That is **not** the same as Apple/Google push.
+
+### 0.2 Delivery channels (what actually happens)
+
+```mermaid
+flowchart LR
+  subgraph author [Authoring]
+    PY[Python NotificationService.create]
+    DART_INST[Dart sendInstantNotification]
+    GLOB[Admin global-broadcast]
+  end
+  subgraph store [Persistence]
+    Mongo[(notifications)]
+    GColl[(global_broadcast_messages)]
+  end
+  subgraph realtime [Realtime - app open]
+    HTTP[POST /service/notify-inbox]
+    WS1[inbox_changed]
+    WS2[ws_instant_notification]
+  end
+  subgraph client [Flutter]
+    REST[GET /notifications/messages]
+    STATS[get-user-stats globals]
+    MODAL[InstantMessageModal]
+  end
+  PY --> Mongo
+  PY --> HTTP --> WS1 --> REST --> MODAL
+  DART_INST --> WS2 --> MODAL
+  GLOB --> GColl
+  GColl --> STATS --> MODAL
+  Mongo --> REST
+```
+
+| Channel | Trigger | User must be | Effect |
+|---------|---------|--------------|--------|
+| **A. Mongo + REST** | `NotificationService.create()` (or module helpers e.g. `dutch_notifications.create_notification`) | Logged in; any screen extending `BaseScreen` runs inbox check | Row in `notifications`; list on **Notifications** screen; `type: instant` unread → app-wide modal when fetched |
+| **B. `inbox_changed` WebSocket** | After successful insert, `notify_dart_inbox_changed_async(user_id)` → Dart `POST /service/notify-inbox` → `notifyInboxChangedForUser` | Connected to **Dart game WebSocket** with that `user_id` | Clears 15s fetch throttle; `GET /userauth/notifications/messages` + modal queue (same as A, faster for online users) |
+| **C. `ws_instant_notification`** | Dart `sendInstantNotification(sessionId, payload)` | That **session** on WS | Ephemeral modal (`instant_ws`); **not** inserted into `notifications` by this path alone |
+| **D. `restart_invite`** | Game layer rematch flow | WS session | Flutter synthesizes `instant_ws` (Accept/Decline) |
+| **E. Global broadcast** | `POST /userauth/notifications/admin/global-broadcast` | Logged in; Dutch stats fetched | Unread `instant` globals merged **before** API list for modals; ack via `global-mark-read` (not `notifications` collection) |
+| **F. Frontend-only** | `InstantMessageModal.showFrontendOnlyInstant` | N/A | Modal only; nothing stored |
+
+**Offline / app killed:** channels B–D do nothing until the user opens the app again. Channel **A** (and **E** on next stats fetch) still apply — messages wait in Mongo (or global collections) until REST/stats runs.
+
+There is **no periodic poll timer** on `BaseScreen` for inbox checks. Fetches run on **first frame after screen mount**, on **`inbox_changed`**, when **pending WS instants** are queued, and when the **15s** `lastFetchedAt` throttle allows a refetch during another `_checkAndShowInstantMessages()` call (e.g. navigating to a new screen).
+
+### 0.3 Step-by-step: push an inbox notification to one user (backend)
+
+1. Obtain `NotificationService` from `notification_module` (or use a module helper).
+2. Call **`create(user_id, source, type, title, body, …)`** with `type` in `instant` | `admin` | `advert` (see [§2.2](#22-predefined-type-values-enforced)).
+3. Python inserts into Mongo **`notifications`** and returns document id.
+4. A background thread **`notify_dart_inbox_changed_async(user_id)`** POSTs to Dart (requires `Config.DART_BACKEND_NOTIFY_URL` and `DART_BACKEND_SERVICE_KEY`).
+5. If the user has one or more WS sessions, Dart emits **`inbox_changed`** to each; Flutter refetches and may show **`InstantMessageModal`** for unread `instant` rows.
+6. If the user is offline, step 5 is skipped; they see the message on next app open when any `BaseScreen` runs `_checkAndShowInstantMessages()` (or when they open the notifications list).
+
+**Minimal Python example:**
+
+```python
+svc = app_manager.module_manager.get_module("notification_module").get_notification_service()
+svc.create(
+    user_id=target_user_id,
+    source="my_module",
+    type="instant",
+    title="Hello",
+    body="You have a new message.",
+    subtype="my_module_announcement",
+)
+```
+
+**Config required for realtime (B):** `DART_BACKEND_NOTIFY_URL`, `DART_BACKEND_SERVICE_KEY` on Python; Dart `Config.pythonServiceKey` must match.
+
+### 0.4 Step-by-step: ephemeral popup to a connected game session
+
+Use when the payload does not need to live in the inbox (or you already created a DB row separately):
+
+1. Dart game code calls **`WebSocketServer.sendInstantNotification(sessionId, payload)`**.
+2. Payload should include at least `title`, `body`; optional `data`, `responses`, `id`, `subtype`.
+3. Flutter `WSEventHandler.handleWsInstantNotification` → `NotificationsModule.addPendingWsInstant` → modal on next inbox check.
+
+### 0.5 Step-by-step: rank-wide “system” announcement
+
+1. Admin JWT: **`POST /userauth/notifications/admin/global-broadcast`** (see [§11](#11-global-broadcast-messages-rank-targeted-stats-envelope)).
+2. One document in **`global_broadcast_messages`**; no per-user row in `notifications`.
+3. Each eligible user receives serialized rows on **`GET /userauth/dutch/get-user-stats`** → `NotificationsModule.applyGlobalBroadcastsFromStats`.
+4. Unread `instant` globals appear in the same modal pipeline as per-user instants; dismiss → **`POST /userauth/notifications/global-mark-read`**.
+
+### 0.6 What is *not* a delivery path
+
+- **Email, SMS, Telegram** — out of scope for `notification_module`.
+- **FCM / APNs / `flutter_local_notifications`** — not in repo; `notifications.push` on the user document is unused on the client.
+- **Python → Flutter direct** — always Mongo and/or Dart WS; Flutter talks to Python only via REST (`ConnectionsApiModule`).
 
 ---
 
@@ -322,9 +428,21 @@ await InstantMessageModal.showFrontendOnlyInstant(
 
 ---
 
-## 8. User preference (push, not wired to FCM yet)
+## 8. OS / device push (not implemented)
 
-User documents may include **`notifications.push`** (default `True` in several registration paths in `user_management_module`). **No Flutter FCM consumer** uses it today; reserved for future push work ([Documentation/00_Active_plans/mobile-push-notifications-implementation.md](00_Active_plans/mobile-push-notifications-implementation.md)).
+User documents may include **`notifications.push`** (default `True` in several registration paths in `user_management_module`, e.g. registration body `notifications_push`).
+
+| Piece | Status |
+|-------|--------|
+| Preference stored on user | Yes (`notifications.push`) |
+| Flutter reads preference | No |
+| FCM/APNs token registration | No |
+| Backend sends to FCM | No |
+| `firebase_messaging` / local notifications packages | Not in `flutter_base_05` |
+
+**Implication:** you cannot reach users who are not running the app (or not connected to the Dart game WebSocket for channel B) except by waiting until they open the app and REST/stats runs.
+
+**Future work (outline only):** register device tokens, respect `notifications.push`, send from Python (or a worker) on `NotificationService.create` when user is offline, deep-link into the same `data.deeplink` shapes as globals ([§11.4](#114-flutter-behaviour-summary)). Until then, treat **Mongo + optional `inbox_changed`** as the only production path.
 
 ---
 
@@ -347,6 +465,7 @@ User documents may include **`notifications.push`** (default `True` in several r
 | Flutter | `flutter_base_05/lib/core/managers/websockets/ws_event_listener.dart` | Registers `ws_instant_notification`, `inbox_changed`, `restart_invite`. |
 | Flutter | `flutter_base_05/lib/core/managers/websockets/ws_event_handler.dart` | Handlers → `NotificationsModule`. |
 | Flutter | `flutter_base_05/lib/screens/notifications_screen/notifications_screen.dart` | Full list (`unread_only: false`), subtype line, tap → modal. |
+| Flutter | `flutter_base_05/lib/modules/notifications_module/utils/notification_message_cta.dart` | `store_link` deeplink, in-app paths, external URLs. |
 | Flutter | `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart` | After user stats, applies `global_broadcast_messages` into `NotificationsModule`. |
 | Flutter | `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_manager.dart` | `instant_message_response_success` routing (by `msg_id`). |
 
@@ -365,6 +484,7 @@ User documents may include **`notifications.push`** (default `True` in several r
 | Optional image behind modal | `data.modal_background_enabled` + `data.modal_background_url` (or Flutter-only params on `showFrontendOnlyInstant`). |
 | Same-user rank announcement, one Mongo doc, no per-user inbox row | `global_broadcast_messages` + `POST .../admin/global-broadcast`; payload on **`GET /userauth/dutch/get-user-stats`** as `global_broadcast_messages`. |
 | Ack a global without touching `notifications` | `POST /userauth/notifications/global-mark-read` (or dismiss modal — client calls same). |
+| Notify user when app is closed (OS tray) | **Not available** — see [§8](#8-os-device-push-not-implemented). |
 
 This matches the **current** notification system in the repo end-to-end.
 
@@ -410,13 +530,20 @@ curl -sS -X POST 'https://<host>/userauth/notifications/admin/global-broadcast' 
   }'
 ```
 
-**Local dev (replace collection from repo JSON, no extra Python deps):** edit `playbooks/00_local/files/global_broadcast_messages.json`, then from repo root run:
+**Local dev (replace collection from repo JSON, no extra Python deps):** edit `playbooks/00_local/files/global_broadcast_messages.json` (sample rows for lobby deeplink, rank targeting, etc. are in `Documentation/Notification_Sys/examples/global_broadcast_messages.examples.json`), then from repo root run:
 
 ```bash
 ansible-playbook -i localhost, -c local playbooks/00_local/sync_global_broadcast_messages.yml
 ```
 
-The playbook renders a `mongosh` script into the `dutch_external_app_mongodb` container (same pattern as `add_two_tournaments.yml`). Use `-e prune_reads=false` to keep orphan read rows; `-e allow_empty=true` wipes all global message docs (dangerous).
+**Production VPS (rop01):** same seed file and mongosh template; from repo root:
+
+```bash
+set -a && source .env.prod && set +a
+ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/sync_global_broadcast_messages.yml -e vm_name=rop01
+```
+
+The playbook renders a `mongosh` script into the `dutch_external_app_mongodb` container (same pattern as `add_two_tournaments.yml`). Use `-e prune_reads=false` to keep orphan read rows; `-e allow_empty=true` wipes all global message docs (dangerous). **No Flask restart** after sync.
 
 ### 11.3 Mark read
 
@@ -430,12 +557,32 @@ The playbook renders a `mongosh` script into the `dutch_external_app_mongodb` co
 
 | Shape | Example |
 |-------|--------|
+| **Store listing (OS-aware)** | `"store_link"` — client opens `Config.playStoreUrl` (Android) or `Config.appStoreUrl` (iOS). Same sentinel allowed on `deeplink_path`. Works for **global** and **per-user** inbox rows when the user taps a response button. |
+| **App update gate** | `"target_version": "2.0.21"` in `data` — modal shows only while installed app version (PackageInfo) is **lower** than target; dismissed globals are marked read via `global-mark-read` and do not repeat on next launch. |
 | String path | `"/dutch/leaderboard"` |
 | String path + query | `"/dutch/lobby?section=join_random&table=city"` |
 | Map | `{"path": "/dutch/lobby", "section": "join_random", "table": "city"}` (keys other than `path`/`route` → query) |
 | Flat | `deeplink_path` + optional `deeplink_query` map |
 
 String **`https://...`** still opens in the external browser (not merged with map/query rules above).
+
+**App update nudge (global broadcast example):**
+
+```json
+{
+  "title": "Update available",
+  "body": "A new version is in the store. Tap Update to continue.",
+  "type": "instant",
+  "subtype": "app_update",
+  "target_ranks": ["all"],
+  "data": { "deeplink": "store_link", "target_version": "2.0.21" },
+  "responses": [{ "label": "Update", "action_identifier": "open_store" }]
+}
+```
+
+Implementation: `flutter_base_05/lib/modules/notifications_module/utils/notification_message_cta.dart`.
+
+**Learn How (`/dutch/demo`):** drawer “Learn How” screen (interactive tutorial). Example global: `"data": { "deeplink": { "path": "/dutch/demo" } }` with `"responses": [{ "label": "Learn how", "action_identifier": "open_learn" }]`.
 
 **Lobby (`/dutch/lobby`) query keys:** `section` expands accordion — `join_random`, `join-random`, `quick_join` → Join Random; `practice` → Practice; `create`, `create_new`, `create-new` → Create New. **`table`** / **`carousel`** / **`game_table`** — hint for Quick Join carousel (fuzzy match on declarative tier **title** or event **id**/title; numeric string matches **`game_level`**). **`game_level`** — explicit tier id. **`event`** / **`event_id`** — special-event carousel row.
 

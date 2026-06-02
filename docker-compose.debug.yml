@@ -23,15 +23,19 @@ services:
 
   # Redis Service (for external app)
   dutch_redis-external:
-    image: bitnami/redis:latest
+    image: redis:8-alpine
     container_name: dutch_external_app_redis
     env_file: .env.local
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --appendonly
+      - "yes"
     ports:
       - "6380:6379"
     volumes:
-      - redis_external_data:/bitnami/redis
+      - redis_external_data:/data
     networks:
       - app-network
     restart: unless-stopped

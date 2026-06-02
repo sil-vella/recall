@@ -541,3 +541,17 @@ To perform a full **mobile app + backend** release with versioned updates:
    - `download_link` should point at `/downloads/v2.2.0/app.apk`.
 
 At that point, the Flutter app (on web or mobile) will detect the new version via `/public/check-updates` and, if you implement the launcher UI, guide users to download/install the new APK automatically.
+
+---
+
+### 11. Sync global broadcast messages (`sync_global_broadcast_messages.yml`)
+
+Replaces VPS `global_broadcast_messages` from the repo seed (default: `playbooks/00_local/files/global_broadcast_messages.json`). Uses the same mongosh template as the local playbook. Prunes orphan `global_broadcast_reads` by default. **Does not require a Flask restart.**
+
+```bash
+# From repo root
+set -a && source .env.prod && set +a
+ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/sync_global_broadcast_messages.yml -e vm_name=rop01
+```
+
+Optional: `-e seed_json_path=...`, `-e prune_reads=false`, `-e allow_empty=true` (wipe all globals).

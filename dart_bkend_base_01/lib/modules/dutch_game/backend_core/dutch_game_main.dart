@@ -36,6 +36,7 @@ import '../utils/platform/shared_imports.dart';
 import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
+import 'services/game_state_frontend_filter.dart';
 
 
 /// If [gameState.currentPlayer] is missing from [players] (e.g. leave mid-turn), pick a new
@@ -631,13 +632,14 @@ class DutchGameModule {
       final ownerId = roomManager.getRoomInfo(roomId)?.ownerId;
       final gs = Map<String, dynamic>.from(state['game_state'] as Map<String, dynamic>? ?? {});
       gs['playerCount'] = (gs['players'] as List<dynamic>? ?? []).length;
+      final filteredGs = filterGameStateForFrontend(gs);
 
       final gameType = gs['gameType']?.toString() ?? roomManager.getRoomInfo(roomId)?.gameType;
       final gameLevel = gs['gameLevel'] as int? ?? roomManager.getRoomInfo(roomId)?.gameLevel;
       server.sendToSession(sessionId, {
         'event': 'game_state_updated',
         'game_id': roomId,
-        'game_state': gs,
+        'game_state': filteredGs,
         if (ownerId != null) 'owner_id': ownerId,
         if (gameType != null && gameType.isNotEmpty) 'game_type': gameType,
         if (gameLevel != null) 'game_level': gameLevel,

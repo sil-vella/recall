@@ -4,6 +4,7 @@ import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/state/immutable_state.dart';
 import '../../dutch_game/models/state/dutch_game_state.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
+import '../utils/dutch_game_helpers.dart';
 import '../utils/game_ended_modal_pin.dart';
 // ignore: unused_import
 import '../models/state/my_hand_state.dart'; // For future migration
@@ -532,7 +533,7 @@ class DutchGameStateUpdater {
     // Get pile information from game state
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
-    final drawPileCount = drawPile.length;
+    final drawPileCount = DutchGameHelpers.drawPileCountFromGameState(gameState);
     
     // Get match pot from game state (stored at game start)
     final matchPot = gameState['match_pot'] as int? ?? 0;

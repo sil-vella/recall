@@ -22,6 +22,8 @@ import '../utils/dutch_achievement_catalog.dart';
 import '../../../utils/dev_logger.dart';
 
 const bool LOGGING_SWITCH = false;
+/// Pile-trim receive trace (`pileFilterRx`); separate from [LOGGING_SWITCH] to avoid noisy WS logs.
+const bool PILE_FILTER_LOGGING_SWITCH = true; // testing — revert to false
 
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
@@ -1665,7 +1667,7 @@ When anyone has played a card with the **same rank** as your **collection card**
       'isRoomOwner': startedBy == seatId || startedBy == loginUserId,
       
       // Update game-specific fields for widget slices
-      'drawPileCount': drawPile.length,
+      'drawPileCount': DutchGameHelpers.drawPileCountFromGameState(gameState),
       'discardPile': discardPile,
       'opponentPlayers': opponents.cast<Map<String, dynamic>>(),
       'currentPlayerIndex': currentPlayer != null ? players.indexOf(currentPlayer) : -1,
@@ -1963,9 +1965,17 @@ When anyone has played a card with the **same rank** as your **collection card**
     // Extract pile information from game state
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
-    final drawPileCount = drawPile.length;
-    final discardPileCount = discardPile.length;
-    
+    final drawPileCount = DutchGameHelpers.drawPileCountFromGameState(gameState);
+    final discardPileCount = DutchGameHelpers.discardPileCountFromGameState(gameState);
+    if (PILE_FILTER_LOGGING_SWITCH &&
+        (drawPileCount > drawPile.length || discardPileCount > discardPile.length)) {
+      customlog(
+        'pileFilterRx gameId=$gameId drawCount=$drawPileCount wireDraw=${drawPile.length} '
+        'discardCount=$discardPileCount wireDiscard=${discardPile.length} '
+        'stateVersion=$stateVersion',
+      );
+    }
+
     // Extract players list (used for game map update, widget sync handled separately)
     // Note: players is already defined above for debug logging
     
@@ -2611,12 +2621,11 @@ When anyone has played a card with the **same rank** as your **collection card**
           updates['currentPlayer'] = updatedGameState['current_player_id'] ?? updatedGameState['currentPlayer'];
           break;
         case 'draw_pile':
-          final drawPile = updatedGameState['drawPile'] as List<dynamic>? ?? [];
-          updates['drawPileCount'] = drawPile.length;
+          updates['drawPileCount'] = DutchGameHelpers.drawPileCountFromGameState(updatedGameState);
           break;
         case 'discard_pile':
           final discardPile = updatedGameState['discardPile'] as List<dynamic>? ?? [];
-          updates['discardPileCount'] = discardPile.length;
+          updates['discardPileCount'] = DutchGameHelpers.discardPileCountFromGameState(updatedGameState);
           updates['discardPile'] = discardPile;
           break;
         case 'dutch_called_by':

@@ -6,6 +6,7 @@ import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
+import 'utils/notification_inbox_merge.dart';
 
 /// Core notifications module. Fetches and caches messages via ConnectionsApiModule.
 /// Used for app-wide instant modals and messages screen; feature modules create notifications on the backend.
@@ -106,9 +107,26 @@ class NotificationsModule extends ModuleBase {
   /// Replaces global broadcast rows from `get-user-stats` (`global_broadcast_messages`).
   void applyGlobalBroadcastsFromStats(List<Map<String, dynamic>> items) {
     _notificationsDebug('applyGlobalBroadcastsFromStats: count=${items.length}');
+    final normalized = dedupeNotificationMessages(
+      items.map((e) => Map<String, dynamic>.from(e)),
+    );
+    if (normalized.length != items.length) {
+      _notificationsDebug(
+        'applyGlobalBroadcastsFromStats: deduped ${items.length} -> ${normalized.length}',
+      );
+    }
     StateManager().updateModuleState(_stateKey, {
-      'globalBroadcasts': items.map((e) => Map<String, dynamic>.from(e)).toList(),
+      'globalBroadcasts': normalized,
     });
+    // get-user-stats often completes after the first [_checkAndShowInstantMessages]
+    // on screen enter; re-run inbox/modal check so unread globals (e.g. app_update) show.
+    final hasUnreadInstant = normalized.any((m) {
+      if (m['user_read'] == true) return false;
+      return (m['type']?.toString() ?? '') == 'instant';
+    });
+    if (hasUnreadInstant) {
+      notifyInboxRefreshRequested();
+    }
   }
 
   List<Map<String, dynamic>> get globalBroadcasts {

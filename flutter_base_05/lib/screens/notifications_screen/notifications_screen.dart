@@ -3,6 +3,8 @@ import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/widgets/instant_message_modal.dart';
 import '../../core/widgets/instant_notification_response.dart';
+import '../../modules/notifications_module/utils/global_broadcast_modal_filter.dart';
+import '../../modules/notifications_module/utils/notification_message_cta.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../utils/consts/theme_consts.dart';
@@ -114,6 +116,18 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
       onSendResponse: api == null
           ? null
           : (String messageId, String actionIdentifier) async {
+              if (await tryHandleNotificationMessageCta(message)) {
+                final mod = _notificationsModule;
+                if (mounted && id.isNotEmpty && mod != null) {
+                  if (id.startsWith('glob_')) {
+                    await mod.markGlobalBroadcastsRead([id]);
+                  } else {
+                    await mod.markAsRead([id]);
+                    _syncReadInList(id);
+                  }
+                }
+                return true;
+              }
               final ok = await submitInstantNotificationResponse(
                 api: api,
                 mod: _notificationsModule,

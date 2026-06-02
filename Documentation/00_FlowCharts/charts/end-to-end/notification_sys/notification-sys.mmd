@@ -26,9 +26,9 @@ flowchart TB
 
   subgraph Frontend["Frontend (Flutter)"]
     direction TB
-    subgraph Poll["Polling (Py API)"]
-      BS["BaseScreen: on entry + every 20s<br/>_checkAndShowInstantMessages()"]
-      BS --> FETCH["NotificationsModule.fetchMessages()<br/>→ list API"]
+    subgraph Poll["In-app fetch (Py API)"]
+      BS["BaseScreen: on screen mount,<br/>inbox_changed WS, pending WS instant<br/>_checkAndShowInstantMessages()"]
+      BS --> FETCH["NotificationsModule.fetchMessages()<br/>→ list API (15s throttle unless inbox_changed)"]
       FETCH --> FILTER["InstantMessageModal.showUnreadInstantModals<br/>filter type = instant | instant_ws"]
       FILTER --> MODAL["Modal: title, body, response buttons<br/>from message.responses"]
     end

@@ -1505,17 +1505,14 @@ When anyone has played a card with the **same rank** as your **collection card**
     if (showModal) {
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentGamePhase = currentState['gamePhase']?.toString() ?? '';
+      final uiPatch = <String, dynamic>{
+        'messages': messagesUpdate,
+        'endGameModalOpen': true,
+      };
       if (currentGamePhase != 'game_ended') {
-        
-        DutchGameHelpers.updateUIState({
-          'messages': messagesUpdate,
-          'gamePhase': 'game_ended', // Ensure gamePhase is set in same update as modal
-        });
-      } else {
-        DutchGameHelpers.updateUIState({
-          'messages': messagesUpdate,
-        });
+        uiPatch['gamePhase'] = 'game_ended';
       }
+      DutchGameHelpers.updateUIState(uiPatch);
     } else {
       DutchGameHelpers.updateUIState({
         'messages': messagesUpdate,

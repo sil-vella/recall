@@ -20,6 +20,7 @@ COPY app.py .
 COPY __init__.py .
 COPY core/ ./core/
 COPY utils/ ./utils/
+COPY assets/ ./assets/
 # COPY plugins/ ./plugins/  # REMOVED: Plugin system deprecated
 COPY tools/ ./tools/
 

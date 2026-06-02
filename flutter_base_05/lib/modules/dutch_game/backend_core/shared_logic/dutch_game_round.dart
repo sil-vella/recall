@@ -739,6 +739,30 @@ class DutchGameRound {
     return _stateCallback.getCurrentTurnFeed();
   }
 
+  /// Sticky turn_feed lines (e.g. call Dutch) kept when transient feed clears each turn.
+  List<Map<String, dynamic>> _persistentTurnFeedEntries() {
+    return _getCurrentTurnFeed()
+        .where((e) => e['persistent'] == true)
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  /// Replaces any prior call_dutch line and appends the new caller entry.
+  List<Map<String, dynamic>> _buildCallDutchTurnFeed(String playerId) {
+    final feed = _getCurrentTurnFeed()
+        .where((e) => (e['action_type']?.toString() ?? '') != 'call_dutch')
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    feed.add({
+      'feed_id': '${_gameId}_call_dutch',
+      'action_type': 'call_dutch',
+      'acting_player_id': playerId,
+      'hand_index': -1,
+      'persistent': true,
+    });
+    return feed;
+  }
+
   Map<String, dynamic> _createTurnFeedEntry({
     required String actionType,
     required String actingPlayerId,
@@ -2672,6 +2696,7 @@ class DutchGameRound {
         'games': currentGames, // Updated games map with Dutch info
         'dutchCalledBy': playerId,
         'dutchActive': true,
+        'turn_feed': _buildCallDutchTurnFeed(playerId),
       });
       
       
@@ -6159,7 +6184,7 @@ class DutchGameRound {
         'currentPlayer': nextPlayer, // Also update main state's currentPlayer field for immediate access
         'playerStatus': 'drawing_card', // Update main state playerStatus
         'turn_events': [], // Clear all turn events for new turn
-        'turn_feed': [], // Clear feed for new turn
+        'turn_feed': _persistentTurnFeedEntries(), // Keep sticky feed (call Dutch) for final round
       });
       
       

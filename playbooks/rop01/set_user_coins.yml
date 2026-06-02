@@ -1,16 +1,19 @@
 ---
 # One-off: set a single user's modules.dutch_game.coins on VPS MongoDB.
 #
-# Default behavior sets coins to 500.
 # Required extra var:
-#   -e target_user_id=<24-char Mongo ObjectId hex>
+#   -e target_coins=<whole number >= 0>
 #
-# Optional:
-#   -e target_coins=<whole number >= 0>   # defaults to 500
+# User selection (one of):
+#   -e user_choice=1   # default: silvestervella (69ad608e5cfa3eb1703c134a)
+#   -e user_choice=2   # lotteveldman92 (69bab0ac05b55a7d0122d631)
+#   -e user_choice=3   # silvestervella2 (69bb27bbcb761230c4ab4d6a)
+#   -e target_user_id=<24-char hex>   # overrides user_choice
 #
 # Usage:
-#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_coins.yml -e vm_name=rop01 -e target_user_id=69ad608e5cfa3eb1703c134a
-#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_coins.yml -e vm_name=rop01 -e target_user_id=69ad608e5cfa3eb1703c134a -e target_coins=500
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_coins.yml -e vm_name=rop01 -e target_coins=10000
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_coins.yml -e vm_name=rop01 -e target_coins=10000 -e user_choice=2
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_coins.yml -e vm_name=rop01 -e target_coins=500 -e target_user_id=69ad608e5cfa3eb1703c134a
 
 - name: Load app_dev/.env.prod for MongoDB password (optional)
   hosts: localhost
@@ -60,33 +63,63 @@
   vars:
     mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
     mongodb_container_name: "dutch_external_app_mongodb"
-    target_coins: 500
+    # VPS human test users (override with -e target_user_id=... for any other _id)
+    dutch_vps_test_user_ids:
+      "1":
+        id: "69ad608e5cfa3eb1703c134a"
+        username: "silvestervella"
+      "2":
+        id: "69bab0ac05b55a7d0122d631"
+        username: "lotteveldman92"
+      "3":
+        id: "69bb27bbcb761230c4ab4d6a"
+        username: "silvestervella2"
+    user_choice: "1"
   tasks:
-    - name: Validate target_user_id
+    - name: Validate target coin amount (pass -e target_coins=N)
       assert:
         that:
-          - target_user_id is defined
-          - target_user_id | string is match('^[0-9a-fA-F]{24}$')
-        fail_msg: "Pass -e target_user_id=<24-char Mongo ObjectId hex>."
-
-    - name: Validate target coin amount
-      assert:
-        that:
+          - target_coins is defined
           - target_coins | string is match('^[0-9]+$')
-        fail_msg: "Pass -e target_coins=<whole number >= 0>."
+        fail_msg: "Pass -e target_coins=<whole number >= 0> (e.g. -e target_coins=10000)."
 
     - name: Resolve target coin amount
       set_fact:
         target_coins_int: "{{ target_coins | int }}"
+
+    - name: Validate user_choice when target_user_id not set
+      assert:
+        that:
+          - (target_user_id | default('') | length > 0) or (user_choice | string in dutch_vps_test_user_ids)
+        fail_msg: "Use -e user_choice=1, 2, or 3, or pass -e target_user_id=<Mongo ObjectId hex>."
+
+    - name: Validate target_user_id when provided
+      assert:
+        that:
+          - target_user_id | string is match('^[0-9a-fA-F]{24}$')
+        fail_msg: "target_user_id must be a 24-char Mongo ObjectId hex."
+      when: target_user_id | default('') | length > 0
+
+    - name: Resolve target Mongo user _id
+      set_fact:
+        resolved_user_id: "{{ target_user_id | default(dutch_vps_test_user_ids[user_choice | string].id, true) }}"
+
+    - name: Show resolved user
+      debug:
+        msg:
+          - "resolved_user_id: {{ resolved_user_id }}"
+          - "target_coins: {{ target_coins_int }}"
+          - "user_choice: {{ user_choice }}"
+          - "username: {{ dutch_vps_test_user_ids[user_choice | string].username if (target_user_id | default('') | length == 0) else '(custom target_user_id)' }}"
 
     - name: Create Mongo script to update one user coins
       copy:
         dest: "/tmp/set_user_coins.js"
         mode: "0644"
         content: |
-          print("VPS set_user_coins: target user {{ target_user_id }}, target coins {{ target_coins_int }}");
+          print("VPS set_user_coins: target user {{ resolved_user_id }}, target coins {{ target_coins_int }}");
           var d = db.getSiblingDB("external_system");
-          var userId = "{{ target_user_id }}";
+          var userId = "{{ resolved_user_id }}";
           var coins = {{ target_coins_int }};
           var userBefore = d.users.findOne(
             { _id: ObjectId(userId) },

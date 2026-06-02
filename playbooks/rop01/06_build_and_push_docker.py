@@ -83,6 +83,8 @@ IMAGE_NAME = 'dutch_flask_app'
 IMAGE_TAG = os.environ.get('IMAGE_TAG', 'latest')
 DOCKERFILE_PATH = PROJECT_ROOT / 'python_base_04' / 'Dockerfile'
 BUILD_CONTEXT = PROJECT_ROOT / 'python_base_04'
+COIN_CATALOG_SRC = PROJECT_ROOT / 'flutter_base_05' / 'assets' / 'dutch_coin_catalog.json'
+COIN_CATALOG_DST = BUILD_CONTEXT / 'assets' / 'dutch_coin_catalog.json'
 
 # Original file contents for files we modified (path -> text)
 LOGGING_SWITCH_BACKUP: dict[Path, str] = {}
@@ -199,6 +201,19 @@ def check_docker():
         return False
 
 
+def stage_coin_catalog_for_docker() -> None:
+    """Copy flutter SSOT catalog into python_base_04/assets for Docker build context."""
+    if not COIN_CATALOG_SRC.is_file():
+        print(
+            f"{Colors.RED}Missing coin catalog: {COIN_CATALOG_SRC}{Colors.NC}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    COIN_CATALOG_DST.parent.mkdir(parents=True, exist_ok=True)
+    COIN_CATALOG_DST.write_text(COIN_CATALOG_SRC.read_text(encoding="utf-8"), encoding="utf-8")
+    print(f"{Colors.GREEN}✓ Staged coin catalog for Docker:{Colors.NC} {COIN_CATALOG_DST.relative_to(PROJECT_ROOT)}")
+
+
 def build_and_push():
     """Build and push the Docker image."""
     full_image_name = f"{DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}"
@@ -281,6 +296,7 @@ def main():
 
     try:
         disable_python_logging_switches()
+        stage_coin_catalog_for_docker()
 
         success = build_and_push()
 

@@ -12,7 +12,9 @@ import '../../../backend_core/utils/level_matcher.dart';
 import '../../../managers/dutch_event_handler_callbacks.dart';
 import '../../../managers/validated_event_emitter.dart';
 import '../../../utils/dutch_game_helpers.dart';
+import '../../../utils/game_ended_modal_pin.dart';
 import '../../../widgets/dutch_slice_builder.dart';
+import '../../../widgets/ui_kit/dutch_animated_cta_button.dart';
 
 /// Decoder for .lottie (dotlottie zip) assets: picks the first .json animation.
 Future<LottieComposition?> _decodeDotLottie(List<int> bytes) {
@@ -409,7 +411,14 @@ class GameEndedModalData {
     final messagesData = dutchGameState['messages'] as Map<String, dynamic>? ?? {};
     final isVisible = messagesData['isVisible'] == true;
     final gamePhase = dutchGameState['gamePhase']?.toString() ?? '';
-    if (!isVisible || gamePhase != 'game_ended') return null;
+    final endGameModalOpen = dutchGameState['endGameModalOpen'] == true;
+    final pinned = GameEndedModalPin.readRaw();
+    if (pinned != null) {
+      return fromJson(pinned);
+    }
+    if (!endGameModalOpen && (!isVisible || gamePhase != 'game_ended')) {
+      return null;
+    }
 
     final title = messagesData['title']?.toString() ?? 'Game Message';
     final content = messagesData['content']?.toString() ?? '';
@@ -494,6 +503,113 @@ class GameEndedModalData {
       specialEventEndMatchModal: specialEventEndModal,
       specialEventId: (specialEventId != null && specialEventId.isNotEmpty) ? specialEventId : null,
     );
+  }
+
+  /// JSON snapshot for [GameEndedModalPin] — detached from live game state after capture.
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'content': content,
+        'messageType': messageType,
+        'showCloseButton': showCloseButton,
+        'autoClose': autoClose,
+        'autoCloseDelay': autoCloseDelay,
+        'orderedWinners': orderedWinners.map(Map<String, dynamic>.from).toList(),
+        'isCurrentUserWinner': isCurrentUserWinner,
+        'currentUserId': currentUserId,
+        'gameId': gameId,
+        'showPlayAgain': showPlayAgain,
+        'rematchGameStateSnapshot':
+            Map<String, dynamic>.from(rematchGameStateSnapshot),
+        'gameTableLevel': gameTableLevel,
+        'isCoinRequired': isCoinRequired,
+        'tournamentLeaderboard': tournamentLeaderboard
+            ?.map(
+              (r) => {
+                'rank': r.rank,
+                'displayName': r.displayName,
+                'totalPoints': r.totalPoints,
+                'totalCards': r.totalCards,
+                'isCurrentUser': r.isCurrentUser,
+              },
+            )
+            .toList(),
+        'specialEventEndMatchModal': specialEventEndMatchModal != null
+            ? Map<String, dynamic>.from(specialEventEndMatchModal!)
+            : null,
+        'specialEventId': specialEventId,
+      };
+
+  static GameEndedModalData? fromJson(Map<String, dynamic>? json) {
+    if (json == null || json.isEmpty) return null;
+    final winnersRaw = json['orderedWinners'];
+    final winners = <Map<String, dynamic>>[];
+    if (winnersRaw is List) {
+      for (final e in winnersRaw) {
+        if (e is Map<String, dynamic>) {
+          winners.add(Map<String, dynamic>.from(e));
+        } else if (e is Map) {
+          winners.add(Map<String, dynamic>.from(e.map((k, v) => MapEntry(k.toString(), v))));
+        }
+      }
+    }
+    List<TournamentLeaderboardRow>? tournamentRows;
+    final lbRaw = json['tournamentLeaderboard'];
+    if (lbRaw is List) {
+      tournamentRows = [];
+      for (final e in lbRaw) {
+        if (e is! Map) continue;
+        final m = Map<String, dynamic>.from(e.map((k, v) => MapEntry(k.toString(), v)));
+        tournamentRows.add(
+          TournamentLeaderboardRow(
+            rank: (m['rank'] as num?)?.toInt() ?? 0,
+            displayName: m['displayName']?.toString() ?? '',
+            totalPoints: (m['totalPoints'] as num?)?.toInt() ?? 0,
+            totalCards: (m['totalCards'] as num?)?.toInt() ?? 0,
+            isCurrentUser: m['isCurrentUser'] == true,
+          ),
+        );
+      }
+    }
+    final se = json['specialEventEndMatchModal'];
+    return GameEndedModalData(
+      title: json['title']?.toString() ?? 'Game Ended',
+      content: json['content']?.toString() ?? '',
+      messageType: json['messageType']?.toString() ?? 'success',
+      showCloseButton: json['showCloseButton'] != false,
+      autoClose: json['autoClose'] == true,
+      autoCloseDelay: (json['autoCloseDelay'] as num?)?.toInt() ?? 3000,
+      orderedWinners: winners,
+      isCurrentUserWinner: json['isCurrentUserWinner'] == true,
+      currentUserId: json['currentUserId']?.toString() ?? '',
+      gameId: json['gameId']?.toString() ?? '',
+      showPlayAgain: json['showPlayAgain'] == true,
+      rematchGameStateSnapshot: json['rematchGameStateSnapshot'] is Map
+          ? Map<String, dynamic>.from(
+              (json['rematchGameStateSnapshot'] as Map).map(
+                (k, v) => MapEntry(k.toString(), v),
+              ),
+            )
+          : const {},
+      gameTableLevel: (json['gameTableLevel'] as num?)?.toInt(),
+      isCoinRequired: json['isCoinRequired'] != false,
+      tournamentLeaderboard: tournamentRows,
+      specialEventEndMatchModal: se is Map
+          ? Map<String, dynamic>.from(se.map((k, v) => MapEntry(k.toString(), v)))
+          : null,
+      specialEventId: json['specialEventId']?.toString(),
+    );
+  }
+
+  static void pinToModuleState(GameEndedModalData data) {
+    GameEndedModalPin.write(data.toJson());
+  }
+
+  static GameEndedModalData? readPinned() {
+    return fromJson(GameEndedModalPin.readRaw());
+  }
+
+  static void clearPinned() {
+    GameEndedModalPin.clear();
   }
 }
 
@@ -786,6 +902,12 @@ Widget? _specialEventEndMatchHero(
   );
 }
 
+bool _isWinnerOnlySpecialEventText(String text) {
+  final normalized = text.trim().toLowerCase();
+  if (normalized.isEmpty) return false;
+  return normalized.startsWith('you won');
+}
+
 /// Game-ended overlay: **only** [GameEndedModalData] — no reads from [StateManager].
 class _GameEndedModalLayer extends StatefulWidget {
   const _GameEndedModalLayer({
@@ -883,9 +1005,17 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
     final endModal = d.specialEventEndMatchModal;
     final showWinnerLottieInHero =
         hasRows && d.isCurrentUserWinner && endModal != null;
-    final heroWidget = endModal != null
+    Map<String, dynamic>? effectiveEndModal = endModal;
+    if (endModal != null && !d.isCurrentUserWinner) {
+      final heroText = endModal['text']?.toString() ?? '';
+      if (_isWinnerOnlySpecialEventText(heroText)) {
+        effectiveEndModal = Map<String, dynamic>.from(endModal);
+        effectiveEndModal['text'] = '';
+      }
+    }
+    final heroWidget = effectiveEndModal != null
         ? _specialEventEndMatchHero(
-            endModal,
+            effectiveEndModal,
             eventId: d.specialEventId,
             showWinnerLottie: showWinnerLottieInHero,
           )
@@ -1014,85 +1144,45 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (ctaMap != null && ctaLabel.isNotEmpty)
-                        Padding(
-                          padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
-                          child: Semantics(
-                            label: ctaLabel,
-                            identifier: 'game_ended_special_event_cta',
-                            button: true,
-                            child: TextButton(
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.matchPotGold,
-                              ),
-                              onPressed: () => _navigateEndMatchModalCta(ctaMap!, widget.onClose),
-                              child: Text(
-                                ctaLabel,
-                                style: AppTextStyles.buttonText().copyWith(
-                                  color: AppColors.matchPotGold,
-                                ),
-                              ),
-                            ),
-                          ),
+                        DutchAnimatedCtaButton(
+                          label: ctaLabel,
+                          variant: DutchCtaVariant.primary,
+                          expand: true,
+                          semanticIdentifier: 'game_ended_special_event_cta',
+                          onPressed: () =>
+                              _navigateEndMatchModalCta(ctaMap!, widget.onClose),
                         ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          if (d.showPlayAgain)
-                            DutchSliceBuilder<String>(
-                              selector: (dg) => dg['rematch_waiting_game_id']?.toString() ?? '',
-                              builder: (context, waitingId, _) {
-                                final waiting = waitingId.isNotEmpty && waitingId == d.gameId;
-                                return Semantics(
-                                  label: waiting ? 'Waiting Rematch' : 'Play Again',
-                                  identifier: 'game_ended_play_again',
-                                  button: true,
-                                  child: TextButton.icon(
-                                    onPressed: waiting ? null : () => unawaited(_emitRematch(context)),
-                                    icon: waiting
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: AppColors.matchPotGold,
-                                            ),
-                                          )
-                                        : Icon(
-                                            Icons.replay,
-                                            color: AppColors.matchPotGold,
-                                          ),
-                                    label: Text(
-                                      waiting ? 'Waiting Rematch' : 'Play Again',
-                                      style: AppTextStyles.buttonText().copyWith(
-                                        color: AppColors.matchPotGold,
-                                      ),
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.matchPotGold,
-                                    ),
-                                  ),
-                                );
-                              },
-                            )
-                          else
-                            const SizedBox.shrink(),
-                          TextButton.icon(
-                            onPressed: widget.onClose,
-                            icon: Icon(
-                              Icons.close,
-                              color: AppColors.textOnCard,
-                            ),
-                            label: Text(
-                              'Close',
-                              style: AppTextStyles.buttonText().copyWith(
-                                color: AppColors.textOnCard,
-                              ),
-                            ),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.textOnCard,
-                            ),
-                          ),
-                        ],
+                      if (d.showPlayAgain) ...[
+                        if (ctaMap != null && ctaLabel.isNotEmpty)
+                          SizedBox(height: AppPadding.smallPadding.top),
+                        DutchSliceBuilder<String>(
+                          selector: (dg) =>
+                              dg['rematch_waiting_game_id']?.toString() ?? '',
+                          builder: (context, waitingId, _) {
+                            final waiting =
+                                waitingId.isNotEmpty && waitingId == d.gameId;
+                            return DutchAnimatedCtaButton(
+                              label: waiting ? 'Waiting Rematch' : 'Play Again',
+                              variant: DutchCtaVariant.secondary,
+                              expand: true,
+                              leadingIcon: waiting ? null : Icons.replay,
+                              semanticIdentifier: 'game_ended_play_again',
+                              onPressed: waiting
+                                  ? null
+                                  : () => unawaited(_emitRematch(context)),
+                            );
+                          },
+                        ),
+                      ],
+                      if ((ctaMap != null && ctaLabel.isNotEmpty) || d.showPlayAgain)
+                        SizedBox(height: AppPadding.smallPadding.top),
+                      DutchAnimatedCtaButton(
+                        label: 'Close',
+                        variant: DutchCtaVariant.secondary,
+                        expand: true,
+                        leadingIcon: Icons.close,
+                        semanticIdentifier: 'game_ended_close',
+                        onPressed: widget.onClose,
                       ),
                     ],
                   ),
@@ -1235,26 +1325,13 @@ class _GenericMessageModalLayerState extends State<_GenericMessageModalLayer> {
                       bottomRight: Radius.circular(12),
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton.icon(
-                        onPressed: widget.onClose,
-                        icon: Icon(
-                          Icons.close,
-                          color: AppColors.textOnCard,
-                        ),
-                        label: Text(
-                          'Close',
-                          style: AppTextStyles.buttonText().copyWith(
-                            color: AppColors.textOnCard,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.textOnCard,
-                        ),
-                      ),
-                    ],
+                  child: DutchAnimatedCtaButton(
+                    label: 'Close',
+                    variant: DutchCtaVariant.secondary,
+                    expand: true,
+                    leadingIcon: Icons.close,
+                    semanticIdentifier: 'game_message_close',
+                    onPressed: widget.onClose,
                   ),
                 ),
             ],
@@ -1286,7 +1363,32 @@ class _MessagesWidgetState extends State<MessagesWidget> {
   bool _snapshotSchedulePending = false;
 
   @override
+  void initState() {
+    super.initState();
+    _gameEndedData = GameEndedModalData.readPinned();
+  }
+
+  void _applyPinnedSnapshot(GameEndedModalData data) {
+    _gameEndedData = data;
+    GameEndedModalData.pinToModuleState(data);
+  }
+
+  GameEndedModalData? _activeEndedModal() =>
+      _gameEndedData ?? GameEndedModalData.readPinned();
+
+  @override
   Widget build(BuildContext context) {
+    final active = _activeEndedModal();
+    if (active != null) {
+      if (_gameEndedData == null) {
+        _gameEndedData = active;
+      }
+      return _GameEndedModalLayer(
+        data: active,
+        onClose: () => _closeMessage(context),
+      );
+    }
+
     return DutchSliceBuilder<Map<String, dynamic>>(
       selector: (dutchGameState) => {
         'messages': Map<String, dynamic>.from(
@@ -1297,34 +1399,17 @@ class _MessagesWidgetState extends State<MessagesWidget> {
         'games': Map<String, dynamic>.from(
           dutchGameState['games'] as Map<String, dynamic>? ?? {},
         ),
+        'endGameModalOpen': dutchGameState['endGameModalOpen'] == true,
       },
       builder: (context, slice, child) {
         final messagesData = slice['messages'] as Map<String, dynamic>? ?? {};
         final isVisible = messagesData['isVisible'] == true;
         final gamePhase = slice['gamePhase']?.toString() ?? '';
+        final endGameModalOpen = slice['endGameModalOpen'] == true;
 
-        if (_gameEndedData != null) {
-          if (!isVisible) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              StateManager().updateModuleState('dutch_game', {
-                'rematch_waiting_game_id': '',
-              });
-              setState(() {
-                _gameEndedData = null;
-                _snapshotSchedulePending = false;
-              });
-            });
-            return const SizedBox.shrink();
-          }
-          // Keep immutable snapshot visible until user closes — ignore phase flicker from WS ticks.
-          return _GameEndedModalLayer(
-            data: _gameEndedData!,
-            onClose: () => _closeMessage(context),
-          );
-        }
-
-        if (isVisible && gamePhase == 'game_ended') {
+        final shouldCaptureEndModal = endGameModalOpen ||
+            (isVisible && gamePhase == 'game_ended');
+        if (shouldCaptureEndModal) {
           final content = messagesData['content']?.toString() ?? '';
           final currentGameId = slice['currentGameId']?.toString() ?? '';
           final games = slice['games'] as Map<String, dynamic>? ?? {};
@@ -1337,6 +1422,17 @@ class _MessagesWidgetState extends State<MessagesWidget> {
             return const SizedBox.shrink();
           }
 
+          final dutch =
+              StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+          final immediate = GameEndedModalData.fromDutchStateOnce(dutch);
+          if (immediate != null) {
+            _applyPinnedSnapshot(immediate);
+            return _GameEndedModalLayer(
+              data: immediate,
+              onClose: () => _closeMessage(context),
+            );
+          }
+
           if (!_snapshotSchedulePending) {
             _snapshotSchedulePending = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1345,8 +1441,8 @@ class _MessagesWidgetState extends State<MessagesWidget> {
                 StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {},
               );
               if (snap != null) {
+                _applyPinnedSnapshot(snap);
                 setState(() {
-                  _gameEndedData = snap;
                   _snapshotSchedulePending = false;
                 });
               } else {
@@ -1400,10 +1496,6 @@ class _MessagesWidgetState extends State<MessagesWidget> {
 
       StateManager().updateModuleState('dutch_game', {
         'rematch_waiting_game_id': '',
-      });
-
-      // Update state to hide messages
-      StateManager().updateModuleState('dutch_game', {
         'messages': {
           'isVisible': false,
           'title': '',
@@ -1414,6 +1506,7 @@ class _MessagesWidgetState extends State<MessagesWidget> {
           'autoCloseDelay': 3000,
         },
       });
+      GameEndedModalData.clearPinned();
       
       if (wasGameEnded) {
         NavigationManager().navigateTo('/dutch/lobby');

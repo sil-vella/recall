@@ -29,6 +29,26 @@ const double _kHudRingOuter = 34.0;
 const double _kHudRingStroke = 3.0;
 const double _kHudAvatarInRing = _kHudRingOuter - 2 * _kHudRingStroke - 2.0;
 
+/// Push the avatar HUD above the cards proportionally to its actual rendered size.
+double _seatAvatarLiftFor(double renderedHudDiameter) => renderedHudDiameter * 1.15;
+
+/// Outward HUD offset from the seat center (avatar stays upright; only position follows seat orientation).
+Offset _seatHudOffset(double lift, CardTableOrientation orientation) {
+  switch (orientation) {
+    case CardTableOrientation.portraitUp:
+      return Offset(0, -lift);
+    case CardTableOrientation.portraitDown:
+      return Offset(0, lift);
+    case CardTableOrientation.landscapeFromLeft:
+      return Offset(lift, 0);
+    case CardTableOrientation.landscapeFromRight:
+      return Offset(-lift, 0);
+  }
+}
+
+/// [AnimatedScale] max on seat HUD (see opponent / my-hand avatar emphasis).
+const double _kHudEmphasizeScale = 1.08;
+
 bool _isSpecialEventActiveInState(Map<String, dynamic> dutchGameState) {
   final currentGameId = dutchGameState['currentGameId']?.toString().trim() ?? '';
   if (currentGameId.isEmpty) return false;
@@ -49,64 +69,17 @@ bool _isSpecialEventActiveInState(Map<String, dynamic> dutchGameState) {
   return nested.isNotEmpty;
 }
 
-/// Where profile + timer HUD sits relative to **logical hand index 0** (slightly outside the card).
-enum _HandHudCorner {
-  myHandTopLeft,
-  oppTopBottomRight,
-  oppLeftTopRight,
-  oppRightBottomLeft,
-}
-
-/// Stacks [hud] on [cardSlot] at the given corner, pushed outward by [outset].
-Widget _stackHandHudOnFirstCardSlot({
-  required Widget cardSlot,
-  required _HandHudCorner corner,
-  required Widget hud,
-  double outset = 8,
-}) {
-  late final Widget positionedHud;
-  switch (corner) {
-    case _HandHudCorner.myHandTopLeft:
-      positionedHud = Positioned(left: -outset, top: -outset, child: hud);
-      break;
-    case _HandHudCorner.oppTopBottomRight:
-      positionedHud = Positioned(right: -outset, bottom: -outset, child: hud);
-      break;
-    case _HandHudCorner.oppLeftTopRight:
-      positionedHud = Positioned(right: -outset, top: -outset, child: hud);
-      break;
-    case _HandHudCorner.oppRightBottomLeft:
-      positionedHud = Positioned(left: -outset, bottom: -outset, child: hud);
-      break;
-  }
-  return Stack(
-    clipBehavior: Clip.none,
-    children: [
-      cardSlot,
-      positionedHud,
-    ],
-  );
-}
-
-_HandHudCorner _handHudCornerForTableOrientation(CardTableOrientation o) {
-  switch (o) {
-    case CardTableOrientation.portraitUp:
-      return _HandHudCorner.myHandTopLeft;
-    case CardTableOrientation.portraitDown:
-      return _HandHudCorner.oppTopBottomRight;
-    case CardTableOrientation.landscapeFromLeft:
-      return _HandHudCorner.oppLeftTopRight;
-    case CardTableOrientation.landscapeFromRight:
-      return _HandHudCorner.oppRightBottomLeft;
-  }
-}
-
-/// One turn-feed line in widget state until its 5s UI timer expires.
+/// One turn-feed line in widget state; transient lines expire after 5s.
 class _TurnFeedUiEntry {
-  _TurnFeedUiEntry({required this.feedId, required this.text});
+  _TurnFeedUiEntry({
+    required this.feedId,
+    required this.text,
+    this.persistent = false,
+  });
 
   final String feedId;
   final String text;
+  final bool persistent;
   Timer? expiryTimer;
 }
 
@@ -311,10 +284,41 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   String _lastAnimRuntimeStabilitySig = '';
 
   // ========== Turn feed (local cache; not bound to dutch_game slice) ==========
+  bool _liveFeedEnabled = true;
   final Set<String> _seenTurnFeedIds = {};
   final List<_TurnFeedUiEntry> _turnFeedUiEntries = [];
   String? _turnFeedBoundGameId;
   String _lastTurnFeedIngestSig = '';
+  static const String _myTurnPlayFeedId = 'local_my_turn_play';
+  static const String _myTurnSameRankFeedId = 'local_my_turn_same_rank';
+
+  String _resolvedPlayerStatusForTurnFeed(Map<String, dynamic> dutch) {
+    final myHand = dutch['myHand'] as Map<String, dynamic>? ?? {};
+    return (dutch['playerStatus'] ??
+            dutch['currentPlayerStatus'] ??
+            myHand['playerStatus'])
+        ?.toString() ??
+        '';
+  }
+
+  /// Matches [_getCurrentUserStatus] same-rank elevation for feed triggers.
+  String _effectivePlayerStatusForTurnFeed(Map<String, dynamic> dutch) {
+    var status = _resolvedPlayerStatusForTurnFeed(dutch);
+    final gamePhase = dutch['gamePhase']?.toString() ?? '';
+    final gameId = dutch['currentGameId']?.toString() ?? '';
+    final games = dutch['games'] as Map<String, dynamic>? ?? {};
+    final game = games[gameId] as Map<String, dynamic>?;
+    final gameState =
+        (game?['gameData'] as Map<String, dynamic>?)?['game_state']
+            as Map<String, dynamic>?;
+    if (status != 'same_rank_window' &&
+        (gamePhase == 'same_rank_window' ||
+            (gameState != null &&
+                DutchGameHelpers.anyPlayerInSameRankWindow(gameState)))) {
+      return 'same_rank_window';
+    }
+    return status;
+  }
 
   Map<String, dynamic> _dutchGameState() =>
       StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? const {};
@@ -322,6 +326,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   @override
   void initState() {
     super.initState();
+    final dutch = _dutchGameState();
+    _liveFeedEnabled = dutch['liveTurnFeedEnabled'] != false;
     // Initialize glow animation controller
     _glowAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
@@ -472,21 +478,117 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _lastTurnFeedIngestSig = '';
   }
 
-  void _pushTurnFeedUiLine(String feedId, String text) {
-    while (_turnFeedUiEntries.length >= 3) {
-      final oldest = _turnFeedUiEntries.removeAt(0);
-      oldest.expiryTimer?.cancel();
+  void _clearPersistentTurnFeedUi() {
+    for (final e in _turnFeedUiEntries.where((e) => e.persistent)) {
+      e.expiryTimer?.cancel();
     }
-    final entry = _TurnFeedUiEntry(feedId: feedId, text: text);
+    final persistentIds = _turnFeedUiEntries
+        .where((e) => e.persistent)
+        .map((e) => e.feedId)
+        .toSet();
+    _turnFeedUiEntries.removeWhere((e) => e.persistent);
+    _seenTurnFeedIds.removeWhere(persistentIds.contains);
+  }
+
+  void _clearTransientTurnFeedUi() {
+    for (final e in _turnFeedUiEntries.where((e) => !e.persistent)) {
+      e.expiryTimer?.cancel();
+    }
+    final transientIds = _turnFeedUiEntries
+        .where((e) => !e.persistent)
+        .map((e) => e.feedId)
+        .toSet();
+    _turnFeedUiEntries.removeWhere((e) => !e.persistent);
+    _seenTurnFeedIds.removeWhere(transientIds.contains);
+  }
+
+  int _transientTurnFeedCount() =>
+      _turnFeedUiEntries.where((e) => !e.persistent).length;
+
+  void _pushTurnFeedUiLine(String feedId, String text, {bool persistent = false}) {
+    if (persistent) {
+      final existingIdx = _turnFeedUiEntries.indexWhere((e) => e.feedId == feedId);
+      if (existingIdx >= 0) {
+        final existing = _turnFeedUiEntries.removeAt(existingIdx);
+        existing.expiryTimer?.cancel();
+        _seenTurnFeedIds.remove(feedId);
+      }
+    } else {
+      while (_transientTurnFeedCount() >= 3) {
+        final idx = _turnFeedUiEntries.indexWhere((e) => !e.persistent);
+        if (idx < 0) break;
+        final oldest = _turnFeedUiEntries.removeAt(idx);
+        oldest.expiryTimer?.cancel();
+        _seenTurnFeedIds.remove(oldest.feedId);
+      }
+    }
+    final entry = _TurnFeedUiEntry(
+      feedId: feedId,
+      text: text,
+      persistent: persistent,
+    );
     _turnFeedUiEntries.add(entry);
-    entry.expiryTimer = Timer(const Duration(seconds: 5), () {
-      if (!mounted) return;
+    if (!persistent) {
+      entry.expiryTimer = Timer(const Duration(seconds: 5), () {
+        if (!mounted) return;
+        final idx = _turnFeedUiEntries.indexWhere((e) => e.feedId == feedId);
+        if (idx < 0) return;
+        _turnFeedUiEntries[idx].expiryTimer?.cancel();
+        _turnFeedUiEntries.removeAt(idx);
+        _seenTurnFeedIds.remove(feedId);
+        setState(() {});
+      });
+    }
+  }
+
+  bool _setPersistentLocalTurnFeed({
+    required String feedId,
+    required String text,
+    required bool shouldShow,
+  }) {
+    final hasEntry = _turnFeedUiEntries.any((e) => e.feedId == feedId);
+    if (shouldShow && !hasEntry) {
+      _seenTurnFeedIds.add(feedId);
+      _pushTurnFeedUiLine(feedId, text, persistent: true);
+      return true;
+    }
+    if (!shouldShow && hasEntry) {
       final idx = _turnFeedUiEntries.indexWhere((e) => e.feedId == feedId);
-      if (idx < 0) return;
-      _turnFeedUiEntries[idx].expiryTimer?.cancel();
-      _turnFeedUiEntries.removeAt(idx);
-      setState(() {});
-    });
+      if (idx >= 0) {
+        final old = _turnFeedUiEntries.removeAt(idx);
+        old.expiryTimer?.cancel();
+      }
+      _seenTurnFeedIds.remove(feedId);
+      return true;
+    }
+    return false;
+  }
+
+  bool _syncMyTurnPlayFeed(Map<String, dynamic> dutch) {
+    final isMyTurn = dutch['isMyTurn'] == true;
+    final playerStatus = _resolvedPlayerStatusForTurnFeed(dutch);
+    final shouldShow =
+        isMyTurn && (playerStatus == 'playing_card' || playerStatus == 'drawing_card');
+    return _setPersistentLocalTurnFeed(
+      feedId: _myTurnPlayFeedId,
+      text: 'Your turn to play',
+      shouldShow: shouldShow,
+    );
+  }
+
+  bool _syncMyTurnSameRankFeed(Map<String, dynamic> dutch) {
+    final shouldShow = _effectivePlayerStatusForTurnFeed(dutch) == 'same_rank_window';
+    return _setPersistentLocalTurnFeed(
+      feedId: _myTurnSameRankFeedId,
+      text: 'You can play a same rank card',
+      shouldShow: shouldShow,
+    );
+  }
+
+  bool _syncLocalPersistentTurnFeeds(Map<String, dynamic> dutch) {
+    final playChanged = _syncMyTurnPlayFeed(dutch);
+    final sameRankChanged = _syncMyTurnSameRankFeed(dutch);
+    return playChanged || sameRankChanged;
   }
 
   bool _ingestTurnFeedFromState() {
@@ -497,15 +599,31 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       _turnFeedBoundGameId = gameId.isEmpty ? null : gameId;
     }
 
+    final gamePhase = dutch['gamePhase']?.toString() ?? '';
+    final isGameActive = dutch['isGameActive'] == true;
+    if (!isGameActive || gamePhase == 'game_ended') {
+      final hadPersistent = _turnFeedUiEntries.any((e) => e.persistent);
+      if (hadPersistent) {
+        _clearPersistentTurnFeedUi();
+        return true;
+      }
+    }
+
     final turnFeedRaw = dutch['turn_feed'] as List<dynamic>? ?? [];
     final sig = _turnFeedIngestSignature(turnFeedRaw);
-    if (sig == _lastTurnFeedIngestSig) return false;
+    if (sig == _lastTurnFeedIngestSig) {
+      return _syncLocalPersistentTurnFeeds(dutch);
+    }
     _lastTurnFeedIngestSig = sig;
 
     if (turnFeedRaw.isEmpty) {
-      final hadCache = _turnFeedUiEntries.isNotEmpty || _seenTurnFeedIds.isNotEmpty;
-      _clearTurnFeedUiCache();
-      return hadCache;
+      final hadTransient = _turnFeedUiEntries.any((e) => !e.persistent);
+      if (hadTransient) {
+        _clearTransientTurnFeedUi();
+        _syncLocalPersistentTurnFeeds(dutch);
+        return true;
+      }
+      return _syncLocalPersistentTurnFeeds(dutch);
     }
 
     final opponentsPanel = dutch['opponentsPanel'] as Map<String, dynamic>? ?? {};
@@ -537,19 +655,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       );
       if (text == null || text.isEmpty) continue;
 
+      final persistent = entry['persistent'] == true;
+
       if (LOGGING_SWITCH) {
         customlog(
           'TurnFeedIngest: push feedId=$feedId action=${entry['action_type']} '
           'acting=${entry['acting_player_id']} hand_index=${entry['hand_index']} '
-          'hand_indices=${entry['hand_indices']} text="$text"',
+          'hand_indices=${entry['hand_indices']} text="$text" persistent=$persistent',
         );
       }
 
       _seenTurnFeedIds.add(feedId);
-      _pushTurnFeedUiLine(feedId, text);
+      _pushTurnFeedUiLine(feedId, text, persistent: persistent);
       changed = true;
     }
-    return changed;
+    final localChanged = _syncLocalPersistentTurnFeeds(dutch);
+    return changed || localChanged;
   }
 
   void _onStateManagerForTurnFeed() {
@@ -559,8 +680,62 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
+  Widget _buildLiveFeedToggleChip() {
+    final on = _liveFeedEnabled;
+    return Container(
+      decoration: BoxDecoration(
+        color: (on ? AppColors.primaryColor : AppColors.surfaceVariant)
+            .withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Semantics(
+        label: on ? 'Turn off live feed' : 'Turn on live feed',
+        button: true,
+        toggled: on,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _liveFeedEnabled = !_liveFeedEnabled;
+              });
+              StateManager().updateModuleState('dutch_game', {
+                'liveTurnFeedEnabled': _liveFeedEnabled,
+              });
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    on ? Icons.dynamic_feed : Icons.dynamic_feed_outlined,
+                    size: 20,
+                    color: AppColors.white,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    on ? 'Feed on' : 'Feed off',
+                    style: AppTextStyles.label(
+                      color: AppColors.white,
+                    ).copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _scheduleFeedOverlayInsetUpdate() {
-    if (_turnFeedUiEntries.isEmpty) return;
+    if (!_liveFeedEnabled || _turnFeedUiEntries.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final box = _myHandSectionKey.currentContext?.findRenderObject() as RenderBox?;
@@ -573,45 +748,108 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     });
   }
 
+  static const double _kTurnFeedBackgroundAlpha = 0.42;
+
   Widget _buildTurnFeedOverlay() {
     if (_turnFeedUiEntries.isEmpty) {
       return const SizedBox.shrink();
     }
+    final myTurnPlayPersistent = _turnFeedUiEntries
+        .where((e) => e.persistent && e.feedId == _myTurnPlayFeedId)
+        .toList();
+    final myTurnSameRankPersistent = _turnFeedUiEntries
+        .where((e) => e.persistent && e.feedId == _myTurnSameRankFeedId)
+        .toList();
+    final otherPersistent = _turnFeedUiEntries
+        .where((e) =>
+            e.persistent &&
+            e.feedId != _myTurnPlayFeedId &&
+            e.feedId != _myTurnSameRankFeedId)
+        .toList();
+    final transient =
+        _turnFeedUiEntries.where((e) => !e.persistent).toList();
+
     return IgnorePointer(
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.primaryColor.withValues(alpha: 0.42),
-          borderRadius: BorderRadius.circular(8),
-        ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final entry in _turnFeedUiEntries)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: AppColors.white.withValues(alpha: 0.28),
-                      width: 1,
-                    ),
-                  ),
+            if (otherPersistent.isNotEmpty)
+              _buildTurnFeedBand(
+                entries: otherPersistent,
+                backgroundColor: _dutchHighlightColor.withValues(
+                  alpha: _kTurnFeedBackgroundAlpha,
                 ),
-                child: Text(
-                  entry.text,
-                  textAlign: TextAlign.center,
-                  softWrap: true,
-                  style: AppTextStyles.bodyMedium(
-                    color: AppColors.white,
-                  ),
+                textColor: AppColors.black,
+              ),
+            if (myTurnPlayPersistent.isNotEmpty)
+              _buildTurnFeedBand(
+                entries: myTurnPlayPersistent,
+                backgroundColor: _getStatusChipColor('drawing_card').withValues(
+                  alpha: _kTurnFeedBackgroundAlpha,
+                ),
+                textColor: AppColors.black,
+              ),
+            if (myTurnSameRankPersistent.isNotEmpty)
+              _buildTurnFeedBand(
+                entries: myTurnSameRankPersistent,
+                backgroundColor: _getStatusChipColor('same_rank_window').withValues(
+                  alpha: _kTurnFeedBackgroundAlpha,
+                ),
+                textColor: AppColors.white,
+              ),
+            if (transient.isNotEmpty)
+              _buildTurnFeedBand(
+                entries: transient,
+                backgroundColor: AppColors.primaryColor.withValues(
+                  alpha: _kTurnFeedBackgroundAlpha,
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTurnFeedBand({
+    required List<_TurnFeedUiEntry> entries,
+    required Color backgroundColor,
+    Color textColor = AppColors.white,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: backgroundColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < entries.length; i++)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              decoration: i < entries.length - 1
+                  ? BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: AppColors.white.withValues(alpha: 0.28),
+                          width: 1,
+                        ),
+                      ),
+                    )
+                  : null,
+              child: Text(
+                entries[i].text,
+                textAlign: TextAlign.center,
+                softWrap: true,
+                style: AppTextStyles.bodyMedium(
+                  color: textColor,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -645,7 +883,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 // Top strip (intrinsic height) → middle (fills) → my hand (intrinsic height).
                 // Turn-feed overlay is a [Stack] sibling (Positioned), not a Column child.
                 final ctx = _prepareOppBoardContext(board);
-                if (_turnFeedUiEntries.isNotEmpty) {
+                if (_liveFeedEnabled && _turnFeedUiEntries.isNotEmpty) {
                   _scheduleFeedOverlayInsetUpdate();
                 }
 
@@ -671,7 +909,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                         ),
                       ],
                     ),
-                    if (_turnFeedUiEntries.isNotEmpty)
+                    if (_liveFeedEnabled && _turnFeedUiEntries.isNotEmpty)
                       Positioned(
                         left: AppPadding.mediumPadding.left,
                         right: AppPadding.mediumPadding.right,
@@ -1160,21 +1398,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Dutch caller: avatar ring + label only — no full-seat border (draw/play use seat glow).
     final emphasizeAvatar = showDutchCallerHud ||
         (!suppressSeatChrome && isActiveSeat);
-    final highlightSeat = !suppressSeatChrome &&
+    final showSeatSpotlight = !suppressSeatChrome &&
         isGameActive &&
         isActiveSeat &&
         !showDutchCallerHud;
-    final seatGlowColor = timerColor;
     final showAnimatedTimer = !suppressSeatChrome &&
         shouldShowTimer &&
         isActiveSeat &&
         !showDutchCallerHud;
-    final hudLabel = _buildHudSeatLabel(
-      isDutchCaller: showDutchCallerHud,
-      isActiveSeat:
-          !suppressSeatChrome && isActiveSeat && !showDutchCallerHud,
-      seatStatus: playerStatus,
-    );
     // When local user is jack swapping or queen peeking, all opponent cards use that glow.
     final seatGlowStatus = _opponentSeatGlowStatusForLocalUser(
       currentPlayerStatus,
@@ -1186,33 +1417,26 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       diameter: _kHudAvatarInRing,
     );
 
-    final Widget? opponentHandHudBar = hand.isEmpty
-        ? null
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              suppressSeatChrome
-                  ? avatarChild
-                  : AnimatedScale(
-                      scale: emphasizeAvatar ? 1.08 : 1.0,
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      child: _buildHudAvatarRing(
-                        isDutchCaller: showDutchCallerHud,
-                        showAnimatedTimer: showAnimatedTimer,
-                        durationSeconds: effectiveTimer,
-                        timerColor: timerColor,
-                        centerChild: avatarChild,
-                        emphasize: emphasizeAvatar,
-                        timerKeySuffix: '${playerId}_$playerStatus',
-                      ),
-                    ),
-              if (!suppressSeatChrome && hudLabel != null) ...[
-                const SizedBox(width: 8),
-                hudLabel,
-              ],
-            ],
+    final avatarHud = suppressSeatChrome
+        ? avatarChild
+        : AnimatedScale(
+            scale: emphasizeAvatar ? _kHudEmphasizeScale : 1.0,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            child: _buildHudAvatarRing(
+              isDutchCaller: showDutchCallerHud,
+              showAnimatedTimer: showAnimatedTimer,
+              durationSeconds: effectiveTimer,
+              timerColor: timerColor,
+              centerChild: avatarChild,
+              emphasize: emphasizeAvatar,
+              timerKeySuffix: '${playerId}_$playerStatus',
+            ),
           );
+    final seatAvatarLift = _seatAvatarLiftFor(
+      _kHudRingOuter * (suppressSeatChrome ? 1.0 : (emphasizeAvatar ? _kHudEmphasizeScale : 1.0)),
+    );
+    final Widget? seatCenterHudOverlay = hand.isEmpty ? null : avatarHud;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1229,35 +1453,54 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 nameAlignment: nameAlignment,
                 seatGlowStatus: seatGlowStatus,
                 cardTableOrientation: cardTableOrientation,
-                handHudBar: opponentHandHudBar,
-                handHudCorner: _handHudCornerForTableOrientation(cardTableOrientation),
               )
             : _buildEmptyHand();
 
-        final decoratedHandPanel = AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.all(highlightSeat ? 4 : 0),
-          decoration: BoxDecoration(
-            color: highlightSeat ? seatGlowColor.withOpacity(0.12) : null,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: highlightSeat ? seatGlowColor : Colors.transparent,
-              width: highlightSeat ? 2.0 : 0.0,
-            ),
-            boxShadow: highlightSeat
-                ? [
-                    BoxShadow(
-                      color: seatGlowColor.withOpacity(0.35),
-                      blurRadius: 10,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : const [],
-          ),
-          child: handPanel,
-        );
+        final decoratedHandPanel = handPanel;
         
+
+        final seatOverlay = seatCenterHudOverlay;
+        final handPanelWithOverlay = seatOverlay == null
+            ? decoratedHandPanel
+            : Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  decoratedHandPanel,
+                  if (showSeatSpotlight)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: OverflowBox(
+                            minWidth: 0,
+                            minHeight: 0,
+                            maxWidth: double.infinity,
+                            maxHeight: double.infinity,
+                            child: Transform.translate(
+                              offset: _seatHudOffset(seatAvatarLift, cardTableOrientation),
+                              child: _buildSeatAvatarSpotlight(
+                                diameter: _kHudRingOuter * 4.0,
+                                opacity: 0.60,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: Transform.translate(
+                          offset: _seatHudOffset(seatAvatarLift, cardTableOrientation),
+                          child: seatOverlay,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
 
         return Column(
           crossAxisAlignment: columnAlignment,
@@ -1266,7 +1509,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           children: [
             Align(
               alignment: cardAlignment,
-              child: decoratedHandPanel,
+              child: handPanelWithOverlay,
             ),
           ],
         );
@@ -1312,8 +1555,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     MainAxisAlignment? nameAlignment,
     String? seatGlowStatus,
     required CardTableOrientation cardTableOrientation,
-    Widget? handHudBar,
-    _HandHudCorner? handHudCorner,
   }) {
     final ownerCardBackId = player['card_back_id']?.toString();
     return LayoutBuilder(
@@ -1370,17 +1611,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         final EdgeInsets handSlotPadding =
             sideColumnVerticalHand ? EdgeInsets.zero : EdgeInsets.only(right: slotGap);
 
-        Widget applyOppHandHudIfFirst(int index, Widget slotContent) {
-          final bar = handHudBar;
-          final corner = handHudCorner;
-          if (index != 0 || bar == null || corner == null) return slotContent;
-          return _stackHandHudOnFirstCardSlot(
-            cardSlot: slotContent,
-            corner: corner,
-            hud: bar,
-          );
-        }
-        
         final collectionRankCardIds = playerCollectionRankCards
             .where((c) => c is Map<String, dynamic>)
             .map((c) => (c as Map<String, dynamic>)['cardId']?.toString())
@@ -1444,15 +1674,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             cardWidgets.add(
               Padding(
                 padding: handSlotPadding,
-                child: applyOppHandHudIfFirst(
-                  index,
-                  Container(
-                    key: blankSlotKey,
-                    child: _orientOpponentHandChild(
-                      _buildBlankCardSlot(cardDimensions),
-                      cardDimensions,
-                      cardTableOrientation,
-                    ),
+                child: Container(
+                  key: blankSlotKey,
+                  child: _orientOpponentHandChild(
+                    _buildBlankCardSlot(cardDimensions),
+                    cardDimensions,
+                    cardTableOrientation,
                   ),
                 ),
               ),
@@ -1552,10 +1779,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               cardWidgets.add(
                 Padding(
                   padding: handSlotPadding,
-                  child: applyOppHandHudIfFirst(
-                    index,
-                    _wrapHandSlotAnimMask(playerId, index, stackWidget),
-                  ),
+                child: _wrapHandSlotAnimMask(playerId, index, stackWidget),
                 ),
               );
             }
@@ -1580,10 +1804,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           cardWidgets.add(
             Padding(
               padding: handSlotPadding,
-              child: applyOppHandHudIfFirst(
-                index,
-                _wrapHandSlotAnimMask(playerId, index, cardWidget),
-              ),
+              child: _wrapHandSlotAnimMask(playerId, index, cardWidget),
             ),
           );
         }
@@ -1666,6 +1887,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           final glowDecoration = _buildGlowDecoration(glowColor, glowOpacity);
           return Container(
             decoration: glowDecoration,
+            padding: const EdgeInsets.all(1),
             child: cardWidget,
           );
         },
@@ -1971,52 +2193,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return playerStatus != 'waiting' && isMyTurn;
   }
 
-  /// "Dutch" on caller seat, "TURN" on active non-caller during normal play.
-  Widget? _buildHudSeatLabel({
-    required bool isDutchCaller,
-    required bool isActiveSeat,
-    String seatStatus = 'waiting',
-  }) {
-    if (isDutchCaller) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: _dutchHighlightColor,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          'Dutch',
-          style: AppTextStyles.overline().copyWith(
-            color: AppColors.textOnAccent,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-    }
-    if (isActiveSeat) {
-      final label = seatStatus == 'jack_swap'
-          ? 'JACK'
-          : (seatStatus == 'queen_peek' || seatStatus == 'peeking')
-              ? 'PEEK'
-              : 'TURN';
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.turnChipBackground,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          label,
-          style: AppTextStyles.overline().copyWith(
-            color: AppColors.turnChipText,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-    }
-    return null;
-  }
-
   Color _getStatusChipColor(String status) {
     switch (status) {
       case 'waiting':
@@ -2050,25 +2226,55 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   /// Shared glow for draw pile, my-hand cards, and opponent cards (same size/opacity).
   BoxDecoration? _buildGlowDecoration(Color statusColor, double glowOpacity) {
+    // Border-first glow: strong edge stroke + very soft outside halo.
+    // Drawn as decoration only (no layout size change).
     return BoxDecoration(
       borderRadius: BorderRadius.circular(8),
+      border: Border.all(
+        color: statusColor.withValues(alpha: 0.95 * glowOpacity),
+        width: 2.0,
+      ),
       boxShadow: [
         BoxShadow(
-          color: statusColor.withValues(alpha: glowOpacity),
-          blurRadius: 6,
-          spreadRadius: 2,
+          color: statusColor.withValues(alpha: 0.34 * glowOpacity),
+          blurRadius: 8,
+          spreadRadius: 0.2,
         ),
         BoxShadow(
-          color: statusColor.withValues(alpha: 0.92 * glowOpacity),
+          color: statusColor.withValues(alpha: 0.2 * glowOpacity),
           blurRadius: 14,
-          spreadRadius: 3.5,
-        ),
-        BoxShadow(
-          color: statusColor.withValues(alpha: 0.7 * glowOpacity),
-          blurRadius: 22,
-          spreadRadius: 5,
+          spreadRadius: 0.8,
         ),
       ],
+    );
+  }
+
+  /// 360-degree warm table light under the seat avatar (no layout impact).
+  Widget _buildSeatAvatarSpotlight({
+    required double diameter,
+    required double opacity,
+  }) {
+    return Container(
+      width: diameter,
+      height: diameter,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            AppColors.warmSpotlightColor.withValues(alpha: opacity),
+            AppColors.warmSpotlightColor.withValues(alpha: opacity * 0.35),
+            AppColors.warmSpotlightColor.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.62, 1.0],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.warmSpotlightColor.withValues(alpha: opacity * 0.4),
+            blurRadius: 20,
+            spreadRadius: 2.8,
+          ),
+        ],
+      ),
     );
   }
 
@@ -2096,9 +2302,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   Color? _getGlowColorForCards(String seatStatus, {required bool isMyHand}) {
     switch (seatStatus) {
       case 'drawing_card':
+      case 'same_rank_window':
         return null;
       case 'playing_card':
-      case 'same_rank_window':
       case 'initial_peek':
       case 'peeking':
         return isMyHand ? _getStatusChipColor(seatStatus) : null;
@@ -2354,6 +2560,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     );
                     return Container(
                       decoration: glowDecoration,
+                      padding: const EdgeInsets.all(1),
                       child: drawPileContent,
                     );
                   },
@@ -2954,7 +3161,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         isInSameRank ||
         (isMyTurn && !showLocalDutchCallerHud);
 
-    final Widget? myFirstCardHandHud = cards.isEmpty
+    final Widget? mySeatCenterHudOverlay = cards.isEmpty
         ? null
         : Row(
             mainAxisSize: MainAxisSize.min,
@@ -2974,6 +3181,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               ),
             ],
           );
+    final mySeatAvatarLift = _seatAvatarLiftFor(
+      _kHudRingOuter * (emphasizeMyHandAvatar ? _kHudEmphasizeScale : 1.0),
+    );
 
     // My hand section: column with (1) header row = You + status chip (+ optional Call Dutch), (2) cards with HUD on index 0
     return Container(
@@ -2991,13 +3201,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     color: AppColors.white.withValues(alpha: 0.62),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Text(
                     'You',
                     style: AppTextStyles.label(
                       color: AppColors.textPrimary,
                     ).copyWith(
-                      fontSize: 18,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       height: 1,
                     ),
@@ -3033,6 +3243,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  _buildLiveFeedToggleChip(),
                 ],
                 const Spacer(),
                 if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !dutchActive && !hasPlayerCalledDutch && !_callDutchTappedPending) ...[
@@ -3112,13 +3324,30 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 ? _buildMyHandEmptyHand()
                 : SizedBox(
                     width: double.infinity,
-                    child: _buildMyHandCardsGrid(
-                      cards,
-                      cardsToPeek,
-                      selectedIndex,
-                      board,
-                      isMyTurn,
-                      firstCardHandHud: myFirstCardHandHud,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
+                      children: [
+                        _buildMyHandCardsGrid(
+                          cards,
+                          cardsToPeek,
+                          selectedIndex,
+                          board,
+                          isMyTurn,
+                        ),
+                        if (mySeatCenterHudOverlay != null)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: Align(
+                                alignment: Alignment.center,
+                                child: Transform.translate(
+                                  offset: Offset(0, -mySeatAvatarLift),
+                                  child: mySeatCenterHudOverlay,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
           ],
@@ -3162,9 +3391,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     List<dynamic> cardsToPeek,
     int selectedIndex,
     Map<String, dynamic> board,
-    bool isMyTurn, {
-    Widget? firstCardHandHud,
-  }) {
+    bool isMyTurn,
+  ) {
     return LayoutBuilder(
           builder: (context, constraints) {
             final containerWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
@@ -3211,16 +3439,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             final cardHeight = cardDimensions.height;
             final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
 
-            Widget applyMyFirstCardHud(int index, Widget slotContent) {
-              final hud = firstCardHandHud;
-              if (index != 0 || hud == null) return slotContent;
-              return _stackHandHudOnFirstCardSlot(
-                cardSlot: slotContent,
-                corner: _HandHudCorner.myHandTopLeft,
-                hud: hud,
-              );
-            }
-            
             for (int i = 0; i < cards.length; i++) {
               final card = cards[i];
               if (card == null) continue;
@@ -3285,12 +3503,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             cardWidgets.add(
               Padding(
                 padding: EdgeInsets.only(right: cardPadding),
-                child: applyMyFirstCardHud(
-                  index,
-                  Container(
-                    key: blankSlotKey,
-                    child: _buildBlankCardSlot(cardDimensions),
-                  ),
+                child: Container(
+                  key: blankSlotKey,
+                  child: _buildBlankCardSlot(cardDimensions),
                 ),
               ),
             );
@@ -3439,10 +3654,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   padding: EdgeInsets.only(
                     right: cardPadding,
                   ),
-                  child: applyMyFirstCardHud(
-                    index,
-                    _wrapHandSlotAnimMask(myPid, index, stackWidget),
-                  ),
+                  child: _wrapHandSlotAnimMask(myPid, index, stackWidget),
                 ),
               );
             }
@@ -3472,10 +3684,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   padding: EdgeInsets.only(
                     right: cardPadding,
                   ),
-                  child: applyMyFirstCardHud(
-                    index,
-                    _wrapHandSlotAnimMask(playerId, index, cardWidget),
-                  ),
+                  child: _wrapHandSlotAnimMask(playerId, index, cardWidget),
                 ),
               );
             }
@@ -4114,6 +4323,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           final glowDecoration = _buildGlowDecoration(glowColor, glowOpacity);
           return Container(
             decoration: glowDecoration,
+            padding: const EdgeInsets.all(1),
             child: cardWidget,
           );
         },

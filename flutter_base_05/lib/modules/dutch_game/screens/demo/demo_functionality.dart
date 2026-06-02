@@ -1946,6 +1946,15 @@ class DemoFunctionality {
       'centerBoard': centerBoard,
       'myHand': myHand,
       'demoInstructionsPhase': 'playing', // Show playing phase after calling Dutch
+      'turn_feed': [
+        {
+          'feed_id': '${currentGameId}_call_dutch',
+          'action_type': 'call_dutch',
+          'acting_player_id': userId,
+          'hand_index': -1,
+          'persistent': true,
+        },
+      ],
       // Removed lastUpdated - causes unnecessary state updates
     });
     

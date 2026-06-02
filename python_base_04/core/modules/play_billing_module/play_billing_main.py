@@ -56,8 +56,106 @@ class PlayBillingModule(BaseModule):
             coll = self.db_manager.db[_PLAY_SUBSCRIPTIONS]
             coll.create_index([("purchase_token", 1)], unique=True)
             coll.create_index([("user_id", 1)])
+            coin_coll = self.db_manager.db["play_coin_purchases"]
+            coin_coll.create_index([("purchase_token", 1)], unique=True)
+            coin_coll.create_index([("user_id", 1)])
         except Exception:
             pass
+
+    def _complete_play_coin_credit(
+        self,
+        *,
+        user_id: str,
+        user_oid: ObjectId,
+        purchase_token: str,
+        product_id: str,
+        base_coins: int,
+        coins_to_credit: int,
+        subscriber_bonus: bool,
+        order_id: str,
+        service: Any,
+        package: str,
+        skip_play_consume: bool = False,
+        ledger_status: str = "completed",
+        recovered: bool = False,
+    ):
+        """Insert ledger, credit coins, optionally consume on Play (idempotent per purchase_token)."""
+        now_iso = datetime.utcnow().isoformat()
+        try:
+            self.db_manager.db["play_coin_purchases"].insert_one(
+                {
+                    "purchase_token": purchase_token,
+                    "user_id": str(user_id),
+                    "product_id": product_id,
+                    "base_coins": base_coins,
+                    "coins": coins_to_credit,
+                    "coins_credited": coins_to_credit,
+                    "subscriber_bonus_applied": subscriber_bonus,
+                    "order_id": order_id,
+                    "status": "processing" if not skip_play_consume else ledger_status,
+                    "recovered": recovered,
+                    "created_at": now_iso,
+                    **({"completed_at": now_iso} if skip_play_consume else {}),
+                    **({"consume_ok": True} if skip_play_consume else {}),
+                }
+            )
+        except DuplicateKeyError:
+            bal = get_dutch_game_coin_balance(self.db_manager, user_oid)
+            row = self.db_manager.find_one("play_coin_purchases", {"purchase_token": purchase_token}) or {}
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "idempotent": True,
+                        "new_coin_balance": bal,
+                        "coins_credited": int(row.get("coins_credited") or row.get("coins") or 0),
+                        "subscriber_bonus_applied": bool(row.get("subscriber_bonus_applied")),
+                    }
+                ),
+                200,
+            )
+
+        try:
+            credit_dutch_game_coins(self.db_manager, user_oid, coins_to_credit)
+        except Exception:
+            self.db_manager.db["play_coin_purchases"].delete_one({"purchase_token": purchase_token})
+            return jsonify({"success": False, "error": "Failed to credit coins"}), 500
+
+        consume_ok = skip_play_consume
+        if not skip_play_consume:
+            consume_ok = True
+            try:
+                service.purchases().products().consume(
+                    packageName=package,
+                    productId=product_id,
+                    token=purchase_token,
+                ).execute()
+            except Exception:
+                consume_ok = False
+
+            self.db_manager.db["play_coin_purchases"].update_one(
+                {"purchase_token": purchase_token},
+                {
+                    "$set": {
+                        "status": ledger_status,
+                        "completed_at": datetime.utcnow().isoformat(),
+                        "consume_ok": consume_ok,
+                    }
+                },
+            )
+
+        bal = get_dutch_game_coin_balance(self.db_manager, user_oid)
+        payload: Dict[str, Any] = {
+            "success": True,
+            "new_coin_balance": bal,
+            "coins_credited": coins_to_credit,
+            "base_coins": base_coins,
+            "subscriber_bonus_applied": subscriber_bonus,
+            "consume_ok": consume_ok,
+        }
+        if recovered:
+            payload["recovered"] = True
+        return jsonify(payload), 200
 
     def _get_android_publisher(self):
         if self._android_publisher is not None:
@@ -436,92 +534,36 @@ class PlayBillingModule(BaseModule):
                     ),
                     400,
                 )
-            if consumption_state != 0:
-                return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "error": "Purchase already consumed on Play; no matching ledger",
-                            "consumption_state": consumption_state,
-                        }
-                    ),
-                    409,
-                )
-
             order_id = str(pr.get("orderId") or "")
-            now_iso = datetime.utcnow().isoformat()
-
-            try:
-                self.db_manager.db["play_coin_purchases"].insert_one(
-                    {
-                        "purchase_token": purchase_token,
-                        "user_id": str(user_id),
-                        "product_id": product_id,
-                        "base_coins": base_coins,
-                        "coins": coins_to_credit,
-                        "coins_credited": coins_to_credit,
-                        "subscriber_bonus_applied": subscriber_bonus,
-                        "order_id": order_id,
-                        "status": "processing",
-                        "created_at": now_iso,
-                    }
-                )
-            except DuplicateKeyError:
-                bal = get_dutch_game_coin_balance(self.db_manager, user_oid)
-                row = self.db_manager.find_one("play_coin_purchases", {"purchase_token": purchase_token}) or {}
-                return (
-                    jsonify(
-                        {
-                            "success": True,
-                            "idempotent": True,
-                            "new_coin_balance": bal,
-                            "coins_credited": int(row.get("coins_credited") or row.get("coins") or 0),
-                            "subscriber_bonus_applied": bool(row.get("subscriber_bonus_applied")),
-                        }
-                    ),
-                    200,
+            if consumption_state != 0:
+                # Paid on Play and token already consumed (e.g. client ack) but verify failed before ledger — recover.
+                return self._complete_play_coin_credit(
+                    user_id=str(user_id),
+                    user_oid=user_oid,
+                    purchase_token=purchase_token,
+                    product_id=product_id,
+                    base_coins=base_coins,
+                    coins_to_credit=coins_to_credit,
+                    subscriber_bonus=subscriber_bonus,
+                    order_id=order_id,
+                    service=service,
+                    package=package,
+                    skip_play_consume=True,
+                    ledger_status="recovered",
+                    recovered=True,
                 )
 
-            try:
-                credit_dutch_game_coins(self.db_manager, user_oid, coins_to_credit)
-            except Exception:
-                self.db_manager.db["play_coin_purchases"].delete_one({"purchase_token": purchase_token})
-                return jsonify({"success": False, "error": "Failed to credit coins"}), 500
-
-            consume_ok = True
-            try:
-                service.purchases().products().consume(
-                    packageName=package,
-                    productId=product_id,
-                    token=purchase_token,
-                ).execute()
-            except Exception:
-                consume_ok = False
-
-            self.db_manager.db["play_coin_purchases"].update_one(
-                {"purchase_token": purchase_token},
-                {
-                    "$set": {
-                        "status": "completed",
-                        "completed_at": datetime.utcnow().isoformat(),
-                        "consume_ok": consume_ok,
-                    }
-                },
-            )
-
-            bal = get_dutch_game_coin_balance(self.db_manager, user_oid)
-            return (
-                jsonify(
-                    {
-                        "success": True,
-                        "new_coin_balance": bal,
-                        "coins_credited": coins_to_credit,
-                        "base_coins": base_coins,
-                        "subscriber_bonus_applied": subscriber_bonus,
-                        "consume_ok": consume_ok,
-                    }
-                ),
-                200,
+            return self._complete_play_coin_credit(
+                user_id=str(user_id),
+                user_oid=user_oid,
+                purchase_token=purchase_token,
+                product_id=product_id,
+                base_coins=base_coins,
+                coins_to_credit=coins_to_credit,
+                subscriber_bonus=subscriber_bonus,
+                order_id=order_id,
+                service=service,
+                package=package,
             )
         except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500

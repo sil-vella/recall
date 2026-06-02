@@ -21,6 +21,7 @@ import 'consumables_catalog_bootstrap.dart';
 import 'progression_config_bootstrap.dart';
 import 'achievements_catalog_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
+import 'game_ended_modal_pin.dart';
 import 'dart:developer' as developer;
 import '../../../utils/dev_logger.dart';
 
@@ -111,6 +112,10 @@ class DutchGameHelpers {
   /// Later WS ticks may send `phase: playing` (or omit phase); handlers must not overwrite
   /// [gamePhase] or hide [messages.isVisible] while this returns true.
   static bool shouldKeepEndGameModalVisible(Map<String, dynamic> dutchState) {
+    if (dutchState['endGameModalOpen'] == true) return true;
+    final pinned = dutchState[GameEndedModalPin.stateKey];
+    if (pinned is Map && pinned.isNotEmpty) return true;
+
     final messages = dutchState['messages'] as Map<String, dynamic>? ?? {};
     if (messages['isVisible'] != true) return false;
 
@@ -1680,6 +1685,8 @@ class DutchGameHelpers {
           'autoClose': false,
           'autoCloseDelay': 3000,
         },
+        'endGameModalOpen': false,
+        GameEndedModalPin.stateKey: null,
         
         // Clear instructions state
         'instructions': {

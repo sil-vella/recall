@@ -30,12 +30,25 @@ String normalizeRoutePath(String raw) {
 }
 
 /// Best-effort path for the destination of [route] (for exclude lists).
+///
+/// Prefer live [GoRouter] location (accurate after frame). [RouteSettings.name] alone is
+/// often empty or stale in [NavigatorObserver.didPush].
 String? destinationPathForRoute(Route<dynamic> route) {
+  final ctx = route.navigator?.context;
+  if (ctx != null) {
+    try {
+      final path = GoRouter.of(ctx).routeInformationProvider.value.uri.path;
+      if (path.isNotEmpty) {
+        return path;
+      }
+    } catch (_) {
+      // Not under GoRouter — fall through.
+    }
+  }
   final n = route.settings.name;
   if (n != null && n.isNotEmpty) {
     return n;
   }
-  final ctx = route.navigator?.context;
   if (ctx != null && ctx.mounted) {
     try {
       return GoRouterState.of(ctx).uri.path;

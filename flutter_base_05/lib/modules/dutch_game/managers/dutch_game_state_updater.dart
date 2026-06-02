@@ -4,6 +4,7 @@ import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/state/immutable_state.dart';
 import '../../dutch_game/models/state/dutch_game_state.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
+import '../utils/game_ended_modal_pin.dart';
 // ignore: unused_import
 import '../models/state/my_hand_state.dart'; // For future migration
 // ignore: unused_import
@@ -41,7 +42,7 @@ class DutchGameStateUpdater {
     'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
     'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'turn_events'},
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'isRoomOwner'},
-    'messagesSlice': {'messages', 'gamePhase', 'currentGameId', 'games', 'rematch_waiting_game_id'},
+    'messagesSlice': {'messages', 'gamePhase', 'currentGameId', 'games', 'rematch_waiting_game_id', 'endGameModalOpen', GameEndedModalPin.stateKey},
     'instructionsSlice': {'instructions'},
     'actionTextSlice': {'actionText', 'currentGameId', 'games'},
     'matchLifecycle': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
@@ -765,6 +766,10 @@ class DutchGameStateUpdater {
       'gamePhase': state['gamePhase']?.toString() ?? '',
       'currentGameId': state['currentGameId']?.toString() ?? '',
       'rematch_waiting_game_id': state['rematch_waiting_game_id']?.toString() ?? '',
+      'endGameModalOpen': state['endGameModalOpen'] == true,
+      GameEndedModalPin.stateKey: state[GameEndedModalPin.stateKey] is Map
+          ? Map<String, dynamic>.from(state[GameEndedModalPin.stateKey] as Map)
+          : null,
       'games': Map<String, dynamic>.from(state['games'] as Map<String, dynamic>? ?? {}),
     };
   }

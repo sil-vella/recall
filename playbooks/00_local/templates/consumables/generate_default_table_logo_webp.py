@@ -4,7 +4,7 @@
 Source: assets/images/logo_icon.webp
 Output: 1024x576 RGBA WebP (same size as shop table_design overlays)
   - Logo fits within 60% of canvas, centered
-  - Logo recolored black at 50% opacity
+  - Logo recolored black at 25% opacity
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ OUT = FLUTTER_ASSETS / "table_logo.webp"
 
 TABLE_SIZE = (1024, 576)
 LOGO_MAX_FRAC = 0.60
-LOGO_OPACITY = 0.50
+LOGO_OPACITY = 0.25
 
 
 def main() -> int:

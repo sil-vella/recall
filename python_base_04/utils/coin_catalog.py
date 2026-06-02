@@ -10,14 +10,31 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-_CATALOG_PATH = Path(__file__).resolve().parents[2] / "flutter_base_05" / "assets" / "dutch_coin_catalog.json"
+_CATALOG_FILENAME = "dutch_coin_catalog.json"
+
+
+def _catalog_path_candidates() -> List[Path]:
+    """SSOT file lives in flutter_base_05/assets; Docker image bundles a copy under /app/assets/."""
+    app_root = Path(__file__).resolve().parents[1]
+    repo_root = app_root.parent
+    return [
+        app_root / "assets" / _CATALOG_FILENAME,
+        repo_root / "flutter_base_05" / "assets" / _CATALOG_FILENAME,
+    ]
+
+
+def _resolve_catalog_path() -> Path:
+    for path in _catalog_path_candidates():
+        if path.is_file():
+            return path
+    tried = ", ".join(str(p) for p in _catalog_path_candidates())
+    raise FileNotFoundError(f"Coin catalog missing (tried: {tried})")
 
 
 @lru_cache(maxsize=1)
 def _raw_catalog() -> Dict[str, Any]:
-    if not _CATALOG_PATH.is_file():
-        raise FileNotFoundError(f"Coin catalog missing: {_CATALOG_PATH}")
-    with open(_CATALOG_PATH, "r", encoding="utf-8") as f:
+    catalog_path = _resolve_catalog_path()
+    with open(catalog_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 

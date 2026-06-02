@@ -5,10 +5,13 @@ import 'package:provider/provider.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/app_manager.dart';
 import '../../core/managers/module_manager.dart';
+import '../../core/managers/navigation_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../utils/consts/config.dart';
-import '../admobs/interstitial/interstitial_ad.dart';
 import '../admobs/ad_experience_policy.dart';
+import '../admobs/interstitial/interstitial_ad.dart';
+import 'route_path_utils.dart';
+import 'switch_screen_ad_excludes.dart';
 
 /// Promotional ads: navigation-gated AdMob interstitial (no custom pre-roll overlay).
 class PromotionalAdsModule extends ModuleBase {
@@ -43,10 +46,22 @@ class PromotionalAdsModule extends ModuleBase {
     if (_interstitialShowInFlight) {
       return;
     }
+    final excludes = SwitchScreenAdExcludes.resolve();
+    final destinationPath = data['destination_path']?.toString();
+    if (routeMatchesExcludeList(destinationPath, excludes) ||
+        routeMatchesExcludeList(destinationPath, const ['/dutch/game-play*'])) {
+      return;
+    }
 
     _interstitialShowInFlight = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!ctx.mounted) {
+        _interstitialShowInFlight = false;
+        return;
+      }
+      final currentPath = NavigationManager().getCurrentRoute();
+      if (routeMatchesExcludeList(currentPath, excludes) ||
+          routeMatchesExcludeList(currentPath, const ['/dutch/game-play*'])) {
         _interstitialShowInFlight = false;
         return;
       }

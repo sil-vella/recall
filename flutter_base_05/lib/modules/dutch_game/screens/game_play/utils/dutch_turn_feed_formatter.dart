@@ -145,6 +145,12 @@ class DutchTurnFeedFormatter {
       case 'timer_miss_play':
         return '$who failed to play a card';
 
+      case 'call_dutch':
+        if (who == 'You') {
+          return 'You called Dutch — final round';
+        }
+        return '$who called Dutch — final round';
+
       default:
         return null;
     }

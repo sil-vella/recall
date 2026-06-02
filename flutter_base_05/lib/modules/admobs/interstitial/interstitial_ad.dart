@@ -5,10 +5,12 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/module_manager.dart';
+import '../../../../core/managers/navigation_manager.dart';
 import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
+import '../../promotional_ads_module/route_path_utils.dart';
 
 /// Preloads and shows AdMob interstitials after the navigation gate in [PromotionalAdsModule].
 class InterstitialAdModule extends ModuleBase {
@@ -73,6 +75,12 @@ class InterstitialAdModule extends ModuleBase {
 
   /// If an ad is ready, shows it and invokes [onClosed] after dismiss or show failure; otherwise [onClosed] runs immediately.
   void showOrFinish(BuildContext context, VoidCallback onClosed) {
+    final currentPath = NavigationManager().getCurrentRoute();
+    // Hard safety guard: never show interstitial on gameplay route.
+    if (routeMatchesExcludeList(currentPath, const ['/dutch/game-play*'])) {
+      onClosed();
+      return;
+    }
     if (kIsWeb || adUnitId.trim().isEmpty || !AdExperiencePolicy.showMonetizedAds || !isReady) {
       onClosed();
       return;

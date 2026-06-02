@@ -87,8 +87,10 @@ class AdsSwitchScreenNavigatorObserver extends NavigatorObserver {
         return;
       }
       if (routeMatchesExcludeList(settledPath, const ['/dutch/game-play*'])) {
-        // Entering gameplay: clear accumulated count and suppress race-triggered interstitials.
-        _screenChangeCount = 0;
+        // Entering gameplay: deduct one from count (floor 0) and suppress race-triggered interstitials.
+        if (_screenChangeCount > 0) {
+          _screenChangeCount--;
+        }
         _lastCountedPath = settledPath;
         _suppressUntil = DateTime.now().add(_gameplaySuppressDuration);
         return;

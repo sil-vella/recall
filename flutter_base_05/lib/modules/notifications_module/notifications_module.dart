@@ -1,12 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'dart:developer' as developer;
 
 import '../../core/00_base/module_base.dart';
+import '../../core/managers/hooks_manager.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
+import 'utils/global_broadcast_modal_filter.dart';
 import 'utils/notification_inbox_merge.dart';
+import '../../utils/dev_logger.dart';
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Core notifications module. Fetches and caches messages via ConnectionsApiModule.
 /// Used for app-wide instant modals and messages screen; feature modules create notifications on the backend.
@@ -24,6 +36,9 @@ class NotificationsModule extends ModuleBase {
 
   /// Listeners for Dart [inbox_changed] (Python created a DB notification) — run inbox fetch + modals.
   final List<VoidCallback> _inboxRefreshListeners = [];
+
+  /// Set when [applyGlobalBroadcastsFromStats] ran before any [addInboxRefreshListener] (early init-data fetch).
+  bool _pendingInboxModalCheck = false;
 
   void _notificationsDebug(String message, [Object? error, StackTrace? stackTrace]) {
     if (!kDebugMode) return;
@@ -45,6 +60,55 @@ class NotificationsModule extends ModuleBase {
       'pendingWsInstants': <Map<String, dynamic>>[],
       'globalBroadcasts': <Map<String, dynamic>>[],
     });
+    _registerAuthHooks();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final login = StateManager().getModuleState<Map<String, dynamic>>('login');
+      if (login?['isLoggedIn'] == true) {
+        unawaited(fetchAndApplyGlobalBroadcasts());
+      }
+    });
+  }
+
+  void _registerAuthHooks() {
+    HooksManager().registerHookWithData('auth_login_success', (_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(fetchAndApplyGlobalBroadcasts());
+      });
+    });
+  }
+
+  /// Loads `global_broadcast_messages` from get-init-data (JWT) and updates state + modals.
+  Future<void> fetchAndApplyGlobalBroadcasts() async {
+    if (_connectionsModule == null) return;
+    final login = StateManager().getModuleState<Map<String, dynamic>>('login');
+    if (login?['isLoggedIn'] != true) {
+      if (LOGGING_SWITCH) {
+        customlog('NotificationsModule: fetch globals skipped (not logged in)');
+      }
+      return;
+    }
+    try {
+      final response = await _connectionsModule!.sendGetRequest('/userauth/dutch/get-init-data');
+      if (response is! Map || response['success'] != true) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'NotificationsModule: get-init-data for globals failed '
+            'success=${response is Map ? response['success'] : null}',
+          );
+        }
+        return;
+      }
+      final gRaw = response['global_broadcast_messages'];
+      final list = gRaw is List
+          ? gRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : <Map<String, dynamic>>[];
+      applyGlobalBroadcastsFromStats(list);
+    } catch (e, st) {
+      _notificationsDebug('fetchAndApplyGlobalBroadcasts failed', e, st);
+      if (LOGGING_SWITCH) {
+        customlog('NotificationsModule: fetch globals error $e');
+      }
+    }
   }
 
   void addPendingWsInstantListener(VoidCallback listener) {
@@ -63,12 +127,24 @@ class NotificationsModule extends ModuleBase {
     }
   }
 
+  /// Call once after [addInboxRefreshListener] so globals loaded before the first screen mounted still show modals.
+  void consumePendingInboxModalCheck() {
+    if (!_pendingInboxModalCheck) return;
+    _pendingInboxModalCheck = false;
+    notifyInboxRefreshRequested();
+  }
+
   void removeInboxRefreshListener(VoidCallback listener) {
     _inboxRefreshListeners.remove(listener);
   }
 
   /// Called when WebSocket receives [inbox_changed] from Dart (after Python notify).
   void notifyInboxRefreshRequested() {
+    if (_inboxRefreshListeners.isEmpty) {
+      _pendingInboxModalCheck = true;
+      return;
+    }
+    _pendingInboxModalCheck = false;
     for (final l in List<VoidCallback>.from(_inboxRefreshListeners)) {
       l();
     }
@@ -107,6 +183,10 @@ class NotificationsModule extends ModuleBase {
   /// Replaces global broadcast rows from `get-user-stats` (`global_broadcast_messages`).
   void applyGlobalBroadcastsFromStats(List<Map<String, dynamic>> items) {
     _notificationsDebug('applyGlobalBroadcastsFromStats: count=${items.length}');
+    if (LOGGING_SWITCH) {
+      final unread = items.where((m) => m['user_read'] != true).length;
+      customlog('NotificationsModule: apply globals count=${items.length} unread=$unread');
+    }
     final normalized = dedupeNotificationMessages(
       items.map((e) => Map<String, dynamic>.from(e)),
     );
@@ -120,13 +200,38 @@ class NotificationsModule extends ModuleBase {
     });
     // get-user-stats often completes after the first [_checkAndShowInstantMessages]
     // on screen enter; re-run inbox/modal check so unread globals (e.g. app_update) show.
-    final hasUnreadInstant = normalized.any((m) {
-      if (m['user_read'] == true) return false;
-      return (m['type']?.toString() ?? '') == 'instant';
-    });
+    final hasUnreadInstant = normalized.any(includeGlobalInInstantModalMerge);
     if (hasUnreadInstant) {
+      _requestInstantModalsAfterGlobals();
+    }
+  }
+
+  /// Init-data often finishes on splash before [BaseScreen] registers listeners.
+  void _requestInstantModalsAfterGlobals() {
+    if (_inboxRefreshListeners.isEmpty) {
+      _pendingInboxModalCheck = true;
+      _notificationsDebug('applyGlobalBroadcastsFromStats: deferred modal check (no listeners yet)');
+      if (LOGGING_SWITCH) {
+        customlog('NotificationsModule: modal check pending (no listeners)');
+      }
+    } else {
       notifyInboxRefreshRequested();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 900), () {
+        if (_inboxRefreshListeners.isEmpty) {
+          _pendingInboxModalCheck = true;
+          if (LOGGING_SWITCH) {
+            customlog('NotificationsModule: modal recheck still pending (no listeners)');
+          }
+          return;
+        }
+        if (LOGGING_SWITCH) {
+          customlog('NotificationsModule: modal recheck after route settle');
+        }
+        notifyInboxRefreshRequested();
+      });
+    });
   }
 
   List<Map<String, dynamic>> get globalBroadcasts {

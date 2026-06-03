@@ -27,7 +27,12 @@ import '../../../utils/dev_logger.dart';
 
 /// Dev trace for join-random / special-event client emit path (`DUTCH_DEV_LOG` also gates [customlog]).
 // ignore: constant_identifier_names — set false when not tracing this flow (release tooling may flip).
-const bool LOGGING_SWITCH = false;
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Convenient helper methods for dutch game operations
 /// Provides type-safe, validated methods for common game actions
@@ -1000,7 +1005,9 @@ class DutchGameHelpers {
       
       // Check if response indicates success
       if (response is! Map || response['success'] != true) {
-        
+        if (LOGGING_SWITCH) {
+          customlog('getInitData: failed success=${response is Map ? response['success'] : null}');
+        }
         return {
           'success': false,
           'error': response['message'] ?? response['error'] ?? 'Failed to fetch user stats',
@@ -1025,6 +1032,12 @@ class DutchGameHelpers {
             developer.log(
               'getUserStats: applying global_broadcast_messages count=${list.length}',
               name: 'DutchGameHelpers',
+            );
+          }
+          if (LOGGING_SWITCH) {
+            customlog(
+              'getInitData: global_broadcast_messages count=${list.length} '
+              'unread=${list.where((m) => m['user_read'] != true).length}',
             );
           }
           nm?.applyGlobalBroadcastsFromStats(list);

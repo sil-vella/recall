@@ -9,6 +9,31 @@ import '../../../utils/consts/config.dart';
 /// Sentinel for [Map] `data.deeplink` (or `data.deeplink_path`): client opens the OS store listing.
 const String kNotificationDeeplinkStoreLink = 'store_link';
 
+/// `/dutch/lobby` query keys applied by [JoinRandomGameWidget] (see `join_random_game_widget.dart`).
+const String kLobbyDeeplinkPath = '/dutch/lobby';
+const String kLobbyDeeplinkSectionKey = 'section';
+const String kLobbyDeeplinkSectionJoinRandom = 'join_random';
+const String kLobbyDeeplinkEventIdKey = 'event_id';
+const String kLobbyDeeplinkJoinRandomTabKey = 'join_random_tab';
+const String kLobbyDeeplinkJoinRandomTabSpecialEvents = 'special_events';
+
+/// Default `special_events[].id` from declarative `table_tiers.json` (Cards Night).
+const String kDeclarativeSpecialEventCardsNightId = 'cards_night';
+
+/// `data.deeplink` map for lobby → Join Random → special-event carousel row.
+Map<String, dynamic> lobbyJoinRandomSpecialEventDeeplink({
+  required String eventId,
+  String section = kLobbyDeeplinkSectionJoinRandom,
+  String joinRandomTab = kLobbyDeeplinkJoinRandomTabSpecialEvents,
+}) {
+  return {
+    'path': kLobbyDeeplinkPath,
+    kLobbyDeeplinkSectionKey: section,
+    kLobbyDeeplinkJoinRandomTabKey: joinRandomTab,
+    kLobbyDeeplinkEventIdKey: eventId.trim(),
+  };
+}
+
 /// True when [value] is the store-link sentinel (case-insensitive).
 bool isNotificationStoreLinkDeeplink(String? value) {
   return value?.trim().toLowerCase() == kNotificationDeeplinkStoreLink;

@@ -21,14 +21,16 @@ from . import progression_catalog as prog
 from . import achievements_catalog as achcat
 from . import catalog_hot_reload as catalog_reload
 from core.modules.notification_module.global_broadcast_service import load_global_broadcast_payload_for_user
+from tools.dev_logger import customlog
 from .wins_level_rank_matcher import WinsLevelRankMatcher
 
 dutch_api = Blueprint('dutch_api', __name__)
 
-# Logging switch for this module
-
 # Prometheus/Grafana not used – game events do not update metrics
 METRICS_SWITCH = False
+
+# Dev trace for get-init-data globals (on when DUTCH_DEV_LOG=1; see tools.dev_logger).
+LOGGING_SWITCH = (os.environ.get("DUTCH_DEV_LOG") or "").strip().lower() in ("1", "true", "yes")
 
 # Per-match win facts for time-bounded leaderboards (insert-only; idempotent via unique index).
 MATCH_WIN_OUTCOMES_COLL = "dutch_match_win_outcomes"
@@ -1448,8 +1450,15 @@ def get_init_data():
                 user_id=str(user_id),
                 user_rank=str(stats_data.get("rank") or matcher.DEFAULT_RANK),
             )
-        except Exception:
+        except Exception as e:
+            if LOGGING_SWITCH:
+                customlog(
+                    f"get_init_data: global_broadcast_messages failed "
+                    f"{type(e).__name__}: {e}"
+                )
             gb_list = []
+        if LOGGING_SWITCH:
+            customlog(f"get_init_data: global_broadcast_messages count={len(gb_list)}")
         response_body["global_broadcast_messages"] = gb_list
         _attach_declarative_catalogs(
             response_body,

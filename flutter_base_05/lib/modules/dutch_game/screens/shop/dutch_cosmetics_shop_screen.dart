@@ -8,6 +8,7 @@ import '../../../../../utils/consts/config.dart';
 import '../../../../../utils/dev_logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../utils/consumables_catalog_bootstrap.dart';
+import '../../utils/customize_shop_route_hints.dart';
 import '../../../../../utils/widgets/felt_texture_widget.dart';
 import '../../models/card_display_config.dart';
 import '../../models/card_model.dart';
@@ -48,10 +49,10 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   // Tracing shop tile previews (card back / table design show defaults).
   static const bool LOGGING_SWITCH = false;
 
-  static const String _kAccordionMyPacks = 'My Packs';
-  static const String _kAccordionConsumables = 'Consumables';
-  static const String _kAccordionCardBacks = 'Card Covers';
-  static const String _kAccordionTable = 'Table';
+  static const String _kAccordionMyPacks = kCustomizeAccordionMyPacks;
+  static const String _kAccordionConsumables = kCustomizeAccordionConsumables;
+  static const String _kAccordionCardBacks = kCustomizeAccordionCardCovers;
+  static const String _kAccordionTable = kCustomizeAccordionTable;
 
   /// Dark scrim behind title / price only.
   static final Color _kTextScrimFill = AppColors.darkGray.withValues(alpha: 0.92);
@@ -69,6 +70,9 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
 
   /// Raw hint from route until catalog is ready to resolve to [item_id].
   String? _pendingCustomizeHighlightHint;
+
+  /// Accordion to expand from `tab` / `section` query (applied after catalog load).
+  String? _pendingCustomizeTab;
 
   final Map<String, GlobalKey> _itemScrollKeys = {};
 
@@ -106,12 +110,18 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     } catch (_) {
       return;
     }
-    if (uri.path != '/dutch-customize') return;
+    if (uri.path != kCustomizeShopPath) return;
     final q = uri.query;
     if (q == _lastCustomizeRouteQueryApplied) return;
     _lastCustomizeRouteQueryApplied = q;
 
-    final raw = uri.queryParameters['item_id'] ??
+    final tabRaw =
+        uri.queryParameters[kCustomizeDeeplinkTabKey] ??
+        uri.queryParameters[kCustomizeDeeplinkSectionKey];
+    final tabTitle = resolveCustomizeAccordionTab(tabRaw);
+    _pendingCustomizeTab = tabTitle;
+
+    final raw = uri.queryParameters[kCustomizeDeeplinkItemIdKey] ??
         uri.queryParameters['item'] ??
         uri.queryParameters['highlight'] ??
         uri.queryParameters['consumable'];
@@ -120,6 +130,42 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
       return;
     }
     _pendingCustomizeHighlightHint = raw.trim();
+  }
+
+  void _retryCustomizeRouteHintsFromUri() {
+    if (!mounted) return;
+    try {
+      final uri = GoRouterState.of(context).uri;
+      if (uri.path != kCustomizeShopPath) return;
+      final hasTab = resolveCustomizeAccordionTab(
+            uri.queryParameters[kCustomizeDeeplinkTabKey] ??
+                uri.queryParameters[kCustomizeDeeplinkSectionKey],
+          ) !=
+          null;
+      final hasItem = (uri.queryParameters[kCustomizeDeeplinkItemIdKey] ??
+              uri.queryParameters['item'] ??
+              uri.queryParameters['highlight'] ??
+              uri.queryParameters['consumable'])
+          ?.trim()
+          .isNotEmpty ==
+          true;
+      if (!hasTab && !hasItem) return;
+      _lastCustomizeRouteQueryApplied = null;
+      _captureCustomizeRouteIntent();
+      _tryApplyPendingCustomizeRouteHints();
+    } catch (_) {}
+  }
+
+  void _tryApplyPendingCustomizeTab() {
+    final tab = _pendingCustomizeTab;
+    if (tab == null || tab.isEmpty || _loading || !mounted) return;
+    _pendingCustomizeTab = null;
+    setState(() => _expandedSection = tab);
+  }
+
+  void _tryApplyPendingCustomizeRouteHints() {
+    _tryApplyPendingCustomizeTab();
+    _tryApplyPendingCustomizeHighlight();
   }
 
   void _tryApplyPendingCustomizeHighlight() {
@@ -172,7 +218,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     super.didChangeDependencies();
     _captureCustomizeRouteIntent();
     if (!_loading) {
-      _tryApplyPendingCustomizeHighlight();
+      _tryApplyPendingCustomizeRouteHints();
     }
   }
 
@@ -189,7 +235,11 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
       _inventory = inventory;
       _loading = false;
     });
-    _tryApplyPendingCustomizeHighlight();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _retryCustomizeRouteHintsFromUri();
+    });
+    _tryApplyPendingCustomizeRouteHints();
   }
 
   void _logCatalogCosmeticDiagnostics(List<Map<String, dynamic>> catalog, {required String phase}) {

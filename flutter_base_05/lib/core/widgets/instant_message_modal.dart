@@ -3,30 +3,42 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/managers/navigation_manager.dart';
+import '../../modules/dutch_game/utils/customize_shop_route_hints.dart';
+import '../../modules/notifications_module/utils/app_version_helper.dart';
 import '../../modules/notifications_module/utils/global_broadcast_modal_filter.dart';
 import '../../utils/consts/theme_consts.dart';
 
 /// Reads [modal_background_enabled] (or legacy [modal_background_image]) from [message] `data`.
-/// Default is off unless explicitly true and a URL is present (see [modalBackgroundUrlFromMessage]).
+/// Also enabled when [modalBackgroundUrlFromMessage] resolves (URL or [kCustomizeModalImageItemIdKey]).
 bool modalBackgroundEnabledFromMessage(Map<String, dynamic> message) {
   final data = message['data'];
   if (data is! Map) return false;
   final map = Map<String, dynamic>.from(data);
   final raw = map['modal_background_enabled'] ?? map['modal_background_image'];
-  if (raw is bool) return raw;
-  if (raw is num) return raw != 0;
+  if (raw is bool) {
+    return raw && modalBackgroundUrlFromMessage(message) != null;
+  }
+  if (raw is num) return raw != 0 && modalBackgroundUrlFromMessage(message) != null;
   final s = raw?.toString().toLowerCase().trim();
-  return s == 'true' || s == '1' || s == 'yes';
+  if (s == 'false' || s == '0' || s == 'no') return false;
+  if (s == 'true' || s == '1' || s == 'yes') {
+    return modalBackgroundUrlFromMessage(message) != null;
+  }
+  return modalBackgroundUrlFromMessage(message) != null;
 }
 
-/// URL for modal backdrop image; from [message] `data` keys [modal_background_url] or [background_image_url].
+/// URL for modal banner image: explicit URL keys or [kCustomizeModalImageItemIdKey] shop preview.
 String? modalBackgroundUrlFromMessage(Map<String, dynamic> message) {
   final data = message['data'];
   if (data is! Map) return null;
   final map = Map<String, dynamic>.from(data);
   final url = (map['modal_background_url'] ?? map['background_image_url'])?.toString().trim();
-  if (url == null || url.isEmpty) return null;
-  return url;
+  if (url != null && url.isNotEmpty) return url;
+  final itemId = map[kCustomizeModalImageItemIdKey]?.toString().trim();
+  if (itemId == null || itemId.isEmpty) return null;
+  final version = int.tryParse(map['modal_image_version']?.toString() ?? '') ?? 1;
+  return consumableShopItemModalImageUrl(itemId, version: version);
 }
 
 /// Notification type that must be shown as a modal immediately, app-wide (from DB/polling).
@@ -111,6 +123,13 @@ class InstantMessageModal extends StatelessWidget {
 
   List<ResponseAction> get _responses => ResponseAction.fromMessage(message);
 
+  IconData get _headerIcon {
+    final subtype = message['subtype']?.toString() ?? '';
+    if (subtype == 'app_update') return Icons.system_update_alt;
+    if (subtype == 'welcome') return Icons.celebration_outlined;
+    return Icons.notifications_active_outlined;
+  }
+
   void _onInstantModalClosed() {
     unawaited(_markReadOnce());
     onDismiss();
@@ -132,14 +151,60 @@ class InstantMessageModal extends StatelessWidget {
     }
   }
 
+  Widget _filledActionButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.accentColor,
+        foregroundColor: AppColors.textOnAccent,
+        padding: EdgeInsets.symmetric(
+          horizontal: AppPadding.largePadding.left,
+          vertical: AppPadding.mediumPadding.top,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppBorderRadius.mediumRadius,
+        ),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.buttonText(color: AppColors.textOnAccent),
+      ),
+    );
+  }
+
+  Widget _outlinedActionButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.primaryColor,
+        side: BorderSide(color: AppColors.accentColor, width: 1.5),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppPadding.largePadding.left,
+          vertical: AppPadding.mediumPadding.top,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppBorderRadius.mediumRadius,
+        ),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.buttonText(color: AppColors.primaryColor),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final responses = _responses;
     final hasResponseButtons = responses.isNotEmpty && onSendResponse != null;
     final showBg = _showBackdropImage;
     final bgUrl = _backdropImageUrl;
-    final contentLayerColor =
-        showBg ? AppColors.surface.withValues(alpha: 0.9) : AppColors.surface;
 
     return PopScope(
       canPop: true,
@@ -147,95 +212,145 @@ class InstantMessageModal extends StatelessWidget {
         if (!didPop) return;
         _onInstantModalClosed();
       },
-      child: AlertDialog(
+      child: Dialog(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        contentPadding: EdgeInsets.zero,
         insetPadding: EdgeInsets.symmetric(
           horizontal: AppPadding.defaultPadding.horizontal,
           vertical: AppPadding.defaultPadding.vertical,
         ),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: ClipRRect(
-            borderRadius: AppBorderRadius.mediumRadius,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (showBg && bgUrl != null)
-                  Positioned.fill(
-                    child: CachedNetworkImage(
-                      imageUrl: bgUrl,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 150),
-                      errorWidget: (_, __, ___) => ColoredBox(color: AppColors.surface),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 400,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: AppBorderRadius.largeRadius,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.black.withValues(alpha: AppOpacity.shadow),
+                  blurRadius: AppSizes.shadowBlur,
+                  offset: AppSizes.shadowOffset,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: AppBorderRadius.largeRadius,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: AppPadding.defaultPadding,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor,
+                      borderRadius: AppBorderRadius.only(
+                        topLeft: AppBorderRadius.large,
+                        topRight: AppBorderRadius.large,
+                      ),
                     ),
-                  ),
-                Material(
-                  color: contentLayerColor,
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      AppPadding.cardPadding.horizontal,
-                      AppPadding.cardPadding.vertical,
-                      AppPadding.cardPadding.horizontal,
-                      AppPadding.smallPadding.top,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: Row(
                       children: [
-                        Text(
-                          _title,
-                          style: AppTextStyles.headingSmall(color: AppColors.textOnSurface),
+                        Icon(
+                          _headerIcon,
+                          color: AppColors.textOnPrimary,
+                          size: AppSizes.iconMedium,
                         ),
-                        SizedBox(height: AppPadding.smallPadding.top),
-                        ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxHeight: MediaQuery.sizeOf(context).height * 0.45,
-                          ),
-                          child: SingleChildScrollView(
-                            child: Text(
-                              _body,
-                              style: AppTextStyles.bodyMedium(color: AppColors.textOnSurface),
+                        SizedBox(width: AppPadding.smallPadding.left),
+                        Expanded(
+                          child: Text(
+                            _title,
+                            style: AppTextStyles.headingSmall(
+                              color: AppColors.textOnPrimary,
                             ),
-                          ),
-                        ),
-                        SizedBox(height: AppPadding.cardPadding.vertical),
-                        Align(
-                          alignment: AlignmentDirectional.centerEnd,
-                          child: Wrap(
-                            alignment: WrapAlignment.end,
-                            spacing: AppPadding.smallPadding.left,
-                            children: hasResponseButtons
-                                ? responses
-                                    .map((r) {
-                                      return TextButton(
-                                        onPressed: () => _onResponseTap(context, r),
-                                        style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
-                                        child: Text(
-                                          r.label,
-                                          style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
-                                        ),
-                                      );
-                                    })
-                                    .toList()
-                                : [
-                                    TextButton(
-                                      onPressed: () => _closeAfterMarkRead(context),
-                                      style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
-                                      child: Text(
-                                        dismissLabel,
-                                        style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
-                                      ),
-                                    ),
-                                  ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  if (showBg && bgUrl != null)
+                    SizedBox(
+                      height: 140,
+                      width: double.infinity,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CachedNetworkImage(
+                            imageUrl: bgUrl,
+                            fit: BoxFit.cover,
+                            fadeInDuration: const Duration(milliseconds: 150),
+                            errorWidget: (_, __, ___) => ColoredBox(
+                              color: AppColors.cardVariant,
+                            ),
+                          ),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  AppColors.card.withValues(alpha: 0.92),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(context).height * 0.4,
+                    ),
+                    child: SingleChildScrollView(
+                      padding: AppPadding.defaultPadding,
+                      child: Text(
+                        _body,
+                        style: AppTextStyles.bodyMedium(
+                          color: AppColors.textOnCard,
+                        ).copyWith(height: 1.5),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: AppPadding.defaultPadding,
+                    decoration: BoxDecoration(
+                      color: AppColors.cardVariant,
+                      borderRadius: AppBorderRadius.only(
+                        bottomLeft: AppBorderRadius.large,
+                        bottomRight: AppBorderRadius.large,
+                      ),
+                    ),
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: AppPadding.smallPadding.left,
+                      runSpacing: AppPadding.smallPadding.top,
+                      children: hasResponseButtons
+                          ? [
+                              for (var i = 0; i < responses.length; i++)
+                                if (i == responses.length - 1)
+                                  _filledActionButton(
+                                    label: responses[i].label,
+                                    onPressed: () => _onResponseTap(context, responses[i]),
+                                  )
+                                else
+                                  _outlinedActionButton(
+                                    label: responses[i].label,
+                                    onPressed: () => _onResponseTap(context, responses[i]),
+                                  ),
+                            ]
+                          : [
+                              _filledActionButton(
+                                label: dismissLabel,
+                                onPressed: () => _closeAfterMarkRead(context),
+                              ),
+                            ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -267,6 +382,8 @@ class InstantMessageModal extends StatelessWidget {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
+      useRootNavigator: true,
+      barrierColor: AppColors.black.withValues(alpha: AppOpacity.barrier),
       builder: (ctx) => InstantMessageModal(
         message: message,
         dismissLabel: dismissLabel,
@@ -358,6 +475,7 @@ class InstantMessageModal extends StatelessWidget {
     Future<bool> Function(String messageId, String actionIdentifier)? onSendResponse,
   }) async {
     if (!context.mounted) return;
+    final appVersion = await AppVersionHelper.resolve();
     final instantUnread = messages.where((m) {
       final type = m['type']?.toString() ?? '';
       final isInstant = type == kNotificationTypeInstant || type == kNotificationTypeInstantWs;
@@ -368,6 +486,15 @@ class InstantMessageModal extends StatelessWidget {
     for (final msg in instantUnread) {
       if (!context.mounted) break;
       final idOrKey = instantModalSessionKey(msg);
+      if (_shownIds.contains(idOrKey)) continue;
+      // Re-check route before each modal: queue may have been built on home, then user navigated (e.g. lobby CTA).
+      if (!shouldShowInstantModalMessage(
+        msg,
+        currentAppVersion: appVersion,
+        currentRoutePath: NavigationManager().getCurrentRoute(),
+      )) {
+        continue;
+      }
       _shownIds.add(idOrKey);
       await show(
         context,

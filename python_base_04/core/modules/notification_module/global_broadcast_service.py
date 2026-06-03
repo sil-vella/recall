@@ -8,14 +8,19 @@ Collections:
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
 from bson import ObjectId
 
 from core.modules.user_management_module import tier_rank_level_matcher as matcher
+from tools.dev_logger import customlog
 
 from .notification_service import NOTIFICATION_TYPES_PREDEFINED
+
+# On when ``run_python_app_to_global_log.sh`` / ``DUTCH_DEV_LOG=1`` (same truthy set as customlog).
+LOGGING_SWITCH = (os.environ.get("DUTCH_DEV_LOG") or "").strip().lower() in ("1", "true", "yes")
 
 GLOBAL_BROADCAST_MESSAGES_COLL = "global_broadcast_messages"
 GLOBAL_BROADCAST_READS_COLL = "global_broadcast_reads"
@@ -24,12 +29,17 @@ ALL_RANKS_SENTINEL = "all"
 _DEFAULT_FETCH_LIMIT = 40
 
 
+def _db_ref(db_manager):
+    """PyMongo Database does not support truthiness; use `is None` checks."""
+    return getattr(db_manager, "db", None) if db_manager else None
+
+
 def ensure_global_broadcast_indexes(db_manager) -> None:
     """Create indexes once (best-effort; safe to call on each notification module init)."""
-    if not db_manager or not getattr(db_manager, "db", None):
+    db = _db_ref(db_manager)
+    if db is None:
         return
     try:
-        db = db_manager.db
         db[GLOBAL_BROADCAST_MESSAGES_COLL].create_index(
             [("is_active", 1), ("created_at", -1)],
             name="gbm_active_created",
@@ -102,10 +112,13 @@ def _dedupe_candidates_by_msg_id(candidates: List[Dict[str, Any]]) -> List[Dict[
 def _load_user_global_read_ids(db_manager, user_oid: ObjectId, gids: List[ObjectId]) -> Set[str]:
     """Load ack ids using the same raw Mongo path as [mark_global_broadcasts_read]."""
     read_ids: Set[str] = set()
-    if not gids or not getattr(db_manager, "db", None):
+    if not gids:
+        return read_ids
+    db = _db_ref(db_manager)
+    if db is None:
         return read_ids
     try:
-        coll = db_manager.db[GLOBAL_BROADCAST_READS_COLL]
+        coll = db[GLOBAL_BROADCAST_READS_COLL]
         for doc in coll.find(
             {"user_id": user_oid, "global_message_id": {"$in": gids}},
             projection={"global_message_id": 1},
@@ -169,19 +182,31 @@ def load_global_broadcast_payload_for_user(
     Active global broadcasts visible to this user's Dutch rank, with read flags from global_broadcast_reads.
     """
     if not db_manager:
+        if LOGGING_SWITCH:
+            customlog("global_broadcast: no db_manager")
         return []
     try:
         user_oid = ObjectId(user_id)
     except Exception:
+        if LOGGING_SWITCH:
+            customlog(f"global_broadcast: invalid user_id={user_id!r}")
         return []
     user_rank_norm = matcher.normalize_rank(user_rank) or matcher.DEFAULT_RANK
     now = datetime.utcnow()
+    if LOGGING_SWITCH:
+        customlog(f"global_broadcast: load user_id={user_id} rank={user_rank_norm}")
     try:
         raw_docs = db_manager.find(GLOBAL_BROADCAST_MESSAGES_COLL, {"is_active": True})
-    except Exception:
+    except Exception as e:
+        if LOGGING_SWITCH:
+            customlog(f"global_broadcast: find active failed {type(e).__name__}: {e}")
         return []
     if not isinstance(raw_docs, list):
+        if LOGGING_SWITCH:
+            customlog(f"global_broadcast: find returned {type(raw_docs).__name__}, expected list")
         return []
+    if LOGGING_SWITCH:
+        customlog(f"global_broadcast: active docs={len(raw_docs)}")
 
     candidates: List[Dict[str, Any]] = []
     for doc in raw_docs:
@@ -220,12 +245,24 @@ def load_global_broadcast_payload_for_user(
         if gids:
             read_ids = _load_user_global_read_ids(db_manager, user_oid, gids)
 
+    if LOGGING_SWITCH:
+        customlog(
+            f"global_broadcast: candidates={len(candidates)} "
+            f"read_ids={len(read_ids)} db_ok={_db_ref(db_manager) is not None}"
+        )
+
     out: List[Dict[str, Any]] = []
     for doc in candidates:
         oid = doc.get("_id")
         oid_str = str(oid) if oid is not None else ""
         user_read = oid_str in read_ids if oid_str else False
         out.append(_serialize_global_doc(doc, user_read=user_read))
+    if LOGGING_SWITCH:
+        unread = sum(1 for row in out if not row.get("user_read"))
+        customlog(
+            f"global_broadcast: payload count={len(out)} unread={unread} "
+            f"msg_ids={[row.get('msg_id') for row in out]}"
+        )
     return out
 
 
@@ -269,14 +306,15 @@ def mark_global_broadcasts_read(db_manager, user_id: str, global_message_ids: Li
     Upsert read records for the user. Accepts Mongo ObjectId strings or client ids prefixed with glob_.
     Returns count of successfully processed ids.
     """
-    if not db_manager or not getattr(db_manager, "db", None):
+    db = _db_ref(db_manager)
+    if db is None:
         return 0
     try:
         user_oid = ObjectId(user_id)
     except Exception:
         return 0
     now = datetime.utcnow()
-    coll = db_manager.db[GLOBAL_BROADCAST_READS_COLL]
+    coll = db[GLOBAL_BROADCAST_READS_COLL]
     n = 0
     for raw in global_message_ids[:50]:
         if not raw:

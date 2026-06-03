@@ -1,8 +1,17 @@
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../utils/consts/config.dart';
+import '../../../utils/dev_logger.dart';
 
-/// Installed app version (from [PackageInfo], fallback [Config.appVersion]).
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
+
+/// Installed app version for update-modal gating: [PackageInfo] (pubspec / `--build-name`),
+/// then [Config.appVersion] from dart-defines if PackageInfo is empty.
 class AppVersionHelper {
   AppVersionHelper._();
 
@@ -10,15 +19,23 @@ class AppVersionHelper {
 
   static Future<String> resolve() async {
     if (_cached != null && _cached!.isNotEmpty) return _cached!;
+    var pkgV = '';
     try {
       final info = await PackageInfo.fromPlatform();
-      final v = info.version.trim();
-      if (v.isNotEmpty) {
-        _cached = v;
-        return v;
-      }
+      pkgV = info.version.trim();
     } catch (_) {}
-    _cached = Config.appVersion.trim().isNotEmpty ? Config.appVersion.trim() : '0.0.0';
+    final cfgV = Config.appVersion.trim();
+    if (pkgV.isNotEmpty) {
+      _cached = pkgV;
+    } else {
+      _cached = cfgV.isNotEmpty ? cfgV : '0.0.0';
+    }
+    if (LOGGING_SWITCH) {
+      customlog(
+        'AppVersionHelper: modal gate uses installed=$_cached '
+        '(PackageInfo=$pkgV dart-define APP_VERSION=$cfgV)',
+      );
+    }
     return _cached!;
   }
 

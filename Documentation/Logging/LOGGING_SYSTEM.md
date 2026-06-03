@@ -79,29 +79,43 @@ so Python and Dart child processes default to **on** unless you override.
 
 | Stack | Import / module | Function | Output stream |
 |-------|-----------------|----------|----------------|
-| Flutter | `flutter_base_05/lib/utils/dev_logger.dart` | `devLog(String)` | `debugPrint` → device / `flutter run` |
-| Dart WS | `dart_bkend_base_01/lib/utils/dev_logger.dart` | `devLog(String)` | `stderr` |
-| Python | `python_base_04/tools/dev_logger.py` | `dev_log(str)` | `stderr` |
+| Flutter | `flutter_base_05/lib/utils/dev_logger.dart` | `customlog(String)` | `debugPrint` → device / `flutter run` |
+| Dart WS | `dart_bkend_base_01/lib/utils/dev_logger.dart` | `customlog(String)` | `stderr` |
+| Python | `python_base_04/tools/dev_logger.py` | `customlog(str)` | `stderr` |
 
-**Do not** reintroduce the removed legacy singleton `Logger` in `flutter_base_05` (per project rules). Prefer `devLog` / `dev_log` for lightweight diagnostics.
+**Do not** reintroduce the removed legacy singleton `Logger` in `flutter_base_05`. Use **`customlog`** only, gated by **`if (LOGGING_SWITCH)`** per file.
 
 ---
 
-## 5. `LOGGING_SWITCH` (coarse, per file / entrypoint)
+## 5. `LOGGING_SWITCH` (one switch per file — strict)
 
-`LOGGING_SWITCH` is a **separate** knob from `DUTCH_DEV_LOG`:
+**Policy:** the **only** gate for calling `customlog` is **`LOGGING_SWITCH`**. No `devLogSwitch`, no `LOGGING_SWITCH || other`, no `bool.fromEnvironment('DUTCH_DEV_LOG')` on `LOGGING_SWITCH` (use `DUTCH_DEV_LOG=1` with the string pattern below). See `.cursor/rules/logging-rule.mdc`.
 
-- If **`LOGGING_SWITCH` is `false`**, the entrypoint **never calls** `devLog`/`dev_log` for that guarded block — even if `DUTCH_DEV_LOG` is on.
-- If **`LOGGING_SWITCH` is `true`** but **`DUTCH_DEV_LOG` is off**, the call runs but **`devLog`/`dev_log` no-op**.
+`LOGGING_SWITCH` is separate from **`DUTCH_DEV_LOG`** (checked inside `customlog`):
 
-**Current entrypoints (examples):**
+- **`LOGGING_SWITCH` false** → do not call `customlog` in that block.
+- **`LOGGING_SWITCH` true** but **`DUTCH_DEV_LOG` off** → call runs; `customlog` no-ops.
 
-- Flutter: `flutter_base_05/lib/main.dart` — `LOGGING_SWITCH` then `devLog('main.dart entry')`.
-- Python debug: `python_base_04/app.debug.py` — `LOGGING_SWITCH` then `dev_log("app.debug.py entry")`.
-- Dart WS: `dart_bkend_base_01/app.debug.dart` — `LOGGING_SWITCH` then `devLog('app.debug.dart entry')`.
-- Production Flask: `python_base_04/app.py` does **not** wire `dev_log` at startup (use `app.debug.py` for local dev with CORS and dev logging).
+**Dart — define once per file:**
 
-**Release / Docker tooling** may rewrite `LOGGING_SWITCH` to **`false`** in bulk (Flutter `build_*.sh`, Python Docker build helpers, Dart Docker build scripts). That is **independent** of `DUTCH_DEV_LOG`: production builds aim for quiet sources of truth in source, not only env.
+```dart
+const bool LOGGING_SWITCH = false;
+```
+
+Or, for files that should trace when launched with `--dart-define=DUTCH_DEV_LOG=1`:
+
+```dart
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
+```
+
+**Python:** `LOGGING_SWITCH = False` at module level (only name allowed).
+
+**Release / Docker tooling** may set **`LOGGING_SWITCH`** to **`false`** in bulk. That is independent of **`DUTCH_DEV_LOG`** on release builds.
 
 ---
 

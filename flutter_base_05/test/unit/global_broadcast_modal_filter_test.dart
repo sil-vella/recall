@@ -31,25 +31,148 @@ void main() {
         shouldShowInstantModalMessage(
           {
             'type': 'instant',
+            'subtype': 'app_update',
             'user_read': false,
             'data': {'target_version': '2.0.21'},
           },
           currentAppVersion: '2.0.20',
+          currentRoutePath: '/',
         ),
         isTrue,
       );
     });
 
-    test('hides when user_read is true', () {
+    test('shows version-gated update when user_read is true', () {
+      expect(
+        shouldShowInstantModalMessage(
+          {
+            'type': 'instant',
+            'subtype': 'app_update',
+            'user_read': true,
+            'data': {'target_version': '2.0.21'},
+          },
+          currentAppVersion: '2.0.20',
+          currentRoutePath: '/',
+        ),
+        isTrue,
+      );
+    });
+
+    test('hides app update on lobby route', () {
+      expect(
+        shouldShowInstantModalMessage(
+          {
+            'type': 'instant',
+            'subtype': 'app_update',
+            'data': {'target_version': '2.0.21'},
+          },
+          currentAppVersion: '2.0.20',
+          currentRoutePath: '/dutch/lobby',
+        ),
+        isFalse,
+      );
+    });
+
+    test('hides non-version instant when user_read is true', () {
       expect(
         shouldShowInstantModalMessage(
           {
             'type': 'instant',
             'user_read': true,
-            'data': {'target_version': '2.0.21'},
+            'subtype': 'welcome',
           },
           currentAppVersion: '2.0.20',
         ),
+        isFalse,
+      );
+    });
+
+    test('hides customize_promo on lobby route', () {
+      expect(
+        shouldShowInstantModalMessage(
+          {
+            'type': 'instant',
+            'subtype': 'customize_promo',
+            'user_read': false,
+          },
+          currentAppVersion: '2.0.20',
+          currentRoutePath: '/dutch/lobby',
+        ),
+        isFalse,
+      );
+    });
+
+    test('shows customize_promo on home route', () {
+      expect(
+        shouldShowInstantModalMessage(
+          {
+            'type': 'instant',
+            'subtype': 'customize_promo',
+            'user_read': false,
+          },
+          currentAppVersion: '2.0.20',
+          currentRoutePath: '/',
+        ),
+        isTrue,
+      );
+    });
+
+    test('shows welcome on any route', () {
+      expect(
+        shouldShowInstantModalMessage(
+          {
+            'type': 'instant',
+            'subtype': 'welcome',
+            'user_read': false,
+          },
+          currentAppVersion: '2.0.20',
+          currentRoutePath: '/dutch/lobby',
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('isInstantModalHostScreen', () {
+    test('accepts home and account paths', () {
+      expect(isInstantModalHostScreen('/'), isTrue);
+      expect(isInstantModalHostScreen('/account'), isTrue);
+      expect(isInstantModalHostScreen('/dutch/lobby'), isFalse);
+    });
+  });
+
+  group('effectiveInstantModalSubtype', () {
+    test('infers customize_promo from deeplink when subtype missing', () {
+      expect(
+        effectiveInstantModalSubtype({
+          'data': {
+            'deeplink': {'path': '/dutch-customize', 'item_id': 'card_back_ember'},
+          },
+        }),
+        'customize_promo',
+      );
+    });
+  });
+
+  group('includeGlobalInInstantModalMerge', () {
+    test('includes version-gated global when read', () {
+      expect(
+        includeGlobalInInstantModalMerge({
+          'type': 'instant',
+          'user_read': true,
+          'data': {'target_version': '2.0.21'},
+        }),
+        isTrue,
+      );
+    });
+
+    test('excludes read welcome global', () {
+      expect(
+        includeGlobalInInstantModalMerge({
+          'type': 'instant',
+          'user_read': true,
+          'subtype': 'welcome',
+        }),
         isFalse,
       );
     });

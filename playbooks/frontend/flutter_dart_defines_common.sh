@@ -55,8 +55,9 @@ if not p:
     raise SystemExit(0)
 d = json.load(open(p, encoding="utf-8"))
 mode = os.environ.get("FLUTTER_DART_DEFINES_MODE", "")
-for k in ("API_URL", "WS_URL", "BUILD_MODE", "APP_VERSION", "APP_PLATFORM"):
+for k in ("API_URL", "WS_URL", "BUILD_MODE", "APP_VERSION", "APP_PLATFORM", "PUBSPEC_BUILD_NUMBER"):
     print(f"   {k}={d.get(k, '')}")
+print("   (instant update modals: PackageInfo.version from pubspec on flutter run; APP_VERSION dart-define synced for local)")
 api = (d.get("API_URL") or "").lower()
 ws = (d.get("WS_URL") or "").lower()
 if mode == "android":

@@ -21,7 +21,15 @@ import '../../modules/notifications_module/utils/global_broadcast_modal_filter.d
 import '../../modules/notifications_module/utils/notification_inbox_merge.dart';
 import '../../modules/notifications_module/utils/notification_message_cta.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
+import '../../utils/dev_logger.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 abstract class BaseScreen extends StatefulWidget {
   const BaseScreen({Key? key}) : super(key: key);
@@ -456,6 +464,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       final notifMod = _moduleManager.getModuleByType<NotificationsModule>();
       notifMod?.addPendingWsInstantListener(_onPendingWsInstantQueued);
       notifMod?.addInboxRefreshListener(_onInboxRefreshFromWs);
+      notifMod?.consumePendingInboxModalCheck();
       _checkAndShowInstantMessages();
     });
   }
@@ -498,29 +507,35 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     List<Map<String, dynamic>> apiList,
   ) {
     final gList = mod.globalBroadcasts;
-    final unreadGlobals = gList.where((m) {
-      if (m['user_read'] == true) return false;
-      final t = m['type']?.toString() ?? '';
-      return t == kNotificationTypeInstant;
-    }).toList();
+    final unreadGlobals =
+        gList.where(includeGlobalInInstantModalMerge).toList();
     return mergeGlobalAndApiInstantInbox(
       globalUnreadInstant: unreadGlobals,
       apiList: apiList,
     );
   }
 
+  /// Root navigator context so modals survive route changes during async inbox fetch.
+  BuildContext? _instantModalContext() {
+    final root = NavigationManager().navigatorKey.currentContext;
+    if (root != null && root.mounted) return root;
+    if (mounted) return context;
+    return null;
+  }
+
   /// Shows queued `instant_ws` modals (rematch invite, etc.) using the same path as the rest of the instant system.
   Future<void> _drainPendingWsInstantModals() async {
-    if (!mounted) return;
+    final modalContext = _instantModalContext();
+    if (modalContext == null) return;
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login');
     if (loginState?['isLoggedIn'] != true) return;
     final mod = _moduleManager.getModuleByType<NotificationsModule>();
     if (mod == null) return;
     final pendingWs = mod.takePendingWsInstants();
     for (final msg in pendingWs) {
-      if (!mounted) break;
+      if (!modalContext.mounted) break;
       await InstantMessageModal.show(
-        context,
+        modalContext,
         message: msg,
         onDismiss: () {},
         onSendResponse: _pendingWsOnSendResponse(msg),
@@ -533,13 +548,23 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   /// Also drains pending ws_instant_notification payloads from the Dart backend and shows them.
   /// Called on screen enter and periodically via timer so instant notifications appear without requiring navigation.
   void _checkAndShowInstantMessages() async {
-    if (!mounted) return;
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login');
-    if (loginState?['isLoggedIn'] != true) return;
+    if (loginState?['isLoggedIn'] != true) {
+      if (LOGGING_SWITCH) {
+        customlog('InstantModals: skip (not logged in)');
+      }
+      return;
+    }
     final mod = _moduleManager.getModuleByType<NotificationsModule>();
     if (mod == null) return;
     await _drainPendingWsInstantModals();
-    if (!mounted) return;
+    final modalContext = _instantModalContext();
+    if (modalContext == null) {
+      if (LOGGING_SWITCH) {
+        customlog('InstantModals: skip (no navigator context)');
+      }
+      return;
+    }
     final state = StateManager().getModuleState<Map<String, dynamic>>('notifications');
     final lastFetched = state?['lastFetchedAt']?.toString();
     final shouldFetch = lastFetched == null ||
@@ -550,16 +575,31 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     } else {
       list = mod.lastMessages;
     }
-    if (!mounted) return;
+    if (!modalContext.mounted) return;
     final api = _moduleManager.getModuleByType<ConnectionsApiModule>();
     final merged = _mergeInstantModalInbox(mod, list);
-    final combined = await filterInstantModalMessages(merged);
-    if (!mounted) return;
+    final combined = await filterInstantModalMessages(
+      merged,
+      currentRoutePath: NavigationManager().getCurrentRoute(),
+    );
+    if (LOGGING_SWITCH) {
+      customlog(
+        'InstantModals: globals=${mod.globalBroadcasts.length} api=${list.length} '
+        'merged=${merged.length} show=${combined.length}',
+      );
+    }
+    if (!modalContext.mounted) return;
+    if (combined.isEmpty) return;
     await InstantMessageModal.showUnreadInstantModals(
-      context,
+      modalContext,
       messages: combined,
       onMarkAsRead: (id) async {
         final sid = id.toString();
+        final row = combined
+            .cast<Map<String, dynamic>>()
+            .where((m) => m['id']?.toString() == sid)
+            .firstOrNull;
+        if (row != null && isVersionGatedInstantModal(row)) return;
         if (sid.startsWith('glob_')) {
           await mod.markGlobalBroadcastsRead([sid]);
         } else {
@@ -575,7 +615,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                   .firstOrNull ??
                   <String, dynamic>{};
               if (await tryHandleNotificationMessageCta(message)) {
-                if (messageId.startsWith('glob_')) {
+                if (!isVersionGatedInstantModal(message) &&
+                    messageId.startsWith('glob_')) {
                   await mod.markGlobalBroadcastsRead([messageId]);
                 }
                 return true;

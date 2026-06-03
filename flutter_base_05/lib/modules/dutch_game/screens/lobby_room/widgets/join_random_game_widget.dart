@@ -955,6 +955,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   void _onCatalogMerged() {
     if (!mounted) return;
     _resyncCarouselFromCatalog();
+    _retryJoinRandomRouteHintsFromUri();
     setState(() {});
   }
 
@@ -986,6 +987,10 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     }
     LevelMatcher.catalogChangeVersion.addListener(_onCatalogMerged);
     _setupWebSocketListeners();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _retryJoinRandomRouteHintsFromUri();
+    });
     if (LOGGING_SWITCH) {
       customlog(
         'JoinRandomGameWidget: panel mounted tier_count=${_tierEntries.length} '
@@ -998,6 +1003,30 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _applyJoinRandomRouteHintsIfPresent();
+  }
+
+  /// Re-apply lobby route hints after catalog merge or post-navigation (notification deeplinks).
+  void _retryJoinRandomRouteHintsFromUri() {
+    if (!mounted) return;
+    try {
+      final uri = GoRouterState.of(context).uri;
+      if (uri.path != '/dutch/lobby') return;
+      final p = uri.queryParameters;
+      final eventId = (p['event_id'] ?? p['event'])?.trim();
+      final gl = int.tryParse(p['game_level'] ?? '');
+      final table = (p['table'] ?? p['carousel'] ?? p['game_table'])?.trim();
+      final subTab = (p['join_random_tab'] ?? p['quick_join_tab'])?.trim();
+      final hasCarouselHint = (eventId != null && eventId.isNotEmpty) ||
+          (gl != null && gl >= 1) ||
+          (table != null && table.isNotEmpty);
+      final hasSubTabHint = subTab != null && subTab.isNotEmpty;
+      final section = p['section']?.trim();
+      if (!hasCarouselHint && !hasSubTabHint && (section == null || section.isEmpty)) {
+        return;
+      }
+      _lastJoinRandomRouteQueryApplied = null;
+      _applyJoinRandomRouteHintsIfPresent();
+    } catch (_) {}
   }
 
   void _applyJoinRandomRouteHintsIfPresent() {

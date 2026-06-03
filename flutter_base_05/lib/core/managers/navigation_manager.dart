@@ -385,9 +385,16 @@ class NavigationManager extends ChangeNotifier {
     }
   }
 
-  /// ✅ Get current route
+  /// ✅ Get current route (prefer live GoRouter location from [navigatorKey]).
   String getCurrentRoute() {
     try {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        final path = GoRouter.of(ctx).routeInformationProvider.value.uri.path;
+        if (path.isNotEmpty) {
+          return path;
+        }
+      }
       if (_routerInstance != null) {
         final uri = _routerInstance!.routeInformationProvider.value.uri;
         final path = uri.path;
@@ -398,7 +405,11 @@ class NavigationManager extends ChangeNotifier {
     } catch (_) {
       // Fall through to best-effort fallback.
     }
-    return _lastNavigationRoute ?? '/';
+    final last = _lastNavigationRoute;
+    if (last != null && last.isNotEmpty) {
+      return Uri.parse(last).path.isEmpty ? last : Uri.parse(last).path;
+    }
+    return '/';
   }
 
   /// ✅ Check if route exists

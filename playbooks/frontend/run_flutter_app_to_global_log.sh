@@ -77,8 +77,13 @@ trap cleanup_json EXIT INT TERM HUP
 
 cd "$FLUTTER_DIR"
 
+# shellcheck source=read_pubspec_version.sh
+source "$SCRIPT_DIR/read_pubspec_version.sh"
+read_pubspec_version || exit 1
+
 append_banner "start mode=$mode"
 flutter_dart_defines_print_summary "$mode"
+echo "   pubspec versionName=$PUBSPEC_VERSION_NAME build-number=$PUBSPEC_BUILD_NUMBER (flutter run uses pubspec; no --build-name on run)" >&2
 
 case "$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')" in
   android)

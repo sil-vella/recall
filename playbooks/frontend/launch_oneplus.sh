@@ -158,6 +158,11 @@ flutter_dart_defines_require_python || exit 1
 flutter_dart_defines_prepare "$DART_DEFINES_ENV" || exit 1
 flutter_dart_defines_print_summary android
 
+# shellcheck source=read_pubspec_version.sh
+source "$SCRIPT_DIR/read_pubspec_version.sh"
+read_pubspec_version || exit 1
+echo_and_server_log "   pubspec versionName=$PUBSPEC_VERSION_NAME build-number=$PUBSPEC_BUILD_NUMBER (flutter run uses pubspec)"
+
 echo_and_server_log "⏳ Starting flutter run (first Gradle build may take 1–2 min with little output)…"
 
 # Mirror launch_chrome.sh: filter_logs on merged flutter output (strip date prefix on matching lines first).

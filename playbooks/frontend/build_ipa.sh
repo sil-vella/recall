@@ -76,6 +76,10 @@ if ! [[ "$APP_PATCH" =~ ^[0-9]+$ ]]; then APP_PATCH=0; fi
 BUILD_NUMBER=$((APP_MAJOR * 10000 + APP_MINOR * 100 + APP_PATCH))
 echo "🔢 Using build-name=$APP_VERSION build-number=$BUILD_NUMBER"
 
+# shellcheck source=sync_pubspec_version.sh
+source "$SCRIPT_DIR/sync_pubspec_version.sh"
+sync_pubspec_version "$APP_VERSION" "$BUILD_NUMBER"
+
 cd "$REPO_ROOT/flutter_base_05"
 
 # Disable LOGGING_SWITCH for release (same as build_apk.sh)

@@ -118,6 +118,9 @@
     data_dir: "/opt/apps/reignofplay/dutch/data"
     compose_file: "docker-compose.yml"
     vps_user: "{{ vm_name }}_user"
+    # redis:8-alpine runs as redis (uid 999, gid 1000); compose bind-mounts data/redis/data → /data
+    redis_container_uid: "999"
+    redis_container_gid: "1000"
     # Local repo root: directory containing python_base_04, playbooks, etc. Default assumes playbook run from app_dev (playbook_dir = playbooks/rop01).
     # Override with -e local_repo_root=/path/to/app_dev if running from elsewhere.
     local_repo_root: "{{ playbook_dir }}/../.."
@@ -166,6 +169,7 @@
         - "{{ app_dir }}"
         - "{{ data_dir }}/mongodb"
         - "{{ data_dir }}/redis"
+        - "{{ data_dir }}/redis/data"
         # - "{{ data_dir }}/prometheus/config"
         # - "{{ data_dir }}/prometheus/storage"
         # - "{{ data_dir }}/grafana"
@@ -186,7 +190,7 @@
     #     mode: '0644'
     #   register: grafana_dashboards_sync
 
-    - name: Get VPS app user UID and GID (for Redis/MongoDB container user)
+    - name: Get VPS app user UID and GID (for Flask .env and avatar bind mount)
       shell: "getent passwd {{ vps_user }} | cut -d: -f3,4"
       register: vps_app_id
       changed_when: false
@@ -206,13 +210,13 @@
         group: "{{ vps_user }}"
       when: vps_app_uid is defined and vps_app_gid is defined
 
-    - name: Ensure Redis data dir is owned by VPS app user (Redis runs as this UID)
+    - name: Ensure Redis persistence dir is owned by redis:8-alpine container user
       file:
-        path: "{{ data_dir }}/redis"
+        path: "{{ data_dir }}/redis/data"
         state: directory
         mode: '0755'
-        owner: "{{ vps_user }}"
-        group: "{{ vps_user }}"
+        owner: "{{ redis_container_uid }}"
+        group: "{{ redis_container_gid }}"
 
     - name: Ensure profile avatars dir is owned by VPS app user (Flask bind mount; same user as dutch_flask-external)
       file:
@@ -262,8 +266,8 @@
         owner: "1001"
         group: "1001"
 
-    - name: Recursively fix ownership of Redis data
-      command: "chown -R {{ vps_user }}:{{ vps_user }} {{ data_dir }}/redis"
+    - name: Recursively fix ownership of Redis persistence dir (AOF/RDB under data/redis/data)
+      command: "chown -R {{ redis_container_uid }}:{{ redis_container_gid }} {{ data_dir }}/redis/data"
       changed_when: true
 
     - name: Recursively fix ownership of MongoDB data

@@ -77,6 +77,7 @@ Use this script for **manual testing on a physical device**.
 **Purpose**:
 - Automates building the **Android release APK** for Dutch.
 - Keeps the app version in sync across:
+  - `.env.prod` / `.env.dart.defines.prod` and `pubspec.yaml` (`sync_pubspec_version.sh`),
   - The backend’s update logic (`/public/check-updates`),
   - Flutter’s `build-name`/`build-number` (Android/iOS),
   - The downloadable APK path on the VPS.

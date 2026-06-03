@@ -2,7 +2,8 @@
 
 # Flutter App Bundle (AAB) build script
 # Builds an Android App Bundle for Dutch. Dart-define input: repo-root `.env.dart.defines.prod`.
-# Shell still sources `.env.prod` for APP_VERSION / auto-bump. Output is for Play Store upload; no VPS upload.
+# Shell still sources `.env.prod` for APP_VERSION / auto-bump; mirrors to `.env.dart.defines.prod` and pubspec.yaml.
+# Output is for Play Store upload; no VPS upload.
 
 set -e
 
@@ -121,6 +122,10 @@ if ! [[ "$APP_MINOR" =~ ^[0-9]+$ ]]; then APP_MINOR=0; fi
 if ! [[ "$APP_PATCH" =~ ^[0-9]+$ ]]; then APP_PATCH=0; fi
 BUILD_NUMBER=$((APP_MAJOR * 10000 + APP_MINOR * 100 + APP_PATCH))
 echo "🔢 Using BUILD_NUMBER=$BUILD_NUMBER"
+
+# shellcheck source=sync_pubspec_version.sh
+source "$SCRIPT_DIR/sync_pubspec_version.sh"
+sync_pubspec_version "$APP_VERSION" "$BUILD_NUMBER"
 
 # Navigate to Flutter project directory
 cd "$REPO_ROOT/flutter_base_05"

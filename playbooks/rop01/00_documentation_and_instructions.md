@@ -170,7 +170,7 @@ curl -I "https://dutch.reignofplay.com/app_media/media/table_logo.webp"
 - Copied from repo root `docker-compose.yml` to the VPS at `/opt/apps/reignofplay/dutch/docker-compose.yml`.
 - Services:
   - `dutch_mongodb-external` (Bitnami MongoDB, `27018:27017`)
-  - `dutch_redis-external` (Bitnami Redis, `6380:6379`)
+  - `dutch_redis-external` (`redis:8-alpine`, `6380:6379`; playbook sets `data/redis/data` to uid **999** / gid **1000**)
   - `dutch_flask-external` (Flask app, `5001:5001`)
   - `dutch_prometheus` (Prometheus, `9090:9090`)
   - `dutch_grafana` (Grafana, `3001:3000`)

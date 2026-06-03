@@ -94,6 +94,10 @@ if ! [[ "$APP_PATCH" =~ ^[0-9]+$ ]]; then APP_PATCH=0; fi
 BUILD_NUMBER=$((APP_MAJOR * 10000 + APP_MINOR * 100 + APP_PATCH))
 echo "🔢 Using BUILD_NUMBER=$BUILD_NUMBER"
 
+# shellcheck source=sync_pubspec_version.sh
+source "$SCRIPT_DIR/sync_pubspec_version.sh"
+sync_pubspec_version "$APP_VERSION" "$BUILD_NUMBER"
+
 # Navigate to Flutter project directory
 cd "$REPO_ROOT/flutter_base_05"
 

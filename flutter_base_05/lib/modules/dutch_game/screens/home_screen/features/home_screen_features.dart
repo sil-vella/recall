@@ -16,6 +16,12 @@ class HomeScreenFeatureSlots {
 /// Registers default home screen features (like play button)
 class HomeScreenFeatureRegistrar {
   final FeatureRegistryManager _registry = FeatureRegistryManager.instance;
+
+  /// Label style for home carousel; icon color is enforced in [FeatureSlot].
+  static TextStyle get _homeButtonLabelStyle => AppTextStyles.headingMedium().copyWith(
+        color: AppColors.white,
+        fontWeight: FontWeight.bold,
+      );
   /// Register Dutch game play button
   void registerDutchGamePlayButton(BuildContext context) {
     
@@ -38,11 +44,8 @@ class HomeScreenFeatureRegistrar {
         }
       },
       heightPercentage: 0.25, // 25% of available height (max card height)
-      priority: 90, // Lower number sorts first in home carousel
-      textStyle: AppTextStyles.headingMedium().copyWith(
-        color: AppColors.textOnPrimary,
-        fontWeight: FontWeight.bold,
-      ),
+      priority: 10,
+      textStyle: _homeButtonLabelStyle,
     );
     
     _registry.register(
@@ -76,11 +79,8 @@ class HomeScreenFeatureRegistrar {
         }
       },
       heightPercentage: 0.25, // 25% of available height (max card height)
-      priority: 100, // After play (90) in ascending home carousel order
-      textStyle: AppTextStyles.headingMedium().copyWith(
-        color: AppColors.textOnPrimary,
-        fontWeight: FontWeight.bold,
-      ),
+      priority: 20,
+      textStyle: _homeButtonLabelStyle,
     );
     
     _registry.register(
@@ -90,6 +90,75 @@ class HomeScreenFeatureRegistrar {
     );
     
     
+  }
+
+  void registerLeaderboardButton(BuildContext context) {
+    _registerNavButton(
+      context: context,
+      featureId: 'home_leaderboard',
+      text: 'Leaderboard',
+      icon: Icons.emoji_events,
+      path: '/dutch/leaderboard',
+      analyticsName: 'home_leaderboard_tap',
+      priority: 30,
+    );
+  }
+
+  void registerCustomizeButton(BuildContext context) {
+    _registerNavButton(
+      context: context,
+      featureId: 'home_customize',
+      text: 'Customize',
+      icon: Icons.palette_outlined,
+      path: '/dutch-customize',
+      analyticsName: 'home_customize_tap',
+      priority: 40,
+    );
+  }
+
+  void registerAccountButton(BuildContext context) {
+    _registerNavButton(
+      context: context,
+      featureId: 'home_account',
+      text: 'Account',
+      icon: Icons.account_circle,
+      path: '/account',
+      analyticsName: 'home_account_tap',
+      priority: 50,
+    );
+  }
+
+  void _registerNavButton({
+    required BuildContext context,
+    required String featureId,
+    required String text,
+    required IconData icon,
+    required String path,
+    required String analyticsName,
+    required int priority,
+  }) {
+    final feature = HomeScreenButtonFeatureDescriptor(
+      featureId: featureId,
+      slotId: HomeScreenFeatureSlots.slotButtons,
+      text: text,
+      icon: icon,
+      onTap: () {
+        AnalyticsService.logEvent(name: analyticsName);
+        try {
+          Provider.of<NavigationManager>(context, listen: false).navigateTo(path);
+        } catch (e, stackTrace) {
+          // Navigation failure is surfaced by router / screen layer.
+        }
+      },
+      heightPercentage: 0.25,
+      priority: priority,
+      textStyle: _homeButtonLabelStyle,
+    );
+    _registry.register(
+      scopeKey: HomeScreenFeatureSlots.scopeKey,
+      feature: feature,
+      context: context,
+    );
   }
 
   /// Unregister all home screen features

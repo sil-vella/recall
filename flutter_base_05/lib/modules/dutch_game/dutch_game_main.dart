@@ -222,6 +222,9 @@ class DutchGameMain extends ModuleBase {
       final featureRegistrar = HomeScreenFeatureRegistrar();
       featureRegistrar.registerDutchGamePlayButton(context);
       featureRegistrar.registerDutchGameDemoButton(context);
+      featureRegistrar.registerLeaderboardButton(context);
+      featureRegistrar.registerCustomizeButton(context);
+      featureRegistrar.registerAccountButton(context);
       
     } catch (e) {
       

@@ -1406,15 +1406,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                         ),
                         const SizedBox(height: 8),
                         DutchSettingsRow(
-                          title: 'User ID',
-                          subtitle: (loginState?["userId"] ?? "").toString().isNotEmpty
-                              ? (loginState!["userId"]).toString()
-                              : null,
-                          leadingIcon: Icons.fingerprint,
-                          semanticIdentifier: 'account_row_user_id',
-                        ),
-                        const SizedBox(height: 8),
-                        DutchSettingsRow(
                           title: 'Role',
                           subtitle: _formatRole(loginState?["role"] ?? "player"),
                           leadingIcon: Icons.shield_outlined,
@@ -1694,7 +1685,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
                           color: _isLoginMode
-                              ? AppColors.accentContrast
+                              ? AppColors.accentColor
                               : AppColors.accentContrast.withValues(alpha: 0.28),
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(12),
@@ -1726,7 +1717,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
                           color: !_isLoginMode
-                              ? AppColors.accentContrast
+                              ? AppColors.accentColor
                               : AppColors.accentContrast.withValues(alpha: 0.28),
                           borderRadius: const BorderRadius.only(
                             topRight: Radius.circular(12),
@@ -1837,14 +1828,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.scaffoldDeepPlumColor,
-                foregroundColor: AppColors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+              style: _accountPrimaryAuthButtonStyle,
               child: _isLoading
                 ? SizedBox(
                     height: 20,
@@ -1886,15 +1870,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       'Continue as Guest',
                       style: AppTextStyles.bodyMedium(color: AppColors.white),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.white,
-                      backgroundColor: Colors.transparent,
-                      side: BorderSide(color: AppColors.white.withValues(alpha: 0.55)),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
+                    style: _accountGuestButtonStyle,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -1939,15 +1915,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                               'Continue as Guest',
                               style: AppTextStyles.bodyMedium(color: AppColors.white),
                             ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.white,
-                              backgroundColor: Colors.transparent,
-                              side: BorderSide(color: AppColors.white.withValues(alpha: 0.55)),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
+                            style: _accountGuestButtonStyle,
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -1978,6 +1946,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   
                 }
               },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: AppColors.white.withValues(alpha: 0.88),
+                shadowColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               child: Text(
                 _isLoginMode 
                   ? "Don't have an account? Sign up" 
@@ -2084,18 +2060,18 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 24),
-        OutlinedButton.icon(
+        ElevatedButton.icon(
           onPressed: _isLoading ? null : () async {
             await _handleClearAllUserDataFromStorage();
           },
-          icon: Icon(Icons.delete_outline, size: 20, color: AppColors.textOnPrimary),
+          icon: Icon(Icons.delete_outline, size: 20, color: AppColors.black),
           label: Text(
             'Clear all user data from this device',
-            style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+            style: AppTextStyles.bodyMedium(color: AppColors.black),
           ),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.textOnPrimary,
-            side: BorderSide(color: AppColors.borderDefault),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.errorColor,
+            foregroundColor: AppColors.black,
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -2117,6 +2093,29 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       ],
     );
   }
+
+  /// Sign In / Create Account — theme green fill, white label ([THEME_SYSTEM.md]).
+  static ButtonStyle get _accountPrimaryAuthButtonStyle => ElevatedButton.styleFrom(
+        backgroundColor: AppColors.accentColor,
+        foregroundColor: AppColors.white,
+        disabledBackgroundColor: AppColors.accentColor.withValues(alpha: 0.45),
+        disabledForegroundColor: AppColors.white.withValues(alpha: 0.7),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      );
+
+  /// Continue as Guest — no outline border.
+  static ButtonStyle get _accountGuestButtonStyle => OutlinedButton.styleFrom(
+        foregroundColor: AppColors.white,
+        backgroundColor: Colors.transparent,
+        side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      );
 
   /// Login form: email/password for email accounts.
   /// Email and password are stored in SharedPref for pre-fill after logout.

@@ -155,6 +155,14 @@ class _FeatureSlotState extends State<FeatureSlot> {
     );
   }
 
+  /// Home carousel tiles: green icon, white label (all [HomeScreenButtonFeatureDescriptor]s).
+  static TextStyle _homeCarouselLabelStyle(TextStyle? fromFeature) {
+    return (fromFeature ?? AppTextStyles.headingMedium()).copyWith(
+      color: AppColors.white,
+      fontWeight: FontWeight.bold,
+    );
+  }
+
   Widget _buildHomeScreenButtonFeature(HomeScreenButtonFeatureDescriptor feature) {
     // Calculate height: use percentage if provided, otherwise use fixed height or default
     double? calculatedHeight;
@@ -227,17 +235,13 @@ class _FeatureSlotState extends State<FeatureSlot> {
                             Icon(
                               feature.icon,
                               size: iconSize,
-                              color: AppColors.textOnPrimary,
+                              color: AppColors.accentColor,
                             ),
                             const SizedBox(height: 8),
                           ],
                         Text(
                           feature.text,
-                          style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
-                            color: AppColors.textOnPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 56, // Double the default headingLarge size (28 * 2)
-                          ),
+                          style: _homeCarouselLabelStyle(feature.textStyle),
                           textAlign: TextAlign.center,
                           softWrap: true,
                         ),

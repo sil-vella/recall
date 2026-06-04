@@ -567,6 +567,24 @@ def _int_from_game_result_row(r: Dict[str, Any], *keys: str, default: int = 0) -
     return default
 
 
+def _normalize_match_game_type(row: Dict[str, Any]) -> str:
+    """Rules variant for stats: ``classic`` | ``clear_and_collect``."""
+    if not isinstance(row, dict):
+        return "classic"
+    raw = row.get("game_type") or row.get("gameType")
+    s = str(raw or "").strip().lower()
+    if s in ("clear_and_collect", "clearandcollect", "clear-and-collect", "cc"):
+        return "clear_and_collect"
+    if s == "classic":
+        return "classic"
+    raw_cc = row.get("is_clear_and_collect", row.get("isClearAndCollect"))
+    if raw_cc is True:
+        return "clear_and_collect"
+    if isinstance(raw_cc, str) and raw_cc.strip().lower() == "true":
+        return "clear_and_collect"
+    return "classic"
+
+
 def _stats_by_user_from_game_results(game_results: list) -> Dict[str, Tuple[int, int]]:
     """Map user_id str -> (total_end_points, end_card_count) from Dart game_results."""
     out: Dict[str, Tuple[int, int]] = {}
@@ -893,6 +911,7 @@ def _insert_match_win_outcome_additive(
     is_tournament: bool,
     tournament_id: Optional[str],
     game_mode: Optional[str],
+    game_type: Optional[str] = None,
     end_points: int = 0,
     duration_seconds: int = 0,
 ) -> None:
@@ -904,6 +923,7 @@ def _insert_match_win_outcome_additive(
         "is_tournament": is_tournament,
         "tournament_id": tournament_id,
         "game_mode": game_mode,
+        "game_type": game_type,
         "end_points": max(0, int(end_points)),
         "duration_seconds": max(0, int(duration_seconds)),
     }
@@ -1083,8 +1103,13 @@ def update_game_stats():
                 modules = user.get('modules', {})
                 dutch_game = modules.get('dutch_game', {})
                 current_wins = dutch_game.get('wins', 0)
+                current_classic_wins = dutch_game.get('classic_wins', 0)
+                current_cc_wins = dutch_game.get('cc_wins', 0)
                 current_losses = dutch_game.get('losses', 0)
                 current_total_matches = dutch_game.get('total_matches', 0)
+                match_game_type = _normalize_match_game_type(
+                    player_result if isinstance(player_result, dict) else {}
+                )
                 current_coins = dutch_game.get('coins', 0)
                 subscription_tier = dutch_game.get('subscription_tier') or matcher.TIER_PROMOTIONAL
                 inventory = _normalize_inventory(dutch_game.get("inventory"))
@@ -1117,6 +1142,13 @@ def update_game_stats():
                         should_consume_booster = True
                 new_total_matches = current_total_matches + 1
                 new_wins = current_wins + (1 if is_winner else 0)
+                new_classic_wins = current_classic_wins
+                new_cc_wins = current_cc_wins
+                if is_winner:
+                    if match_game_type == "clear_and_collect":
+                        new_cc_wins = current_cc_wins + 1
+                    else:
+                        new_classic_wins = current_classic_wins + 1
                 new_losses = current_losses + (0 if is_winner else 1)
                 new_coins = current_coins + coins_to_add
                 new_win_rate = float(new_wins) / float(new_total_matches) if new_total_matches > 0 else 0.0
@@ -1174,6 +1206,8 @@ def update_game_stats():
                 set_fields = {
                     'modules.dutch_game.total_matches': new_total_matches,
                     'modules.dutch_game.wins': new_wins,
+                    'modules.dutch_game.classic_wins': new_classic_wins,
+                    'modules.dutch_game.cc_wins': new_cc_wins,
                     'modules.dutch_game.losses': new_losses,
                     'modules.dutch_game.win_rate': new_win_rate,
                     'modules.dutch_game.level': target_user_level,
@@ -1214,7 +1248,10 @@ def update_game_stats():
                 if modified_count > 0:
                     updated_players.append({
                         "user_id": user_id_str,
+                        "game_type": match_game_type,
                         "wins": new_wins,
+                        "classic_wins": new_classic_wins,
+                        "cc_wins": new_cc_wins,
                         "losses": new_losses,
                         "total_matches": new_total_matches,
                         "coins": new_coins,
@@ -1252,6 +1289,7 @@ def update_game_stats():
                             is_tournament=is_tournament,
                             tournament_id=tid_out,
                             game_mode=player_result.get("game_mode"),
+                            game_type=match_game_type,
                             end_points=match_end_points,
                             duration_seconds=match_duration_seconds,
                         )
@@ -1307,6 +1345,8 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             return {
                 "enabled": False,
                 "wins": 0,
+                "classic_wins": 0,
+                "cc_wins": 0,
                 "losses": 0,
                 "total_matches": 0,
                 "points": 0,
@@ -1339,6 +1379,8 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
         stats_data = {
             "enabled": dutch_game.get("enabled", True),
             "wins": wins_n,
+            "classic_wins": int(dutch_game.get("classic_wins", 0) or 0),
+            "cc_wins": int(dutch_game.get("cc_wins", 0) or 0),
             "losses": dutch_game.get("losses", 0),
             "total_matches": dutch_game.get("total_matches", 0),
             "points": dutch_game.get("points", 0),
@@ -2805,6 +2847,53 @@ def get_tournaments_list_public():
         return jsonify({"success": False, "error": str(e), "tournaments": []}), 500
 
 
+def _parse_leaderboard_game_type_arg(raw: str) -> Optional[str]:
+    """``None`` = all types; ``classic`` | ``clear_and_collect``."""
+    s = (raw or "").strip().lower()
+    if not s or s == "all":
+        return None
+    if s in ("clear_and_collect", "clearandcollect", "clear-and-collect", "cc"):
+        return "clear_and_collect"
+    if s == "classic":
+        return "classic"
+    return "__invalid__"
+
+
+def _period_wins_match_filter(
+    game_type: Optional[str],
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """``$match`` for leaderboard aggregations (optional UTC window + optional rules variant)."""
+    parts: List[Dict[str, Any]] = []
+    if start is not None and end is not None:
+        parts.append({"ended_at": {"$gte": start, "$lt": end}})
+    if game_type == "clear_and_collect":
+        parts.append({"game_type": "clear_and_collect"})
+    elif game_type == "classic":
+        parts.append(
+            {
+                "$or": [
+                    {"game_type": "classic"},
+                    {"game_type": {"$exists": False}},
+                    {"game_type": None},
+                ]
+            }
+        )
+    if not parts:
+        return {}
+    if len(parts) == 1:
+        return parts[0]
+    return {"$and": parts}
+
+
+def _period_wins_ended_at_match(
+    start: datetime, end: datetime, game_type: Optional[str]
+) -> Dict[str, Any]:
+    """Backward-compatible alias for bounded period windows."""
+    return _period_wins_match_filter(game_type, start=start, end=end)
+
+
 def _period_wins_group_and_sort_stages() -> List[Dict[str, Any]]:
     """Group period wins with tie-break fields; sort wins desc, points asc, avg win seconds asc."""
     return [
@@ -2831,17 +2920,26 @@ def _period_wins_group_and_sort_stages() -> List[Dict[str, Any]]:
     ]
 
 
-def _aggregate_period_wins_summaries(coll, start: datetime, end: datetime) -> List[Dict[str, Any]]:
+def _aggregate_period_wins_summaries(
+    coll,
+    start: Optional[datetime],
+    end: Optional[datetime],
+    game_type: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """Full standings for the window sorted by wins, period_points, avg_win_seconds."""
     pipeline = [
-        {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
+        {"$match": _period_wins_match_filter(game_type, start=start, end=end)},
         *_period_wins_group_and_sort_stages(),
     ]
     return list(coll.aggregate(pipeline))
 
 
 def _aggregate_period_wins_summaries_with_rank_tiers(
-    coll, start: datetime, end: datetime, max_entries: int
+    coll,
+    start: Optional[datetime],
+    end: Optional[datetime],
+    max_entries: int,
+    game_type: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Period wins per user with ``rank_tier`` (current stored rank) and ``username`` for client-side filtering.
 
@@ -2850,7 +2948,7 @@ def _aggregate_period_wins_summaries_with_rank_tiers(
     default_r = matcher.DEFAULT_RANK
     cap = max(1, min(int(max_entries), 10000))
     pipeline = [
-        {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
+        {"$match": _period_wins_match_filter(game_type, start=start, end=end)},
         *_period_wins_group_and_sort_stages(),
         {
             "$lookup": {
@@ -2892,7 +2990,11 @@ def _aggregate_period_wins_summaries_with_rank_tiers(
 
 
 def _aggregate_period_wins_summaries_rank_tier(
-    coll, start: datetime, end: datetime, canonical_rank_tier: str
+    coll,
+    start: Optional[datetime],
+    end: Optional[datetime],
+    canonical_rank_tier: str,
+    game_type: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Like [_aggregate_period_wins_summaries] but only users whose **current** ``modules.dutch_game.rank`` matches tier.
 
@@ -2901,7 +3003,7 @@ def _aggregate_period_wins_summaries_rank_tier(
     """
     default_r = matcher.DEFAULT_RANK
     pipeline = [
-        {"$match": {"ended_at": {"$gte": start, "$lt": end}}},
+        {"$match": _period_wins_match_filter(game_type, start=start, end=end)},
         *_period_wins_group_and_sort_stages(),
         {
             "$lookup": {
@@ -2940,14 +3042,23 @@ def _aggregate_period_wins_summaries_rank_tier(
     return list(coll.aggregate(pipeline))
 
 
+def _normalize_leaderboard_period_arg(raw: str) -> Optional[str]:
+    """``monthly`` | ``yearly`` | ``all_time``; ``None`` if invalid."""
+    s = (raw or "").strip().lower().replace("-", "_")
+    if s in ("monthly", "yearly", "all_time", "alltime"):
+        return "all_time" if s in ("all_time", "alltime") else s
+    return None
+
+
 def get_period_wins_leaderboard_public():
-    """Public (no auth): rank users by win count in the **current UTC** calendar month or year.
+    """Public (no auth): rank users by win count in the **current UTC** calendar month, year, or all time.
 
     Data comes from insert-only ``dutch_match_win_outcomes``; aggregation runs **on each request** (no precomputed board).
 
-    Query: ``period`` or ``scope`` = ``monthly`` | ``yearly`` (default ``monthly``); ``limit`` default 20, max 50.
+    Query: ``period`` or ``scope`` = ``monthly`` | ``yearly`` | ``all_time`` (default ``monthly``); ``limit`` default 20, max 50.
     Optional ``rank_tier`` / ``rankTier``: filter to users whose **current** stored competitive rank equals that tier
     (normalized). Omitted = all ranks. **Caveat:** rank is read from the user document at request time, not at each win.
+    Optional ``game_type`` / ``gameType``: ``classic`` | ``clear_and_collect`` (omit or ``all`` = every win).
     Optional ``user_id`` / ``userId``: include ``viewer`` with that user's rank and wins in the same period (no JWT).
     """
     try:
@@ -2957,9 +3068,34 @@ def get_period_wins_leaderboard_public():
         if not db_manager:
             return jsonify({"success": False, "error": "Database unavailable", "rows": []}), 503
 
-        raw_period = (request.args.get("period") or request.args.get("scope") or "monthly").strip().lower()
-        if raw_period not in ("monthly", "yearly"):
-            return jsonify({"success": False, "error": "period must be 'monthly' or 'yearly'", "rows": []}), 400
+        raw_game_type = (request.args.get("game_type") or request.args.get("gameType") or "").strip()
+        parsed_gt = _parse_leaderboard_game_type_arg(raw_game_type)
+        if parsed_gt == "__invalid__":
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "game_type must be 'classic', 'clear_and_collect', or 'all'",
+                        "rows": [],
+                    }
+                ),
+                400,
+            )
+        filter_game_type = parsed_gt
+
+        raw_period = (request.args.get("period") or request.args.get("scope") or "monthly").strip()
+        normalized_period = _normalize_leaderboard_period_arg(raw_period)
+        if normalized_period is None:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "period must be 'monthly', 'yearly', or 'all_time'",
+                        "rows": [],
+                    }
+                ),
+                400,
+            )
 
         try:
             raw_limit = request.args.get("limit", "20")
@@ -2991,18 +3127,23 @@ def get_period_wins_leaderboard_public():
                 )
 
         now_utc = datetime.now(timezone.utc)
-        if raw_period == "monthly":
+        if normalized_period == "monthly":
             start, end = _utc_bounds_calendar_month(now_utc)
             period_key = now_utc.strftime("%Y-%m")
-        else:
+        elif normalized_period == "yearly":
             start, end = _utc_bounds_calendar_year(now_utc)
             period_key = str(now_utc.year)
+        else:
+            start, end = None, None
+            period_key = "all"
 
         coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
         if canonical_tier:
-            summaries = _aggregate_period_wins_summaries_rank_tier(coll, start, end, canonical_tier)
+            summaries = _aggregate_period_wins_summaries_rank_tier(
+                coll, start, end, canonical_tier, game_type=filter_game_type
+            )
         else:
-            summaries = _aggregate_period_wins_summaries(coll, start, end)
+            summaries = _aggregate_period_wins_summaries(coll, start, end, game_type=filter_game_type)
 
         user_ids_top = [d["_id"] for d in summaries[:limit]]
         username_map: Dict[Any, str] = {}
@@ -3057,9 +3198,11 @@ def get_period_wins_leaderboard_public():
                         "in_period": False,
                     }
                     if canonical_tier:
-                        pw = coll.count_documents(
-                            {"user_id": viewer_oid, "ended_at": {"$gte": start, "$lt": end}}
+                        pw_match = _period_wins_match_filter(
+                            filter_game_type, start=start, end=end
                         )
+                        pw_match["user_id"] = viewer_oid
+                        pw = coll.count_documents(pw_match)
                         if pw > 0:
                             dg = ((udoc or {}).get("modules") or {}).get("dutch_game") or {}
                             yr = matcher.normalize_rank(dg.get("rank")) or matcher.DEFAULT_RANK
@@ -3069,10 +3212,10 @@ def get_period_wins_leaderboard_public():
 
         payload: Dict[str, Any] = {
             "success": True,
-            "period": raw_period,
+            "period": normalized_period,
             "period_key": period_key,
-            "range_start_utc": start.isoformat(),
-            "range_end_exclusive_utc": end.isoformat(),
+            "range_start_utc": start.isoformat() if start is not None else None,
+            "range_end_exclusive_utc": end.isoformat() if end is not None else None,
             "rows": rows,
         }
         if canonical_tier:
@@ -3081,6 +3224,8 @@ def get_period_wins_leaderboard_public():
                 "Filtered by each player's current stored rank at request time; "
                 "not rank at the time of each win."
             )
+        if filter_game_type:
+            payload["game_type"] = filter_game_type
         if viewer_out is not None:
             payload["viewer"] = viewer_out
         return jsonify(payload), 200
@@ -3204,13 +3349,14 @@ def _viewer_achievements_from_rows(
 
 
 def get_period_wins_leaderboard_bundle_public():
-    """Public (no auth): **single response** with current UTC month **and** year period standings.
+    """Public (no auth): **single response** with current UTC month, year, and all-time period standings.
 
     Each row includes ``rank_tier`` (player's current stored competitive rank) so clients can filter by tier locally.
     Rows are sorted by wins desc, then period win points sum asc, then avg win duration asc;
     ``max_entries`` caps each period (default 2500, max 10000).
 
     Query: ``max_entries`` / ``maxEntries``; optional ``user_id`` / ``userId`` for ``viewer`` (monthly + yearly stats).
+    Optional ``game_type`` / ``gameType``: ``classic`` | ``clear_and_collect`` (omit or ``all`` = every win in period).
 
     Optional history (for hall-of-fame / history UIs): ``history_months`` / ``historyMonths`` (0–60, default 0),
     ``history_years`` / ``historyYears`` (0–20, default 0). Each completed period includes ``winners`` (tied for
@@ -3245,6 +3391,20 @@ def get_period_wins_leaderboard_bundle_public():
         except (TypeError, ValueError):
             hist_years = 0
 
+        raw_game_type = (request.args.get("game_type") or request.args.get("gameType") or "").strip()
+        parsed_gt = _parse_leaderboard_game_type_arg(raw_game_type)
+        if parsed_gt == "__invalid__":
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "game_type must be 'classic', 'clear_and_collect', or 'all'",
+                    }
+                ),
+                400,
+            )
+        filter_game_type = parsed_gt
+
         now_utc = datetime.now(timezone.utc)
         m_start, m_end = _utc_bounds_calendar_month(now_utc)
         y_start, y_end = _utc_bounds_calendar_year(now_utc)
@@ -3252,14 +3412,23 @@ def get_period_wins_leaderboard_bundle_public():
         y_key = str(now_utc.year)
 
         coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
-        m_summ = _aggregate_period_wins_summaries_with_rank_tiers(coll, m_start, m_end, max_entries)
-        y_summ = _aggregate_period_wins_summaries_with_rank_tiers(coll, y_start, y_end, max_entries)
+        m_summ = _aggregate_period_wins_summaries_with_rank_tiers(
+            coll, m_start, m_end, max_entries, game_type=filter_game_type
+        )
+        y_summ = _aggregate_period_wins_summaries_with_rank_tiers(
+            coll, y_start, y_end, max_entries, game_type=filter_game_type
+        )
+        at_summ = _aggregate_period_wins_summaries_with_rank_tiers(
+            coll, None, None, max_entries, game_type=filter_game_type
+        )
 
         m_rows = _bundle_rows_from_summaries_with_tiers(m_summ)
         y_rows = _bundle_rows_from_summaries_with_tiers(y_summ)
+        at_rows = _bundle_rows_from_summaries_with_tiers(at_summ)
 
         m_truncated = len(m_summ) >= max_entries
         y_truncated = len(y_summ) >= max_entries
+        at_truncated = len(at_summ) >= max_entries
 
         ach_rows, ach_truncated = _build_achievements_leaderboard_rows(db_manager, max_entries)
 
@@ -3278,6 +3447,7 @@ def get_period_wins_leaderboard_bundle_public():
                     "username": uname,
                     "monthly": _viewer_period_stats_from_summaries(m_summ, viewer_oid),
                     "yearly": _viewer_period_stats_from_summaries(y_summ, viewer_oid),
+                    "all_time": _viewer_period_stats_from_summaries(at_summ, viewer_oid),
                     "achievements": _viewer_achievements_from_rows(ach_rows, raw_viewer_uid, udoc),
                 }
 
@@ -3288,6 +3458,7 @@ def get_period_wins_leaderboard_bundle_public():
                 "not rank at the time of each win. Filter tiers on the client."
             ),
             "max_entries": max_entries,
+            "game_type": filter_game_type,
             "monthly": {
                 "period_key": m_key,
                 "range_start_utc": m_start.isoformat(),
@@ -3301,6 +3472,13 @@ def get_period_wins_leaderboard_bundle_public():
                 "range_end_exclusive_utc": y_end.isoformat(),
                 "truncated": y_truncated,
                 "rows": y_rows,
+            },
+            "all_time": {
+                "period_key": "all",
+                "range_start_utc": None,
+                "range_end_exclusive_utc": None,
+                "truncated": at_truncated,
+                "rows": at_rows,
             },
             "achievements": {
                 "truncated": ach_truncated,
@@ -3474,6 +3652,9 @@ def get_comp_players():
         for player in selected_players:
             dutch_game_data = player.get("modules", {}).get("dutch_game", {})
             profile = player.get("profile", {})
+            inventory = _normalize_inventory(dutch_game_data.get("inventory"))
+            equipped = inventory.get("cosmetics", {}).get("equipped", {})
+            card_back_id = str(equipped.get("card_back_id", "") or "").strip()
             comp_players_list.append({
                 "user_id": str(player.get("_id", "")),
                 "username": player.get("username", ""),
@@ -3481,6 +3662,7 @@ def get_comp_players():
                 "rank": dutch_game_data.get("rank") or matcher.DEFAULT_RANK,
                 "level": dutch_game_data.get("level", matcher.DEFAULT_LEVEL),
                 "profile_picture": profile.get("picture", ""),
+                "equipped_card_back_id": card_back_id,
             })
         response_data = {"success": True, "comp_players": comp_players_list, "count": len(comp_players_list), "requested_count": count, "available_count": len(comp_players)}
         if selected_count < count:

@@ -8,6 +8,7 @@ import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../shared_logic/game_state_callback.dart';
 import 'game_state_store.dart';
 import 'game_state_frontend_filter.dart';
+import '../utils/match_stats_game_type.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -693,6 +694,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     try {
       final state = _store.getState(roomId);
       final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+      final matchGameType = matchStatsGameType(
+        gameState: gameState,
+        roomState: state,
+      );
       final matchDurationSeconds = _matchDurationSecondsFromGameState(gameState);
       final dutchCallerPlayerId = (gameState['dutchCalledBy'] ??
               gameState['dutch_called_by'])
@@ -764,6 +769,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           'is_winner': isWinner,
           'pot': playerPot,
           'win_type': winType,
+          'game_type': matchGameType,
           'total_end_points': totalEndPoints,
           'end_card_count': endCardCount,
         };

@@ -3164,35 +3164,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Row 1: You · status chip — spacer — Call Dutch / Dutch status · feed · customize
+            // Row 1: status chip · Call Dutch — spacer — feed · customize
             Row(
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.white.withValues(alpha: 0.62),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Text(
-                    'You',
-                    style: AppTextStyles.label(
-                      color: AppColors.textPrimary,
-                    ).copyWith(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      height: 1,
-                    ),
-                  ),
-                ),
-                if (playerStatus != 'unknown') ...[
-                  const SizedBox(width: 10),
+                if (playerStatus != 'unknown')
                   PlayerStatusChip(
                     playerId: _myBoardPlayerId(board),
                     size: PlayerStatusChipSize.small,
                   ),
-                ],
-                const Spacer(),
                 if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !dutchActive && !hasPlayerCalledDutch && !_callDutchTappedPending) ...[
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => _handleCallDutch(context, currentGameId),
                     child: Container(
@@ -3222,8 +3203,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
                 ] else if (dutchActive || _callDutchTappedPending) ...[
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
@@ -3254,8 +3235,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
                 ],
+                const Spacer(),
                 if (!isSpecialEventActive) ...[
                   _buildLiveFeedToggleChip(),
                   const SizedBox(width: 8),

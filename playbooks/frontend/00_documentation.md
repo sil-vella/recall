@@ -51,6 +51,30 @@ Use this script for **manual testing on a physical device**.
 
 ---
 
+### 2b. Screen record (adb)
+
+**Standalone** — `adb_screenrecord.sh` (timed clip, no flutter):
+```bash
+./playbooks/frontend/adb_screenrecord.sh              # 30 seconds, pick device
+./playbooks/frontend/adb_screenrecord.sh 90 1        # 90s on OnePlus
+```
+
+**With Flutter (OnePlus, same launch as VS Code local)** — `run_flutter_oneplus_with_screenrecord.sh`:
+- Same as `run_flutter_app_to_global_log.sh android 84fbcf31` (`.env.dart.defines.local`, `DUTCH_DEV_LOG`, `[dev]` → `global.log`).
+- While `flutter run` is active, press **`V`** to **start/stop** screen record (like **`R`** = hot restart). Clips go to `recordings/dutch_screen_*.mp4`.
+- VS Code: **Dutch: Flutter (OnePlus + V record) — .env.dart.defines.local**
+
+```bash
+./playbooks/frontend/run_flutter_oneplus_with_screenrecord.sh
+./playbooks/frontend/run_flutter_oneplus_with_screenrecord.sh R3CWB0CS63D   # other serial
+```
+
+**Notes**:
+- Video only (no audio). Each segment max **180s** (adb limit); press **V** again before 180s to stop early.
+- Optional env: `SCREENRECORD_SIZE`, `SCREENRECORD_BIT_RATE` (default `8000000`).
+
+---
+
 ### 3. `build_ipa.sh`
 
 **Purpose**:

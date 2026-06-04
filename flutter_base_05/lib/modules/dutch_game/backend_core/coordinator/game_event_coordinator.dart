@@ -2,6 +2,7 @@ import '../../utils/platform/shared_imports.dart';
 import '../../../../utils/dev_logger.dart';
 import '../utils/level_matcher.dart';
 import '../utils/rank_matcher.dart';
+import '../utils/comp_player_seat_helper.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
@@ -27,6 +28,12 @@ class GameEventCoordinator {
   final Map<String, Future<void>> _roomEventTail = {};
 
   GameEventCoordinator(this.roomManager, this.server);
+
+  Future<Map<String, dynamic>?> _compUserInventory(String userId) async {
+    final statsResult = await server.pythonClient.getUserStatsForJoin(userId);
+    if (statsResult['success'] != true) return null;
+    return statsResult['inventory'] as Map<String, dynamic>?;
+  }
 
   /// Get current games map in Flutter format: {roomId: {'gameData': {'game_state': ...}}}
   /// This matches the format expected by shared logic methods
@@ -467,31 +474,22 @@ class GameEventCoordinator {
           seenCompUserIds.add(userId);
           final username = (comp['username'] ?? 'CompPlayer').toString();
           final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
-          String uniqueName = username;
-          int nameSuffix = 1;
-          while (existingNames.contains(uniqueName)) {
-            uniqueName = '$username$nameSuffix';
-            nameSuffix++;
-          }
-          existingNames.add(uniqueName);
-          players.add({
-            'id': playerId,
-            'name': uniqueName,
-            'isHuman': false,
-            'status': 'waiting',
-            'hand': <Map<String, dynamic>>[],
-            'visible_cards': <Map<String, dynamic>>[],
-            'points': 0,
-            'known_cards': <String, dynamic>{},
-            'collection_rank_cards': <String>[],
-            'isActive': true,
-            'difficulty': defaultDifficulty,
-            'rank': defaultRank,
-            'level': 1,
-            'userId': userId,
-            'email': (comp['email'] ?? '').toString(),
-            'username': username,
-          });
+          final uniqueName = uniqueCompDisplayName(username, existingNames);
+          final cardBackId = await resolveEquippedCardBackForComp(
+            comp,
+            fetchInventoryByUserId: _compUserInventory,
+          );
+          players.add(buildCompPlayerSeatEntry(
+            playerId: playerId,
+            uniqueName: uniqueName,
+            userId: userId,
+            username: username,
+            email: (comp['email'] ?? '').toString(),
+            difficulty: defaultDifficulty,
+            rank: defaultRank,
+            level: 1,
+            cardBackId: cardBackId,
+          ));
           compPlayersAdded++;
           
         }
@@ -535,46 +533,27 @@ class GameEventCoordinator {
             // Map rank to YAML difficulty for AI behavior
             final difficulty = RankMatcher.rankToDifficulty(rank);
             
-            // Generate a unique player ID (use userId as base, but ensure uniqueness)
-            // For comp players, we can use userId directly or create a sessionId-like ID
             final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
-            
-            // Ensure username is unique
-            String uniqueName = username;
-            int nameSuffix = 1;
-            while (existingNames.contains(uniqueName)) {
-              uniqueName = '$username$nameSuffix';
-              nameSuffix++;
-            }
-            existingNames.add(uniqueName);
-            
-            players.add({
-              'id': playerId,
-              'name': uniqueName,
-              'isHuman': false,
-              'status': 'waiting',
-              'hand': <Map<String, dynamic>>[],
-              'visible_cards': <Map<String, dynamic>>[],
-              'points': 0,
-              'known_cards': <String, dynamic>{},
-              'collection_rank_cards': <String>[],
-              'isActive': true,  // Required for same rank play filtering
-              'difficulty': difficulty,  // Mapped from player rank
-              'rank': rank,  // Store player rank for reference
-              'level': level,  // Store player level for reference
-              'userId': userId,  // Store userId for coin deduction logic
-              'email': email,  // Store email for reference
-              'username': username,  // Store username for display (name is also username for comp players)
-              if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
-            });
-            
+            final uniqueName = uniqueCompDisplayName(username, existingNames);
+            final cardBackId = await resolveEquippedCardBackForComp(
+              compPlayerData,
+              fetchInventoryByUserId: _compUserInventory,
+            );
+            players.add(buildCompPlayerSeatEntry(
+              playerId: playerId,
+              uniqueName: uniqueName,
+              userId: userId,
+              username: username,
+              email: email,
+              difficulty: difficulty,
+              rank: rank,
+              level: level,
+              profilePicture: profilePicture,
+              cardBackId: cardBackId,
+            ));
             compPlayersAdded++;
             remainingNeeded--;
-            
-            
           }
-          
-          
         } else {
           
           
@@ -606,35 +585,23 @@ class GameEventCoordinator {
                   final difficulty = RankMatcher.rankToDifficulty(rank);
                   
                   final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
-                  
-                  String uniqueName = username;
-                  int nameSuffix = 1;
-                  while (existingNames.contains(uniqueName)) {
-                    uniqueName = '$username$nameSuffix';
-                    nameSuffix++;
-                  }
-                  existingNames.add(uniqueName);
-                  
-                  players.add({
-                    'id': playerId,
-                    'name': uniqueName,
-                    'isHuman': false,
-                    'status': 'waiting',
-                    'hand': <Map<String, dynamic>>[],
-                    'visible_cards': <Map<String, dynamic>>[],
-                    'points': 0,
-                    'known_cards': <String, dynamic>{},
-                    'collection_rank_cards': <String>[],
-                    'isActive': true,
-                    'difficulty': difficulty,  // Mapped from player rank
-                    'rank': rank,  // Store player rank for reference
-                    'level': level,  // Store player level for reference
-                    'userId': userId,
-                    'email': email,
-                    'username': username,  // Store username for display (name is also username for comp players)
-                    if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
-                  });
-                  
+                  final uniqueName = uniqueCompDisplayName(username, existingNames);
+                  final cardBackId = await resolveEquippedCardBackForComp(
+                    compPlayerData,
+                    fetchInventoryByUserId: _compUserInventory,
+                  );
+                  players.add(buildCompPlayerSeatEntry(
+                    playerId: playerId,
+                    uniqueName: uniqueName,
+                    userId: userId,
+                    username: username,
+                    email: email,
+                    difficulty: difficulty,
+                    rank: rank,
+                    level: level,
+                    profilePicture: profilePicture,
+                    cardBackId: cardBackId,
+                  ));
                   compPlayersAdded++;
                   remainingNeeded--;
                 }

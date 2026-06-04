@@ -21,7 +21,7 @@ Always present:
 | Field | Content |
 |-------|---------|
 | `success` | `true` |
-| `data` | User stats from `users.modules.dutch_game` (wins, level, rank, coins, inventory, streaks, subscription_tier, …) |
+| `data` | User stats from `users.modules.dutch_game` (wins, classic_wins, cc_wins, level, rank, coins, inventory, streaks, subscription_tier, …) |
 | `user_id`, `timestamp` | Metadata |
 | `table_tiers_revision` | Current server hash |
 | `consumables_catalog_revision` | Current server hash |

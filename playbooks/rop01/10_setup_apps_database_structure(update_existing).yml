@@ -129,6 +129,8 @@
               "schema": {
                 "enabled": "boolean",
                 "wins": "number",
+                "classic_wins": "number",
+                "cc_wins": "number",
                 "losses": "number",
                 "total_matches": "number",
                 "points": "number",
@@ -221,6 +223,8 @@
               updateFields["modules.dutch_game"] = {
                 "enabled": true,
                 "wins": 0,
+                "classic_wins": 0,
+                "cc_wins": 0,
                 "losses": 0,
                 "total_matches": 0,
                 "points": 0,
@@ -248,6 +252,18 @@
                 needsDutchUpdate = true;
                 updateFields["modules.dutch_game.win_duration_seconds_total"] = 0;
                 print("  🔄 Adding win_duration_seconds_total to dutch_game for user: " + user.username + " (" + user.email + ")");
+              }
+              if (user.modules.dutch_game.classic_wins === undefined) {
+                needsUpdate = true;
+                needsDutchUpdate = true;
+                updateFields["modules.dutch_game.classic_wins"] = 0;
+                print("  🔄 Adding classic_wins to dutch_game for user: " + user.username + " (" + user.email + ")");
+              }
+              if (user.modules.dutch_game.cc_wins === undefined) {
+                needsUpdate = true;
+                needsDutchUpdate = true;
+                updateFields["modules.dutch_game.cc_wins"] = 0;
+                print("  🔄 Adding cc_wins to dutch_game for user: " + user.username + " (" + user.email + ")");
               }
               if (user.modules.dutch_game.subscription_tier === undefined) {
                 needsUpdate = true;
@@ -516,6 +532,7 @@
           }
           print("  📋 Doc shape: { room_id (string), user_id (ObjectId), ended_at (UTC),");
           print("      is_tournament (bool), tournament_id (optional string), game_mode (optional string),");
+          print("      game_type (optional string: classic | clear_and_collect),");
           print("      end_points (int, hand points on win), duration_seconds (int, win match wall-clock) }");
 
           // ========================================

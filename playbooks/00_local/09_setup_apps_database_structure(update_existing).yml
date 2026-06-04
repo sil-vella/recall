@@ -177,6 +177,8 @@
               updateFields["modules.dutch_game"] = {
                 "enabled": true,
                 "wins": 0,
+                "classic_wins": 0,
+                "cc_wins": 0,
                 "losses": 0,
                 "total_matches": 0,
                 "points": 0,
@@ -204,6 +206,18 @@
                 needsDutchUpdate = true;
                 updateFields["modules.dutch_game.win_duration_seconds_total"] = 0;
                 print("  🔄 Adding win_duration_seconds_total to dutch_game for user: " + user.username + " (" + user.email + ")");
+              }
+              if (user.modules.dutch_game.classic_wins === undefined) {
+                needsUpdate = true;
+                needsDutchUpdate = true;
+                updateFields["modules.dutch_game.classic_wins"] = 0;
+                print("  🔄 Adding classic_wins to dutch_game for user: " + user.username + " (" + user.email + ")");
+              }
+              if (user.modules.dutch_game.cc_wins === undefined) {
+                needsUpdate = true;
+                needsDutchUpdate = true;
+                updateFields["modules.dutch_game.cc_wins"] = 0;
+                print("  🔄 Adding cc_wins to dutch_game for user: " + user.username + " (" + user.email + ")");
               }
               if (user.modules.dutch_game.subscription_tier === undefined) {
                 needsUpdate = true;

@@ -23,7 +23,7 @@ import '../../../utils/dev_logger.dart';
 
 const bool LOGGING_SWITCH = false;
 /// Pile-trim receive trace (`pileFilterRx`); separate from [LOGGING_SWITCH] to avoid noisy WS logs.
-const bool PILE_FILTER_LOGGING_SWITCH = true; // testing — revert to false
+const bool PILE_FILTER_LOGGING_SWITCH = false; // testing — revert to false
 
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types

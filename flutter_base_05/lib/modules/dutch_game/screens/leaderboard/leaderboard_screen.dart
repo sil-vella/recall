@@ -9,10 +9,11 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../backend_core/utils/rank_matcher.dart';
 import '../../utils/dutch_game_helpers.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
+import '../lobby_room/widgets/collapsible_section_widget.dart';
 
 const int _kLeaderboardDisplayLimit = 20;
 
-/// Route: `/dutch/leaderboard` — one bundle fetch; monthly/yearly and rank tier filtered on device.
+/// Route: `/dutch/leaderboard` — one bundle fetch; monthly/yearly/all-time; rank tier filtered on device.
 class LeaderboardScreen extends BaseScreen {
   const LeaderboardScreen({Key? key}) : super(key: key);
 
@@ -41,14 +42,19 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   String? _loadError;
   List<Map<String, dynamic>> _rawMonthly = [];
   List<Map<String, dynamic>> _rawYearly = [];
+  List<Map<String, dynamic>> _rawAllTime = [];
   String _monthlyPeriodKey = '';
   String _yearlyPeriodKey = '';
   Map<String, dynamic>? _bundleViewer;
   bool _monthlyTruncated = false;
   bool _yearlyTruncated = false;
-  int _tabIndex = 0;
+  bool _allTimeTruncated = false;
+  /// `monthly` | `yearly` | `all_time` (client-side period scope).
+  String _periodScope = 'monthly';
   /// `null` = all ranks (client-side filter only).
   String? _selectedRankTier;
+  /// `null` = all game types; `classic` | `clear_and_collect` (server-filtered bundle).
+  String? _selectedGameType;
 
   @override
   void initState() {
@@ -82,6 +88,17 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
 
   List<Map<String, dynamic>> get _visibleMonthly => _filteredAndRanked(_rawMonthly);
   List<Map<String, dynamic>> get _visibleYearly => _filteredAndRanked(_rawYearly);
+  List<Map<String, dynamic>> get _visibleAllTime => _filteredAndRanked(_rawAllTime);
+  List<Map<String, dynamic>> get _visibleRows {
+    switch (_periodScope) {
+      case 'yearly':
+        return _visibleYearly;
+      case 'all_time':
+        return _visibleAllTime;
+      default:
+        return _visibleMonthly;
+    }
+  }
 
   Future<void> _load() async {
     setState(() {
@@ -94,6 +111,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
         _loadError = 'API not available';
         _rawMonthly = [];
         _rawYearly = [];
+        _rawAllTime = [];
         _bundleViewer = null;
         if (mounted) setState(() => _loading = false);
         return;
@@ -104,6 +122,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
       _loadError = e.toString();
       _rawMonthly = [];
       _rawYearly = [];
+      _rawAllTime = [];
       _bundleViewer = null;
     }
     if (mounted) {
@@ -119,12 +138,14 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
           (response is Map ? response['error']?.toString() : null) ?? 'Failed to load leaderboard';
       _rawMonthly = [];
       _rawYearly = [];
+      _rawAllTime = [];
       _bundleViewer = null;
       return;
     }
     _loadError = null;
     final m = response['monthly'];
     final y = response['yearly'];
+    final at = response['all_time'];
     if (m is Map) {
       _monthlyPeriodKey = m['period_key']?.toString() ?? '';
       _monthlyTruncated = m['truncated'] == true;
@@ -145,17 +166,101 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     } else {
       _rawYearly = [];
     }
+    if (at is Map) {
+      _allTimeTruncated = at['truncated'] == true;
+      final rows = at['rows'];
+      _rawAllTime = rows is List
+          ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+    } else {
+      _rawAllTime = [];
+    }
     final v = response['viewer'];
     _bundleViewer = v is Map ? Map<String, dynamic>.from(v) : null;
+  }
+
+  String _periodScopeLabel() {
+    switch (_periodScope) {
+      case 'yearly':
+        return 'Yearly';
+      case 'all_time':
+        return 'All time';
+      default:
+        return 'Monthly';
+    }
+  }
+
+  String _emptySpanLabel() {
+    switch (_periodScope) {
+      case 'yearly':
+        return 'this year';
+      case 'all_time':
+        return 'all time';
+      default:
+        return 'this month';
+    }
+  }
+
+  bool _truncatedForScope() {
+    switch (_periodScope) {
+      case 'yearly':
+        return _yearlyTruncated;
+      case 'all_time':
+        return _allTimeTruncated;
+      default:
+        return _monthlyTruncated;
+    }
   }
 
   String _leaderboardBundleUrl() {
     final login = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final uid = login['userId']?.toString() ?? login['user_id']?.toString() ?? '';
-    if (uid.isEmpty) {
+    final params = <String, String>{};
+    if (uid.isNotEmpty) {
+      params['user_id'] = uid;
+    }
+    final gt = _selectedGameType?.trim();
+    if (gt != null && gt.isNotEmpty) {
+      params['game_type'] = gt;
+    }
+    if (params.isEmpty) {
       return '/public/dutch/leaderboard-period-wins-bundle';
     }
-    return '/public/dutch/leaderboard-period-wins-bundle?user_id=${Uri.encodeQueryComponent(uid)}';
+    final q = params.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    return '/public/dutch/leaderboard-period-wins-bundle?$q';
+  }
+
+  void _onGameTypeChanged(String? gameType) {
+    if (_selectedGameType == gameType) return;
+    setState(() => _selectedGameType = gameType);
+    _load();
+  }
+
+  String _gameTypeFilterSuffix() {
+    switch (_selectedGameType) {
+      case 'clear_and_collect':
+        return ' · Clear and Collect';
+      case 'classic':
+        return ' · Classic';
+      default:
+        return '';
+    }
+  }
+
+  /// Collapsed filter tab title — reflects current period, rank, and game type.
+  String _filterSectionTitle() {
+    final period = _periodScopeLabel();
+    final game = _selectedGameType == 'classic'
+        ? 'Classic'
+        : (_selectedGameType == 'clear_and_collect'
+            ? 'Clear and Collect'
+            : 'All types');
+    final rank = (_selectedRankTier == null || _selectedRankTier!.isEmpty)
+        ? 'All ranks'
+        : _capitalizeRank(_selectedRankTier!);
+    return 'Filters · $period · $rank · $game';
   }
 
   String? _currentUserId() {
@@ -172,7 +277,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   String? _viewerRankTier() {
     final v = _bundleViewer;
     if (v != null) {
-      for (final key in ['monthly', 'yearly']) {
+      for (final key in ['monthly', 'yearly', 'all_time']) {
         final ps = v[key];
         if (ps is Map) {
           final rt = (ps['rank_tier'] ?? '').toString().trim().toLowerCase();
@@ -189,36 +294,49 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     return null;
   }
 
-  String _monthlyPeriodTitle() {
-    final base =
-        _monthlyPeriodKey.isEmpty ? 'This month (UTC)' : 'Month $_monthlyPeriodKey (UTC)';
+  String _periodTitle() {
+    final String base;
+    switch (_periodScope) {
+      case 'yearly':
+        base = _yearlyPeriodKey.isEmpty
+            ? 'This year (UTC)'
+            : 'Year $_yearlyPeriodKey (UTC)';
+        break;
+      case 'all_time':
+        base = 'All time';
+        break;
+      default:
+        base = _monthlyPeriodKey.isEmpty
+            ? 'This month (UTC)'
+            : 'Month $_monthlyPeriodKey (UTC)';
+    }
     final t = _selectedRankTier;
-    if (t == null || t.isEmpty) return base;
-    return '$base · ${_capitalizeRank(t)} only';
+    final rankSuffix =
+        (t == null || t.isEmpty) ? '' : ' · ${_capitalizeRank(t)} only';
+    return '$base${_gameTypeFilterSuffix()}$rankSuffix';
   }
 
-  String _yearlyPeriodTitle() {
-    final base = _yearlyPeriodKey.isEmpty ? 'This year (UTC)' : 'Year $_yearlyPeriodKey (UTC)';
+  String _emptyMessage() {
+    final span = _emptySpanLabel();
+    final gt = _selectedGameType;
+    final modeLabel = gt == 'clear_and_collect'
+        ? 'Clear and Collect'
+        : (gt == 'classic' ? 'Classic' : null);
     final t = _selectedRankTier;
-    if (t == null || t.isEmpty) return base;
-    return '$base · ${_capitalizeRank(t)} only';
+    if (modeLabel != null && t != null && t.isNotEmpty) {
+      return 'No $modeLabel wins recorded $span for ${_capitalizeRank(t)} players yet.';
+    }
+    if (modeLabel != null) {
+      return 'No $modeLabel wins recorded $span yet.';
+    }
+    if (t != null && t.isNotEmpty) {
+      return 'No wins recorded $span for ${_capitalizeRank(t)} players yet.';
+    }
+    return 'No wins recorded $span yet.';
   }
 
-  String _emptyMessageMonthly() {
-    final t = _selectedRankTier;
-    if (t == null || t.isEmpty) return 'No wins recorded this month yet.';
-    return 'No wins recorded this month for ${_capitalizeRank(t)} players yet.';
-  }
-
-  String _emptyMessageYearly() {
-    final t = _selectedRankTier;
-    if (t == null || t.isEmpty) return 'No wins recorded this year yet.';
-    return 'No wins recorded this year for ${_capitalizeRank(t)} players yet.';
-  }
-
-  String? _truncationNote(bool monthly) {
-    final t = monthly ? _monthlyTruncated : _yearlyTruncated;
-    if (!t) return null;
+  String? _truncationNote() {
+    if (!_truncatedForScope()) return null;
     return 'Server list may be capped; some players beyond the cap are omitted.';
   }
 
@@ -230,43 +348,25 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
       );
     }
 
-    final monthlyRows = _visibleMonthly;
-    final yearlyRows = _visibleYearly;
+    final visibleRows = _visibleRows;
     final uid = _currentUserId();
-    final monthlyViewerLine = _viewerLine(
+    final viewerLine = _viewerLine(
       uid: uid,
       bundleViewer: _bundleViewer,
-      periodKey: 'monthly',
-      filteredRows: monthlyRows,
-      selectedTier: _selectedRankTier,
-    );
-    final yearlyViewerLine = _viewerLine(
-      uid: uid,
-      bundleViewer: _bundleViewer,
-      periodKey: 'yearly',
-      filteredRows: yearlyRows,
+      periodKey: _periodScope,
+      filteredRows: visibleRows,
       selectedTier: _selectedRankTier,
     );
 
-    final periodBody = _tabIndex == 0
-        ? _PeriodLeaderboardBody(
-            error: _loadError,
-            rows: monthlyRows,
-            viewerLine: monthlyViewerLine,
-            truncationNote: _truncationNote(true),
-            periodLabel: _monthlyPeriodTitle(),
-            emptyMessage: _emptyMessageMonthly(),
-            onRetry: _load,
-          )
-        : _PeriodLeaderboardBody(
-            error: _loadError,
-            rows: yearlyRows,
-            viewerLine: yearlyViewerLine,
-            truncationNote: _truncationNote(false),
-            periodLabel: _yearlyPeriodTitle(),
-            emptyMessage: _emptyMessageYearly(),
-            onRetry: _load,
-          );
+    final periodBody = _PeriodLeaderboardBody(
+      error: _loadError,
+      rows: visibleRows,
+      viewerLine: viewerLine,
+      truncationNote: _truncationNote(),
+      periodLabel: _periodTitle(),
+      emptyMessage: _emptyMessage(),
+      onRetry: _load,
+    );
 
     return RefreshIndicator(
       color: AppColors.accentColor,
@@ -280,28 +380,39 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
               child: Padding(
                 padding: AppPadding.defaultPadding.copyWith(bottom: 8),
                 child: _LeaderboardPodium(
-                  rows: _tabIndex == 0 ? monthlyRows : yearlyRows,
+                  rows: visibleRows,
                   periodError: _loadError,
                 ),
               ),
             ),
           ),
           SliverToBoxAdapter(
-            child: Padding(
-              padding: AppPadding.defaultPadding.copyWith(bottom: 8),
-              child: _PeriodTabBar(
-                tabIndex: _tabIndex,
-                onChanged: (i) => setState(() => _tabIndex = i),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: AppPadding.defaultPadding.copyWith(bottom: 8),
-              child: _RankTierChipBar(
-                selectedTier: _selectedRankTier,
-                userRankTier: _viewerRankTier(),
-                onTierChanged: (tier) => setState(() => _selectedRankTier = tier),
+            child: Semantics(
+              identifier: 'leaderboard_filters_collapsible',
+              child: CollapsibleSectionWidget(
+                title: _filterSectionTitle(),
+                icon: Icons.tune,
+                initiallyExpanded: false,
+                compactHeader: true,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppPadding.defaultPadding.left,
+                    4,
+                    AppPadding.defaultPadding.right,
+                    8,
+                  ),
+                  child: _LeaderboardFiltersPanel(
+                    periodScope: _periodScope,
+                    onPeriodScopeChanged: (scope) =>
+                        setState(() => _periodScope = scope),
+                    selectedGameType: _selectedGameType,
+                    onGameTypeChanged: _onGameTypeChanged,
+                    selectedRankTier: _selectedRankTier,
+                    userRankTier: _viewerRankTier(),
+                    onRankTierChanged: (tier) =>
+                        setState(() => _selectedRankTier = tier),
+                  ),
+                ),
               ),
             ),
           ),
@@ -397,13 +508,16 @@ String? _viewerLine({
     }
     return 'Your position: not in the top $_kLeaderboardDisplayLimit for this view.';
   }
+  final noWinsMsg = periodKey == 'all_time'
+      ? 'Your position: no wins recorded yet'
+      : 'Your position: no wins in this period yet';
   if (!inPeriod && winsInPeriod <= 0) {
-    return 'Your position: no wins in this period yet';
+    return noWinsMsg;
   }
   if (winsInPeriod > 0) {
     return 'Your position: not in the top $_kLeaderboardDisplayLimit for this view.';
   }
-  return 'Your position: no wins in this period yet';
+  return noWinsMsg;
 }
 
 /// Top 3 for the active period (2nd – 1st – 3rd), aligned with list ordering from the API.
@@ -649,94 +763,197 @@ class _LeaderboardActionsRow extends StatelessWidget {
   }
 }
 
-/// Monthly / Yearly toggle — deep plum track; active = accent contrast, inactive = muted plum.
-class _PeriodTabBar extends StatelessWidget {
-  const _PeriodTabBar({
-    required this.tabIndex,
-    required this.onChanged,
+class _LeaderboardChipOption {
+  const _LeaderboardChipOption({
+    required this.label,
+    required this.selected,
+    required this.onSelect,
+    this.semanticsIdentifier,
   });
 
-  final int tabIndex;
-  final ValueChanged<int> onChanged;
+  final String label;
+  final bool selected;
+  final VoidCallback onSelect;
+  final String? semanticsIdentifier;
+}
+
+/// Label + horizontal chips (rank filter pattern).
+class _LeaderboardFilterChipBar extends StatelessWidget {
+  const _LeaderboardFilterChipBar({
+    required this.label,
+    required this.chips,
+  });
+
+  final String label;
+  final List<_LeaderboardChipOption> chips;
+
+  FilterChip _chip(_LeaderboardChipOption opt) {
+    return FilterChip(
+      label: Text(
+        opt.label,
+        style: AppTextStyles.bodySmall(
+          color: opt.selected ? AppColors.textOnAccent : AppColors.textOnPrimary,
+        ),
+      ),
+      selected: opt.selected,
+      onSelected: (v) {
+        if (v) opt.onSelect();
+      },
+      showCheckmark: false,
+      selectedColor: AppColors.accentContrast,
+      backgroundColor: AppColors.accentContrast.withValues(alpha: 0.28),
+      side: BorderSide(
+        color: opt.selected ? AppColors.accentColor : AppColors.casinoBorderColor,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final inactiveBg = AppColors.accentContrast.withValues(alpha: 0.28);
-    final inactiveFg = AppColors.textOnPrimary.withValues(alpha: 0.45);
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.scaffoldDeepPlumColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.cardVariant,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppTextStyles.caption(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var i = 0; i < chips.length; i++)
+                Padding(
+                  padding: EdgeInsets.only(right: i < chips.length - 1 ? 6 : 0),
+                  child: chips[i].semanticsIdentifier != null
+                      ? Semantics(
+                          identifier: chips[i].semanticsIdentifier,
+                          button: true,
+                          label: chips[i].label,
+                          child: _chip(chips[i]),
+                        )
+                      : _chip(chips[i]),
+                ),
+            ],
           ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Period, game type, and rank filters — uniform label + chip rows.
+class _LeaderboardFiltersPanel extends StatelessWidget {
+  const _LeaderboardFiltersPanel({
+    required this.periodScope,
+    required this.onPeriodScopeChanged,
+    required this.selectedGameType,
+    required this.onGameTypeChanged,
+    required this.selectedRankTier,
+    required this.userRankTier,
+    required this.onRankTierChanged,
+  });
+
+  final String periodScope;
+  final ValueChanged<String> onPeriodScopeChanged;
+  final String? selectedGameType;
+  final ValueChanged<String?> onGameTypeChanged;
+  final String? selectedRankTier;
+  final String? userRankTier;
+  final ValueChanged<String?> onRankTierChanged;
+
+  String _capitalize(String r) {
+    if (r.isEmpty) return r;
+    return '${r[0].toUpperCase()}${r.substring(1)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tiers = RankMatcher.rankHierarchy;
+    final yours = userRankTier?.toLowerCase().trim();
+    final otherTiers = yours == null || yours.isEmpty
+        ? tiers
+        : tiers.where((t) => t.toLowerCase() != yours).toList();
+
+    final rankChips = <_LeaderboardChipOption>[
+      _LeaderboardChipOption(
+        label: 'All',
+        selected: selectedRankTier == null,
+        onSelect: () => onRankTierChanged(null),
+        semanticsIdentifier: 'leaderboard_rank_tier_all',
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => onChanged(0),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: tabIndex == 0 ? AppColors.accentContrast : inactiveBg,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      bottomLeft: Radius.circular(12),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'Monthly',
-                    style: AppTextStyles.bodyMedium(
-                      color: tabIndex == 0 ? AppColors.textOnAccent : inactiveFg,
-                    ).copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
+      if (yours != null && yours.isNotEmpty)
+        _LeaderboardChipOption(
+          label: 'Your rank: ${_capitalize(yours)}',
+          selected: selectedRankTier == yours,
+          onSelect: () => onRankTierChanged(yours),
+          semanticsIdentifier: 'leaderboard_rank_yours',
+        ),
+      for (final tier in otherTiers)
+        _LeaderboardChipOption(
+          label: _capitalize(tier),
+          selected: selectedRankTier == tier,
+          onSelect: () => onRankTierChanged(tier),
+          semanticsIdentifier: 'leaderboard_rank_tier_$tier',
+        ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _LeaderboardFilterChipBar(
+          label: 'Period',
+          chips: [
+            _LeaderboardChipOption(
+              label: 'Monthly',
+              selected: periodScope == 'monthly',
+              onSelect: () => onPeriodScopeChanged('monthly'),
+              semanticsIdentifier: 'leaderboard_period_monthly',
             ),
-          ),
-          Expanded(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => onChanged(1),
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: tabIndex == 1 ? AppColors.accentContrast : inactiveBg,
-                    borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'Yearly',
-                    style: AppTextStyles.bodyMedium(
-                      color: tabIndex == 1 ? AppColors.textOnAccent : inactiveFg,
-                    ).copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
+            _LeaderboardChipOption(
+              label: 'Yearly',
+              selected: periodScope == 'yearly',
+              onSelect: () => onPeriodScopeChanged('yearly'),
+              semanticsIdentifier: 'leaderboard_period_yearly',
             ),
-          ),
-        ],
-      ),
+            _LeaderboardChipOption(
+              label: 'All time',
+              selected: periodScope == 'all_time',
+              onSelect: () => onPeriodScopeChanged('all_time'),
+              semanticsIdentifier: 'leaderboard_period_all_time',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _LeaderboardFilterChipBar(
+          label: 'Game type',
+          chips: [
+            _LeaderboardChipOption(
+              label: 'All',
+              selected: selectedGameType == null,
+              onSelect: () => onGameTypeChanged(null),
+              semanticsIdentifier: 'leaderboard_game_type_all',
+            ),
+            _LeaderboardChipOption(
+              label: 'Classic',
+              selected: selectedGameType == 'classic',
+              onSelect: () => onGameTypeChanged('classic'),
+              semanticsIdentifier: 'leaderboard_game_type_classic',
+            ),
+            _LeaderboardChipOption(
+              label: 'Clear and Collect',
+              selected: selectedGameType == 'clear_and_collect',
+              onSelect: () => onGameTypeChanged('clear_and_collect'),
+              semanticsIdentifier: 'leaderboard_game_type_clear_and_collect',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _LeaderboardFilterChipBar(
+          label: 'Rank',
+          chips: rankChips,
+        ),
+      ],
     );
   }
 }
@@ -955,112 +1172,3 @@ class _LeaderboardRankRow extends StatelessWidget {
   }
 }
 
-class _RankTierChipBar extends StatelessWidget {
-  const _RankTierChipBar({
-    required this.selectedTier,
-    required this.userRankTier,
-    required this.onTierChanged,
-  });
-
-  final String? selectedTier;
-  final String? userRankTier;
-  final ValueChanged<String?> onTierChanged;
-
-  String _capitalize(String r) {
-    if (r.isEmpty) return r;
-    return '${r[0].toUpperCase()}${r.substring(1)}';
-  }
-
-  FilterChip _tierChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onSelect,
-  }) {
-    return FilterChip(
-      label: Text(
-        label,
-        style: AppTextStyles.bodySmall(
-          color: selected ? AppColors.textOnAccent : AppColors.textOnPrimary,
-        ),
-      ),
-      selected: selected,
-      onSelected: (v) {
-        if (v) onSelect();
-      },
-      showCheckmark: false,
-      selectedColor: AppColors.accentContrast,
-      backgroundColor: AppColors.accentContrast.withValues(alpha: 0.28),
-      side: BorderSide(
-        color: selected ? AppColors.accentColor : AppColors.casinoBorderColor,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tiers = RankMatcher.rankHierarchy;
-    final yours = userRankTier?.toLowerCase().trim();
-    final otherTiers = yours == null || yours.isEmpty
-        ? tiers
-        : tiers.where((t) => t.toLowerCase() != yours).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Rank',
-          style: AppTextStyles.caption(color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Semantics(
-                  identifier: 'leaderboard_rank_tier_all',
-                  button: true,
-                  label: 'All ranks',
-                  child: _tierChip(
-                    label: 'All',
-                    selected: selectedTier == null,
-                    onSelect: () => onTierChanged(null),
-                  ),
-                ),
-              ),
-              if (yours != null && yours.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Semantics(
-                    identifier: 'leaderboard_rank_yours',
-                    button: true,
-                    label: 'Your rank ${_capitalize(yours)}',
-                    child: _tierChip(
-                      label: 'Your rank: ${_capitalize(yours)}',
-                      selected: selectedTier == yours,
-                      onSelect: () => onTierChanged(yours),
-                    ),
-                  ),
-                ),
-              for (final tier in otherTiers)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Semantics(
-                    identifier: 'leaderboard_rank_tier_$tier',
-                    button: true,
-                    label: 'Rank $tier',
-                    child: _tierChip(
-                      label: _capitalize(tier),
-                      selected: selectedTier == tier,
-                      onSelect: () => onTierChanged(tier),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}

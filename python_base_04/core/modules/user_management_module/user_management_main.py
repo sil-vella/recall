@@ -312,6 +312,8 @@ class UserManagementModule(BaseModule):
                     'dutch_game': {
                         'enabled': True,
                         'wins': 0,
+                        'classic_wins': 0,
+                        'cc_wins': 0,
                         'losses': 0,
                         'total_matches': 0,
                         'points': 0,
@@ -515,6 +517,8 @@ class UserManagementModule(BaseModule):
                     'dutch_game': {
                         'enabled': True,
                         'wins': 0,
+                        'classic_wins': 0,
+                        'cc_wins': 0,
                         'losses': 0,
                         'total_matches': 0,
                         'points': 0,
@@ -1276,6 +1280,8 @@ class UserManagementModule(BaseModule):
                             'dutch_game': {
                                 'enabled': True,
                                 'wins': 0,
+                                'classic_wins': 0,
+                                'cc_wins': 0,
                                 'losses': 0,
                                 'total_matches': 0,
                                 'points': 0,

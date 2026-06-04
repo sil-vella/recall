@@ -11,8 +11,9 @@ The multiplayer game system uses real computer player users from the database in
 5. **Rank-to-difficulty mapping** for AI behavior configuration
 6. **Level and rank fields** stored in player data and game state
 7. **Profile picture support** - comp players include `profile_picture` URLs in player data, displayed in the unified game board widget
-8. **Timer-based delay system** - AI decision delays adapt to game phase timers (see [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md))
-9. **Miss chance mechanics** - Difficulty-based probability of missing actions (see [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md))
+8. **Equipped card back** - at match start, DB comp seats get `card_back_id` on the player object from `modules.dutch_game.inventory.cosmetics.equipped.card_back_id` (API field `equipped_card_back_id`, or `get-init-data` inventory when roster prefill omits it), same as humans on join
+9. **Timer-based delay system** - AI decision delays adapt to game phase timers (see [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md))
+10. **Miss chance mechanics** - Difficulty-based probability of missing actions (see [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md))
 
 ## Database Changes
 

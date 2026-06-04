@@ -4,7 +4,7 @@ import '../../../../utils/dev_logger.dart';
 ///
 /// Draw/discard piles use list tail as the visible top ([DutchGameRound] uses
 /// [List.removeLast] on draw/discard and [List.add] on discard).
-const bool LOGGING_SWITCH = true; // pile-filter testing — revert to false
+const bool LOGGING_SWITCH = false; // pile-filter testing — revert to false
 const int kFrontendPileTailKeep = 2;
 
 int _pileLength(dynamic raw) {

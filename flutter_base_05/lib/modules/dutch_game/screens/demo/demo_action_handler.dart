@@ -10,6 +10,14 @@ import '../../utils/game_instructions_provider.dart';
 import '../../backend_core/services/game_state_store.dart';
 import 'demo_state_setup.dart';
 import 'demo_functionality.dart';
+import '../../../../utils/dev_logger.dart';
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 
 /// Demo Action Handler
@@ -267,7 +275,13 @@ class DemoActionHandler {
       );
 
       await startMatchAction.execute();
-      
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'LocalPlayerSeat: demoStart practiceUserId=$currentUserId '
+          'expectedSeat=practice_session_$currentUserId roomId=$practiceRoomId',
+        );
+      }
 
       return practiceRoomId;
     } catch (e, stackTrace) {

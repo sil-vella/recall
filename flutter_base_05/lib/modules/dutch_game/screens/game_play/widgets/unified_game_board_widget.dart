@@ -3735,23 +3735,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         (board['boardGameState'] as Map<String, dynamic>? ?? {})['players'] as List<dynamic>? ?? [];
 
     final sessionId = DutchEventHandlerCallbacks.getCurrentUserId().trim();
-    if (sessionId.isNotEmpty) {
-      for (final p in players) {
-        if (p is! Map<String, dynamic>) continue;
-        final id = p['id']?.toString() ?? '';
-        if (id.isNotEmpty && id == sessionId) return id;
-      }
-    }
-
     final loginId = DutchEventHandlerCallbacks.getCurrentLoginUserId().trim();
-    if (loginId.isNotEmpty) {
-      for (final p in players) {
-        if (p is! Map<String, dynamic>) continue;
-        final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-        if (uid == loginId) {
-          final id = p['id']?.toString() ?? '';
-          if (id.isNotEmpty) return id;
+    final practiceUserId = DutchEventHandlerCallbacks.getPracticeUserId();
+
+    final matched = DutchEventHandlerCallbacks.findLocalPlayerInRoster(
+      players,
+      seatId: sessionId,
+      loginUserId: loginId,
+      practiceUserId: practiceUserId,
+    );
+    if (matched != null) {
+      final id = matched['id']?.toString() ?? '';
+      if (id.isNotEmpty) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'LocalPlayerSeat: _myBoardPlayerId roster_match id=$id '
+            'seat=$sessionId practiceUserId=$practiceUserId',
+          );
         }
+        return id;
       }
     }
 
@@ -3760,8 +3762,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       if (p is! Map<String, dynamic>) continue;
       if (p['isHuman'] == true) {
         final id = p['id']?.toString() ?? '';
-        if (id.isNotEmpty) return id;
+        if (id.isNotEmpty) {
+          if (LOGGING_SWITCH) {
+            customlog(
+              'LocalPlayerSeat: _myBoardPlayerId first_human_fallback id=$id '
+              'seat=$sessionId practiceUserId=$practiceUserId',
+            );
+          }
+          return id;
+        }
       }
+    }
+    if (LOGGING_SWITCH) {
+      customlog(
+        'LocalPlayerSeat: _myBoardPlayerId session_fallback seat=$sessionId '
+        'practiceUserId=$practiceUserId',
+      );
     }
     return sessionId;
   }
@@ -4004,18 +4020,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         (game?['gameData'] as Map<String, dynamic>?)?['game_state']
             as Map<String, dynamic>? ??
         {};
-    final seatId = DutchEventHandlerCallbacks.getCurrentUserId();
-    final loginUserId = DutchEventHandlerCallbacks.getCurrentLoginUserId();
-    String status = 'unknown';
-    for (final p in gameState['players'] as List? ?? []) {
-      if (p is! Map<String, dynamic>) continue;
-      final pid = p['id']?.toString() ?? '';
-      final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-      if (pid == seatId || (loginUserId.isNotEmpty && uid == loginUserId)) {
-        status = p['status']?.toString() ?? 'unknown';
-        break;
-      }
-    }
+    final myPlayer = DutchEventHandlerCallbacks.findLocalPlayerInRoster(
+      gameState['players'] as List? ?? [],
+    );
+    final status = myPlayer?['status']?.toString() ?? 'unknown';
     final gamePhase = dutchGameState['gamePhase']?.toString() ??
         gameState['phase']?.toString() ??
         gameState['gamePhase']?.toString() ??

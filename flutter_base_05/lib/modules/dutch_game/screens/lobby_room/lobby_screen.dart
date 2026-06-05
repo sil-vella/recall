@@ -18,6 +18,14 @@ import 'widgets/practice_match_widget.dart';
 import 'widgets/collapsible_section_widget.dart';
 // import 'widgets/irl_tournaments_widget.dart'; // Uncomment when re-enabling IRL Tournaments section
 import 'features/lobby_features.dart';
+import '../../../../utils/dev_logger.dart';
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 
 class LobbyScreen extends BaseScreen {
@@ -265,7 +273,13 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         gameType: 'practice',
         difficulty: practiceDifficulty, // Pass difficulty from lobby selection
       );
-      
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'LocalPlayerSeat: practiceStart practiceUserId=$currentUserId '
+          'expectedSeat=practice_session_$currentUserId roomId=$practiceRoomId',
+        );
+      }
       
       // Get game state from GameStateStore (after hooks have initialized it)
       final gameStateStore = GameStateStore.instance;

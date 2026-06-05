@@ -389,17 +389,83 @@ class DutchEventHandlerCallbacks {
     return '$eventType|$gameId|$phase|$currentPlayer|${players.length}|$turnCount|$changed|$keysStr';
   }
 
+  /// Practice/demo synthetic user id from dutch_game state (empty when not practice).
+  static String getPracticeUserId() {
+    final dutchGameState =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final practiceUser = dutchGameState['practiceUser'] as Map<String, dynamic>?;
+    if (practiceUser != null && practiceUser['isPracticeUser'] == true) {
+      return practiceUser['userId']?.toString().trim() ?? '';
+    }
+    return '';
+  }
+
+  /// True when [player] is the local user's seat row (multiplayer, practice, or demo).
+  static bool matchesLocalPlayerSeat(
+    dynamic player, {
+    required String seatId,
+    required String loginUserId,
+    String? practiceUserId,
+  }) {
+    if (player is! Map) return false;
+    final pid = player['id']?.toString().trim() ?? '';
+    final pUid = player['userId']?.toString().trim() ??
+        player['user_id']?.toString().trim() ??
+        '';
+    final sid = seatId.trim();
+    if (sid.isNotEmpty && pid.isNotEmpty && pid == sid) return true;
+    final login = loginUserId.trim();
+    if (login.isNotEmpty) {
+      if (pid == 'hum_$login') return true;
+      final human = player['isHuman'] == true;
+      if (human && pUid.isNotEmpty && pUid == login) return true;
+    }
+    final practice = (practiceUserId ?? getPracticeUserId()).trim();
+    if (practice.isNotEmpty) {
+      if (pid == 'practice_session_$practice') return true;
+      if (pid == 'hum_$practice') return true;
+      if (pUid.isNotEmpty && pUid == practice) return true;
+    }
+    return false;
+  }
+
+  /// Find the local user's player map in [players], or null if not seated.
+  static Map<String, dynamic>? findLocalPlayerInRoster(
+    List<dynamic> players, {
+    String? seatId,
+    String? loginUserId,
+    String? practiceUserId,
+  }) {
+    final sid = seatId ?? getCurrentUserId();
+    final login = loginUserId ?? getCurrentLoginUserId();
+    final practice = practiceUserId ?? getPracticeUserId();
+    for (final p in players) {
+      if (matchesLocalPlayerSeat(
+        p,
+        seatId: sid,
+        loginUserId: login,
+        practiceUserId: practice,
+      )) {
+        return p is Map<String, dynamic> ? p : null;
+      }
+    }
+    return null;
+  }
+
   /// True if the local user appears on [players] by session/practice id or login user id.
   static bool _localUserOnPlayerList(
     List<dynamic> players,
     String sessionOrPracticeId,
     String loginUserId,
   ) {
+    final practiceUserId = getPracticeUserId();
     for (final p in players) {
-      if (p is! Map<String, dynamic>) continue;
-      final pid = p['id']?.toString() ?? '';
-      final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-      if (pid == sessionOrPracticeId || (loginUserId.isNotEmpty && pUserId == loginUserId)) {
+      if (matchesLocalPlayerSeat(
+        p,
+        seatId: sessionOrPracticeId,
+        loginUserId: loginUserId,
+        practiceUserId: practiceUserId,
+      )) {
         return true;
       }
     }
@@ -576,7 +642,13 @@ class DutchEventHandlerCallbacks {
         // In practice mode, player ID is the sessionId, not the userId
         // SessionId format: practice_session_<userId>
         final practiceSessionId = 'practice_session_$practiceUserId';
-        
+
+        if (LOGGING_SWITCH) {
+          customlog(
+            'LocalPlayerSeat: getCurrentUserId source=practice '
+            'id=$practiceSessionId practiceUserId=$practiceUserId',
+          );
+        }
         _cachedCurrentUserId = practiceSessionId;
         _cachedCurrentUserIdAt = DateTime.now();
         return practiceSessionId;
@@ -591,7 +663,12 @@ class DutchEventHandlerCallbacks {
     final wsAuthMongoId = websocketState['user_id']?.toString().trim() ?? '';
     if (wsAuthMongoId.isNotEmpty) {
       final stableSeat = 'hum_$wsAuthMongoId';
-      
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'LocalPlayerSeat: getCurrentUserId source=hum_ws id=$stableSeat',
+        );
+      }
       _cachedCurrentUserId = stableSeat;
       _cachedCurrentUserIdAt = DateTime.now();
       return stableSeat;
@@ -607,7 +684,12 @@ class DutchEventHandlerCallbacks {
     if (normalizedSessionId != null &&
         normalizedSessionId.isNotEmpty &&
         normalizedSessionId.toLowerCase() != 'unknown') {
-      
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'LocalPlayerSeat: getCurrentUserId source=session id=$normalizedSessionId',
+        );
+      }
       _cachedCurrentUserId = normalizedSessionId;
       _cachedCurrentUserIdAt = DateTime.now();
       return normalizedSessionId;
@@ -622,7 +704,12 @@ class DutchEventHandlerCallbacks {
       if (normalizedSocketId != null &&
           normalizedSocketId.isNotEmpty &&
           normalizedSocketId.toLowerCase() != 'unknown') {
-        
+
+        if (LOGGING_SWITCH) {
+          customlog(
+            'LocalPlayerSeat: getCurrentUserId source=socket id=$normalizedSocketId',
+          );
+        }
         _cachedCurrentUserId = normalizedSocketId;
         _cachedCurrentUserIdAt = DateTime.now();
         return normalizedSocketId;
@@ -636,7 +723,12 @@ class DutchEventHandlerCallbacks {
     // Note: This may not match player IDs in multiplayer mode where player.id = sessionId
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final loginUserId = loginState['userId']?.toString() ?? '';
-    
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'LocalPlayerSeat: getCurrentUserId source=login_fallback id=$loginUserId',
+      );
+    }
     _cachedCurrentUserId = loginUserId;
     _cachedCurrentUserIdAt = DateTime.now();
     return loginUserId;
@@ -1203,33 +1295,42 @@ When anyone has played a card with the **same rank** as your **collection card**
       
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
       final loginUserId = loginState['userId']?.toString() ?? '';
+      final practiceUserId = getPracticeUserId();
 
-      Map<String, dynamic>? myPlayer;
-      for (final p in players) {
-        if (p is Map<String, dynamic> && p['id']?.toString() == currentUserId) {
-          myPlayer = p;
-          break;
-        }
-      }
-      if (myPlayer == null && loginUserId.isNotEmpty) {
-        for (final p in players) {
-          if (p is! Map<String, dynamic>) continue;
-          final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-          if (pUserId == loginUserId) {
-            myPlayer = p;
-            break;
-          }
+      Map<String, dynamic>? myPlayer = findLocalPlayerInRoster(
+        players,
+        seatId: currentUserId,
+        loginUserId: loginUserId,
+        practiceUserId: practiceUserId,
+      );
+      if (LOGGING_SWITCH &&
+          (gameId.startsWith('practice_room_') || practiceUserId.isNotEmpty)) {
+        if (myPlayer != null) {
+          final handLen = (myPlayer['hand'] as List<dynamic>? ?? []).length;
+          customlog(
+            'LocalPlayerSeat: syncWidget gameId=$gameId matchedId=${myPlayer['id']} '
+            'handLen=$handLen seat=$currentUserId practice=$practiceUserId',
+          );
+        } else {
+          final rosterBrief = players.map((p) {
+            if (p is! Map) return '?';
+            return '${p['id']}(u:${p['userId'] ?? p['user_id']})';
+          }).join(',');
+          customlog(
+            'LocalPlayerSeat: syncWidget gameId=$gameId myPlayer=null '
+            'seat=$currentUserId practice=$practiceUserId roster=[$rosterBrief]',
+          );
         }
       }
       if (myPlayer != null) {
         
       } else {
-        bool _matchesCurrentUser(dynamic p) {
-          if (p is! Map<String, dynamic>) return false;
-          final pid = p['id']?.toString() ?? '';
-          final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-          return pid == currentUserId || (loginUserId.isNotEmpty && pUserId == loginUserId);
-        }
+        bool _matchesCurrentUser(dynamic p) => matchesLocalPlayerSeat(
+              p,
+              seatId: currentUserId,
+              loginUserId: loginUserId,
+              practiceUserId: practiceUserId,
+            );
         final wasInGame = (previousPlayers ?? []).any(
           _matchesCurrentUser,
         );
@@ -1259,22 +1360,12 @@ When anyone has played a card with the **same rank** as your **collection card**
         // Do not permanently skip widget sync in that case (survivor would look "frozen").
         if (alreadyShownFor == gameId && players.any(_matchesCurrentUser)) {
           StateManager().updateModuleState('dutch_game', {'kickedModalShownFor': ''});
-          for (final p in players) {
-            if (p is Map<String, dynamic> && p['id']?.toString() == currentUserId) {
-              myPlayer = p;
-              break;
-            }
-          }
-          if (myPlayer == null && loginUserId.isNotEmpty) {
-            for (final p in players) {
-              if (p is! Map<String, dynamic>) continue;
-              final pUserId = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-              if (pUserId == loginUserId) {
-                myPlayer = p;
-                break;
-              }
-            }
-          }
+          myPlayer = findLocalPlayerInRoster(
+            players,
+            seatId: currentUserId,
+            loginUserId: loginUserId,
+            practiceUserId: practiceUserId,
+          );
         }
         if (myPlayer == null) {
           
@@ -1652,22 +1743,22 @@ When anyone has played a card with the **same rank** as your **collection card**
     // Find the current user's player data
     final seatId = getCurrentUserId();
     final loginUserId = getCurrentLoginUserId();
-    Map<String, dynamic>? myPlayer;
-    for (final p in players) {
-      if (p is! Map<String, dynamic>) continue;
-      final pid = p['id']?.toString() ?? '';
-      final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-      if (pid == seatId || (loginUserId.isNotEmpty && uid == loginUserId)) {
-        myPlayer = p;
-        break;
-      }
-    }
+    final practiceUserId = getPracticeUserId();
+    final myPlayer = findLocalPlayerInRoster(
+      players,
+      seatId: seatId,
+      loginUserId: loginUserId,
+      practiceUserId: practiceUserId,
+    );
     
     // Extract opponent players (excluding current user seat)
     final opponents = players.where((p) {
-      if (p is! Map<String, dynamic>) return false;
-      final pid = p['id']?.toString() ?? '';
-      return pid != seatId;
+      return !matchesLocalPlayerSeat(
+        p,
+        seatId: seatId,
+        loginUserId: loginUserId,
+        practiceUserId: practiceUserId,
+      );
     }).toList();
     
     // Update the game data with the new game state using helper method
@@ -2350,26 +2441,14 @@ When anyone has played a card with the **same rank** as your **collection card**
     
     // Get current user's player status for instructions (not the current player's status)
     // Note: players list and currentUserId are already extracted above for debug logging
-    Map<String, dynamic>? myPlayerForInstructions;
-    for (final p in players) {
-      if (p is Map<String, dynamic> && p['id']?.toString() == currentUserId) {
-        myPlayerForInstructions = p;
-        break;
-      }
-    }
-    if (myPlayerForInstructions == null) {
-      final loginUserId = StateManager().getModuleState<Map<String, dynamic>>('login')?['userId']?.toString() ?? '';
-      if (loginUserId.isNotEmpty) {
-        for (final p in players) {
-          if (p is! Map<String, dynamic>) continue;
-          final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
-          if (uid == loginUserId) {
-            myPlayerForInstructions = p;
-            break;
-          }
-        }
-      }
-    }
+    final loginUserIdForInstructions =
+        StateManager().getModuleState<Map<String, dynamic>>('login')?['userId']?.toString() ?? '';
+    final myPlayerForInstructions = findLocalPlayerInRoster(
+      players,
+      seatId: currentUserId,
+      loginUserId: loginUserIdForInstructions,
+      practiceUserId: getPracticeUserId(),
+    );
     final currentUserPlayerStatus = myPlayerForInstructions?['status']?.toString();
     
     

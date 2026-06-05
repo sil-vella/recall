@@ -6,12 +6,20 @@ import '../../dutch_game/models/state/dutch_game_state.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../utils/dutch_game_helpers.dart';
 import '../utils/game_ended_modal_pin.dart';
+import '../../../utils/dev_logger.dart';
 // ignore: unused_import
 import '../models/state/my_hand_state.dart'; // For future migration
 // ignore: unused_import
 import '../models/state/center_board_state.dart'; // For future migration
 // ignore: unused_import
 import '../models/state/opponents_panel_state.dart'; // For future migration
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Validated state updater for dutch game state management
 /// Ensures all state updates follow consistent structure and validation rules
@@ -348,27 +356,13 @@ class DutchGameStateUpdater {
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     final players = gameState['players'] as List<dynamic>? ?? [];
     
-    // Get current user ID - use helper that handles both practice and multiplayer modes
     final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-    
     if (currentUserId.isEmpty) {
       return 'unknown';
     }
-    
-    for (final player in players) {
-      if (player is Map<String, dynamic> && player['id']?.toString() == currentUserId) {
-        return player['status']?.toString() ?? 'unknown';
-      }
-    }
-    final loginUserId = DutchEventHandlerCallbacks.getCurrentLoginUserId();
-    if (loginUserId.isNotEmpty) {
-      for (final player in players) {
-        if (player is! Map<String, dynamic>) continue;
-        final uid = player['userId']?.toString() ?? player['user_id']?.toString() ?? '';
-        if (uid == loginUserId) {
-          return player['status']?.toString() ?? 'unknown';
-        }
-      }
+    final myPlayer = DutchEventHandlerCallbacks.findLocalPlayerInRoster(players);
+    if (myPlayer != null) {
+      return myPlayer['status']?.toString() ?? 'unknown';
     }
     return 'unknown';
   }
@@ -497,9 +491,17 @@ class DutchGameStateUpdater {
     
     // Derive current user status from SSOT
     final playerStatus = _getCurrentUserStatus(state);
-    
+    final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
+
+    if (LOGGING_SWITCH && currentGameId.startsWith('practice_room_')) {
+      customlog(
+        'LocalPlayerSeat: myHandSlice gameId=$currentGameId '
+        'cardsLen=${myHandCards.length} playerStatus=$playerStatus',
+      );
+    }
+
     return {
-      'cards': currentGame['myHandCards'] ?? [],
+      'cards': myHandCards,
       'selectedIndex': currentGame['selectedCardIndex'] ?? -1,
       'canSelectCards': isMyTurn && canPlayCard,
       'turn_events': turnEvents,
@@ -594,23 +596,16 @@ class DutchGameStateUpdater {
     // Get all players from game state (includes full player data with status)
     final allPlayers = gameState['players'] as List<dynamic>? ?? [];
     
-    // Identify "self" for opponent filtering: matches [getCurrentUserId]
-    // (`hum_<mongo>` in multiplayer) and avoids duplicate rows when id is still session-based.
+    // Identify "self" for opponent filtering (multiplayer, practice, demo).
     final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-    final loginMongoId =
-        DutchEventHandlerCallbacks.getCurrentLoginUserId().trim();
-    bool isSelfSeat(dynamic raw) {
-      if (raw is! Map) return false;
-      final pid = raw['id']?.toString() ?? '';
-      if (pid.isNotEmpty && pid == currentUserId) return true;
-      if (loginMongoId.isNotEmpty) {
-        if (pid == 'hum_$loginMongoId') return true;
-        final pUid = raw['userId']?.toString().trim() ?? '';
-        final human = raw['isHuman'] == true;
-        if (human && pUid.isNotEmpty && pUid == loginMongoId) return true;
-      }
-      return false;
-    }
+    final loginMongoId = DutchEventHandlerCallbacks.getCurrentLoginUserId().trim();
+    final practiceUserId = DutchEventHandlerCallbacks.getPracticeUserId();
+    bool isSelfSeat(dynamic raw) => DutchEventHandlerCallbacks.matchesLocalPlayerSeat(
+          raw,
+          seatId: currentUserId,
+          loginUserId: loginMongoId,
+          practiceUserId: practiceUserId,
+        );
 
     // Find current user's index in allPlayers list
     int currentUserIndex = -1;
@@ -654,6 +649,20 @@ class DutchGameStateUpdater {
     
     // Derive current player status from SSOT
     final currentPlayerStatus = _getCurrentPlayerStatus(state);
+
+    if (LOGGING_SWITCH && currentGameId.startsWith('practice_room_')) {
+      final rosterBrief = allPlayers.map((p) {
+        if (p is! Map) return '?';
+        final id = p['id']?.toString() ?? '';
+        final uid = p['userId']?.toString() ?? p['user_id']?.toString() ?? '';
+        return '$id(u:$uid)';
+      }).join(',');
+      customlog(
+        'LocalPlayerSeat: opponentsPanel gameId=$currentGameId '
+        'seat=$currentUserId login=$loginMongoId practice=$practiceUserId '
+        'roster=[$rosterBrief] selfIndex=$currentUserIndex oppCount=${opponents.length}',
+      );
+    }
     
     return {
       'opponents': opponents,

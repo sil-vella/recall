@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -8,6 +10,7 @@ import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
+import '../../dutch_game/utils/dutch_firebase_analytics.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
 import '../../promotional_ads_module/route_path_utils.dart';
@@ -91,7 +94,9 @@ class InterstitialAdModule extends ModuleBase {
     _isAdReady = false;
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (Ad a) {},
+      onAdShowedFullScreenContent: (Ad a) {
+        unawaited(DutchFirebaseAnalytics.logAdmobInterstitialShown());
+      },
       onAdDismissedFullScreenContent: (Ad dismissed) {
         dismissed.dispose();
         _recordViewBestEffort(context);

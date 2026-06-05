@@ -3,6 +3,7 @@ import '../../../../core/managers/state_manager.dart';
 import '../../../../utils/analytics_service.dart';
 import 'dutch_game_state_updater.dart';
 import 'player_action.dart';
+import '../utils/dutch_firebase_analytics.dart';
 import '../utils/dutch_game_helpers.dart';
 
 
@@ -18,6 +19,8 @@ class GameCoordinator {
   
   Timer? _leaveGameTimer; // Track active leave timer (survives widget disposal)
   String? _pendingLeaveGameId; // Track which game has pending leave
+  /// One Firebase `start_match_*` per [gameId] (manual Start tap or server auto-start).
+  final Set<String> _firebaseStartMatchLoggedGameIds = <String>{};
   
   /// Get the pending leave game ID (for checking if user returned to same game)
   String? get pendingLeaveGameId => _pendingLeaveGameId;
@@ -101,7 +104,69 @@ class GameCoordinator {
       _leaveGameTimer = null;
     }
     _pendingLeaveGameId = null;
-    
+    _firebaseStartMatchLoggedGameIds.clear();
+    DutchFirebaseAnalytics.resetSession();
+  }
+
+  /// Logs Firebase `start_match_*` when the server auto-starts (random join, auto_start rooms).
+  ///
+  /// Manual multiplayer starts still log via [startMatch]. Practice logs via [startMatch] only.
+  void maybeLogFirebaseStartMatchOnServerPhaseTransition({
+    required String gameId,
+    required String previousUiPhase,
+    required String rawPhase,
+  }) {
+    if (gameId.isEmpty || gameId.startsWith('practice_room_')) {
+      return;
+    }
+
+    final wasWaiting = previousUiPhase == 'waiting' ||
+        previousUiPhase == 'setup' ||
+        previousUiPhase.isEmpty;
+    if (!wasWaiting) {
+      return;
+    }
+
+    if (rawPhase.isEmpty ||
+        rawPhase == 'waiting_for_players' ||
+        rawPhase == 'game_ended') {
+      return;
+    }
+
+    if (_firebaseStartMatchLoggedGameIds.contains(gameId)) {
+      return;
+    }
+
+    final dutchGameState =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final isClearAndCollect = _resolveIsClearAndCollect(gameId, dutchGameState);
+
+    unawaited(_logFirebaseStartMatch(
+      currentGameId: gameId,
+      isPractice: false,
+      isClearAndCollect: isClearAndCollect,
+    ));
+  }
+
+  bool _resolveIsClearAndCollect(
+    String currentGameId,
+    Map<String, dynamic> dutchGameState,
+  ) {
+    if (currentGameId.startsWith('practice_room_')) {
+      final practiceSettings =
+          dutchGameState['practiceSettings'] as Map<String, dynamic>?;
+      return practiceSettings?['isClearAndCollect'] == true;
+    }
+
+    final rj = dutchGameState['randomJoinIsClearAndCollect'] as bool?;
+    if (rj != null) {
+      return rj;
+    }
+
+    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final entry = games[currentGameId] as Map<String, dynamic>?;
+    final gt = entry?['game_type']?.toString() ?? 'classic';
+    return gt == 'clear_and_collect';
   }
   
   /// Execute leave game after timer expires
@@ -157,18 +222,7 @@ class GameCoordinator {
         isClearAndCollect = practiceSettings?['isClearAndCollect'] as bool?;
       } else {
         showInstructions = null; // Multiplayer games don't use showInstructions
-        // join_random_game stores randomJoinIsClearAndCollect (true/false) before match start.
-        // Lobby create_room never sets it — must infer from games map game_type (classic vs clear_and_collect),
-        // otherwise we wrongly default to collection mode and send isClearAndCollect: true in start_match.
-        final rj = dutchGameState['randomJoinIsClearAndCollect'] as bool?;
-        if (rj != null) {
-          isClearAndCollect = rj;
-        } else {
-          final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-          final entry = games[currentGameId] as Map<String, dynamic>?;
-          final gt = entry?['game_type']?.toString() ?? 'classic';
-          isClearAndCollect = gt == 'clear_and_collect';
-        }
+        isClearAndCollect = _resolveIsClearAndCollect(currentGameId, dutchGameState);
       }
       
       // Create and execute the player action
@@ -197,6 +251,11 @@ class GameCoordinator {
     required bool isPractice,
     required bool isClearAndCollect,
   }) async {
+    if (_firebaseStartMatchLoggedGameIds.contains(currentGameId)) {
+      return;
+    }
+    _firebaseStartMatchLoggedGameIds.add(currentGameId);
+
     if (isPractice) {
       final name = isClearAndCollect
           ? 'start_match_practice_clear_collect'

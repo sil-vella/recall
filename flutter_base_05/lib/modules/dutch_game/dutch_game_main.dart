@@ -354,7 +354,7 @@ class DutchGameMain extends ModuleBase {
     navigationManager.registerRoute(
       path: '/coin-purchase',
       screen: (BuildContext context) => const CoinPurchaseScreen(),
-      drawerTitle: 'Buy coins',
+      drawerTitle: 'Game Coins',
       drawerIcon: Icons.monetization_on,
       drawerPosition: 50,
     );

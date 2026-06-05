@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import '../../../core/managers/module_manager.dart';
@@ -15,6 +17,7 @@ import '../backend_core/services/game_state_store.dart';
 import '../backend_core/services/game_registry.dart';
 import '../practice/practice_mode_bridge.dart';
 import '../managers/game_coordinator.dart';
+import 'dutch_firebase_analytics.dart';
 import '../backend_core/utils/level_matcher.dart';
 import 'table_tiers_bootstrap.dart';
 import 'consumables_catalog_bootstrap.dart';
@@ -308,6 +311,11 @@ class DutchGameHelpers {
         _stateUpdater.updateStateSync({
           'pending_start_match_source': 'create_room',
         });
+        unawaited(DutchFirebaseAnalytics.logLobbyCreateRoom(
+          gameType: gameType,
+          autoStart: autoStart ? 1 : 0,
+          gameLevel: gameLevel,
+        ));
       }
       return result;
     } catch (e) {
@@ -356,6 +364,7 @@ class DutchGameHelpers {
       _stateUpdater.updateStateSync({
         'pending_start_match_source': 'join_room',
       });
+      unawaited(DutchFirebaseAnalytics.logLobbyJoinRoom(roomId: roomId));
     }
     return joinResult;
     } catch (e) {
@@ -817,6 +826,11 @@ class DutchGameHelpers {
       
       // The emit returns immediately, but the actual response comes via WebSocket events
       // Return success - the actual join/creation will be handled via event handlers
+      unawaited(DutchFirebaseAnalytics.logLobbyRandomJoinStarted(
+        isClearAndCollect: isClearAndCollect,
+        gameLevel: gameLevel,
+        specialEventId: specialEventId,
+      ));
       return {
         'success': true,
         'message': 'Searching for available game...',

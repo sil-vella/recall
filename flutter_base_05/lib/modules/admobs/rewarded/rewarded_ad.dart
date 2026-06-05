@@ -9,6 +9,7 @@ import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
+import '../../dutch_game/utils/dutch_firebase_analytics.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
 
@@ -133,6 +134,7 @@ class RewardedAdModule extends ModuleBase {
 
     ad.show(
       onUserEarnedReward: (AdWithoutView adView, RewardItem reward) {
+        unawaited(DutchFirebaseAnalytics.logAdmobRewardedEarned());
         onUserEarnedReward();
         _recordRewardViewBestEffort(sharedPref);
       },

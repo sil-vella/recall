@@ -1,0 +1,187 @@
+---
+# One-off: set a single user's modules.dutch_game.subscription_tier on VPS MongoDB.
+# Valid tiers: promotional, regular, premium (see tier_rank_level_matcher).
+#
+# Required extra var:
+#   -e tier=promotional|regular|premium
+#
+# User selection (one of):
+#   -e user_choice=1   # default: silvestervella (69ad608e5cfa3eb1703c134a)
+#   -e user_choice=2   # lotteveldman92 (69bab0ac05b55a7d0122d631)
+#   -e user_choice=3   # silvestervella2 (69bb27bbcb761230c4ab4d6a)
+#   -e target_user_id=<24-char hex>   # overrides user_choice
+#
+# Usage:
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_tier.yml -e vm_name=rop01 -e tier=regular
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_tier.yml -e vm_name=rop01 -e tier=premium -e user_choice=2
+#   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/set_user_tier.yml -e vm_name=rop01 -e tier=regular -e target_user_id=69ad608e5cfa3eb1703c134a
+
+- name: Load app_dev/.env.prod for MongoDB password (optional)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_env_path: "{{ playbook_dir }}/../../.env.prod"
+  tasks:
+    - name: Check if app_dev/.env.prod exists
+      stat:
+        path: "{{ local_env_path }}"
+      register: local_env_check
+
+    - name: Parse app_dev/.env.prod into JSON
+      shell: |
+        python3 << 'PYEOF'
+        import json, os, re
+        path = os.environ.get('LOCAL_ENV_PATH', '')
+        out = {}
+        if path and os.path.isfile(path):
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'): continue
+                    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+                    if m:
+                        k, v = m.group(1), m.group(2).strip().strip('"').strip("'")
+                        out[k] = v
+        result = { 'mongodb_password': out.get('MONGODB_PASSWORD', '') }
+        print(json.dumps(result))
+        PYEOF
+      register: env_json
+      changed_when: false
+      environment:
+        LOCAL_ENV_PATH: "{{ local_env_path }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set env facts from app_dev/.env.prod
+      set_fact:
+        mongodb_password: "{{ (env_json.stdout | from_json).mongodb_password }}"
+      when: local_env_check.stat.exists | default(false) and env_json.stdout | length > 0
+
+- name: Set a single user's Dutch subscription_tier (VPS Docker)
+  hosts: "{{ vm_name | default('rop01') }}_user"
+  become: true
+  gather_facts: false
+  vars:
+    mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
+    mongodb_container_name: "dutch_external_app_mongodb"
+    dutch_vps_test_user_ids:
+      "1":
+        id: "69ad608e5cfa3eb1703c134a"
+        username: "silvestervella"
+      "2":
+        id: "69bab0ac05b55a7d0122d631"
+        username: "lotteveldman92"
+      "3":
+        id: "69bb27bbcb761230c4ab4d6a"
+        username: "silvestervella2"
+    user_choice: "1"
+    allowed_tiers: ["promotional", "regular", "premium"]
+  tasks:
+    - name: Normalize tier
+      set_fact:
+        target_tier: "{{ (tier | default('regular')) | lower | trim }}"
+
+    - name: Validate tier argument
+      assert:
+        that: target_tier in allowed_tiers
+        fail_msg: "Pass -e tier= one of {{ allowed_tiers | join(', ') }}. Got: {{ target_tier }}"
+
+    - name: Validate user_choice when target_user_id not set
+      assert:
+        that:
+          - (target_user_id | default('') | length > 0) or (user_choice | string in dutch_vps_test_user_ids)
+        fail_msg: "Use -e user_choice=1, 2, or 3, or pass -e target_user_id=<Mongo ObjectId hex>."
+
+    - name: Validate target_user_id when provided
+      assert:
+        that:
+          - target_user_id | string is match('^[0-9a-fA-F]{24}$')
+        fail_msg: "target_user_id must be a 24-char Mongo ObjectId hex."
+      when: target_user_id | default('') | length > 0
+
+    - name: Resolve target Mongo user _id
+      set_fact:
+        resolved_user_id: "{{ target_user_id | default(dutch_vps_test_user_ids[user_choice | string].id, true) }}"
+
+    - name: Show resolved user
+      debug:
+        msg:
+          - "resolved_user_id: {{ resolved_user_id }}"
+          - "target_tier: {{ target_tier }}"
+          - "user_choice: {{ user_choice }}"
+          - "username: {{ dutch_vps_test_user_ids[user_choice | string].username if (target_user_id | default('') | length == 0) else '(custom target_user_id)' }}"
+
+    - name: Create Mongo script to update one user subscription_tier
+      copy:
+        dest: "/tmp/set_user_tier.js"
+        mode: "0644"
+        content: |
+          print("VPS set_user_tier: target user {{ resolved_user_id }}, target tier {{ target_tier }}");
+          var d = db.getSiblingDB("external_system");
+          var userId = "{{ resolved_user_id }}";
+          var tierVal = "{{ target_tier }}";
+          var userBefore = d.users.findOne(
+            { _id: ObjectId(userId) },
+            { _id: 1, email: 1, username: 1, "modules.dutch_game.subscription_tier": 1 }
+          );
+          if (!userBefore) {
+            print("ERROR: User with _id " + userId + " not found");
+            quit(1);
+          }
+          var beforeTier = null;
+          if (userBefore.modules && userBefore.modules.dutch_game && typeof userBefore.modules.dutch_game.subscription_tier !== "undefined") {
+            beforeTier = userBefore.modules.dutch_game.subscription_tier;
+          }
+          var result = d.users.updateOne(
+            { _id: ObjectId(userId) },
+            { $set: { "modules.dutch_game.subscription_tier": tierVal, updated_at: new Date().toISOString() } }
+          );
+          if (result.matchedCount === 0) {
+            print("ERROR: User with _id " + userId + " not found during update");
+            quit(1);
+          }
+          var userAfter = d.users.findOne(
+            { _id: ObjectId(userId) },
+            { _id: 1, email: 1, username: 1, "modules.dutch_game.subscription_tier": 1 }
+          );
+          var afterTier = null;
+          if (userAfter.modules && userAfter.modules.dutch_game && typeof userAfter.modules.dutch_game.subscription_tier !== "undefined") {
+            afterTier = userAfter.modules.dutch_game.subscription_tier;
+          }
+          print("OK: Updated modules.dutch_game.subscription_tier");
+          print("User ID: " + userId);
+          print("Email: " + (userAfter.email || ""));
+          print("Username: " + (userAfter.username || ""));
+          print("Tier before: " + beforeTier);
+          print("Tier after: " + afterTier);
+          quit(0);
+
+    - name: Copy script into MongoDB container
+      shell: sg docker -c 'docker cp /tmp/set_user_tier.js {{ mongodb_container_name }}:/tmp/set_user_tier.js'
+      register: copy_out
+      changed_when: copy_out.rc == 0
+
+    - name: Run script in MongoDB container
+      shell: |
+        sg docker -c 'docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/set_user_tier.js'
+      register: script_out
+      changed_when: true
+
+    - name: Show script stdout
+      debug:
+        msg: "{{ script_out.stdout_lines | default([]) }}"
+
+    - name: Show script stderr if any
+      debug:
+        msg: "{{ script_out.stderr_lines | default([]) }}"
+      when: script_out.stderr_lines | default([]) | length > 0
+
+    - name: Remove script from host
+      file:
+        path: /tmp/set_user_tier.js
+        state: absent
+
+    - name: Fail if script failed
+      fail:
+        msg: "MongoDB script failed: rc={{ script_out.rc }}, stderr={{ script_out.stderr | default('') }}"
+      when: script_out.rc != 0

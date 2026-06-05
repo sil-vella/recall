@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -19,6 +20,8 @@ import '../screens/promotion/dutch_promotion_screen.dart';
 import '../screens/promotion/dutch_win_celebration_screen.dart';
 import '../screens/promotion/dutch_achievement_celebration_screen.dart';
 import '../utils/dutch_achievement_catalog.dart';
+import 'game_coordinator.dart';
+import '../utils/dutch_firebase_analytics.dart';
 import '../../../utils/dev_logger.dart';
 
 const bool LOGGING_SWITCH = false;
@@ -2426,6 +2429,13 @@ When anyone has played a card with the **same rank** as your **collection card**
         // If game already exists in joinedGames, don't update it (prevents duplicates)
       }
     }
+
+    GameCoordinator().maybeLogFirebaseStartMatchOnServerPhaseTransition(
+      gameId: gameId,
+      previousUiPhase: previousUiPhase,
+      rawPhase: rawPhase,
+    );
+
     _updateMainGameState(consolidatedMainStatePatch);
     
     
@@ -2502,6 +2512,11 @@ When anyone has played a card with the **same rank** as your **collection card**
         'result': isCurrentUserWinner ? 'win' : 'loss',
         'winners_count': winners.length,
       });
+      unawaited(DutchFirebaseAnalytics.maybeLogMatchCompleted(
+        gameId: gameId,
+        gameState: gameState,
+        isCurrentUserWinner: isCurrentUserWinner,
+      ));
       
       // Refresh user stats (including coins) after game ends to update app bar display
       // This ensures the coins display shows the updated balance after winning/losing
@@ -2758,6 +2773,11 @@ When anyone has played a card with the **same rank** as your **collection card**
         winnerMessages: winnerMessages,
         logContext: 'handleGameStatePartialUpdate',
       );
+      unawaited(DutchFirebaseAnalytics.maybeLogMatchCompleted(
+        gameId: gameId,
+        gameState: updatedGameState,
+        isCurrentUserWinner: isCurrentUserWinnerPartial,
+      ));
       _refreshUserStatsAfterGameEnd(
         'handleGameStatePartialUpdate',
         afterModalGate: winCelebrationGate,

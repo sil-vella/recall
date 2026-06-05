@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
+import '../../../utils/dutch_firebase_analytics.dart';
 import '../../../utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../../../utils/consts/config.dart';
@@ -1127,6 +1130,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       final map =
           data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
       final error = map['message'] ?? map['error'] ?? 'Unknown error';
+      unawaited(DutchFirebaseAnalytics.logLobbyRandomJoinFailed(reason: error.toString()));
       final errStr = error.toString().toLowerCase();
       final skipSnack = errStr.contains('insufficient coins');
       if (!skipSnack) {
@@ -1219,6 +1223,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
             '(see login state / WS init; account screen may open for auth)',
           );
         }
+        unawaited(DutchFirebaseAnalytics.logLobbyRandomJoinFailed(
+          reason: 'websocket_not_ready',
+        ));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1280,6 +1287,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       if (LOGGING_SWITCH) {
         customlog('JoinRandomGameWidget: join failed $e');
       }
+      unawaited(DutchFirebaseAnalytics.logLobbyRandomJoinFailed(reason: e.toString()));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -13,6 +13,7 @@ import '../../modules/admobs/ad_experience_policy.dart';
 import '../../modules/admobs/rewarded/rewarded_ad.dart';
 import '../../modules/admobs/rewarded/rewarded_ad_daily_cap.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
+import '../../modules/dutch_game/utils/dutch_firebase_analytics.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../utils/analytics_service.dart';
 import '../../utils/coin_catalog.dart';
@@ -27,7 +28,7 @@ class CoinPurchaseScreen extends BaseScreen {
   const CoinPurchaseScreen({Key? key}) : super(key: key);
 
   @override
-  String computeTitle(BuildContext context) => 'Buy coins';
+  String computeTitle(BuildContext context) => 'Game Coins';
 
   @override
   BaseScreenState<CoinPurchaseScreen> createState() => _CoinPurchaseScreenState();
@@ -454,6 +455,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       final map = Map<String, dynamic>.from(raw);
       if (map['success'] != true) {
         final msg = map['error']?.toString() ?? map['message']?.toString() ?? 'Could not apply reward';
+        unawaited(DutchFirebaseAnalytics.logAdmobRewardedClaimFailed(reason: msg));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -464,11 +466,22 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         }
         return;
       }
-      await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
-      if (!mounted) return;
+
+      final dup = map['duplicate'] == true;
       final credited = map['coins_credited'];
       final bal = map['balance'];
-      final dup = map['duplicate'] == true;
+
+      // Log after server confirms claim (not on SDK reward alone). GA4 params: int not bool.
+      await AnalyticsService.logEvent(
+        name: 'admob_rewarded_claim',
+        parameters: {
+          'duplicate': dup ? 1 : 0,
+          if (credited != null) 'coins_credited': credited is num ? credited.toInt() : int.tryParse('$credited') ?? 0,
+        },
+      );
+
+      await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+      if (!mounted) return;
       final msg = dup
           ? 'Reward already recorded.'
           : (credited != null ? '+$credited coins. Balance: $bal' : 'Coins added.');
@@ -478,11 +491,8 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           backgroundColor: AppColors.primaryColor,
         ),
       );
-      await AnalyticsService.logEvent(
-        name: 'admob_rewarded_claim',
-        parameters: {'duplicate': dup},
-      );
-    } catch (_) {
+    } catch (e) {
+      unawaited(DutchFirebaseAnalytics.logAdmobRewardedClaimFailed(reason: e.toString()));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -627,6 +637,18 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_nativeMobile && Config.admobsRewarded01.trim().isNotEmpty) ...[
+                ListenableBuilder(
+                  listenable: StateManager(),
+                  builder: (context, _) {
+                    if (!AdExperiencePolicy.showMonetizedAds) {
+                      return const SizedBox.shrink();
+                    }
+                    return _buildRewardedAdCard();
+                  },
+                ),
+                SizedBox(height: AppPadding.defaultPadding.top),
+              ],
               if (kIsWeb) ...[
                 Text('Coin packages', style: AppTextStyles.headingSmall()),
                 const SizedBox(height: 8),
@@ -668,18 +690,6 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                   )
                 else
                   ...CoinCatalog.playRecommendedPackages.map(_buildPlayPackageRow),
-                SizedBox(height: AppPadding.defaultPadding.top),
-              ],
-              if (_nativeMobile && Config.admobsRewarded01.trim().isNotEmpty) ...[
-                ListenableBuilder(
-                  listenable: StateManager(),
-                  builder: (context, _) {
-                    if (!AdExperiencePolicy.showMonetizedAds) {
-                      return const SizedBox.shrink();
-                    }
-                    return _buildRewardedAdCard();
-                  },
-                ),
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
               if (_isIos) ...[

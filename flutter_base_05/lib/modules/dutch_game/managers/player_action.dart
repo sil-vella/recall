@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'validated_event_emitter.dart';
+import '../utils/dutch_firebase_analytics.dart';
 import '../../dutch_game/managers/dutch_game_state_updater.dart';
 import '../../../utils/dev_logger.dart';
 import '../../../core/managers/module_manager.dart';
@@ -186,6 +189,9 @@ class PlayerAction {
               'event_name': eventName,
             },
           );
+          unawaited(DutchFirebaseAnalytics.logDutchCalled(
+            gameId: payload['game_id']?.toString() ?? '',
+          ));
           break;
         default:
           // Track other actions as generic game actions

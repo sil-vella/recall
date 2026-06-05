@@ -28,15 +28,13 @@ class WebSocketServerStub {
     _onBroadcastToRoom?.call(roomId, message);
   }
 
-  /// Broadcast to all sessions in a room except the specified session
-  /// In practice mode, this is typically a no-op since there's only one player
+  /// Broadcast to all sessions in a room except [excludeSessionId].
+  ///
+  /// When [excludeSessionId] is a CPU seat (`cpu_*`) it is not a real session, so the
+  /// human observer still receives the message (opponent draw/peek STEP-1 updates).
   void broadcastToRoomExcept(String roomId, Map<String, dynamic> message, String excludeSessionId) {
     final sessions = _roomManager.getSessionsInRoom(roomId);
     final filteredSessions = sessions.where((sessionId) => sessionId != excludeSessionId).toList();
-    
-    
-    // In practice mode, if we're excluding the only player, this is a no-op
-    // Otherwise, broadcast to remaining sessions
     for (final sessionId in filteredSessions) {
       _onSendToSession?.call(sessionId, message);
     }
@@ -61,11 +59,14 @@ class WebSocketServerStub {
     return info?.ownerId;
   }
 
-  /// Map canonical seat id → practice session id (mirror backend API).
+  /// Map canonical seat id → practice websocket session id (mirror backend API).
+  ///
+  /// Returns [gamePlayerSeatId] when it is a connected session (the human).
+  /// Returns null for CPU/comp seats so [broadcastGameStateExcept] does not exclude
+  /// the human when an opponent draws or peeks.
   String? websocketSessionForGamePlayer(String roomId, String gamePlayerSeatId) {
     final sessions = _roomManager.getSessionsInRoom(roomId);
     if (sessions.contains(gamePlayerSeatId)) return gamePlayerSeatId;
-    if (sessions.length == 1) return sessions.first;
     return null;
   }
 

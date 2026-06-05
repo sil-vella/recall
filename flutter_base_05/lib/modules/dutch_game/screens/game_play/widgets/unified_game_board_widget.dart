@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../core/managers/module_manager.dart';
+import '../../../../audio_module/audio_module.dart';
 import '../../../models/card_model.dart';
 import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
@@ -638,6 +640,45 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final playChanged = _syncMyTurnPlayFeed(dutch);
     final sameRankChanged = _syncMyTurnSameRankFeed(dutch);
     return playChanged || sameRankChanged;
+  }
+
+  void _playTurnStartTimerSound() {
+    try {
+      final audio = ModuleManager().getModuleByType<AudioModule>();
+      if (audio == null) {
+        if (LOGGING_SWITCH) {
+          customlog('UnifiedGameBoard: turn timer skip (no AudioModule)');
+        }
+        return;
+      }
+      if (LOGGING_SWITCH) {
+        customlog('UnifiedGameBoard: turn timer sound muted=${AudioModule.isMuted}');
+      }
+      audio.playSound('timer');
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        customlog('UnifiedGameBoard: turn timer sound error err=$e');
+      }
+    }
+  }
+
+  static const Set<String> _timerSoundPlayerStatuses = {
+    'drawing_card',
+    'queen_peek',
+    'jack_swap',
+  };
+
+  void _maybePlayTurnStartTimerSound({
+    required bool isGameActive,
+    required bool isMyTurn,
+    required String playerStatus,
+  }) {
+    if (!isGameActive || !_timerSoundPlayerStatuses.contains(playerStatus)) {
+      return;
+    }
+    if (_previousPlayerStatus == playerStatus) return;
+    if (playerStatus == 'drawing_card' && !isMyTurn) return;
+    _playTurnStartTimerSound();
   }
 
   bool _ingestTurnFeedFromState() {
@@ -3176,6 +3217,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       // Also clear jack swap selections in PlayerAction
       PlayerAction.resetJackSwapSelections();
     }
+
+    _maybePlayTurnStartTimerSound(
+      isGameActive: isGameActive,
+      isMyTurn: isMyTurn,
+      playerStatus: playerStatus,
+    );
     
     // Update previous status for next check
     _previousPlayerStatus = playerStatus;

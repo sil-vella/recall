@@ -74,7 +74,7 @@ abstract class BaseScreen extends StatefulWidget {
   /// Optional method to provide a custom content main axis size
   MainAxisSize? getContentMainAxisSize(BuildContext context) => null;
 
-  /// When false, [BaseScreen] omits top/bottom AdMob banner bars (e.g. in-game full-bleed UI).
+  /// When false, [BaseScreen] omits the top AdMob banner bar (e.g. in-game full-bleed UI).
   bool get showAdBannerBars => true;
 
   @override
@@ -88,7 +88,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   /// One [BannerAd] + [AdWidget] per screen instance (never reuse keys across routes).
   final Key topBannerHostKey = UniqueKey();
-  final Key bottomBannerHostKey = UniqueKey();
 
   /// Drains pending `instant_ws` rows (same modal path as periodic check) when [NotificationsModule] signals new items.
   void _onPendingWsInstantQueued() {
@@ -754,12 +753,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                             builder: (context, _) => buildContent(context),
                           ),
                         ),
-                        if (widget.showAdBannerBars)
-                          _AdBannerBar(
-                            bannerAdModule: bannerAdModule,
-                            slot: 'bottom',
-                            hostKey: bottomBannerHostKey,
-                          ),
                       ],
                     );
                   },
@@ -953,7 +946,7 @@ class BaseTextField extends StatelessWidget {
   }
 }
 
-/// Top/bottom banner chrome; host stays mounted (clip/hide) so [AdWidget] is not recreated.
+/// Top banner chrome; host stays mounted (clip/hide) so [AdWidget] is not recreated.
 class _AdBannerBar extends StatelessWidget {
   const _AdBannerBar({
     required this.bannerAdModule,

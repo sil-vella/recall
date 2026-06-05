@@ -20,6 +20,7 @@ import '../screens/promotion/dutch_promotion_screen.dart';
 import '../screens/promotion/dutch_win_celebration_screen.dart';
 import '../screens/promotion/dutch_achievement_celebration_screen.dart';
 import '../utils/dutch_achievement_catalog.dart';
+import '../../audio_module/audio_module.dart';
 import 'game_coordinator.dart';
 import '../utils/dutch_firebase_analytics.dart';
 import '../../../utils/dev_logger.dart';
@@ -1900,6 +1901,19 @@ When anyone has played a card with the **same rank** as your **collection card**
           'playerStatus': playerStatus,
         },
       });
+
+      if (playerStatus == 'drawing_card' ||
+          playerStatus == 'queen_peek' ||
+          playerStatus == 'jack_swap') {
+        try {
+          ModuleManager().getModuleByType<AudioModule>()?.playSound('timer');
+        } catch (_) {}
+        if (LOGGING_SWITCH) {
+          customlog(
+            'handleTurnStarted: timer sound gameId=$gameId playerId=$playerId status=$playerStatus',
+          );
+        }
+      }
       
       // Add session message about turn started
       _addSessionMessage(

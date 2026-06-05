@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../../../core/managers/module_manager.dart';
+import '../../../../audio_module/audio_module.dart';
 import '../../../utils/platform/shared_imports.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../models/card_display_config.dart';
@@ -394,6 +396,41 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     return null;
   }
 
+  void _playAnimSound(String action, Map head) {
+    final isInitialDeal = action == 'deal' ||
+        action == 'deal_batch' ||
+        (head['context'] is Map &&
+            (head['context'] as Map)['is_initial_deal'] == true);
+    String? soundKey;
+    if (action == 'draw') {
+      soundKey = 'draw';
+    } else if (action == 'play_card' || action == 'same_rank_play') {
+      soundKey = 'play';
+    } else if (action == 'jack_swap') {
+      soundKey = 'swap';
+    } else if (isInitialDeal) {
+      soundKey = 'init_deal';
+    }
+    if (soundKey == null) return;
+    try {
+      final audio = ModuleManager().getModuleByType<AudioModule>();
+      if (audio == null) {
+        if (LOGGING_SWITCH) {
+          customlog('DutchCardAnimOverlay: sound skip action=$action key=$soundKey (no AudioModule)');
+        }
+        return;
+      }
+      if (LOGGING_SWITCH) {
+        customlog('DutchCardAnimOverlay: sound action=$action key=$soundKey muted=${AudioModule.isMuted}');
+      }
+      audio.playSound(soundKey);
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        customlog('DutchCardAnimOverlay: sound error action=$action key=$soundKey err=$e');
+      }
+    }
+  }
+
   bool _isSupportedAction(String action) {
     const supported = <String>{
       'draw',
@@ -524,6 +561,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     }
 
     if (mounted) setState(() {});
+    _playAnimSound(action, head);
     if (peekGlow) {
       _schedulePeekGlowComplete(seq!);
     }

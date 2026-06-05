@@ -20,6 +20,8 @@ import '../../utils/coin_catalog.dart';
 import '../../utils/consts/config.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../utils/play_purchase_token.dart';
+import '../../utils/widgets/coin_icon.dart';
+import 'coin_purchase_celebration_screen.dart';
 
 /// **Web**: Stripe Checkout via `/userauth/stripe/create-coin-checkout-session`.
 /// **Android**: Google Play consumable coin packs + server verify `/userauth/play/verify-coin-purchase`.
@@ -60,6 +62,28 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   }
 
   bool get _isPremium => (_subscriptionTier()?.trim().toLowerCase() ?? '') == 'premium';
+
+  String _coinPurchaseSuccessMessage({
+    dynamic credited,
+    bool bonus = false,
+  }) {
+    if (credited != null) {
+      return bonus
+          ? '+$credited coins (Premium +${CoinCatalog.subscriberCoinBonusPercent}%).'
+          : '+$credited coins added to your balance.';
+    }
+    return 'Coins added to your balance.';
+  }
+
+  Future<void> _showCoinPurchaseCelebration(String message) async {
+    if (!_nativeMobile || !mounted) return;
+    await Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => CoinPurchaseCelebrationScreen(successMessage: message),
+      ),
+    );
+  }
 
   Future<void> _bootstrapCatalog() async {
     await CoinCatalog.ensureLoaded();
@@ -204,18 +228,20 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       if (mounted) {
         final credited = map['coins_credited'];
         final bonus = map['subscriber_bonus_applied'] == true;
-        final msg = credited != null
-            ? (bonus ? '+$credited coins (Premium +${CoinCatalog.subscriberCoinBonusPercent}%).' : '+$credited coins added.')
-            : 'Coins added to your balance.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              msg,
-              style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+        final msg = _coinPurchaseSuccessMessage(credited: credited, bonus: bonus);
+        if (_nativeMobile) {
+          await _showCoinPurchaseCelebration(msg);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                msg,
+                style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+              ),
+              backgroundColor: AppColors.primaryColor,
             ),
-            backgroundColor: AppColors.primaryColor,
-          ),
-        );
+          );
+        }
       }
       await AnalyticsService.logEvent(
         name: 'play_coin_purchase_verified',
@@ -558,6 +584,113 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     }
   }
 
+  int _currentCoins() {
+    final stats = DutchGameHelpers.getUserDutchGameStats();
+    return (stats?['coins'] as num?)?.toInt() ?? 0;
+  }
+
+  BoxDecoration _coinCardDecoration({bool highlighted = false}) {
+    return BoxDecoration(
+      color: AppColors.widgetContainerBackground,
+      borderRadius: AppBorderRadius.largeRadius,
+      border: Border.all(
+        color: highlighted
+            ? AppColors.matchPotGold.withValues(alpha: 0.55)
+            : AppColors.borderDefault.withValues(alpha: 0.35),
+        width: highlighted ? 1.5 : 1,
+      ),
+    );
+  }
+
+  Widget _buildBalanceHeader(int coins) {
+    return Container(
+      width: double.infinity,
+      padding: AppPadding.largePadding,
+      decoration: BoxDecoration(
+        color: AppColors.accentContrast,
+        borderRadius: AppBorderRadius.largeRadius,
+        border: Border.all(
+          color: AppColors.matchPotGold.withValues(alpha: 0.45),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: AppPadding.smallPadding,
+            decoration: BoxDecoration(
+              color: AppColors.matchPotGold.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.matchPotGold.withValues(alpha: 0.4),
+              ),
+            ),
+            child: CoinIcon(size: 36, color: AppColors.matchPotGold),
+          ),
+          SizedBox(width: AppPadding.defaultPadding.left),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your balance',
+                  style: AppTextStyles.label(color: AppColors.lightGray),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  coins.toString(),
+                  style: AppTextStyles.headingLarge(color: AppColors.matchPotGold).copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (_isPremium) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Premium: +${CoinCatalog.subscriberCoinBonusPercent}% bonus on coin packs',
+                    style: AppTextStyles.bodySmall(color: AppColors.matchPotGold),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: AppTextStyles.headingSmall()),
+        SizedBox(height: AppPadding.smallPadding.top),
+        Text(
+          subtitle,
+          style: AppTextStyles.bodyMedium(color: AppColors.lightGray),
+        ),
+        SizedBox(height: AppPadding.defaultPadding.top),
+      ],
+    );
+  }
+
+  Widget _buildPopularBadge() {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppPadding.smallPadding.left,
+        vertical: 3,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.matchPotGold.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.matchPotGold.withValues(alpha: 0.55)),
+      ),
+      child: Text(
+        'Most Popular',
+        style: AppTextStyles.bodySmall(color: AppColors.matchPotGold),
+      ),
+    );
+  }
+
   Widget _buildRewardedAdCard() {
     final mod = ModuleManager().getModuleByType<RewardedAdModule>();
     if (mod == null) {
@@ -576,47 +709,57 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         final canWatch = !_rewardedAdBusy && ready && !atDailyCap;
         return Container(
           width: double.infinity,
-          padding: AppPadding.cardPadding,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: AppBorderRadius.smallRadius,
-            border: Border.all(color: AppColors.borderDefault),
-          ),
+          padding: AppPadding.largePadding,
+          decoration: _coinCardDecoration(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Free coins', style: AppTextStyles.headingSmall()),
-              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.play_circle_outline, color: AppColors.matchPotGold, size: 22),
+                  SizedBox(width: AppPadding.smallPadding.left),
+                  Text(
+                    'Free coins',
+                    style: AppTextStyles.headingSmall(color: AppColors.white),
+                  ),
+                ],
+              ),
+              SizedBox(height: AppPadding.smallPadding.top),
               Text(
                 atDailyCap
                     ? 'You have watched the maximum of $cap ads today (UTC). Come back tomorrow.'
                     : 'Watch a short video for $coins coins each (resets at midnight UTC).',
-                style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                style: AppTextStyles.bodyMedium(color: AppColors.lightGray),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: AppPadding.mediumPadding.top),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
                     child: FilledButton(
                       onPressed: canWatch ? _watchRewardedAdForCoins : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.accentColor,
+                        foregroundColor: AppColors.textOnAccent,
+                      ),
                       child: _rewardedAdBusy
                           ? SizedBox(
                               width: 22,
                               height: 22,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.textOnPrimary,
+                                color: AppColors.textOnAccent,
                               ),
                             )
                           : Text(
                               atDailyCap
                                   ? 'Daily limit reached'
                                   : (ready ? 'Watch ad for $coins coins' : 'Loading ad…'),
+                              style: AppTextStyles.buttonText(),
                             ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: AppPadding.mediumPadding.left),
                   _RewardedAdsRemainingBadge(remaining: remaining, cap: cap),
                 ],
               ),
@@ -632,11 +775,14 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, _) {
+        final coins = _currentCoins();
         return SingleChildScrollView(
           padding: AppPadding.defaultPadding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildBalanceHeader(coins),
+              SizedBox(height: AppPadding.defaultPadding.top),
               if (_nativeMobile && Config.admobsRewarded01.trim().isNotEmpty) ...[
                 ListenableBuilder(
                   listenable: StateManager(),
@@ -650,18 +796,15 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
               if (kIsWeb) ...[
-                Text('Coin packages', style: AppTextStyles.headingSmall()),
-                const SizedBox(height: 8),
-                Text(
+                _buildSectionHeader(
+                  'Coin packages',
                   'Choose a coin pack. Secure checkout is processed by Stripe.',
-                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
                 ),
-                SizedBox(height: AppPadding.defaultPadding.top),
                 if (!_catalogReady)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: CircularProgressIndicator(),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppPadding.largePadding.top),
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppColors.accentColor),
                     ),
                   )
                 else
@@ -669,37 +812,31 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
               if (_isAndroid) ...[
-                Text('Coin packages', style: AppTextStyles.headingSmall()),
-                const SizedBox(height: 8),
-                Text(
+                _buildSectionHeader(
+                  'Coin packages',
                   'Purchases are processed by Google Play. Your account is credited after our server confirms the transaction.',
-                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
                 ),
-                SizedBox(height: AppPadding.defaultPadding.top),
                 if (!_catalogReady)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: CircularProgressIndicator(),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppPadding.largePadding.top),
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppColors.accentColor),
                     ),
                   )
                 else if (!_playBillingAvailable)
                   Text(
                     'Google Play Billing is not available on this device.',
-                    style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                    style: AppTextStyles.bodyMedium(color: AppColors.lightGray),
                   )
                 else
                   ...CoinCatalog.playRecommendedPackages.map(_buildPlayPackageRow),
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
               if (_isIos) ...[
-                Text('Coin packages', style: AppTextStyles.headingSmall()),
-                const SizedBox(height: 8),
-                Text(
+                _buildSectionHeader(
+                  'Coin packages',
                   'App Store billing is not enabled in this build. Use the web app (Stripe) to buy coins.',
-                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
                 ),
-                SizedBox(height: AppPadding.defaultPadding.top),
               ],
             ],
           ),
@@ -720,72 +857,85 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: AppPadding.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppBorderRadius.smallRadius,
-        border: Border.all(
-          color: isPopular ? AppColors.accentColor : AppColors.borderDefault,
-          width: isPopular ? 1.5 : 1,
-        ),
-      ),
+      margin: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
+      padding: AppPadding.largePadding,
+      decoration: _coinCardDecoration(highlighted: isPopular),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          Container(
+            padding: AppPadding.smallPadding,
+            decoration: BoxDecoration(
+              color: AppColors.matchPotGold.withValues(alpha: 0.12),
+              borderRadius: AppBorderRadius.smallRadius,
+            ),
+            child: CoinIcon(size: 28, color: AppColors.matchPotGold),
+          ),
+          SizedBox(width: AppPadding.mediumPadding.left),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(label, style: AppTextStyles.bodyLarge(color: AppColors.textPrimary)),
-                    if (isPopular) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.accentColor,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          'Most Popular',
-                          style: AppTextStyles.bodySmall(color: AppColors.textOnPrimary),
-                        ),
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: AppTextStyles.bodyLarge(color: AppColors.white),
                       ),
+                    ),
+                    if (isPopular) ...[
+                      SizedBox(width: AppPadding.smallPadding.left),
+                      _buildPopularBadge(),
                     ],
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _coinPackDescriptionFromRow(row),
-                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                  style: AppTextStyles.bodyMedium(color: AppColors.lightGray),
                 ),
                 if (_isPremium && effectiveCoins > baseCoins) ...[
                   const SizedBox(height: 4),
                   Text(
                     'Premium: $baseCoins → $effectiveCoins coins',
-                    style: AppTextStyles.bodySmall(color: AppColors.accentColor),
+                    style: AppTextStyles.bodySmall(color: AppColors.matchPotGold),
                   ),
                 ],
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Text(priceText, style: AppTextStyles.headingSmall()),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: (busy || details == null) ? null : () => _buyPlayProduct(details!),
-            child: busy
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.textOnPrimary,
-                    ),
-                  )
-                : const Text('Buy'),
+          SizedBox(width: AppPadding.smallPadding.left),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                priceText,
+                style: AppTextStyles.headingSmall(color: AppColors.matchPotGold),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: (busy || details == null) ? null : () => _buyPlayProduct(details),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accentColor,
+                  foregroundColor: AppColors.textOnAccent,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppPadding.mediumPadding.left,
+                    vertical: AppPadding.smallPadding.top,
+                  ),
+                ),
+                child: busy
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.textOnAccent,
+                        ),
+                      )
+                    : Text('Buy', style: AppTextStyles.buttonText()),
+              ),
+            ],
           ),
         ],
       ),
@@ -796,65 +946,78 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     final busy = _loadingPackageKey == pack.key;
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: AppPadding.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppBorderRadius.smallRadius,
-        border: Border.all(
-          color: pack.isPopular ? AppColors.accentColor : AppColors.borderDefault,
-          width: pack.isPopular ? 1.5 : 1,
-        ),
-      ),
+      margin: EdgeInsets.only(bottom: AppPadding.smallPadding.top),
+      padding: AppPadding.largePadding,
+      decoration: _coinCardDecoration(highlighted: pack.isPopular),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          Container(
+            padding: AppPadding.smallPadding,
+            decoration: BoxDecoration(
+              color: AppColors.matchPotGold.withValues(alpha: 0.12),
+              borderRadius: AppBorderRadius.smallRadius,
+            ),
+            child: CoinIcon(size: 28, color: AppColors.matchPotGold),
+          ),
+          SizedBox(width: AppPadding.mediumPadding.left),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(pack.label, style: AppTextStyles.bodyLarge(color: AppColors.textPrimary)),
-                    if (pack.isPopular) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.accentColor,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          'Most Popular',
-                          style: AppTextStyles.bodySmall(color: AppColors.textOnPrimary),
-                        ),
+                    Flexible(
+                      child: Text(
+                        pack.label,
+                        style: AppTextStyles.bodyLarge(color: AppColors.white),
                       ),
+                    ),
+                    if (pack.isPopular) ...[
+                      SizedBox(width: AppPadding.smallPadding.left),
+                      _buildPopularBadge(),
                     ],
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   pack.description,
-                  style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+                  style: AppTextStyles.bodyMedium(color: AppColors.lightGray),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Text(pack.priceLabel, style: AppTextStyles.headingSmall()),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: busy ? null : () => _startCheckout(pack),
-            child: busy
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.textOnPrimary,
-                    ),
-                  )
-                : const Text('Buy'),
+          SizedBox(width: AppPadding.smallPadding.left),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                pack.priceLabel,
+                style: AppTextStyles.headingSmall(color: AppColors.matchPotGold),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: busy ? null : () => _startCheckout(pack),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accentColor,
+                  foregroundColor: AppColors.textOnAccent,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppPadding.mediumPadding.left,
+                    vertical: AppPadding.smallPadding.top,
+                  ),
+                ),
+                child: busy
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.textOnAccent,
+                        ),
+                      )
+                    : Text('Buy', style: AppTextStyles.buttonText()),
+              ),
+            ],
           ),
         ],
       ),
@@ -875,22 +1038,25 @@ class _RewardedAdsRemainingBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppPadding.mediumPadding.left,
+        vertical: AppPadding.smallPadding.top,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.accentContrast,
         borderRadius: AppBorderRadius.smallRadius,
-        border: Border.all(color: AppColors.borderDefault),
+        border: Border.all(color: AppColors.matchPotGold.withValues(alpha: 0.35)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             '$remaining/$cap',
-            style: AppTextStyles.headingSmall(color: AppColors.primaryColor),
+            style: AppTextStyles.headingSmall(color: AppColors.matchPotGold),
           ),
           Text(
             'left',
-            style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
+            style: AppTextStyles.bodySmall(color: AppColors.lightGray),
           ),
         ],
       ),

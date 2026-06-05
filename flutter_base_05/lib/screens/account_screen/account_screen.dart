@@ -16,6 +16,7 @@ import '../../modules/dutch_game/widgets/ui_kit/dutch_section_header.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_settings_row.dart';
 import '../../core/services/shared_preferences.dart';
 import '../../utils/consts/theme_consts.dart';
+import '../../utils/widgets/coin_icon.dart';
 import '../../utils/profile_photo_helper.dart';
 import '../../utils/dev_logger.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1195,11 +1196,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildStatItem('Wins', wins.toString(), Icons.emoji_events, AppColors.successColor),
+                child: _buildStatItem('Wins', wins.toString(), AppColors.successColor, icon: Icons.emoji_events),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatItem('Losses', losses.toString(), Icons.trending_down, AppColors.errorColor),
+                child: _buildStatItem('Losses', losses.toString(), AppColors.errorColor, icon: Icons.trending_down),
               ),
             ],
           ),
@@ -1207,11 +1208,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildStatItem('Total Matches', totalMatches.toString(), Icons.games, AppColors.infoColor),
+                child: _buildStatItem('Total Matches', totalMatches.toString(), AppColors.infoColor, icon: Icons.games),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatItem('Win Rate', '${(winRate * 100).toStringAsFixed(1)}%', Icons.percent, AppColors.accentColor),
+                child: _buildStatItem('Win Rate', '${(winRate * 100).toStringAsFixed(1)}%', AppColors.accentColor, icon: Icons.percent),
               ),
             ],
           ),
@@ -1219,11 +1220,16 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildStatItem('Coins', coins.toString(), Icons.monetization_on, AppColors.warningColor),
+                child: _buildStatItem(
+                  'Coins',
+                  coins.toString(),
+                  AppColors.warningColor,
+                  leading: CoinIcon(size: 20, color: AppColors.warningColor),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatItem('Points', points.toString(), Icons.stars, AppColors.accentColor),
+                child: _buildStatItem('Points', points.toString(), AppColors.accentColor, icon: Icons.stars),
               ),
             ],
           ),
@@ -1231,11 +1237,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildStatItem('Level', level.toString(), Icons.trending_up, AppColors.primaryColor),
+                child: _buildStatItem('Level', level.toString(), AppColors.primaryColor, icon: Icons.trending_up),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatItem('Rank', rank.toUpperCase(), Icons.military_tech, AppColors.accentColor),
+                child: _buildStatItem('Rank', rank.toUpperCase(), AppColors.accentColor, icon: Icons.military_tech),
               ),
             ],
           ),
@@ -1246,7 +1252,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildStatItem(
+    String label,
+    String value,
+    Color color, {
+    IconData? icon,
+    Widget? leading,
+  }) {
+    assert(icon != null || leading != null);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1262,7 +1275,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 20),
+              leading ?? Icon(icon!, color: color, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

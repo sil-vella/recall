@@ -17,6 +17,7 @@ import 'circular_timer_widget.dart';
 import '../../../managers/player_action.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../utils/widgets/coin_icon.dart';
 import '../../demo/demo_functionality.dart';
 import '../../../utils/dutch_game_helpers.dart';
 import '../../../../../utils/dev_logger.dart';
@@ -2808,8 +2809,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              Icons.monetization_on,
+            CoinIcon(
               size: iconSize,
               color: iconColor,
             ),

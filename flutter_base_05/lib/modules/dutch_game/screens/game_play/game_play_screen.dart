@@ -4,6 +4,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../../../utils/widgets/coin_icon.dart';
 import '../../../../utils/widgets/felt_texture_widget.dart';
 import '../../../../core/managers/auth_manager.dart';
 import '../../../../core/managers/state_manager.dart';
@@ -987,8 +988,7 @@ class _CoinStreamOverlayState extends State<_CoinStreamOverlay> with SingleTicke
               return Positioned(
                 left: x - 12,
                 top: y - 12,
-                child: Icon(
-                  Icons.monetization_on,
+                child: CoinIcon(
                   size: 24,
                   color: AppColors.accentColor2.withValues(alpha: 1.0 - t * 0.5),
                 ),

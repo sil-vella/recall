@@ -44,6 +44,9 @@ const String kDutchPromotionBurstDefaultLottie = 'assets/lottie/winner01.lottie'
 /// Achievement unlock fullscreen asset.
 const String kDutchPromotionBurstAchievementLottie = 'assets/lottie/achievement.lottie';
 
+/// Coin purchase success fullscreen asset.
+const String kDutchPromotionBurstCoinStackLottie = 'assets/lottie/coin_stack.lottie';
+
 /// Lottie square edge length (sync with fullscreen foreground spacers).
 const double kDutchPromotionBurstLottieBox = 234;
 

@@ -9,6 +9,7 @@ import '../../../../../utils/dev_logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../utils/consumables_catalog_bootstrap.dart';
 import '../../utils/customize_shop_route_hints.dart';
+import '../../../../../utils/widgets/coin_icon.dart';
 import '../../../../../utils/widgets/felt_texture_widget.dart';
 import '../../models/card_display_config.dart';
 import '../../models/card_model.dart';
@@ -709,7 +710,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.monetization_on, size: 16, color: AppColors.matchPotGold),
+        CoinIcon(size: 16, color: AppColors.matchPotGold),
         const SizedBox(width: 4),
         Text(
           '$coins',

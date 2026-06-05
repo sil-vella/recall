@@ -9,6 +9,7 @@ import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/hooks_manager.dart';
 import '../../utils/consts/theme_consts.dart';
+import '../../utils/widgets/coin_icon.dart';
 
 // Import Dutch game components
 import '../dutch_game/managers/dutch_module_manager.dart';
@@ -355,7 +356,7 @@ class DutchGameMain extends ModuleBase {
       path: '/coin-purchase',
       screen: (BuildContext context) => const CoinPurchaseScreen(),
       drawerTitle: 'Game Coins',
-      drawerIcon: Icons.monetization_on,
+      drawerIcon: kCoinIconData,
       drawerPosition: 50,
     );
     navigationManager.registerRoute(

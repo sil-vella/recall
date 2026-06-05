@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../managers/state_manager.dart';
 import '../../managers/navigation_manager.dart';
 import '../../../utils/consts/theme_consts.dart';
+import '../../../utils/widgets/coin_icon.dart';
 
 /// State-aware coins display feature widget
 /// 
@@ -38,11 +39,7 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
             identifier: 'app_bar_coins_purchase',
             button: true,
             child: ActionChip(
-              avatar: Icon(
-                Icons.monetization_on,
-                size: 18,
-                color: goldColor,
-              ),
+              avatar: CoinIcon(size: 18, color: goldColor),
               label: Text(
                 coins.toString(),
                 style: AppTextStyles.label().copyWith(

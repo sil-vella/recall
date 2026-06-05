@@ -6,6 +6,7 @@ import '../backend_core/services/game_state_store.dart';
 import '../utils/platform/practice/stubs/websocket_server_stub.dart';
 import '../utils/platform/practice/stubs/room_manager_stub.dart';
 import '../../dutch_game/managers/dutch_event_manager.dart';
+import '../screens/demo/demo_mode_bridge.dart';
 
 
 /// Practice Mode Bridge
@@ -80,7 +81,10 @@ class PracticeModeBridge {
     }
 
     try {
-      
+      if (await DemoModeBridge.tryInterceptPracticeEvent(event, data)) {
+        return;
+      }
+
       // Route event to coordinator
       await _gameModule.coordinator.handle(_currentSessionId!, event, data);
       

@@ -29,7 +29,6 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
     {'type': 'same_rank', 'title': 'Same Rank', 'icon': '🔄'},
     {'type': 'queen_peek', 'title': 'Queen Peek', 'icon': '👸'},
     {'type': 'jack_swap', 'title': 'Jack Swap', 'icon': '🃁'},
-    {'type': 'call_dutch', 'title': 'Call Dutch', 'icon': '🏁'},
     {'type': 'collect_rank', 'title': 'Collect Rank', 'icon': '⭐'},
   ];
 

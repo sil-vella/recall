@@ -6,6 +6,35 @@ import '../../backend_core/services/game_state_store.dart';
 /// Helper methods to set up game state for each demo action.
 /// Each method modifies the game state to match the requirements of the specific action.
 class DemoStateSetup {
+  int? _indexOfHumanPlayer(List<Map<String, dynamic>> players) {
+    for (var i = 0; i < players.length; i++) {
+      if (players[i]['isHuman'] == true) return i;
+    }
+    return players.isNotEmpty ? 0 : null;
+  }
+
+  List<Map<String, dynamic>> _fourCardIdOnlyHand(List<dynamic> initialHand) {
+    final hand = <Map<String, dynamic>>[];
+    for (final card in initialHand) {
+      if (card is! Map<String, dynamic>) continue;
+      final suit = card['suit']?.toString();
+      final rank = card['rank']?.toString();
+      if (suit == '?' && rank == '?') {
+        hand.add(Map<String, dynamic>.from(card));
+      }
+    }
+    if (hand.length != 4) {
+      hand.clear();
+      for (var i = 0; i < 4 && i < initialHand.length; i++) {
+        final c = initialHand[i];
+        if (c is Map<String, dynamic>) {
+          hand.add(Map<String, dynamic>.from(c));
+        }
+      }
+    }
+    return hand;
+  }
+
   /// Set up game state for a specific action
   /// 
   /// Returns the modified game state ready for the action
@@ -29,8 +58,6 @@ class DemoStateSetup {
         return await setupQueenPeekState(gameId, gameState);
       case 'jack_swap':
         return await setupJackSwapState(gameId, gameState);
-      case 'call_dutch':
-        return await setupCallDutchState(gameId, gameState);
       case 'collect_rank':
         return await setupCollectRankState(gameId, gameState);
       default:
@@ -423,37 +450,14 @@ class DemoStateSetup {
     final players = List<Map<String, dynamic>>.from(gameState['players'] as List<dynamic>? ?? []);
     final discardPile = List<Map<String, dynamic>>.from(gameState['discardPile'] as List<dynamic>? ?? []);
     
-    if (players.isNotEmpty && players[0]['hand'] != null) {
-      // Get the initial 4 cards (ID-only, face-down)
-      // Filter out any drawn card that might have been added
-      final initialHand = List<Map<String, dynamic>>.from(players[0]['hand'] as List<dynamic>? ?? []);
-      final hand = <Map<String, dynamic>>[];
-      
-      // Only keep ID-only cards (face-down cards have suit: '?', rank: '?', points: 0)
-      // This ensures we only have the 4 initial cards, not any drawn card
-      for (final card in initialHand) {
-        final cardMap = card as Map<String, dynamic>?;
-        if (cardMap != null) {
-          final suit = cardMap['suit']?.toString();
-          final rank = cardMap['rank']?.toString();
-          // ID-only cards have '?' for suit and rank
-          if (suit == '?' && rank == '?') {
-            hand.add(Map<String, dynamic>.from(cardMap));
-          }
-        }
-      }
-      
-      // Ensure we have exactly 4 cards (the initial deal)
-      if (hand.length != 4) {
-        
-        hand.clear();
-        for (int i = 0; i < 4 && i < initialHand.length; i++) {
-          hand.add(Map<String, dynamic>.from(initialHand[i]));
-        }
-      }
+    final humanIdx = _indexOfHumanPlayer(players);
+    if (humanIdx != null && players[humanIdx]['hand'] != null) {
+      final initialHand =
+          List<dynamic>.from(players[humanIdx]['hand'] as List<dynamic>? ?? []);
+      final hand = _fourCardIdOnlyHand(initialHand);
 
       // Clear any drawnCard property (should not exist for queen peek demo)
-      players[0].remove('drawnCard');
+      players[humanIdx].remove('drawnCard');
       
       // Find a Queen card from the original deck to add to discard pile
       Map<String, dynamic>? queenCard;
@@ -479,9 +483,9 @@ class DemoStateSetup {
         
       }
 
-      players[0]['hand'] = hand;
-      players[0]['status'] = 'queen_peek';
-      players[0]['isCurrentPlayer'] = true;
+      players[humanIdx]['hand'] = hand;
+      players[humanIdx]['status'] = 'queen_peek';
+      players[humanIdx]['isCurrentPlayer'] = true;
       
       
     }
@@ -489,11 +493,15 @@ class DemoStateSetup {
     updatedState['players'] = players;
     updatedState['discardPile'] = discardPile;
     updatedState['phase'] = 'playing';
-    updatedState['currentPlayer'] = players.isNotEmpty ? {
-      'id': players[0]['id'],
-      'name': players[0]['name'],
-      'status': 'queen_peek',
-    } : null;
+    if (humanIdx != null) {
+      updatedState['currentPlayer'] = {
+        'id': players[humanIdx]['id'],
+        'name': players[humanIdx]['name'],
+        'status': 'queen_peek',
+      };
+    } else {
+      updatedState['currentPlayer'] = null;
+    }
 
     // Update game state store
     gameStateStore.setGameState(gameId, updatedState);
@@ -523,37 +531,14 @@ class DemoStateSetup {
     final players = List<Map<String, dynamic>>.from(gameState['players'] as List<dynamic>? ?? []);
     final discardPile = List<Map<String, dynamic>>.from(gameState['discardPile'] as List<dynamic>? ?? []);
     
-    if (players.isNotEmpty && players[0]['hand'] != null) {
-      // Get the initial 4 cards (ID-only, face-down)
-      // Filter out any drawn card that might have been added
-      final initialHand = List<Map<String, dynamic>>.from(players[0]['hand'] as List<dynamic>? ?? []);
-      final hand = <Map<String, dynamic>>[];
-      
-      // Only keep ID-only cards (face-down cards have suit: '?', rank: '?', points: 0)
-      // This ensures we only have the 4 initial cards, not any drawn card
-      for (final card in initialHand) {
-        final cardMap = card as Map<String, dynamic>?;
-        if (cardMap != null) {
-          final suit = cardMap['suit']?.toString();
-          final rank = cardMap['rank']?.toString();
-          // ID-only cards have '?' for suit and rank
-          if (suit == '?' && rank == '?') {
-            hand.add(Map<String, dynamic>.from(cardMap));
-          }
-        }
-      }
-      
-      // Ensure we have exactly 4 cards (the initial deal)
-      if (hand.length != 4) {
-        
-        hand.clear();
-        for (int i = 0; i < 4 && i < initialHand.length; i++) {
-          hand.add(Map<String, dynamic>.from(initialHand[i]));
-        }
-      }
+    final humanIdx = _indexOfHumanPlayer(players);
+    if (humanIdx != null && players[humanIdx]['hand'] != null) {
+      final initialHand =
+          List<dynamic>.from(players[humanIdx]['hand'] as List<dynamic>? ?? []);
+      final hand = _fourCardIdOnlyHand(initialHand);
 
       // Clear any drawnCard property (should not exist for jack swap demo)
-      players[0].remove('drawnCard');
+      players[humanIdx].remove('drawnCard');
       
       // Find a Jack card from the original deck to add to discard pile
       Map<String, dynamic>? jackCard;
@@ -579,9 +564,9 @@ class DemoStateSetup {
         
       }
 
-      players[0]['hand'] = hand;
-      players[0]['status'] = 'jack_swap';
-      players[0]['isCurrentPlayer'] = true;
+      players[humanIdx]['hand'] = hand;
+      players[humanIdx]['status'] = 'jack_swap';
+      players[humanIdx]['isCurrentPlayer'] = true;
       
       
     }
@@ -589,87 +574,15 @@ class DemoStateSetup {
     updatedState['players'] = players;
     updatedState['discardPile'] = discardPile;
     updatedState['phase'] = 'playing';
-    updatedState['currentPlayer'] = players.isNotEmpty ? {
-      'id': players[0]['id'],
-      'name': players[0]['name'],
-      'status': 'jack_swap',
-    } : null;
-
-    // Update game state store
-    gameStateStore.setGameState(gameId, updatedState);
-
-    return updatedState;
-  }
-
-  /// Set up state for Call Dutch action
-  /// Game should be started, player in playing_card status, dutchActive: false
-  /// CRITICAL: Hand should only contain 4 face-down ID-only cards (no drawn card)
-  Future<Map<String, dynamic>> setupCallDutchState(
-    String gameId,
-    Map<String, dynamic> gameState,
-  ) async {
-    
-
-    // Start from initial game state (NOT playing state) to ensure only 4 face-down cards
-    final gameStateStore = GameStateStore.instance;
-
-    // Create updated state from initial game state
-    final updatedState = Map<String, dynamic>.from(gameState);
-
-    // Get players and ensure we start with initial state (4 cards, no drawn card)
-    final players = List<Map<String, dynamic>>.from(gameState['players'] as List<dynamic>? ?? []);
-    
-    if (players.isNotEmpty && players[0]['hand'] != null) {
-      // Get the initial 4 cards (ID-only, face-down)
-      // Filter out any drawn card that might have been added
-      final initialHand = List<Map<String, dynamic>>.from(players[0]['hand'] as List<dynamic>? ?? []);
-      final hand = <Map<String, dynamic>>[];
-      
-      // Only keep ID-only cards (face-down cards have suit: '?', rank: '?', points: 0)
-      // This ensures we only have the 4 initial cards, not any drawn card
-      for (final card in initialHand) {
-        final cardMap = card as Map<String, dynamic>?;
-        if (cardMap != null) {
-          final suit = cardMap['suit']?.toString();
-          final rank = cardMap['rank']?.toString();
-          // ID-only cards have '?' for suit and rank
-          if (suit == '?' && rank == '?') {
-            hand.add(Map<String, dynamic>.from(cardMap));
-          }
-        }
-      }
-      
-      // Ensure we have exactly 4 cards (the initial deal)
-      if (hand.length != 4) {
-        
-        hand.clear();
-        for (int i = 0; i < 4 && i < initialHand.length; i++) {
-          hand.add(Map<String, dynamic>.from(initialHand[i]));
-        }
-      }
-
-      // Clear any drawnCard property (should not exist for call dutch demo)
-      players[0].remove('drawnCard');
-      
-      players[0]['hand'] = hand;
-      players[0]['hasCalledDutch'] = false;
-      players[0]['status'] = 'playing_card';
-      players[0]['isCurrentPlayer'] = true;
-      
-      
+    if (humanIdx != null) {
+      updatedState['currentPlayer'] = {
+        'id': players[humanIdx]['id'],
+        'name': players[humanIdx]['name'],
+        'status': 'jack_swap',
+      };
+    } else {
+      updatedState['currentPlayer'] = null;
     }
-
-    // Ensure dutchActive is false and player hasn't called yet
-    updatedState['dutchActive'] = false;
-    updatedState['dutchCalledBy'] = null;
-
-    updatedState['players'] = players;
-    updatedState['phase'] = 'playing';
-    updatedState['currentPlayer'] = players.isNotEmpty ? {
-      'id': players[0]['id'],
-      'name': players[0]['name'],
-      'status': 'playing_card',
-    } : null;
 
     // Update game state store
     gameStateStore.setGameState(gameId, updatedState);

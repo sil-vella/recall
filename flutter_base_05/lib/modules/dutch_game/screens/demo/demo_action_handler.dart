@@ -1,5 +1,6 @@
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../core/managers/state_manager.dart';
+import '../../managers/dutch_event_handler_callbacks.dart';
 import '../../managers/dutch_event_manager.dart';
 import '../../managers/dutch_game_state_updater.dart';
 import '../../managers/player_action.dart';
@@ -10,6 +11,7 @@ import '../../utils/game_instructions_provider.dart';
 import '../../backend_core/services/game_state_store.dart';
 import 'demo_state_setup.dart';
 import 'demo_functionality.dart';
+import 'demo_mode_bridge.dart';
 import '../../../../utils/dev_logger.dart';
 
 const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
@@ -79,7 +81,6 @@ class DemoActionHandler {
         'same_rank',
         'queen_peek',
         'jack_swap',
-        'call_dutch',
         'collect_rank',
       ];
       
@@ -105,7 +106,7 @@ class DemoActionHandler {
   /// Start a demo action
   /// 
   /// [actionType] - One of: 'initial_peek', 'drawing', 'playing', 'same_rank', 
-  ///                 'queen_peek', 'jack_swap', 'call_dutch', 'collect_rank'
+  ///                 'queen_peek', 'jack_swap', 'collect_rank'
   Future<void> startDemoAction(String actionType) async {
     try {
       
@@ -122,6 +123,13 @@ class DemoActionHandler {
       
       // 4. Set active demo action type AFTER clearing state
       _activeDemoActionType = actionType;
+
+      DemoModeBridge.onInterceptHandled = _notifyStateChangedForDemoCompletion;
+      DemoFunctionality.onDemoStateChanged = _notifyStateChangedForDemoCompletion;
+      DemoModeBridge.configurePracticeIntercept(
+        active: true,
+        eventTypes: _interceptEventTypesForAction(actionType),
+      );
 
       // 5. Determine if collection mode is needed
       final isClearAndCollect = actionType == 'collect_rank';
@@ -146,7 +154,7 @@ class DemoActionHandler {
       );
 
       // 7. Sync state and trigger widget updates
-      await _syncGameState(practiceRoomId, updatedGameState);
+      await _syncGameState(practiceRoomId, updatedGameState, actionType: actionType);
       
       // For collect_rank demo, set initial hand count after state is set up
       // This must happen BEFORE the user can collect, so we capture the baseline
@@ -177,6 +185,9 @@ class DemoActionHandler {
       // 1. Clear active demo action type FIRST to prevent completion detection
       // This must happen before calling clearAllGameStateBeforeNewGame() to prevent false detection
       _activeDemoActionType = null;
+      DemoModeBridge.onInterceptHandled = null;
+      DemoFunctionality.onDemoStateChanged = null;
+      DemoModeBridge.configurePracticeIntercept(active: false);
 
       // 2. Use the same comprehensive clearing logic as used for random join, create/join room, and practice match
       // This ensures complete cleanup when switching from any mode (practice, WebSocket, or another demo) to a demo
@@ -291,14 +302,21 @@ class DemoActionHandler {
   }
 
   /// Sync game state and trigger widget updates
-  Future<void> _syncGameState(String gameId, Map<String, dynamic> gameState) async {
+  Future<void> _syncGameState(
+    String gameId,
+    Map<String, dynamic> gameState, {
+    String? actionType,
+  }) async {
     try {
       
 
       // Get current user ID
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final practiceUser = currentState['practiceUser'] as Map<String, dynamic>?;
-      final currentUserId = practiceUser?['userId']?.toString() ?? '';
+      final practiceUserId = practiceUser?['userId']?.toString() ?? '';
+      final seatId = practiceUserId.isNotEmpty
+          ? 'practice_session_$practiceUserId'
+          : '';
 
       // Extract and normalize phase
       final rawPhase = gameState['phase']?.toString();
@@ -312,22 +330,47 @@ class DemoActionHandler {
       // Get current games map
       final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
 
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      Map<String, dynamic>? humanPlayer;
+      for (final p in players) {
+        if (p is Map<String, dynamic> && p['isHuman'] == true) {
+          humanPlayer = p;
+          break;
+        }
+      }
+      if (humanPlayer == null && seatId.isNotEmpty) {
+        for (final p in players) {
+          if (p is Map<String, dynamic> && p['id']?.toString() == seatId) {
+            humanPlayer = p;
+            break;
+          }
+        }
+      }
+
+      final playerStatus = humanPlayer?['status']?.toString() ?? 'unknown';
+      final myHandCards = humanPlayer?['hand'] as List<dynamic>? ?? [];
+      final discardPile =
+          gameState['discardPile'] as List<dynamic>? ?? [];
+
       // Build gameData structure
       final gameData = {
         'game_id': gameId,
-        'owner_id': currentUserId,
+        'owner_id': practiceUserId,
         'game_type': 'practice',
         'game_state': gameState,
         'max_size': 4,
         'min_players': 2,
       };
 
-      // Add/update game in games map
+      // Add/update game in games map (widget slices read myHandCards / isMyTurn here)
       games[gameId] = {
         'gameData': gameData,
         'gameStatus': gameStatus,
         'isRoomOwner': true,
         'isInGame': true,
+        'isMyTurn': humanPlayer?['isCurrentPlayer'] == true,
+        'myHandCards': myHandCards,
+        'myDrawnCard': humanPlayer?['drawnCard'],
         'joinedAt': DateTime.now().toIso8601String(),
       };
 
@@ -353,13 +396,20 @@ class DemoActionHandler {
       // Extract currentPlayer from game state for top-level state
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
 
+      final demoInstructionsPhase = _demoInstructionsPhaseForAction(actionType);
+
       // Trigger slice recomputation
       DutchGameHelpers.updateUIState({
         'currentGameId': gameId,
         'games': games,
         'gamePhase': uiPhase,
         'currentPlayer': currentPlayer, // Set top-level currentPlayer for UnifiedGameBoardWidget
-        'isMyTurn': true, // Ensure isMyTurn is set for demo actions
+        'isMyTurn': humanPlayer?['isCurrentPlayer'] == true,
+        'playerStatus': playerStatus,
+        'currentPlayerStatus': playerStatus,
+        'discardPile': discardPile,
+        if (demoInstructionsPhase != null)
+          'demoInstructionsPhase': demoInstructionsPhase,
       });
 
       // Small delay to allow slice recomputation
@@ -374,12 +424,90 @@ class DemoActionHandler {
       DutchEventManager().handleGameStateUpdated({
         'game_id': gameId,
         'game_state': gameState,
-        'owner_id': currentUserId,
+        'owner_id': practiceUserId,
         'timestamp': DateTime.now().toIso8601String(),
       });
 
       } catch (e, stackTrace) { 
       rethrow;
+    }
+  }
+
+  Set<String> _interceptEventTypesForAction(String actionType) {
+    switch (actionType) {
+      case 'queen_peek':
+        return const {'queen_peek'};
+      case 'jack_swap':
+        return const {'jack_swap'};
+      default:
+        return const {};
+    }
+  }
+
+  void _notifyStateChangedForDemoCompletion() {
+    if (!isDemoActionActive()) return;
+    final activeDemoAction = getActiveDemoActionType();
+    if (activeDemoAction == null) return;
+
+    final dutchGameState =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final previousPlayerStatus =
+        dutchGameState['previousPlayerStatus']?.toString();
+
+    Map<String, dynamic>? gameState;
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    if (currentGameId.isNotEmpty) {
+      final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+      final game = games[currentGameId] as Map<String, dynamic>?;
+      gameState = game?['gameData']?['game_state'] as Map<String, dynamic>?;
+    }
+
+    // Prefer SSOT roster status (matches [_checkDemoActionCompletion] on game_state_updated)
+    var currentUserPlayerStatus =
+        dutchGameState['playerStatus']?.toString();
+    if (gameState != null) {
+      final myPlayer = DutchEventHandlerCallbacks.findLocalPlayerInRoster(
+        gameState['players'] as List? ?? [],
+      );
+      final ssotStatus = myPlayer?['status']?.toString();
+      if (ssotStatus != null && ssotStatus.isNotEmpty) {
+        currentUserPlayerStatus = ssotStatus;
+      }
+    }
+
+    if (isActionCompleted(
+      activeDemoAction,
+      previousPlayerStatus,
+      currentUserPlayerStatus,
+      gameState: gameState,
+    )) {
+      StateManager().updateModuleState('dutch_game', {
+        'previousPlayerStatus': null,
+      });
+      showAfterActionInstruction(activeDemoAction);
+    } else if (currentUserPlayerStatus != null) {
+      StateManager().updateModuleState('dutch_game', {
+        'previousPlayerStatus': currentUserPlayerStatus,
+      });
+    }
+  }
+
+  String? _demoInstructionsPhaseForAction(String? actionType) {
+    switch (actionType) {
+      case 'initial_peek':
+        return 'initial_peek';
+      case 'drawing':
+        return 'drawing';
+      case 'playing':
+        return 'playing';
+      case 'same_rank':
+        return 'same_rank';
+      case 'queen_peek':
+        return 'queen_peek';
+      case 'jack_swap':
+        return 'jack_swap';
+      default:
+        return null;
     }
   }
 
@@ -471,6 +599,9 @@ class DemoActionHandler {
       // 6. NOW clear active demo action type AFTER navigation
       // This ensures instructions won't show during or after the demo action ends
       _activeDemoActionType = null;
+      DemoModeBridge.onInterceptHandled = null;
+      DemoFunctionality.onDemoStateChanged = null;
+      DemoModeBridge.configurePracticeIntercept(active: false);
       
       
       }
@@ -478,6 +609,9 @@ class DemoActionHandler {
       
       // Clear active demo action type even on error
       _activeDemoActionType = null;
+      DemoModeBridge.onInterceptHandled = null;
+      DemoFunctionality.onDemoStateChanged = null;
+      DemoModeBridge.configurePracticeIntercept(active: false);
     } finally {
       // Reset flag to allow future demo actions
       _isEndingDemoAction = false;
@@ -516,17 +650,13 @@ class DemoActionHandler {
         return previousStatus == 'same_rank_window' && currentStatus == 'waiting';
       
       case 'queen_peek':
-        // Queen peek completes when status changes from queen_peek to peeking (peek action executed)
-        return previousStatus == 'queen_peek' && currentStatus == 'peeking';
+        // Complete after peek reveal timer (peeking -> playing_card)
+        return previousStatus == 'peeking' && currentStatus == 'playing_card';
       
       case 'jack_swap':
         // Jack swap completes when status changes from jack_swap to waiting or playing_card
         return previousStatus == 'jack_swap' && 
                (currentStatus == 'waiting' || currentStatus == 'playing_card');
-      
-      case 'call_dutch':
-        // Call dutch completes when status changes from playing_card to same_rank_window (after call_dutch and card played)
-        return previousStatus == 'playing_card' && currentStatus == 'same_rank_window';
       
       case 'collect_rank':
         // Collect rank completes when a collection card is added to the hand
@@ -689,11 +819,6 @@ class DemoActionHandler {
           'title': 'Jack Power Used',
           'content': 'You used the Jack\'s power to swap two cards. This can help you improve your hand or disrupt opponents.',
         };
-      case 'call_dutch':
-        return {
-          'title': 'Dutch Called',
-          'content': 'You called Dutch to signal the final round. All players will get one more turn, then the game ends and points are calculated.',
-        };
       case 'collect_rank':
         return {
           'title': 'Rank Collected',
@@ -803,21 +928,6 @@ class DemoActionHandler {
             playerStatus: 'collection_card',
             isMyTurn: true,
           );
-          break;
-        case 'call_dutch':
-          // Get instructions from DemoFunctionality
-          final demoInstructions = DemoFunctionality.instance.getInstructionsForPhase('call_dutch');
-          if (demoInstructions['isVisible'] == true) {
-            instructions = {
-              'key': 'call_dutch',
-              'title': demoInstructions['title'] ?? 'Call Dutch',
-              'content': demoInstructions['paragraph'] ?? '',
-              'hasDemonstration': false,
-            };
-          } else {
-            
-          return;
-          }
           break;
         default:
           

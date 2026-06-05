@@ -1035,13 +1035,31 @@ class DutchGameRound {
 
       final discardPile = _ensureCardMapList(gameState['discardPile']);
       if (discardPile.isEmpty) return false;
-      final top = discardPile.last;
-      if (top is! Map || top['cardId']?.toString() != cardId) {
-        
+      // Wrong play may no longer be pile top if another same-rank play landed during the delay.
+      var removeIndex = -1;
+      for (var i = discardPile.length - 1; i >= 0; i--) {
+        final entry = discardPile[i];
+        if (entry is Map && entry['cardId']?.toString() == cardId) {
+          removeIndex = i;
+          break;
+        }
+      }
+      if (removeIndex < 0) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'WrongSameRank: phase2 cardId=$cardId not in discard (len=${discardPile.length})',
+          );
+        }
         return false;
       }
-      discardPile.removeLast();
+      discardPile.removeAt(removeIndex);
       gameState['discardPile'] = discardPile;
+      if (LOGGING_SWITCH) {
+        customlog(
+          'WrongSameRank: phase2 removed cardId=$cardId at index=$removeIndex '
+          'discardLen=${discardPile.length} playerId=$playerId',
+        );
+      }
 
       final players = gameState['players'] as List<dynamic>? ?? [];
       Map<String, dynamic>? player;

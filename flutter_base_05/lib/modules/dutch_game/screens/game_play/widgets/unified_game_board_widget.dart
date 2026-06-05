@@ -1926,11 +1926,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         builder: (context, child) {
           final glowOpacity = _glowAnimation!.value;
           final glowDecoration = _buildGlowDecoration(glowColor, glowOpacity);
-          return Container(
-            decoration: glowDecoration,
-            padding: const EdgeInsets.all(1),
-            child: cardWidget,
-          );
+          return _wrapDecorationOnlyGlow(cardWidget, glowDecoration);
         },
       );
     }
@@ -2284,26 +2280,50 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
+  /// Paints [decoration] as a foreground overlay — layout size stays [child] size only.
+  ///
+  /// Background [DecoratedBox] hid the border under the opaque card face; overlay + [Clip.none]
+  /// keeps the stroke visible and lets [BoxShadow] bleed outside without widening the [Row].
+  Widget _wrapDecorationOnlyGlow(Widget child, BoxDecoration decoration) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: decoration,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Scales border/shadow alpha (0.6 = 40% dimmer than base glow recipe).
+  static const double _kGlowOpacityScale = 0.6;
+
   /// Shared glow for draw pile, my-hand cards, and opponent cards (same size/opacity).
-  BoxDecoration? _buildGlowDecoration(Color statusColor, double glowOpacity) {
-    // Border-first glow: strong edge stroke + very soft outside halo.
-    // Drawn as decoration only (no layout size change).
+  BoxDecoration _buildGlowDecoration(Color statusColor, double glowOpacity) {
+    final o = glowOpacity * _kGlowOpacityScale;
+    // Border on overlay + outside halo (boxShadow does not expand layout).
     return BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       border: Border.all(
-        color: statusColor.withValues(alpha: 0.95 * glowOpacity),
-        width: 2.0,
+        color: statusColor.withValues(alpha: 0.98 * o),
+        width: 2.5,
       ),
       boxShadow: [
         BoxShadow(
-          color: statusColor.withValues(alpha: 0.34 * glowOpacity),
-          blurRadius: 8,
-          spreadRadius: 0.2,
+          color: statusColor.withValues(alpha: 0.5 * o),
+          blurRadius: 10,
+          spreadRadius: 0.6,
         ),
         BoxShadow(
-          color: statusColor.withValues(alpha: 0.2 * glowOpacity),
-          blurRadius: 14,
-          spreadRadius: 0.8,
+          color: statusColor.withValues(alpha: 0.32 * o),
+          blurRadius: 16,
+          spreadRadius: 1.2,
         ),
       ],
     );
@@ -2594,11 +2614,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                       statusChipColor,
                       glowOpacity,
                     );
-                    return Container(
-                      decoration: glowDecoration,
-                      padding: const EdgeInsets.all(1),
-                      child: drawPileContent,
-                    );
+                    return _wrapDecorationOnlyGlow(drawPileContent, glowDecoration);
                   },
                 );
               }
@@ -4349,11 +4365,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         builder: (context, child) {
           final glowOpacity = _glowAnimation!.value;
           final glowDecoration = _buildGlowDecoration(glowColor, glowOpacity);
-          return Container(
-            decoration: glowDecoration,
-            padding: const EdgeInsets.all(1),
-            child: cardWidget,
-          );
+          return _wrapDecorationOnlyGlow(cardWidget, glowDecoration);
         },
       );
     }

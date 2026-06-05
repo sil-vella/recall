@@ -10,7 +10,12 @@ import '../../../widgets/card_widget.dart';
 import '../utils/dutch_anim_runtime.dart';
 import '../../../../../utils/dev_logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 
 /// Same angles as [CardWidget]'s [RotatedBox] quarter-turns (radians, clockwise).
@@ -65,7 +70,7 @@ double _seatRadiansForHandRect(
   return mappedRadians;
 }
 
-enum _PlanTag { none, linear, jackSwap, queenPeek, initialPeek }
+enum _PlanTag { none, linear, jackSwap, queenPeek, initialPeek, dealBatch }
 
 /// One card flying from [from] rect to [to] rect (anchor-relative pixels).
 class _CardFlightData {
@@ -89,19 +94,29 @@ class _AnimPlan {
       : tag = _PlanTag.linear,
         b = null,
         peekTarget = null,
-        peekTargets = null;
+        peekTargets = null,
+        dealFlights = null;
   const _AnimPlan.jackSwap(this.a, this.b)
       : tag = _PlanTag.jackSwap,
         peekTarget = null,
-        peekTargets = null;
+        peekTargets = null,
+        dealFlights = null;
   const _AnimPlan.queenPeek(this.peekTarget)
       : tag = _PlanTag.queenPeek,
         peekTargets = null,
         a = null,
-        b = null;
+        b = null,
+        dealFlights = null;
   const _AnimPlan.initialPeek(this.peekTargets)
       : tag = _PlanTag.initialPeek,
         peekTarget = null,
+        a = null,
+        b = null,
+        dealFlights = null;
+  const _AnimPlan.dealBatch(this.dealFlights)
+      : tag = _PlanTag.dealBatch,
+        peekTarget = null,
+        peekTargets = null,
         a = null,
         b = null;
 
@@ -110,6 +125,7 @@ class _AnimPlan {
   final _CardFlightData? b;
   final Map<String, double>? peekTarget;
   final List<Map<String, double>>? peekTargets;
+  final List<_CardFlightData>? dealFlights;
 }
 
 /// FIFO card flights from [DutchAnimRuntime]: frozen A→B rects, one [AnimationController] tween
@@ -125,6 +141,7 @@ class DutchCardAnimOverlay extends StatefulWidget {
 class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     with SingleTickerProviderStateMixin {
   static const Duration _flightAnimDuration = Duration(milliseconds: 420);
+  static const Duration _dealFlightAnimDuration = Duration(milliseconds: 220);
   static const Duration _peekGlowDuration = Duration(milliseconds: 1400);
 
   final DutchAnimRuntime _runtime = DutchAnimRuntime.instance;
@@ -133,6 +150,8 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
   int? _runningSeq;
   int _stallFrames = 0;
   static const int _maxStallFrames = 24;
+  /// Initial deal may enqueue before the board reports layout rects.
+  static const int _maxStallFramesDeal = 96;
   /// Peek glow needs layout after [game_animation]; allow more frames before giving up.
   static const int _maxStallFramesPeek = 96;
   Timer? _peekGlowCompleteTimer;
@@ -153,6 +172,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
   Map<String, double>? _peekTargetRect;
   List<Map<String, double>>? _peekTargetRects;
+  List<_CardFlightData>? _dealBatchFlights;
 
   /// Static ghost during [play_card] / [same_rank_play]: next [reposition]'s `from` rect, else draw pile.
   Map<String, double>? _playDeckGhostRect;
@@ -285,6 +305,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     _jackToRadiansB = 0;
     _peekTargetRect = null;
     _peekTargetRects = null;
+    _dealBatchFlights = null;
   }
 
   /// Rect for the static ghost during a play flight: queued [reposition]'s `from`, else draw pile.
@@ -376,6 +397,8 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
   bool _isSupportedAction(String action) {
     const supported = <String>{
       'draw',
+      'deal',
+      'deal_batch',
       'play_card',
       'reposition',
       'collect_from_discard',
@@ -456,9 +479,11 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       _stallFrames++;
       final maxStall = _isPeekGlowAction(action)
           ? _maxStallFramesPeek
-          : _maxStallFrames;
+          : (action == 'deal' || action == 'deal_batch'
+              ? _maxStallFramesDeal
+              : _maxStallFrames);
       if (_stallFrames > maxStall) {
-        if (LOGGING_SWITCH && _isPeekGlowAction(action)) {
+        if (LOGGING_SWITCH) {
           customlog(
             'DutchCardAnimOverlay: $action stall timeout frames=$_stallFrames',
           );
@@ -475,16 +500,22 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     }
     _stallFrames = 0;
     _runningSeq = seq;
-    if (LOGGING_SWITCH && action == 'jack_swap') {
+    if (LOGGING_SWITCH &&
+        (action == 'jack_swap' || action == 'deal' || action == 'deal_batch')) {
       customlog(
-        'DutchCardAnimOverlay: jack_swap start seq=$seq plan=${plan.tag}',
+        'DutchCardAnimOverlay: $action start seq=$seq plan=${plan.tag}',
       );
     }
     _applyPlan(plan, head as Map<String, dynamic>);
     final peekGlow = plan.tag == _PlanTag.queenPeek ||
         plan.tag == _PlanTag.initialPeek;
-    final targetDuration =
-        peekGlow ? _peekGlowDuration : _flightAnimDuration;
+    final isInitialDeal = action == 'deal' ||
+        action == 'deal_batch' ||
+        (head['context'] is Map &&
+            (head['context'] as Map)['is_initial_deal'] == true);
+    final targetDuration = peekGlow
+        ? _peekGlowDuration
+        : (isInitialDeal ? _dealFlightAnimDuration : _flightAnimDuration);
     if (_controller!.duration != targetDuration) {
       if (!peekGlow) {
         _controller!.stop();
@@ -549,6 +580,19 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
             .map((r) => Map<String, double>.from(r))
             .toList();
         break;
+      case _PlanTag.dealBatch:
+        _dealBatchFlights = plan.dealFlights!
+            .map(
+              (f) => _CardFlightData(
+                from: Map<String, double>.from(f.from),
+                to: Map<String, double>.from(f.to),
+                model: f.model,
+                fromRadians: f.fromRadians,
+                toRadians: f.toRadians,
+              ),
+            )
+            .toList();
+        break;
       case _PlanTag.none:
         break;
     }
@@ -582,7 +626,21 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     if (cards.isEmpty) return keys;
     final c0 = cards.first;
     if (c0 is! Map) return keys;
-    if (action == 'draw' || action == 'collect_from_discard' || action == 'same_rank_penalty_rebound') {
+    if (action == 'deal_batch') {
+      for (final c in cards) {
+        if (c is! Map) continue;
+        final owner = c['owner_id']?.toString() ?? '';
+        final hi = _parseHandIndex(c['hand_index']);
+        if (owner.isNotEmpty && hi != null) {
+          keys.add(DutchAnimRuntime.handSlotMaskKey(owner, hi));
+        }
+      }
+      return keys;
+    }
+    if (action == 'draw' ||
+        action == 'deal' ||
+        action == 'collect_from_discard' ||
+        action == 'same_rank_penalty_rebound') {
       final owner = c0['owner_id']?.toString() ?? '';
       final hi = _parseHandIndex(c0['hand_index']);
       if (owner.isNotEmpty && hi != null) {
@@ -625,6 +683,8 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         return _peekTargetRect != null;
       case _PlanTag.initialPeek:
         return _peekTargetRects != null && _peekTargetRects!.isNotEmpty;
+      case _PlanTag.dealBatch:
+        return _dealBatchFlights != null && _dealBatchFlights!.isNotEmpty;
     }
   }
 
@@ -712,7 +772,36 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
     final cards = head['cards'] as List? ?? [];
 
-    if (action == 'draw') {
+    if (action == 'deal_batch') {
+      if (cards.isEmpty) return null;
+      final source = head['source']?.toString() ?? 'deck';
+      final fromPile = source == 'discard' ? pileRect('discard') : pileRect('draw');
+      if (fromPile == null) return null;
+      final deckTilt = source == 'deck' ? -0.13 : 0.0;
+      final flights = <_CardFlightData>[];
+      for (final c in cards) {
+        if (c is! Map) return null;
+        final owner = c['owner_id']?.toString() ?? '';
+        final hi = _parseHandIndex(c['hand_index']);
+        if (owner.isEmpty || hi == null) return null;
+        final to = rectFor(owner, hi);
+        if (to == null) return null;
+        final toSeat = _tableOrientationToRadians(_seatOrientationForPlayer(anim, owner));
+        flights.add(
+          _CardFlightData(
+            from: fromPile,
+            to: to,
+            model: modelFromCardMap(c),
+            fromRadians: deckTilt,
+            toRadians: toSeat,
+          ),
+        );
+      }
+      if (flights.isEmpty) return null;
+      return _AnimPlan.dealBatch(flights);
+    }
+
+    if (action == 'draw' || action == 'deal') {
       if (cards.isEmpty) return null;
       final c0 = cards.first;
       if (c0 is! Map) return null;
@@ -1011,7 +1100,9 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
               card: model,
               dimensions: dims,
               config: CardDisplayConfig.forMyHand(),
-              showBack: _activePlan == _PlanTag.jackSwap || !model.hasFullData,
+              showBack: _activePlan == _PlanTag.jackSwap ||
+                  _activePlan == _PlanTag.dealBatch ||
+                  !model.hasFullData,
               isSelected: false,
             ),
           ),
@@ -1047,15 +1138,17 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         ),
       );
     }
-    children.add(
-      positionedCard(
-        from: _flightFromRect!,
-        to: _flightToRect!,
-        model: _flightModel!,
-        fromRadians: _flightFromRadians,
-        toRadians: _flightToRadians,
-      ),
-    );
+    if (_activePlan == _PlanTag.linear || _activePlan == _PlanTag.jackSwap) {
+      children.add(
+        positionedCard(
+          from: _flightFromRect!,
+          to: _flightToRect!,
+          model: _flightModel!,
+          fromRadians: _flightFromRadians,
+          toRadians: _flightToRadians,
+        ),
+      );
+    }
     if (_activePlan == _PlanTag.jackSwap) {
       children.add(
         positionedCard(
@@ -1066,6 +1159,19 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
           toRadians: _jackToRadiansB,
         ),
       );
+    }
+    if (_activePlan == _PlanTag.dealBatch && _dealBatchFlights != null) {
+      for (final f in _dealBatchFlights!) {
+        children.add(
+          positionedCard(
+            from: f.from,
+            to: f.to,
+            model: f.model,
+            fromRadians: f.fromRadians,
+            toRadians: f.toRadians,
+          ),
+        );
+      }
     }
 
     return TickerMode(

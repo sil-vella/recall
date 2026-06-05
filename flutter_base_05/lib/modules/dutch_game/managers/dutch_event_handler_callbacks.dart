@@ -24,7 +24,12 @@ import 'game_coordinator.dart';
 import '../utils/dutch_firebase_analytics.dart';
 import '../../../utils/dev_logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 /// Pile-trim receive trace (`pileFilterRx`); separate from [LOGGING_SWITCH] to avoid noisy WS logs.
 const bool PILE_FILTER_LOGGING_SWITCH = false; // testing — revert to false
 
@@ -58,6 +63,9 @@ class DutchEventHandlerCallbacks {
   static AnalyticsModule? _analyticsModule;
   static String? _lastPromotionSignature;
   static String? _lastWinCelebrationSignature;
+  static String? _dealBootstrapGameId;
+
+  static const int _kDealSlotsPerPlayer = 4;
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
@@ -834,6 +842,11 @@ class DutchEventHandlerCallbacks {
             },
           });
         }
+        return;
+      }
+
+      final currentStateForDeal = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      if (currentStateForDeal['dealAnimActive'] == true) {
         return;
       }
 
@@ -1872,6 +1885,94 @@ When anyone has played a card with the **same rank** as your **collection card**
     DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));
   }
 
+  static bool _playersHaveDealableCards(List<dynamic> players) {
+    for (final raw in players) {
+      if (raw is! Map<String, dynamic>) continue;
+      final hand = raw['hand'] as List<dynamic>? ?? [];
+      if (hand.isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  /// True after [tryRunInitialDealBootstrap] enqueued flights for [gameId].
+  static bool isDealBootstrapCompleteFor(String gameId) =>
+      gameId.isNotEmpty && _dealBootstrapGameId == gameId;
+
+  static void _scheduleInitialDealBootstrap(String gameId) {
+    if (_dealBootstrapGameId == gameId) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tryRunInitialDealBootstrap(gameId);
+    });
+  }
+
+  /// Enqueue initial-deal flights once layout + hand data are ready (idempotent per game).
+  static void tryRunInitialDealBootstrap(String gameId) {
+    if (_dealBootstrapGameId == gameId) return;
+    final state = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    if (state['dealAnimActive'] != true) {
+      if (LOGGING_SWITCH) {
+        customlog('dealBootstrap: skip gameId=$gameId dealAnimActive=false');
+      }
+      return;
+    }
+    if (state['currentGameId']?.toString() != gameId) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'dealBootstrap: skip gameId=$gameId currentGameId=${state['currentGameId']}',
+        );
+      }
+      return;
+    }
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    final entry = games[gameId] as Map<String, dynamic>?;
+    final gameData = entry?['gameData'] as Map<String, dynamic>? ?? {};
+    final gs = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final players = gs['players'] as List<dynamic>? ?? [];
+    if (!_playersHaveDealableCards(players)) {
+      if (LOGGING_SWITCH) {
+        customlog('dealBootstrap: wait gameId=$gameId hands empty in games map');
+      }
+      return;
+    }
+    _dealBootstrapGameId = gameId;
+    final n = _bootstrapInitialDealAnimation(players);
+    if (LOGGING_SWITCH) {
+      customlog(
+        'dealBootstrap: enqueued gameId=$gameId flights=$n '
+        'queueLen=${DutchAnimRuntime.instance.queueLength}',
+      );
+    }
+  }
+
+  static int _bootstrapInitialDealAnimation(List<dynamic> players) {
+    final allCards = <Map<String, dynamic>>[];
+    for (final raw in players) {
+      if (raw is! Map<String, dynamic>) continue;
+      final ownerId = raw['id']?.toString() ?? '';
+      if (ownerId.isEmpty) continue;
+      final hand = raw['hand'] as List<dynamic>? ?? [];
+      for (int hi = 0; hi < _kDealSlotsPerPlayer; hi++) {
+        Map<String, dynamic> cardPayload = <String, dynamic>{};
+        if (hi < hand.length && hand[hi] is Map) {
+          cardPayload = Map<String, dynamic>.from(hand[hi] as Map);
+        }
+        allCards.add({
+          'owner_id': ownerId,
+          'hand_index': hi,
+          'card': cardPayload,
+        });
+      }
+    }
+    if (allCards.isEmpty) return 0;
+    DutchAnimRuntime.instance.enqueueGameAnimation({
+      'action_type': 'deal_batch',
+      'source': 'deck',
+      'cards': allCards,
+      'context': {'is_initial_deal': true},
+    });
+    return allCards.length;
+  }
+
   /// Handle game_state_updated event
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';
@@ -2049,7 +2150,15 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
 
     final wasNewGame = !currentGames.containsKey(gameId);
+    String previousRawPhase = '';
+    if (currentGames.containsKey(gameId)) {
+      final prevEntry = currentGames[gameId] as Map<String, dynamic>?;
+      final prevGd = prevEntry?['gameData'] as Map<String, dynamic>?;
+      final prevGs = prevGd?['game_state'] as Map<String, dynamic>?;
+      previousRawPhase = prevGs?['phase']?.toString() ?? '';
+    }
     if (wasNewGame) {
+      _dealBootstrapGameId = null;
       DutchAnimRuntime.instance.reset();
       // 🎯 CRITICAL: Only one game should exist in the games map at a time
       // Remove all other games when adding a new game
@@ -2287,6 +2396,21 @@ When anyone has played a card with the **same rank** as your **collection card**
     final rawPhase = gameState['phase']?.toString() ??
         gameState['gamePhase']?.toString() ??
         uiPhase;
+    final enteringInitialPeekDeal = rawPhase == 'initial_peek' &&
+        (wasNewGame || previousRawPhase != 'initial_peek');
+    if (enteringInitialPeekDeal) {
+      if (!wasNewGame) {
+        _dealBootstrapGameId = null;
+        DutchAnimRuntime.instance.reset();
+      }
+      consolidatedMainStatePatch['dealAnimActive'] = true;
+      if (LOGGING_SWITCH) {
+        customlog(
+          'dealAnim: activate gameId=$gameId wasNewGame=$wasNewGame '
+          'prevPhase=$previousRawPhase rawPhase=$rawPhase',
+        );
+      }
+    }
     // Extract winners list if game has ended - check both data and gameState
     final winners = data['winners'] as List<dynamic>? ?? gameState['winners'] as List<dynamic>?;
     
@@ -2437,8 +2561,13 @@ When anyone has played a card with the **same rank** as your **collection card**
     );
 
     _updateMainGameState(consolidatedMainStatePatch);
-    
-    
+
+    final dealAnimPending = consolidatedMainStatePatch['dealAnimActive'] == true ||
+        stateBeforeMainPatch['dealAnimActive'] == true;
+    if (dealAnimPending && rawPhase == 'initial_peek') {
+      _scheduleInitialDealBootstrap(gameId);
+    }
+
     // Check for demo action completion
     _checkDemoActionCompletion(
       gameId: gameId,

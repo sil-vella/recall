@@ -46,7 +46,7 @@ class DutchGameStateUpdater {
     'messagesSlice': {'messages', 'gamePhase', 'currentGameId', 'games', 'rematch_waiting_game_id', 'endGameModalOpen', GameEndedModalPin.stateKey},
     'instructionsSlice': {'instructions'},
     'actionTextSlice': {'actionText', 'currentGameId', 'games'},
-    'matchLifecycle': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
+    'matchLifecycle': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'dealAnimActive'},
     'joinedGamesSlice': {'games'}, // SIMPLIFIED: Compute from games map (SSOT) instead of joinedGames list
   };
   
@@ -804,6 +804,7 @@ class DutchGameStateUpdater {
       'isGameActive': state['isGameActive'] == true,
       'gamePhase': state['gamePhase']?.toString() ?? 'waiting',
       'playTableLevel': gameLevel,
+      'dealAnimActive': state['dealAnimActive'] == true,
     };
   }
   

@@ -5,7 +5,12 @@ import 'package:flutter/widgets.dart';
 import '../../../utils/platform/shared_imports.dart';
 import '../../../../../utils/dev_logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// In-memory animation bus for Dutch: **not** written through [StateManager], so updating
 /// queue or layout rects does **not** notify `dutch_game` listeners or rebuild unrelated widgets.
@@ -112,7 +117,10 @@ class DutchAnimRuntime extends ChangeNotifier {
     _eventData.add(entry);
     if (LOGGING_SWITCH) {
       final action = entry['action_type']?.toString() ?? '';
-      if (action == 'jack_swap' ||
+      if (action == 'deal' ||
+          action == 'deal_batch' ||
+          action == 'draw' ||
+          action == 'jack_swap' ||
           action == 'queen_peek' ||
           action == 'initial_peek') {
         final cards = entry['cards'] as List? ?? [];
@@ -156,6 +164,11 @@ class DutchAnimRuntime extends ChangeNotifier {
     ctx['batch'] = true;
     tail['context'] = ctx;
   }
+
+  /// True when the FIFO animation queue has no pending events.
+  bool get isQueueEmpty => _eventData.isEmpty;
+
+  int get queueLength => _eventData.length;
 
   void dequeueHead() {
     if (_eventData.isEmpty) return;

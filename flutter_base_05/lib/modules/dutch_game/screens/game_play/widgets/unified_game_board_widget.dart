@@ -23,7 +23,12 @@ import '../../../utils/dutch_game_helpers.dart';
 import '../../../../../utils/dev_logger.dart';
 
 /// When true, logs layout overflow traces, pile debug, and rebuild timing for this widget.
-const bool LOGGING_SWITCH = false;
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Profile + countdown ring in hand HUD: outer diameter, stroke, inner avatar (see [CircularTimerWidget]).
 const double _kHudRingOuter = 34.0;
@@ -151,7 +156,15 @@ Map<String, dynamic> _unifiedBoardViewSlice(Map<String, dynamic> d) {
     'actionError': d['actionError'] is Map<String, dynamic>
         ? Map<String, dynamic>.from(d['actionError'] as Map)
         : null,
+    'dealAnimActive': d['dealAnimActive'] == true,
   };
+}
+
+const int _kDealSlotsPerPlayer = 4;
+
+bool _isDealingVisual(Map<String, dynamic> board) {
+  final phase = board['gamePhase']?.toString() ?? '';
+  return board['dealAnimActive'] == true || phase == 'dealing_cards';
 }
 
 /// Unified play surface: top strip (intrinsic height, full width) → [Expanded] middle
@@ -360,15 +373,31 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   void _onAnimRuntimeForHandMask() {
     if (!mounted) return;
+    final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game');
+    var dealCleared = false;
+    final gameId = dutch?['currentGameId']?.toString() ?? '';
+    if (dutch != null &&
+        dutch['dealAnimActive'] == true &&
+        DutchAnimRuntime.instance.isQueueEmpty &&
+        DutchEventHandlerCallbacks.isDealBootstrapCompleteFor(gameId)) {
+      if (LOGGING_SWITCH) {
+        customlog('dealAnim: clear dealAnimActive gameId=$gameId queue drained');
+      }
+      DutchGameHelpers.updateUIState({'dealAnimActive': false});
+      dealCleared = true;
+    }
     final sig = _computeAnimRuntimeStabilitySig();
-    if (sig == _lastAnimRuntimeStabilitySig) return;
+    if (!dealCleared && sig == _lastAnimRuntimeStabilitySig) return;
     _lastAnimRuntimeStabilitySig = sig;
     setState(() {});
   }
 
   /// Hides the real hand card at [playerId]/[handIndex] during flight/swap overlays (not peek glow).
   Widget _wrapHandSlotAnimMask(String playerId, int handIndex, Widget child) {
-    if (DutchAnimRuntime.instance.isAnimMaskedHandSlot(playerId, handIndex)) {
+    final dutch = StateManager().getModuleState<Map<String, dynamic>>('dutch_game');
+    final hideForDeal = dutch?['dealAnimActive'] == true;
+    if (hideForDeal ||
+        DutchAnimRuntime.instance.isAnimMaskedHandSlot(playerId, handIndex)) {
       return IgnorePointer(
         child: Opacity(
           opacity: 0,
@@ -421,9 +450,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     if (_animStackAnchorKey.currentContext == null) return;
     final uid = _myBoardPlayerId(board);
     final slotPathToKey = <String, GlobalKey>{};
+    final dealing = _isDealingVisual(board);
     final myHand = board['myHand'] as Map<String, dynamic>? ?? {};
     final cards = myHand['cards'] as List<dynamic>? ?? [];
-    for (int i = 0; i < cards.length; i++) {
+    final mySlotCount = dealing ? _kDealSlotsPerPlayer : cards.length;
+    for (int i = 0; i < mySlotCount; i++) {
       final mapKey = 'my_hand_${uid}_$i';
       final g = _cardKeys[mapKey];
       if (g != null) slotPathToKey['$uid|$i'] = g;
@@ -434,7 +465,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       final pid = p['id']?.toString() ?? '';
       if (pid.isEmpty || pid == uid) continue;
       final hand = p['hand'] as List<dynamic>? ?? [];
-      for (int i = 0; i < hand.length; i++) {
+      final oppSlotCount = dealing ? _kDealSlotsPerPlayer : hand.length;
+      for (int i = 0; i < oppSlotCount; i++) {
         final mapKey = 'opponent_${pid}_$i';
         final g = _cardKeys[mapKey];
         if (g != null) slotPathToKey['$pid|$i'] = g;
@@ -459,6 +491,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       pileRects: piles,
       playerTableOrientations: orientKeys,
     );
+
+    if (dealing) {
+      final gameId = board['currentGameId']?.toString() ??
+          (StateManager().getModuleState<Map<String, dynamic>>('dutch_game')?['currentGameId']?.toString() ?? '');
+      if (gameId.isNotEmpty &&
+          DutchAnimRuntime.instance.isQueueEmpty &&
+          !DutchEventHandlerCallbacks.isDealBootstrapCompleteFor(gameId)) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'dealAnim: layout ready gameId=$gameId slots=${slotPathToKey.length} '
+            'piles=${piles.keys.join(',')}',
+          );
+        }
+        DutchEventHandlerCallbacks.tryRunInitialDealBootstrap(gameId);
+      }
+    }
   }
 
   String _turnFeedIngestSignature(List<dynamic> turnFeed) {
@@ -1238,6 +1286,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final sideColumnOpp = cardTableOrientation == CardTableOrientation.landscapeFromLeft ||
         cardTableOrientation == CardTableOrientation.landscapeFromRight;
 
+    final isDealingVisual = _isDealingVisual(board);
     final panel = _buildOpponentCard(
       player,
       cardsToPeek,
@@ -1254,6 +1303,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       dutchCalledBy: dutchCalledBy,
       cardTableOrientation: cardTableOrientation,
       centerVerticallyInSideColumn: sideColumnOpp,
+      isDealingVisual: isDealingVisual,
     );
 
     final horizontalPad = sideColumnOpp
@@ -1272,7 +1322,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, String? phase, Map<String, int>? timerConfig, {required bool dutchActive, String? dutchCalledBy, required CardTableOrientation cardTableOrientation, bool centerVerticallyInSideColumn = false}) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, String? phase, Map<String, int>? timerConfig, {required bool dutchActive, String? dutchCalledBy, required CardTableOrientation cardTableOrientation, bool centerVerticallyInSideColumn = false, bool isDealingVisual = false}) {
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
     final playerId = player['id']?.toString() ?? '';
@@ -1394,8 +1444,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final isActionSeat = _seatStatusShowsActionHighlight(playerStatus);
     final isActiveSeat =
         isGameActive && (isCurrentTurn || isActionSeat);
-    // Initial peek: avatar only on the hand HUD — no seat panel glow, timer ring, or labels.
-    final suppressSeatChrome = isInitialPeekPhase;
+    // Initial peek / dealing: avatar only on the hand HUD — no seat panel glow, timer ring, or labels.
+    final suppressSeatChrome = isInitialPeekPhase || isDealingVisual || phase == 'dealing_cards';
     // Dutch caller: avatar ring + label only — no full-seat border (draw/play use seat glow).
     final emphasizeAvatar = showDutchCallerHud ||
         (!suppressSeatChrome && isActiveSeat);
@@ -1433,16 +1483,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final seatAvatarLift = _seatAvatarLiftFor(
       _kHudRingOuter * (suppressSeatChrome ? 1.0 : (emphasizeAvatar ? _kHudEmphasizeScale : 1.0)),
     );
-    final Widget? seatCenterHudOverlay = hand.isEmpty ? null : avatarHud;
+    final Widget? seatCenterHudOverlay =
+        hand.isEmpty && !isDealingVisual ? null : avatarHud;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final handPanel = hand.isNotEmpty
+        final handPanel = isDealingVisual
             ? _buildOpponentsCardsRow(
-                hand,
+                List<dynamic>.filled(_kDealSlotsPerPlayer, null),
                 cardsToPeek,
-                playerCollectionRankCards,
-                drawnCard,
+                const [],
+                null,
                 player['id']?.toString() ?? '',
                 knownCards,
                 isInitialPeekPhase,
@@ -1451,7 +1502,21 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 seatGlowStatus: seatGlowStatus,
                 cardTableOrientation: cardTableOrientation,
               )
-            : _buildEmptyHand();
+            : hand.isNotEmpty
+                ? _buildOpponentsCardsRow(
+                    hand,
+                    cardsToPeek,
+                    playerCollectionRankCards,
+                    drawnCard,
+                    player['id']?.toString() ?? '',
+                    knownCards,
+                    isInitialPeekPhase,
+                    player,
+                    nameAlignment: nameAlignment,
+                    seatGlowStatus: seatGlowStatus,
+                    cardTableOrientation: cardTableOrientation,
+                  )
+                : _buildEmptyHand();
 
         final decoratedHandPanel = handPanel;
         
@@ -3273,7 +3338,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             ),
             const SizedBox(height: 16),
             // Row 2: cards only (per-card glow; no seat/panel highlight).
-            cards.isEmpty
+            cards.isEmpty && !_isDealingVisual(board)
                 ? _buildMyHandEmptyHand()
                 : SizedBox(
                     width: double.infinity,
@@ -3282,7 +3347,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                       clipBehavior: Clip.none,
                       children: [
                         _buildMyHandCardsGrid(
-                          cards,
+                          _isDealingVisual(board)
+                              ? List<dynamic>.filled(_kDealSlotsPerPlayer, null)
+                              : cards,
                           cardsToPeek,
                           selectedIndex,
                           board,

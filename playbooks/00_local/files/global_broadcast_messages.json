@@ -22,6 +22,27 @@
           "action_identifier": "open_learn"
         }
       ]
+    },
+    {
+      "_id": "65f0a1b2c3d4e5f607182904",
+      "title": "Update available",
+      "body": "A new version of Dutch is on the store with fixes and improvements. Tap Update to open your app store listing.",
+      "type": "instant",
+      "subtype": "app_update",
+      "source": "global_broadcast",
+      "msg_id": "global_app_update_v1",
+      "target_ranks": ["all"],
+      "is_active": true,
+      "data": {
+        "deeplink": "store_link",
+        "target_version": "2.0.40"
+      },
+      "responses": [
+        {
+          "label": "Update",
+          "action_identifier": "open_store"
+        }
+      ]
     }
   ]
 }

@@ -1935,8 +1935,11 @@ class MessageHandler {
       // Filter: public permission
       if (room.permission != 'public') continue;
       
-      // Filter: has capacity
-      if (room.currentSize >= room.maxSize) continue;
+      // Filter: has capacity and at least one seated player
+      if (room.currentSize <= 0 || room.currentSize >= room.maxSize) continue;
+
+      // Filter: at least one live authenticated websocket still in the room (no ghost lobbies)
+      if (!_server.roomHasLiveAuthenticatedOccupant(room.roomId)) continue;
       
       // Filter: phase is waiting_for_players
       try {

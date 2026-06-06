@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/managers/module_manager.dart';
 import '../../modules/animations_module/animations_module.dart';
-import '../../modules/audio_module/audio_module.dart';
 import '../../modules/dutch_game/screens/promotion/widgets/dutch_promotion_burst.dart'
     show
         DutchPromotionBurst,
@@ -47,7 +46,6 @@ class _CoinPurchaseCelebrationScreenState extends State<CoinPurchaseCelebrationS
   void initState() {
     super.initState();
     _initConfetti();
-    _playSound();
     _scheduleSecondaryBurst();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -71,13 +69,6 @@ class _CoinPurchaseCelebrationScreenState extends State<CoinPurchaseCelebrationS
       _leftConfetti = ConfettiController(duration: const Duration(seconds: 4));
       _rightConfetti = ConfettiController(duration: const Duration(seconds: 4));
     }
-  }
-
-  void _playSound() {
-    try {
-      final audio = ModuleManager().getModuleByType<AudioModule>();
-      audio?.playSound('level_up_1');
-    } catch (_) {}
   }
 
   void _scheduleSecondaryBurst() {

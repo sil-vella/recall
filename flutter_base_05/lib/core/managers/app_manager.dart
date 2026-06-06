@@ -10,7 +10,7 @@ import 'provider_manager.dart';
 import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
-import 'websockets/websocket_manager.dart';
+import '../../modules/dutch_game/utils/multiplayer_session_readiness.dart';
 import '../../utils/web_bootstrap_log.dart';
 
 class AppManager extends ChangeNotifier {
@@ -32,16 +32,6 @@ class AppManager extends ChangeNotifier {
     
     // Initialize all registered modules
     await moduleManager.initializeModules(context);
-  }
-
-  /// Connect to the Dart WS server without blocking [initializeApp] / first frame (JWT via [WebSocketManager.initialize]).
-  Future<void> _initWebSocketInBackground() async {
-    try {
-      final webSocketManager = WebSocketManager.instance;
-      await webSocketManager.ensureInitializedAndConnected();
-    } catch (_) {
-      // Non-fatal; connection retries elsewhere as needed.
-    }
   }
 
   Future<void> initializeApp(BuildContext context) async {
@@ -66,16 +56,28 @@ class AppManager extends ChangeNotifier {
 
         _registerGlobalHooks();
 
+        MultiplayerSessionReadiness.markStartupPending();
+
         webBootstrapLog('AppManager: validateSessionOnStartup');
         final authStatus = await _authManager.validateSessionOnStartup();
         webBootstrapLog('AppManager: authStatus=$authStatus');
 
-        if (authStatus == AuthStatus.loggedIn) {
-          unawaited(_initWebSocketInBackground());
-        }
-
         webBootstrapLog('AppManager: handleAuthState');
         await _authManager.handleAuthState(context, authStatus);
+
+        if (authStatus == AuthStatus.loggedIn) {
+          webBootstrapLog('AppManager: completeStartupReadiness');
+          await MultiplayerSessionReadiness.completeStartupReadiness();
+        } else if (authStatus == AuthStatus.tokenExpired ||
+            authStatus == AuthStatus.sessionExpired) {
+          MultiplayerSessionReadiness.markStartupFailed(
+            message: authStatus == AuthStatus.sessionExpired
+                ? 'Session expired due to inactivity. Please log in again.'
+                : 'Session expired. Please log in again.',
+          );
+        } else {
+          MultiplayerSessionReadiness.markStartupCompleteNotLoggedIn();
+        }
 
         _isInitialized = true;
         notifyListeners();
@@ -155,9 +157,9 @@ class AppManager extends ChangeNotifier {
       // Home screen main hook
     }, priority: 1);
 
-    // After login (fresh session), connect WS so inbox/game events work before opening Dutch lobby.
+    // After login (fresh session), validate JWT + connect WS for multiplayer.
     _hooksManager.registerHookWithData('auth_login_complete', (data) {
-      unawaited(_initWebSocketInBackground());
+      unawaited(MultiplayerSessionReadiness.completeStartupReadiness());
     }, priority: 20);
   }
 

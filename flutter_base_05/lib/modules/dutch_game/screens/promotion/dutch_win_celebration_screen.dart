@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
-import '../../../audio_module/audio_module.dart';
 import '../../utils/dutch_share_moment.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
 import '../../widgets/ui_kit/dutch_share_cta_button.dart';
@@ -46,7 +45,6 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
   void initState() {
     super.initState();
     _initConfetti();
-    _playWinSound();
     _scheduleSecondaryBurst();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -70,15 +68,6 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
     } else {
       _leftConfetti = ConfettiController(duration: const Duration(seconds: 4));
       _rightConfetti = ConfettiController(duration: const Duration(seconds: 4));
-    }
-  }
-
-  void _playWinSound() {
-    try {
-      final audio = ModuleManager().getModuleByType<AudioModule>();
-      audio?.playSound('level_up_1');
-    } catch (e) {
-      
     }
   }
 

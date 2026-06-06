@@ -7,7 +7,6 @@ import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
-import '../../../audio_module/audio_module.dart';
 import '../../backend_core/utils/dutch_rank_level_change_checker.dart';
 import '../../utils/dutch_share_moment.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
@@ -63,7 +62,6 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
   void initState() {
     super.initState();
     _initConfetti();
-    _playLevelUpSound();
     _scheduleSecondaryBurst();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -87,15 +85,6 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
     } else {
       _leftConfetti = ConfettiController(duration: const Duration(seconds: 4));
       _rightConfetti = ConfettiController(duration: const Duration(seconds: 4));
-    }
-  }
-
-  void _playLevelUpSound() {
-    try {
-      final audio = ModuleManager().getModuleByType<AudioModule>();
-      audio?.playSound('level_up_1');
-    } catch (e) {
-      
     }
   }
 

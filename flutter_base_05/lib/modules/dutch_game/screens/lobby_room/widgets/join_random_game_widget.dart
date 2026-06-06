@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../utils/dutch_firebase_analytics.dart';
 import '../../../utils/dutch_game_helpers.dart';
+import '../../../utils/multiplayer_session_readiness.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../../../utils/consts/config.dart';
 import '../../../backend_core/utils/level_matcher.dart';
@@ -1193,44 +1194,31 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     });
 
     try {
+      final sessionReady =
+          await MultiplayerSessionReadiness.ensureReadyForMultiplayerAction();
       if (LOGGING_SWITCH) {
         customlog(
-          'JoinRandomGameWidget: tap received isClearAndCollect=$isClearAndCollect '
-          '(calling ensureWebSocketReady)',
+          'JoinRandomGameWidget: ensureReadyForMultiplayerAction => $sessionReady',
         );
       }
-      final isReady = await DutchGameHelpers.ensureWebSocketReady().timeout(
-        const Duration(seconds: 45),
-        onTimeout: () {
-          if (LOGGING_SWITCH) {
-            customlog(
-              'JoinRandomGameWidget: ensureWebSocketReady outer TIMEOUT (45s) — '
-              'check API token refresh, WS_URL=${Config.wsUrl}, device network',
-            );
-          }
-          return false;
-        },
-      );
 
-      if (LOGGING_SWITCH) {
-        customlog('JoinRandomGameWidget: ensureWebSocketReady => $isReady');
-      }
-
-      if (!isReady) {
+      if (!sessionReady) {
         if (LOGGING_SWITCH) {
           customlog(
-            'JoinRandomGameWidget: abort before joinRandomGame — WebSocket not ready '
-            '(see login state / WS init; account screen may open for auth)',
+            'JoinRandomGameWidget: abort — session not ready '
+            '(reason=${MultiplayerSessionReadiness.blockReason})',
           );
         }
         unawaited(DutchFirebaseAnalytics.logLobbyRandomJoinFailed(
-          reason: 'websocket_not_ready',
+          reason: MultiplayerSessionReadiness.blockReason ?? 'session_not_ready',
         ));
         if (mounted) {
+          final msg = MultiplayerSessionReadiness.blockReason ??
+              'Not connected to the game server yet. Check you are logged in and on the network, then try again.';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Not connected to the game server yet. Check you are logged in and on the network, then try again.',
+                msg,
                 style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
               ),
               backgroundColor: AppColors.warningColor,

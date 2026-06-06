@@ -25,8 +25,10 @@ import 'progression_config_bootstrap.dart';
 import 'achievements_catalog_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
 import 'game_ended_modal_pin.dart';
+import 'multiplayer_session_readiness.dart';
 import 'dart:developer' as developer;
 import '../../../utils/dev_logger.dart';
+import '../../../utils/consts/theme_consts.dart';
 
 /// Dev trace for join-random / special-event client emit path (`DUTCH_DEV_LOG` also gates [customlog]).
 // ignore: constant_identifier_names — set false when not tracing this flow (release tooling may flip).
@@ -223,6 +225,64 @@ class DutchGameHelpers {
     try {
       await SharedPrefManager().setString(_kLastMultiplayerRoomIdKey, '');
     } catch (_) {}
+  }
+
+  /// Fail fast when WS JWT validation fails: clear lobby/game state and leave game-play.
+  ///
+  /// Does not sign the user out of the app — only tears down multiplayer room UI/state so
+  /// random join does not sit on a ghost room id.
+  static Future<void> failFastOnWebSocketAuthenticationFailure({
+    required String reason,
+    String? message,
+  }) async {
+    final userMessage = (message != null && message.trim().isNotEmpty)
+        ? message.trim()
+        : (reason == 'authentication_error'
+            ? 'Game server authentication is temporarily unavailable. Check your connection and try again.'
+            : 'Could not verify your session with the game server. Please try again.');
+
+    try {
+      await clearLastMultiplayerRoomId();
+      MultiplayerSessionReadiness.markNotReady(
+        reason: userMessage,
+      );
+      await leaveAllGamesAndClearState();
+      clearGameState();
+      _stateUpdater.updateStateSync({
+        'isRandomJoinInProgress': false,
+        'randomJoinIsClearAndCollect': null,
+        'pending_start_match_source': null,
+        'currentGameId': '',
+        'currentRoomId': '',
+        'isInRoom': false,
+        'isRoomOwner': false,
+        'isGameActive': false,
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+        'playerCount': 0,
+        'currentSize': 0,
+      });
+    } catch (_) {}
+
+    final navigationManager = NavigationManager();
+    final currentRoute = navigationManager.getCurrentRoute();
+    if (currentRoute == '/dutch/game-play') {
+      navigationManager.navigateTo('/dutch/lobby');
+    }
+
+    final context = navigationManager.navigatorKey.currentContext;
+    if (context != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            userMessage,
+            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+          ),
+          backgroundColor: AppColors.errorColor,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   /// After JWT auth succeeds, attempt one WS `resume_room` for server-side disconnect grace.

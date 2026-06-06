@@ -402,7 +402,9 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         (head['context'] is Map &&
             (head['context'] as Map)['is_initial_deal'] == true);
     String? soundKey;
-    if (action == 'draw') {
+    if (action == 'draw' ||
+        action == 'collect_from_discard' ||
+        action == 'same_rank_penalty_rebound') {
       soundKey = 'draw';
     } else if (action == 'play_card' || action == 'same_rank_play') {
       soundKey = 'play';

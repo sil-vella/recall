@@ -6,6 +6,7 @@ import '../../../core/managers/hooks_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
 import '../../../utils/consts/theme_consts.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
+import '../../dutch_game/utils/multiplayer_session_readiness.dart';
 import '../backend_core/utils/level_matcher.dart';
 import '../../dutch_game/managers/dutch_event_listener_validator.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
@@ -157,6 +158,23 @@ class DutchEventManager {
       }
     });
     
+    // WS JWT validation failed — clear ghost random-join state and leave game-play.
+    HooksManager().registerHookWithData('websocket_authentication_failed', (data) {
+      final reason = data['reason']?.toString() ?? 'authentication_failed';
+      final message = data['message']?.toString();
+      unawaited(DutchGameHelpers.failFastOnWebSocketAuthenticationFailure(
+        reason: reason,
+        message: message,
+      ));
+      MultiplayerSessionReadiness.markNotReady(reason: message ?? reason);
+      _addSessionMessage(
+        level: 'error',
+        title: 'Game Server Authentication Failed',
+        message: message ?? reason,
+        data: data is Map ? Map<String, dynamic>.from(data as Map) : {'reason': reason},
+      );
+    });
+
     // Register websocket_connect_error hook callback
     HooksManager().registerHookWithData('websocket_connect_error', (data) {
       final status = data['status']?.toString() ?? 'unknown';

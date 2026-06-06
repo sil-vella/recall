@@ -6,6 +6,7 @@ import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../core/managers/hooks_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
+import '../../../../dutch_game/utils/multiplayer_session_readiness.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../backend_core/utils/level_matcher.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
@@ -223,12 +224,22 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
 
       final roomId = _roomIdController.text.trim();
 
-      // Ensure WebSocket is ready before attempting to join
-      final isReady = await DutchGameHelpers.ensureWebSocketReady();
-      if (!isReady) {
+      final sessionReady =
+          await MultiplayerSessionReadiness.ensureReadyForMultiplayerAction();
+      if (!sessionReady) {
         setState(() {
           _isLoading = false;
         });
+        if (mounted) {
+          final msg = MultiplayerSessionReadiness.blockReason ??
+              'Not connected to the game server yet.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg),
+              backgroundColor: AppColors.warningColor,
+            ),
+          );
+        }
         return;
       }
 

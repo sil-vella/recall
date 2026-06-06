@@ -3,15 +3,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../utils/consts/theme_consts.dart';
-import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
-import '../../../../core/managers/navigation_manager.dart';
 import '../../managers/validated_event_emitter.dart';
 import '../../../dutch_game/managers/dutch_event_manager.dart';
 import '../../practice/practice_mode_bridge.dart';
 import '../../backend_core/services/game_state_store.dart';
 // import '../../backend_core/utils/level_matcher.dart'; // used by frontend coin check (bypassed for backend test)
 import '../../../dutch_game/utils/dutch_game_helpers.dart';
+import '../../../dutch_game/utils/multiplayer_session_readiness.dart';
+import '../../../../core/managers/navigation_manager.dart';
 import 'widgets/create_join_game_widget.dart';
 import 'widgets/join_random_game_widget.dart';
 import 'widgets/practice_match_widget.dart';
@@ -50,7 +50,6 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
   @override
@@ -65,12 +64,16 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       await DutchGameHelpers.clearAllGameStateBeforeNewGame();
       if (!mounted) return;
       _ensureJoinedGamesSliceComputed();
-      _initializeWebSocket().then((_) {
-        if (!mounted) return;
-        _setupEventCallbacks();
-        _initializeRoomState();
-        _featureRegistrar.registerDefaults(context);
-      });
+      if (MultiplayerSessionReadiness.isLoggedIn &&
+          !MultiplayerSessionReadiness.isReady) {
+        await MultiplayerSessionReadiness.refreshReadiness(
+          triggerSessionExpiredOnAuthFailure: true,
+        );
+      }
+      if (!mounted) return;
+      _setupEventCallbacks();
+      _initializeRoomState();
+      _featureRegistrar.registerDefaults(context);
     });
   }
 
@@ -106,25 +109,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     });
   }
 
-  /// Ensures Dart WS (JWT + listeners) matches [AppManager] app-init path; idempotent.
-  Future<void> _initializeWebSocket() async {
-    
-
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final isLoggedIn = loginState['isLoggedIn'] == true;
-    if (!isLoggedIn) {
-      
-      return;
-    }
-
-    try {
-      final ok = await _websocketManager.ensureInitializedAndConnected();
-      
-    } catch (e, stackTrace) {
-      
-    }
-  }
-  
   @override
   void dispose() {
     // Clean up event callbacks - now handled by WSEventManager
@@ -166,15 +150,14 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final eventEmitter = DutchGameEventEmitter.instance;
       eventEmitter.setTransportMode(EventTransportMode.websocket);
       
-      // Ensure WebSocket is ready (logged in, initialized, and connected)
-      final isReady = await DutchGameHelpers.ensureWebSocketReady();
-      if (!isReady) {
-        if (mounted) {
-          DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
-        }
+      // Ensure startup JWT + WS auth before multiplayer room create
+      final sessionReady =
+          await MultiplayerSessionReadiness.ensureReadyForMultiplayerAction();
+      if (!sessionReady) {
         return {
           'success': false,
-          'error': 'WebSocket not ready',
+          'error': MultiplayerSessionReadiness.blockReason ??
+              'Session not ready for multiplayer',
         };
       }
       
@@ -486,60 +469,125 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         constraints: const BoxConstraints(maxWidth: 1000),
         child: SingleChildScrollView(
           padding: EdgeInsets.zero,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Join Random Game Section (Collapsible) - First
-              CollapsibleSectionWidget(
-                title: 'Join Random',
-                icon: Icons.flash_on,
-                isExpanded: _expandedSection == 'Join Random',
-                onExpandedChanged: () => _handleSectionToggled('Join Random'),
-                child: JoinRandomGameWidget(
-                  onJoinRandomGame: () {
-                    // Callback after successful random game join
-                  },
-                ),
-              ),
-              
-              // Practice Match Section (Collapsible) - Second
-              CollapsibleSectionWidget(
-                title: 'Practice',
-                icon: Icons.school,
-                isExpanded: _expandedSection == 'Practice',
-                onExpandedChanged: () => _handleSectionToggled('Practice'),
-                child: PracticeMatchWidget(
-                  onStartPractice: _startPracticeMatch,
-                ),
-              ),
-              
-              // Create & Join Room Section (Collapsible) - Third
-              CollapsibleSectionWidget(
-                title: 'Create New',
-                icon: Icons.group_add,
-                isExpanded: _expandedSection == 'Create New',
-                onExpandedChanged: () => _handleSectionToggled('Create New'),
-                child: CreateJoinGameWidget(
-                  onCreateRoom: _createRoom,
-                  onJoinRoom: () {
-                    // Callback after successful join request
-                  },
-                ),
-              ),
+          child: AnimatedBuilder(
+            animation: StateManager(),
+            builder: (context, _) {
+              final loginState =
+                  StateManager().getModuleState<Map<String, dynamic>>('login') ??
+                      {};
+              final isLoggedIn = loginState['isLoggedIn'] == true;
+              final sessionReady = loginState['multiplayerSessionReady'] == true;
+              final sessionChecking =
+                  loginState['multiplayerSessionChecking'] == true;
+              final blockReason =
+                  loginState['multiplayerSessionBlockReason']?.toString();
+              final multiplayerBlocked =
+                  isLoggedIn && !sessionReady;
 
-              // IRL Tournaments Section (Collapsible) - Fourth — HIDDEN FOR NOW
-              // CollapsibleSectionWidget(
-              //   title: 'IRL Tournaments',
-              //   icon: Icons.emoji_events,
-              //   isExpanded: _expandedSection == 'IRL Tournaments',
-              //   onExpandedChanged: () => _handleSectionToggled('IRL Tournaments'),
-              //   child: IRLTournamentsWidget(
-              //     isExpanded: _expandedSection == 'IRL Tournaments',
-              //   ),
-              // ),
-            ],
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (isLoggedIn && sessionChecking)
+                    _buildSessionStatusBanner(
+                      message: 'Connecting to game server…',
+                      isError: false,
+                    )
+                  else if (multiplayerBlocked &&
+                      blockReason != null &&
+                      blockReason.isNotEmpty)
+                    _buildSessionStatusBanner(
+                      message: blockReason,
+                      isError: true,
+                    ),
+                  AbsorbPointer(
+                    absorbing: multiplayerBlocked,
+                    child: Opacity(
+                      opacity: multiplayerBlocked ? 0.55 : 1,
+                      child: CollapsibleSectionWidget(
+                        title: 'Join Random',
+                        icon: Icons.flash_on,
+                        isExpanded: _expandedSection == 'Join Random',
+                        onExpandedChanged: () =>
+                            _handleSectionToggled('Join Random'),
+                        child: JoinRandomGameWidget(
+                          onJoinRandomGame: () {},
+                        ),
+                      ),
+                    ),
+                  ),
+                  CollapsibleSectionWidget(
+                    title: 'Practice',
+                    icon: Icons.school,
+                    isExpanded: _expandedSection == 'Practice',
+                    onExpandedChanged: () =>
+                        _handleSectionToggled('Practice'),
+                    child: PracticeMatchWidget(
+                      onStartPractice: _startPracticeMatch,
+                    ),
+                  ),
+                  AbsorbPointer(
+                    absorbing: multiplayerBlocked,
+                    child: Opacity(
+                      opacity: multiplayerBlocked ? 0.55 : 1,
+                      child: CollapsibleSectionWidget(
+                        title: 'Create New',
+                        icon: Icons.group_add,
+                        isExpanded: _expandedSection == 'Create New',
+                        onExpandedChanged: () =>
+                            _handleSectionToggled('Create New'),
+                        child: CreateJoinGameWidget(
+                          onCreateRoom: _createRoom,
+                          onJoinRoom: () {},
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSessionStatusBanner({
+    required String message,
+    required bool isError,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: AppPadding.cardPadding,
+      decoration: BoxDecoration(
+        color: isError
+            ? AppColors.errorColor.withValues(alpha: 0.15)
+            : AppColors.primaryColor.withValues(alpha: 0.12),
+        border: Border.all(
+          color: isError ? AppColors.errorColor : AppColors.primaryColor,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          if (!isError)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(Icons.error_outline, color: AppColors.errorColor, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTextStyles.bodyMedium().copyWith(
+                color: AppColors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -64,7 +64,11 @@ class LoginModule extends ModuleBase {
         // Hydrate avatar URL immediately for already-authenticated sessions.
         // This avoids initials fallback while profile refresh is still in flight.
         "profilePicture": _sharedPref?.getString('profile_picture'),
-        "error": null
+        "error": null,
+        "sessionStartupPending": true,
+        "multiplayerSessionReady": false,
+        "multiplayerSessionChecking": true,
+        "multiplayerSessionBlockReason": null,
       });
     });
   }

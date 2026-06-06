@@ -897,19 +897,24 @@ class WSEventHandler {
   /// Handle authentication failure
   void handleAuthenticationFailed(dynamic data) {
     try {
-      
-      
+      final message = data is Map
+          ? (data['message']?.toString() ?? 'Authentication failed')
+          : 'Authentication failed';
+
       WebSocketStateHelpers.updateAuthenticationStatus(
         isAuthenticated: false,
-        error: data is Map ? data['message'] : 'Authentication failed',
+        error: message,
       );
+
+      HooksManager().triggerHookWithData('websocket_authentication_failed', {
+        'reason': 'authentication_failed',
+        'message': message,
+      });
 
       // Tear down transport so the next initialize/connect uses a fresh channel + JWT (no app restart).
       HooksManager().triggerHookWithData('websocket_reset_transport', {
         'reason': 'authentication_failed',
       });
-      
-      // Authentication failure - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
       
     }
@@ -918,18 +923,23 @@ class WSEventHandler {
   /// Handle authentication error
   void handleAuthenticationError(dynamic data) {
     try {
-      
-      
+      final message = data is Map
+          ? (data['message']?.toString() ?? 'Authentication service unavailable')
+          : 'Authentication service unavailable';
+
       WebSocketStateHelpers.updateAuthenticationStatus(
         isAuthenticated: false,
-        error: data is Map ? data['message'] : 'Authentication error',
+        error: message,
       );
+
+      HooksManager().triggerHookWithData('websocket_authentication_failed', {
+        'reason': 'authentication_error',
+        'message': message,
+      });
 
       HooksManager().triggerHookWithData('websocket_reset_transport', {
         'reason': 'authentication_error',
       });
-      
-      // Authentication error - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
       
     }

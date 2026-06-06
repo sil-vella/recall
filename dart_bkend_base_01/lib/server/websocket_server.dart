@@ -217,6 +217,41 @@ class WebSocketServer {
     return _roomManager.getRoom(roomId)?.websocketSessionForSeat(gamePlayerSeatId);
   }
 
+  /// True when at least one seat in [roomId] has an open, authenticated websocket.
+  bool roomHasLiveAuthenticatedOccupant(String roomId) {
+    for (final sessionId in _roomManager.getSessionsInRoom(roomId)) {
+      if (_connections.containsKey(sessionId) &&
+          isSessionAuthenticated(sessionId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Close a random-join lobby owned by [sessionId] when auth fails on that socket.
+  void disposeOwnedRandomJoinWaitingRoomForSession(String sessionId) {
+    final roomId = _roomManager.getRoomForSession(sessionId);
+    if (roomId == null) return;
+
+    final room = _roomManager.getRoomInfo(roomId);
+    if (room == null || room.isRandomJoin != true) return;
+
+    final userId = _sessionToUser[sessionId]?.trim() ?? '';
+    if (userId.isEmpty || room.ownerId != userId) return;
+
+    try {
+      final phase =
+          GameStateStore.instance.getGameState(roomId)['phase']?.toString();
+      if (phase != 'waiting_for_players') return;
+    } catch (_) {
+      return;
+    }
+
+    RandomJoinTimerManager.instance.cancelTimer(roomId);
+    RandomJoinTimerManager.instance.cleanup(roomId);
+    _roomManager.closeRoom(roomId, 'creator_auth_failed');
+  }
+
   bool _disconnectEligibleGameState(String roomId) {
     try {
       final gs = GameStateStore.instance.getGameState(roomId);
@@ -461,12 +496,14 @@ class WebSocketServer {
         }
         sendToSession(sessionId, authenticatedPayload);
       } else {
+        disposeOwnedRandomJoinWaitingRoomForSession(sessionId);
         sendToSession(sessionId, {
           'event': 'authentication_failed',
           'message': result['error'] ?? 'Invalid token',
         });
       }
     } catch (e) {
+      disposeOwnedRandomJoinWaitingRoomForSession(sessionId);
       sendToSession(sessionId, {
           'event': 'authentication_error',
           'message': 'Authentication service unavailable',

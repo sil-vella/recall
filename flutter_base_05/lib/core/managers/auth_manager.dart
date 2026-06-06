@@ -679,7 +679,11 @@ class AuthManager extends ChangeNotifier {
         _isValidating = false;
         notifyListeners();
         
-        // No need to trigger auth_required hook - refresh_token_expired hook already handled it
+        _triggerAuthRequiredOnce(
+          reason: 'token_expired',
+          status: 'token_expired',
+          message: 'Session expired. Please log in again.',
+        );
         
         return AuthStatus.tokenExpired;
       }
@@ -739,6 +743,10 @@ class AuthManager extends ChangeNotifier {
           "userId": _sharedPref?.getString('user_id'),
           "username": _sharedPref?.getString('username'),
           "email": _sharedPref?.getString('email'),
+          "sessionStartupPending": true,
+          "multiplayerSessionReady": false,
+          "multiplayerSessionChecking": true,
+          "multiplayerSessionBlockReason": null,
         };
         
         stateManager.updateModuleState("login", userData);
@@ -751,28 +759,47 @@ class AuthManager extends ChangeNotifier {
         break;
         
       case AuthStatus.loggedOut:
-      case AuthStatus.tokenExpired:
-      case AuthStatus.sessionExpired:
-        // User needs to log in
         stateManager.updateModuleState("login", {
           "isLoggedIn": false,
           "userId": null,
           "username": null,
           "email": null,
+          "sessionStartupPending": false,
+          "multiplayerSessionReady": false,
+          "multiplayerSessionChecking": false,
         });
-        
-        String message = "Please log in";
-        String reason = "logged_out";
+        break;
+
+      case AuthStatus.tokenExpired:
+      case AuthStatus.sessionExpired:
+        stateManager.updateModuleState("login", {
+          "isLoggedIn": false,
+          "userId": null,
+          "username": null,
+          "email": null,
+          "sessionStartupPending": false,
+          "multiplayerSessionReady": false,
+          "multiplayerSessionChecking": false,
+        });
+
+        late final String message;
+        late final String reason;
+        late final String hookStatus;
         if (status == AuthStatus.tokenExpired) {
-          message = "Session expired. Please log in again.";
-          reason = "token_expired";
-        } else if (status == AuthStatus.sessionExpired) {
-          message = "Session expired due to inactivity. Please log in again.";
-          reason = "session_expired";
+          message = 'Session expired. Please log in again.';
+          reason = 'token_expired';
+          hookStatus = 'token_expired';
+        } else {
+          message = 'Session expired due to inactivity. Please log in again.';
+          reason = 'session_expired';
+          hookStatus = 'session_expired';
         }
-        
-        
-        // Navigation handled by LoginModule hooks - no need to navigate here
+
+        _triggerAuthRequiredOnce(
+          reason: reason,
+          status: hookStatus,
+          message: message,
+        );
         break;
         
       case AuthStatus.error:
@@ -792,6 +819,20 @@ class AuthManager extends ChangeNotifier {
         });
         break;
     }
+  }
+
+  void _triggerAuthRequiredOnce({
+    required String reason,
+    required String message,
+    String status = 'token_expired',
+  }) {
+    if (_hasTriggeredAuthHook) return;
+    _hasTriggeredAuthHook = true;
+    HooksManager().triggerHookWithData('auth_required', {
+      'status': status,
+      'reason': reason,
+      'message': message,
+    });
   }
 
   /// ✅ Clear all stored authentication data (minimal version - logout handled by LoginModule)

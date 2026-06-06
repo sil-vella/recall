@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:dutch/core/managers/navigation_manager.dart';
 import 'package:dutch/core/managers/state_manager.dart';
@@ -16,6 +18,7 @@ import '../dutch_game/managers/dutch_module_manager.dart';
 import '../dutch_game/managers/dutch_event_manager.dart';
 import '../dutch_game/managers/dutch_game_state_updater.dart';
 import '../dutch_game/utils/dutch_game_helpers.dart';
+import '../dutch_game/utils/multiplayer_session_readiness.dart';
 import '../dutch_game/screens/game_play/utils/dutch_anim_runtime.dart';
 import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
 import '../../screens/admin_dashboard_screen/admin_dashboard_screen.dart';
@@ -194,6 +197,7 @@ class DutchGameMain extends ModuleBase {
     hooksManager.registerHookWithData('auth_login_complete', (data) {
       
       _fetchUserStats();
+      unawaited(MultiplayerSessionReadiness.completeStartupReadiness());
     });
 
     // Session restore and any path that sets AuthStatus.loggedIn via handleAuthState
@@ -201,6 +205,7 @@ class DutchGameMain extends ModuleBase {
     hooksManager.registerHookWithData('auth_login_success', (data) {
       
       _fetchUserStats();
+      unawaited(MultiplayerSessionReadiness.completeStartupReadiness());
     });
     
     // Register hook for home screen to register play button feature

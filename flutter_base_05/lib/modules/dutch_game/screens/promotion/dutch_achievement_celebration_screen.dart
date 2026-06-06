@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
-import '../../../audio_module/audio_module.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
 import 'widgets/dutch_promotion_burst.dart'
     show
@@ -52,7 +51,6 @@ class _DutchAchievementCelebrationScreenState extends State<DutchAchievementCele
   void initState() {
     super.initState();
     _initConfetti();
-    _playSound();
     _scheduleSecondaryBurst();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -76,15 +74,6 @@ class _DutchAchievementCelebrationScreenState extends State<DutchAchievementCele
     } else {
       _leftConfetti = ConfettiController(duration: const Duration(seconds: 4));
       _rightConfetti = ConfettiController(duration: const Duration(seconds: 4));
-    }
-  }
-
-  void _playSound() {
-    try {
-      final audio = ModuleManager().getModuleByType<AudioModule>();
-      audio?.playSound('level_up_1');
-    } catch (e) {
-      
     }
   }
 

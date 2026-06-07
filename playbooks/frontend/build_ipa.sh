@@ -66,18 +66,11 @@ fi
 source "$SCRIPT_DIR/bump_app_version_prompt.sh"
 bump_app_version_prompt
 
-IFS='.' read -r APP_MAJOR APP_MINOR APP_PATCH <<< "${APP_VERSION:-1.0.0}"
-APP_MAJOR=${APP_MAJOR:-0}
-APP_MINOR=${APP_MINOR:-0}
-APP_PATCH=${APP_PATCH:-0}
-if ! [[ "$APP_MAJOR" =~ ^[0-9]+$ ]]; then APP_MAJOR=0; fi
-if ! [[ "$APP_MINOR" =~ ^[0-9]+$ ]]; then APP_MINOR=0; fi
-if ! [[ "$APP_PATCH" =~ ^[0-9]+$ ]]; then APP_PATCH=0; fi
-BUILD_NUMBER=$((APP_MAJOR * 10000 + APP_MINOR * 100 + APP_PATCH))
-echo "🔢 Using build-name=$APP_VERSION build-number=$BUILD_NUMBER"
-
 # shellcheck source=sync_pubspec_version.sh
 source "$SCRIPT_DIR/sync_pubspec_version.sh"
+resolve_release_version_and_build "${APP_VERSION:-1.0.0}"
+write_app_version_to_env_files "$APP_VERSION"
+echo "🔢 Using build-name=$APP_VERSION build-number=$BUILD_NUMBER"
 sync_pubspec_version "$APP_VERSION" "$BUILD_NUMBER"
 
 cd "$REPO_ROOT/flutter_base_05"

@@ -113,19 +113,11 @@ echo ""
 echo "📦 Building with APP_VERSION=$APP_VERSION"
 echo "ℹ️  AdMob: set ADMOBS_* and ADMOB_APPLICATION_ID in .env.dart.defines.prod (dart-define; see Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md). Optional fallback: android/local.properties admob.application_id"
 
-# Derive a numeric build number from APP_VERSION (e.g. 2.1.0 -> 20100)
-IFS='.' read -r APP_MAJOR APP_MINOR APP_PATCH <<< "$APP_VERSION"
-APP_MAJOR=${APP_MAJOR:-0}
-APP_MINOR=${APP_MINOR:-0}
-APP_PATCH=${APP_PATCH:-0}
-if ! [[ "$APP_MAJOR" =~ ^[0-9]+$ ]]; then APP_MAJOR=0; fi
-if ! [[ "$APP_MINOR" =~ ^[0-9]+$ ]]; then APP_MINOR=0; fi
-if ! [[ "$APP_PATCH" =~ ^[0-9]+$ ]]; then APP_PATCH=0; fi
-BUILD_NUMBER=$((APP_MAJOR * 10000 + APP_MINOR * 100 + APP_PATCH))
-echo "🔢 Using BUILD_NUMBER=$BUILD_NUMBER"
-
 # shellcheck source=sync_pubspec_version.sh
 source "$SCRIPT_DIR/sync_pubspec_version.sh"
+resolve_release_version_and_build "$APP_VERSION"
+write_app_version_to_env_files "$APP_VERSION"
+echo "🔢 Using APP_VERSION=$APP_VERSION BUILD_NUMBER=$BUILD_NUMBER"
 sync_pubspec_version "$APP_VERSION" "$BUILD_NUMBER"
 
 # Navigate to Flutter project directory

@@ -28,7 +28,8 @@ flutter_dart_defines_prepare() {
     _flutter_dart_defines_log "❌ Missing dart-define file: $DART_DEFINES_ENV"
     return 1
   fi
-  DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX.json")" || return 1
+  # BSD mktemp: XXXXXX must be the final path segment (no suffix after it).
+  DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX")" || return 1
   python3 "$_FLUTTER_DART_DEFINES_SCRIPT_DIR/env_for_flutter_dart_defines.py" \
     "$DART_DEFINES_ENV" "$DART_DEF_JSON" || return 1
   export DART_DEFINES_ENV DART_DEF_JSON

@@ -149,130 +149,78 @@ class InnerShadowPainter extends CustomPainter {
   }
 }
 
-/// Background widget for the play surface: felt texture + edge spotlights from [DutchGamePlayTableStyle].
-class TableBackgroundWidget extends StatefulWidget {
+/// Felt base for the play surface (bottom layer under table design + spotlights).
+class TableFeltLayerWidget extends StatelessWidget {
   final DutchGamePlayTableStyle tableStyle;
-  final bool enableFeltTexture;
 
-  const TableBackgroundWidget({
+  const TableFeltLayerWidget({
     Key? key,
     required this.tableStyle,
-    this.enableFeltTexture = true,
   }) : super(key: key);
 
   @override
-  State<TableBackgroundWidget> createState() => _TableBackgroundWidgetState();
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: FeltTextureWidget(
+        backgroundColor: tableStyle.feltBackground,
+      ),
+    );
+  }
 }
 
-class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
+/// Edge spotlights (top decorative layer: above table design, below game UI).
+class TableEdgeSpotlightsWidget extends StatelessWidget {
+  final DutchGamePlayTableStyle tableStyle;
+
+  const TableEdgeSpotlightsWidget({
+    Key? key,
+    required this.tableStyle,
+  }) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
-    final spot = widget.tableStyle.spotlightColor;
+    final spot = tableStyle.spotlightColor;
     // Inner hot core of edge spotlights (stop 0.0); 40% dimmer than legacy 0.85.
     const innerSpotAlpha = 0.85 * 0.6;
     return RepaintBoundary(
       child: LayoutBuilder(
         builder: (context, constraints) {
           final height = constraints.maxHeight;
+          const spotlightSize = 800.0;
+          final topSpotlightY = height * 0.25;
+          final bottomSpotlightY = height * 0.75;
 
-          // Calculate spotlight positions - evenly spaced vertically
-          // 2 spotlights from left, 2 from right
-          final spotlightSize = 800.0; // Size of circular spotlight
-          final topSpotlightY = height * 0.25; // Top spotlight position
-          final bottomSpotlightY = height * 0.75; // Bottom spotlight position
+          Widget spotlight({required bool left, required double topY}) {
+            return Positioned(
+              left: left ? 0 : null,
+              right: left ? null : 0,
+              top: topY - spotlightSize / 2,
+              child: Container(
+                width: spotlightSize,
+                height: spotlightSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    center: left ? Alignment.centerLeft : Alignment.centerRight,
+                    radius: 1.0,
+                    colors: [
+                      spot.withValues(alpha: innerSpotAlpha),
+                      spot.withValues(alpha: 0.25),
+                      spot.withValues(alpha: 0.0),
+                    ],
+                    stops: const [0.0, 0.08, 0.4],
+                  ),
+                ),
+              ),
+            );
+          }
 
           return Stack(
             children: [
-              if (widget.enableFeltTexture)
-                Positioned.fill(
-                  child: FeltTextureWidget(
-                    backgroundColor: widget.tableStyle.feltBackground,
-                  ),
-                ),
-              Positioned(
-                left: -0,
-                top: topSpotlightY - spotlightSize / 2,
-                child: Container(
-                  width: spotlightSize,
-                  height: spotlightSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      center: Alignment.centerLeft,
-                      radius: 1.0,
-                      colors: [
-                        spot.withValues(alpha: innerSpotAlpha),
-                        spot.withValues(alpha: 0.25),
-                        spot.withValues(alpha: 0.0),
-                      ],
-                      stops: const [0.0, 0.08, 0.4],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: -0,
-                top: bottomSpotlightY - spotlightSize / 2,
-                child: Container(
-                  width: spotlightSize,
-                  height: spotlightSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      center: Alignment.centerLeft,
-                      radius: 1.0,
-                      colors: [
-                        spot.withValues(alpha: innerSpotAlpha),
-                        spot.withValues(alpha: 0.25),
-                        spot.withValues(alpha: 0.0),
-                      ],
-                      stops: const [0.0, 0.08, 0.4],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: -0,
-                top: topSpotlightY - spotlightSize / 2,
-                child: Container(
-                  width: spotlightSize,
-                  height: spotlightSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      center: Alignment.centerRight,
-                      radius: 1.0,
-                      colors: [
-                        spot.withValues(alpha: innerSpotAlpha),
-                        spot.withValues(alpha: 0.25),
-                        spot.withValues(alpha: 0.0),
-                      ],
-                      stops: const [0.0, 0.08, 0.4],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: -0,
-                top: bottomSpotlightY - spotlightSize / 2,
-                child: Container(
-                  width: spotlightSize,
-                  height: spotlightSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      center: Alignment.centerRight,
-                      radius: 1.0,
-                      colors: [
-                        spot.withValues(alpha: innerSpotAlpha),
-                        spot.withValues(alpha: 0.25),
-                        spot.withValues(alpha: 0.0),
-                      ],
-                      stops: const [0.0, 0.08, 0.4],
-                    ),
-                  ),
-                ),
-              ),
+              spotlight(left: true, topY: topSpotlightY),
+              spotlight(left: true, topY: bottomSpotlightY),
+              spotlight(left: false, topY: topSpotlightY),
+              spotlight(left: false, topY: bottomSpotlightY),
             ],
           );
         },
@@ -743,21 +691,24 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
 
                           return Stack(
                             children: [
+                              // Layer 1: felt (regular + special events)
                               Positioned.fill(
-                                child: TableBackgroundWidget(
+                                child: TableFeltLayerWidget(
                                   key: ValueKey<String>(
-                                    '${playTableLevel}_${specialEventId ?? ''}_$equippedTableDesignId',
+                                    'felt_${playTableLevel}_${specialEventId ?? ''}',
                                   ),
                                   tableStyle: tableStyle,
-                                  enableFeltTexture: !isSpecialEventMatch,
                                 ),
                               ),
+                              // Layer 2: table design overlay (70% for shop equipped + special events)
                               if (isSpecialEventMatch && eventTableDesignOverlayUrl.isNotEmpty)
                                 Positioned.fill(
                                   child: IgnorePointer(
-                                    child: _tableDesignOverlayImage(
-                                      networkUrl: eventTableDesignOverlayUrl,
-                                      fallbackAsset: TableDesignStyleHelpers.defaultTableOverlayAsset,
+                                    child: TableDesignStyleHelpers.wrapCosmeticTableDesignOverlay(
+                                      _tableDesignOverlayImage(
+                                        networkUrl: eventTableDesignOverlayUrl,
+                                        fallbackAsset: TableDesignStyleHelpers.defaultTableOverlayAsset,
+                                      ),
                                     ),
                                   ),
                                 )
@@ -770,12 +721,25 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
                               else
                                 Positioned.fill(
                                   child: IgnorePointer(
-                                    child: _tableDesignOverlayImage(
-                                      networkUrl: overlayNetworkUrl,
-                                      fallbackAsset: TableDesignStyleHelpers.defaultTableOverlayAsset,
+                                    child: TableDesignStyleHelpers.wrapCosmeticTableDesignOverlay(
+                                      _tableDesignOverlayImage(
+                                        networkUrl: overlayNetworkUrl,
+                                        fallbackAsset: TableDesignStyleHelpers.defaultTableOverlayAsset,
+                                      ),
                                     ),
                                   ),
                                 ),
+                              // Layer 3: edge spotlights (always above table design)
+                              Positioned.fill(
+                                child: IgnorePointer(
+                                  child: TableEdgeSpotlightsWidget(
+                                    key: ValueKey<String>(
+                                      'spot_${playTableLevel}_${specialEventId ?? ''}',
+                                    ),
+                                    tableStyle: tableStyle,
+                                  ),
+                                ),
+                              ),
                               // Main content - transparent so background shows through
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,

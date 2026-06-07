@@ -11,6 +11,7 @@ import '../../../core/managers/module_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
 import '../../../core/widgets/instant_message_modal.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
+import '../utils/game_ended_modal_pin.dart';
 import '../backend_core/utils/dutch_rank_level_change_checker.dart';
 import '../utils/game_instructions_provider.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
@@ -52,6 +53,46 @@ class DutchEventHandlerCallbacks {
     }
     return parts.isEmpty ? '(none)' : parts.join(' ');
   }
+
+  /// Compact roster line for dev traces: `seatId:status(h=N), …`
+  static String playerStatusesLogSummary(
+    List<dynamic>? players, {
+    int maxEntries = 8,
+  }) {
+    if (players == null || players.isEmpty) return '(none)';
+    final parts = <String>[];
+    for (var i = 0; i < players.length && i < maxEntries; i++) {
+      final raw = players[i];
+      if (raw is! Map) continue;
+      final p = Map<String, dynamic>.from(
+        raw.map((k, v) => MapEntry(k.toString(), v)),
+      );
+      final id = p['id']?.toString() ?? '?';
+      final shortId = id.length > 14 ? '…${id.substring(id.length - 10)}' : id;
+      final status = p['status']?.toString() ?? '?';
+      final handLen = (p['hand'] as List?)?.length ?? 0;
+      parts.add('$shortId:$status(h=$handLen)');
+    }
+    if (players.length > maxEntries) {
+      parts.add('+${players.length - maxEntries} more');
+    }
+    return parts.isEmpty ? '(none)' : parts.join(', ');
+  }
+
+  /// SSOT roster from [dutch_game].games[gameId].gameData.game_state.players.
+  static List<dynamic>? rosterFromDutchGame(String gameId) {
+    if (gameId.isEmpty) return null;
+    final dg =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final games = dg['games'] as Map<String, dynamic>? ?? {};
+    final game = games[gameId] as Map<String, dynamic>? ?? {};
+    final gameData = game['gameData'] as Map<String, dynamic>? ?? {};
+    final gs = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    return gs['players'] as List<dynamic>?;
+  }
+
+  static String dutchGameRosterLog(String gameId) =>
+      playerStatusesLogSummary(rosterFromDutchGame(gameId));
 
   static final Map<String, int> _lastStateVersionByGameId = <String, int>{};
   static final Map<String, String> _lastEventSignatureByGameId = <String, String>{};
@@ -2469,11 +2510,56 @@ When anyone has played a card with the **same rank** as your **collection card**
     final stateBeforePhase =
         StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final previousUiPhase = stateBeforePhase['gamePhase']?.toString() ?? '';
-    final endGameModalPinned =
+    var endGameModalPinned =
         DutchGameHelpers.shouldKeepEndGameModalVisible(stateBeforePhase);
+    final rawPhase = gameState['phase']?.toString() ??
+        gameState['gamePhase']?.toString() ??
+        '';
+    if (endGameModalPinned &&
+        rawPhase.isNotEmpty &&
+        rawPhase != 'game_ended') {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'rematch: endModalDismiss serverMovedOn gameId=$gameId rawPhase=$rawPhase '
+          'prevUi=$previousUiPhase prevRaw=$previousRawPhase '
+          'roster=${playerStatusesLogSummary(players)}',
+        );
+      }
+      GameEndedModalPin.dismissOverlay(navigateToLobby: false);
+      endGameModalPinned = false;
+      consolidatedMainStatePatch['rematch_waiting_game_id'] = '';
+    }
+    final rematchStarting = previousRawPhase == 'game_ended' &&
+        rawPhase.isNotEmpty &&
+        rawPhase != 'game_ended';
+    if (rematchStarting) {
+      consolidatedMainStatePatch['rematch_waiting_game_id'] = '';
+      _lastStateVersionByGameId.remove(gameId);
+      _lastEventSignatureByGameId.remove(gameId);
+      consolidatedMainStatePatch['messages'] = {
+        'isVisible': false,
+        'title': '',
+        'content': '',
+        'type': 'info',
+        'showCloseButton': true,
+        'autoClose': false,
+        'autoCloseDelay': 3000,
+      };
+      if (LOGGING_SWITCH) {
+        customlog(
+          'rematch: client phase transition gameId=$gameId '
+          'prevRaw=$previousRawPhase nextRaw=$rawPhase '
+          'prevUi=$previousUiPhase rematchWaiting=${stateBeforePhase['rematch_waiting_game_id']} '
+          'myStatus=$currentUserPlayerStatus '
+          'roster=${playerStatusesLogSummary(players)}',
+        );
+      }
+    }
     var uiPhase = DutchGameHelpers.effectiveUiGamePhase(
       gameState,
-      fallbackPhase: previousUiPhase.isNotEmpty ? previousUiPhase : 'playing',
+      fallbackPhase: rematchStarting
+          ? (rawPhase.isNotEmpty ? rawPhase : 'waiting_for_players')
+          : (previousUiPhase.isNotEmpty ? previousUiPhase : 'playing'),
     );
     if (uiPhase != 'same_rank_window' &&
         DutchGameHelpers.anyPlayerInSameRankWindow(gameState)) {
@@ -2486,9 +2572,6 @@ When anyone has played a card with the **same rank** as your **collection card**
     } else if (endGameModalPinned) {
       uiPhase = 'game_ended';
     }
-    final rawPhase = gameState['phase']?.toString() ??
-        gameState['gamePhase']?.toString() ??
-        uiPhase;
     final enteringInitialPeekDeal = rawPhase == 'initial_peek' &&
         (wasNewGame || previousRawPhase != 'initial_peek');
     if (enteringInitialPeekDeal) {
@@ -2580,6 +2663,23 @@ When anyone has played a card with the **same rank** as your **collection card**
         );
       } else {
         customlog('$turnLine peek empty');
+      }
+      if (gameId.startsWith('room_')) {
+        final phaseChanged = previousUiPhase != uiPhase;
+        final rawChanged = previousRawPhase != rawPhase;
+        if (rematchStarting ||
+            phaseChanged ||
+            rawChanged ||
+            endGameModalPinned) {
+          customlog(
+            'rematch: phaseCommit gameId=$gameId '
+            'prevUi=$previousUiPhase ui=$uiPhase raw=$rawPhase prevRaw=$previousRawPhase '
+            'modalPinned=$endGameModalPinned rematchStarting=$rematchStarting '
+            'isGameActive=${uiPhase != 'game_ended'} '
+            'myStatus=$currentUserPlayerStatus wireCurrentPlayerStatus=$currentPlayerStatus '
+            'roster=${playerStatusesLogSummary(players)}',
+          );
+        }
       }
     }
 
@@ -2913,12 +3013,39 @@ When anyone has played a card with the **same rank** as your **collection card**
         StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final previousPartialUiPhase =
         dutchBeforePartialPhase['gamePhase']?.toString() ?? '';
+    var endPartialModalPinned =
+        DutchGameHelpers.shouldKeepEndGameModalVisible(dutchBeforePartialPhase);
+    final rawPartialPhase = updatedGameState['phase']?.toString() ??
+        updatedGameState['gamePhase']?.toString() ??
+        '';
+    if (endPartialModalPinned &&
+        rawPartialPhase.isNotEmpty &&
+        rawPartialPhase != 'game_ended') {
+      GameEndedModalPin.dismissOverlay(navigateToLobby: false);
+      endPartialModalPinned = false;
+    }
     var uiPhase = DutchGameHelpers.effectiveUiGamePhase(
       updatedGameState,
       fallbackPhase: previousPartialUiPhase.isNotEmpty ? previousPartialUiPhase : 'playing',
     );
-    if (DutchGameHelpers.shouldKeepEndGameModalVisible(dutchBeforePartialPhase)) {
+    if (endPartialModalPinned) {
       uiPhase = 'game_ended';
+    } else if (rawPartialPhase.isNotEmpty && rawPartialPhase != 'game_ended') {
+      uiPhase = DutchGameHelpers.effectiveUiGamePhase(
+        updatedGameState,
+        fallbackPhase: rawPartialPhase,
+      );
+    }
+    if (LOGGING_SWITCH && gameId.startsWith('room_')) {
+      final partialPlayers = updatedGameState['players'] as List<dynamic>?;
+      if (previousPartialUiPhase != uiPhase ||
+          (rawPartialPhase.isNotEmpty && rawPartialPhase != 'game_ended')) {
+        customlog(
+          'rematch: partialPhase gameId=$gameId prevUi=$previousPartialUiPhase ui=$uiPhase '
+          'raw=$rawPartialPhase modalPinned=$endPartialModalPinned '
+          'roster=${playerStatusesLogSummary(partialPlayers)}',
+        );
+      }
     }
     
     // Extract winners list if game has ended

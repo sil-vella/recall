@@ -13,9 +13,64 @@ import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/wins_level_rank_matcher.dart';
 import '../utils/dev_logger.dart';
 
-/// Dev trace for random join / special-event WS handling (`DUTCH_DEV_LOG` also gates [customlog]).
-/// Set `DUTCH_DEV_LOG=1` (or `true`/`yes`) in the server environment for stderr lines.
-const bool LOGGING_SWITCH = false;
+/// Dev trace (`DUTCH_DEV_LOG` / `--dart-define=DUTCH_DEV_LOG=1` gates [customlog]).
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
+
+/// True when [userId] was explicitly invited as a human to a private match room.
+bool isInvitedHumanToPrivateRoom(Room room, String userId) {
+  if (room.permission.toLowerCase() != 'private') return false;
+  final accepted = room.acceptedPlayers;
+  if (accepted == null || accepted.isEmpty) return false;
+  final uid = userId.trim();
+  if (uid.isEmpty) return false;
+  for (final p in accepted) {
+    final pid = p['user_id']?.toString().trim() ?? '';
+    final isComp = p['is_comp_player'] == true;
+    if (!isComp && pid.isNotEmpty && pid == uid) return true;
+  }
+  return false;
+}
+
+/// Compact roster line for dev traces: `seatId:status(h=N), …`
+String _playerStatusesLogSummary(List<dynamic>? players, {int maxEntries = 8}) {
+  if (players == null || players.isEmpty) return '(none)';
+  final parts = <String>[];
+  for (var i = 0; i < players.length && i < maxEntries; i++) {
+    final raw = players[i];
+    if (raw is! Map) continue;
+    final p = Map<String, dynamic>.from(
+      raw.map((k, v) => MapEntry(k.toString(), v)),
+    );
+    final id = p['id']?.toString() ?? '?';
+    final shortId = id.length > 14 ? '…${id.substring(id.length - 10)}' : id;
+    final status = p['status']?.toString() ?? '?';
+    final handLen = (p['hand'] as List?)?.length ?? 0;
+    parts.add('$shortId:$status(h=$handLen)');
+  }
+  if (players.length > maxEntries) {
+    parts.add('+${players.length - maxEntries} more');
+  }
+  return parts.isEmpty ? '(none)' : parts.join(', ');
+}
+
+String _roomPlayerStatusesLog(String roomId) {
+  try {
+    final gs = GameStateStore.instance.getGameState(roomId);
+    final pl = gs['players'];
+    if (pl is List) return _playerStatusesLogSummary(pl);
+  } catch (_) {}
+  return '(none)';
+}
+
+String _rematchLobbyLog(Room room) {
+  return 'accepted=${room.rematchAccepted.length}/${room.sessionIds.length} '
+      'declined=${room.rematchDeclined.length} restarted=${room.hasMatchRestarted}';
+}
 
 /// Builds per-player rows for the game that just ended (`game_ended`, `winners` list),
 /// for Python to persist as tournament `match_index` 1 when creating `single_room_league` on first rematch.
@@ -112,6 +167,20 @@ class MessageHandler {
   /// [roomGameTableLevel] is the room's table tier (1–4); required coins come from [LevelMatcher] only.
   /// Returns true only if subscription_tier is explicitly 'promotional' (skip coins) or coins >= required.
   /// No default tier; if no tier and no stats, fail (same as frontend).
+  ///
+  /// Prefer WS session mongo id; clients may send seat ids (`hum_<mongoId>`) in rematch payloads.
+  String? _resolveAuthUserIdForCoinCheck({
+    required String sessionId,
+    String? payloadUserId,
+  }) {
+    final fromSession = _server.getUserIdForSession(sessionId);
+    if (fromSession != null && fromSession.isNotEmpty) return fromSession;
+    final p = payloadUserId?.trim();
+    if (p == null || p.isEmpty) return null;
+    if (p.startsWith('hum_') && p.length > 4) return p.substring(4);
+    return p;
+  }
+
   Future<bool> _verifyCoinsForJoin(
     String userId,
     int roomGameTableLevel, {
@@ -296,6 +365,7 @@ class MessageHandler {
       case 'jack_swap':
       case 'queen_peek':
       case 'completed_initial_peek':
+      case 'initial_peek_card':
       case 'collect_from_discard':
         _handleGameEvent(sessionId, event, data);
         break;
@@ -344,6 +414,13 @@ class MessageHandler {
       return;
     }
 
+    if (LOGGING_SWITCH) {
+      customlog(
+        'rematch: request gameId=$gameId userId=$userId session=$sessionId '
+        'roster=${_roomPlayerStatusesLog(gameId)}',
+      );
+    }
+
     final roomIdForSession = _roomManager.getRoomForSession(sessionId);
     if (roomIdForSession == null || roomIdForSession != gameId) {
       _sendError(sessionId, 'rematch: session not in room or game_id mismatch');
@@ -361,10 +438,16 @@ class MessageHandler {
     }
 
     if (room.hasMatchRestarted) {
+      if (LOGGING_SWITCH) {
+        customlog('rematch: ignored duplicate gameId=$gameId');
+      }
       return;
     }
 
-    final resolvedUserId = userId ?? _server.getUserIdForSession(sessionId);
+    final resolvedUserId = _resolveAuthUserIdForCoinCheck(
+      sessionId: sessionId,
+      payloadUserId: userId,
+    );
     if (resolvedUserId == null || resolvedUserId.isEmpty) {
       _sendError(sessionId, 'rematch: user id required');
       return;
@@ -373,7 +456,9 @@ class MessageHandler {
 
     _verifyCoinsForJoin(resolvedUserId, joinLevel).then((ok) {
       if (!ok) {
-        
+        if (LOGGING_SWITCH) {
+          customlog('rematch: initiator coin check failed gameId=$gameId userId=$resolvedUserId');
+        }
         _server.sendToSession(
           sessionId,
           _joinRoomCoinErrorPayload(
@@ -405,6 +490,13 @@ class MessageHandler {
       });
       r.hasMatchRestarted = true;
 
+      if (LOGGING_SWITCH) {
+        customlog(
+          'rematch: broadcasting restart_invite gameId=$gameId '
+          'initiator=$resolvedUserId peers=${r.sessionIds.length - 1}',
+        );
+      }
+
       var isCoinRequired = true;
       try {
         final gs = GameStateStore.instance.getGameState(gameId);
@@ -428,6 +520,10 @@ class MessageHandler {
         },
         sessionId,
       );
+
+      // Solo human (comps have no WS session): initiator is the only session — start now.
+      // Multi-human: peers still pending — [_allSessionsAcceptedRematch] stays false until they accept.
+      _tryCompleteRematchIfReady(gameId);
     });
   }
 
@@ -469,6 +565,12 @@ class MessageHandler {
     };
 
     if (event == 'rematch_declined') {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'rematch: declined gameId=$gameId session=$sessionId userId=$userId '
+          'lobby=${_rematchLobbyLog(room)} roster=${_roomPlayerStatusesLog(gameId)}',
+        );
+      }
       if (!_rematchEntryHasSession(room.rematchDeclined, sessionId)) {
         room.rematchDeclined.add(entry);
       }
@@ -480,6 +582,12 @@ class MessageHandler {
     }
 
     if (event == 'rematch_accepted') {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'rematch: accepted gameId=$gameId session=$sessionId userId=$userId '
+          'lobby=${_rematchLobbyLog(room)} roster=${_roomPlayerStatusesLog(gameId)}',
+        );
+      }
       if (userId.isEmpty) {
         _sendError(sessionId, 'rematch_accepted: user id required');
         return;
@@ -497,7 +605,9 @@ class MessageHandler {
       final joinLevel = room.gameLevel ?? 1;
       _verifyCoinsForJoin(userId, joinLevel).then((ok) {
         if (!ok) {
-          
+          if (LOGGING_SWITCH) {
+            customlog('rematch: accept coin check failed gameId=$gameId userId=$userId');
+          }
           _server.sendToSession(
             sessionId,
             _joinRoomCoinErrorPayload(
@@ -515,6 +625,12 @@ class MessageHandler {
         // Only append after coin verification; do not add on failed or pending coin paths.
         if (!_rematchEntryHasSession(r.rematchAccepted, sessionId)) {
           r.rematchAccepted.add(acceptEntry);
+        }
+        if (LOGGING_SWITCH) {
+          customlog(
+            'rematch: acceptRecorded gameId=$gameId session=$sessionId userId=$userId '
+            'lobby=${_rematchLobbyLog(r)} roster=${_roomPlayerStatusesLog(gameId)}',
+          );
         }
         _tryCompleteRematchIfReady(gameId);
       });
@@ -553,6 +669,14 @@ class MessageHandler {
     if (room == null || !room.hasMatchRestarted) return;
     if (!_allSessionsAcceptedRematch(room)) return;
     if (room.rematchDeclined.isNotEmpty) return;
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'rematch: all accepted gameId=$roomId sessions=${room.sessionIds.length} '
+        'lobby=${_rematchLobbyLog(room)} roster=${_roomPlayerStatusesLog(roomId)} '
+        'starting rematch',
+      );
+    }
 
     room.rematchPendingTimer?.cancel();
     room.rematchPendingTimer = null;
@@ -614,6 +738,12 @@ class MessageHandler {
     );
     room.pendingRematchTournamentData = null;
     if (result['success'] == true) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'rematch: tournament snapshot ok gameId=$roomId '
+          'tournamentId=${result['tournament_id']}',
+        );
+      }
       final td = result['tournament_data'];
       if (td is Map) {
         final merged = Map<String, dynamic>.from(td);
@@ -626,6 +756,10 @@ class MessageHandler {
         room.isTournament = true;
         room.tournamentData = merged;
       }
+    } else if (LOGGING_SWITCH) {
+      customlog(
+        'rematch: tournament snapshot failed gameId=$roomId error=${result['error']}',
+      );
     }
     
   }
@@ -743,6 +877,14 @@ class MessageHandler {
       'isClearAndCollect': isClearAndCollectRoot,
       'game_state': gameStateInner,
     });
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'rematch: resetGameState gameId=$roomId phase=waiting_for_players '
+        'prevRoster=${_playerStatusesLogSummary(pl is List ? pl : null)} '
+        'nextRoster=${_playerStatusesLogSummary(players)}',
+      );
+    }
   }
 
   /// After [Room.rematchAccepted] lists every in-room session (post coin-check) and none declined:
@@ -778,6 +920,10 @@ class MessageHandler {
 
     if (!_allSessionsAcceptedRematch(room)) {
       return;
+    }
+
+    if (LOGGING_SWITCH) {
+      customlog('rematch: startRematch gameId=$gameId trigger=${data['trigger']}');
     }
 
     await _notifyRematchTournamentPython(gameId, room);
@@ -827,6 +973,24 @@ class MessageHandler {
     final gameLevel = data['game_level'] as int? ?? data['gameLevel'] as int?;
     final isCoinRequired =
         data['is_coin_required'] as bool? ?? data['isCoinRequired'] as bool? ?? true;
+
+    if (LOGGING_SWITCH) {
+      final humanInvites = acceptedPlayers
+              ?.where((e) => !_isCompPlayer(e))
+              .length ??
+          0;
+      final compInvites = acceptedPlayers
+              ?.where(_isCompPlayer)
+              .length ??
+          0;
+      customlog(
+        'createMatch: create_room session=$sessionId userId=$userId '
+        'permission=$permission gameType=$gameType level=${gameLevel ?? 1} '
+        'max=$maxPlayers min=$minPlayers autoStart=$autoStart '
+        'humanInvites=$humanInvites compInvites=$compInvites '
+        'isTournament=$isTournament addCreator=$addCreatorToRoom',
+      );
+    }
 
     String? parsedCreateSpecialEventId;
     final rawCreateSe = data['special_event_id'] ?? data['specialEventId'];
@@ -891,8 +1055,19 @@ class MessageHandler {
       // Get room info for response
       final room = _roomManager.getRoomInfo(roomId);
       if (room == null) {
+        if (LOGGING_SWITCH) {
+          customlog('createMatch: create_room failed — room null after create');
+        }
         _sendError(sessionId, 'Failed to create room');
         return;
+      }
+
+      if (LOGGING_SWITCH) {
+        final ap = room.acceptedPlayers;
+        customlog(
+          'createMatch: create_room_success roomId=$roomId size=${room.currentSize}/${room.maxSize} '
+          'acceptedPlayers=${ap?.length ?? 0} autoStart=${room.autoStart}',
+        );
       }
 
       Map<String, dynamic>? effectiveTournamentData = tournamentData != null
@@ -1033,7 +1208,12 @@ class MessageHandler {
             .length ?? 0;
         final effectiveMax = room.maxSize - compCount;
         if (room.currentSize >= effectiveMax) {
-          
+          if (LOGGING_SWITCH) {
+            customlog(
+              'createMatch: autoStart immediate start roomId=$roomId '
+              'compCount=$compCount effectiveMax=$effectiveMax',
+            );
+          }
           _startMatchForRoom(roomId);
         }
       }
@@ -1041,7 +1221,9 @@ class MessageHandler {
       
       
       } catch (e) {
-        
+        if (LOGGING_SWITCH) {
+          customlog('createMatch: create_room exception $e');
+        }
         _server.sendToSession(sessionId, {
           'event': 'create_room_error',
           'message': 'Failed to create room: $e',
@@ -1116,6 +1298,12 @@ class MessageHandler {
         
       }
     }
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: join_room session=$sessionId userId=$userId roomId=$roomId '
+        'gameLevel=$gameLevel',
+      );
+    }
     if (userId == null) {
       
       _sendError(sessionId, 'User ID not available. Please reconnect.');
@@ -1172,14 +1360,28 @@ class MessageHandler {
       return;
     }
 
-    // Validate rank compatibility (if room has difficulty set and user has rank)
+    // Validate rank compatibility (if room has difficulty set and user has rank).
+    // Direct match invites bypass rank gate: private room + user listed in accepted_players.
+    final skipRankCheckForInvite = isInvitedHumanToPrivateRoom(room, userId);
+    if (skipRankCheckForInvite && LOGGING_SWITCH) {
+      customlog(
+        'createMatch: join_room rank bypass invited private roomId=$roomId '
+        'userId=$userId roomDifficulty=${room.difficulty}',
+      );
+    }
     final userRank = _server.getUserRankForSession(sessionId);
-    if (room.difficulty != null && userRank != null) {
+    if (!skipRankCheckForInvite && room.difficulty != null && userRank != null) {
       final roomDifficulty = room.difficulty!.toLowerCase();
       final normalizedUserRank = userRank.toLowerCase();
 
       // Check if ranks are compatible (±1)
       if (!RankMatcher.areRanksCompatible(roomDifficulty, normalizedUserRank)) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'createMatch: join_room rejected rank roomId=$roomId '
+            'roomDifficulty=$roomDifficulty userRank=$userRank session=$sessionId',
+          );
+        }
         _server.sendToSession(sessionId, {
           'event': 'join_room_error',
           'message': 'Your rank ($userRank) is not compatible with this room\'s difficulty ($roomDifficulty). You can only join rooms within ±1 rank of your own.',
@@ -1209,6 +1411,12 @@ class MessageHandler {
         return;
       }
     } else if (!WinsLevelRankMatcher.userMayJoinGameTable(joinerUserLevel, joinLevel)) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: join_room rejected level roomId=$roomId '
+          'joinerUserLevel=$joinerUserLevel tableLevel=$joinLevel session=$sessionId',
+        );
+      }
       _server.sendToSession(sessionId, {
         'event': 'join_room_error',
         'message':
@@ -1228,6 +1436,12 @@ class MessageHandler {
     void completeJoinAfterOptionalCoinCheck() {
       
       if (_roomManager.joinRoom(jr, sessionId, ju)) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: join_room ok roomId=$jr userId=$ju session=$sessionId '
+          'size=${room.currentSize}/${room.maxSize} difficulty=${room.difficulty}',
+        );
+      }
       // Send join_room_success (primary event matching Python)
       
       final joinSuccessPayload = {
@@ -1831,10 +2045,15 @@ class MessageHandler {
   /// Handles race conditions and ensures match only starts once
   void _startMatchForRoom(String roomId) {
     try {
+      if (LOGGING_SWITCH) {
+        customlog('createMatch: startMatchForRoom roomId=$roomId');
+      }
       // Check if match is already starting or started
       // This prevents race conditions when called from multiple paths (timer + early start)
       if (RandomJoinTimerManager.instance.isStarting(roomId)) {
-        
+        if (LOGGING_SWITCH) {
+          customlog('createMatch: startMatchForRoom skip — already starting roomId=$roomId');
+        }
         return;
       }
 
@@ -1856,7 +2075,11 @@ class MessageHandler {
         final gameState = store.getGameState(roomId);
         final phase = gameState['phase'] as String?;
         if (phase != null && phase != 'waiting_for_players') {
-          
+          if (LOGGING_SWITCH) {
+            customlog(
+              'createMatch: startMatchForRoom skip — phase=$phase roomId=$roomId',
+            );
+          }
           RandomJoinTimerManager.instance.cleanup(roomId);
           return;
         }
@@ -1908,6 +2131,15 @@ class MessageHandler {
         startMatchData['tournament_data'] = tdForStart;
       }
       room.hasMatchRestarted = false;
+      if (LOGGING_SWITCH) {
+        final ap = room.acceptedPlayers;
+        final compInAp = ap?.where(_isCompPlayer).length ?? 0;
+        customlog(
+          'createMatch: start_match emit roomId=$roomId min=${room.minPlayers} '
+          'max=${room.maxSize} accepted=${ap?.length ?? 0} compInAccepted=$compInAp '
+          'isTournament=$tournamentForStart',
+        );
+      }
       _gameCoordinator.handle(sessionId, 'start_match', startMatchData);
 
       // Cleanup timer state (this also clears isStarting flag)
@@ -1915,7 +2147,9 @@ class MessageHandler {
       
       
     } catch (e) {
-      
+      if (LOGGING_SWITCH) {
+        customlog('createMatch: startMatchForRoom exception roomId=$roomId error=$e');
+      }
       RandomJoinTimerManager.instance.cleanup(roomId);
     }
   }

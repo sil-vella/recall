@@ -1,7 +1,7 @@
 /// Seat buckets for the round table (must stay in sync with [UnifiedGameBoardWidget]).
 ///
 /// Order (clockwise list index): 1st → left, 2nd → top, 3rd → right; repeats for 4+.
-/// Special cases: 1 opponent → left only; 2 → 1st left + 2nd top (no right).
+/// Special cases: 1 opponent → top only; 2 → 1st left + 2nd right (no top).
 ({List<Map<String, dynamic>> top, List<Map<String, dynamic>> left, List<Map<String, dynamic>> right})
 bucketOpponentsForDutchTable(List<dynamic> opponents) {
   final list = <Map<String, dynamic>>[];
@@ -14,10 +14,10 @@ bucketOpponentsForDutchTable(List<dynamic> opponents) {
     return (top: <Map<String, dynamic>>[], left: <Map<String, dynamic>>[], right: <Map<String, dynamic>>[]);
   }
   if (list.length == 1) {
-    return (top: <Map<String, dynamic>>[], left: list, right: <Map<String, dynamic>>[]);
+    return (top: list, left: <Map<String, dynamic>>[], right: <Map<String, dynamic>>[]);
   }
   if (list.length == 2) {
-    return (top: [list[1]], left: [list[0]], right: <Map<String, dynamic>>[]);
+    return (top: <Map<String, dynamic>>[], left: [list[0]], right: [list[1]]);
   }
   final top = <Map<String, dynamic>>[];
   final left = <Map<String, dynamic>>[];

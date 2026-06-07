@@ -172,9 +172,20 @@ curl -I "https://dutch.reignofplay.com/app_media/media/table_logo.webp"
   - `dutch_mongodb-external` (Bitnami MongoDB, `27018:27017`)
   - `dutch_redis-external` (`redis:8-alpine`, `6380:6379`; playbook sets `data/redis/data` to uid **999** / gid **1000**)
   - `dutch_flask-external` (Flask app, `5001:5001`)
-  - `dutch_prometheus` (Prometheus, `9090:9090`)
-  - `dutch_grafana` (Grafana, `3001:3000`)
   - `dutch_dart-game-server` (Dart WebSocket server, `8080:8080`)
+  - Prometheus/Grafana services are **commented out** in compose (metrics via Flask `/metrics` + logs; see below).
+
+**Production ops reference**: [`Documentation/python_base_04/VPS_PRODUCTION.md`](../../Documentation/python_base_04/VPS_PRODUCTION.md) — Gunicorn workers, Docker logs, Redis cache, metrics ACL, nginx checklist, incident grep patterns.
+
+**Release flow (images then deploy):**
+
+```bash
+python3 playbooks/rop01/06_build_and_push_docker.py   # Flask → upserts FLASK_IMAGE_TAG in .env.prod
+python3 playbooks/rop01/07_build_and_push_dart_docker.py   # Dart → upserts DART_IMAGE_TAG in .env.prod
+ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01
+```
+
+Step 08 reads `FLASK_IMAGE_TAG` and `DART_IMAGE_TAG` from `app_dev/.env.prod` (no `-e` unless overriding).
 
 **Configuration**: Flask and other services receive sensitive data and connection params via **environment variables** loaded from the VPS `.env` file (no secret file mounts). The compose file uses `env_file: .env` and `environment:` entries; sensitive values are read from `.env` at runtime.
 
@@ -184,7 +195,8 @@ curl -I "https://dutch.reignofplay.com/app_media/media/table_logo.webp"
 - Validates `docker-compose.yml` syntax.
 - Optionally pulls latest images and runs `docker compose up -d`.
 - Waits for Flask (5001), MongoDB (27018), and Redis (6380) to be reachable.
-- Optionally restarts Grafana if dashboards changed.
+- Asserts Flask `GET /health` returns `healthy` or `degraded`.
+- Records deployed `FLASK_IMAGE_TAG` to `{{ app_dir }}/.deployed_image_tag`.
 
 To re-run deployment manually (ensure required `.env` variables are provided via vault, group_vars, host_vars, or `-e`):
 

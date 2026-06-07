@@ -4,12 +4,20 @@ import '../state_manager.dart';
 import '../module_manager.dart';
 import '../hooks_manager.dart';
 import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
+import '../../../modules/dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../modules/dutch_game/managers/dutch_game_state_updater.dart';
 import '../../../modules/notifications_module/notifications_module.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
+import '../../../utils/dev_logger.dart';
 
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -239,6 +247,13 @@ class WSEventHandler {
       final roomId = convertedData['room_id'] ?? '';
       final roomData = convertedData;
       final ownerId = data['owner_id'] ?? '';
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: ws join_room_success roomId=$roomId ownerId=$ownerId '
+          'size=${convertedData['current_size']}/${convertedData['max_size']} '
+          'difficulty=${convertedData['difficulty']}',
+        );
+      }
       
       // Get current user ID from login module state
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -345,6 +360,11 @@ class WSEventHandler {
           ? Map<String, dynamic>.from(data)
           : <String, dynamic>{};
       final message = payload['message']?.toString() ?? '';
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: ws join_room_error roomId=${payload['room_id']} message=$message',
+        );
+      }
       
 
       // Trigger error callbacks
@@ -379,6 +399,14 @@ class WSEventHandler {
       final roomId = data['room_id'] ?? '';
       final roomData = data;  // Use the entire data object since it's simplified
       final ownerId = data['owner_id'] ?? '';
+      if (LOGGING_SWITCH) {
+        final ap = data['accepted_players'];
+        final apCount = ap is List ? ap.length : 0;
+        customlog(
+          'createMatch: ws create_room_success roomId=$roomId ownerId=$ownerId '
+          'acceptedPlayers=$apCount isRandomJoin=${data['is_random_join'] == true}',
+        );
+      }
       
       
       // Get current user ID from login module state
@@ -470,6 +498,13 @@ class WSEventHandler {
   /// Handle create room error event
   void handleCreateRoomError(dynamic data) {
     try {
+      if (LOGGING_SWITCH) {
+        final map =
+            data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+        customlog(
+          'createMatch: ws create_room_error message=${map['message'] ?? map['error']}',
+        );
+      }
       
       // Same modal path as ws_instant_notification / rematch invite ([NotificationsModule.addPendingWsInstant]).
       final map =
@@ -973,6 +1008,13 @@ class WSEventHandler {
       final map = data is Map ? Map<String, dynamic>.from(data as Map) : <String, dynamic>{};
       final roomId = map['room_id'] as String? ?? map['game_id'] as String? ?? '';
       if (roomId.isEmpty) return;
+      if (LOGGING_SWITCH) {
+        customlog(
+          'rematch: ws restart_invite roomId=$roomId '
+          'fromUser=${map['from_user_id']} gameLevel=${map['game_level']} '
+          'roster=${DutchEventHandlerCallbacks.dutchGameRosterLog(roomId)}',
+        );
+      }
       final fromSession = map['from_session_id'] as String? ?? '';
       final fromUser = map['from_user_id'] as String?;
       final gameLevelRaw = map['game_level'];

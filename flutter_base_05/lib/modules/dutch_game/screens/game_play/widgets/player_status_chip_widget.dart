@@ -46,38 +46,43 @@ class PlayerStatusChip extends StatelessWidget {
     );
   }
 
-  /// Get player status from the global state (derived from SSOT)
+  /// Player status from SSOT roster (`games[].gameData.game_state.players[]`).
+  ///
+  /// [playerId] is the board seat id ([UnifiedGameBoardWidget._myBoardPlayerId]) — often a WS
+  /// session uuid, not `hum_*` / login mongo id. Do not route via myHand slice or opponentsPanel
+  /// filter; read the matching roster row directly.
   String _getPlayerStatusFromState() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    
-    // Local player id in game state is session/socket id (MP) or practice session id — same as
-    // [DutchEventHandlerCallbacks.getCurrentUserId]. Login Mongo userId alone does not match
-    // [UnifiedGameBoardWidget] / anim payloads when multiplayer.
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final loginUserId = loginState['userId']?.toString() ?? '';
-    final gamePlayerId = DutchEventHandlerCallbacks.getCurrentUserId();
-    final isLocalPlayer = playerId.isNotEmpty &&
-        (playerId == gamePlayerId || playerId == loginUserId);
-    
-    if (isLocalPlayer) {
-      // This is the current user - get status from myHand slice (computed from SSOT)
-      final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
-      return myHand['playerStatus']?.toString() ?? 'unknown';
-    } else {
-      // This is an opponent - get status from opponents panel (which comes from SSOT)
-      final opponentsPanel = dutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-      final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
-      
-      // Find the specific opponent
-      for (final opponent in opponents) {
-        if (opponent['id']?.toString() == playerId) {
-          // Opponent status comes directly from SSOT (games[gameId].gameData.game_state.players[])
-          return opponent['status']?.toString() ?? 'unknown';
-        }
-      }
-      
+    if (playerId.isEmpty) return 'unknown';
+
+    final dutchGameState =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
       return 'unknown';
     }
+
+    final game = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameState =
+        (game['gameData'] as Map<String, dynamic>? ?? {})['game_state']
+            as Map<String, dynamic>? ??
+        {};
+    final roster = gameState['players'] as List<dynamic>? ?? [];
+
+    for (final raw in roster) {
+      if (raw is! Map) continue;
+      if (raw['id']?.toString() == playerId) {
+        return raw['status']?.toString() ?? 'unknown';
+      }
+    }
+
+    // PlayerStatusChip is only used for the local hand row; fallback if id lookup missed.
+    final local = DutchEventHandlerCallbacks.findLocalPlayerInRoster(roster);
+    if (local != null) {
+      return local['status']?.toString() ?? 'unknown';
+    }
+
+    return 'unknown';
   }
 
   /// Build the status chip with appropriate styling

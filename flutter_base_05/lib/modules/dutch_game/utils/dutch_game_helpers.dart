@@ -29,6 +29,7 @@ import 'multiplayer_session_readiness.dart';
 import 'dart:developer' as developer;
 import '../../../utils/dev_logger.dart';
 import '../../../utils/consts/theme_consts.dart';
+import '../../../utils/consts/config.dart';
 
 /// Dev trace for join-random / special-event client emit path (`DUTCH_DEV_LOG` also gates [customlog]).
 // ignore: constant_identifier_names — set false when not tracing this flow (release tooling may flip).
@@ -323,6 +324,24 @@ class DutchGameHelpers {
     bool isCoinRequired = true,
   }) async {
     try {
+      if (LOGGING_SWITCH) {
+        final humanInvites = acceptedPlayers
+                ?.where((e) => e['is_comp_player'] != true)
+                .length ??
+            0;
+        final compInvites = acceptedPlayers
+                ?.where((e) => e['is_comp_player'] == true)
+                .length ??
+            0;
+        customlog(
+          'createMatch: createRoom emit permission=$permission '
+          'gameType=$gameType level=${gameLevel ?? 1} '
+          'players=$minPlayers-$maxPlayers autoStart=$autoStart '
+          'humanInvites=$humanInvites compInvites=$compInvites '
+          'isTournament=${isTournament == true}',
+        );
+      }
+
       // 🎯 CRITICAL: Clear all existing game state before starting new game
       // This prevents overlapping or old game state from interfering
       await clearAllGameStateBeforeNewGame();
@@ -330,6 +349,9 @@ class DutchGameHelpers {
       // Ensure WebSocket is ready (logged in, initialized, and connected)
       final isReady = await ensureWebSocketReady();
       if (!isReady) {
+        if (LOGGING_SWITCH) {
+          customlog('createMatch: createRoom abort — WebSocket not ready');
+        }
         return {
           'success': false,
           'error': 'WebSocket not ready - cannot create room. Please ensure you are logged in.',
@@ -367,6 +389,12 @@ class DutchGameHelpers {
       data: data,
     );
       
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: createRoom result success=${result['success']} '
+          'error=${result['error'] ?? result['message']}',
+        );
+      }
       if (result['success'] == true) {
         _stateUpdater.updateStateSync({
           'pending_start_match_source': 'create_room',
@@ -379,7 +407,9 @@ class DutchGameHelpers {
       }
       return result;
     } catch (e) {
-      
+      if (LOGGING_SWITCH) {
+        customlog('createMatch: createRoom exception $e');
+      }
       return {
         'success': false,
         'error': 'Failed to create room: $e',
@@ -400,6 +430,9 @@ class DutchGameHelpers {
       // Ensure WebSocket is ready (logged in, initialized, and connected)
       final isReady = await ensureWebSocketReady();
       if (!isReady) {
+        if (LOGGING_SWITCH) {
+          customlog('createMatch: joinRoom abort — WebSocket not ready roomId=$roomId');
+        }
         return {
           'success': false,
           'error': 'WebSocket not ready - cannot join room. Please ensure you are logged in.',
@@ -416,10 +449,23 @@ class DutchGameHelpers {
     final uid = loginState?['userId']?.toString() ?? loginState?['user_id']?.toString() ?? '';
     if (uid.isNotEmpty) data['user_id'] = uid;
 
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: joinRoom emit roomId=$roomId level=${gameLevel ?? 1} userId=$uid',
+      );
+    }
+
     final joinResult = await _eventEmitter.emit(
       eventType: 'join_room',
       data: data,
     );
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: joinRoom emit returned success=${joinResult['success']} '
+        'error=${joinResult['error'] ?? joinResult['message']} roomId=$roomId '
+        '(WS emit-only; server join_room_success/error follows async)',
+      );
+    }
     if (joinResult['success'] == true) {
       _stateUpdater.updateStateSync({
         'pending_start_match_source': 'join_room',
@@ -429,6 +475,155 @@ class DutchGameHelpers {
     return joinResult;
     } catch (e) {
       
+      return {
+        'success': false,
+        'error': 'Failed to join room: $e',
+      };
+    }
+  }
+
+  /// Join a room and wait for server `join_room_success`, `already_joined`, or `join_room_error`.
+  static Future<Map<String, dynamic>> joinRoomAndAwaitServerAck({
+    required String roomId,
+    String? password,
+    int? gameLevel,
+    Duration? timeout,
+    BuildContext? context,
+  }) async {
+    final ackTimeout = timeout ?? Duration(seconds: Config.websocketTimeout);
+
+    final isReady = await ensureWebSocketReady(
+      context: context,
+      allowTransportResetRetry: true,
+    );
+    if (!isReady) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: joinRoomAndAwaitServerAck abort — ensureWebSocketReady failed roomId=$roomId',
+        );
+      }
+      return {
+        'success': false,
+        'error':
+            'Could not connect to the game server. Open the lobby or try again in a moment.',
+      };
+    }
+
+    final wsManager = WebSocketManager.instance;
+    if (!wsManager.isConnected) {
+      final connected = await wsManager.connect();
+      if (!connected) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'createMatch: joinRoomAndAwaitServerAck abort — connect failed roomId=$roomId',
+          );
+        }
+        return {
+          'success': false,
+          'error':
+              'Could not connect to the game server. Open the lobby or try again in a moment.',
+        };
+      }
+    }
+
+    final socket = wsManager.socket;
+    if (socket == null || !wsManager.isConnected) {
+      return {
+        'success': false,
+        'error':
+            'Could not connect to the game server. Open the lobby or try again in a moment.',
+      };
+    }
+
+    final completer = Completer<Map<String, dynamic>>();
+    var listenersRegistered = false;
+
+    late void Function(dynamic) onSuccess;
+    late void Function(dynamic) onError;
+    late void Function(dynamic) onAlreadyJoined;
+
+    void cleanup() {
+      if (!listenersRegistered) return;
+      listenersRegistered = false;
+      socket.off('join_room_success', onSuccess);
+      socket.off('join_room_error', onError);
+      socket.off('already_joined', onAlreadyJoined);
+    }
+
+    void completeOnce(Map<String, dynamic> result) {
+      if (completer.isCompleted) return;
+      cleanup();
+      completer.complete(result);
+    }
+
+    bool matchesRoom(dynamic data) {
+      if (data is! Map) return true;
+      final map = Map<String, dynamic>.from(data);
+      final rid = map['room_id']?.toString() ?? '';
+      return rid.isEmpty || rid == roomId;
+    }
+
+    onSuccess = (dynamic data) {
+      if (!matchesRoom(data)) return;
+      final map = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: joinRoomAndAwaitServerAck success roomId=$roomId '
+          'size=${map['current_size']}/${map['max_size']}',
+        );
+      }
+      completeOnce({'success': true, 'data': map});
+    };
+
+    onError = (dynamic data) {
+      if (!matchesRoom(data)) return;
+      final map = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      final message = map['message']?.toString() ?? 'Failed to join room';
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: joinRoomAndAwaitServerAck error roomId=$roomId message=$message',
+        );
+      }
+      completeOnce({'success': false, 'error': message, 'message': message});
+    };
+
+    onAlreadyJoined = (dynamic data) {
+      if (!matchesRoom(data)) return;
+      final map = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      if (LOGGING_SWITCH) {
+        customlog('createMatch: joinRoomAndAwaitServerAck already_joined roomId=$roomId');
+      }
+      completeOnce({'success': true, 'alreadyJoined': true, 'data': map});
+    };
+
+    socket.on('join_room_success', onSuccess);
+    socket.on('join_room_error', onError);
+    socket.on('already_joined', onAlreadyJoined);
+    listenersRegistered = true;
+
+    final emitResult = await joinRoom(
+      roomId: roomId,
+      password: password,
+      gameLevel: gameLevel,
+    );
+    if (emitResult['success'] != true) {
+      cleanup();
+      return emitResult;
+    }
+
+    try {
+      return await completer.future.timeout(
+        ackTimeout,
+        onTimeout: () {
+          cleanup();
+          return {
+            'success': false,
+            'error': 'Timeout waiting for join confirmation',
+          };
+        },
+      );
+    } catch (e) {
+      cleanup();
       return {
         'success': false,
         'error': 'Failed to join room: $e',

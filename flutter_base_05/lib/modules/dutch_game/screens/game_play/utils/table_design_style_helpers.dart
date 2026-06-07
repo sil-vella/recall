@@ -11,6 +11,16 @@ class TableDesignStyleHelpers {
   static const String defaultTableOverlayAsset = 'assets/images/table_logo.webp';
   static const String defaultCardBackAsset = 'assets/images/card_back.webp';
 
+  /// Shop-equipped and special-event overlays sit above felt at reduced strength.
+  static const double cosmeticTableDesignOverlayOpacity = 0.7;
+
+  static Widget wrapCosmeticTableDesignOverlay(Widget child) {
+    return Opacity(
+      opacity: cosmeticTableDesignOverlayOpacity,
+      child: child,
+    );
+  }
+
   static String readEquippedTableDesignId(Map<String, dynamic> dutchState) {
     final userStats = dutchState['userStats'] as Map<String, dynamic>? ?? {};
     final inventory = userStats['inventory'] as Map<String, dynamic>? ?? {};

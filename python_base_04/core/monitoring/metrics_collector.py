@@ -1,8 +1,19 @@
 from prometheus_client import Counter, Gauge, Histogram, start_http_server, REGISTRY
 from typing import Dict, Any
+import os
 
-# Global switch for metrics collection (set False when Prometheus/Grafana are not used)
-METRICS_COLLECTION_ENABLED = False
+def _metrics_collection_enabled() -> bool:
+    raw = (os.environ.get("METRICS_COLLECTION_ENABLED") or "").strip().lower()
+    if raw in ("1", "true", "yes"):
+        return True
+    if raw in ("0", "false", "no"):
+        return False
+    debug = (os.environ.get("DEBUG_MODE") or os.environ.get("FLASK_DEBUG") or "").strip().lower()
+    return debug not in ("1", "true", "yes")
+
+
+# Global switch for metrics collection (env-driven; default on in production)
+METRICS_COLLECTION_ENABLED = _metrics_collection_enabled()
 
 class MetricsCollector:
     _instance = None

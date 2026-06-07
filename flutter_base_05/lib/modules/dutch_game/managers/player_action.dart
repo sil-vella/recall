@@ -416,6 +416,21 @@ class PlayerAction {
     );
   }
 
+  /// Select one card during initial peek (sent per tap; backend appends to cardsToPeek).
+  static PlayerAction initialPeekCard({
+    required String gameId,
+    required String cardId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.initialPeek,
+      eventName: 'initial_peek_card',
+      payload: {
+        'game_id': gameId,
+        'card_id': cardId,
+      },
+    );
+  }
+
   // ========= QUEEN PEEK LOGIC =========
 
   /// Queen peek action - peek at any one card from any player

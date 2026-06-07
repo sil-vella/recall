@@ -45,6 +45,8 @@
             'DUTCH_MT_DASHBOARD_SERVICE_KEY': 'dutch_mt_dashboard_service_key',
             'GOOGLE_CLIENT_ID': 'google_client_id', 'GOOGLE_CLIENT_SECRET': 'google_client_secret',
             'APP_VERSION': 'app_version', 'APP_DOWNLOAD_BASE_URL': 'app_download_base_url',
+            'FLASK_IMAGE_TAG': 'flask_image_tag',
+            'DART_IMAGE_TAG': 'dart_image_tag',
             'CREDIT_SYSTEM_API_KEY': 'credit_system_api_key',
             'DUTCH_WINS_PER_USER_LEVEL': 'dutch_wins_per_user_level',
             'DUTCH_LEVELS_PER_RANK': 'dutch_levels_per_rank',
@@ -109,6 +111,30 @@
         stripe_coin_checkout_cancel_url: "{{ (env_json.stdout | default('{}') | from_json).stripe_coin_checkout_cancel_url | default('') }}"
         google_play_package_name: "{{ (env_json.stdout | default('{}') | from_json).google_play_package_name | default('') }}"
         google_play_service_account_file: "{{ (env_json.stdout | default('{}') | from_json).google_play_service_account_file | default('') }}"
+        flask_image_tag_from_env_prod: "{{ (env_json.stdout | default('{}') | from_json).flask_image_tag | default('') }}"
+        dart_image_tag_from_env_prod: "{{ (env_json.stdout | default('{}') | from_json).dart_image_tag | default('') }}"
+
+    - name: Resolve flask_image_tag for deploy (priority -e > .env.prod > shell > latest)
+      set_fact:
+        flask_image_tag: >-
+          {%- set explicit = flask_image_tag | default('') | trim -%}
+          {%- set from_env_prod = flask_image_tag_from_env_prod | default('') | trim -%}
+          {%- set from_shell = lookup('env', 'FLASK_IMAGE_TAG') | default('', true) | trim -%}
+          {{ explicit if explicit else (from_env_prod if from_env_prod else (from_shell if from_shell else 'latest')) }}
+
+    - name: Resolve dart_image_tag for deploy (priority -e > .env.prod > shell > latest)
+      set_fact:
+        dart_image_tag: >-
+          {%- set explicit = dart_image_tag | default('') | trim -%}
+          {%- set from_env_prod = dart_image_tag_from_env_prod | default('') | trim -%}
+          {%- set from_shell = lookup('env', 'DART_IMAGE_TAG') | default('', true) | trim -%}
+          {{ explicit if explicit else (from_env_prod if from_env_prod else (from_shell if from_shell else 'latest')) }}
+
+    - name: Display resolved Docker image tags
+      debug:
+        msg: |
+          Flask: silvella/dutch_flask_app:{{ flask_image_tag }}
+          Dart:  silvella/dutch_dart_game_server:{{ dart_image_tag }}
 
 - name: Deploy Docker Compose Application
   hosts: "{{ vm_name }}_user"
@@ -159,6 +185,8 @@
         stripe_coin_checkout_cancel_url: "{{ (hostvars['localhost'] | default({})).get('stripe_coin_checkout_cancel_url') or lookup('env', 'STRIPE_COIN_CHECKOUT_CANCEL_URL') | default('') }}"
         google_play_package_name: "{{ (hostvars['localhost'] | default({})).get('google_play_package_name') or lookup('env', 'GOOGLE_PLAY_PACKAGE_NAME') | default('') }}"
         google_play_service_account_file: "{{ (hostvars['localhost'] | default({})).get('google_play_service_account_file') or lookup('env', 'GOOGLE_PLAY_SERVICE_ACCOUNT_FILE') | default('') }}"
+        flask_image_tag: "{{ (hostvars['localhost'] | default({})).get('flask_image_tag') or lookup('env', 'FLASK_IMAGE_TAG') | default('latest') }}"
+        dart_image_tag: "{{ (hostvars['localhost'] | default({})).get('dart_image_tag') or lookup('env', 'DART_IMAGE_TAG') | default('latest') }}"
 
     - name: Create application directory structure
       file:
@@ -420,6 +448,35 @@
         - { port: 6380, name: "Redis" }
       failed_when: false
       when: compose_up_result is defined and compose_up_result.changed | default(false)
+
+    - name: Assert Flask HTTP health after deploy
+      shell: |
+        curl -sf http://127.0.0.1:5001/health | python3 -c "import json,sys; d=json.load(sys.stdin); s=d.get('status',''); sys.exit(0 if s in ('healthy','degraded') else 1)"
+      register: flask_health_http
+      changed_when: false
+      failed_when: flask_health_http.rc != 0
+      when: compose_up_result is defined and compose_up_result.changed | default(false)
+
+    - name: Record deployed Flask image tag on VPS
+      copy:
+        content: "{{ flask_image_tag | default(lookup('env', 'FLASK_IMAGE_TAG') | default('latest', true), true) }}\n"
+        dest: "{{ app_dir }}/.deployed_image_tag"
+        mode: '0644'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+      when:
+        - compose_up_result is defined and compose_up_result.changed | default(false)
+        - vps_user is defined
+
+    - name: Display Flask health check failure
+      debug:
+        msg: |
+          WARNING: Flask /health HTTP check failed (rc={{ flask_health_http.rc | default('n/a') }}).
+          Inspect: cd {{ app_dir }} && docker compose logs dutch_flask-external
+      when:
+        - flask_health_http is defined
+        - flask_health_http.rc is defined
+        - flask_health_http.rc != 0
 
     # - name: Restart Grafana container if provisioning changed
     #   shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} restart dutch_grafana"

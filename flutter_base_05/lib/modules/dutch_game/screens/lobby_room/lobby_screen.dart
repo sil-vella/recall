@@ -12,7 +12,6 @@ import '../../backend_core/services/game_state_store.dart';
 import '../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../dutch_game/utils/multiplayer_session_readiness.dart';
 import '../../../../core/managers/navigation_manager.dart';
-import 'widgets/create_join_game_widget.dart';
 import 'widgets/join_random_game_widget.dart';
 import 'widgets/practice_match_widget.dart';
 import 'widgets/collapsible_section_widget.dart';
@@ -117,89 +116,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     super.dispose();
   }
  
-  Future<Map<String, dynamic>> _createRoom(Map<String, dynamic> roomSettings) async {
-    try {
-      
-      // 🎯 CRITICAL: Clear all existing game state before starting new game
-      // This prevents overlapping or old game state from interfering
-      await DutchGameHelpers.clearAllGameStateBeforeNewGame();
-      
-      // Frontend coin check bypassed to test backend coin check
-      // final gameLevel = roomSettings['gameLevel'] as int?;
-      // final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(gameLevel: gameLevel, fetchFromAPI: true);
-      // if (!hasEnoughCoins) {
-      //   final requiredCoins = LevelMatcher.levelToCoinFee(gameLevel, defaultFee: 25);
-      //   if (mounted) {
-      //     ScaffoldMessenger.of(context).showSnackBar(
-      //       SnackBar(
-      //         content: Text('Insufficient coins to create a game. Required: $requiredCoins'),
-      //         backgroundColor: AppColors.errorColor,
-      //         duration: const Duration(seconds: 3),
-      //       ),
-      //     );
-      //   }
-      //   return;
-      // }
-
-      // Clear practice user data when switching to multiplayer
-      DutchGameHelpers.updateUIState({
-        'practiceUser': null,
-      });
-      
-      // Ensure we're in WebSocket mode for multiplayer
-      final eventEmitter = DutchGameEventEmitter.instance;
-      eventEmitter.setTransportMode(EventTransportMode.websocket);
-      
-      // Ensure startup JWT + WS auth before multiplayer room create
-      final sessionReady =
-          await MultiplayerSessionReadiness.ensureReadyForMultiplayerAction();
-      if (!sessionReady) {
-        return {
-          'success': false,
-          'error': MultiplayerSessionReadiness.blockReason ??
-              'Session not ready for multiplayer',
-        };
-      }
-      
-      // Now proceed with room creation - bypass RoomService and call helper directly
-      final acceptedPlayers = roomSettings['accepted_players'] as List<Map<String, dynamic>>?;
-      final result = await DutchGameHelpers.createRoom(
-        permission: roomSettings['permission'] ?? 'public',
-        maxPlayers: roomSettings['maxPlayers'],
-        minPlayers: roomSettings['minPlayers'],
-        gameType: roomSettings['gameType'] ?? 'classic',
-        autoStart: roomSettings['autoStart'] ?? false,
-        password: roomSettings['password'],
-        acceptedPlayers: acceptedPlayers,
-        gameLevel: roomSettings['gameLevel'] as int?,
-      );
-      if (result['success'] != true) {
-        if (mounted) {
-          final errorMsg = result['message'] ?? result['error'] ?? 'Failed to create room';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMsg is String ? errorMsg : 'Failed to create room'),
-              backgroundColor: AppColors.errorColor,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-      return result;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create room: $e'),
-            backgroundColor: AppColors.errorColor,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-
   Future<void> _startPracticeMatch(Map<String, dynamic> practiceSettings) async {
     try {
       
@@ -428,12 +344,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       case 'practice':
         expandTitle = 'Practice';
         break;
-      case 'create':
-      case 'create_new':
-      case 'create-new':
-      case 'create_new_room':
-        expandTitle = 'Create New';
-        break;
       default:
         return;
     }
@@ -523,23 +433,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                         _handleSectionToggled('Practice'),
                     child: PracticeMatchWidget(
                       onStartPractice: _startPracticeMatch,
-                    ),
-                  ),
-                  AbsorbPointer(
-                    absorbing: multiplayerBlocked,
-                    child: Opacity(
-                      opacity: multiplayerBlocked ? 0.55 : 1,
-                      child: CollapsibleSectionWidget(
-                        title: 'Create New',
-                        icon: Icons.group_add,
-                        isExpanded: _expandedSection == 'Create New',
-                        onExpandedChanged: () =>
-                            _handleSectionToggled('Create New'),
-                        child: CreateJoinGameWidget(
-                          onCreateRoom: _createRoom,
-                          onJoinRoom: () {},
-                        ),
-                      ),
                     ),
                   ),
                 ],

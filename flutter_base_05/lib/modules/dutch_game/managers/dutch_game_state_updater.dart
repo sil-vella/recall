@@ -46,10 +46,10 @@ class DutchGameStateUpdater {
   /// Widgets depend on 'games' to trigger recomputation when player status changes
   static const Map<String, Set<String>> _widgetDependencies = {
     'actionBar': {'currentGameId', 'games', 'isRoomOwner', 'isGameActive', 'isMyTurn'},
-    'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
-    'myHand': {'currentGameId', 'games', 'isMyTurn', 'turn_events'},
+    'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'playerStatus'},
+    'myHand': {'currentGameId', 'games', 'isMyTurn', 'turn_events', 'playerStatus'},
     'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
-    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'turn_events'},
+    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'turn_events', 'playerStatus'},
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'isRoomOwner'},
     'messagesSlice': {'messages', 'gamePhase', 'currentGameId', 'games', 'rematch_waiting_game_id', 'endGameModalOpen', GameEndedModalPin.stateKey},
     'instructionsSlice': {'instructions'},
@@ -492,6 +492,22 @@ class DutchGameStateUpdater {
     // Derive current user status from SSOT
     final playerStatus = _getCurrentUserStatus(state);
     final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final roster = gameState['players'] as List<dynamic>? ?? [];
+
+    if (LOGGING_SWITCH && currentGameId.startsWith('room_')) {
+      final prevMyHand = state['myHand'] as Map<String, dynamic>? ?? {};
+      final prevStatus = prevMyHand['playerStatus']?.toString() ?? '';
+      final uiPhase = state['gamePhase']?.toString() ?? '';
+      if (prevStatus != playerStatus) {
+        customlog(
+          'rematch: myHandStatusChange gameId=$currentGameId uiPhase=$uiPhase '
+          'prevStatus=$prevStatus nextStatus=$playerStatus cardsLen=${myHandCards.length} '
+          'roster=${DutchEventHandlerCallbacks.playerStatusesLogSummary(roster)}',
+        );
+      }
+    }
 
     if (LOGGING_SWITCH && currentGameId.startsWith('practice_room_')) {
       customlog(

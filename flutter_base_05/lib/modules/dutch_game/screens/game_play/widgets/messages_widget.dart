@@ -15,6 +15,14 @@ import '../../../utils/dutch_game_helpers.dart';
 import '../../../utils/game_ended_modal_pin.dart';
 import '../../../widgets/dutch_slice_builder.dart';
 import '../../../widgets/ui_kit/dutch_animated_cta_button.dart';
+import '../../../../../utils/dev_logger.dart';
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Decoder for .lottie (dotlottie zip) assets: picks the first .json animation.
 Future<LottieComposition?> _decodeDotLottie(List<int> bytes) {
@@ -913,10 +921,13 @@ class _GameEndedModalLayer extends StatefulWidget {
   const _GameEndedModalLayer({
     required this.data,
     required this.onClose,
+    required this.onDismissOverlay,
   });
 
   final GameEndedModalData data;
   final VoidCallback onClose;
+  /// Close overlay only — stay on game-play (Play Again / rematch accept).
+  final VoidCallback onDismissOverlay;
 
   @override
   State<_GameEndedModalLayer> createState() => _GameEndedModalLayerState();
@@ -964,8 +975,16 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
         'game_id': d.gameId,
         'game_state': d.rematchGameStateSnapshot,
       };
-      if (d.currentUserId.isNotEmpty) {
-        payload['user_id'] = d.currentUserId;
+      final loginUserId = DutchEventHandlerCallbacks.getCurrentLoginUserId();
+      if (loginUserId.isNotEmpty) {
+        payload['user_id'] = loginUserId;
+      }
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'rematch: playAgain emit gameId=${d.gameId} userId=$loginUserId '
+          'roster=${DutchEventHandlerCallbacks.dutchGameRosterLog(d.gameId)}',
+        );
       }
 
       await DutchGameEventEmitter.instance.emit(
@@ -976,7 +995,20 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
       StateManager().updateModuleState('dutch_game', {
         'rematch_waiting_game_id': d.gameId,
       });
+      if (LOGGING_SWITCH) {
+        final dg =
+            StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        customlog(
+          'rematch: playAgain overlayDismiss gameId=${d.gameId} '
+          'gamePhase=${dg['gamePhase']} rematchWaiting=${dg['rematch_waiting_game_id']} '
+          'roster=${DutchEventHandlerCallbacks.dutchGameRosterLog(d.gameId)}',
+        );
+      }
+      widget.onDismissOverlay();
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        customlog('rematch: playAgain emit failed gameId=${d.gameId} error=$e');
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1373,22 +1405,69 @@ class _MessagesWidgetState extends State<MessagesWidget> {
     GameEndedModalData.pinToModuleState(data);
   }
 
-  GameEndedModalData? _activeEndedModal() =>
-      _gameEndedData ?? GameEndedModalData.readPinned();
+  GameEndedModalData? _activeEndedModal() {
+    final pinned = GameEndedModalData.readPinned();
+    final dutch =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final open = dutch['endGameModalOpen'] == true;
+    if (!open && pinned == null) return null;
+    return pinned ?? _gameEndedData;
+  }
+
+  void _dismissGameEndedOverlay({required bool navigateToLobby}) {
+    setState(() {
+      _gameEndedData = null;
+      _snapshotSchedulePending = false;
+    });
+    GameEndedModalPin.dismissOverlay(navigateToLobby: navigateToLobby);
+  }
+
+  bool _shouldLeaveToLobbyOnClose() {
+    final dutch =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final waiting = dutch['rematch_waiting_game_id']?.toString() ?? '';
+    return waiting.isEmpty;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final active = _activeEndedModal();
-    if (active != null) {
-      if (_gameEndedData == null) {
-        _gameEndedData = active;
-      }
-      return _GameEndedModalLayer(
-        data: active,
-        onClose: () => _closeMessage(context),
-      );
-    }
+    return DutchSliceBuilder<bool>(
+      selector: (dg) =>
+          dg['endGameModalOpen'] == true || GameEndedModalPin.readRaw() != null,
+      builder: (context, modalPinned, _) {
+        final active = _activeEndedModal();
+        if (active != null) {
+          if (_gameEndedData == null) {
+            _gameEndedData = active;
+          }
+          return _GameEndedModalLayer(
+            data: active,
+            onClose: () => _dismissGameEndedOverlay(
+              navigateToLobby: _shouldLeaveToLobbyOnClose(),
+            ),
+            onDismissOverlay: () =>
+                _dismissGameEndedOverlay(navigateToLobby: false),
+          );
+        }
 
+        if (_gameEndedData != null || _snapshotSchedulePending) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (_gameEndedData != null || _snapshotSchedulePending) {
+              setState(() {
+                _gameEndedData = null;
+                _snapshotSchedulePending = false;
+              });
+            }
+          });
+        }
+
+        return _buildNonGameEndedMessages(context);
+      },
+    );
+  }
+
+  Widget _buildNonGameEndedMessages(BuildContext context) {
     return DutchSliceBuilder<Map<String, dynamic>>(
       selector: (dutchGameState) => {
         'messages': Map<String, dynamic>.from(
@@ -1429,7 +1508,11 @@ class _MessagesWidgetState extends State<MessagesWidget> {
             _applyPinnedSnapshot(immediate);
             return _GameEndedModalLayer(
               data: immediate,
-              onClose: () => _closeMessage(context),
+              onClose: () => _dismissGameEndedOverlay(
+                navigateToLobby: _shouldLeaveToLobbyOnClose(),
+              ),
+              onDismissOverlay: () =>
+                  _dismissGameEndedOverlay(navigateToLobby: false),
             );
           }
 
@@ -1475,45 +1558,10 @@ class _MessagesWidgetState extends State<MessagesWidget> {
           showCloseButton: showCloseButton,
           autoClose: autoClose,
           autoCloseDelay: autoCloseDelay,
-          onClose: () => _closeMessage(context),
+          onClose: () => _dismissGameEndedOverlay(navigateToLobby: false),
         );
       },
     );
-  }
-
-  void _closeMessage(BuildContext context) {
-    try {
-      
-
-      final wasGameEnded = _gameEndedData != null ||
-          StateManager().getModuleState<Map<String, dynamic>>('dutch_game')?['gamePhase']?.toString() ==
-              'game_ended';
-
-      setState(() {
-        _gameEndedData = null;
-        _snapshotSchedulePending = false;
-      });
-
-      StateManager().updateModuleState('dutch_game', {
-        'rematch_waiting_game_id': '',
-        'messages': {
-          'isVisible': false,
-          'title': '',
-          'content': '',
-          'type': 'info',
-          'showCloseButton': true,
-          'autoClose': false,
-          'autoCloseDelay': 3000,
-        },
-      });
-      GameEndedModalData.clearPinned();
-      
-      if (wasGameEnded) {
-        NavigationManager().navigateTo('/dutch/lobby');
-      }
-    } catch (e) {
-      
-    }
   }
 }
 

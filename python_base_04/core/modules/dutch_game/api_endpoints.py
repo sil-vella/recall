@@ -20,6 +20,7 @@ from . import consumables_catalog as cc
 from . import progression_catalog as prog
 from . import achievements_catalog as achcat
 from . import catalog_hot_reload as catalog_reload
+from .utils import redis_read_cache as read_cache
 from core.modules.notification_module.global_broadcast_service import load_global_broadcast_payload_for_user
 from tools.dev_logger import customlog
 from .wins_level_rank_matcher import WinsLevelRankMatcher
@@ -1332,6 +1333,10 @@ def update_game_stats():
                             }
                     except Exception as e_td:
                         pass
+            for player in updated_players:
+                uid = player.get("user_id")
+                if uid:
+                    read_cache.invalidate_init_stats(_app_manager, str(uid))
             return jsonify(response_data), 200
         return jsonify({"success": False, "message": "Failed to update any player statistics", "error": "All updates failed", "errors": errors}), 500
     except Exception as e:
@@ -1453,13 +1458,33 @@ def _attach_declarative_catalogs(
     response_body["achievements_catalog_revision"] = ach_rev
     if include_table_tiers and ((not client_table_rev) or client_table_rev != rev):
         public_base = _resolve_public_api_base()
-        response_body["table_tiers"] = ttc.build_client_table_tiers_payload(public_base)
+        response_body["table_tiers"] = read_cache.get_or_build_catalog(
+            _app_manager,
+            "table_tiers",
+            rev,
+            lambda: ttc.build_client_table_tiers_payload(public_base),
+        )
     if (not client_cons_rev) or client_cons_rev != cons_rev:
-        response_body["consumables_catalog"] = cc.build_client_consumables_payload()
+        response_body["consumables_catalog"] = read_cache.get_or_build_catalog(
+            _app_manager,
+            "consumables",
+            cons_rev,
+            cc.build_client_consumables_payload,
+        )
     if (not client_prog_rev) or client_prog_rev != prog_rev:
-        response_body["progression_config"] = prog.build_client_progression_payload()
+        response_body["progression_config"] = read_cache.get_or_build_catalog(
+            _app_manager,
+            "progression",
+            prog_rev,
+            prog.build_client_progression_payload,
+        )
     if (not client_ach_rev) or client_ach_rev != ach_rev:
-        response_body["achievements_catalog"] = achcat.build_client_achievements_payload()
+        response_body["achievements_catalog"] = read_cache.get_or_build_catalog(
+            _app_manager,
+            "achievements",
+            ach_rev,
+            achcat.build_client_achievements_payload,
+        )
 
 
 def get_init_data():
@@ -1473,11 +1498,15 @@ def get_init_data():
         db_manager = _app_manager.get_db_manager(role="read_write")
         if not db_manager:
             return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
-        user = db_manager.find_one("users", {"_id": ObjectId(user_id)})
-        if not user:
-            return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found in database"}), 404
-        dutch_game = user.get("modules", {}).get("dutch_game", {})
-        stats_data = _dutch_stats_from_module(dutch_game, full=True)
+        user_id_str = str(user_id)
+        stats_data = read_cache.get_init_stats_cached(_app_manager, user_id_str)
+        if stats_data is None:
+            user = db_manager.find_one("users", {"_id": ObjectId(user_id)})
+            if not user:
+                return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found in database"}), 404
+            dutch_game = user.get("modules", {}).get("dutch_game", {})
+            stats_data = _dutch_stats_from_module(dutch_game, full=True)
+            read_cache.set_init_stats_cached(_app_manager, user_id_str, stats_data)
         client_rev, client_cons_rev, client_prog_rev, client_ach_rev = _client_revision_from_request(use_json_body=False)
         response_body: Dict[str, Any] = {
             "success": True,
@@ -1487,11 +1516,15 @@ def get_init_data():
             "timestamp": datetime.utcnow().isoformat(),
         }
         try:
-            gb_list = load_global_broadcast_payload_for_user(
-                db_manager,
-                user_id=str(user_id),
-                user_rank=str(stats_data.get("rank") or matcher.DEFAULT_RANK),
-            )
+            user_rank = str(stats_data.get("rank") or matcher.DEFAULT_RANK)
+            gb_list = read_cache.get_broadcast_cached(_app_manager, user_id_str, user_rank)
+            if gb_list is None:
+                gb_list = load_global_broadcast_payload_for_user(
+                    db_manager,
+                    user_id=user_id_str,
+                    user_rank=user_rank,
+                )
+                read_cache.set_broadcast_cached(_app_manager, user_id_str, user_rank, gb_list)
         except Exception as e:
             if LOGGING_SWITCH:
                 customlog(
@@ -1536,15 +1569,19 @@ def get_init_data_service():
             db_manager = _app_manager.get_db_manager(role="read_write")
             if not db_manager:
                 return jsonify({"success": False, "error": "Database connection unavailable", "message": "Failed to connect to database"}), 500
-            try:
-                user_id_obj = ObjectId(user_id)
-            except Exception:
-                return jsonify({"success": False, "error": "Invalid user_id", "message": "user_id must be a valid ObjectId"}), 400
-            user = db_manager.find_one("users", {"_id": user_id_obj})
-            if not user:
-                return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found", "data": None}), 404
-            dutch_game = user.get("modules", {}).get("dutch_game", {})
-            response_body["data"] = _dutch_stats_from_module(dutch_game, full=False)
+            stats_data = read_cache.get_init_stats_cached(_app_manager, user_id)
+            if stats_data is None:
+                try:
+                    user_id_obj = ObjectId(user_id)
+                except Exception:
+                    return jsonify({"success": False, "error": "Invalid user_id", "message": "user_id must be a valid ObjectId"}), 400
+                user = db_manager.find_one("users", {"_id": user_id_obj})
+                if not user:
+                    return jsonify({"success": False, "error": "User not found", "message": f"User with ID {user_id} not found", "data": None}), 404
+                dutch_game = user.get("modules", {}).get("dutch_game", {})
+                stats_data = _dutch_stats_from_module(dutch_game, full=False)
+                read_cache.set_init_stats_cached(_app_manager, user_id, stats_data)
+            response_body["data"] = stats_data
             response_body["user_id"] = user_id
         _attach_declarative_catalogs(
             response_body,
@@ -1606,7 +1643,7 @@ def reload_catalogs_service():
     ``consumables_catalog.json`` and rebuilds in-process maps/revisions.
     """
     try:
-        result = catalog_reload.reload_all_catalogs()
+        result = catalog_reload.reload_all_catalogs(_app_manager)
         result["timestamp"] = datetime.utcnow().isoformat()
         return jsonify(result), 200
     except Exception as e:
@@ -2725,6 +2762,8 @@ def rematch_tournament_snapshot_service():
             initial_match_game_results = []
         if not room_id:
             return jsonify({"success": False, "error": "room_id is required"}), 400
+        if LOGGING_SWITCH:
+            customlog(f"rematch: tournament_snapshot room_id={room_id}")
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         db_manager = _app_manager.get_db_manager(role="read_write")
@@ -2766,6 +2805,11 @@ def rematch_tournament_snapshot_service():
                 "match_index": res["match_index"],
             }
             td_out = _enrich_td_out_from_tournament_doc(db_manager, tournament_oid, td_out)
+            if LOGGING_SWITCH:
+                customlog(
+                    f"rematch: tournament_snapshot append room_id={room_id} "
+                    f"tournament_id={existing_tid} match_index={res['match_index']}"
+                )
             return jsonify({"success": True, "tournament_id": existing_tid, "tournament_data": td_out}), 200
 
         create_data = {
@@ -2815,8 +2859,16 @@ def rematch_tournament_snapshot_service():
             "match_index": res["match_index"],
         }
         td_out = _enrich_td_out_from_tournament_doc(db_manager, new_oid, td_out)
+        if LOGGING_SWITCH:
+            customlog(
+                f"rematch: tournament_snapshot created room_id={room_id} "
+                f"tournament_id={tid_str} match_index={res['match_index']} "
+                f"players={len(user_id_strs)}"
+            )
         return jsonify({"success": True, "tournament_id": tid_str, "tournament_data": td_out}), 200
     except Exception as e:
+        if LOGGING_SWITCH:
+            customlog(f"rematch: tournament_snapshot error {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3556,7 +3608,14 @@ def _dutch_handle_decline(doc, user_id):
 
 def _dutch_handle_join(doc, user_id):
     """Handler for join: match invite only."""
-    return {"success": True, "message": "Updated", "action": "join"}
+    data = doc.get("data") if isinstance(doc.get("data"), dict) else {}
+    room_id = (data.get("room_id") or "").strip() or None
+    if LOGGING_SWITCH:
+        customlog(
+            f"createMatch: notification_join_response user_id={user_id} "
+            f"room_id={room_id} msg_id={doc.get('msg_id')}"
+        )
+    return {"success": True, "message": "Updated", "action": "join", "room_id": room_id}
 
 
 def invite_players_to_match():
@@ -3572,6 +3631,11 @@ def invite_players_to_match():
         room_id = (data.get("room_id") or "").strip() or None
         title = (data.get("title") or "Match invite").strip()
         body = (data.get("body") or "You're invited to a match.").strip()
+        if LOGGING_SWITCH:
+            customlog(
+                f"createMatch: invite_players_to_match room_id={room_id} "
+                f"requested={len(user_ids)} caller={request.user_id}"
+            )
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
         notification_data = {"match_id": match_id}
@@ -3594,8 +3658,15 @@ def invite_players_to_match():
             )
             if nid:
                 notified += 1
+        if LOGGING_SWITCH:
+            customlog(
+                f"createMatch: invite_players_to_match done room_id={room_id} "
+                f"notified={notified} requested={len(user_ids)}"
+            )
         return jsonify({"success": True, "notified": notified, "requested": len(user_ids)}), 200
     except Exception as e:
+        if LOGGING_SWITCH:
+            customlog(f"createMatch: invite_players_to_match error {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3622,6 +3693,11 @@ def get_comp_players():
         if count is None or not isinstance(count, int) or count <= 0:
             return jsonify({"success": False, "error": "Invalid count parameter", "message": "count must be a positive integer"}), 400
         rank_filter = data.get('rank_filter')
+        if LOGGING_SWITCH:
+            customlog(
+                f"createMatch: get_comp_players count={count} "
+                f"rank_filter={rank_filter if rank_filter else 'none'}"
+            )
         if rank_filter is not None and not isinstance(rank_filter, list):
             return jsonify({"success": False, "error": "Invalid rank_filter parameter", "message": "rank_filter must be a list of rank strings"}), 400
         if not _app_manager:
@@ -3669,6 +3745,11 @@ def get_comp_players():
             response_data["message"] = f"Only {selected_count} comp player(s) available (requested {count})"
         else:
             response_data["message"] = f"Successfully retrieved {selected_count} comp player(s)"
+        if LOGGING_SWITCH:
+            customlog(
+                f"createMatch: get_comp_players returned={len(comp_players_list)} "
+                f"requested={count} available={len(comp_players)}"
+            )
         return jsonify(response_data), 200
     except Exception as e:
         return jsonify({"success": False, "error": "Failed to retrieve comp players", "message": str(e)}), 500

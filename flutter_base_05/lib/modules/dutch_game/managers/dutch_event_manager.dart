@@ -10,7 +10,14 @@ import '../../dutch_game/utils/multiplayer_session_readiness.dart';
 import '../backend_core/utils/level_matcher.dart';
 import '../../dutch_game/managers/dutch_event_listener_validator.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
+import '../../../utils/dev_logger.dart';
 
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Message id for notification response success handling. Must match backend dutch_notifications.MSG_ID_MATCH_INVITE.
 class _NotificationMsgId {
@@ -208,6 +215,12 @@ class DutchEventManager {
       final status = data['status']?.toString() ?? 'unknown';
       final roomId = data['room_id']?.toString() ?? '';
       final isRandomJoin = data['is_random_join'] == true;
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: room_creation hook status=$status roomId=$roomId '
+          'isRandomJoin=$isRandomJoin isOwner=${data['is_owner'] == true}',
+        );
+      }
       // For random join rooms, always set isOwner to false
       final isOwner = isRandomJoin ? false : (data['is_owner'] == true);
       
@@ -321,10 +334,16 @@ class DutchEventManager {
     // Insufficient coins on join_room / join_random / rematch_accept — stash + modal (retries if context null)
     HooksManager().registerHookWithData('websocket_join_room_error', (hookData) {
       try {
-        final msg = hookData['message']?.toString().toLowerCase() ?? '';
-        final insufficientCoins = msg.contains('insufficient coins') ||
-            (msg.contains('insufficient') &&
-                (msg.contains('coin') || msg.contains('balance')));
+        final msg = hookData['message']?.toString() ?? '';
+        final roomId = hookData['room_id']?.toString() ?? '';
+        if (LOGGING_SWITCH) {
+          customlog(
+            'createMatch: ws join_room_error message=$msg roomId=$roomId',
+          );
+        }
+        final insufficientCoins = msg.toLowerCase().contains('insufficient coins') ||
+            (msg.toLowerCase().contains('insufficient') &&
+                (msg.toLowerCase().contains('coin') || msg.toLowerCase().contains('balance')));
         if (!insufficientCoins) {
           return;
         }
@@ -333,7 +352,7 @@ class DutchEventManager {
         final payload = rawPayload is Map
             ? Map<String, dynamic>.from(rawPayload)
             : <String, dynamic>{};
-        final roomId = hookData['room_id']?.toString() ?? payload['room_id']?.toString() ?? '';
+        final resolvedRoomId = roomId.isNotEmpty ? roomId : payload['room_id']?.toString() ?? '';
         final glRaw = hookData['game_level'] ?? payload['game_level'];
         final gameLevel = _parseTableLevel(glRaw);
         final reqRaw = hookData['required_coins'] ?? payload['required_coins'];
@@ -342,7 +361,7 @@ class DutchEventManager {
         final stash = <String, dynamic>{
           ...payload,
           'updatedAt': DateTime.now().toIso8601String(),
-          'room_id': roomId.isNotEmpty ? roomId : payload['room_id'],
+          'room_id': resolvedRoomId.isNotEmpty ? resolvedRoomId : payload['room_id'],
           'game_level': gameLevel,
           'required_coins': requiredCoins,
         };
@@ -456,6 +475,12 @@ class DutchEventManager {
     BuildContext? context,
   ) async {
     final action = (response['action'] ?? '').toString();
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: matchInvite response action=$action '
+        'msg_id=${message['msg_id']} notificationId=${message['id']}',
+      );
+    }
     if (action != 'join') return;
 
     final msgData = message['data'];
@@ -466,6 +491,12 @@ class DutchEventManager {
     }
     roomId ??= response['room_id']?.toString().trim();
     if (roomId == null || roomId.isEmpty) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: matchInvite join abort — missing room_id in message.data '
+          'and response keys=${response.keys.toList()}',
+        );
+      }
       return;
     }
 
@@ -489,6 +520,12 @@ class DutchEventManager {
           gameLevel: inviteGameLevel,
           fetchFromAPI: true,
         )) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: matchInvite join abort — insufficient coins '
+          'roomId=$roomId gameLevel=$inviteGameLevel',
+        );
+      }
       final required = LevelMatcher.tableLevelToCoinFee(inviteGameLevel, defaultFee: 25);
       await DutchGameHelpers.stashLastCoinPurchaseContextAndShowBuyModal(
         stash: {
@@ -501,12 +538,25 @@ class DutchEventManager {
       return;
     }
 
-    final result = await DutchGameHelpers.joinRoom(roomId: roomId);
+    final result = await DutchGameHelpers.joinRoomAndAwaitServerAck(
+      roomId: roomId,
+      gameLevel: inviteGameLevel,
+      context: context,
+    );
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: matchInvite joinRoom serverAck success=${result['success']} '
+        'error=${result['error'] ?? result['message']} roomId=$roomId',
+      );
+    }
     if (result['success'] != true) {
+      final err = result['error']?.toString() ??
+          result['message']?.toString() ??
+          'Failed to join room';
       if (context != null && context.mounted) {
         ScaffoldMessenger.maybeOf(context)!.showSnackBar(
           SnackBar(
-            content: Text(result['error']?.toString() ?? 'Failed to join room'),
+            content: Text(err),
             backgroundColor: AppColors.errorColor,
           ),
         );
@@ -526,6 +576,14 @@ class DutchEventManager {
       if (retryGames.containsKey(roomId)) {
         DutchGameHelpers.setCurrentGameSync(roomId, retryGames);
       }
+    }
+    if (LOGGING_SWITCH) {
+      final inGames = (StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {})['games'];
+      final keys = inGames is Map ? inGames.keys.take(5).toList() : <dynamic>[];
+      customlog(
+        'createMatch: matchInvite navigate game-play roomId=$roomId '
+        'inGamesMap=${keys.contains(roomId)} gamesSample=$keys',
+      );
     }
     NavigationManager().navigateToPush('/dutch/game-play');
     if (context != null && context.mounted) {

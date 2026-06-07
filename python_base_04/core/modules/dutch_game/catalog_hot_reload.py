@@ -12,11 +12,12 @@ from typing import Any, Dict
 
 from . import consumables_catalog as cc
 from . import table_tiers_catalog as ttc
+from .utils import redis_read_cache as read_cache
 
 _reload_lock = threading.Lock()
 
 
-def reload_all_catalogs() -> Dict[str, Any]:
+def reload_all_catalogs(app_manager=None) -> Dict[str, Any]:
     """
     Reload table tiers + consumables from their JSON files into process memory.
 
@@ -25,6 +26,8 @@ def reload_all_catalogs() -> Dict[str, Any]:
     with _reload_lock:
         table_result = ttc.reload_from_disk()
         consumables_result = cc.reload_from_disk()
+    if app_manager is not None:
+        read_cache.delete_prefix(app_manager, "catalog:")
     return {
         "success": True,
         "table_tiers": table_result,

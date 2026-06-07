@@ -144,6 +144,9 @@ class DutchGameEventListenerValidator {
     'completed_initial_peek': EventConfig(
       schema: {'game_id', 'player_id', 'timestamp'},
     ),
+    'initial_peek_card': EventConfig(
+      schema: {'game_id', 'player_id', 'card_id', 'timestamp'},
+    ),
     'dutch_message': EventConfig(
       schema: {'scope', 'target_id', 'level', 'title', 'message', 'data', 'timestamp'},
     ),

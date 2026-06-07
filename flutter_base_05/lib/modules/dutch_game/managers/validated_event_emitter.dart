@@ -92,6 +92,7 @@ class DutchGameEventEmitter {
     'jack_swap': {'game_id', 'first_card_id', 'first_player_id', 'second_card_id', 'second_player_id'}, // player_id auto-added
     'queen_peek': {'game_id', 'card_id', 'ownerId'}, // ownerId for card owner
     'completed_initial_peek': {'game_id', 'card_ids'}, // player_id auto-added
+    'initial_peek_card': {'game_id', 'card_id'}, // player_id auto-added
     'collect_from_discard': {'game_id'}, // player_id auto-added
     // Rematch: client sends ended-game snapshot for server to validate and start follow-up flow.
     // Dart backend must handle event type `rematch` in message_handler (not wired yet).
@@ -340,7 +341,7 @@ class DutchGameEventEmitter {
       // Note: player_id is now sessionId (not userId) since player IDs = sessionIds
       final eventsNeedingPlayerId = {
         'play_card', 'replace_drawn_card', 'play_drawn_card', 
-        'call_dutch', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'queen_peek', 'completed_initial_peek', 'collect_from_discard'
+        'call_dutch', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'queen_peek', 'completed_initial_peek', 'initial_peek_card', 'collect_from_discard'
       };
       
       if (eventsNeedingPlayerId.contains(eventType)) {
@@ -468,6 +469,16 @@ class DutchGameEventEmitter {
           'Field "game_id" is required for $eventType',
           eventType: eventType,
           fieldName: 'game_id',
+        );
+      }
+    }
+    if (eventType == 'initial_peek_card') {
+      final id = validatedData['card_id']?.toString() ?? '';
+      if (!ValidationUtils.matchesPattern(id, r'^card_[a-zA-Z0-9_]+$')) {
+        throw DutchEventException(
+          'Field "card_id" contains invalid card id "$id"',
+          eventType: eventType,
+          fieldName: 'card_id',
         );
       }
     }

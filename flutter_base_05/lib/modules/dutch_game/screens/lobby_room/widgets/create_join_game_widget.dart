@@ -12,6 +12,14 @@ import '../../../backend_core/utils/level_matcher.dart';
 import '../../../widgets/table_tier_felt_panel.dart';
 import '../../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../../modules/user_management_module/user_management_module.dart';
+import '../../../../../utils/dev_logger.dart';
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Unified widget for creating and joining games
 class CreateJoinGameWidget extends StatefulWidget {
@@ -794,6 +802,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
           style: AppTextStyles.label().copyWith(color: AppColors.white),
         ),
         SizedBox(height: 4),
+        Text(
+          'Add players above, then tap Create. Match invites send automatically after the room is created.',
+          style: AppTextStyles.caption().copyWith(color: AppColors.textSecondary),
+        ),
+        SizedBox(height: 4),
         Semantics(
           label: 'create_room_field_invite_search',
           identifier: 'create_room_field_invite_search',
@@ -936,6 +949,14 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     if (accepted.isNotEmpty) {
       roomSettings['accepted_players'] = accepted;
     }
+    if (LOGGING_SWITCH) {
+      final humanCount = accepted.where((e) => e['is_comp_player'] != true).length;
+      final compCount = accepted.where((e) => e['is_comp_player'] == true).length;
+      customlog(
+        'createMatch: modal submit gameType=$_selectedGameType level=$_selectedTableLevel '
+        'humanInvites=$humanCount compInvites=$compCount',
+      );
+    }
     setState(() => _isSubmitting = true);
     try {
       final result = await widget.onCreateRoom(roomSettings);
@@ -943,6 +964,9 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
       final ok = result['success'] == true && result['error'] == null;
       if (!ok) {
         final err = result['message'] ?? result['error'] ?? 'Failed to create room';
+        if (LOGGING_SWITCH) {
+          customlog('createMatch: modal create failed error=$err');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(err.toString()),
@@ -996,7 +1020,23 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
         _notifyPlayersInProgress = false;
         _inviteNotificationsSent = false;
       });
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: modal created roomId=$rid invited=${invitedUserIds.length} '
+          'joinEnabled=${invitedUserIds.isEmpty && rid.isNotEmpty}',
+        );
+      }
+      if (invitedUserIds.isNotEmpty && rid.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _createdSummary != null && !_inviteNotificationsSent) {
+            _notifyInvitedPlayers();
+          }
+        });
+      }
     } catch (e) {
+      if (LOGGING_SWITCH) {
+        customlog('createMatch: modal create exception $e');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1049,6 +1089,11 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
       return;
     }
     setState(() => _notifyPlayersInProgress = true);
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: notifyInvitedPlayers roomId=$roomId userIds=$userIds',
+      );
+    }
     try {
       final body = <String, dynamic>{
         'user_ids': userIds,
@@ -1069,6 +1114,12 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
       });
       final notified = map?['notified'] as int? ?? 0;
       final requested = map?['requested'] as int? ?? 0;
+      if (LOGGING_SWITCH) {
+        customlog(
+          'createMatch: notifyInvitedPlayers result success=$success '
+          'notified=$notified requested=$requested',
+        );
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1120,13 +1171,6 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
         ? invitedRaw.map((e) => e.toString()).where((x) => x.isNotEmpty).join(', ')
         : '';
     final invitedUserIds = _summaryInvitedUserIds(s);
-    final roomIdBlank = roomId.isEmpty;
-    final canNotify = !roomIdBlank &&
-        invitedUserIds.isNotEmpty &&
-        _connectionsApi != null &&
-        !_notifyPlayersInProgress &&
-        !_inviteNotificationsSent;
-    final canJoinMatch = !roomIdBlank && _joinMatchEnabled;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1196,75 +1240,156 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
         if (invitedUserIds.isNotEmpty) ...[
           SizedBox(height: AppPadding.smallPadding.top),
           Text(
-            'Tap Notify Players to send a match invite, then Join Match when it enables (5s after notify).',
+            _inviteNotificationsSent
+                ? 'Invites sent. Join Match enables 5s after notify completes.'
+                : _notifyPlayersInProgress
+                    ? 'Sending match invites…'
+                    : 'Use Notify Players below to send invites, then Join Match when it enables.',
             style: AppTextStyles.caption().copyWith(color: AppColors.textSecondary),
           ),
         ],
-        SizedBox(height: AppPadding.largePadding.top),
-        Row(
-          children: [
-            Expanded(
-              child: Semantics(
-                label: 'create_room_summary_notify_players',
-                identifier: 'create_room_summary_notify_players',
-                button: true,
-                child: TextButton(
-                  onPressed: canNotify ? _notifyInvitedPlayers : null,
-                  style: TextButton.styleFrom(
-                    backgroundColor: canNotify ? AppColors.accentColor : AppColors.disabledColor,
-                    foregroundColor: canNotify ? AppColors.textOnAccent : AppColors.textSecondary,
-                    padding: AppPadding.cardPadding,
-                    shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
+      ],
+    );
+  }
+
+  bool _summaryRoomIdBlank() {
+    final rid = _createdSummary?['room_id']?.toString() ?? '';
+    return rid.isEmpty;
+  }
+
+  bool _canNotifyInvitedPlayers() {
+    if (_createdSummary == null) return false;
+    final invitedUserIds = _summaryInvitedUserIds(_createdSummary!);
+    return !_summaryRoomIdBlank() &&
+        invitedUserIds.isNotEmpty &&
+        _connectionsApi != null &&
+        !_notifyPlayersInProgress &&
+        !_inviteNotificationsSent;
+  }
+
+  bool _canJoinCreatedMatch() {
+    return _createdSummary != null && !_summaryRoomIdBlank() && _joinMatchEnabled;
+  }
+
+  /// Pinned under the scroll area so Notify / Join stay visible after create.
+  Widget _buildCreatedSummaryActionBar(BuildContext context) {
+    final roomId = _createdSummary?['room_id']?.toString() ?? '';
+    final canNotify = _canNotifyInvitedPlayers();
+    final canJoinMatch = _canJoinCreatedMatch();
+    final invitedUserIds = _createdSummary != null
+        ? _summaryInvitedUserIds(_createdSummary!)
+        : const <String>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (invitedUserIds.isNotEmpty) ...[
+          Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  label: 'create_room_summary_notify_players',
+                  identifier: 'create_room_summary_notify_players',
+                  button: true,
+                  child: TextButton(
+                    onPressed: canNotify ? _notifyInvitedPlayers : null,
+                    style: TextButton.styleFrom(
+                      backgroundColor: canNotify ? AppColors.accentColor : AppColors.disabledColor,
+                      foregroundColor: canNotify ? AppColors.textOnAccent : AppColors.textSecondary,
+                      padding: AppPadding.cardPadding,
+                      shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
+                    ),
+                    child: _notifyPlayersInProgress
+                        ? SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.textOnAccent,
+                            ),
+                          )
+                        : Text(
+                            'Notify Players',
+                            style: AppTextStyles.buttonText().copyWith(
+                              color: canNotify ? AppColors.textOnAccent : AppColors.textSecondary,
+                            ),
+                          ),
                   ),
-                  child: _notifyPlayersInProgress
-                      ? SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.textOnAccent,
-                          ),
-                        )
-                      : Text(
-                          'Notify Players',
-                          style: AppTextStyles.buttonText().copyWith(
-                            color: canNotify ? AppColors.textOnAccent : AppColors.textSecondary,
-                          ),
-                        ),
                 ),
               ),
-            ),
-            SizedBox(width: AppPadding.smallPadding.left),
-            Expanded(
-              child: Semantics(
-                label: 'create_room_summary_join_match',
-                identifier: 'create_room_summary_join_match',
-                button: true,
-                child: TextButton(
-                  onPressed: canJoinMatch
-                      ? () {
-                          Navigator.pop(context);
-                          NavigationManager().navigateToPush('/dutch/game-play');
-                        }
-                      : null,
-                  style: TextButton.styleFrom(
-                    backgroundColor: canJoinMatch ? AppColors.successColor : AppColors.disabledColor,
-                    foregroundColor: canJoinMatch ? AppColors.textOnAccent : AppColors.textSecondary,
-                    padding: AppPadding.cardPadding,
-                    shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
-                  ),
-                  child: Text(
-                    'Join Match',
-                    style: AppTextStyles.buttonText().copyWith(
-                      color: canJoinMatch ? AppColors.textOnAccent : AppColors.textSecondary,
+              SizedBox(width: AppPadding.smallPadding.left),
+              Expanded(
+                child: Semantics(
+                  label: 'create_room_summary_join_match',
+                  identifier: 'create_room_summary_join_match',
+                  button: true,
+                  child: TextButton(
+                    onPressed: canJoinMatch
+                        ? () {
+                            if (LOGGING_SWITCH) {
+                              customlog(
+                                'createMatch: joinMatch navigate roomId=$roomId',
+                              );
+                            }
+                            Navigator.pop(context);
+                            NavigationManager().navigateToPush('/dutch/game-play');
+                          }
+                        : null,
+                    style: TextButton.styleFrom(
+                      backgroundColor: canJoinMatch ? AppColors.successColor : AppColors.disabledColor,
+                      foregroundColor: canJoinMatch ? AppColors.textOnAccent : AppColors.textSecondary,
+                      padding: AppPadding.cardPadding,
+                      shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
+                    ),
+                    child: Text(
+                      'Join Match',
+                      style: AppTextStyles.buttonText().copyWith(
+                        color: canJoinMatch ? AppColors.textOnAccent : AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ),
               ),
+            ],
+          ),
+          SizedBox(height: AppPadding.defaultPadding.top),
+        ] else ...[
+          SizedBox(
+            width: double.infinity,
+            child: Semantics(
+              label: 'create_room_summary_join_match',
+              identifier: 'create_room_summary_join_match',
+              button: true,
+              child: TextButton(
+                onPressed: canJoinMatch
+                    ? () {
+                        if (LOGGING_SWITCH) {
+                          customlog(
+                            'createMatch: joinMatch navigate roomId=$roomId',
+                          );
+                        }
+                        Navigator.pop(context);
+                        NavigationManager().navigateToPush('/dutch/game-play');
+                      }
+                    : null,
+                style: TextButton.styleFrom(
+                  backgroundColor: canJoinMatch ? AppColors.successColor : AppColors.disabledColor,
+                  foregroundColor: canJoinMatch ? AppColors.textOnAccent : AppColors.textSecondary,
+                  padding: AppPadding.cardPadding,
+                  shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.mediumRadius),
+                ),
+                child: Text(
+                  'Join Match',
+                  style: AppTextStyles.buttonText().copyWith(
+                    color: canJoinMatch ? AppColors.textOnAccent : AppColors.textSecondary,
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
-        SizedBox(height: AppPadding.defaultPadding.top),
+          ),
+          SizedBox(height: AppPadding.defaultPadding.top),
+        ],
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
@@ -1287,7 +1412,37 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
     Shadow(color: Color(0x88000000), blurRadius: 4, offset: Offset(0, 1)),
   ];
 
-  /// Table tier row with [TableTierFeltPanel] behind the label (create modal menu + selected field).
+  String _tableLevelTitleLine(int level) {
+    final title = LevelMatcher.levelToTitle(level);
+    final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
+      level,
+      defaultLevel: level,
+    );
+    return '$title · Lv $requiredLevel';
+  }
+
+  bool _isTableLevelLocked(int level) {
+    final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
+      level,
+      defaultLevel: level,
+    );
+    return _currentUserLevel() < requiredLevel;
+  }
+
+  /// Collapsed field label only — no felt image (felt stays in [items] menu rows).
+  Widget _buildTableLevelSelectedLabel(int level) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        _tableLevelTitleLine(level),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+      ),
+    );
+  }
+
+  /// Table tier row with [TableTierFeltPanel] behind the label (dropdown menu options only).
   DropdownMenuItem<int> _buildTableLevelDropdownMenuItem({
     required int level,
     required bool isLocked,
@@ -1565,20 +1720,20 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                           ),
                           dropdownColor: AppColors.widgetContainerBackground,
                           style: AppTextStyles.bodyMedium().copyWith(color: AppColors.textOnPrimary),
+                          selectedItemBuilder: (context) {
+                            return LevelMatcher.levelOrder
+                                .map((level) => _buildTableLevelSelectedLabel(level))
+                                .toList();
+                          },
                           items: LevelMatcher.levelOrder.map((level) {
-                            final title = LevelMatcher.levelToTitle(level);
-                            final requiredLevel = LevelMatcher.tableLevelToRequiredUserLevel(
-                              level,
-                              defaultLevel: level,
-                            );
-                            final isLocked = _currentUserLevel() < requiredLevel;
-                            final titleLine = '$title · Lv $requiredLevel';
+                            final isLocked = _isTableLevelLocked(level);
+                            final titleLine = _tableLevelTitleLine(level);
                             return _buildTableLevelDropdownMenuItem(
                               level: level,
                               isLocked: isLocked,
                               titleLine: titleLine,
                               lockedSubtitle: isLocked
-                                  ? 'Locked — player level $requiredLevel+ required'
+                                  ? 'Locked — player level ${LevelMatcher.tableLevelToRequiredUserLevel(level, defaultLevel: level)}+ required'
                                   : null,
                             );
                           }).toList(),
@@ -1640,7 +1795,9 @@ class _CreateRoomModalState extends State<_CreateRoomModal> {
                     ),
                   ),
                 ],
-              ),
+              )
+                else
+                  _buildCreatedSummaryActionBar(context),
             ],
           ),
         ),

@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from env_prod_tags import record_image_tag_in_env_prod, resolve_versioned_image_tag
+
 
 class Colors:
     RED = '\033[0;31m'
@@ -76,7 +78,6 @@ def _ensure_env_prod_ssot() -> None:
 # Configuration
 DOCKER_USERNAME = os.environ.get("DOCKER_USERNAME", "silvella")
 IMAGE_NAME = "dutch_dart_game_server"
-IMAGE_TAG = os.environ.get("IMAGE_TAG", "latest")
 DOCKERFILE_PATH = PROJECT_ROOT / "dart_bkend_base_01" / "Dockerfile"
 BUILD_CONTEXT = PROJECT_ROOT / "dart_bkend_base_01"
 
@@ -221,14 +222,14 @@ def check_docker() -> bool:
         return False
 
 
-def build_and_push() -> bool:
+def build_and_push(image_tag: str) -> bool:
     """Build and push the Docker image."""
-    full_image_name = f"{DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}"
+    full_image_name = f"{DOCKER_USERNAME}/{IMAGE_NAME}:{image_tag}"
 
     print(f"\n{Colors.BLUE}Configuration:{Colors.NC}")
     print(f"  Docker Username: {DOCKER_USERNAME}")
     print(f"  Image Name: {IMAGE_NAME}")
-    print(f"  Image Tag: {IMAGE_TAG}")
+    print(f"  Image Tag: {image_tag}")
     print(f"  Full Image: {full_image_name}")
     print(f"  Project Root: {PROJECT_ROOT}")
     print(f"  Dockerfile: {DOCKERFILE_PATH}")
@@ -268,7 +269,7 @@ def build_and_push() -> bool:
         return False
 
     # Tag as latest if a different tag was used
-    if IMAGE_TAG != "latest":
+    if image_tag != "latest":
         print(f"\n{Colors.BLUE}Tagging as latest...{Colors.NC}")
         latest_tag = f"{DOCKER_USERNAME}/{IMAGE_NAME}:latest"
         subprocess.run(["docker", "tag", full_image_name, latest_tag], check=True)
@@ -286,7 +287,7 @@ def build_and_push() -> bool:
         return False
 
     # Push latest tag if different
-    if IMAGE_TAG != "latest":
+    if image_tag != "latest":
         print(f"\n{Colors.BLUE}Pushing latest tag...{Colors.NC}")
         latest_tag = f"{DOCKER_USERNAME}/{IMAGE_NAME}:latest"
         try:
@@ -319,8 +320,10 @@ def main() -> None:
         restore_config()
         sys.exit(1)
 
+    image_tag = resolve_versioned_image_tag()
+
     try:
-        success = build_and_push()
+        success = build_and_push(image_tag)
         if not success:
             restore_config()
             sys.exit(1)
@@ -330,13 +333,17 @@ def main() -> None:
 
     restore_config()
 
-    full_image_name = f"{DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}"
+    record_image_tag_in_env_prod("DART_IMAGE_TAG", image_tag)
+    full_image_name = f"{DOCKER_USERNAME}/{IMAGE_NAME}:{image_tag}"
     print(f"\n{Colors.GREEN}=== Build and Push Complete ==={Colors.NC}")
     print(
         f"Image available at: {Colors.BLUE}{full_image_name}{Colors.NC}"
     )
-    print("\nTo use this image, update docker-compose.yml:")
-    print(f"  image: {DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}")
+    print(f"{Colors.GREEN}✓ Recorded DART_IMAGE_TAG in .env.prod:{Colors.NC} {image_tag}")
+    print(
+        "  Next: ansible-playbook -i playbooks/rop01/inventory.ini "
+        "playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01"
+    )
     print()
 
 

@@ -4,8 +4,15 @@ from core.managers.app_manager import AppManager
 import sys
 import os
 import importlib
+import logging
+import time
 from core.metrics import init_metrics
 from utils.config.config import Config
+from utils.prod_runtime import (
+    client_allowed_for_metrics,
+    log_tracebacks_enabled,
+    slow_request_threshold_ms,
+)
 
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()
@@ -58,6 +65,13 @@ else:
 # Additional app-level configurations
 app.config["DEBUG"] = Config.DEBUG
 
+_prod_logger = logging.getLogger("flask.prod")
+
+
+def _metrics_access_denied():
+    return jsonify({"success": False, "error": "Metrics access denied"}), 403
+
+
 @app.route('/metrics')
 def metrics_endpoint():
     """
@@ -66,6 +80,9 @@ def metrics_endpoint():
     This mirrors the behavior in app.debug.py so that Prometheus/Grafana
     can scrape metrics from the production container as well.
     """
+    if not client_allowed_for_metrics(request.remote_addr):
+        return _metrics_access_denied()
+
     from prometheus_client import generate_latest, REGISTRY
     
     try:
@@ -86,6 +103,9 @@ def verify_metrics():
     Verify metrics are in REGISTRY and accessible via the metrics HTTP server.
     Mirrors the debug app helper so you can sanity-check metrics in prod.
     """
+    if not client_allowed_for_metrics(request.remote_addr):
+        return _metrics_access_denied()
+
     try:
         metrics_collector = app_manager.get_metrics_collector()
         if metrics_collector:
@@ -315,6 +335,47 @@ def list_authenticated_actions():
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
 
 # Test endpoints removed - Dutch game is now managed through ModuleRegistry
+
+
+@app.after_request
+def _log_slow_requests(response):
+    """Log slow HTTP handlers to stdout (no tokens or user ids)."""
+    try:
+        if hasattr(request, "start_time"):
+            duration_ms = (time.time() - request.start_time) * 1000
+            if duration_ms >= slow_request_threshold_ms():
+                _prod_logger.warning(
+                    "slow_request method=%s path=%s status=%s duration_ms=%.0f",
+                    request.method,
+                    request.path,
+                    response.status_code,
+                    duration_ms,
+                )
+    except Exception:
+        pass
+    return response
+
+
+@app.errorhandler(500)
+def _log_internal_server_error(error):
+    """Log 500 type and path without full traceback unless explicitly enabled."""
+    try:
+        if log_tracebacks_enabled():
+            _prod_logger.exception(
+                "internal_error method=%s path=%s",
+                request.method,
+                request.path,
+            )
+        else:
+            _prod_logger.error(
+                "internal_error method=%s path=%s type=%s",
+                request.method,
+                request.path,
+                type(error).__name__,
+            )
+    except Exception:
+        pass
+    return jsonify({"error": "Internal server error"}), 500
     
 
 # Production mode: Let gunicorn handle the app

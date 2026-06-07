@@ -260,7 +260,7 @@ class WSEventListener {
     final gameEvents = [
       'start_match', 'draw_card', 'play_card', 'discard_card',
       'take_from_discard', 'call_dutch', 'same_rank_play',
-      'jack_swap', 'queen_peek', 'completed_initial_peek'
+      'jack_swap', 'queen_peek', 'completed_initial_peek', 'initial_peek_card'
     ];
     
     for (final event in gameEvents) {

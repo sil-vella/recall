@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from env_prod_tags import record_image_tag_in_env_prod, resolve_versioned_image_tag
+
 # Colors for output
 class Colors:
     RED = '\033[0;31m'
@@ -80,7 +82,6 @@ def _ensure_env_prod_ssot() -> None:
 # Configuration
 DOCKER_USERNAME = os.environ.get('DOCKER_USERNAME', 'silvella')
 IMAGE_NAME = 'dutch_flask_app'
-IMAGE_TAG = os.environ.get('IMAGE_TAG', 'latest')
 DOCKERFILE_PATH = PROJECT_ROOT / 'python_base_04' / 'Dockerfile'
 BUILD_CONTEXT = PROJECT_ROOT / 'python_base_04'
 COIN_CATALOG_SRC = PROJECT_ROOT / 'flutter_base_05' / 'assets' / 'dutch_coin_catalog.json'
@@ -214,14 +215,14 @@ def stage_coin_catalog_for_docker() -> None:
     print(f"{Colors.GREEN}✓ Staged coin catalog for Docker:{Colors.NC} {COIN_CATALOG_DST.relative_to(PROJECT_ROOT)}")
 
 
-def build_and_push():
+def build_and_push(image_tag: str):
     """Build and push the Docker image."""
-    full_image_name = f"{DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}"
+    full_image_name = f"{DOCKER_USERNAME}/{IMAGE_NAME}:{image_tag}"
 
     print(f"\n{Colors.BLUE}Configuration:{Colors.NC}")
     print(f"  Docker Username: {DOCKER_USERNAME}")
     print(f"  Image Name: {IMAGE_NAME}")
-    print(f"  Image Tag: {IMAGE_TAG}")
+    print(f"  Image Tag: {image_tag}")
     print(f"  Full Image: {full_image_name}")
     print(f"  Project Root: {PROJECT_ROOT}")
     print(f"  Dockerfile: {DOCKERFILE_PATH}")
@@ -255,7 +256,7 @@ def build_and_push():
         return False
 
     # Tag as latest if a different tag was used
-    if IMAGE_TAG != 'latest':
+    if image_tag != 'latest':
         print(f"\n{Colors.BLUE}Tagging as latest...{Colors.NC}")
         latest_tag = f"{DOCKER_USERNAME}/{IMAGE_NAME}:latest"
         subprocess.run(['docker', 'tag', full_image_name, latest_tag], check=True)
@@ -271,7 +272,7 @@ def build_and_push():
         return False
 
     # Push latest tag if different
-    if IMAGE_TAG != 'latest':
+    if image_tag != 'latest':
         print(f"\n{Colors.BLUE}Pushing latest tag...{Colors.NC}")
         latest_tag = f"{DOCKER_USERNAME}/{IMAGE_NAME}:latest"
         try:
@@ -279,6 +280,11 @@ def build_and_push():
             print(f"{Colors.GREEN}✓ Latest tag pushed successfully{Colors.NC}")
         except subprocess.CalledProcessError:
             pass
+
+    record_image_tag_in_env_prod('FLASK_IMAGE_TAG', image_tag)
+    print(f"{Colors.GREEN}✓ Recorded FLASK_IMAGE_TAG in .env.prod:{Colors.NC} {image_tag}")
+    print(f"  Next: python3 playbooks/rop01/07_build_and_push_dart_docker.py")
+    print(f"  Then: ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/08_deploy_docker_compose.yml -e vm_name=rop01")
 
     return True
 
@@ -288,6 +294,7 @@ def main():
     print(f"{Colors.BLUE}=== Docker Build and Push Script ==={Colors.NC}\n")
 
     _ensure_env_prod_ssot()
+    image_tag = resolve_versioned_image_tag()
 
     # Check if Docker is running
     if not check_docker():
@@ -298,15 +305,13 @@ def main():
         disable_python_logging_switches()
         stage_coin_catalog_for_docker()
 
-        success = build_and_push()
+        success = build_and_push(image_tag)
 
         if not success:
             sys.exit(1)
 
         print(f"\n{Colors.GREEN}=== Build and Push Complete ==={Colors.NC}")
-        print(f"Image available at: {Colors.BLUE}{DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}{Colors.NC}")
-        print(f"\nTo use this image, update docker-compose.yml:")
-        print(f"  image: {DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}")
+        print(f"Image available at: {Colors.BLUE}{DOCKER_USERNAME}/{IMAGE_NAME}:{image_tag}{Colors.NC}")
         print()
 
     except KeyboardInterrupt:

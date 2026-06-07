@@ -8,6 +8,14 @@ import '../../modules/dutch_game/utils/customize_shop_route_hints.dart';
 import '../../modules/notifications_module/utils/app_version_helper.dart';
 import '../../modules/notifications_module/utils/global_broadcast_modal_filter.dart';
 import '../../utils/consts/theme_consts.dart';
+import '../../utils/dev_logger.dart';
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Reads [modal_background_enabled] (or legacy [modal_background_image]) from [message] `data`.
 /// Also enabled when [modalBackgroundUrlFromMessage] resolves (URL or [kCustomizeModalImageItemIdKey]).
@@ -151,32 +159,45 @@ class InstantMessageModal extends StatelessWidget {
     }
   }
 
-  Widget _filledActionButton({
-    required String label,
+  bool _isPrimaryResponse(ResponseAction action) {
+    final id = action.actionIdentifier.toLowerCase();
+    const secondary = {'decline', 'close', 'dismiss', 'cancel', 'no', 'reject'};
+    if (secondary.contains(id)) return false;
+    const primary = {'join', 'accept', 'ok', 'yes', 'action', 'confirm'};
+    if (primary.contains(id)) return true;
+    return true;
+  }
+
+  Color _primaryBackgroundFor(ResponseAction action) {
+    final id = action.actionIdentifier.toLowerCase();
+    if (id == 'join') return AppColors.successColor;
+    return AppColors.accentColor;
+  }
+
+  Widget _primaryActionButton({
+    required ResponseAction action,
     required VoidCallback onPressed,
   }) {
-    return FilledButton(
+    final bg = _primaryBackgroundFor(action);
+    return TextButton(
       onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: AppColors.accentColor,
+      style: TextButton.styleFrom(
+        backgroundColor: bg,
         foregroundColor: AppColors.textOnAccent,
-        padding: EdgeInsets.symmetric(
-          horizontal: AppPadding.largePadding.left,
-          vertical: AppPadding.mediumPadding.top,
-        ),
+        padding: AppPadding.cardPadding,
         shape: RoundedRectangleBorder(
           borderRadius: AppBorderRadius.mediumRadius,
         ),
       ),
       child: Text(
-        label,
+        action.label,
         style: AppTextStyles.buttonText(color: AppColors.textOnAccent),
       ),
     );
   }
 
-  Widget _outlinedActionButton({
-    required String label,
+  Widget _secondaryActionButton({
+    required ResponseAction action,
     required VoidCallback onPressed,
   }) {
     return OutlinedButton(
@@ -184,17 +205,110 @@ class InstantMessageModal extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.primaryColor,
         side: BorderSide(color: AppColors.accentColor, width: 1.5),
-        padding: EdgeInsets.symmetric(
-          horizontal: AppPadding.largePadding.left,
-          vertical: AppPadding.mediumPadding.top,
+        padding: AppPadding.cardPadding,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppBorderRadius.mediumRadius,
         ),
+      ),
+      child: Text(
+        action.label,
+        style: AppTextStyles.buttonText(color: AppColors.primaryColor),
+      ),
+    );
+  }
+
+  Widget _responseButton({
+    required ResponseAction action,
+    required VoidCallback onPressed,
+  }) {
+    if (_isPrimaryResponse(action)) {
+      return _primaryActionButton(action: action, onPressed: onPressed);
+    }
+    return _secondaryActionButton(action: action, onPressed: onPressed);
+  }
+
+  List<Widget> _buildResponseButtonRow(
+    BuildContext context,
+    List<ResponseAction> responses,
+  ) {
+    final secondary = <ResponseAction>[];
+    final primary = <ResponseAction>[];
+    for (final action in responses) {
+      if (_isPrimaryResponse(action)) {
+        primary.add(action);
+      } else {
+        secondary.add(action);
+      }
+    }
+    final ordered = [...secondary, ...primary];
+
+    if (ordered.length == 1) {
+      return [
+        SizedBox(
+          width: double.infinity,
+          child: _responseButton(
+            action: ordered.first,
+            onPressed: () => _onResponseTap(context, ordered.first),
+          ),
+        ),
+      ];
+    }
+
+    if (ordered.length == 2) {
+      return [
+        Row(
+          children: [
+            Expanded(
+              child: _responseButton(
+                action: ordered[0],
+                onPressed: () => _onResponseTap(context, ordered[0]),
+              ),
+            ),
+            SizedBox(width: AppPadding.defaultPadding.left),
+            Expanded(
+              child: _responseButton(
+                action: ordered[1],
+                onPressed: () => _onResponseTap(context, ordered[1]),
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+
+    return [
+      Wrap(
+        alignment: WrapAlignment.end,
+        spacing: AppPadding.smallPadding.left,
+        runSpacing: AppPadding.smallPadding.top,
+        children: [
+          for (final action in ordered)
+            _responseButton(
+              action: action,
+              onPressed: () => _onResponseTap(context, action),
+            ),
+        ],
+      ),
+    ];
+  }
+
+  Widget _filledActionButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        backgroundColor: AppColors.accentColor,
+        foregroundColor: AppColors.textOnAccent,
+        padding: AppPadding.cardPadding,
         shape: RoundedRectangleBorder(
           borderRadius: AppBorderRadius.mediumRadius,
         ),
       ),
       child: Text(
         label,
-        style: AppTextStyles.buttonText(color: AppColors.primaryColor),
+        style: AppTextStyles.buttonText(color: AppColors.textOnAccent),
       ),
     );
   }
@@ -323,31 +437,20 @@ class InstantMessageModal extends StatelessWidget {
                         bottomRight: AppBorderRadius.large,
                       ),
                     ),
-                    child: Wrap(
-                      alignment: WrapAlignment.end,
-                      spacing: AppPadding.smallPadding.left,
-                      runSpacing: AppPadding.smallPadding.top,
-                      children: hasResponseButtons
-                          ? [
-                              for (var i = 0; i < responses.length; i++)
-                                if (i == responses.length - 1)
-                                  _filledActionButton(
-                                    label: responses[i].label,
-                                    onPressed: () => _onResponseTap(context, responses[i]),
-                                  )
-                                else
-                                  _outlinedActionButton(
-                                    label: responses[i].label,
-                                    onPressed: () => _onResponseTap(context, responses[i]),
-                                  ),
-                            ]
-                          : [
+                    child: hasResponseButtons
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: _buildResponseButtonRow(context, responses),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
                               _filledActionButton(
                                 label: dismissLabel,
                                 onPressed: () => _closeAfterMarkRead(context),
                               ),
                             ],
-                    ),
+                          ),
                   ),
                 ],
               ),
@@ -363,7 +466,18 @@ class InstantMessageModal extends StatelessWidget {
     if (send == null) return;
     final id = message['id']?.toString() ?? '';
     if (id.isEmpty) return;
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: instantModal responseTap msg_id=${message['msg_id']} '
+        'notificationId=$id action=${r.actionIdentifier}',
+      );
+    }
     final ok = await send(id, r.actionIdentifier);
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: instantModal responseTap done ok=$ok msg_id=${message['msg_id']}',
+      );
+    }
     if (context.mounted && ok) {
       await _closeAfterMarkRead(context);
     }

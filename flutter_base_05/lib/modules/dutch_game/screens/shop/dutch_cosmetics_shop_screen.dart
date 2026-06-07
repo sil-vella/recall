@@ -946,20 +946,22 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                           child: SizedBox.expand(
                             child: overlayNetworkUrl == null
                                 ? TableDesignStyleHelpers.defaultTableOverlayImage()
-                                : Image.network(
-                                    overlayNetworkUrl,
-                                    fit: BoxFit.cover,
-                                    alignment: Alignment.center,
-                                    gaplessPlayback: true,
-                                    errorBuilder: (_, error, __) {
-                              if (LOGGING_SWITCH) {
-                                customlog(
-                                  'CustomizeScreen table overlay load failed: '
-                                  'skinId=$skinId url=$overlayNetworkUrl error=$error',
-                                );
-                              }
-                              return TableDesignStyleHelpers.defaultTableOverlayImage();
-                            },
+                                : TableDesignStyleHelpers.wrapCosmeticTableDesignOverlay(
+                                    Image.network(
+                                      overlayNetworkUrl,
+                                      fit: BoxFit.cover,
+                                      alignment: Alignment.center,
+                                      gaplessPlayback: true,
+                                      errorBuilder: (_, error, __) {
+                                        if (LOGGING_SWITCH) {
+                                          customlog(
+                                            'CustomizeScreen table overlay load failed: '
+                                            'skinId=$skinId url=$overlayNetworkUrl error=$error',
+                                          );
+                                        }
+                                        return TableDesignStyleHelpers.defaultTableOverlayImage();
+                                      },
+                                    ),
                                   ),
                           ),
                         ),

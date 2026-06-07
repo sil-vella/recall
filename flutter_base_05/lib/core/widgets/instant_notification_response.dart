@@ -4,9 +4,19 @@ import '../managers/hooks_manager.dart';
 import '../managers/state_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/notifications_module/notifications_module.dart';
+import '../../modules/dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../modules/dutch_game/managers/validated_event_emitter.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
+import '../../modules/dutch_game/utils/game_ended_modal_pin.dart';
 import '../../modules/dutch_game/backend_core/utils/level_matcher.dart';
+import '../../../utils/dev_logger.dart';
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// POST notification action, mark read, and fire [instant_message_response_success] for Dutch match invites.
 Future<bool> submitInstantNotificationResponse({
@@ -17,12 +27,26 @@ Future<bool> submitInstantNotificationResponse({
   required BuildContext context,
   required Map<String, dynamic> messageRow,
 }) async {
+  if (LOGGING_SWITCH) {
+    final data = messageRow['data'];
+    final roomId = data is Map ? data['room_id'] : null;
+    customlog(
+      'createMatch: notificationResponse POST messageId=$messageId '
+      'action=$actionIdentifier msg_id=${messageRow['msg_id']} room_id=$roomId',
+    );
+  }
   try {
     final res = await api.sendPostRequest(
       '/userauth/notifications/response',
       {'message_id': messageId, 'action_identifier': actionIdentifier},
     ) as Map<String, dynamic>? ?? {};
     final ok = res['success'] == true;
+    if (LOGGING_SWITCH) {
+      customlog(
+        'createMatch: notificationResponse result ok=$ok '
+        'action=${res['action']} error=${res['error'] ?? res['message']}',
+      );
+    }
     if (ok && context.mounted) {
       if (messageId.isNotEmpty && mod != null) {
         await mod.markAsRead([messageId]);
@@ -36,7 +60,10 @@ Future<bool> submitInstantNotificationResponse({
       });
     }
     return ok;
-  } catch (_) {
+  } catch (e) {
+    if (LOGGING_SWITCH) {
+      customlog('createMatch: notificationResponse exception $e');
+    }
     return false;
   }
 }
@@ -97,6 +124,14 @@ Future<bool> submitRematchInviteResponse({
     return false;
   }
 
+  if (LOGGING_SWITCH) {
+    final dg = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    customlog(
+      'rematch: client emit $eventType roomId=$roomId gameId=$gameId '
+      'gamePhase=${dg['gamePhase']} roster=${DutchEventHandlerCallbacks.dutchGameRosterLog(gameId)}',
+    );
+  }
+
   try {
     await DutchGameEventEmitter.instance.emit(
       eventType: eventType,
@@ -113,9 +148,13 @@ Future<bool> submitRematchInviteResponse({
       }
     } else if (eventType == 'rematch_accepted') {
       StateManager().updateModuleState('dutch_game', {'rematch_waiting_game_id': roomId});
+      GameEndedModalPin.dismissOverlay(navigateToLobby: false);
     }
     return true;
   } catch (_) {
+    if (LOGGING_SWITCH) {
+      customlog('rematch: client emit $eventType failed roomId=$roomId');
+    }
     return false;
   }
 }

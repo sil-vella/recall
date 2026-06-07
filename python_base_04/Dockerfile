@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code (excluding unnecessary directories)
 COPY app.py .
+COPY gunicorn.conf.py .
 COPY __init__.py .
 COPY core/ ./core/
 COPY utils/ ./utils/
@@ -42,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5001/health || exit 1
 
 # Start Flask application with Gunicorn (production mode)
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "1", "--timeout", "120", "--keep-alive", "5", "app:app"] 
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:app"] 

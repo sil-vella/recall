@@ -163,6 +163,10 @@ Map<String, dynamic> _unifiedBoardViewSlice(Map<String, dynamic> d) {
 }
 
 const int _kDealSlotsPerPlayer = 4;
+/// Same-rank / null hand holes (dimmed).
+const double _kBlankSlotOpacity = 0.35;
+/// Deal-animation layout targets (full strength).
+const double _kBlankSlotOpacityDeal = 1.0;
 
 bool _isDealingVisual(Map<String, dynamic> board) {
   final phase = board['gamePhase']?.toString() ?? '';
@@ -171,7 +175,7 @@ bool _isDealingVisual(Map<String, dynamic> board) {
 
 /// Unified play surface: top strip (intrinsic height, full width) → [Expanded] middle
 /// row (left/right [Expanded], center board [IntrinsicWidth]) → my hand (intrinsic height).
-/// Opponent bucketing: 1 → left only; 2 → left + top; 3+ indices 0/1/2… → left / top / right.
+/// Opponent bucketing: 1 → top only; 2 → left + right; 3+ indices 0/1/2… → left / top / right.
 ///
 /// **Centering (layout):**
 /// - **My-hand live card row:** horizontal centering uses a single mechanism in
@@ -203,7 +207,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   // (No state needed - using _cardKeys for all cards)
   
   // ========== My Hand State ==========
-  int _initialPeekSelectionCount = 0;
   List<String> _initialPeekSelectedCardIds = [];
   bool _isProcessingAction = false;
   /// True immediately when user taps "Call Dutch"; shows "Dutch Active" until state catches up.
@@ -1052,7 +1055,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _isProcessingAction = false;
     _clickedCardId = null;
     _clickedPileType = null;
-    _initialPeekSelectionCount = 0;
     _initialPeekSelectedCardIds.clear();
     _isCardsToPeekProtected = false;
     _protectedCardsToPeek = null;
@@ -1542,6 +1544,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 nameAlignment: nameAlignment,
                 seatGlowStatus: seatGlowStatus,
                 cardTableOrientation: cardTableOrientation,
+                blankSlotOpacity: _kBlankSlotOpacityDeal,
               )
             : hand.isNotEmpty
                 ? _buildOpponentsCardsRow(
@@ -1637,6 +1640,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     MainAxisAlignment? nameAlignment,
     String? seatGlowStatus,
     required CardTableOrientation cardTableOrientation,
+    double blankSlotOpacity = _kBlankSlotOpacity,
   }) {
     final ownerCardBackId = player['card_back_id']?.toString();
     return LayoutBuilder(
@@ -1759,7 +1763,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 child: Container(
                   key: blankSlotKey,
                   child: _orientOpponentHandChild(
-                    _buildBlankCardSlot(cardDimensions),
+                    _buildBlankCardSlot(
+                      cardDimensions: cardDimensions,
+                      opacity: blankSlotOpacity,
+                    ),
                     cardDimensions,
                     cardTableOrientation,
                   ),
@@ -2005,35 +2012,39 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildBlankCardSlot([Size? cardDimensions]) {
+  /// Deal-animation placeholders use [_kBlankSlotOpacityDeal]; null slots use [_kBlankSlotOpacity].
+  Widget _buildBlankCardSlot({Size? cardDimensions, double opacity = _kBlankSlotOpacity}) {
     final dimensions = cardDimensions ?? CardDimensions.getUnifiedDimensions();
     // Use dynamic border radius from SSOT to match card widgets
     final borderRadius = CardDimensions.calculateBorderRadius(dimensions);
-    return SizedBox(
-      width: dimensions.width,
-      height: dimensions.height,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: Stack(
-          children: [
-            // Background — same color as border
-            Positioned.fill(
-              child: Container(
-                color: AppColors.accentColor,
-              ),
-            ),
-            // Border overlay — use theme accent (green in Dutch/green preset) per THEME_SYSTEM.md
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(borderRadius),
-                border: Border.all(
+    return Opacity(
+      opacity: opacity,
+      child: SizedBox(
+        width: dimensions.width,
+        height: dimensions.height,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Stack(
+            children: [
+              // Background — same color as border
+              Positioned.fill(
+                child: Container(
                   color: AppColors.accentColor,
-                  width: 1,
-                  style: BorderStyle.solid,
                 ),
               ),
-            ),
-          ],
+              // Border overlay — use theme accent (green in Dutch/green preset) per THEME_SYSTEM.md
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(borderRadius),
+                  border: Border.all(
+                    color: AppColors.accentColor,
+                    width: 1,
+                    style: BorderStyle.solid,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3227,8 +3238,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Update previous status for next check
     _previousPlayerStatus = playerStatus;
     
-    if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {
-      _initialPeekSelectionCount = 0;
+    if (playerStatus != 'initial_peek' && _initialPeekSelectedCardIds.isNotEmpty) {
       _initialPeekSelectedCardIds.clear();
     }
     
@@ -3298,6 +3308,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 if (playerStatus != 'unknown')
                   PlayerStatusChip(
                     playerId: _myBoardPlayerId(board),
+                    customStatus: playerStatus,
                     size: PlayerStatusChipSize.small,
                   ),
                 if (isGameActive && isMyTurn && (playerStatus == 'same_rank_window') && !dutchActive && !hasPlayerCalledDutch && !_callDutchTappedPending) ...[
@@ -3588,7 +3599,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 padding: EdgeInsets.only(right: cardPadding),
                 child: Container(
                   key: blankSlotKey,
-                  child: _buildBlankCardSlot(cardDimensions),
+                  child: _buildBlankCardSlot(
+                    cardDimensions: cardDimensions,
+                    opacity: _isDealingVisual(board)
+                        ? _kBlankSlotOpacityDeal
+                        : _kBlankSlotOpacity,
+                  ),
                 ),
               ),
             );
@@ -4253,26 +4269,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               // Cards remain visible in myCardsToPeek so user can see both cards they peeked at
             }
           } else {
-            // Normal mode: use existing logic
-          if (_initialPeekSelectedCardIds.contains(cardId)) {
-            return;
-          }
-          if (_initialPeekSelectionCount < 2) {
+            // Normal mode: one event per card; full peek data is player-only from server
+            if (_initialPeekSelectedCardIds.contains(cardId)) {
+              return;
+            }
+            if (_initialPeekSelectedCardIds.length >= 2) {
+              return;
+            }
             _initialPeekSelectedCardIds.add(cardId);
-            _initialPeekSelectionCount++;
-            if (_initialPeekSelectionCount == 2) {
-              await Future.delayed(Duration(milliseconds: 500));
-              final completedInitialPeekAction = PlayerAction.completedInitialPeek(
-                gameId: currentGameId,
-                cardIds: _initialPeekSelectedCardIds,
-              );
-              await completedInitialPeekAction.execute();
-              _initialPeekSelectionCount = 0;
-              _initialPeekSelectedCardIds.clear();
-            }
-          } else {
-            // Game feedback: snackbars removed
-            }
+            final initialPeekCardAction = PlayerAction.initialPeekCard(
+              gameId: currentGameId,
+              cardId: cardId,
+            );
+            await initialPeekCardAction.execute();
           }
         } else {
           

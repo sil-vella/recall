@@ -2,7 +2,8 @@
 
 # Flutter App Bundle (AAB) build script
 # Builds an Android App Bundle for Dutch. Dart-define input: repo-root `.env.dart.defines.prod`.
-# Shell still sources `.env.prod` for APP_VERSION / auto-bump; mirrors to `.env.dart.defines.prod` and pubspec.yaml.
+# Shell still sources `.env.prod` for APP_VERSION / auto-bump; mirrors to `.env.dart.defines.prod`,
+# pubspec.yaml, and iOS/Xcode version fields (via sync_pubspec_version.sh).
 # Output is for Play Store upload; no VPS upload.
 
 set -e

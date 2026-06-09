@@ -80,7 +80,7 @@ Use this script for **manual testing on a physical device**.
 **Purpose**:
 - Builds a **release IPA** for Dutch (TestFlight / App Store upload).
 - Same production prep as `build_apk.sh` (dart-defines from `.env.dart.defines.prod`, version from `.env.prod`, deck config, `LOGGING_SWITCH` off).
-- Does **not** upload to App Store Connect — use Xcode Organizer or Transporter after the build.
+- Does **not** upload to App Store Connect — after a build, check **TestFlight → Build Uploads** first; use Transporter or Organizer **only** if that build number is not already listed (Xcode Cloud may have uploaded it).
 
 **Prerequisites**:
 - macOS with Xcode; CocoaPods; Apple Developer signing (team `D6J4Y6ZQGV` in `ios/Runner.xcodeproj`).

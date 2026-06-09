@@ -201,6 +201,21 @@ See `playbooks/frontend/00_documentation.md` (§ `build_ipa.sh`).
 
 ## 11. Upload to App Store Connect
 
+### Check TestFlight first (required)
+
+**Before** using Transporter or Organizer, open App Store Connect → **TestFlight** → **Build Uploads**.
+
+| What you see | What to do |
+|--------------|------------|
+| Your build number already listed (**Complete** or **Processing**) | **Do not upload again.** Xcode Cloud (or an earlier Transporter run) already delivered it. Use that build for testing or **Distribution**. |
+| Build number **not** listed | Upload once via Transporter or Organizer (see below). |
+
+Duplicate uploads fail with `ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE` / `previousBundleVersion` — e.g. *“bundle version must be higher than the previously uploaded version: ‘20068’”* while you are uploading **20068** again.
+
+**Xcode Cloud:** If the workflow includes **Distribute to App Store Connect** / TestFlight, builds appear in **Build Uploads** automatically. Skip Transporter for those builds.
+
+### Upload manually (only when TestFlight does not already have the build)
+
 - [Transporter](https://apps.apple.com/us/app/transporter/id1450874784) — drag IPA  
 - Or **Organizer → Distribute App → App Store Connect**
 
@@ -210,7 +225,7 @@ Wait for **Processing** in TestFlight.
 
 ## 12. After upload — TestFlight and review
 
-- Internal TestFlight → smoke-test
+- Internal TestFlight → smoke-test (use the build already in **Build Uploads** if present)
 - **Distribution → 1.0**: screenshots, privacy, description, attach build → **Add for Review**
 
 ---
@@ -243,7 +258,7 @@ Wait for **Processing** in TestFlight.
 |---------|--------|
 | `build_ipa.sh`, signing in `pbxproj` | Business agreements, tax, bank, DSA |
 | `dutch_coin_catalog.json` + loaders | Create IAPs in Connect (match JSON) |
-| `APP_STORE_URL` in local `.env.dart.defines.prod` | Transporter, metadata, review |
+| `APP_STORE_URL` in local `.env.dart.defines.prod` | TestFlight check, Transporter (if needed), metadata, review |
 | `IOS_*` docs in `Documentation/Android_V_ios/` | TestFlight on device |
 
 ---
@@ -255,7 +270,7 @@ Wait for **Processing** in TestFlight.
 | IAP **+** disabled | Wait for Paid Apps **Active** + tax + bank |
 | No Accounts on `flutter build ipa` | Xcode → Accounts |
 | CocoaPods UTF-8 | `LANG=en_US.UTF-8` in `build_ipa.sh` |
-| Duplicate build | Bump `APP_VERSION` / build number |
+| Duplicate build / `previousBundleVersion` in Transporter | **TestFlight → Build Uploads** first — build may already be there from Xcode Cloud; only upload if missing, else bump and run a **new** Cloud/archive build |
 | Share link empty | `APP_STORE_URL` + rebuild |
 | SDK compile errors | [README.md](README.md) pins |
 | Unknown product on Play verify | Add ID to `in_app_products` in catalog |
@@ -287,8 +302,9 @@ flowchart TD
   catalog[Coin catalog SSOT]
   iapConnect[IAPs in App Store Connect]
   xcode[Xcode signing]
-  ipa[build_ipa.sh]
-  upload[Transporter]
+  ipa[build_ipa.sh or Xcode Cloud]
+  checkTf[TestFlight Build Uploads check]
+  upload[Transporter only if missing]
   tf[TestFlight]
   storekit[StoreKit plus Apple verify - future]
   review[Add for Review]
@@ -296,7 +312,9 @@ flowchart TD
   enroll --> appId --> ascApp --> business
   business --> iapConnect
   catalog --> iapConnect
-  ascApp --> xcode --> ipa --> upload --> tf
+  ascApp --> xcode --> ipa --> checkTf
+  checkTf -->|already listed| tf
+  checkTf -->|not listed| upload --> tf
   iapConnect --> storekit
   tf --> review
 ```

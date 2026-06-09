@@ -55,12 +55,16 @@ Uses `.env.prod` (version bump) and `.env.dart.defines.prod` (API URLs, keys).
 2. **Product → Archive**.
 3. **Window → Organizer** → **Distribute App** → **App Store Connect** → Upload.
 
-### After IPA exists
+### After IPA exists — check TestFlight before Transporter
 
-- **Transporter** app: drag `.ipa` from `flutter_base_05/build/ios/ipa/`.
-- Wait for **Processing** in App Store Connect → **TestFlight**.
+1. App Store Connect → **TestFlight** → **Build Uploads**.
+2. If your **version + build** (e.g. `2.0.68 (20068)`) is already listed → **stop**; do not open Transporter. Use that build for internal testing or attach it under **Distribution**.
+3. If the build is **not** listed → **Transporter**: drag `.ipa` from `flutter_base_05/build/ios/ipa/` (or the Xcode Cloud **app-store** artifact).
+4. Wait for **Processing** in TestFlight.
 
-**Build number rule:** Each upload needs a **higher** build number than the last. Bump `APP_VERSION` in `.env.prod` (via script prompt) or `pubspec.yaml` `version:` before rebuilding.
+**Xcode Cloud** workflows that distribute to App Store Connect upload automatically — Transporter is only for builds that are not already in **Build Uploads**.
+
+**Build number rule:** Each **new** upload needs a **higher** build number than the last on ASC. Bump `APP_VERSION` / `xcode_cloud_build_number.txt` (via `sync_pubspec_version.sh` or build scripts) before a **new** archive — re-uploading the same IPA always fails.
 
 ---
 
@@ -111,7 +115,7 @@ Rebuild IPA so celebration share sheets include the link. `PLAY_STORE_URL` is se
 | No signing certificate | Xcode Signing & Capabilities; sign in to Apple ID |
 | Bundle ID mismatch | Must be `com.reignofplay.dutch` everywhere |
 | Invalid binary / processing failed | Read email from App Store Connect; often export compliance or missing icons |
-| Version already used | Increase build number and re-archive |
+| Version already used / Transporter duplicate | Open **TestFlight → Build Uploads** first; if build is already there, skip Transporter; if you need new bits, bump build number, new Xcode Cloud build, then upload only if not auto-delivered |
 
 ---
 

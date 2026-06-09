@@ -30,6 +30,18 @@ const Color _kNativeSplashGreen = Color(0xFF2A5C32);
 /// Full-bleed splash used in Flutter after the Android 12 icon splash (WebP in assets).
 const String _kBootstrapSplashAsset = 'assets/images/splash_screen.webp';
 
+/// Locks the app to upright portrait on native targets (not web).
+Future<void> _lockPortraitOrientation() async {
+  if (kIsWeb) return;
+  try {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
+  } catch (_) {
+    // Best-effort; some embedders may not support orientation lock.
+  }
+}
+
 /// Hides the Android system navigation bar so the app uses the full screen height;
 /// the bar can be revealed briefly with an edge swipe. Status bar stays visible.
 void _applyAndroidImmersiveBottomBar() {
@@ -51,6 +63,7 @@ Future<void> main() async {
   if (!kIsWeb) {
     FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   }
+  await _lockPortraitOrientation();
   if (LOGGING_SWITCH) {
     customlog('main.dart entry');
     customlog(

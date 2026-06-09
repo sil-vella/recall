@@ -1,7 +1,7 @@
 name: dutch
 description: "Dutch Card Game."
 publish_to: 'none'
-version: 2.0.70+20070
+version: 2.0.74+20074
 
 environment:
   sdk: '>=3.2.3 <4.0.0'

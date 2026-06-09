@@ -41,10 +41,10 @@ flutter precache --ios
 # Ensure iOS plugin registrant/symlinks are generated before CocoaPods resolution.
 flutter build ios --config-only --no-codesign
 
-# Keep Flutter-generated xcconfig aligned with Xcode CURRENT_PROJECT_VERSION (20070).
+# Keep Flutter-generated xcconfig aligned with Xcode CURRENT_PROJECT_VERSION (20074).
 GENERATED_XCCONFIG="${FLUTTER_APP_DIR}/ios/Flutter/Generated.xcconfig"
 if [ -f "${GENERATED_XCCONFIG}" ]; then
-  sed -i '' 's/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=20070/' "${GENERATED_XCCONFIG}"
+  sed -i '' 's/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=20074/' "${GENERATED_XCCONFIG}"
 fi
 
 cd ios

@@ -1272,6 +1272,21 @@ class GameEventCoordinator {
         .toList();
   }
 
+  void _emitInitialPeekRevealedHint(
+    String roomId,
+    String playerId,
+    List<Map<String, dynamic>> cardsToPeek,
+  ) {
+    final wsTarget =
+        server.websocketSessionForGamePlayer(roomId, playerId) ?? playerId;
+    server.sendToSession(wsTarget, {
+      'event': 'initial_peek_revealed',
+      'game_id': roomId,
+      'cards_to_peek': cardsToPeek,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
   void _emitInitialPeekCardsToPlayerOnly(
     ServerGameStateCallbackImpl callback,
     String roomId,
@@ -1380,9 +1395,79 @@ class GameEventCoordinator {
     _store.setGameState(roomId, gameState);
 
     final updatedGames = _getCurrentGamesMap(roomId);
-    callback.onGameStateChanged({
+    callback.sendGameStateToPlayer(playerId, {
       'games': updatedGames,
+      'myCardsToPeek': cardsToPeek,
     });
+  }
+
+  /// After 2nd card: glow + completion deferred so [initial_peek_revealed] is not blocked.
+  void _finishSecondInitialPeekCard({
+    required String roomId,
+    required String playerId,
+    required List<String> cardIds,
+  }) {
+    final gameState = _store.getGameState(roomId);
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? humanPlayer;
+    for (final p in players) {
+      if (p is Map<String, dynamic> &&
+          p['id'] == playerId &&
+          p['isHuman'] == true) {
+        humanPlayer = p;
+        break;
+      }
+    }
+    if (humanPlayer == null) return;
+
+    final cardsToPeek = _resolveFullPeekCards(
+      gameState,
+      humanPlayer['cardsToPeek'] as List<dynamic>? ?? [],
+    );
+    if (cardsToPeek.length < 2) return;
+
+    final currentGames = _getCurrentGamesMap(roomId);
+    final gameData =
+        currentGames[roomId]?['gameData']?['game_state'] as Map<String, dynamic>?;
+    if (gameData == null) return;
+    final playersInGamesMap = gameData['players'] as List<dynamic>? ?? [];
+    final playerInGamesMap = playersInGamesMap.firstWhere(
+      (p) => p is Map<String, dynamic> && p['id'] == playerId,
+      orElse: () => <String, dynamic>{},
+    ) as Map<String, dynamic>;
+    if (playerInGamesMap.isEmpty) return;
+
+    final callback = ServerGameStateCallbackImpl(roomId, server);
+
+    int? glowIdx1;
+    int? glowIdx2;
+    final humanHandForGlow = playerInGamesMap['hand'] as List<dynamic>? ?? [];
+    for (int i = 0; i < humanHandForGlow.length; i++) {
+      final c = humanHandForGlow[i];
+      if (c is! Map) continue;
+      final id = (c['cardId'] ?? c['id'])?.toString() ?? '';
+      if (cardIds.isNotEmpty && id == cardIds[0]) glowIdx1 = i;
+      if (cardIds.length > 1 && id == cardIds[1]) glowIdx2 = i;
+    }
+    if (glowIdx1 != null && glowIdx2 != null) {
+      _emitInitialPeekGlowAnimation(
+        callback,
+        roomId,
+        playerId,
+        glowIdx1,
+        glowIdx2,
+      );
+    }
+
+    _applyHumanInitialPeekCompletion(
+      roomId: roomId,
+      gameState: gameState,
+      humanPlayer: humanPlayer,
+      playerInGamesMap: playerInGamesMap,
+      playerId: playerId,
+      cardsToPeek: cardsToPeek,
+      callback: callback,
+    );
   }
 
   /// Handle one card selection during initial_peek (per-tap). Full peek data is player-only.
@@ -1514,48 +1599,20 @@ class GameEventCoordinator {
       humanPlayer['cardsToPeek'] = cardsToPeek;
       _store.setGameState(roomId, gameState);
 
-      final callback = ServerGameStateCallbackImpl(roomId, server);
-      _emitInitialPeekCardsToPlayerOnly(
-        callback,
-        roomId,
-        playerId,
-        _getCurrentGamesMap(roomId),
-        cardsToPeek,
-      );
+      _emitInitialPeekRevealedHint(roomId, playerId, cardsToPeek);
 
       if (cardsToPeek.length < 2) {
         return;
       }
 
-      int? glowIdx1;
-      int? glowIdx2;
-      final humanHandForGlow = playerInGamesMap['hand'] as List<dynamic>? ?? [];
-      for (int i = 0; i < humanHandForGlow.length; i++) {
-        final c = humanHandForGlow[i];
-        if (c is! Map) continue;
-        final id = (c['cardId'] ?? c['id'])?.toString() ?? '';
-        if (id == cardIds[0]) glowIdx1 = i;
-        if (id == cardIds[1]) glowIdx2 = i;
-      }
-      if (glowIdx1 != null && glowIdx2 != null) {
-        _emitInitialPeekGlowAnimation(
-          callback,
-          roomId,
-          playerId,
-          glowIdx1,
-          glowIdx2,
+      final cardIdsForDefer = List<String>.from(cardIds);
+      scheduleMicrotask(() {
+        _finishSecondInitialPeekCard(
+          roomId: roomId,
+          playerId: playerId,
+          cardIds: cardIdsForDefer,
         );
-      }
-
-      _applyHumanInitialPeekCompletion(
-        roomId: roomId,
-        gameState: gameState,
-        humanPlayer: humanPlayer,
-        playerInGamesMap: playerInGamesMap,
-        playerId: playerId,
-        cardsToPeek: cardsToPeek,
-        callback: callback,
-      );
+      });
     } catch (e) {
       server.sendToSession(sessionId, {
         'event': 'initial_peek_card_error',

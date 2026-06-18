@@ -3051,20 +3051,27 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
 
     // Protection only during initial_peek (never carry initial peek into normal play)
+    final inInitialPeekUi = playerStatusForHand == 'initial_peek' ||
+        (playerStatusForHand == 'waiting' && gamePhaseForHand == 'initial_peek');
+
     if (peekRevealAllowed &&
-        playerStatusForHand == 'initial_peek' &&
+        inInitialPeekUi &&
         protectedCardsToPeek != null &&
-        !_isMyHandCardsToPeekProtected) {
+        DutchGameHelpers.peekListHasFullData(protectedCardsToPeek) &&
+        (!_isMyHandCardsToPeekProtected ||
+            protectedCardsToPeek.length >
+                (_protectedMyHandCardsToPeek?.length ?? 0))) {
       _protectMyHandCardsToPeek(protectedCardsToPeek);
     }
 
     if (peekRevealAllowed &&
-        playerStatusForHand == 'initial_peek' &&
-        !isCardsToPeekEmpty &&
-        !_isMyHandCardsToPeekProtected) {
+        inInitialPeekUi &&
+        !isCardsToPeekEmpty) {
       final cardsToCheck =
           cardsToPeekFromState.isNotEmpty ? cardsToPeekFromState : cardsToPeekFromGameState;
-      if (DutchGameHelpers.peekListHasFullData(cardsToCheck)) {
+      if (DutchGameHelpers.peekListHasFullData(cardsToCheck) &&
+          (!_isMyHandCardsToPeekProtected ||
+              cardsToCheck.length > (_protectedMyHandCardsToPeek?.length ?? 0))) {
         _protectMyHandCardsToPeek(cardsToCheck);
       }
     }
@@ -3077,10 +3084,20 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             : cardsToPeekFromGameState,
         _isMyHandCardsToPeekProtected ? _protectedMyHandCardsToPeek : null,
       );
-      cardsToPeek = _isMyHandCardsToPeekProtected &&
-              _protectedMyHandCardsToPeek != null
-          ? _protectedMyHandCardsToPeek!
-          : mergedPeek;
+      if (_isMyHandCardsToPeekProtected &&
+          _protectedMyHandCardsToPeek != null &&
+          mergedPeek.isEmpty) {
+        // GSO cleared peek mid-window — keep last known full peek visible.
+        cardsToPeek = _protectedMyHandCardsToPeek!;
+      } else {
+        cardsToPeek = mergedPeek;
+        if (_isMyHandCardsToPeekProtected &&
+            _protectedMyHandCardsToPeek != null &&
+            mergedPeek.length > _protectedMyHandCardsToPeek!.length &&
+            DutchGameHelpers.peekListHasFullData(mergedPeek)) {
+          _protectMyHandCardsToPeek(mergedPeek);
+        }
+      }
       if (playerStatusForHand == 'peeking') {
         cardsToPeek = cardsToPeek
             .whereType<Map<String, dynamic>>()

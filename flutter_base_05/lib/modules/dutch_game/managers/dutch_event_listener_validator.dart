@@ -147,6 +147,10 @@ class DutchGameEventListenerValidator {
     'initial_peek_card': EventConfig(
       schema: {'game_id', 'player_id', 'card_id', 'timestamp'},
     ),
+    'initial_peek_revealed': EventConfig(
+      schema: {'game_id', 'cards_to_peek', 'timestamp'},
+      handlerMethod: 'handleInitialPeekRevealed',
+    ),
     'dutch_message': EventConfig(
       schema: {'scope', 'target_id', 'level', 'title', 'message', 'data', 'timestamp'},
     ),
@@ -328,6 +332,9 @@ class DutchGameEventListenerValidator {
           break;
         case 'handleGameAnimation':
           DutchEventHandlerCallbacks.handleGameAnimation(eventPayload);
+          break;
+        case 'handleInitialPeekRevealed':
+          DutchEventHandlerCallbacks.handleInitialPeekRevealed(eventPayload);
           break;
         case 'handleGameStatePartialUpdate':
           DutchEventHandlerCallbacks.handleGameStatePartialUpdate(eventPayload);

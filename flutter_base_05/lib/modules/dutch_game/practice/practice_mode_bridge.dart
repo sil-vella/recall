@@ -205,6 +205,9 @@ class PracticeModeBridge {
       case 'game_animation':
         _eventManager.handleGameAnimation(message);
         break;
+      case 'initial_peek_revealed':
+        _eventManager.handleInitialPeekRevealed(message);
+        break;
       case 'player_status_updated':
         _eventManager.handlePlayerStateUpdated(message);
         break;

@@ -1237,6 +1237,9 @@ When anyone has played a card with the **same rank** as your **collection card**
       // Check if practice game
       final gameType = dutchGameState['gameType']?.toString() ?? '';
       if (gameType != 'practice') {
+        if (LOGGING_SWITCH) {
+          customlog('demoCompletion: skip gameType=$gameType (not practice)');
+        }
         return; // Not a practice game, skip demo check
       }
 
@@ -1249,11 +1252,17 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
 
       if (!showInstructions) {
+        if (LOGGING_SWITCH) {
+          customlog('demoCompletion: skip showInstructions=false');
+        }
         return; // Instructions not enabled, skip demo check
       }
 
       // Check if demo action is active
       if (!DemoActionHandler.isDemoActionActive()) {
+        if (LOGGING_SWITCH) {
+          customlog('demoCompletion: skip demo action not active');
+        }
         return; // No active demo action
       }
 
@@ -1263,16 +1272,43 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
 
       // Get previous player status from state
-      final previousPlayerStatus = dutchGameState['previousPlayerStatus']?.toString();
+      var previousPlayerStatus = dutchGameState['previousPlayerStatus']?.toString();
+
+      if (activeDemoAction == 'initial_peek' &&
+          (previousPlayerStatus == null || previousPlayerStatus.isEmpty) &&
+          currentUserPlayerStatus == 'waiting') {
+        previousPlayerStatus = 'initial_peek';
+      }
 
       // Check if action is completed based on status transition (pass gameState for collect_rank demo)
       final demoHandler = DemoActionHandler.instance;
-      final isCompleted = demoHandler.isActionCompleted(
+      var isCompleted = demoHandler.isActionCompleted(
         activeDemoAction,
         previousPlayerStatus,
         currentUserPlayerStatus,
         gameState: gameState,
       );
+
+      if (isCompleted &&
+          activeDemoAction == 'initial_peek' &&
+          !DemoActionHandler.initialPeekCardsVisibleInState()) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'demoCompletion: defer game_state_updated initial_peek '
+            'peek cards not visible yet',
+          );
+        }
+        isCompleted = false;
+      }
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'demoCompletion: game_state_updated action=$activeDemoAction '
+          'prev=$previousPlayerStatus current=$currentUserPlayerStatus '
+          'completed=$isCompleted gameId=$gameId '
+          'peekLen=${(dutchGameState['myCardsToPeek'] as List?)?.length ?? 0}',
+        );
+      }
 
       if (isCompleted) {
         
@@ -1990,6 +2026,61 @@ When anyone has played a card with the **same rank** as your **collection card**
           'is_my_turn': false,
         },
       );
+    }
+  }
+
+  /// Fast path: patch peek cards before full [game_state_updated] merge.
+  static void handleInitialPeekRevealed(Map<String, dynamic> data) {
+    final gameId = data['game_id']?.toString() ?? '';
+    if (gameId.isEmpty) return;
+
+    final currentState =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final currentGameId = currentState['currentGameId']?.toString() ?? '';
+    final currentRoomId = currentState['currentRoomId']?.toString() ?? '';
+    if (gameId != currentGameId && gameId != currentRoomId) {
+      return;
+    }
+
+    final playerStatus = currentState['playerStatus']?.toString() ?? '';
+    final gamePhase = currentState['gamePhase']?.toString();
+    if (!DutchGameHelpers.statusAllowsPeekReveal(
+      playerStatus,
+      gamePhase: gamePhase,
+    )) {
+      return;
+    }
+
+    final incoming = data['cards_to_peek'] as List<dynamic>?;
+    if (incoming == null || incoming.isEmpty) return;
+
+    final previousPeek = currentState['myCardsToPeek'] as List<dynamic>?;
+    final merged = DutchGameHelpers.preferFullPeekCards(incoming, previousPeek);
+    if (!DutchGameHelpers.peekListHasFullData(merged)) return;
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'handleInitialPeekRevealed: gameId=$gameId len=${merged.length} '
+        'cards=${peekListLogSummary(merged)}',
+      );
+    }
+
+    _updateMainGameState({
+      'myCardsToPeek': merged,
+      if (gamePhase == 'initial_peek' &&
+          DutchGameHelpers.peekListHasFullData(merged))
+        'protectedCardsToPeek': merged,
+    });
+
+    if (merged.length >= 2 &&
+        DemoActionHandler.isDemoActionActive() &&
+        DemoActionHandler.getActiveDemoActionType() == 'initial_peek') {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'handleInitialPeekRevealed: retry demo completion after 2-card patch',
+        );
+      }
+      DemoActionHandler.instance.retryDemoCompletionAfterPeekReveal();
     }
   }
 

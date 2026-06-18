@@ -4,7 +4,14 @@ import '../../managers/dutch_event_handler_callbacks.dart';
 import '../../managers/dutch_game_state_updater.dart';
 import '../../managers/player_action.dart';
 import '../../utils/dutch_game_helpers.dart';
+import '../../../../utils/dev_logger.dart';
 
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// Demo Phase Instructions
 /// 
@@ -1821,8 +1828,8 @@ class DemoFunctionality {
   }
 
   /// Handle completed initial peek action in demo mode
-  /// This is called when 2 cards have been selected
-  /// Note: Drawing instructions are shown via timer in addCardToInitialPeek, not here
+  /// This is called when 2 cards have been selected (tracking cleanup only).
+  /// Completion modal is triggered from [addCardToInitialPeek] via [onDemoStateChanged].
   Future<Map<String, dynamic>> _handleCompletedInitialPeek(Map<String, dynamic> payload) async {
     
     
@@ -1834,12 +1841,6 @@ class DemoFunctionality {
 
     // Clear only the tracking set (not myCardsToPeek - cards should remain visible)
     _initialPeekSelectedCardIds.clear();
-    
-    
-    // Note: Drawing instructions will be shown via the 5-second timer started in addCardToInitialPeek
-    // Don't transition here - let the timer handle it
-    
-    
     
     return {'success': true, 'mode': 'demo'};
   }
@@ -2639,18 +2640,24 @@ class DemoFunctionality {
   /// Returns the number of cards currently selected
   /// Note: State is only updated when both cards are selected (batched update)
   Future<int> addCardToInitialPeek(String cardId) async {
-    
+    if (LOGGING_SWITCH) {
+      customlog('demoInitialPeek: addCard cardId=$cardId selected=${_initialPeekSelectedCardIds.length}');
+    }
     
     // Check if already selected
     if (_initialPeekSelectedCardIds.contains(cardId)) {
-      
+      if (LOGGING_SWITCH) {
+        customlog('demoInitialPeek: skip duplicate cardId=$cardId');
+      }
       return _initialPeekSelectedCardIds.length;
     }
     
     // Get full card data from game state
     final fullCardData = _getCardById(cardId);
     if (fullCardData == null) {
-      
+      if (LOGGING_SWITCH) {
+        customlog('demoInitialPeek: card not found cardId=$cardId');
+      }
       return _initialPeekSelectedCardIds.length;
     }
     
@@ -2684,84 +2691,59 @@ class DemoFunctionality {
       
       // Update state with both cards at once
       updates['myCardsToPeek'] = cardsToPeek;
-      
-      // Start 5-second timer before showing drawing instructions
-      
-      
-      // Cancel any existing timer
-      _drawingInstructionsTimer?.cancel();
-      
-      // Start 5-second timer
-      _drawingInstructionsTimer = Timer(Duration(seconds: 5), () {
-        
-        final stateManager = StateManager();
-        final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-        final currentCardsToPeek = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
-        final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-        final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-        
-        // Convert full card data back to ID-only format (face-down)
-        final idOnlyCards = currentCardsToPeek.map((card) {
-          if (card is Map<String, dynamic>) {
-            final cardId = card['cardId']?.toString() ?? '';
-            return {
-              'cardId': cardId,
-              'suit': '?',
-              'rank': '?',
-              'points': 0,
-            };
-          }
-          return card;
-        }).toList();
-        
-        // Update player status to 'drawing_card' so draw pile is clickable
-        if (currentGameId.isNotEmpty && games.containsKey(currentGameId)) {
-          final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-          final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-          final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-          final players = gameState['players'] as List<dynamic>? ?? [];
-          
-          // Find current player and update status
-          for (var player in players) {
-            if (player is Map<String, dynamic> && player['isHuman'] == true) {
-              player['status'] = 'drawing_card';
-              break;
-            }
+      if (DutchGameHelpers.peekListHasFullData(cardsToPeek)) {
+        updates['protectedCardsToPeek'] = cardsToPeek;
+      }
+
+      // Mirror server completion: status waiting so demo completion modal can fire
+      final stateManager = StateManager();
+      final dutchGameState =
+          stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final games = Map<String, dynamic>.from(
+        dutchGameState['games'] as Map<String, dynamic>? ?? {},
+      );
+      final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+      if (currentGameId.isNotEmpty && games.containsKey(currentGameId)) {
+        final currentGame = Map<String, dynamic>.from(
+          games[currentGameId] as Map<String, dynamic>,
+        );
+        final gameData = Map<String, dynamic>.from(
+          currentGame['gameData'] as Map<String, dynamic>? ?? {},
+        );
+        final gameState = Map<String, dynamic>.from(
+          gameData['game_state'] as Map<String, dynamic>? ?? {},
+        );
+        final players = List<dynamic>.from(gameState['players'] as List? ?? []);
+        for (var i = 0; i < players.length; i++) {
+          final player = players[i];
+          if (player is Map<String, dynamic> && player['isHuman'] == true) {
+            players[i] = Map<String, dynamic>.from(player)..['status'] = 'waiting';
+            break;
           }
         }
-        
-        // Update centerBoard slice with playerStatus
-        final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
-        centerBoard['playerStatus'] = 'drawing_card';
-        
-        // Update myHand slice with playerStatus (widgets read from this slice)
-        final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
-        myHand['playerStatus'] = 'drawing_card';
-        
-        // Update state with ID-only cards, drawing phase, and player status using official state updater
-        final stateUpdater = DutchGameStateUpdater.instance;
-        stateUpdater.updateStateSync({
-          'playerStatus': 'drawing_card', // Set player status for draw pile click
-          'currentPlayerStatus': 'drawing_card',
-          'games': games, // Update games map with modified player status
-          // Removed lastUpdated - causes unnecessary state updates
-        });
-        
-        // Update widget slices and demo-specific UI fields using state updater
-        stateUpdater.updateStateSync({
-          'myCardsToPeek': idOnlyCards,
-          'demoInstructionsPhase': 'drawing',
-          'centerBoard': centerBoard, // Update centerBoard slice
-          'myHand': myHand, // Update myHand slice so widget shows correct status chip
-        });
-        
-        
-        
-      });
-      
-      // Update state with both cards using state updater
+        gameState['players'] = players;
+        gameData['game_state'] = gameState;
+        currentGame['gameData'] = gameData;
+        games[currentGameId] = currentGame;
+        updates['games'] = games;
+      }
+
+      updates['playerStatus'] = 'waiting';
+      updates['currentPlayerStatus'] = 'waiting';
+
+      _drawingInstructionsTimer?.cancel();
+      _drawingInstructionsTimer = null;
+
       final stateUpdater = DutchGameStateUpdater.instance;
       stateUpdater.updateStateSync(updates);
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'demoInitialPeek: two cards selected gameId=$currentGameId '
+          'onDemoStateChanged=${onDemoStateChanged != null}',
+        );
+      }
+      onDemoStateChanged?.call();
     }
     
     

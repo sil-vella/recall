@@ -118,6 +118,11 @@ class DutchEventManager {
     DutchEventHandlerCallbacks.handleGameAnimation(data);
   }
 
+  /// Handle initial_peek_revealed (fast peek card patch before game_state_updated).
+  void handleInitialPeekRevealed(Map<String, dynamic> data) {
+    DutchEventHandlerCallbacks.handleInitialPeekRevealed(data);
+  }
+
   /// Handle game_state_partial_update event
   void handleGameStatePartialUpdate(Map<String, dynamic> data) {
     

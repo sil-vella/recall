@@ -59,6 +59,36 @@ class DemoActionHandler {
   static String? getActiveDemoActionType() {
     return _activeDemoActionType;
   }
+
+  /// Both peek cards face-up in module state (required before initial_peek demo modal).
+  static bool initialPeekCardsVisibleInState() {
+    final dg =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final peek = dg['myCardsToPeek'] as List<dynamic>? ?? [];
+    return peek.length >= 2 && DutchGameHelpers.peekListHasFullData(peek);
+  }
+
+  /// Re-run completion after [initial_peek_revealed] patches both cards into state.
+  void retryDemoCompletionAfterPeekReveal() {
+    _notifyStateChangedForDemoCompletion();
+  }
+
+  static Future<void> _waitForInitialPeekCardsVisible({
+    int maxMs = 4000,
+  }) async {
+    final deadline = DateTime.now().add(Duration(milliseconds: maxMs));
+    while (DateTime.now().isBefore(deadline)) {
+      if (initialPeekCardsVisibleInState()) {
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    if (LOGGING_SWITCH) {
+      customlog(
+        'demoCompletion: initial_peek wait timed out peek not fully visible',
+      );
+    }
+  }
   
   /// Check if sequential demo mode is active
   static bool isSequentialDemoMode() {
@@ -126,6 +156,9 @@ class DemoActionHandler {
 
       DemoModeBridge.onInterceptHandled = _notifyStateChangedForDemoCompletion;
       DemoFunctionality.onDemoStateChanged = _notifyStateChangedForDemoCompletion;
+      if (LOGGING_SWITCH) {
+        customlog('demoCompletion: startDemoAction type=$actionType callbacks wired');
+      }
       DemoModeBridge.configurePracticeIntercept(
         active: true,
         eventTypes: _interceptEventTypesForAction(actionType),
@@ -428,7 +461,22 @@ class DemoActionHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      } catch (e, stackTrace) { 
+      if (actionType == 'initial_peek') {
+        final dg =
+            StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ??
+                {};
+        final prev = dg['previousPlayerStatus']?.toString();
+        if (prev == null || prev.isEmpty) {
+          StateManager().updateModuleState('dutch_game', {
+            'previousPlayerStatus': 'initial_peek',
+          });
+          if (LOGGING_SWITCH) {
+            customlog('demoCompletion: seeded previousPlayerStatus=initial_peek');
+          }
+        }
+      }
+
+      } catch (e, stackTrace) {
       rethrow;
     }
   }
@@ -445,13 +493,23 @@ class DemoActionHandler {
   }
 
   void _notifyStateChangedForDemoCompletion() {
-    if (!isDemoActionActive()) return;
+    if (!isDemoActionActive()) {
+      if (LOGGING_SWITCH) {
+        customlog('demoCompletion: skip no active demo action');
+      }
+      return;
+    }
     final activeDemoAction = getActiveDemoActionType();
-    if (activeDemoAction == null) return;
+    if (activeDemoAction == null) {
+      if (LOGGING_SWITCH) {
+        customlog('demoCompletion: skip activeDemoActionType null');
+      }
+      return;
+    }
 
     final dutchGameState =
         StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    final previousPlayerStatus =
+    var previousPlayerStatus =
         dutchGameState['previousPlayerStatus']?.toString();
 
     Map<String, dynamic>? gameState;
@@ -475,12 +533,42 @@ class DemoActionHandler {
       }
     }
 
-    if (isActionCompleted(
+    // Baseline for initial_peek when sync missed setting previousPlayerStatus
+    if (activeDemoAction == 'initial_peek' &&
+        (previousPlayerStatus == null || previousPlayerStatus.isEmpty) &&
+        currentUserPlayerStatus == 'waiting') {
+      previousPlayerStatus = 'initial_peek';
+    }
+
+    var completed = isActionCompleted(
       activeDemoAction,
       previousPlayerStatus,
       currentUserPlayerStatus,
       gameState: gameState,
-    )) {
+    );
+
+    if (completed &&
+        activeDemoAction == 'initial_peek' &&
+        !initialPeekCardsVisibleInState()) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'demoCompletion: defer modal action=initial_peek '
+          'waiting for both peek cards in state',
+        );
+      }
+      completed = false;
+    }
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'demoCompletion: notify action=$activeDemoAction '
+        'prev=$previousPlayerStatus current=$currentUserPlayerStatus '
+        'completed=$completed gameId=$currentGameId '
+        'peekLen=${(dutchGameState['myCardsToPeek'] as List?)?.length ?? 0}',
+      );
+    }
+
+    if (completed) {
       StateManager().updateModuleState('dutch_game', {
         'previousPlayerStatus': null,
       });
@@ -837,10 +925,17 @@ class DemoActionHandler {
   /// [actionType] - The demo action type that was completed
   Future<void> showAfterActionInstruction(String actionType) async {
     try {
-      
-      
-      // Wait 2 seconds before showing instruction
-      await Future.delayed(const Duration(seconds: 2));
+      if (LOGGING_SWITCH) {
+        customlog('demoCompletion: showAfterActionInstruction start action=$actionType');
+      }
+
+      if (actionType == 'initial_peek') {
+        await _waitForInitialPeekCardsVisible();
+        await Future.delayed(const Duration(milliseconds: 1500));
+      } else {
+        // Wait before showing instruction
+        await Future.delayed(const Duration(seconds: 2));
+      }
       
       // Get instruction content for this action
       final instruction = _getAfterActionInstruction(actionType);
@@ -863,8 +958,18 @@ class DemoActionHandler {
           'onClose': onCloseCallback, // Custom close action
         },
       });
+
+      if (LOGGING_SWITCH) {
+        customlog(
+          'demoCompletion: instructions visible key=demo_after_$actionType '
+          'title=${instruction['title']}',
+        );
+      }
       
-      } catch (e, stackTrace) { 
+      } catch (e, stackTrace) {
+      if (LOGGING_SWITCH) {
+        customlog('demoCompletion: showAfterActionInstruction error $e');
+      }
       // Fallback: end demo action if instruction fails
       endDemoAction(actionType);
     }

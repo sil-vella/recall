@@ -234,6 +234,7 @@ The following events follow the same acknowledgment pattern:
 - `jack_swap` → `jack_swap_acknowledged`
 - `queen_peek` → `queen_peek_acknowledged`
 - `completed_initial_peek` → `completed_initial_peek_acknowledged`
+- `initial_peek_card` → `initial_peek_card_acknowledged` (or `initial_peek_card_error`)
 
 ### Server → Client Events
 
@@ -430,6 +431,30 @@ Sent when a new player joins a Dutch game room.
 - `hand`: List of cards in player's hand
 - `points`: Current points/score
 - `isActive`: Boolean indicating if player is active
+
+#### `initial_peek_revealed`
+Fast, player-only hint sent on each init-peek card tap **before** the matching `game_state_updated`. Does not replace authoritative state; the client patches `myCardsToPeek` locally for faster UI reveal.
+
+**Delivery:** `sendToSession` to the peeking player only (not broadcast).
+
+```json
+{
+  "event": "initial_peek_revealed",
+  "game_id": "room_1761652434996",
+  "cards_to_peek": [
+    {
+      "cardId": "card_abc",
+      "rank": "7",
+      "suit": "hearts",
+      "points": 7
+    }
+  ],
+  "timestamp": "2025-01-XX..."
+}
+```
+
+- `cards_to_peek`: accumulated full card data (1 entry after first tap, 2 after second).
+- Same shape as root `myCardsToPeek` on `game_state_updated`.
 
 #### `game_state_updated`
 Sent when game state changes (card plays, turns, etc.).

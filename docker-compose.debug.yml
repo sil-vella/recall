@@ -1,5 +1,6 @@
 # Local dev: sensitive data from .env.local.
 # No secret files; config.py uses env then defaults.
+name: dutch
 
 services:
   # MongoDB Service (for external app)

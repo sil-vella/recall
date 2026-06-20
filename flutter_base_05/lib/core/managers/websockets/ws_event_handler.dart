@@ -921,7 +921,15 @@ class WSEventHandler {
         if (hint != null && hint.isNotEmpty) {
           unawaited(DutchGameHelpers.attemptResumeRoomAfterAuth(roomId: hint));
         } else {
-          unawaited(DutchGameHelpers.attemptResumeRoomAfterAuth());
+          final dutch = StateManager().getModuleState<Map<String, dynamic>>(
+                'dutch_game',
+              ) ??
+              {};
+          final inActiveRoom = dutch['isGameActive'] == true &&
+              (dutch['currentGameId']?.toString() ?? '').startsWith('room_');
+          if (!inActiveRoom) {
+            unawaited(DutchGameHelpers.attemptResumeRoomAfterAuth());
+          }
         }
       }
     } catch (e) {

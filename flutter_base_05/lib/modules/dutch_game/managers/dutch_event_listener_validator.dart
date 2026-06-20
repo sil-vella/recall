@@ -151,6 +151,14 @@ class DutchGameEventListenerValidator {
       schema: {'game_id', 'cards_to_peek', 'timestamp'},
       handlerMethod: 'handleInitialPeekRevealed',
     ),
+    'rejoin_success': EventConfig(
+      schema: {'room_id', 'game_player_id', 'timestamp'},
+      handlerMethod: 'handleRejoinSuccess',
+    ),
+    'player_disconnected': EventConfig(
+      schema: {'room_id', 'game_player_id', 'grace_seconds', 'timestamp'},
+      handlerMethod: 'handlePlayerDisconnected',
+    ),
     'dutch_message': EventConfig(
       schema: {'scope', 'target_id', 'level', 'title', 'message', 'data', 'timestamp'},
     ),
@@ -335,6 +343,12 @@ class DutchGameEventListenerValidator {
           break;
         case 'handleInitialPeekRevealed':
           DutchEventHandlerCallbacks.handleInitialPeekRevealed(eventPayload);
+          break;
+        case 'handleRejoinSuccess':
+          DutchEventHandlerCallbacks.handleRejoinSuccess(eventPayload);
+          break;
+        case 'handlePlayerDisconnected':
+          DutchEventHandlerCallbacks.handlePlayerDisconnected(eventPayload);
           break;
         case 'handleGameStatePartialUpdate':
           DutchEventHandlerCallbacks.handleGameStatePartialUpdate(eventPayload);

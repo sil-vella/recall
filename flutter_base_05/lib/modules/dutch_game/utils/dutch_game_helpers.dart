@@ -11,6 +11,7 @@ import '../../notifications_module/notifications_module.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/services/shared_preferences.dart';
 import '../../login_module/login_module.dart';
+import '../../../core/managers/auth_manager.dart';
 import '../managers/validated_event_emitter.dart';
 import '../../dutch_game/managers/dutch_game_state_updater.dart';
 import '../backend_core/services/game_state_store.dart';
@@ -292,11 +293,104 @@ class DutchGameHelpers {
     if (rid.isEmpty || !rid.startsWith('room_')) return;
     final ws = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
     if (ws['is_authenticated'] != true) return;
+    _matchRecoveryResumePending = true;
+    if (LOGGING_SWITCH) {
+      customlog('matchRecovery: emit resume_room roomId=$rid');
+    }
     try {
       await _eventEmitter.emit(eventType: 'resume_room', data: {'room_id': rid});
     } catch (e) {
-      
+      _matchRecoveryResumePending = false;
     }
+  }
+
+  static const String _matchRecoveryFailedMessage =
+      'Could not rejoin your match. You have been returned to the lobby.';
+
+  static DateTime? _lastForegroundRecoveryAt;
+  static const int _foregroundRecoveryDebounceMs = 2000;
+
+  /// Set while a `resume_room` is in flight; gates fail-fast on `resume_room_error`.
+  static bool _matchRecoveryResumePending = false;
+
+  static void clearMatchRecoveryResumePending() {
+    _matchRecoveryResumePending = false;
+  }
+
+  /// Returns whether a recovery `resume_room` was pending, then clears the flag.
+  static bool consumeMatchRecoveryResumePending() {
+    if (!_matchRecoveryResumePending) return false;
+    _matchRecoveryResumePending = false;
+    return true;
+  }
+
+  /// True when teardown should run after resume/reconnect failure (on game-play or active `room_*`).
+  static bool shouldTearDownActiveMultiplayerMatch() {
+    final currentRoute = NavigationManager().getCurrentRoute();
+    if (currentRoute == '/dutch/game-play') return true;
+    final dutch =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final gameId = dutch['currentGameId']?.toString() ?? '';
+    return gameId.startsWith('room_') && dutch['isGameActive'] == true;
+  }
+
+  /// Existing fail-fast path: leave games, clear state, lobby + snackbar.
+  static Future<void> failFastOnMatchRecoveryFailure({
+    required String reason,
+  }) async {
+    if (!shouldTearDownActiveMultiplayerMatch()) return;
+    await failFastOnWebSocketAuthenticationFailure(
+      reason: reason,
+      message: _matchRecoveryFailedMessage,
+    );
+  }
+
+  /// Foreground recovery after app resume during an in-progress multiplayer match.
+  static Future<void> attemptMatchRecoveryOnForeground() async {
+    final dutch =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final gameId = dutch['currentGameId']?.toString() ?? '';
+    if (!gameId.startsWith('room_') || dutch['isGameActive'] != true) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastForegroundRecoveryAt != null &&
+        now.difference(_lastForegroundRecoveryAt!).inMilliseconds <
+            _foregroundRecoveryDebounceMs) {
+      return;
+    }
+    _lastForegroundRecoveryAt = now;
+
+    if (LOGGING_SWITCH) {
+      customlog('matchRecovery: foreground start gameId=$gameId');
+    }
+
+    final wsBefore =
+        StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final wasLiveSession = WebSocketManager.instance.isConnected &&
+        wsBefore['is_authenticated'] == true;
+
+    await AuthManager().ensureTokensFreshForGameplay();
+    final ok = await WebSocketManager.instance.ensureInitializedAndConnected();
+    if (!ok) {
+      if (LOGGING_SWITCH) {
+        customlog('matchRecovery: WS reconnect failed gameId=$gameId');
+      }
+      await failFastOnMatchRecoveryFailure(reason: 'match_recovery_failed');
+      return;
+    }
+
+    if (wasLiveSession && WebSocketManager.instance.isConnected) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'matchRecovery: skip resume_room still connected gameId=$gameId',
+        );
+      }
+      return;
+    }
+
+    await attemptResumeRoomAfterAuth(roomId: gameId);
   }
   
   // ========================================

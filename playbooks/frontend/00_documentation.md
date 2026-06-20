@@ -96,6 +96,33 @@ Use this script for **manual testing on a physical device**.
 
 ---
 
+### 3b. Xcode Cloud iOS (TestFlight / App Store)
+
+**Purpose**:
+- Same **production dart-defines** as `build_ipa.sh` / `build_appbundle.sh`, but env files are **materialized on the CI runner** from Xcode Cloud workflow secrets (files are gitignored locally).
+
+**Scripts** (`flutter_base_05/ios/ci_scripts/`):
+- `ci_post_clone.sh` — Flutter install, `pub get`, `precache --ios`, `pod install` (no dart-defines here).
+- `ci_pre_xcodebuild.sh` — decode `DUTCH_DART_DEFINES_PROD_B64` → `.env.dart.defines.prod`, release prep (deck, `LOGGING_SWITCH` off), `env_for_flutter_dart_defines.py` → JSON, validate `API_URL`, `flutter build ios --config-only --dart-define-from-file`.
+
+**Shared helpers**:
+- `playbooks/frontend/flutter_release_build_common.sh` — also used by `build_ipa.sh`.
+- `playbooks/frontend/xcode_cloud_materialize_env.sh` — base64 secret → repo-root env files.
+
+**Secrets** (App Store Connect → Xcode Cloud → Environment):
+- `DUTCH_DART_DEFINES_PROD_B64` (required): `base64 -i .env.dart.defines.prod | pbcopy`
+- `DUTCH_ENV_PROD_B64` (optional): `base64 -i .env.prod | pbcopy`
+
+**Version**: committed `pubspec.yaml` + `sync_pubspec_version.sh` floor (`xcode_cloud_build_number.txt`) — no interactive bump on CI.
+
+| Path | Dart-defines source |
+|------|---------------------|
+| `build_ipa.sh` | On-disk `.env.dart.defines.prod` |
+| `build_appbundle.sh` | On-disk `.env.dart.defines.prod` |
+| Xcode Cloud | `DUTCH_DART_DEFINES_PROD_B64` workflow secret |
+
+---
+
 ### 4. `build_apk.sh`
 
 **Purpose**:

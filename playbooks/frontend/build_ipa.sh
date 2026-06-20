@@ -14,42 +14,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FRONTEND_ENV="$REPO_ROOT/.env.prod"
 DART_DEFINES_ENV="$REPO_ROOT/.env.dart.defines.prod"
-export DART_DEFINES_ENV
+export DART_DEFINES_ENV FRONTEND_ENV REPO_ROOT
 
-DECK_CONFIG_PATH="$REPO_ROOT/flutter_base_05/assets/deck_config.yaml"
-PREDEFINED_HANDS_PATH="$REPO_ROOT/flutter_base_05/assets/predefined_hands.yaml"
-DECK_BACKUP_DIR="${TMPDIR:-/tmp}/dutch_build_deck_$$"
-restore_deck_config() {
-  if [ -d "$DECK_BACKUP_DIR" ]; then
-    echo "" && echo "🃏 Restoring deck config files..."
-    if [ -f "$DECK_BACKUP_DIR/deck_config.yaml" ]; then cp "$DECK_BACKUP_DIR/deck_config.yaml" "$DECK_CONFIG_PATH"; fi
-    if [ -f "$DECK_BACKUP_DIR/predefined_hands.yaml" ]; then cp "$DECK_BACKUP_DIR/predefined_hands.yaml" "$PREDEFINED_HANDS_PATH"; fi
-    rm -rf "$DECK_BACKUP_DIR"
-    echo ""
-  fi
-}
-set_production_deck_config() {
-  echo ""
-  echo "🃏 Setting production deck config..."
-  mkdir -p "$DECK_BACKUP_DIR"
-  if [ -f "$DECK_CONFIG_PATH" ]; then
-    cp "$DECK_CONFIG_PATH" "$DECK_BACKUP_DIR/deck_config.yaml"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      sed -i '' 's/\(testing_mode:[[:space:]]*\)true/\1false/' "$DECK_CONFIG_PATH"
-    else
-      sed -i 's/\(testing_mode:[[:space:]]*\)true/\1false/' "$DECK_CONFIG_PATH"
-    fi
-  fi
-  if [ -f "$PREDEFINED_HANDS_PATH" ]; then
-    cp "$PREDEFINED_HANDS_PATH" "$DECK_BACKUP_DIR/predefined_hands.yaml"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      sed -i '' 's/\(enabled:[[:space:]]*\)true/\1false/' "$PREDEFINED_HANDS_PATH"
-    else
-      sed -i 's/\(enabled:[[:space:]]*\)true/\1false/' "$PREDEFINED_HANDS_PATH"
-    fi
-  fi
-  echo ""
-}
+# shellcheck source=flutter_release_build_common.sh
+source "$SCRIPT_DIR/flutter_release_build_common.sh"
+flutter_release_init_paths
+
 DART_DEF_JSON=""
 trap 'restore_deck_config; rm -f "${DART_DEF_JSON:-}"' EXIT
 
@@ -75,36 +45,12 @@ sync_pubspec_version "$APP_VERSION" "$BUILD_NUMBER"
 
 cd "$REPO_ROOT/flutter_base_05"
 
-# Disable LOGGING_SWITCH for release (same as build_apk.sh)
-echo "🔇 Disabling LOGGING_SWITCH in Flutter sources..."
-FLUTTER_DIR="$REPO_ROOT/flutter_base_05"
-logging_switch_variable_value="true"
-while IFS= read -r -d '' dart_file; do
-  if grep -q "LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" 2>/dev/null || \
-     grep -q "const bool LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" 2>/dev/null; then
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      sed -i '' "s/LOGGING_SWITCH = ${logging_switch_variable_value}/LOGGING_SWITCH = false/g" "$dart_file"
-      sed -i '' "s/const bool LOGGING_SWITCH = ${logging_switch_variable_value}/const bool LOGGING_SWITCH = false/g" "$dart_file"
-    else
-      sed -i "s/LOGGING_SWITCH = ${logging_switch_variable_value}/LOGGING_SWITCH = false/g" "$dart_file"
-      sed -i "s/const bool LOGGING_SWITCH = ${logging_switch_variable_value}/const bool LOGGING_SWITCH = false/g" "$dart_file"
-    fi
-  fi
-done < <(find "$FLUTTER_DIR" -name "*.dart" -type f -print0)
-echo ""
-
+disable_logging_switch_for_release
 set_production_deck_config
 
-if [ ! -f "$DART_DEFINES_ENV" ]; then
-  echo "❌ Missing dart-define file: $DART_DEFINES_ENV"
-  exit 1
-fi
-if ! command -v python3 &>/dev/null; then
-  echo "❌ python3 not found"
-  exit 1
-fi
-DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX")" || exit 1
-python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
+flutter_release_prepare_dart_defines "$DART_DEFINES_ENV"
+flutter_release_validate_api_url "$DART_DEF_JSON"
+flutter_dart_defines_print_summary build
 
 echo "📝 Dart-define SSOT: $DART_DEFINES_ENV"
 if ! grep -q '^APP_STORE_URL=' "$DART_DEFINES_ENV" 2>/dev/null; then

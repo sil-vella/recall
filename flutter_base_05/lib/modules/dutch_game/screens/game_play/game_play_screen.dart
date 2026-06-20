@@ -19,6 +19,8 @@ import 'widgets/action_text_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
+import '../../utils/dutch_game_helpers.dart';
+import '../game_play/utils/dutch_anim_runtime.dart';
 import '../demo/demo_action_handler.dart';
 import '../../../../utils/dev_logger.dart';
 import 'utils/table_design_style_helpers.dart';
@@ -419,11 +421,20 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen>
     switch (state) {
       case AppLifecycleState.resumed:
         unawaited(WakelockPlus.enable());
+        DutchAnimRuntime.instance.handleAppLifecycleState(state);
+        final dutch =
+            StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ??
+                {};
+        if (dutch['dealAnimActive'] == true) {
+          DutchGameHelpers.updateUIState({'dealAnimActive': false});
+        }
+        unawaited(DutchGameHelpers.attemptMatchRecoveryOnForeground());
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
+        DutchAnimRuntime.instance.handleAppLifecycleState(state);
         unawaited(WakelockPlus.disable());
         break;
     }

@@ -452,18 +452,27 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
 
   void _kick() {
     if (!mounted || _controller == null) return;
-    if (_controllerIsDrivingTween()) return;
 
     final anim = _runtime.snapshotForAnim();
     final events = anim[DutchAnimRuntime.eventDataKey] as List? ?? [];
     if (events.isEmpty) {
+      if (_controllerIsDrivingTween()) {
+        _controller!.stop();
+        _controller!.reset();
+      }
+      _cancelPeekGlowCompleteTimer();
       _runningSeq = null;
+      _stallFrames = 0;
       _syncHandMaskFromQueueHead();
       _clearFrozenFlightVisuals();
       _playDeckGhostRect = null;
       _playDeckGhostModel = null;
+      if (mounted) setState(() {});
       return;
     }
+
+    if (_controllerIsDrivingTween()) return;
+
     final head = events.first;
     if (head is! Map) {
       _runtime.dequeueHead();

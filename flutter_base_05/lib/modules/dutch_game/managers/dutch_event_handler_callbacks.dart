@@ -2084,6 +2084,41 @@ When anyone has played a card with the **same rank** as your **collection card**
     }
   }
 
+  /// After successful `resume_room`; snapshot follows via `game_state_updated`.
+  static void handleRejoinSuccess(Map<String, dynamic> data) {
+    final roomId = data['room_id']?.toString() ?? '';
+    if (roomId.isEmpty) return;
+
+    final currentState =
+        StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final currentGameId = currentState['currentGameId']?.toString() ?? '';
+    if (currentGameId.isNotEmpty && roomId != currentGameId) {
+      return;
+    }
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'handleRejoinSuccess: roomId=$roomId '
+        'gamePlayerId=${data['game_player_id']}',
+      );
+    }
+    DutchGameHelpers.clearMatchRecoveryResumePending();
+  }
+
+  /// Server broadcast when a seat enters disconnect grace (timers paused server-side).
+  static void handlePlayerDisconnected(Map<String, dynamic> data) {
+    final roomId = data['room_id']?.toString() ?? '';
+    final gamePlayerId = data['game_player_id']?.toString() ?? '';
+    if (roomId.isEmpty) return;
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'handlePlayerDisconnected: roomId=$roomId '
+        'gamePlayerId=$gamePlayerId graceSeconds=${data['grace_seconds']}',
+      );
+    }
+  }
+
   /// Handle [game_animation] from Dart backend (draw/play hints; arrives before matching state).
   static void handleGameAnimation(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';

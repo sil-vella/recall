@@ -2,7 +2,7 @@
 # Sync release version across Flutter + iOS/Xcode Cloud:
 #   - flutter_base_05/pubspec.yaml `version:`
 #   - Runner MARKETING_VERSION / CURRENT_PROJECT_VERSION in project.pbxproj
-#   - FLUTTER_BUILD_NUMBER pin in ios/ci_scripts/ci_post_clone.sh
+#   - FLUTTER_BUILD_NUMBER pin in ios/ci_scripts/ci_post_clone.sh (via sync_ios_xcode_version)
 #   - ios/xcode_cloud_build_number.txt (ASC / Xcode Cloud floor)
 # BUILD_NUMBER uses major * 10000 + minor * 100 + patch unless the iOS floor is
 # ahead (Xcode Cloud auto-increment); then resolve_release_version_and_build bumps

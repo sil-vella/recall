@@ -123,6 +123,16 @@ class DutchEventManager {
     DutchEventHandlerCallbacks.handleInitialPeekRevealed(data);
   }
 
+  /// Handle rejoin_success after resume_room during disconnect grace.
+  void handleRejoinSuccess(Map<String, dynamic> data) {
+    DutchEventHandlerCallbacks.handleRejoinSuccess(data);
+  }
+
+  /// Handle player_disconnected (grace window started on server).
+  void handlePlayerDisconnected(Map<String, dynamic> data) {
+    DutchEventHandlerCallbacks.handlePlayerDisconnected(data);
+  }
+
   /// Handle game_state_partial_update event
   void handleGameStatePartialUpdate(Map<String, dynamic> data) {
     

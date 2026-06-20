@@ -38,14 +38,8 @@ flutter config --no-enable-swift-package-manager
 flutter pub get
 flutter precache --ios
 
-# Ensure iOS plugin registrant/symlinks are generated before CocoaPods resolution.
-flutter build ios --config-only --no-codesign
-
-# Keep Flutter-generated xcconfig aligned with Xcode CURRENT_PROJECT_VERSION (20077).
-GENERATED_XCCONFIG="${FLUTTER_APP_DIR}/ios/Flutter/Generated.xcconfig"
-if [ -f "${GENERATED_XCCONFIG}" ]; then
-  sed -i '' 's/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=20077/' "${GENERATED_XCCONFIG}"
-fi
+# Dart-defines and Generated.xcconfig are produced in ci_pre_xcodebuild.sh
+# (prod API_URL / WS_URL from DUTCH_DART_DEFINES_PROD_B64 workflow secret).
 
 cd ios
 rm -rf Pods .symlinks

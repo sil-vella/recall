@@ -17,8 +17,14 @@ import '../admob_trace.dart';
 ///
 /// Each visible slot uses a unique [hostKey] ([UniqueKey] per [BaseScreenState]).
 /// One host loads exactly one [BannerAd] once; never share an ad across two [AdWidget]s.
+///
+/// Banners use [AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize] so they span
+/// the available width (not sure edge on phones/tablets).
 class BannerAdModule extends ModuleBase {
   BannerAdModule() : super('admobs_banner_ad_module', dependencies: []);
+
+  /// Typical phone width (dp) for optional SDK warm-up when layout width is unknown.
+  static const int warmupAnchorWidthDp = 360;
 
   static String storageKey(String slot, String adUnitId) =>
       '$slot|${adUnitId.trim()}';
@@ -32,6 +38,14 @@ class BannerAdModule extends ModuleBase {
     if (_diagOnce.add(key)) {
       admobTrace('Banner', message);
     }
+  }
+
+  /// Anchored adaptive size for [anchorWidthDp] (logical px); falls back to [AdSize.banner].
+  static Future<AdSize> adaptiveSizeForWidth(int anchorWidthDp) async {
+    if (anchorWidthDp <= 0) return AdSize.banner;
+    final adaptive =
+        await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(anchorWidthDp);
+    return adaptive ?? AdSize.banner;
   }
 
   /// Optional SDK warm-up inventory (not mounted — hosts always load dedicated ads).
@@ -88,7 +102,11 @@ class BannerAdModule extends ModuleBase {
   }
 
   /// SDK warm-up only — hosts do not take these (avoids one [BannerAd] / two [AdWidget]s).
-  Future<void> loadBannerAd(String adUnitId, {required String slot}) async {
+  Future<void> loadBannerAd(
+    String adUnitId, {
+    required String slot,
+    int anchorWidthDp = warmupAnchorWidthDp,
+  }) async {
     if (kIsWeb) return;
     if (adUnitId.trim().isEmpty || !AdExperiencePolicy.showMonetizedAds) return;
 
@@ -96,9 +114,10 @@ class BannerAdModule extends ModuleBase {
     if (_preloadedByKey.containsKey(key) || _loadsInFlight.contains(key)) return;
 
     _loadsInFlight.add(key);
+    final size = await adaptiveSizeForWidth(anchorWidthDp);
     final bannerAd = BannerAd(
       adUnitId: adUnitId,
-      size: AdSize.banner,
+      size: size,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) => _preloadedByKey[key] = ad as BannerAd,
@@ -116,11 +135,12 @@ class BannerAdModule extends ModuleBase {
     }
   }
 
-  /// Loads one [BannerAd] exclusively for [hostKey].
+  /// Loads one [BannerAd] exclusively for [hostKey] at [anchorWidthDp].
   Future<BannerAd?> loadBannerAdForHost({
     required String slot,
     required String adUnitId,
     required Key hostKey,
+    required int anchorWidthDp,
   }) async {
     if (kIsWeb || adUnitId.trim().isEmpty || !AdExperiencePolicy.showMonetizedAds) {
       return null;
@@ -132,9 +152,10 @@ class BannerAdModule extends ModuleBase {
     _loadsInFlight.add(claimKey);
 
     final completer = Completer<BannerAd?>();
+    final size = await adaptiveSizeForWidth(anchorWidthDp);
     final bannerAd = BannerAd(
       adUnitId: adUnitId,
-      size: AdSize.banner,
+      size: size,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) {
@@ -144,7 +165,7 @@ class BannerAdModule extends ModuleBase {
           admobTrace(
             'Banner',
             'host onAdFailedToLoad slot=$slot host=${hostKey.hashCode} '
-            'code=${error.code} message=${error.message}',
+            'width=$anchorWidthDp code=${error.code} message=${error.message}',
           );
           ad.dispose();
           if (!completer.isCompleted) completer.complete(null);
@@ -203,37 +224,60 @@ class _BannerAdSlotHost extends StatefulWidget {
 
 class _BannerAdSlotHostState extends State<_BannerAdSlotHost> {
   BannerAd? _bannerAd;
-  bool _loadStarted = false;
+  int? _loadedAnchorWidth;
+  bool _loadInFlight = false;
+  int? _scheduledWidth;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadOnce();
-  }
-
-  Future<void> _loadOnce() async {
-    if (_loadStarted || _bannerAd != null) return;
-    _loadStarted = true;
+  Future<void> _loadForWidth(int width) async {
+    if (width <= 0 || !mounted) return;
+    if (_loadInFlight) return;
+    if (_bannerAd != null && _loadedAnchorWidth == width) return;
 
     if (kIsWeb || !AdExperiencePolicy.showMonetizedAds) return;
     final hostKey = widget.key;
     if (hostKey == null) return;
 
+    if (_bannerAd != null) {
+      _bannerAd?.dispose();
+      _bannerAd = null;
+      _loadedAnchorWidth = null;
+    }
+
+    _loadInFlight = true;
     final loaded = await widget.module.loadBannerAdForHost(
       slot: widget.slot,
       adUnitId: widget.adUnitId,
       hostKey: hostKey,
+      anchorWidthDp: width,
     );
-    if (!mounted || loaded == null) {
+    _loadInFlight = false;
+
+    if (!mounted) {
       loaded?.dispose();
       return;
     }
+    if (loaded == null) return;
     if (_bannerAd != null) {
       loaded.dispose();
       return;
     }
     _bannerAd = loaded;
+    _loadedAnchorWidth = width;
     setState(() {});
+  }
+
+  void _scheduleLoadForWidth(int width) {
+    if (width <= 0) return;
+    if (_bannerAd != null && _loadedAnchorWidth == width) return;
+    if (_loadInFlight && _scheduledWidth == width) return;
+    _scheduledWidth = width;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final w = _scheduledWidth;
+      if (w == null || w <= 0) return;
+      if (_bannerAd != null && _loadedAnchorWidth == w) return;
+      unawaited(_loadForWidth(w));
+    });
   }
 
   @override
@@ -245,18 +289,27 @@ class _BannerAdSlotHostState extends State<_BannerAdSlotHost> {
 
   @override
   Widget build(BuildContext context) {
-    final ad = _bannerAd;
-    if (ad == null) {
-      return const SizedBox.shrink();
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.floor();
+        if (width > 0) {
+          _scheduleLoadForWidth(width);
+        }
 
-    return SizedBox(
-      width: ad.size.width.toDouble(),
-      height: ad.size.height.toDouble(),
-      child: AdWidget(
-        key: ValueKey<int>(widget.key.hashCode),
-        ad: ad,
-      ),
+        final ad = _bannerAd;
+        if (ad == null) {
+          return const SizedBox.shrink();
+        }
+
+        return SizedBox(
+          width: width.toDouble(),
+          height: ad.size.height.toDouble(),
+          child: AdWidget(
+            key: ValueKey<int>(widget.key.hashCode),
+            ad: ad,
+          ),
+        );
+      },
     );
   }
 }

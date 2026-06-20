@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../../core/managers/state_manager.dart';
+import '../../utils/dutch_game_helpers.dart';
+import 'demo_action_handler.dart';
+import 'demo_functionality.dart';
 
 /// Select Cards Prompt Widget
 /// 
@@ -52,7 +55,16 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final demoInstructionsPhase = dutchGameState['demoInstructionsPhase']?.toString() ?? '';
         final myCardsToPeek = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
-        final selectedCount = myCardsToPeek.length;
+        final demoSelectedCount =
+            DemoFunctionality.instance.getInitialPeekSelectedCardIds().length;
+        final selectedCount = myCardsToPeek.length > demoSelectedCount
+            ? myCardsToPeek.length
+            : demoSelectedCount;
+        final activeDemoAction = DemoActionHandler.getActiveDemoActionType();
+        final initialPeekDemoOpen = activeDemoAction == 'initial_peek' &&
+            selectedCount < 2 &&
+            !(myCardsToPeek.length >= 2 &&
+                DutchGameHelpers.peekListHasFullData(myCardsToPeek));
         final myDrawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
         final hasDrawnCard = myDrawnCard != null;
         
@@ -60,8 +72,9 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
         String promptText = '';
         bool shouldShow = false;
         
-        if (demoInstructionsPhase == 'initial_peek' && selectedCount < 2) {
-          // Initial peek phase - show "Select two cards"
+        if (initialPeekDemoOpen ||
+            (demoInstructionsPhase == 'initial_peek' && selectedCount < 2)) {
+          // Initial peek phase - show "Select two cards" (timer ignored in demo)
           promptText = 'Select two cards';
           shouldShow = true;
         } else if (demoInstructionsPhase == 'drawing' && !hasDrawnCard) {

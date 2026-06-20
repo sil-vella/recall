@@ -1,8 +1,18 @@
+import 'dart:async';
+
 import '../state_manager.dart';
+import '../../../utils/dev_logger.dart';
 import '../module_manager.dart';
 import 'ws_event_handler.dart';
 import 'native_websocket_adapter.dart';
 import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
+
+const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
+const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
+    _loggingSwitchDevLog == 'true' ||
+    _loggingSwitchDevLog == 'TRUE' ||
+    _loggingSwitchDevLog == 'yes' ||
+    _loggingSwitchDevLog == 'YES';
 
 /// WebSocket Event Listener
 /// Centralized Socket.IO event listener registration and management
@@ -286,8 +296,25 @@ class WSEventListener {
   }
 
   void _registerResumeRoomListeners() {
-    _socket?.on('resume_room_error', (_) {
-      DutchGameHelpers.clearLastMultiplayerRoomId();
+    _socket?.on('resume_room_error', (data) {
+      final message = data is Map ? data['message']?.toString() : null;
+      if (!DutchGameHelpers.consumeMatchRecoveryResumePending()) {
+        if (LOGGING_SWITCH) {
+          customlog(
+            'matchRecovery: ignore resume_room_error (no pending recovery) '
+            'message=$message',
+          );
+        }
+        return;
+      }
+      if (LOGGING_SWITCH) {
+        customlog('matchRecovery: resume_room_error message=$message');
+      }
+      unawaited(
+        DutchGameHelpers.failFastOnMatchRecoveryFailure(
+          reason: 'resume_room_failed',
+        ),
+      );
     });
   }
 }

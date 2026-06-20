@@ -171,8 +171,23 @@ Setup in Connect: [IOS_IN_APP_PURCHASES_SETUP.md](IOS_IN_APP_PURCHASES_SETUP.md)
 | AdMob | `Debug.xcconfig` / `Release.xcconfig` |
 | Coin catalog | `assets/dutch_coin_catalog.json` |
 | IPA script | `playbooks/frontend/build_ipa.sh` |
+| Xcode Cloud | `ios/ci_scripts/ci_post_clone.sh`, `ci_pre_xcodebuild.sh` |
 
 Open: `flutter_base_05/ios/Runner.xcworkspace`
+
+### Xcode Cloud — prod env (same dart-defines as AAB)
+
+Local `build_ipa.sh` / `build_appbundle.sh` read **`.env.dart.defines.prod`** (gitignored). Xcode Cloud runners do not — **`ci_pre_xcodebuild.sh`** decodes it from workflow secret **`DUTCH_DART_DEFINES_PROD_B64`** before compiling.
+
+```bash
+base64 -i .env.dart.defines.prod | pbcopy
+```
+
+App Store Connect → Xcode Cloud → workflow → **Environment** → add secret `DUTCH_DART_DEFINES_PROD_B64`. Optional: `DUTCH_ENV_PROD_B64` for `.env.prod`.
+
+Pre-xcodebuild must log `API_URL validated: https://dutch.reignofplay.com`. If login hangs on device, the secret is missing or stale.
+
+See [IOS_RELEASE_CHECKLIST.md](../flutter_base_05/IOS_RELEASE_CHECKLIST.md) (Xcode Cloud section).
 
 ---
 
@@ -259,6 +274,7 @@ Wait for **Processing** in TestFlight.
 | `build_ipa.sh`, signing in `pbxproj` | Business agreements, tax, bank, DSA |
 | `dutch_coin_catalog.json` + loaders | Create IAPs in Connect (match JSON) |
 | `APP_STORE_URL` in local `.env.dart.defines.prod` | TestFlight check, Transporter (if needed), metadata, review |
+| `DUTCH_DART_DEFINES_PROD_B64` on Xcode Cloud workflow | Required for Cloud builds — mirrors `.env.dart.defines.prod` |
 | `IOS_*` docs in `Documentation/Android_V_ios/` | TestFlight on device |
 
 ---

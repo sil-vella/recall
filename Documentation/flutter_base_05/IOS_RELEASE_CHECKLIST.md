@@ -25,6 +25,57 @@ Official references:
 | Firebase iOS | `ios/Runner/GoogleService-Info.plist` (`BUNDLE_ID` matches) |
 | AdMob app ID | `ios/Flutter/Debug.xcconfig` / `Release.xcconfig` → `GAD_APPLICATION_ID` |
 | Release IPA script | `playbooks/frontend/build_ipa.sh` |
+| Xcode Cloud CI | `ios/ci_scripts/ci_post_clone.sh` + `ci_pre_xcodebuild.sh` |
+| Prod dart-defines on Cloud | Workflow secret `DUTCH_DART_DEFINES_PROD_B64` (see below) |
+
+---
+
+## Xcode Cloud — prod dart-defines (required)
+
+Xcode Cloud does **not** have `.env.dart.defines.prod` on disk (gitignored). **`ci_pre_xcodebuild.sh`** decodes it from a workflow secret before `flutter build ios --config-only --dart-define-from-file`, same idea as AAB/IPA local builds.
+
+### One-time: add workflow secrets
+
+App Store Connect → **Xcode Cloud** → your workflow → **Environment**:
+
+| Secret | Required | Contents |
+|--------|----------|----------|
+| `DUTCH_DART_DEFINES_PROD_B64` | **Yes** | Base64 of repo-root `.env.dart.defines.prod` |
+| `DUTCH_ENV_PROD_B64` | No | Base64 of `.env.prod` (version can also come from committed `pubspec.yaml`) |
+
+On your Mac (after editing local prod env):
+
+```bash
+cd /path/to/app_dev
+base64 -i .env.dart.defines.prod | pbcopy   # paste into DUTCH_DART_DEFINES_PROD_B64
+# optional:
+base64 -i .env.prod | pbcopy
+```
+
+**Refresh secrets** whenever you change API URLs, Firebase, AdMob units, `APP_STORE_URL`, etc. in local `.env.dart.defines.prod`.
+
+### Before each Cloud build
+
+1. Bump `flutter_base_05/pubspec.yaml` `version:` (and run `sync_pubspec_version.sh` locally if you want pbxproj / floor aligned).
+2. Commit and push.
+3. Trigger Xcode Cloud workflow.
+
+### Verify Cloud build logs
+
+In **pre-xcodebuild** logs you should see:
+
+- `API_URL validated: https://dutch.reignofplay.com` (not `10.0.2.2` or `localhost`)
+- `Generated.xcconfig includes API_URL`
+
+On TestFlight, **Sign In** should finish in seconds (prod `HTTP_REQUEST_TIMEOUT`, typically 15s).
+
+### Local dry-run of Cloud scripts
+
+```bash
+export REPO_ROOT=/path/to/app_dev
+# optional: export DUTCH_DART_DEFINES_PROD_B64="$(base64 -i .env.dart.defines.prod)"
+./flutter_base_05/ios/ci_scripts/ci_pre_xcodebuild.sh
+```
 
 ---
 
@@ -49,7 +100,11 @@ chmod +x playbooks/frontend/build_ipa.sh
 
 Uses `.env.prod` (version bump) and `.env.dart.defines.prod` (API URLs, keys).
 
-### Option B: Xcode GUI
+### Option B: Xcode Cloud
+
+Uses the same dart-defines as Option A, materialized from **`DUTCH_DART_DEFINES_PROD_B64`** (see **Xcode Cloud — prod dart-defines** above). Scripts: `ci_post_clone.sh` (Flutter + CocoaPods) → `ci_pre_xcodebuild.sh` (prod defines + `config-only`).
+
+### Option C: Xcode GUI
 
 1. Destination: **Any iOS Device (arm64)**.
 2. **Product → Archive**.
@@ -116,6 +171,8 @@ Rebuild IPA so celebration share sheets include the link. `PLAY_STORE_URL` is se
 | Bundle ID mismatch | Must be `com.reignofplay.dutch` everywhere |
 | Invalid binary / processing failed | Read email from App Store Connect; often export compliance or missing icons |
 | Version already used / Transporter duplicate | Open **TestFlight → Build Uploads** first; if build is already there, skip Transporter; if you need new bits, bump build number, new Xcode Cloud build, then upload only if not auto-delivered |
+| Login spins forever on TestFlight / App Review | Cloud build missing prod `API_URL` — check pre-xcodebuild logs; set/refresh `DUTCH_DART_DEFINES_PROD_B64`; confirm not `10.0.2.2` |
+| `Missing DUTCH_DART_DEFINES_PROD_B64` in Cloud | Add workflow secret (base64 of `.env.dart.defines.prod`) |
 
 ---
 

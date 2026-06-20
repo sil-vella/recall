@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../../../utils/platform/shared_imports.dart';
@@ -42,6 +44,54 @@ class DutchAnimRuntime extends ChangeNotifier {
   /// Hand slots (`playerId|handIndex`) whose real [CardWidget] should not paint during an
   /// in-flight overlay tween (see [DutchCardAnimOverlay]). Same keys as layout slot paths.
   final Set<String> _animMaskedHandSlots = {};
+
+  /// While true, [enqueueGameAnimation] drops hints (app backgrounded).
+  bool _lifecyclePaused = false;
+
+  Timer? _resumeSuppressTimer;
+
+  static const Duration _resumeEnqueueSuppressDuration = Duration(milliseconds: 800);
+
+  /// App lifecycle hook from [GamePlayScreen] — drop/stale anim while backgrounded.
+  void handleAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _lifecyclePaused = false;
+        flushPendingQueueOnForegroundResume();
+        _resumeSuppressTimer?.cancel();
+        _resumeSuppressTimer = Timer(_resumeEnqueueSuppressDuration, () {
+          _resumeSuppressTimer = null;
+        });
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _lifecyclePaused = true;
+        _resumeSuppressTimer?.cancel();
+        _resumeSuppressTimer = null;
+        break;
+    }
+  }
+
+  bool get _shouldDropIncomingAnimations =>
+      _lifecyclePaused || _resumeSuppressTimer != null;
+
+  /// Clear FIFO queue and hand masks after resume; board state is authoritative.
+  void flushPendingQueueOnForegroundResume() {
+    final hadQueue = _eventData.isNotEmpty;
+    final hadMask = _animMaskedHandSlots.isNotEmpty;
+    if (!hadQueue && !hadMask) return;
+    _eventData.clear();
+    _animMaskedHandSlots.clear();
+    if (LOGGING_SWITCH) {
+      customlog(
+        'DutchAnimRuntime: flush on foreground resume '
+        'hadQueue=$hadQueue hadMask=$hadMask',
+      );
+    }
+    notifyListeners();
+  }
 
   /// Mask key for [isAnimMaskedHandSlot]; matches layout `'$playerId|$handIndex'`.
   static String handSlotMaskKey(String playerId, int handIndex) => '$playerId|$handIndex';
@@ -88,6 +138,9 @@ class DutchAnimRuntime extends ChangeNotifier {
   }
 
   void reset() {
+    _resumeSuppressTimer?.cancel();
+    _resumeSuppressTimer = null;
+    _lifecyclePaused = false;
     _eventData.clear();
     _cardPositions = {};
     _pileRects = {};
@@ -101,6 +154,16 @@ class DutchAnimRuntime extends ChangeNotifier {
   }
 
   void enqueueGameAnimation(Map<String, dynamic> payload) {
+    if (_shouldDropIncomingAnimations) {
+      if (LOGGING_SWITCH) {
+        final action = payload['action_type']?.toString() ?? '';
+        customlog(
+          'DutchAnimRuntime: drop enqueue action=$action '
+          'paused=$_lifecyclePaused suppress=${_resumeSuppressTimer != null}',
+        );
+      }
+      return;
+    }
     final action = payload['action_type']?.toString() ?? '';
     if (action == 'initial_peek' && _eventData.isNotEmpty) {
       final tail = _eventData.last;

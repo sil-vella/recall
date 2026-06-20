@@ -958,8 +958,6 @@ class _AdBannerBar extends StatelessWidget {
   final String slot;
   final Key hostKey;
 
-  static const double _kBannerHeight = 50.0;
-
   bool _shouldShow() {
     if (kIsWeb || bannerAdModule == null) return false;
     if (!AdExperiencePolicy.showMonetizedAds) return false;
@@ -983,17 +981,11 @@ class _AdBannerBar extends StatelessWidget {
       listenable: StateManager(),
       builder: (context, _) {
         final visible = _shouldShow();
-        return SizedBox(
-          height: visible ? _kBannerHeight : 0,
-          child: ClipRect(
-            child: IgnorePointer(
-              ignoring: !visible,
-              child: Opacity(
-                opacity: visible ? 1 : 0,
-                child: Center(child: host),
-              ),
-            ),
-          ),
+        if (!visible) return const SizedBox.shrink();
+        return Align(
+          alignment: Alignment.topCenter,
+          widthFactor: 1,
+          child: host,
         );
       },
     );

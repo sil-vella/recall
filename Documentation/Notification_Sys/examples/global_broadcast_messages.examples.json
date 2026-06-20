@@ -2,13 +2,31 @@
   "comment": "Reference copy of production global_broadcast_messages seed. Not synced automatically.",
   "messages": [
     {
-      "_id": "65f0a1b2c3d4e5f607182901",
+      "_id": "65f0a1b2c3d4e5f607182902",
       "title": "Welcome to Dutch",
-      "body": "New here? Learn the rules and try the interactive tutorial before your first match.",
+      "body": "You're in early — great timing. Climb the leaderboard while the field is still growing and make your mark among the first players.",
       "type": "instant",
       "subtype": "welcome",
       "source": "global_broadcast",
-      "msg_id": "global_welcome_v1",
+      "msg_id": "global_welcome_early_v1",
+      "target_ranks": ["all"],
+      "is_active": true,
+      "data": {},
+      "responses": [
+        {
+          "label": "Got it",
+          "action_identifier": "dismiss"
+        }
+      ]
+    },
+    {
+      "_id": "65f0a1b2c3d4e5f607182901",
+      "title": "Learn how to play",
+      "body": "New to the rules? Walk through the interactive tutorial and practice before your first live match.",
+      "type": "instant",
+      "subtype": "learn_how",
+      "source": "global_broadcast",
+      "msg_id": "global_learn_how_v1",
       "target_ranks": ["all"],
       "is_active": true,
       "data": {

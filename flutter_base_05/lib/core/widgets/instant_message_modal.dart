@@ -135,6 +135,7 @@ class InstantMessageModal extends StatelessWidget {
     final subtype = message['subtype']?.toString() ?? '';
     if (subtype == 'app_update') return Icons.system_update_alt;
     if (subtype == 'welcome') return Icons.celebration_outlined;
+    if (subtype == 'learn_how') return Icons.school_outlined;
     return Icons.notifications_active_outlined;
   }
 

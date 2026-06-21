@@ -12,6 +12,7 @@ Full reference: `Documentation/Logging/LOGGING_SYSTEM.md`.
 - **`customlog` is allowed** in any change **as long as** every call sits inside an **`if (LOGGING_SWITCH)`** block (see [Mandatory callsite shape](#mandatory-callsite-shape)). That gate may be a **logging-only** `if (LOGGING_SWITCH) { ... }`; it does **not** have to be nested inside another condition.
 - **One switch per file:** the **only** compile-time gate for calling `customlog` is **`LOGGING_SWITCH`**. See [One switch method (strict)](#one-switch-method-strict).
 - **Reuse** an existing file-level **`LOGGING_SWITCH`** when present. If the file has **none**, add it near the top (Dart / Python patterns below).
+- **When adding new `customlog` calls**, set **`LOGGING_SWITCH = true`** in that file so traces are visible immediately. The user flips back to **`false`** when done debugging.
 - **Do not add logging wrappers** (`logX`, `_fooDebug`, `devLogSwitch`, `dev_log_switch`, `Logger`, etc.). The **only** dev trace API is **`customlog`**.
 - **Do not re-enable** logging you removed in the same task unless the user asks.
 
@@ -34,52 +35,31 @@ There is exactly **one** switch name that may gate `customlog` calls: **`LOGGING
 - Extra or alias switches: `devLogSwitch`, `dev_log_switch`, `_devLog`, `loggingEnabled`, `kDevLog`, etc.
 - Combined gates: `if (LOGGING_SWITCH || somethingElse)`, `if (devLogSwitch)`, `if (kDebugMode && …)` for `customlog`.
 - Shared modules that export a **second** switch constant for logging.
-- `bool.fromEnvironment('DUTCH_DEV_LOG')` for **`LOGGING_SWITCH`** — launch scripts pass **`DUTCH_DEV_LOG=1`**, which is **not** `true` for `bool.fromEnvironment`.
-
-**Allowed:** a **private** `String.fromEnvironment('DUTCH_DEV_LOG', …)` used **only** to **define** `LOGGING_SWITCH` (not referenced at call sites).
+- Env / define wiring for **`LOGGING_SWITCH`**: `String.fromEnvironment('DUTCH_DEV_LOG')`, `bool.fromEnvironment('DUTCH_DEV_LOG')`, `os.environ.get("DUTCH_DEV_LOG")` for the switch itself, etc. **`LOGGING_SWITCH` is always a plain `true` or `false`.**
 
 ### Dart — file-level `LOGGING_SWITCH`
 
-**Default (tracing off in that file until the user flips the const):**
+Use a single file-level const — **`true`** while tracing, **`false`** when off:
 
 ```dart
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;  // or false
 ```
 
-**Follow launch scripts** (`run_*_to_global_log.sh`, `launch_*.sh` with `--dart-define=DUTCH_DEV_LOG=1`) — `LOGGING_SWITCH` on when the define is truthy:
-
-```dart
-const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
-const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
-    _loggingSwitchDevLog == 'true' ||
-    _loggingSwitchDevLog == 'TRUE' ||
-    _loggingSwitchDevLog == 'yes' ||
-    _loggingSwitchDevLog == 'YES';
-```
-
-Use **one** of the two patterns per file, not both. Call sites always use **`if (LOGGING_SWITCH) { customlog(...); }`** only.
+Call sites always use **`if (LOGGING_SWITCH) { customlog(...); }`** only.
 
 ### Python — file-level `LOGGING_SWITCH`
 
-**Default (tracing off in that file):**
+Use a single file-level bool — **`True`** while tracing, **`False`** when off:
 
 ```python
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True  # or False
 ```
 
-**Follow `run_python_app_to_global_log.sh` / `DUTCH_DEV_LOG=1`** (same truthy set as `customlog`):
-
-```python
-import os
-
-LOGGING_SWITCH = (os.environ.get("DUTCH_DEV_LOG") or "").strip().lower() in ("1", "true", "yes")
-```
-
-Use one pattern per file. Call sites: **`if LOGGING_SWITCH:`** then **`customlog(...)`** only.
+Call sites: **`if LOGGING_SWITCH:`** then **`customlog(...)`** only.
 
 ## Mandatory callsite shape
 
-**Every** `customlog` must be invoked only from inside **`if LOGGING_SWITCH`** (Dart: braced `{ }`; Python: indented suite). No bare `customlog`, no helper that hides the switch.
+**Every** `customlog` must be invoked only from inside **`if (LOGGING_SWITCH)`** (Dart: braced `{ }`; Python: indented suite). No bare `customlog`, no helper that hides the switch.
 
 ```dart
 if (LOGGING_SWITCH) {
@@ -102,5 +82,6 @@ Launch via **`playbooks/frontend/run_*_to_global_log.sh`** or VS Code configs th
 ## Agent behavior
 
 - Prefer fixing bugs without unnecessary trace noise; add logs when they help trace a flow or debug.
-- If logs do not show: **`LOGGING_SWITCH`** must be true for that file (or tied to `DUTCH_DEV_LOG=1` via the Dart pattern above), launch must pass **`--dart-define=DUTCH_DEV_LOG=1`**, and lines must contain **`[dev]`** for `global.log`.
+- **New trace calls → `LOGGING_SWITCH = true`** in that file (unless the user explicitly asked for `false`).
+- If logs do not show: **`LOGGING_SWITCH`** must be **`true`** for that file, launch must pass **`DUTCH_DEV_LOG=1`** (or use the global-log scripts), and lines must contain **`[dev]`** for `global.log`.
 - Do not replace production / structured logging with **`customlog`**.

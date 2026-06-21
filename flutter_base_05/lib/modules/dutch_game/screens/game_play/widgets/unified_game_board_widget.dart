@@ -11,6 +11,7 @@ import '../../../widgets/card_widget.dart';
 import '../../../widgets/dutch_slice_builder.dart';
 import '../utils/dutch_anim_layout_reporter.dart';
 import '../utils/dutch_anim_runtime.dart';
+import '../utils/dutch_optimistic_anim.dart';
 import '../utils/dutch_opponent_seat_layout.dart';
 import '../utils/dutch_turn_feed_formatter.dart';
 import 'dutch_card_anim_overlay.dart';
@@ -1500,9 +1501,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         isActiveSeat &&
         !showDutchCallerHud;
     // When local user is jack swapping or queen peeking, all opponent cards use that glow.
+    final queenPeekRevealComplete = currentPlayerStatus == 'peeking' ||
+        _queenPeekSelectionComplete(cardsToPeek.length, cardsToPeek);
     final seatGlowStatus = _opponentSeatGlowStatusForLocalUser(
       currentPlayerStatus,
       playerStatus,
+      queenPeekSelectionComplete: queenPeekRevealComplete,
     );
     final avatarChild = _buildPlayerProfilePicture(
       playerId,
@@ -2299,19 +2303,41 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return true;
   }
 
+  /// True when the user has chosen their queen-peek target (card visible in peek list).
+  bool _queenPeekSelectionComplete(
+    int revealedPeekCount,
+    List<dynamic> cardsToPeek,
+  ) {
+    if (cardsToPeek.isNotEmpty &&
+        DutchGameHelpers.peekListHasFullData(cardsToPeek)) {
+      return true;
+    }
+    return revealedPeekCount >= 1;
+  }
+
   /// Status driving my-hand per-card glow (player status with phase fallbacks).
   ///
   /// Initial peek glow stops once both cards are revealed — even if
   /// [gamePhase] stays `initial_peek` while other seats finish.
+  /// Queen peek glow stops once the peek target is in [cardsToPeek].
   String _myHandCardGlowStatus(
     String playerStatus,
     String? gamePhase, {
     int revealedPeekCount = 0,
+    List<dynamic> cardsToPeek = const [],
   }) {
-    final peekSelectionComplete = revealedPeekCount >= 2 ||
+    final initialPeekSelectionComplete = revealedPeekCount >= 2 ||
         _initialPeekSelectedCardIds.length >= 2;
-    if (playerStatus == 'initial_peek' && !peekSelectionComplete) {
+    if (playerStatus == 'initial_peek' && !initialPeekSelectionComplete) {
       return 'initial_peek';
+    }
+    final queenPeekDone = playerStatus == 'peeking' ||
+        _queenPeekSelectionComplete(revealedPeekCount, cardsToPeek);
+    if (playerStatus == 'queen_peek' && !queenPeekDone) {
+      return 'queen_peek';
+    }
+    if (playerStatus == 'peeking') {
+      return 'waiting';
     }
     if (playerStatus == 'same_rank_window' || gamePhase == 'same_rank_window') {
       return 'same_rank_window';
@@ -2420,13 +2446,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   /// Opponent's own jack/queen window uses seat panel highlight, not card glow.
   String _opponentSeatGlowStatusForLocalUser(
     String localUserStatus,
-    String seatStatus,
-  ) {
+    String seatStatus, {
+    bool queenPeekSelectionComplete = false,
+  }) {
     switch (localUserStatus) {
       case 'jack_swap':
         return 'jack_swap';
       case 'queen_peek':
+        if (queenPeekSelectionComplete) {
+          if (seatStatus == 'jack_swap' || seatStatus == 'queen_peek') {
+            return 'waiting';
+          }
+          return seatStatus;
+        }
         return 'queen_peek';
+      case 'peeking':
+        if (seatStatus == 'jack_swap' || seatStatus == 'queen_peek') {
+          return 'waiting';
+        }
+        return seatStatus;
       default:
         if (seatStatus == 'jack_swap' || seatStatus == 'queen_peek') {
           return 'waiting';
@@ -2740,6 +2778,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (currentGameId.isEmpty) {
           return;
         }
+        final board = _unifiedBoardViewSlice(dutchGameState);
+        final ownerId = _myBoardPlayerId(board);
+        final myHand = board['myHand'] as Map<String, dynamic>? ?? {};
+        final handCards = myHand['cards'] as List<dynamic>? ?? [];
+        if (LOGGING_SWITCH) {
+          customlog(
+            'UnifiedGameBoard: optimistic draw tap gameId=$currentGameId '
+            'handIndex=${handCards.length} ownerId=$ownerId source=deck',
+          );
+        }
+        DutchOptimisticAnim.enqueueDraw(
+          gameId: currentGameId,
+          ownerId: ownerId,
+          handIndex: handCards.length,
+          source: 'deck',
+        );
         final drawAction = PlayerAction.playerDraw(
           pileType: 'draw_pile',
           gameId: currentGameId,
@@ -3576,6 +3630,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               statusForHandGlow,
               phaseForHandGlow,
               revealedPeekCount: cardsToPeek.length,
+              cardsToPeek: cardsToPeek,
             );
             final drawnCard = board['myDrawnCard'] as Map<String, dynamic>?;
             final drawnCardId = drawnCard?['cardId']?.toString();
@@ -3660,6 +3715,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           statusForHandGlow,
           phaseForHandGlow,
           revealedPeekCount: cardsToPeek.length,
+          cardsToPeek: cardsToPeek,
         );
         
         // Build all card widgets with fixed dimensions
@@ -4232,6 +4288,41 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
+  void _enqueueOptimisticPlayFromHand({
+    required String gameId,
+    required int handIndex,
+    required Map<String, dynamic> card,
+    required String actionType,
+  }) {
+    final board = _unifiedBoardViewSlice(_dutchGameState());
+    final ownerId = _myBoardPlayerId(board);
+    final myHand = board['myHand'] as Map<String, dynamic>? ?? {};
+    final handCards = myHand['cards'] as List<dynamic>? ?? [];
+    final drawnCardRaw = board['myDrawnCard'] as Map<String, dynamic>?;
+    final drawnCard = drawnCardRaw != null &&
+            (drawnCardRaw['cardId']?.toString() ?? '').isNotEmpty
+        ? drawnCardRaw
+        : null;
+
+    if (LOGGING_SWITCH) {
+      customlog(
+        'UnifiedGameBoard: optimistic play tap gameId=$gameId action=$actionType '
+        'handIndex=$handIndex cardId=${card['cardId']} ownerId=$ownerId '
+        'drawnGhost=${drawnCard != null && drawnCard['cardId'] != card['cardId']}',
+      );
+    }
+
+    DutchOptimisticAnim.enqueuePlayFromHand(
+      gameId: gameId,
+      ownerId: ownerId,
+      handIndex: handIndex,
+      card: card,
+      actionType: actionType,
+      drawnCard: drawnCard,
+      handCards: handCards,
+    );
+  }
+
   void _handleMyHandCardSelection(BuildContext context, int index, Map<String, dynamic> card) async {
     if (_isProcessingAction) {
       
@@ -4272,6 +4363,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         
         if (effectivePlayerStatus == 'same_rank_window') {
           
+          _enqueueOptimisticPlayFromHand(
+            gameId: currentGameId,
+            handIndex: index,
+            card: card,
+            actionType: 'same_rank_play',
+          );
           final sameRankAction = PlayerAction.sameRankPlay(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',
@@ -4371,6 +4468,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           
           
           try {
+          _enqueueOptimisticPlayFromHand(
+            gameId: currentGameId,
+            handIndex: index,
+            card: card,
+            actionType: 'play_card',
+          );
           final playAction = PlayerAction.playerPlayCard(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',

@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:dart_game_server/utils/dev_logger.dart';
 import '../modules/dutch_game/backend_core/utils/gameplay_profiles_store.dart';
 import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/progression_config_store.dart';
 import '../utils/config.dart';
+
+const bool LOGGING_SWITCH = true;
 
 class PythonApiClient {
   final String baseUrl;
@@ -216,10 +219,23 @@ class PythonApiClient {
           Map<String, dynamic>.from(gpPayload),
           revision: result['gameplay_profiles_revision']?.toString(),
         );
+        if (LOGGING_SWITCH) {
+          final profiles = gpPayload['profiles'];
+          final count = profiles is Map ? profiles.length : 0;
+          customlog(
+            'PythonApiClient.fetchInitConfig: gameplay_profiles applied '
+            'profile_count=$count revision=${result['gameplay_profiles_revision']}',
+          );
+        }
       } else {
         final gpRevOnly = result['gameplay_profiles_revision']?.toString().trim();
         if (gpRevOnly != null && gpRevOnly.isNotEmpty) {
           GameplayProfilesStore.updateRevisionOnly(gpRevOnly);
+          if (LOGGING_SWITCH) {
+            customlog(
+              'PythonApiClient.fetchInitConfig: gameplay_profiles revision-only $gpRevOnly',
+            );
+          }
         }
       }
 

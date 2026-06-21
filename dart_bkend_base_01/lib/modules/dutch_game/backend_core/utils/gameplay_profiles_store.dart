@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dart_game_server/utils/dev_logger.dart';
 import '../../../../utils/config.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// In-memory gameplay rule profiles from declarative JSON (Python SSOT mirror).
 class GameplayProfilesStore {
@@ -81,7 +84,14 @@ class GameplayProfilesStore {
         final doc = jsonDecode(raw);
         if (doc is Map<String, dynamic>) {
           _applyDocument(doc);
-          if (_profilesById.isNotEmpty) return;
+          if (_profilesById.isNotEmpty) {
+            if (LOGGING_SWITCH) {
+              customlog(
+                'GameplayProfilesStore: loaded ${_profilesById.length} profiles from $path',
+              );
+            }
+            return;
+          }
         }
       } catch (_) {
         continue;
@@ -215,6 +225,12 @@ class GameplayProfilesStore {
     if (rev != null && rev.isNotEmpty) {
       _cachedRevision = rev;
     }
+    if (LOGGING_SWITCH) {
+      customlog(
+        'GameplayProfilesStore.applyDocument: profile_count=${resolved.length} '
+        'revision=${rev ?? _cachedRevision ?? '(none)'}',
+      );
+    }
   }
 
   static void updateRevisionOnly(String revision) {
@@ -249,5 +265,11 @@ class GameplayProfilesStore {
     _loaded = false;
     _profilesById = {};
     _ensureLoaded();
+    if (LOGGING_SWITCH) {
+      customlog(
+        'GameplayProfilesStore.reloadFromDisk: profile_count=${_profilesById.length} '
+        'revision=${_cachedRevision ?? '(none)'}',
+      );
+    }
   }
 }

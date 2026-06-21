@@ -21,6 +21,8 @@ Operational guide for **declarative catalog changes** without an app release: wh
 | **Standard table tier** | `table_tiers.json` → `tiers[]` | Tier back graphics (bundled / `table-tier-back`) | Quick Join carousel, room `game_level`, felt + backdrop |
 | **Special event** | `table_tiers.json` → `special_events[]` | `app_media/media/event_media/<event_id>/` | Special Events tab, event match styling, Game Ended modal |
 | **Gameplay profile** | `gameplay_profiles.json` → `profiles{}` | — | Rule preset linked by `special_events[].gameplay_profile_id` |
+
+**How to add a profile (full guide):** [ADDING_A_GAMEPLAY_PROFILE.md](./ADDING_A_GAMEPLAY_PROFILE.md)
 | **Shop cosmetic** | `consumables_catalog.json` → `items[]` | `app_media/media/table_design/` or `card_back/` | Cosmetics shop, equipped overlay / card back |
 
 **Canonical JSON paths (edit these):**

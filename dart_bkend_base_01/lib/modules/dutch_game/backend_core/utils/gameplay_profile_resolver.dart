@@ -1,6 +1,9 @@
+import 'package:dart_game_server/utils/dev_logger.dart';
 import '../services/game_registry.dart';
 import 'gameplay_profiles_store.dart';
 import 'level_matcher.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Resolves declarative gameplay profiles for special events and match start.
 class GameplayProfileResolver {
@@ -50,5 +53,11 @@ class GameplayProfileResolver {
   static void reloadCatalogsFromDisk() {
     LevelMatcher.reloadFromDisk();
     GameplayProfilesStore.reloadFromDisk();
+    if (LOGGING_SWITCH) {
+      customlog(
+        'GameplayProfileResolver.reloadCatalogsFromDisk: '
+        'profiles_revision=${GameplayProfilesStore.cachedRevision ?? '(none)'}',
+      );
+    }
   }
 }

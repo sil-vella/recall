@@ -104,6 +104,7 @@ Ops:
 
 ## Related
 
+- **How to add / wire a profile (full walkthrough):** [ADDING_A_GAMEPLAY_PROFILE.md](./ADDING_A_GAMEPLAY_PROFILE.md)
 - Special events economics / art: [TABLE_TIERS.md](./TABLE_TIERS.md)
 - Hot reload ops: [CATALOG_ADDITION_AND_HOT_RELOAD.md](./CATALOG_ADDITION_AND_HOT_RELOAD.md)
 - Init envelope: [INIT_DATA.md](./INIT_DATA.md)

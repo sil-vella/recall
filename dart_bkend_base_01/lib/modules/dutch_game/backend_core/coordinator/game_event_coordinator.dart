@@ -12,7 +12,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -708,6 +708,14 @@ class GameEventCoordinator {
     );
     final matchRules = GameRulesContext(profileSnapshot);
     final cardsPerHand = matchRules.cardsPerHand;
+    if (LOGGING_SWITCH) {
+      customlog(
+        'GameEventCoordinator.start_match: room=$roomId '
+        'special_event_id=${specialEventIdEarly ?? '(none)'} '
+        'profile=${matchRules.profileId} clear_and_collect=${matchRules.clearAndCollect} '
+        'deck=${matchRules.deckSource} cards_per_hand=$cardsPerHand',
+      );
+    }
     
     // Build deck and deal cards per player (as in practice)
     // showInstructions=true → use demo_deck (overrides profile deck)

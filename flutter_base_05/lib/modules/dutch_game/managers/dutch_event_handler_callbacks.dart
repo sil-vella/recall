@@ -17,6 +17,7 @@ import '../utils/game_instructions_provider.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
 import '../screens/demo/demo_action_handler.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
+import '../screens/game_play/utils/dutch_optimistic_anim.dart';
 import '../screens/promotion/dutch_promotion_screen.dart';
 import '../screens/promotion/dutch_win_celebration_screen.dart';
 import '../screens/promotion/dutch_achievement_celebration_screen.dart';
@@ -2149,9 +2150,23 @@ When anyone has played a card with the **same rank** as your **collection card**
     if (LOGGING_SWITCH &&
         (actionType == 'jack_swap' ||
             actionType == 'queen_peek' ||
-            actionType == 'initial_peek')) {
+            actionType == 'initial_peek' ||
+            actionType == 'play_card' ||
+            actionType == 'same_rank_play' ||
+            actionType == 'draw' ||
+            actionType == 'reposition' ||
+            actionType == 'collect_from_discard')) {
       customlog(
-        'handleGameAnimation: gameId=$gameId action=$actionType cards=$n$handIdxBrief$ctxBrief',
+        'handleGameAnimation: gameId=$gameId action=$actionType cards=$n$handIdxBrief$ctxBrief source=$source',
+      );
+    }
+    if (DutchOptimisticAnim.shouldSkipServerDuplicate(data)) return;
+    if (LOGGING_SWITCH &&
+        (actionType == 'play_card' ||
+            actionType == 'same_rank_play' ||
+            actionType == 'draw')) {
+      customlog(
+        'handleGameAnimation: enqueue server action=$actionType gameId=$gameId$handIdxBrief',
       );
     }
     DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));

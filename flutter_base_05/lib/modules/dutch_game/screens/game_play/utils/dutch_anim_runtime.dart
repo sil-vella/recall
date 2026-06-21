@@ -183,12 +183,18 @@ class DutchAnimRuntime extends ChangeNotifier {
       if (action == 'deal' ||
           action == 'deal_batch' ||
           action == 'draw' ||
+          action == 'play_card' ||
+          action == 'same_rank_play' ||
+          action == 'reposition' ||
+          action == 'collect_from_discard' ||
           action == 'jack_swap' ||
           action == 'queen_peek' ||
           action == 'initial_peek') {
         final cards = entry['cards'] as List? ?? [];
+        final optimistic = entry['_client_optimistic'] == true;
         customlog(
-          'DutchAnimRuntime.enqueue: action=$action seq=$_eventSeq cards=${cards.length} queueLen=${_eventData.length}',
+          'DutchAnimRuntime.enqueue: action=$action seq=$_eventSeq cards=${cards.length} '
+          'queueLen=${_eventData.length} optimistic=$optimistic',
         );
       }
     }

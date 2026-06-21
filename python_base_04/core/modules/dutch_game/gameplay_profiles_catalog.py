@@ -15,6 +15,10 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
+from tools.dev_logger import customlog
+
+LOGGING_SWITCH = (os.environ.get("DUTCH_DEV_LOG") or "").strip().lower() in ("1", "true", "yes")
+
 _CONFIG_DIR = Path(__file__).resolve().parent / "config"
 _DEFAULT_JSON_PATH = _CONFIG_DIR / "gameplay_profiles.json"
 _PROFILE_ID_RE = __import__("re").compile(r"^[A-Za-z0-9_-]+$")
@@ -359,6 +363,13 @@ def reload_from_disk() -> Dict[str, Any]:
     from . import table_tiers_catalog as ttc
 
     ttc.validate_special_event_profile_refs()
+
+    if LOGGING_SWITCH:
+        customlog(
+            "gameplay_profiles_catalog.reload_from_disk: "
+            f"reloaded={previous_revision != new_revision} "
+            f"profile_count={len(_PROFILES_BY_ID)} revision={new_revision}"
+        )
 
     return {
         "reloaded": previous_revision != new_revision,

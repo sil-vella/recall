@@ -2,7 +2,10 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../utils/dev_logger.dart';
 import '../backend_core/utils/gameplay_profiles_store.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Persists declarative gameplay profiles from init-data for lobby UI labels.
 class GameplayProfilesBootstrap {
@@ -19,6 +22,14 @@ class GameplayProfilesBootstrap {
       final decoded = jsonDecode(raw);
       if (decoded is Map<String, dynamic>) {
         GameplayProfilesStore.applyDocument(Map<String, dynamic>.from(decoded));
+        if (LOGGING_SWITCH) {
+          final profiles = decoded['profiles'];
+          final count = profiles is Map ? profiles.length : 0;
+          customlog(
+            'GameplayProfilesBootstrap.hydrateFromPrefsBeforeStats: '
+            'profile_count=$count',
+          );
+        }
       }
     } catch (_) {}
   }
@@ -43,11 +54,24 @@ class GameplayProfilesBootstrap {
       if (revision != null && revision.isNotEmpty) {
         await prefs.setString(prefRevisionKey, revision);
       }
+      if (LOGGING_SWITCH) {
+        final profiles = typed['profiles'];
+        final count = profiles is Map ? profiles.length : 0;
+        customlog(
+          'GameplayProfilesBootstrap.mergeStatsEnvelope: full payload '
+          'profile_count=$count revision=${revision ?? "(none)"}',
+        );
+      }
       return;
     }
     if (revision != null && revision.isNotEmpty) {
       await prefs.setString(prefRevisionKey, revision);
       GameplayProfilesStore.updateRevisionOnly(revision);
+      if (LOGGING_SWITCH) {
+        customlog(
+          'GameplayProfilesBootstrap.mergeStatsEnvelope: revision-only $revision',
+        );
+      }
     }
   }
 

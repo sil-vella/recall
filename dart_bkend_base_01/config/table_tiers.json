@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "tiers": [
     {
       "level": 1,
@@ -82,7 +82,8 @@
     {
       "id": "dutch_explorer",
       "title": "Dutch Explorer",
-      "description": "Learn the lanes — same rules, event flair.",
+      "description": "Collection mode — gather four of a kind to win.",
+      "gameplay_profile_id": "collector",
       "coin_fee": 25,
       "min_user_level": 1,
       "metadata": {
@@ -114,7 +115,8 @@
     {
       "id": "the_challenger",
       "title": "The Challenger",
-      "description": "Step up with a slightly higher entry.",
+      "description": "Speed Dutch — shorter turn timers.",
+      "gameplay_profile_id": "speed_classic",
       "coin_fee": 30,
       "min_user_level": 1,
       "metadata": {
@@ -179,7 +181,8 @@
     {
       "id": "dutch_fan",
       "title": "Dutch Fan",
-      "description": "Show your love for the game at local stakes.",
+      "description": "Powerless party — no Queen or Jack powers.",
+      "gameplay_profile_id": "no_powers",
       "coin_fee": 50,
       "min_user_level": 2,
       "metadata": {

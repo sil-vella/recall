@@ -7,6 +7,7 @@ Operational guide for **declarative catalog changes** without an app release: wh
 | Topic | Doc |
 |-------|-----|
 | Table tiers & special events schema | [TABLE_TIERS.md](./TABLE_TIERS.md) |
+| Gameplay rule profiles | [GAMEPLAY_PROFILES.md](./GAMEPLAY_PROFILES.md) |
 | Shop consumables schema | [CONSUMABLES.md](./CONSUMABLES.md) |
 | Client revision / init envelope | [INIT_DATA.md](./INIT_DATA.md) |
 | Extended consumables ops | [../Consumables/DECLARATIVE_CATALOG.md](../Consumables/DECLARATIVE_CATALOG.md) |
@@ -19,14 +20,21 @@ Operational guide for **declarative catalog changes** without an app release: wh
 |--------------|----------------|------------|--------------|
 | **Standard table tier** | `table_tiers.json` → `tiers[]` | Tier back graphics (bundled / `table-tier-back`) | Quick Join carousel, room `game_level`, felt + backdrop |
 | **Special event** | `table_tiers.json` → `special_events[]` | `app_media/media/event_media/<event_id>/` | Special Events tab, event match styling, Game Ended modal |
+| **Gameplay profile** | `gameplay_profiles.json` → `profiles{}` | — | Rule preset linked by `special_events[].gameplay_profile_id` |
 | **Shop cosmetic** | `consumables_catalog.json` → `items[]` | `app_media/media/table_design/` or `card_back/` | Cosmetics shop, equipped overlay / card back |
 
 **Canonical JSON paths (edit these):**
 
 - [table_tiers.json](../../python_base_04/core/modules/dutch_game/config/table_tiers.json)
+- [gameplay_profiles.json](../../python_base_04/core/modules/dutch_game/config/gameplay_profiles.json)
 - [consumables_catalog.json](../../python_base_04/core/modules/dutch_game/config/consumables_catalog.json)
 
-**Mirror (Dart WS bundled fallback):** [dart_bkend_base_01/config/table_tiers.json](../../dart_bkend_base_01/config/table_tiers.json) — keep in sync when you change tiers/events.
+**Mirror (Dart WS bundled fallback):**
+
+- [dart_bkend_base_01/config/table_tiers.json](../../dart_bkend_base_01/config/table_tiers.json)
+- [dart_bkend_base_01/config/gameplay_profiles.json](../../dart_bkend_base_01/config/gameplay_profiles.json)
+
+Keep mirrors in sync when you change tiers/events/profiles.
 
 ---
 
@@ -244,7 +252,7 @@ Same pattern under `app_media/media/card_back/<pack>/card_back_<pack>.webp` with
 
 | Change type | Flask restart? | Action |
 |-------------|----------------|--------|
-| Edit `table_tiers.json` or `consumables_catalog.json` | **No** (preferred) | Hot reload (below) |
+| Edit `table_tiers.json`, `gameplay_profiles.json`, or `consumables_catalog.json` | **No** (preferred) | Hot reload (below) |
 | Edit JSON only, no reload endpoint | Yes (legacy) | Restart Python / redeploy |
 | Add/replace WebP under `event_media/` or `table_design/` | **No** | Files served from disk per request |
 | VPS static media | **No** | Upload + nginx serves files |

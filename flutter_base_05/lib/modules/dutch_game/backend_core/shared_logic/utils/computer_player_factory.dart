@@ -3,6 +3,7 @@ import '../../../utils/platform/shared_imports.dart';
 // Platform-specific import - must be imported from outside shared_logic
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
+import 'game_rules_context.dart';
 
 
 /// Factory for creating computer player behavior based on YAML configuration
@@ -307,6 +308,16 @@ class ComputerPlayerFactory {
 
   /// Get computer player decision for Jack swap event
   Map<String, dynamic> getJackSwapDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
+    final rules = GameRulesContext.fromGameState(gameState);
+    if (!rules.jackSwapEnabled) {
+      return {
+        'action': 'jack_swap',
+        'use': false,
+        'delay_seconds': 0.5,
+        'difficulty': difficulty,
+        'reasoning': 'jack_swap_disabled_by_profile',
+      };
+    }
     // Get player info for logging
     final players = gameState['players'] as List<dynamic>? ?? [];
     final player = players.firstWhere(
@@ -461,6 +472,16 @@ class ComputerPlayerFactory {
 
   /// Get computer player decision for Queen peek event
   Map<String, dynamic> getQueenPeekDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
+    final rules = GameRulesContext.fromGameState(gameState);
+    if (!rules.queenPeekEnabled) {
+      return {
+        'action': 'queen_peek',
+        'use': false,
+        'delay_seconds': 0.5,
+        'difficulty': difficulty,
+        'reasoning': 'queen_peek_disabled_by_profile',
+      };
+    }
     // Get player info for logging
     final players = gameState['players'] as List<dynamic>? ?? [];
     final player = players.firstWhere(
@@ -546,6 +567,16 @@ class ComputerPlayerFactory {
   /// Note: Rank matching is done in Dart before this method is called
   /// This method only handles AI decision (collect or not)
   Map<String, dynamic> getCollectFromDiscardDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
+    final rules = GameRulesContext.fromGameState(gameState);
+    if (!rules.clearAndCollect) {
+      return {
+        'action': 'collect_from_discard',
+        'collect': false,
+        'delay_seconds': 0.5,
+        'difficulty': difficulty,
+        'reasoning': 'collection_disabled_by_profile',
+      };
+    }
     
     
     // Get timer config from gameState (collect uses same_rank_window timer since it's part of collection phase)
@@ -1085,7 +1116,7 @@ class ComputerPlayerFactory {
     }
     
     // Extract acting player's collection cards (full data) - only if collection mode is enabled
-    final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
+    final isClearAndCollect = GameRulesContext.fromGameState(gameState).clearAndCollect;
     final actingPlayerCollectionCards = <Map<String, dynamic>>[];
     if (isClearAndCollect) {
       final collectionRankCards = actingPlayer['collection_rank_cards'] as List<dynamic>? ?? [];

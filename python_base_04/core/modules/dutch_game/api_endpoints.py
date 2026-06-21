@@ -17,6 +17,7 @@ import uuid
 from . import dutch_notifications
 from . import table_tiers_catalog as ttc
 from . import consumables_catalog as cc
+from . import gameplay_profiles_catalog as gpc
 from . import progression_catalog as prog
 from . import achievements_catalog as achcat
 from . import catalog_hot_reload as catalog_reload
@@ -1424,19 +1425,21 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
     return stats_data
 
 
-def _client_revision_from_request(*, use_json_body: bool) -> Tuple[str, str, str, str]:
+def _client_revision_from_request(*, use_json_body: bool) -> Tuple[str, str, str, str, str]:
     if use_json_body:
         data = request.get_json(silent=True) or {}
         client_rev = (data.get("client_table_tiers_revision") or "").strip()
         client_cons_rev = (data.get("client_consumables_catalog_revision") or "").strip()
         client_prog_rev = (data.get("client_progression_config_revision") or "").strip()
         client_ach_rev = (data.get("client_achievements_catalog_revision") or "").strip()
+        client_gp_rev = (data.get("client_gameplay_profiles_revision") or "").strip()
     else:
         client_rev = (request.args.get("client_table_tiers_revision") or "").strip()
         client_cons_rev = (request.args.get("client_consumables_catalog_revision") or "").strip()
         client_prog_rev = (request.args.get("client_progression_config_revision") or "").strip()
         client_ach_rev = (request.args.get("client_achievements_catalog_revision") or "").strip()
-    return client_rev, client_cons_rev, client_prog_rev, client_ach_rev
+        client_gp_rev = (request.args.get("client_gameplay_profiles_revision") or "").strip()
+    return client_rev, client_cons_rev, client_prog_rev, client_ach_rev, client_gp_rev
 
 
 def _attach_declarative_catalogs(
@@ -1446,16 +1449,19 @@ def _attach_declarative_catalogs(
     client_cons_rev: str,
     client_prog_rev: str,
     client_ach_rev: str,
+    client_gp_rev: str = "",
     include_table_tiers: bool = True,
 ) -> None:
     rev = ttc.TABLE_TIERS_REVISION
     cons_rev = cc.CONSUMABLES_CATALOG_REVISION
     prog_rev = prog.PROGRESSION_CONFIG_REVISION
     ach_rev = achcat.ACHIEVEMENTS_CONFIG_REVISION
+    gp_rev = gpc.GAMEPLAY_PROFILES_REVISION
     response_body["table_tiers_revision"] = rev
     response_body["consumables_catalog_revision"] = cons_rev
     response_body["progression_config_revision"] = prog_rev
     response_body["achievements_catalog_revision"] = ach_rev
+    response_body["gameplay_profiles_revision"] = gp_rev
     if include_table_tiers and ((not client_table_rev) or client_table_rev != rev):
         public_base = _resolve_public_api_base()
         response_body["table_tiers"] = read_cache.get_or_build_catalog(
@@ -1485,6 +1491,13 @@ def _attach_declarative_catalogs(
             ach_rev,
             achcat.build_client_achievements_payload,
         )
+    if (not client_gp_rev) or client_gp_rev != gp_rev:
+        response_body["gameplay_profiles"] = read_cache.get_or_build_catalog(
+            _app_manager,
+            "gameplay_profiles",
+            gp_rev,
+            gpc.build_client_gameplay_profiles_payload,
+        )
 
 
 def get_init_data():
@@ -1507,7 +1520,7 @@ def get_init_data():
             dutch_game = user.get("modules", {}).get("dutch_game", {})
             stats_data = _dutch_stats_from_module(dutch_game, full=True)
             read_cache.set_init_stats_cached(_app_manager, user_id_str, stats_data)
-        client_rev, client_cons_rev, client_prog_rev, client_ach_rev = _client_revision_from_request(use_json_body=False)
+        client_rev, client_cons_rev, client_prog_rev, client_ach_rev, client_gp_rev = _client_revision_from_request(use_json_body=False)
         response_body: Dict[str, Any] = {
             "success": True,
             "message": "Init data retrieved successfully",
@@ -1541,6 +1554,7 @@ def get_init_data():
             client_cons_rev=client_cons_rev,
             client_prog_rev=client_prog_rev,
             client_ach_rev=client_ach_rev,
+            client_gp_rev=client_gp_rev,
         )
         return jsonify(response_body), 200
     except Exception as e:
@@ -1559,7 +1573,7 @@ def get_init_data_service():
         user_id = (data.get("user_id") or data.get("userid") or "").strip()
         if not _app_manager:
             return jsonify({"success": False, "error": "Server not initialized"}), 503
-        client_rev, client_cons_rev, client_prog_rev, client_ach_rev = _client_revision_from_request(use_json_body=True)
+        client_rev, client_cons_rev, client_prog_rev, client_ach_rev, client_gp_rev = _client_revision_from_request(use_json_body=True)
         response_body: Dict[str, Any] = {
             "success": True,
             "message": "Init data retrieved",
@@ -1589,6 +1603,7 @@ def get_init_data_service():
             client_cons_rev=client_cons_rev,
             client_prog_rev=client_prog_rev,
             client_ach_rev=client_ach_rev,
+            client_gp_rev=client_gp_rev,
         )
         return jsonify(response_body), 200
     except Exception as e:
@@ -1603,7 +1618,7 @@ def get_user_stats_service():
 def get_public_init_config():
     """Public declarative config (no user data) for pre-login clients."""
     try:
-        client_rev, client_cons_rev, client_prog_rev, client_ach_rev = _client_revision_from_request(use_json_body=False)
+        client_rev, client_cons_rev, client_prog_rev, client_ach_rev, client_gp_rev = _client_revision_from_request(use_json_body=False)
         response_body: Dict[str, Any] = {
             "success": True,
             "message": "Init config retrieved",
@@ -1615,6 +1630,7 @@ def get_public_init_config():
             client_cons_rev=client_cons_rev,
             client_prog_rev=client_prog_rev,
             client_ach_rev=client_ach_rev,
+            client_gp_rev=client_gp_rev,
         )
         return jsonify(response_body), 200
     except Exception as e:
@@ -1639,8 +1655,8 @@ def reload_catalogs_service():
     Service endpoint: hot-reload declarative JSON catalogs into this worker's memory.
 
     Requires ``X-Service-Key`` (same as other ``/service/dutch/*`` routes).
-    Does **not** restart Flask/gunicorn — only re-reads ``table_tiers.json`` and
-    ``consumables_catalog.json`` and rebuilds in-process maps/revisions.
+    Does **not** restart Flask/gunicorn — only re-reads ``table_tiers.json``,
+    ``gameplay_profiles.json``, and ``consumables_catalog.json`` and rebuilds in-process maps/revisions.
     """
     try:
         result = catalog_reload.reload_all_catalogs(_app_manager)

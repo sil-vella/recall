@@ -3,6 +3,8 @@ import '../../utils/platform/shared_imports.dart';
 import '../utils/rank_matcher.dart';
 import '../utils/comp_player_seat_helper.dart';
 import '../utils/level_matcher.dart';
+import '../utils/gameplay_profile_resolver.dart';
+import '../shared_logic/utils/game_rules_context.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
@@ -694,20 +696,31 @@ class GameEventCoordinator {
     final showInstructionsRaw = data['showInstructions'];
     
     final showInstructions = _parseBoolValue(showInstructionsRaw, defaultValue: false);
+
+    final persistedSeIdEarly = current['special_event_id']?.toString().trim();
+    final roomSeIdEarly = roomInfo?.specialEventId?.trim();
+    final specialEventIdEarly = (persistedSeIdEarly != null && persistedSeIdEarly.isNotEmpty)
+        ? persistedSeIdEarly
+        : (roomSeIdEarly != null && roomSeIdEarly.isNotEmpty ? roomSeIdEarly : null);
+    final profileSnapshot = GameplayProfileResolver.resolveSnapshot(
+      specialEventId: specialEventIdEarly,
+      profileId: data['gameplay_profile_id']?.toString(),
+    );
+    final matchRules = GameRulesContext(profileSnapshot);
+    final cardsPerHand = matchRules.cardsPerHand;
     
-    
-    // Build deck and deal 4 cards per player (as in practice)
-    // showInstructions=true → use demo_deck
-    // showInstructions=false/null → no override, use YAML config default (testing_mode setting)
+    // Build deck and deal cards per player (as in practice)
+    // showInstructions=true → use demo_deck (overrides profile deck)
     final String? deckTypeOverride;
     if (showInstructions) {
-      // Instructions ON → use demo deck
       deckTypeOverride = 'demo';
-      
     } else {
-      // Instructions OFF or not set → no override, use YAML config default
-      deckTypeOverride = null;
-      
+      final deckSource = matchRules.deckSource;
+      if (deckSource == 'demo' || deckSource == 'testing') {
+        deckTypeOverride = deckSource;
+      } else {
+        deckTypeOverride = null;
+      }
     }
     
     final deckFactory = await YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH, deckTypeOverride: deckTypeOverride);
@@ -802,7 +815,7 @@ class GameEventCoordinator {
       if (usePredefinedHands) {
         final predefinedHand = predefinedHandsLoader.getHandForPlayer(predefinedHandsConfig, playerIndex);
         
-        if (predefinedHand != null && predefinedHand.length == 4) {
+        if (predefinedHand != null && predefinedHand.length == cardsPerHand) {
           
           
           // Find and deal the predefined cards from the deck
@@ -847,14 +860,14 @@ class GameEventCoordinator {
         } else {
           // No predefined hand for this player, deal randomly
           
-      for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
+      for (int i = 0; i < cardsPerHand && drawStack.isNotEmpty; i++) {
         final c = drawStack.removeAt(0);
             hand.add(_cardToIdOnly(c));
           }
         }
       } else {
         // Predefined hands disabled, deal randomly
-        for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
+        for (int i = 0; i < cardsPerHand && drawStack.isNotEmpty; i++) {
           final c = drawStack.removeAt(0);
           hand.add(_cardToIdOnly(c));
         }
@@ -879,11 +892,7 @@ class GameEventCoordinator {
     
     // Pot: per-player entry fees × seated players; special events use catalog coin_fee + rewards.coins bonus.
     final activePlayerCount = players.length;
-    final persistedSeId = current['special_event_id']?.toString().trim();
-    final roomSeId = roomInfo?.specialEventId?.trim();
-    final specialEventId = (persistedSeId != null && persistedSeId.isNotEmpty)
-        ? persistedSeId
-        : (roomSeId != null && roomSeId.isNotEmpty ? roomSeId : null);
+    final specialEventId = specialEventIdEarly;
     var coinCost = LevelMatcher.tableLevelToCoinFee(gameLevel, defaultFee: 25);
     var rewardCoinsBonus = 0;
     if (specialEventId != null) {
@@ -921,26 +930,17 @@ class GameEventCoordinator {
         'playerCount': players.length,
         'maxPlayers': maxPlayers,
         'minPlayers': minPlayers,
-        'showInstructions': showInstructions, // Store instructions switch
-        'match_class': 'standard', // Placeholder for future match class system
+        'showInstructions': showInstructions,
+        'match_class': matchRules.profileId,
+        'gameplay_rules': matchRules.toSnapshot(),
         'coin_cost_per_player': coinCost,
         'match_pot': pot,
         if (rewardCoinsBonus > 0) 'special_event_reward_coins': rewardCoinsBonus,
         'isCoinRequired': isCoinRequired,
-        'isClearAndCollect': () {
-          try {
-            final rawValue = data['isClearAndCollect'];
-            
-            final parsedValue = _parseBoolValue(rawValue, defaultValue: true);
-            
-            return parsedValue;
-          } catch (e, stackTrace) {
-            
-            
-            rethrow;
-          }
-        }(), // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
-        'timerConfig': ServerGameStateCallbackImpl.getAllTimerValues(), // Get timer values from registry (single source of truth)
+        'isClearAndCollect': specialEventId != null && specialEventId.isNotEmpty
+            ? matchRules.clearAndCollect
+            : _parseBoolValue(data['isClearAndCollect'], defaultValue: true),
+        'timerConfig': GameplayProfileResolver.mergeTimerConfig(profileSnapshot),
       };
       // Tournament data from DB (create_room payload) — passed into game state for tournament matches
       final isTournament = data['is_tournament'] == true;

@@ -8,6 +8,7 @@ import '../../../../utils/dev_logger.dart';
 import '../../utils/platform/shared_imports.dart';
 import '../utils/rank_matcher.dart';
 import 'utils/computer_player_factory.dart';
+import 'utils/game_rules_context.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
@@ -2328,6 +2329,13 @@ class DutchGameRound {
       // Draw card based on source
       Map<String, dynamic>? drawnCard;
       
+      if (source == 'discard') {
+        final rules = GameRulesContext.fromGameState(gameState);
+        if (!rules.discardTakeAllowed) {
+          return false;
+        }
+      }
+      
       if (source == 'deck') {
         // Draw from draw pile (accept List<String> or List<Map> from state)
         final drawPile = _ensureCardMapList(gameState['drawPile']);
@@ -2652,6 +2660,15 @@ class DutchGameRound {
         return false;
       }
       
+      final matchRules = GameRulesContext.fromGameState(gameState);
+      if (!matchRules.dutchCallEnabled) {
+        _stateCallback.onActionError(
+          'Dutch call is disabled for this match',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        return false;
+      }
+      
       // Check if Dutch has already been called
       if (_dutchCaller != null) {
         
@@ -2767,7 +2784,7 @@ class DutchGameRound {
       }
       
       // Check if collection mode is enabled
-      final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
+      final isClearAndCollect = GameRulesContext.fromGameState(gameState).clearAndCollect;
       if (!isClearAndCollect) {
         
         _stateCallback.onActionError(
@@ -3003,6 +3020,10 @@ class DutchGameRound {
       // This is a winning condition - only check if collection mode is enabled
       // Note: isClearAndCollect is already defined earlier in this method
       if (isClearAndCollect && collectionRankCards.length == 4) {
+        final collectRules = GameRulesContext.fromGameState(gameState);
+        if (!collectRules.fourOfAKindCollectionWin) {
+          return true;
+        }
         final playerName = player['name']?.toString() ?? 'Unknown';
         
         
@@ -3105,7 +3126,7 @@ class DutchGameRound {
       
 
       // Check if card is in player's collection_rank_cards (cannot be played) - only if collection mode is enabled
-      final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
+      final isClearAndCollect = GameRulesContext.fromGameState(gameState).clearAndCollect;
       if (isClearAndCollect) {
         final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
         for (var collectionCard in collectionRankCards) {
@@ -3295,9 +3316,9 @@ class DutchGameRound {
         'suit': cardToPlayFullData['suit']
       });
 
-      // Then trigger same rank window (backend game_round.py line 487)
-      // This allows other players to play cards of the same rank out-of-turn
-      _handleSameRankWindow(actualPlayerId);
+      if (GameRulesContext.fromGameState(gameState).sameRankOutOfTurn) {
+        _handleSameRankWindow(actualPlayerId);
+      }
 
       // CRITICAL: Update known_cards BEFORE clearing drawnCard property
       // This ensures the just-drawn card detection logic can work properly
@@ -3309,13 +3330,16 @@ class DutchGameRound {
       final isEmpty = finalHand.isEmpty || finalHand.every((card) => card == null);
       
       if (isEmpty) {
-        final playerName = player['name']?.toString() ?? 'Unknown';
-        _winnersList.add({
-          'playerId': actualPlayerId,
-          'playerName': playerName,
-          'winType': 'empty_hand',
-        });
-        
+        final playRules = GameRulesContext.fromGameState(gameState);
+        if (playRules.emptyHandWin) {
+          final playerName = player['name']?.toString() ?? 'Unknown';
+          _winnersList.add({
+            'playerId': actualPlayerId,
+            'playerName': playerName,
+            'winType': 'empty_hand',
+          });
+          
+        }
       }
       
       // Handle drawn card repositioning with smart blank slot system
@@ -3803,13 +3827,16 @@ class DutchGameRound {
       final isEmpty = finalHand.isEmpty || finalHand.every((card) => card == null);
       
       if (isEmpty) {
-        final playerName = player['name']?.toString() ?? 'Unknown';
-        _winnersList.add({
-          'playerId': playerId,
-          'playerName': playerName,
-          'winType': 'empty_hand',
-        });
-        
+        final sameRankRules = GameRulesContext.fromGameState(gameState);
+        if (sameRankRules.emptyHandWin) {
+          final playerName = player['name']?.toString() ?? 'Unknown';
+          _winnersList.add({
+            'playerId': playerId,
+            'playerName': playerName,
+            'winType': 'empty_hand',
+          });
+          
+        }
       }
       
       return true;
@@ -3965,7 +3992,7 @@ class DutchGameRound {
       }
 
       // Remove swapped cards from their original owner's collection_rank_cards - only if collection mode is enabled
-      final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
+      final isClearAndCollect = GameRulesContext.fromGameState(gameState).clearAndCollect;
       if (isClearAndCollect) {
         // Check if firstCardId is in firstPlayer's collection_rank_cards
         final firstPlayerCollectionCards = firstPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
@@ -4418,6 +4445,10 @@ class DutchGameRound {
       final cardSuit = cardData['suit']?.toString() ?? 'unknown';
       
       if (cardRank == 'jack') {
+        final rules = GameRulesContext.fromGameState(_getCurrentGameState());
+        if (!rules.jackSwapEnabled) {
+          return;
+        }
         // Store special card data chronologically (not grouped by player)
         final specialCardInfo = {
           'player_id': playerId,
@@ -4435,6 +4466,10 @@ class DutchGameRound {
         
         
       } else if (cardRank == 'queen') {
+        final rules = GameRulesContext.fromGameState(_getCurrentGameState());
+        if (!rules.queenPeekEnabled) {
+          return;
+        }
         // Store special card data chronologically (not grouped by player)
         final specialCardInfo = {
           'player_id': playerId,
@@ -4705,7 +4740,7 @@ class DutchGameRound {
       }
       
       // Check if collection mode is enabled
-      final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
+      final isClearAndCollect = GameRulesContext.fromGameState(gameState).clearAndCollect;
       if (!isClearAndCollect) {
         
         return;
@@ -5259,7 +5294,14 @@ class DutchGameRound {
           } else if (rank == 'queen' || rank == 'jack') {
             cardPoints = 10; // Queens and Jacks are 10 points
           } else if (rank == 'king') {
-            cardPoints = 10; // All Kings (including Red King) are 10 points
+            final rules = GameRulesContext.fromGameState(gameState);
+            final suit = fullCard['suit']?.toString().toLowerCase() ?? '';
+            final isRed = suit == 'hearts' || suit == 'diamonds';
+            if (isRed) {
+              cardPoints = rules.redKingPoints;
+            } else {
+              cardPoints = 10;
+            }
           } else {
             // Numbered cards (2-10): points equal to card number
             final cardNumber = int.tryParse(rank);
@@ -5438,7 +5480,7 @@ class DutchGameRound {
       
       
       // Get collection card IDs - only exclude collection cards if collection mode is enabled
-      final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
+      final isClearAndCollect = GameRulesContext.fromGameState(gameState).clearAndCollect;
       final collectionCardIds = isClearAndCollect
         ? collectionRankCards
             .map((c) => c is Map ? (c['cardId']?.toString() ?? '') : '')

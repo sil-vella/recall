@@ -57,6 +57,8 @@ Defines **room table tiers** (lobby `game_level`: title, coin fee, min user leve
 
 Distinct string `id` (not a table level). Used for special-match presets: metadata, rewards, optional art under `app_media/media/event_media/<id>/`.
 
+Optional **`gameplay_profile_id`** — references a row in [gameplay_profiles.json](../../python_base_04/core/modules/dutch_game/config/gameplay_profiles.json) (see [GAMEPLAY_PROFILES.md](./GAMEPLAY_PROFILES.md)). When set, the Dart WS server applies that rule preset at match start (collection mode, timers, powers, etc.). Omitted = `classic`.
+
 **`style` (in-game + lobby):**
 
 | Field | Media / effect |

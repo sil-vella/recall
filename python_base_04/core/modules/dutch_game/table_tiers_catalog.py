@@ -216,6 +216,11 @@ def _normalize_special_events(raw: Any) -> List[Dict[str, Any]]:
         style = _finalize_event_style(item.get("style"))
         if style:
             row["style"] = style
+        gpid_raw = item.get("gameplay_profile_id")
+        if gpid_raw is not None and str(gpid_raw).strip():
+            gpid = str(gpid_raw).strip()
+            if _EVENT_ID_RE.match(gpid):
+                row["gameplay_profile_id"] = gpid
         out.append(row)
     return out
 
@@ -387,6 +392,8 @@ def reload_from_disk() -> Dict[str, Any]:
     _SPECIAL_EVENTS_BY_ID.clear()
     _SPECIAL_EVENTS_BY_ID.update(events_index)
 
+    validate_special_event_profile_refs(list(events_index.values()))
+
     _sync_tier_rank_matcher_aliases(level_order=new_order)
 
     return {
@@ -396,6 +403,17 @@ def reload_from_disk() -> Dict[str, Any]:
         "tier_count": len(order_list),
         "special_event_count": len(events_index),
     }
+
+
+def list_special_events() -> List[Dict[str, Any]]:
+    return [dict(e) for e in _SPECIAL_EVENTS_BY_ID.values()]
+
+
+def validate_special_event_profile_refs(events: Optional[List[Dict[str, Any]]] = None) -> None:
+    from . import gameplay_profiles_catalog as gpc
+
+    rows = events if events is not None else list_special_events()
+    gpc.validate_special_event_profile_refs(rows)
 
 
 def special_event_row_by_id(event_id: str) -> Optional[Dict[str, Any]]:
@@ -643,3 +661,6 @@ def build_client_table_tiers_payload(public_base_url: str) -> Dict[str, Any]:
                 if bg_url:
                     meta["banner_image_url"] = bg_url
     return doc
+
+
+validate_special_event_profile_refs()

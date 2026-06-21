@@ -22,6 +22,7 @@ import 'dutch_firebase_analytics.dart';
 import '../backend_core/utils/level_matcher.dart';
 import 'table_tiers_bootstrap.dart';
 import 'consumables_catalog_bootstrap.dart';
+import 'gameplay_profiles_bootstrap.dart';
 import 'progression_config_bootstrap.dart';
 import 'achievements_catalog_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
@@ -1305,6 +1306,7 @@ class DutchGameHelpers {
     try {
       await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
       await ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats();
+      await GameplayProfilesBootstrap.hydrateFromPrefsBeforeStats();
       await ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats();
       await AchievementsCatalogBootstrap.hydrateFromPrefsBeforeStats();
 
@@ -1316,6 +1318,8 @@ class DutchGameHelpers {
 
       final revision = await TableTiersBootstrap.getStoredRevisionForApi();
       final consumablesRevision = await ConsumablesCatalogBootstrap.getStoredRevisionForApi();
+      final gameplayProfilesRevision =
+          await GameplayProfilesBootstrap.getStoredRevisionForApi();
       final progressionRevision = await ProgressionConfigBootstrap.getStoredRevisionForApi();
       final achievementsRevision = await AchievementsCatalogBootstrap.getStoredRevisionForApi();
       final queryParts = <String>[];
@@ -1324,6 +1328,10 @@ class DutchGameHelpers {
       }
       if (consumablesRevision != null && consumablesRevision.isNotEmpty) {
         queryParts.add('client_consumables_catalog_revision=${Uri.encodeQueryComponent(consumablesRevision)}');
+      }
+      if (gameplayProfilesRevision != null && gameplayProfilesRevision.isNotEmpty) {
+        queryParts.add(
+            'client_gameplay_profiles_revision=${Uri.encodeQueryComponent(gameplayProfilesRevision)}');
       }
       if (progressionRevision != null && progressionRevision.isNotEmpty) {
         queryParts.add('client_progression_config_revision=${Uri.encodeQueryComponent(progressionRevision)}');
@@ -1380,6 +1388,7 @@ class DutchGameHelpers {
 
       await TableTiersBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await ConsumablesCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
+      await GameplayProfilesBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await ProgressionConfigBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await AchievementsCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
 

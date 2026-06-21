@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "classic": {
+      "id": "classic",
+      "label": "Classic Dutch",
+      "description": "Standard rules — no collection.",
+      "extends": null,
+      "flags": {
+        "clear_and_collect": false,
+        "same_rank_out_of_turn": true,
+        "queen_peek": true,
+        "jack_swap": true,
+        "dutch_call": true,
+        "discard_take_allowed": true
+      },
+      "deal": {
+        "cards_per_hand": 4,
+        "initial_peek_count": 2
+      },
+      "timers": {},
+      "deck": {
+        "source": "standard"
+      },
+      "scoring": {
+        "red_king_points": 10
+      },
+      "win_conditions": {
+        "empty_hand": true,
+        "lowest_points_after_dutch": true,
+        "four_of_a_kind_collection": false
+      }
+    },
+    "collector": {
+      "id": "collector",
+      "label": "Clear and Collect",
+      "description": "Full collection mode with four-of-a-kind instant win.",
+      "extends": "classic",
+      "flags": {
+        "clear_and_collect": true
+      },
+      "win_conditions": {
+        "four_of_a_kind_collection": true
+      }
+    },
+    "speed_classic": {
+      "id": "speed_classic",
+      "label": "Speed Dutch",
+      "description": "Classic rules with shorter turn timers.",
+      "extends": "classic",
+      "timers": {
+        "drawing_card": 3,
+        "playing_card": 8,
+        "same_rank_window": 3
+      }
+    },
+    "no_powers": {
+      "id": "no_powers",
+      "label": "Powerless",
+      "description": "Queens and Jacks play as plain 10-point cards.",
+      "extends": "classic",
+      "flags": {
+        "queen_peek": false,
+        "jack_swap": false
+      }
+    },
+    "red_king_royale": {
+      "id": "red_king_royale",
+      "label": "Red King Royale",
+      "description": "Classic rules with red kings worth zero points.",
+      "extends": "classic",
+      "scoring": {
+        "red_king_points": 0
+      }
+    }
+  }
+}

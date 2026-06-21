@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../modules/dutch_game/backend_core/utils/gameplay_profiles_store.dart';
+import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/progression_config_store.dart';
 import '../utils/config.dart';
 
@@ -162,7 +164,7 @@ class PythonApiClient {
     }
   }
   
-  /// Load declarative progression config from Python (no user_id).
+  /// Load declarative catalogs from Python (no user_id).
   Future<bool> fetchInitConfig() async {
     final useKey = Config.usePythonServiceKey;
     final serviceKey = useKey ? Config.pythonServiceKey : '';
@@ -173,9 +175,13 @@ class PythonApiClient {
 
     try {
       final body = <String, dynamic>{};
-      final rev = ProgressionConfigStore.cachedRevision;
-      if (rev != null && rev.isNotEmpty) {
-        body['client_progression_config_revision'] = rev;
+      final progRev = ProgressionConfigStore.cachedRevision;
+      if (progRev != null && progRev.isNotEmpty) {
+        body['client_progression_config_revision'] = progRev;
+      }
+      final gpRev = GameplayProfilesStore.cachedRevision;
+      if (gpRev != null && gpRev.isNotEmpty) {
+        body['client_gameplay_profiles_revision'] = gpRev;
       }
       final response = await http.post(
         Uri.parse('$baseUrl/service/dutch/get-init-data'),
@@ -203,6 +209,25 @@ class PythonApiClient {
           ProgressionConfigStore.updateRevisionOnly(revOnly);
         }
       }
+
+      final gpPayload = result['gameplay_profiles'];
+      if (gpPayload is Map<String, dynamic>) {
+        GameplayProfilesStore.applyDocument(
+          Map<String, dynamic>.from(gpPayload),
+          revision: result['gameplay_profiles_revision']?.toString(),
+        );
+      } else {
+        final gpRevOnly = result['gameplay_profiles_revision']?.toString().trim();
+        if (gpRevOnly != null && gpRevOnly.isNotEmpty) {
+          GameplayProfilesStore.updateRevisionOnly(gpRevOnly);
+        }
+      }
+
+      final ttPayload = result['table_tiers'];
+      if (ttPayload is Map<String, dynamic>) {
+        LevelMatcher.applyTableTiersDocument(Map<String, dynamic>.from(ttPayload));
+      }
+
       return true;
     } catch (_) {
       ProgressionConfigStore.ensureEnvFallback();

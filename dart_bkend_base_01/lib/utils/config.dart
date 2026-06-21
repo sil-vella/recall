@@ -202,6 +202,13 @@ class Config {
     '',
   );
 
+  /// Path to declarative gameplay profiles JSON ([gameplay_profiles.json]).
+  static String get DUTCH_GAMEPLAY_PROFILES_PATH => _getConfigString(
+    'DUTCH_GAMEPLAY_PROFILES_PATH',
+    'dutch_gameplay_profiles_path',
+    '',
+  );
+
   static String get DUTCH_RANK_HIERARCHY => _getConfigString(
     'DUTCH_RANK_HIERARCHY',
     'dutch_rank_hierarchy',

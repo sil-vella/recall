@@ -404,4 +404,20 @@ class LevelMatcher {
     final bonus = rewardCoinsBonus < 0 ? 0 : rewardCoinsBonus;
     return fee * n + bonus;
   }
+
+  /// Apply declarative table tiers document from Python init-data (hot reload).
+  static void applyTableTiersDocument(Map<String, dynamic> doc) {
+    _loaded = true;
+    _applyDocument(doc);
+  }
+
+  /// Re-read [table_tiers.json] from disk into memory.
+  static void reloadFromDisk() {
+    _loaded = false;
+    _tablesConfig = {};
+    _levelOrder = [];
+    _specialEvents = [];
+    _specialEventsExplicitlyEmptyInDoc = false;
+    _ensureLoaded();
+  }
 }

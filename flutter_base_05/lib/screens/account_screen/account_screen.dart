@@ -21,6 +21,7 @@ import '../../utils/profile_photo_helper.dart';
 import '../../utils/dev_logger.dart';
 import 'package:image_picker/image_picker.dart';
 import 'widgets/premium_subscription_section.dart';
+import 'widgets/account_panel_style.dart';
 
 // ignore: constant_identifier_names — flip false when done debugging login UI (see Documentation/Logging/LOGGING_SYSTEM.md).
 const bool LOGGING_SWITCH = false;
@@ -846,7 +847,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             child: Text(
               value,
               style: AppTextStyles.bodyMedium().copyWith(
-                color: AppColors.textPrimary,
+                color: AppColors.white,
               ),
             ),
           ),
@@ -1089,31 +1090,20 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     // If no stats available, show empty state or fetch button
     if (userStats == null) {
       return Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.cardVariant,
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+        decoration: accountPanelDecoration(),
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Game Statistics',
-              style: AppTextStyles.headingMedium(),
+            const DutchSectionHeader(
+              title: 'Game Statistics',
+              icon: Icons.bar_chart_outlined,
+              semanticIdentifier: 'account_stats_header',
             ),
             const SizedBox(height: 16),
             Text(
               'Statistics not available. Play a game to see your stats!',
-              style: AppTextStyles.bodyMedium().copyWith(
-                color: AppColors.textSecondary,
-              ),
+              style: AppTextStyles.bodyMedium(color: AppColors.white.withValues(alpha: 0.88)),
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
@@ -1126,15 +1116,12 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   _isLoading = false;
                 });
               },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Refresh Stats'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Theme.of(context).primaryColor,
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              icon: Icon(Icons.refresh, color: AppColors.accentColor),
+              label: Text(
+                'Refresh Stats',
+                style: AppTextStyles.bodyMedium(color: AppColors.accentColor),
               ),
+              style: accountPanelOutlinedButtonStyle(),
             ),
           ],
         ),
@@ -1153,42 +1140,28 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     final subscriptionTier = userStats['subscription_tier'] as String? ?? 'promotional';
     
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.cardVariant,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: accountPanelDecoration(),
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Game Statistics',
-                style: AppTextStyles.headingMedium(),
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: _isLoading ? null : () async {
-                  setState(() {
-                    _isLoading = true;
-                  });
-                  await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
-                  setState(() {
-                    _isLoading = false;
-                  });
-                },
-                tooltip: 'Refresh Stats',
-              ),
-            ],
+          DutchSectionHeader(
+            title: 'Game Statistics',
+            icon: Icons.bar_chart_outlined,
+            semanticIdentifier: 'account_stats_header',
+            trailing: IconButton(
+              icon: Icon(Icons.refresh, color: AppColors.accentColor2),
+              onPressed: _isLoading ? null : () async {
+                setState(() {
+                  _isLoading = true;
+                });
+                await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+                setState(() {
+                  _isLoading = false;
+                });
+              },
+              tooltip: 'Refresh Stats',
+            ),
           ),
           const SizedBox(height: 16),
           
@@ -1263,10 +1236,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: color.withOpacity(0.3),
+          color: color.withValues(alpha: 0.35),
           width: 1,
         ),
       ),
@@ -1280,8 +1253,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               Expanded(
                 child: Text(
                   label,
-                  style: AppTextStyles.label().copyWith(
-                    color: AppColors.textSecondary,
+                  style: AppTextStyles.label(
+                    color: AppColors.white.withValues(alpha: 0.75),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1291,8 +1264,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           const SizedBox(height: 8),
           Text(
             value,
-            style: AppTextStyles.headingSmall().copyWith(
-              color: color,
+            style: AppTextStyles.headingSmall(color: color).copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -2077,14 +2049,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           onPressed: _isLoading ? null : () async {
             await _handleClearAllUserDataFromStorage();
           },
-          icon: Icon(Icons.delete_outline, size: 20, color: AppColors.black),
+          icon: Icon(Icons.delete_outline, size: 20, color: AppColors.textOnAccent),
           label: Text(
             'Clear all user data from this device',
-            style: AppTextStyles.bodyMedium(color: AppColors.black),
+            style: AppTextStyles.bodyMedium(color: AppColors.textOnAccent),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.errorColor,
-            foregroundColor: AppColors.black,
+            foregroundColor: AppColors.textOnAccent,
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),

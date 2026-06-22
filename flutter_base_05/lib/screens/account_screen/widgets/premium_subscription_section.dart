@@ -10,6 +10,7 @@ import '../../../core/managers/state_manager.dart';
 import '../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../../modules/dutch_game/widgets/ui_kit/dutch_section_header.dart';
+import 'account_panel_style.dart';
 import '../../../utils/analytics_service.dart';
 import '../../../utils/coin_catalog.dart';
 import '../../../utils/consts/theme_consts.dart';
@@ -403,18 +404,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
 
   Widget _card({required Widget child}) {
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.accentColor.withValues(alpha: 0.6), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.cardVariant,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: accountPanelDecoration(),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -436,11 +426,14 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Premium active', style: AppTextStyles.headingSmall()),
+        Text(
+          'Premium active',
+          style: AppTextStyles.headingSmall(color: AppColors.white),
+        ),
         const SizedBox(height: 6),
         Text(
           CoinCatalog.premiumBenefitsShort,
-          style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+          style: AppTextStyles.bodyMedium(color: AppColors.white.withValues(alpha: 0.88)),
         ),
         if (exp != null && exp.isNotEmpty) ...[
           const SizedBox(height: 6),
@@ -456,16 +449,21 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
                 ? 'https://apps.apple.com/account/subscriptions'
                 : 'https://play.google.com/store/account/subscriptions',
           ),
+          style: accountPanelOutlinedButtonStyle(),
           child: Text(_isIos ? 'Manage on App Store' : 'Manage on Google Play'),
         ),
         const SizedBox(height: 8),
         OutlinedButton(
           onPressed: _syncing ? null : () => _restoreStorePurchases(),
+          style: accountPanelOutlinedButtonStyle(),
           child: _syncing
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.accentColor,
+                  ),
                 )
               : const Text('Sync subscription with server'),
         ),
@@ -485,7 +483,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
       children: [
         Text(
           CoinCatalog.premiumBenefitsShort,
-          style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
+          style: AppTextStyles.bodyMedium(color: AppColors.white.withValues(alpha: 0.88)),
         ),
         const SizedBox(height: 4),
         Text(
@@ -497,6 +495,12 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
           children: [
             Expanded(
               child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accentColor,
+                  foregroundColor: AppColors.white,
+                  disabledBackgroundColor: AppColors.accentColor.withValues(alpha: 0.45),
+                  disabledForegroundColor: AppColors.white.withValues(alpha: 0.6),
+                ),
                 onPressed: (_premiumBusyPlanKey != null || !_premiumProductsReady)
                     ? null
                     : () => _buyPremiumSubscription(monthlyPlan),
@@ -515,6 +519,12 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
             const SizedBox(width: 8),
             Expanded(
               child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accentColor,
+                  foregroundColor: AppColors.white,
+                  disabledBackgroundColor: AppColors.accentColor.withValues(alpha: 0.45),
+                  disabledForegroundColor: AppColors.white.withValues(alpha: 0.6),
+                ),
                 onPressed: (_premiumBusyPlanKey != null || !_premiumProductsReady)
                     ? null
                     : () => _buyPremiumSubscription(yearlyPlan),
@@ -535,11 +545,15 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
         const SizedBox(height: 12),
         OutlinedButton(
           onPressed: _syncing ? null : () => _restoreStorePurchases(),
+          style: accountPanelOutlinedButtonStyle(),
           child: _syncing
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.accentColor,
+                  ),
                 )
               : const Text('Already subscribed? Sync with server'),
         ),

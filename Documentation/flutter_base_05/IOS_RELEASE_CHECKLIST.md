@@ -173,6 +173,7 @@ Rebuild IPA so celebration share sheets include the link. `PLAY_STORE_URL` is se
 | Version already used / Transporter duplicate | Open **TestFlight → Build Uploads** first; if build is already there, skip Transporter; if you need new bits, bump build number, new Xcode Cloud build, then upload only if not auto-delivered |
 | Login spins forever on TestFlight / App Review | Cloud build missing prod `API_URL` — check pre-xcodebuild logs; set/refresh `DUTCH_DART_DEFINES_PROD_B64`; confirm not `10.0.2.2` |
 | `Missing DUTCH_DART_DEFINES_PROD_B64` in Cloud | Add workflow secret (base64 of `.env.dart.defines.prod`) |
+| Archive OK, **export** exit code **70** (all ad-hoc/dev/app-store) | Download build artifact **app-store-export-archive-logs/xcodebuild-export-archive.log**. Common: entitlement in app not in provisioning profile — remove bogus `Runner.entitlements` keys (e.g. `com.apple.developer.in-app-payments` is Apple Pay, not StoreKit). Ensure **In-App Purchase** is enabled on the App ID in Developer Portal. If logs show cert issues, revoke stale **Xcode Cloud managed** distribution certs in Developer Portal and re-run. |
 
 ---
 

@@ -31,7 +31,7 @@ This guide configures **App Store Connect** so product IDs align with **Google P
 1. **Paid Apps Agreement** — Account Holder accepts in App Store Connect → **Business** ([overview](https://developer.apple.com/help/app-store-connect/configure-in-app-purchase-settings/overview-for-configuring-in-app-purchases/) step 1).
 2. **Banking and tax** completed under **Business** (same as paid apps).
 3. App record exists: **Dutch Card Game** / `com.reignofplay.dutch`.
-4. **In-App Purchase capability** in Xcode: Runner target → **Signing & Capabilities** → **+ Capability** → **In-App Purchase** (when you implement StoreKit in the app).
+4. **In-App Purchase** on the App ID — [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list) → `com.reignofplay.dutch` → enable **In-App Purchase** (no `Runner.entitlements` file required for StoreKit; do **not** add `com.apple.developer.in-app-payments` — that is Apple Pay and breaks Xcode Cloud export with exit code **70**).
 
 ---
 

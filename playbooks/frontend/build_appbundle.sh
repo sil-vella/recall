@@ -213,6 +213,7 @@ set_production_deck_config
 # shellcheck source=flutter_dart_defines_common.sh
 source "$SCRIPT_DIR/flutter_dart_defines_common.sh"
 flutter_dart_defines_require_python || exit 1
+export DART_DEFINES_PLATFORM=android
 flutter_dart_defines_prepare "$DART_DEFINES_ENV" || exit 1
 flutter_dart_defines_print_summary build
 

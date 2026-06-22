@@ -35,6 +35,14 @@ flutter_dart_defines_prepare() {
   export DART_DEFINES_ENV DART_DEF_JSON
 }
 
+# Optional: DART_DEFINES_PLATFORM=ios|android (also export before calling prepare).
+flutter_dart_defines_prepare_for_platform() {
+  local env_file="$1"
+  local platform="$2"
+  export DART_DEFINES_PLATFORM="$platform"
+  flutter_dart_defines_prepare "$env_file"
+}
+
 # Optional arg: android | chrome | build (warnings for loopback on device)
 flutter_dart_defines_print_summary() {
   local mode="${1:-}"
@@ -58,6 +66,11 @@ d = json.load(open(p, encoding="utf-8"))
 mode = os.environ.get("FLUTTER_DART_DEFINES_MODE", "")
 for k in ("API_URL", "WS_URL", "BUILD_MODE", "APP_VERSION", "APP_PLATFORM", "PUBSPEC_BUILD_NUMBER"):
     print(f"   {k}={d.get(k, '')}")
+admob_keys = ("ADMOB_APPLICATION_ID", "ADMOBS_TOP_BANNER01", "ADMOBS_REWARDED01")
+for k in admob_keys:
+    v = d.get(k, "")
+    if v:
+        print(f"   {k}={v}")
 print("   (instant update modals: PackageInfo.version from pubspec on flutter run; APP_VERSION dart-define synced for local)")
 api = (d.get("API_URL") or "").lower()
 ws = (d.get("WS_URL") or "").lower()

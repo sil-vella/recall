@@ -405,6 +405,34 @@ class Config:
         "google_play_service_account_file", "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", ""
     )
 
+    # Apple App Store Server API (iOS IAP verify — coins + subscriptions)
+    APPLE_BUNDLE_ID = get_file_first_config_value(
+        "apple_bundle_id", "APPLE_BUNDLE_ID", "com.reignofplay.dutch"
+    )
+    APPLE_IAP_ISSUER_ID = get_file_first_config_value(
+        "apple_iap_issuer_id", "APPLE_IAP_ISSUER_ID", ""
+    )
+    APPLE_IAP_KEY_ID = get_file_first_config_value(
+        "apple_iap_key_id", "APPLE_IAP_KEY_ID", ""
+    )
+    # Path to App Store Connect In-App Purchase .p8 key (or use APPLE_IAP_PRIVATE_KEY inline).
+    APPLE_IAP_PRIVATE_KEY_FILE = get_file_first_config_value(
+        "apple_iap_private_key_file", "APPLE_IAP_PRIVATE_KEY_FILE", ""
+    )
+    APPLE_IAP_PRIVATE_KEY = get_sensitive_config_value(
+        "flask-app/apple-iap", "private_key", "apple_iap_private_key", "APPLE_IAP_PRIVATE_KEY", ""
+    )
+    # Sandbox | Production — must match the JWS environment from the client build.
+    APPLE_APP_STORE_ENVIRONMENT = get_file_first_config_value(
+        "apple_app_store_environment", "APPLE_APP_STORE_ENVIRONMENT", "Sandbox"
+    ).strip()
+    # Numeric App Store app id (required for Production JWS verification).
+    APPLE_APP_ID = get_file_first_config_value("apple_app_id", "APPLE_APP_ID", "6772967073")
+    # Optional directory of Apple root .cer files for SignedDataVerifier (defaults under assets/).
+    APPLE_ROOT_CERTS_DIR = get_file_first_config_value(
+        "apple_root_certs_dir", "APPLE_ROOT_CERTS_DIR", ""
+    )
+
     # AdMob rewarded claim (Flask /userauth/admob/claim-rewarded-ad; client after RewardedAd earned)
     ADMOB_REWARDED_COINS_PER_CLAIM = int(
         get_file_first_config_value("admob_rewarded_coins_per_claim", "ADMOB_REWARDED_COINS_PER_CLAIM", "10")

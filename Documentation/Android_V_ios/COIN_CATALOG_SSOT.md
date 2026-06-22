@@ -64,7 +64,7 @@ All **native store product IDs**, **coin amounts**, **Premium subscription IDs**
 - `get_store_recommended_packages()` — catalog rows
 - `get_premium_subscription_config()` — subscription metadata
 - Play verify: [`play_billing_main.py`](../../python_base_04/core/modules/play_billing_module/play_billing_main.py)
-- Apple verify: **not implemented yet**
+- Apple verify: [`apple_billing_main.py`](../../python_base_04/core/modules/apple_billing_module/apple_billing_main.py) — see [`APPLE_APP_STORE_BILLING.md`](../python_base_04/APPLE_APP_STORE_BILLING.md)
 
 ## Changing products
 

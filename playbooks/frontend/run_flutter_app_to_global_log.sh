@@ -71,7 +71,18 @@ ios_ensure_device_ready() {
 }
 
 flutter_dart_defines_require_python || exit 1
-flutter_dart_defines_prepare "$DART_DEFINES_ENV" || exit 1
+
+case "$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')" in
+  ios)
+    flutter_dart_defines_prepare_for_platform "$DART_DEFINES_ENV" ios || exit 1
+    ;;
+  android)
+    flutter_dart_defines_prepare_for_platform "$DART_DEFINES_ENV" android || exit 1
+    ;;
+  *)
+    flutter_dart_defines_prepare "$DART_DEFINES_ENV" || exit 1
+    ;;
+esac
 cleanup_json() { rm -f "${DART_DEF_JSON:-}"; }
 trap cleanup_json EXIT INT TERM HUP
 

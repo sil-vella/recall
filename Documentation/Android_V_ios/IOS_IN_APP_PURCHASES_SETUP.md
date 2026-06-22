@@ -4,7 +4,7 @@ This guide configures **App Store Connect** so product IDs align with **Google P
 
 **App:** Dutch Card Game — bundle ID `com.reignofplay.dutch` — Apple ID `6772967073`
 
-**Important:** The Flutter app currently enables Play Billing on **Android only**. iOS shows *“App Store billing is not enabled”* and there is **no** App Store server-verify module in `python_base_04` yet (only [`play_billing_module`](../../python_base_04/core/modules/play_billing_module/play_billing_main.py)). Creating products in App Store Connect is **step 1**; enabling purchases on iOS also requires StoreKit UI + **App Store Server API** (or StoreKit 2 + JWS validation) on the backend — outlined in [§8](#8-after-app-store-connect-code--server).
+**Important:** The Flutter app enables Play Billing on **Android** and App Store billing on **iOS**. Server verify: [`play_billing_module`](../../python_base_04/core/modules/play_billing_module/play_billing_main.py) (Android) and [`apple_billing_module`](../../python_base_04/core/modules/apple_billing_module/apple_billing_main.py) (iOS). Deploy guide: [`APPLE_APP_STORE_BILLING.md`](../python_base_04/APPLE_APP_STORE_BILLING.md).
 
 **Product ID SSOT:** [`COIN_CATALOG_SSOT.md`](COIN_CATALOG_SSOT.md) — keys `in_app_products`, `store_recommended_packages`, `premium_subscription.base_plans`. Flutter [`coin_catalog.dart`](../../flutter_base_05/lib/utils/coin_catalog.dart) and Python [`coin_catalog.py`](../../python_base_04/utils/coin_catalog.py) read the same JSON file.
 
@@ -202,7 +202,7 @@ To match Android **behavior**, not just product IDs:
 | Verify subscription | `POST /userauth/play/verify-subscription` | Apple subscription status + notifications → `subscription_tier` = `premium` |
 | Catalog | `store_recommended_packages` + `in_app_products` | Same IDs in StoreKit `queryProductDetails` via `CoinCatalog.storeRecommendedPackages` |
 
-Until §8 is implemented, creating IAPs in App Store Connect prepares the store but **the shipped iOS app will not sell coins in-app** (Stripe web fallback message remains).
+**Status:** §8 implemented — see [`Documentation/python_base_04/APPLE_APP_STORE_BILLING.md`](../python_base_04/APPLE_APP_STORE_BILLING.md).
 
 ---
 

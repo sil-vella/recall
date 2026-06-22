@@ -153,8 +153,8 @@ Play also uses parent SKU `premium_subscription` (Android only).
 | Flutter `CoinCatalog` | Yes — bundled JSON |
 | Python `utils/coin_catalog.py` | Yes — same file path |
 | Play verify | Yes — unknown `product_id` → 400 |
-| iOS StoreKit in app | **Not wired** — shows Stripe web message |
-| Apple server verify | **Not implemented** |
+| iOS StoreKit in app | **Wired** — App Store coin packs + Premium via `in_app_purchase` |
+| Apple server verify | **Implemented** — `apple_billing_module` (`/userauth/apple/*`) |
 
 Setup in Connect: [IOS_IN_APP_PURCHASES_SETUP.md](IOS_IN_APP_PURCHASES_SETUP.md)
 
@@ -260,7 +260,7 @@ Wait for **Processing** in TestFlight.
 | Build | `build_apk.sh` | `build_ipa.sh` |
 | Store IDs | Package = bundle ID | Bundle ID + Apple ID `6772967073` |
 | IAP SSOT | `dutch_coin_catalog.json` | Same file |
-| IAP live | Play + server verify | ASC setup in progress; app uses Stripe on iOS today |
+| IAP live | Play + server verify | App Store IAP + `apple_billing_module` server verify |
 | Upload | VPS optional | Transporter |
 
 [GOOGLE_PLAY_BILLING.md](../python_base_04/GOOGLE_PLAY_BILLING.md)

@@ -155,7 +155,7 @@ trap cleanup EXIT INT TERM HUP
 # shellcheck source=flutter_dart_defines_common.sh
 source "$SCRIPT_DIR/flutter_dart_defines_common.sh"
 flutter_dart_defines_require_python || exit 1
-flutter_dart_defines_prepare "$DART_DEFINES_ENV" || exit 1
+flutter_dart_defines_prepare_for_platform "$DART_DEFINES_ENV" android || exit 1
 flutter_dart_defines_print_summary android
 
 # shellcheck source=read_pubspec_version.sh

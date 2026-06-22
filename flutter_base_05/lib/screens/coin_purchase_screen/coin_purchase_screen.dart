@@ -25,7 +25,7 @@ import 'coin_purchase_celebration_screen.dart';
 
 /// **Web**: Stripe Checkout via `/userauth/stripe/create-coin-checkout-session`.
 /// **Android**: Google Play consumable coin packs + server verify `/userauth/play/verify-coin-purchase`.
-/// Premium subscription: Account screen (Android). **iOS**: coins via web (Stripe).
+/// **iOS**: App Store consumable coin packs + server verify `/userauth/apple/verify-coin-purchase`.
 class CoinPurchaseScreen extends BaseScreen {
   const CoinPurchaseScreen({Key? key}) : super(key: key);
 
@@ -108,8 +108,10 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
     });
   }
 
-  Future<void> _bootstrapPlayBilling() async {
-    if (!_isAndroid || !mounted) return;
+  bool get _isNativeStore => _isAndroid || _isIos;
+
+  Future<void> _bootstrapNativeStoreBilling() async {
+    if (!_isNativeStore || !mounted) return;
     final ok = await _playIap.isAvailable();
     if (!mounted) return;
     setState(() => _playBillingAvailable = ok);
@@ -165,17 +167,17 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
           final isCoinPack = CoinCatalog.playRecommendedPackages
               .any((row) => row['product_id']?.toString() == purchase.productID);
           if (isCoinPack) {
-            await _verifyPlayPurchaseOnServer(purchase);
+            await _verifyNativePurchaseOnServer(purchase);
           }
           break;
       }
     }
   }
 
-  Future<void> _verifyPlayPurchaseOnServer(PurchaseDetails purchase) async {
-    final token = playPurchaseToken(purchase);
+  Future<void> _verifyNativePurchaseOnServer(PurchaseDetails purchase) async {
+    final verifyFields = nativeCoinVerifyBody(purchase);
     final productId = purchase.productID;
-    if (token.isEmpty) {
+    if (verifyFields.isEmpty) {
       if (purchase.pendingCompletePurchase) {
         await _playIap.completePurchase(purchase);
       }
@@ -198,10 +200,14 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       return;
     }
 
+    final endpoint = _isIos
+        ? '/userauth/apple/verify-coin-purchase'
+        : '/userauth/play/verify-coin-purchase';
+
     try {
-      final raw = await api.sendPostRequest('/userauth/play/verify-coin-purchase', {
+      final raw = await api.sendPostRequest(endpoint, {
         'product_id': productId,
-        'purchase_token': token,
+        ...verifyFields,
       });
       if (raw is! Map) {
         throw Exception('Unexpected response');
@@ -244,7 +250,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         }
       }
       await AnalyticsService.logEvent(
-        name: 'play_coin_purchase_verified',
+        name: _isIos ? 'apple_coin_purchase_verified' : 'play_coin_purchase_verified',
         parameters: {'product_id': productId},
       );
     } catch (_) {
@@ -302,8 +308,8 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       if (!mounted) return;
       if (kIsWeb) {
         await _maybeHandleStripeReturn();
-      } else if (_isAndroid) {
-        await _bootstrapPlayBilling();
+      } else if (_isNativeStore) {
+        await _bootstrapNativeStoreBilling();
       }
     });
   }
@@ -811,10 +817,12 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                   ..._recommendedPackages.map(_buildPackageCard),
                 SizedBox(height: AppPadding.defaultPadding.top),
               ],
-              if (_isAndroid) ...[
+              if (_isNativeStore) ...[
                 _buildSectionHeader(
                   'Coin packages',
-                  'Purchases are processed by Google Play. Your account is credited after our server confirms the transaction.',
+                  _isIos
+                      ? 'Purchases are processed by the App Store. Your account is credited after our server confirms the transaction.'
+                      : 'Purchases are processed by Google Play. Your account is credited after our server confirms the transaction.',
                 ),
                 if (!_catalogReady)
                   Padding(
@@ -825,18 +833,14 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                   )
                 else if (!_playBillingAvailable)
                   Text(
-                    'Google Play Billing is not available on this device.',
+                    _isIos
+                        ? 'App Store billing is not available on this device.'
+                        : 'Google Play Billing is not available on this device.',
                     style: AppTextStyles.bodyMedium(color: AppColors.lightGray),
                   )
                 else
                   ...CoinCatalog.playRecommendedPackages.map(_buildPlayPackageRow),
                 SizedBox(height: AppPadding.defaultPadding.top),
-              ],
-              if (_isIos) ...[
-                _buildSectionHeader(
-                  'Coin packages',
-                  'App Store billing is not enabled in this build. Use the web app (Stripe) to buy coins.',
-                ),
               ],
             ],
           ),

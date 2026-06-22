@@ -8,16 +8,61 @@ optional single/double quotes on values). Avoids shell ARG_MAX when .env has man
 For `.env.dart.defines.local` (or BUILD_MODE=debug), **APP_VERSION** is taken from
 `flutter_base_05/pubspec.yaml` so dart-defines match the installed PackageInfo version used
 by global-broadcast update modals (`target_version` gate).
+
+Platform-specific AdMob test ids (iOS vs Android demo units):
+  export DART_DEFINES_PLATFORM=ios|android
+  Optional in env file: ADMOB_IOS_USE_TEST_IDS=1|0 (prod iOS builds; default 1 when unset)
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from admob_test_ids import ANDROID_ADMOB_TEST, IOS_ADMOB_TEST
+
 _LINE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 _VERSION_LINE = re.compile(r"^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+([0-9]+))?\s*$")
+
+
+def _falsy(val: str | None) -> bool:
+    return (val or "").strip().lower() in ("0", "false", "no", "off")
+
+
+def _apply_admob_platform_test_ids(obj: dict[str, str], env_path: Path) -> None:
+    platform = (os.environ.get("DART_DEFINES_PLATFORM") or obj.get("DART_DEFINES_PLATFORM") or "").strip().lower()
+    if platform not in ("ios", "android"):
+        return
+
+    use_test = True
+    if env_path.name == ".env.dart.defines.prod":
+        if platform == "ios":
+            raw = obj.get("ADMOB_IOS_USE_TEST_IDS")
+            if raw is not None and _falsy(raw):
+                use_test = False
+        else:
+            raw = obj.get("ADMOB_ANDROID_USE_TEST_IDS")
+            if raw is not None and _falsy(raw):
+                use_test = False
+    # Local dev: always use Google demo units for the target platform.
+
+    if not use_test:
+        return
+
+    mapping = IOS_ADMOB_TEST if platform == "ios" else ANDROID_ADMOB_TEST
+    for key, value in mapping.items():
+        obj[key] = value
+    print(
+        f"note: AdMob test ids applied for {platform} "
+        f"({env_path.name}; iOS app id is also set in ios/Flutter/*.xcconfig)",
+        file=sys.stderr,
+    )
 
 
 def parse_env(path: Path) -> dict[str, str]:
@@ -66,6 +111,8 @@ def main() -> None:
         sys.exit(1)
     obj = parse_env(inp)
     repo_root = inp.parent
+
+    _apply_admob_platform_test_ids(obj, inp)
 
     if _should_sync_app_version_from_pubspec(inp, obj):
         parsed = read_pubspec_version(repo_root)

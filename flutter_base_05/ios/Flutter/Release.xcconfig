@@ -1,3 +1,4 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
-GAD_APPLICATION_ID=ca-app-pub-6524100109992126~6470366151
+// Google iOS demo app id (test). Release builds: playbooks/frontend/ios_admob_gad_app_id.sh syncs from ADMOB_IOS_USE_TEST_IDS in .env.dart.defines.prod.
+GAD_APPLICATION_ID=ca-app-pub-3940256099942544~1458002511

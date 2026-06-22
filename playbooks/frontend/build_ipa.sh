@@ -48,6 +48,11 @@ cd "$REPO_ROOT/flutter_base_05"
 disable_logging_switch_for_release
 set_production_deck_config
 
+# shellcheck source=ios_admob_gad_app_id.sh
+source "$SCRIPT_DIR/ios_admob_gad_app_id.sh"
+ios_admob_gad_configure_from_env "$DART_DEFINES_ENV" "$REPO_ROOT/flutter_base_05/ios"
+
+export DART_DEFINES_PLATFORM=ios
 flutter_release_prepare_dart_defines "$DART_DEFINES_ENV"
 flutter_release_validate_api_url "$DART_DEF_JSON"
 flutter_dart_defines_print_summary build

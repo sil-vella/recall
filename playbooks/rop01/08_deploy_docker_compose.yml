@@ -67,6 +67,12 @@
             'STRIPE_COIN_CHECKOUT_CANCEL_URL': 'stripe_coin_checkout_cancel_url',
             'GOOGLE_PLAY_PACKAGE_NAME': 'google_play_package_name',
             'GOOGLE_PLAY_SERVICE_ACCOUNT_FILE': 'google_play_service_account_file',
+            'APPLE_BUNDLE_ID': 'apple_bundle_id',
+            'APPLE_IAP_ISSUER_ID': 'apple_iap_issuer_id',
+            'APPLE_IAP_KEY_ID': 'apple_iap_key_id',
+            'APPLE_IAP_PRIVATE_KEY_FILE': 'apple_iap_private_key_file',
+            'APPLE_APP_STORE_ENVIRONMENT': 'apple_app_store_environment',
+            'APPLE_APP_ID': 'apple_app_id',
         }
         result = { v: out.get(k, '') for k, v in mapping.items() }
         result.setdefault('app_version', '2.0.0')
@@ -113,6 +119,19 @@
         google_play_service_account_file: "{{ (env_json.stdout | default('{}') | from_json).google_play_service_account_file | default('') }}"
         flask_image_tag_from_env_prod: "{{ (env_json.stdout | default('{}') | from_json).flask_image_tag | default('') }}"
         dart_image_tag_from_env_prod: "{{ (env_json.stdout | default('{}') | from_json).dart_image_tag | default('') }}"
+      when: local_env_check.stat.exists | default(false)
+
+    - name: Set Apple env facts from app_dev/.env.prod
+      set_fact:
+        "{{ item.fact }}": "{{ (env_json.stdout | default('{}') | from_json)[item.json_key] | default(item.default_value) }}"
+      loop:
+        - { fact: apple_bundle_id, json_key: apple_bundle_id, default_value: 'com.reignofplay.dutch' }
+        - { fact: apple_iap_issuer_id, json_key: apple_iap_issuer_id, default_value: '' }
+        - { fact: apple_iap_key_id, json_key: apple_iap_key_id, default_value: '' }
+        - { fact: apple_iap_private_key_file, json_key: apple_iap_private_key_file, default_value: '/app/secrets/apple-iap-key.p8' }
+        - { fact: apple_app_store_environment, json_key: apple_app_store_environment, default_value: 'Production' }
+        - { fact: apple_app_id, json_key: apple_app_id, default_value: '6772967073' }
+      when: local_env_check.stat.exists | default(false)
 
     - name: Resolve flask_image_tag for deploy (priority -e > .env.prod > shell > latest)
       set_fact:
@@ -185,6 +204,12 @@
         stripe_coin_checkout_cancel_url: "{{ (hostvars['localhost'] | default({})).get('stripe_coin_checkout_cancel_url') or lookup('env', 'STRIPE_COIN_CHECKOUT_CANCEL_URL') | default('') }}"
         google_play_package_name: "{{ (hostvars['localhost'] | default({})).get('google_play_package_name') or lookup('env', 'GOOGLE_PLAY_PACKAGE_NAME') | default('') }}"
         google_play_service_account_file: "{{ (hostvars['localhost'] | default({})).get('google_play_service_account_file') or lookup('env', 'GOOGLE_PLAY_SERVICE_ACCOUNT_FILE') | default('') }}"
+        apple_bundle_id: "{{ (hostvars['localhost'] | default({})).get('apple_bundle_id') or lookup('env', 'APPLE_BUNDLE_ID') | default('com.reignofplay.dutch') }}"
+        apple_iap_issuer_id: "{{ (hostvars['localhost'] | default({})).get('apple_iap_issuer_id') or lookup('env', 'APPLE_IAP_ISSUER_ID') | default('') }}"
+        apple_iap_key_id: "{{ (hostvars['localhost'] | default({})).get('apple_iap_key_id') or lookup('env', 'APPLE_IAP_KEY_ID') | default('') }}"
+        apple_iap_private_key_file: "{{ (hostvars['localhost'] | default({})).get('apple_iap_private_key_file') or lookup('env', 'APPLE_IAP_PRIVATE_KEY_FILE') | default('/app/secrets/apple-iap-key.p8') }}"
+        apple_app_store_environment: "{{ (hostvars['localhost'] | default({})).get('apple_app_store_environment') or lookup('env', 'APPLE_APP_STORE_ENVIRONMENT') | default('Production') }}"
+        apple_app_id: "{{ (hostvars['localhost'] | default({})).get('apple_app_id') or lookup('env', 'APPLE_APP_ID') | default('6772967073') }}"
         flask_image_tag: "{{ (hostvars['localhost'] | default({})).get('flask_image_tag') or lookup('env', 'FLASK_IMAGE_TAG') | default('latest') }}"
         dart_image_tag: "{{ (hostvars['localhost'] | default({})).get('dart_image_tag') or lookup('env', 'DART_IMAGE_TAG') | default('latest') }}"
 
@@ -285,6 +310,30 @@
           Play coin/subscription verify will return 503 until you add the file and redeploy.
           See Documentation/python_base_04/GOOGLE_PLAY_BILLING.md
       when: not (google_play_sa_local.stat.exists | default(false))
+
+    - name: Stat Apple IAP private key on controller
+      stat:
+        path: "{{ local_repo_root }}/secrets/apple-iap-key.p8"
+      register: apple_iap_key_local
+      delegate_to: localhost
+      become: false
+
+    - name: Copy Apple IAP private key to VPS
+      copy:
+        src: "{{ local_repo_root }}/secrets/apple-iap-key.p8"
+        dest: "{{ data_dir }}/secrets/apple-iap-key.p8"
+        mode: '0600'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+      when: apple_iap_key_local.stat.exists | default(false)
+
+    - name: Warn when Apple IAP private key is missing locally
+      debug:
+        msg: >
+          WARNING: {{ local_repo_root }}/secrets/apple-iap-key.p8 not found.
+          iOS coin/subscription verify will return 503 until you add the file, set Apple IAP vars in .env.prod, and redeploy.
+          See Documentation/python_base_04/APPLE_APP_STORE_BILLING.md
+      when: not (apple_iap_key_local.stat.exists | default(false))
 
     - name: Ensure MongoDB data dir is owned by UID 1001 (Bitnami MongoDB default user)
       file:

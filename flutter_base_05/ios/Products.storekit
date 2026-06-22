@@ -1,0 +1,174 @@
+{
+  "identifier" : "DutchCoinCatalog",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "coins_100",
+      "localizations" : [
+        {
+          "description" : "Adds 100 coins to your balance.",
+          "displayName" : "Coin pack — 100",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "coins_100",
+      "referenceName" : "Coin pack 100",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "2.49",
+      "familyShareable" : false,
+      "internalID" : "coins_300",
+      "localizations" : [
+        {
+          "description" : "Adds 300 coins to your balance.",
+          "displayName" : "Coin pack — 300",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "coins_300",
+      "referenceName" : "Coin pack 300",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "3.99",
+      "familyShareable" : false,
+      "internalID" : "coin_500",
+      "localizations" : [
+        {
+          "description" : "Adds 500 coins to your balance.",
+          "displayName" : "Coin pack — 500",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "coin_500",
+      "referenceName" : "Coin pack 500",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "coins_700",
+      "localizations" : [
+        {
+          "description" : "Adds 700 coins to your balance.",
+          "displayName" : "Coin pack — 700",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "coins_700",
+      "referenceName" : "Coin pack 700",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "coins_1500",
+      "localizations" : [
+        {
+          "description" : "Adds 1500 coins to your balance.",
+          "displayName" : "Coin pack — 1500",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "coins_1500",
+      "referenceName" : "Coin pack 1500",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "19.99",
+      "familyShareable" : false,
+      "internalID" : "coins_3500",
+      "localizations" : [
+        {
+          "description" : "Adds 3500 coins to your balance.",
+          "displayName" : "Coin pack — 3500",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "coins_3500",
+      "referenceName" : "Coin pack 3500",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6772967073",
+    "_developerTeamID" : "D6J4Y6ZQGV",
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "DutchPremium",
+      "localizations" : [
+        {
+          "displayName" : "Dutch Premium",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Dutch Premium",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "premium_auto_renew_monthly",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Ad-free play and +11% coins on every coin pack",
+              "displayName" : "Premium (Monthly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "premium_auto_renew_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Premium Monthly",
+          "subscriptionGroupID" : "DutchPremium",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "39.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "premium_auto_renew_yearly",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Ad-free play and +11% coins on every coin pack",
+              "displayName" : "Premium (Yearly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "premium_auto_renew_yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Premium Yearly",
+          "subscriptionGroupID" : "DutchPremium",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

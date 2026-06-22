@@ -58,6 +58,11 @@ sync_pubspec_version "$APP_VERSION" "$BUILD_NUMBER"
 set_production_deck_config
 disable_logging_switch_for_release
 
+# shellcheck source=ios_admob_gad_app_id.sh
+source "$PLAYBOOKS_FRONTEND/ios_admob_gad_app_id.sh"
+ios_admob_gad_configure_from_env "$DART_DEFINES_ENV" "$FLUTTER_APP_DIR/ios"
+
+export DART_DEFINES_PLATFORM=ios
 flutter_release_prepare_dart_defines "$DART_DEFINES_ENV"
 flutter_release_validate_api_url "$DART_DEF_JSON"
 flutter_dart_defines_print_summary build

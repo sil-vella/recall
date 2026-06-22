@@ -15,8 +15,9 @@ import '../../../utils/coin_catalog.dart';
 import '../../../utils/consts/theme_consts.dart';
 import '../../../utils/play_purchase_token.dart';
 
-/// Google Play Premium subscription: purchase, server verify, and sync.
-/// Shown on the Account screen (Android). Coin packs stay on Buy coins.
+/// Native store Premium subscription: purchase, server verify, and sync.
+/// Android: Google Play `premium_subscription` SKU + base plans.
+/// iOS: App Store `premium_auto_renew_monthly` / `premium_auto_renew_yearly`.
 class PremiumSubscriptionSection extends StatefulWidget {
   const PremiumSubscriptionSection({super.key});
 
@@ -25,18 +26,23 @@ class PremiumSubscriptionSection extends StatefulWidget {
 }
 
 class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection> {
-  final InAppPurchase _playIap = InAppPurchase.instance;
-  StreamSubscription<List<PurchaseDetails>>? _playPurchaseSub;
+  final InAppPurchase _storeIap = InAppPurchase.instance;
+  StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
 
-  bool _playBillingAvailable = false;
+  bool _storeBillingAvailable = false;
   GooglePlayProductDetails? _premiumPlayDetails;
   final Map<String, String> _premiumOfferTokenByBasePlan = {};
-  String? _premiumBusyBasePlanId;
-  String? _pendingPremiumBasePlanId;
+  final Map<String, ProductDetails> _applePremiumDetails = {};
+  String? _premiumBusyPlanKey;
+  String? _pendingPremiumPlanKey;
   String? _premiumExpiresAt;
   bool _syncing = false;
 
   bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  bool get _isIos => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  bool get _isNativeStore => _isAndroid || _isIos;
 
   String? _subscriptionTier() {
     final stats = DutchGameHelpers.getUserDutchGameStats();
@@ -45,34 +51,57 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
 
   bool get _isPremium => (_subscriptionTier()?.trim().toLowerCase() ?? '') == 'premium';
 
+  String get _monthlyPlanKey => _isIos ? CoinCatalog.premiumAppleProductIdMonthly : CoinCatalog.premiumBasePlanMonthly;
+
+  String get _yearlyPlanKey => _isIos ? CoinCatalog.premiumAppleProductIdYearly : CoinCatalog.premiumBasePlanYearly;
+
+  Set<String> get _premiumProductIds {
+    if (_isIos) {
+      return {_monthlyPlanKey, _yearlyPlanKey}.where((id) => id.isNotEmpty).toSet();
+    }
+    final playId = CoinCatalog.premiumSubscriptionProductId;
+    return playId.isEmpty ? {} : {playId};
+  }
+
   @override
   void initState() {
     super.initState();
-    if (_isAndroid) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapPlayBilling());
+    if (_isNativeStore) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapNativeStoreBilling());
     }
   }
 
   @override
   void dispose() {
-    _playPurchaseSub?.cancel();
+    _purchaseSub?.cancel();
     super.dispose();
   }
 
-  Future<void> _bootstrapPlayBilling() async {
-    if (!_isAndroid || !mounted) return;
-    final ok = await _playIap.isAvailable();
+  Future<void> _bootstrapNativeStoreBilling() async {
+    if (!_isNativeStore || !mounted) return;
+    final ok = await _storeIap.isAvailable();
     if (!mounted) return;
-    setState(() => _playBillingAvailable = ok);
+    setState(() => _storeBillingAvailable = ok);
     if (!ok) return;
 
-    _playPurchaseSub?.cancel();
-    _playPurchaseSub = _playIap.purchaseStream.listen(_handlePlayPurchases, onError: (_) {});
+    _purchaseSub?.cancel();
+    _purchaseSub = _storeIap.purchaseStream.listen(_handleStorePurchases, onError: (_) {});
 
+    if (_isAndroid) {
+      await _loadAndroidPremiumProducts();
+    } else if (_isIos) {
+      await _loadIosPremiumProducts();
+    }
+
+    await _refreshSubscriptionStatus();
+    await _restoreStorePurchases(silent: true);
+  }
+
+  Future<void> _loadAndroidPremiumProducts() async {
     final premId = CoinCatalog.premiumSubscriptionProductId;
     if (premId.isEmpty) return;
 
-    final resp = await _playIap.queryProductDetails({premId});
+    final resp = await _storeIap.queryProductDetails({premId});
     if (!mounted) return;
 
     GooglePlayProductDetails? premDetails;
@@ -96,17 +125,33 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
         ..clear()
         ..addAll(offerTokens);
     });
+  }
 
-    await _refreshSubscriptionStatus();
-    await _restorePlayPurchases(silent: true);
+  Future<void> _loadIosPremiumProducts() async {
+    final ids = _premiumProductIds;
+    if (ids.isEmpty) return;
+
+    final resp = await _storeIap.queryProductDetails(ids);
+    if (!mounted) return;
+
+    final map = <String, ProductDetails>{};
+    for (final p in resp.productDetails) {
+      map[p.id] = p;
+    }
+    setState(() {
+      _applePremiumDetails
+        ..clear()
+        ..addAll(map);
+    });
   }
 
   Future<void> _refreshSubscriptionStatus() async {
-    if (!_isAndroid || !mounted) return;
+    if (!_isNativeStore || !mounted) return;
     final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
     if (api == null) return;
+    final endpoint = _isIos ? '/userauth/apple/subscription-status' : '/userauth/play/subscription-status';
     try {
-      final raw = await api.sendGetRequest('/userauth/play/subscription-status');
+      final raw = await api.sendGetRequest(endpoint);
       if (raw is! Map || raw['success'] != true) return;
       if (raw['refreshed'] == true) {
         await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
@@ -117,36 +162,53 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     } catch (_) {}
   }
 
-  Future<void> _buyPremiumSubscription(String basePlanId) async {
-    final details = _premiumPlayDetails;
-    final offerToken = _premiumOfferTokenByBasePlan[basePlanId];
-    if (details == null || offerToken == null || offerToken.isEmpty) {
-      _showSnack('Premium subscription is not available right now.');
-      return;
-    }
+  Future<void> _buyPremiumSubscription(String planKey) async {
     setState(() {
-      _premiumBusyBasePlanId = basePlanId;
-      _pendingPremiumBasePlanId = basePlanId;
+      _premiumBusyPlanKey = planKey;
+      _pendingPremiumPlanKey = planKey;
     });
     try {
-      final param = GooglePlayPurchaseParam(
-        productDetails: details,
-        offerToken: offerToken,
-      );
-      final started = await _playIap.buyNonConsumable(purchaseParam: param);
-      if (!started) {
-        _showSnack('Could not start subscription.');
+      if (_isAndroid) {
+        final details = _premiumPlayDetails;
+        final offerToken = _premiumOfferTokenByBasePlan[planKey];
+        if (details == null || offerToken == null || offerToken.isEmpty) {
+          _showSnack('Premium subscription is not available right now.');
+          return;
+        }
+        final param = GooglePlayPurchaseParam(
+          productDetails: details,
+          offerToken: offerToken,
+        );
+        final started = await _storeIap.buyNonConsumable(purchaseParam: param);
+        if (!started) {
+          _showSnack('Could not start subscription.');
+        }
+        return;
+      }
+
+      if (_isIos) {
+        final details = _applePremiumDetails[planKey];
+        if (details == null) {
+          _showSnack('Premium subscription is not available right now.');
+          return;
+        }
+        final started = await _storeIap.buyNonConsumable(
+          purchaseParam: PurchaseParam(productDetails: details),
+        );
+        if (!started) {
+          _showSnack('Could not start subscription.');
+        }
       }
     } catch (_) {
       _showSnack('Subscription purchase failed. Try again later.');
     } finally {
-      if (mounted) setState(() => _premiumBusyBasePlanId = null);
+      if (mounted) setState(() => _premiumBusyPlanKey = null);
     }
   }
 
-  Future<void> _handlePlayPurchases(List<PurchaseDetails> purchases) async {
+  Future<void> _handleStorePurchases(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
-      if (purchase.productID != CoinCatalog.premiumSubscriptionProductId) {
+      if (!_premiumProductIds.contains(purchase.productID)) {
         continue;
       }
       switch (purchase.status) {
@@ -157,27 +219,28 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
             _showSnack(purchase.error!.message);
           }
           if (purchase.pendingCompletePurchase) {
-            await _playIap.completePurchase(purchase);
+            await _storeIap.completePurchase(purchase);
           }
           break;
         case PurchaseStatus.canceled:
           if (purchase.pendingCompletePurchase) {
-            await _playIap.completePurchase(purchase);
+            await _storeIap.completePurchase(purchase);
           }
           break;
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _verifyPlaySubscriptionOnServer(purchase);
+          await _verifySubscriptionOnServer(purchase);
           break;
       }
     }
   }
 
-  Future<void> _verifyPlaySubscriptionOnServer(PurchaseDetails purchase) async {
-    final token = playPurchaseToken(purchase);
-    if (token.isEmpty) {
+  Future<void> _verifySubscriptionOnServer(PurchaseDetails purchase) async {
+    final productId = _isIos ? purchase.productID : CoinCatalog.premiumSubscriptionProductId;
+    final verifyFields = nativeSubscriptionVerifyBody(purchase, productId: productId);
+    if (verifyFields.isEmpty || !verifyFields.containsKey('product_id')) {
       if (purchase.pendingCompletePurchase) {
-        await _playIap.completePurchase(purchase);
+        await _storeIap.completePurchase(purchase);
       }
       return;
     }
@@ -188,13 +251,18 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
       return;
     }
 
-    final basePlanId = _pendingPremiumBasePlanId ?? '';
+    final endpoint = _isIos ? '/userauth/apple/verify-subscription' : '/userauth/play/verify-subscription';
+    final body = Map<String, dynamic>.from(verifyFields);
+    if (_isAndroid) {
+      body['subscription_id'] = CoinCatalog.premiumSubscriptionProductId;
+      final basePlanId = _pendingPremiumPlanKey ?? '';
+      if (basePlanId.isNotEmpty) {
+        body['base_plan_id'] = basePlanId;
+      }
+    }
+
     try {
-      final raw = await api.sendPostRequest('/userauth/play/verify-subscription', {
-        'purchase_token': token,
-        'subscription_id': CoinCatalog.premiumSubscriptionProductId,
-        if (basePlanId.isNotEmpty) 'base_plan_id': basePlanId,
-      });
+      final raw = await api.sendPostRequest(endpoint, body);
       if (raw is! Map) {
         throw Exception('Unexpected response');
       }
@@ -208,9 +276,9 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
       }
 
       if (purchase.pendingCompletePurchase) {
-        await _playIap.completePurchase(purchase);
+        await _storeIap.completePurchase(purchase);
       }
-      _pendingPremiumBasePlanId = null;
+      _pendingPremiumPlanKey = null;
       await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
       if (!mounted) return;
       final exp = map['expires_at']?.toString();
@@ -218,27 +286,31 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
       _showSnack(
         'Premium active. Ads are off and coin packs include +${CoinCatalog.subscriberCoinBonusPercent}%.',
       );
-      await AnalyticsService.logEvent(name: 'play_premium_subscription_verified');
+      await AnalyticsService.logEvent(
+        name: _isIos ? 'apple_premium_subscription_verified' : 'play_premium_subscription_verified',
+      );
     } catch (_) {
       _showSnack('Could not verify subscription. Tap Sync below to retry.');
     }
   }
 
-  Future<void> _restorePlayPurchases({bool silent = false}) async {
-    if (!_isAndroid || _syncing) return;
+  Future<void> _restoreStorePurchases({bool silent = false}) async {
+    if (!_isNativeStore || _syncing) return;
     setState(() => _syncing = true);
     try {
-      await _playIap.restorePurchases();
+      await _storeIap.restorePurchases();
       await _refreshSubscriptionStatus();
       if (!mounted || silent) return;
       _showSnack(
         _isPremium
             ? 'Subscription synced.'
-            : 'Checked Google Play. If you subscribed, tap Sync again after a moment.',
+            : _isIos
+                ? 'Checked the App Store. If you subscribed, tap Sync again after a moment.'
+                : 'Checked Google Play. If you subscribed, tap Sync again after a moment.',
       );
     } catch (_) {
       if (!silent && mounted) {
-        _showSnack('Could not restore purchases from Google Play.');
+        _showSnack(_isIos ? 'Could not restore purchases from the App Store.' : 'Could not restore purchases from Google Play.');
       }
     } finally {
       if (mounted) setState(() => _syncing = false);
@@ -258,12 +330,15 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     );
   }
 
-  String _priceForBasePlan(String basePlanId) {
+  String _priceForPlan(String planKey) {
+    if (_isIos) {
+      return _applePremiumDetails[planKey]?.price ?? '—';
+    }
     final details = _premiumPlayDetails;
-    if (details == null || basePlanId.isEmpty) return '—';
+    if (details == null || planKey.isEmpty) return '—';
     final offers = details.productDetails.subscriptionOfferDetails ?? [];
     for (final offer in offers) {
-      if (offer.basePlanId == basePlanId) {
+      if (offer.basePlanId == planKey) {
         final phases = offer.pricingPhases;
         if (phases.isNotEmpty) {
           return phases.first.formattedPrice;
@@ -273,30 +348,40 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     return details.price;
   }
 
+  bool get _premiumProductsReady {
+    if (_isIos) {
+      return _applePremiumDetails.containsKey(_monthlyPlanKey) ||
+          _applePremiumDetails.containsKey(_yearlyPlanKey);
+    }
+    return _premiumPlayDetails != null;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (kIsWeb) {
       return _card(
         child: Text(
-          'Premium subscription (ad-free + bonus coins) is available on the Android app via Google Play.',
+          'Premium subscription (ad-free + bonus coins) is available in the mobile app via Google Play or the App Store.',
           style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
         ),
       );
     }
 
-    if (!_isAndroid) {
+    if (!_isNativeStore) {
       return _card(
         child: Text(
-          'Premium subscription is available on Android via Google Play.',
+          'Premium subscription is available on Android and iOS.',
           style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
         ),
       );
     }
 
-    if (!_playBillingAvailable) {
+    if (!_storeBillingAvailable) {
       return _card(
         child: Text(
-          'Google Play Billing is not available on this device.',
+          _isIos
+              ? 'App Store billing is not available on this device.'
+              : 'Google Play Billing is not available on this device.',
           style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
         ),
       );
@@ -367,13 +452,15 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
         const SizedBox(height: 12),
         OutlinedButton(
           onPressed: () => ConnectionsApiModule.launchUrl(
-            'https://play.google.com/store/account/subscriptions',
+            _isIos
+                ? 'https://apps.apple.com/account/subscriptions'
+                : 'https://play.google.com/store/account/subscriptions',
           ),
-          child: const Text('Manage on Google Play'),
+          child: Text(_isIos ? 'Manage on App Store' : 'Manage on Google Play'),
         ),
         const SizedBox(height: 8),
         OutlinedButton(
-          onPressed: _syncing ? null : () => _restorePlayPurchases(),
+          onPressed: _syncing ? null : () => _restoreStorePurchases(),
           child: _syncing
               ? const SizedBox(
                   width: 20,
@@ -387,11 +474,10 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
   }
 
   Widget _buildPremiumSubscribeContent() {
-    final monthlyPlan = CoinCatalog.premiumBasePlanMonthly;
-    final yearlyPlan = CoinCatalog.premiumBasePlanYearly;
-    final prem = _premiumPlayDetails;
-    final monthlyPrice = prem != null ? _priceForBasePlan(monthlyPlan) : '—';
-    final yearlyPrice = prem != null ? _priceForBasePlan(yearlyPlan) : '—';
+    final monthlyPlan = _monthlyPlanKey;
+    final yearlyPlan = _yearlyPlanKey;
+    final monthlyPrice = _premiumProductsReady ? _priceForPlan(monthlyPlan) : '—';
+    final yearlyPrice = _premiumProductsReady ? _priceForPlan(yearlyPlan) : '—';
     final bonus = CoinCatalog.subscriberCoinBonusPercent;
 
     return Column(
@@ -411,10 +497,10 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
           children: [
             Expanded(
               child: FilledButton(
-                onPressed: (_premiumBusyBasePlanId != null || prem == null)
+                onPressed: (_premiumBusyPlanKey != null || !_premiumProductsReady)
                     ? null
                     : () => _buyPremiumSubscription(monthlyPlan),
-                child: _premiumBusyBasePlanId == monthlyPlan
+                child: _premiumBusyPlanKey == monthlyPlan
                     ? SizedBox(
                         width: 20,
                         height: 20,
@@ -429,10 +515,10 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
             const SizedBox(width: 8),
             Expanded(
               child: FilledButton(
-                onPressed: (_premiumBusyBasePlanId != null || prem == null)
+                onPressed: (_premiumBusyPlanKey != null || !_premiumProductsReady)
                     ? null
                     : () => _buyPremiumSubscription(yearlyPlan),
-                child: _premiumBusyBasePlanId == yearlyPlan
+                child: _premiumBusyPlanKey == yearlyPlan
                     ? SizedBox(
                         width: 20,
                         height: 20,
@@ -448,7 +534,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
         ),
         const SizedBox(height: 12),
         OutlinedButton(
-          onPressed: _syncing ? null : () => _restorePlayPurchases(),
+          onPressed: _syncing ? null : () => _restoreStorePurchases(),
           child: _syncing
               ? const SizedBox(
                   width: 20,

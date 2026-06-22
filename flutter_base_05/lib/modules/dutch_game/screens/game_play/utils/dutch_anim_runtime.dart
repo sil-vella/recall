@@ -28,6 +28,8 @@ class DutchAnimRuntime extends ChangeNotifier {
   static const String eventDataKey = 'eventData';
   static const String cardPositionsKey = 'cardPositions';
   static const String pileRectsKey = 'pileRects';
+  /// Snapshot of discard top before a [play_card] / [same_rank_play] flight lands.
+  static const String priorDiscardTopKey = 'prior_discard_top';
   static const String eventSeqKey = 'eventSeq';
   static const String cardPositionsVersionKey = 'cardPositionsVersion';
   /// Per [playerId] → [CardTableOrientation.name] (from [UnifiedGameBoardWidget] seat buckets).
@@ -44,6 +46,9 @@ class DutchAnimRuntime extends ChangeNotifier {
   /// Hand slots (`playerId|handIndex`) whose real [CardWidget] should not paint during an
   /// in-flight overlay tween (see [DutchCardAnimOverlay]). Same keys as layout slot paths.
   final Set<String> _animMaskedHandSlots = {};
+
+  /// Discard pile top painted by [DutchCardAnimOverlay] until the head play flight completes.
+  Map<String, dynamic>? _discardTopOverlayCard;
 
   /// While true, [enqueueGameAnimation] drops hints (app backgrounded).
   bool _lifecyclePaused = false;
@@ -84,6 +89,7 @@ class DutchAnimRuntime extends ChangeNotifier {
     if (!hadQueue && !hadMask) return;
     _eventData.clear();
     _animMaskedHandSlots.clear();
+    _discardTopOverlayCard = null;
     if (LOGGING_SWITCH) {
       customlog(
         'DutchAnimRuntime: flush on foreground resume '
@@ -104,6 +110,44 @@ class DutchAnimRuntime extends ChangeNotifier {
     if (_animMaskedHandSlots.isEmpty) return '';
     final sorted = _animMaskedHandSlots.toList()..sort();
     return sorted.join(',');
+  }
+
+  static bool isPlayToDiscardAction(String action) =>
+      action == 'play_card' || action == 'same_rank_play';
+
+  static bool _isPlayToDiscardAction(String action) => isPlayToDiscardAction(action);
+
+  /// Prior discard top held in overlay until head [play_card] / [same_rank_play] dequeues.
+  Map<String, dynamic>? get discardTopOverlayCard {
+    final c = _discardTopOverlayCard;
+    if (c == null || c.isEmpty) return null;
+    return Map<String, dynamic>.from(c);
+  }
+
+  /// For [UnifiedGameBoardWidget] anim-runtime listener dedupe / rebuild.
+  String get discardTopHoldSignature {
+    final hold = discardTopOverlayCard;
+    if (hold == null) return '';
+    return hold['cardId']?.toString() ?? '';
+  }
+
+  void _syncDiscardTopOverlayFromQueueHead() {
+    Map<String, dynamic>? hold;
+    for (final entry in _eventData) {
+      final action = entry['action_type']?.toString() ?? '';
+      if (!_isPlayToDiscardAction(action)) continue;
+      final prior = entry[priorDiscardTopKey];
+      if (prior is Map && prior.isNotEmpty) {
+        hold = Map<String, dynamic>.from(prior);
+      }
+      break;
+    }
+    final prevId = _discardTopOverlayCard?['cardId']?.toString() ?? '';
+    final nextId = hold?['cardId']?.toString() ?? '';
+    if (prevId == nextId && (hold != null) == (_discardTopOverlayCard != null)) {
+      return;
+    }
+    _discardTopOverlayCard = hold;
   }
 
   void setAnimMaskedHandSlots(Set<String> keys) {
@@ -149,6 +193,7 @@ class DutchAnimRuntime extends ChangeNotifier {
     _cardPositionsVersion = 0;
     _lastLayoutSignature = null;
     _animMaskedHandSlots.clear();
+    _discardTopOverlayCard = null;
 
     notifyListeners();
   }
@@ -198,6 +243,9 @@ class DutchAnimRuntime extends ChangeNotifier {
         );
       }
     }
+    if (_isPlayToDiscardAction(action)) {
+      _syncDiscardTopOverlayFromQueueHead();
+    }
     notifyListeners();
   }
 
@@ -242,15 +290,20 @@ class DutchAnimRuntime extends ChangeNotifier {
   void dequeueHead() {
     if (_eventData.isEmpty) return;
     final removed = _eventData.removeAt(0);
+    final removedAction = removed['action_type']?.toString() ?? '';
     if (LOGGING_SWITCH) {
-      final action = removed['action_type']?.toString() ?? '';
-      if (action == 'jack_swap' ||
-          action == 'queen_peek' ||
-          action == 'initial_peek') {
+      if (removedAction == 'jack_swap' ||
+          removedAction == 'queen_peek' ||
+          removedAction == 'initial_peek' ||
+          removedAction == 'play_card' ||
+          removedAction == 'same_rank_play') {
         customlog(
-          'DutchAnimRuntime.dequeue: action=$action seq=${removed['_seq']} remaining=${_eventData.length}',
+          'DutchAnimRuntime.dequeue: action=$removedAction seq=${removed['_seq']} remaining=${_eventData.length}',
         );
       }
+    }
+    if (_isPlayToDiscardAction(removedAction)) {
+      _syncDiscardTopOverlayFromQueueHead();
     }
     notifyListeners();
   }

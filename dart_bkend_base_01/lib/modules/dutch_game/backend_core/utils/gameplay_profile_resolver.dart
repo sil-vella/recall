@@ -3,7 +3,7 @@ import '../services/game_registry.dart';
 import 'gameplay_profiles_store.dart';
 import 'level_matcher.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Resolves declarative gameplay profiles for special events and match start.
 class GameplayProfileResolver {

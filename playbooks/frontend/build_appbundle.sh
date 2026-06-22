@@ -4,6 +4,7 @@
 # Builds an Android App Bundle for Dutch. Dart-define input: repo-root `.env.dart.defines.prod`.
 # Shell still sources `.env.prod` for APP_VERSION / auto-bump; mirrors to `.env.dart.defines.prod`,
 # pubspec.yaml, and iOS/Xcode version fields (via sync_pubspec_version.sh).
+# Reminds you to bump app_update target_version in global_broadcast_messages.json after build.
 # Output is for Play Store upload; no VPS upload.
 
 set -e
@@ -119,6 +120,44 @@ resolve_release_version_and_build "$APP_VERSION"
 write_app_version_to_env_files "$APP_VERSION"
 echo "🔢 Using APP_VERSION=$APP_VERSION BUILD_NUMBER=$BUILD_NUMBER"
 sync_pubspec_version "$APP_VERSION" "$BUILD_NUMBER"
+
+GLOBAL_BROADCAST_SEED="$REPO_ROOT/playbooks/00_local/files/global_broadcast_messages.json"
+log_global_broadcast_target_version_reminder() {
+  local app_version="$1"
+  local seed_file="${2:-$GLOBAL_BROADCAST_SEED}"
+  if [ ! -f "$seed_file" ]; then
+    echo "ℹ️  Reminder: bump app_update target_version in $seed_file to match APP_VERSION=$app_version, then sync to rop01"
+    return 0
+  fi
+  local current_target
+  current_target=$(python3 - "$seed_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+raw = json.loads(Path(sys.argv[1]).read_text())
+messages = raw.get("messages", raw if isinstance(raw, list) else [])
+for msg in messages:
+    if not isinstance(msg, dict):
+        continue
+    data = msg.get("data")
+    if isinstance(data, dict) and "target_version" in data:
+        print(data.get("target_version", ""))
+        break
+PY
+)
+  if [ -z "$current_target" ]; then
+    echo "ℹ️  Reminder: set app_update target_version in $seed_file to APP_VERSION=$app_version, then sync to rop01"
+    return 0
+  fi
+  if [ "$current_target" = "$app_version" ]; then
+    echo "✅ Global broadcast target_version ($current_target) matches APP_VERSION"
+  else
+    echo "⚠️  Reminder: bump global broadcast target_version ($current_target → $app_version) in $seed_file, then sync to rop01"
+  fi
+}
+echo ""
+log_global_broadcast_target_version_reminder "$APP_VERSION"
 
 # Navigate to Flutter project directory
 cd "$REPO_ROOT/flutter_base_05"

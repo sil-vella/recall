@@ -6,7 +6,7 @@ import '../modules/dutch_game/backend_core/utils/level_matcher.dart';
 import '../modules/dutch_game/backend_core/utils/progression_config_store.dart';
 import '../utils/config.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class PythonApiClient {
   final String baseUrl;

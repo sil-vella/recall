@@ -211,7 +211,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   // ========== My Hand State ==========
   List<String> _initialPeekSelectedCardIds = [];
   bool _isProcessingAction = false;
-  /// True immediately when user taps "Call Dutch"; shows "Dutch Active" until state catches up.
+  /// True immediately when user taps "Call Dutch"; shows Dutch Called chip until state catches up.
   bool _callDutchTappedPending = false;
   bool _isMyHandCardsToPeekProtected = false;
   List<dynamic>? _protectedMyHandCardsToPeek;
@@ -375,7 +375,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   String _computeAnimRuntimeStabilitySig() {
     final snap = DutchAnimRuntime.instance.snapshotForAnim();
     final q = snap[DutchAnimRuntime.eventDataKey] as List? ?? [];
-    return '${DutchAnimRuntime.instance.handAnimMaskSignature}|${q.length}';
+    return '${DutchAnimRuntime.instance.handAnimMaskSignature}|${q.length}|${DutchAnimRuntime.instance.discardTopHoldSignature}';
   }
 
   void _onAnimRuntimeForHandMask() {
@@ -877,7 +877,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 backgroundColor: _dutchHighlightColor.withValues(
                   alpha: _kTurnFeedBackgroundAlpha,
                 ),
-                textColor: AppColors.black,
+                textColor: AppColors.white,
               ),
             if (myTurnPlayPersistent.isNotEmpty)
               _buildTurnFeedBand(
@@ -2535,9 +2535,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     builder: (context, c) =>
                         _buildDrawPile(availableWidth: c.maxWidth, board: board),
                   ),
-                  const SizedBox(height: 8),
-                  _buildMatchPotRow(gameboardRowWidth, board),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+                  ClipRect(
+                    clipBehavior: Clip.none,
+                    child: _buildMatchPotRow(gameboardRowWidth, board),
+                  ),
+                  const SizedBox(height: 12),
                   LayoutBuilder(
                     builder: (context, c) =>
                         _buildDiscardPile(availableWidth: c.maxWidth, board: board),
@@ -2855,6 +2858,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
               // Only the top card is visible and clickable, but all are tracked for animation
               final topCardIndex = discardPile.length - 1;
               final topCardData = discardPile[topCardIndex] as Map<String, dynamic>? ?? {};
+              final overlayHold = DutchAnimRuntime.instance.discardTopOverlayCard;
+              final decorativeTopData = overlayHold ?? topCardData;
               
               // Create stacking effect with 2 additional cards behind
               final stackCards = <Widget>[];
@@ -2887,7 +2892,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                                 child: Opacity(
                                   opacity: 0.6 - (i * 0.2), // Fade effect: 0.6, 0.4
                                   child: CardWidget(
-                                    card: CardModel.fromMap(topCardData),
+                                    card: CardModel.fromMap(decorativeTopData),
                                     dimensions: cardDimensions,
                                     config: CardDisplayConfig.forDiscardPile(),
                                     onTap: null, // Background cards not clickable
@@ -2897,7 +2902,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                             : Opacity(
                                 opacity: 0.6 - (i * 0.2), // Fade effect: 0.6, 0.4
                                 child: CardWidget(
-                                  card: CardModel.fromMap(topCardData),
+                                  card: CardModel.fromMap(decorativeTopData),
                                   dimensions: cardDimensions,
                                   config: CardDisplayConfig.forDiscardPile(),
                                   onTap: null, // Background cards not clickable
@@ -2922,11 +2927,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 final cardKey = _getOrCreateCardKey(cardId, 'discard_pile');
                 final isTopCard = index == topCardIndex;
                 final isVisible = index >= topVisibleIndex; // Top 5 cards (or all if less than 5)
+                final hideTopForOverlay = isTopCard && overlayHold != null;
                 
                 stackCards.add(
                   Positioned.fill(
                     child: Opacity(
-                      opacity: isVisible ? 1.0 : 0.0, // Top 5 cards visible for tracking
+                      opacity: hideTopForOverlay
+                          ? 0.0
+                          : (isVisible ? 1.0 : 0.0), // Top 5 cards visible for tracking
                       child: CardWidget(
                         key: cardKey,
                         card: CardModel.fromMap(cardData),
@@ -2989,6 +2997,70 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   // ========== Match Pot Methods ==========
 
+  Widget _matchPotCoinWithShadow({required double size, required Color color}) {
+    final haloBlur = size * 0.14;
+    final haloSpread = size * 0.02;
+    return Padding(
+      padding: EdgeInsets.all(haloBlur * 0.4),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.black.withValues(alpha: 0.16),
+              blurRadius: haloBlur,
+              spreadRadius: haloSpread,
+              offset: Offset.zero,
+            ),
+            BoxShadow(
+              color: AppColors.black.withValues(alpha: 0.08),
+              blurRadius: haloBlur * 1.35,
+              spreadRadius: 0,
+              offset: Offset.zero,
+            ),
+          ],
+        ),
+        child: CoinIcon(size: size, color: color),
+      ),
+    );
+  }
+
+  /// One loose coin pile — spread horizontally with slight vertical jitter (not a tall stack).
+  Widget _buildMatchPotCoinCluster(double coinSize, Color color) {
+    const coinCount = 3;
+    final spreadX = coinSize * 0.56;
+    final coinPad = coinSize * 0.1;
+    final clusterWidth = spreadX * (coinCount - 1) + coinSize + coinPad * 2;
+    final clusterHeight = coinSize + coinSize * 0.22;
+
+    // Bottom-left anchors; later coins paint on top (right / slightly higher).
+    final layouts = <({double left, double bottom})>[
+      (left: coinPad, bottom: coinSize * 0.04),
+      (left: coinPad + spreadX, bottom: coinSize * 0.12),
+      (left: coinPad + spreadX * 2, bottom: 0),
+    ];
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: coinSize * 0.06),
+      child: SizedBox(
+        width: clusterWidth,
+        height: clusterHeight,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.bottomLeft,
+          children: [
+            for (final layout in layouts)
+              Positioned(
+                left: layout.left,
+                bottom: layout.bottom,
+                child: _matchPotCoinWithShadow(size: coinSize, color: color),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Match pot between draw and discard piles, centered in the middle column.
   /// Shown only when: not a practice game and user is not promotional tier.
   /// Amount vs '—' by isGameActive and gamePhase when shown.
@@ -3015,14 +3087,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
     final shouldShowPot = isGameActive && gamePhase != 'waiting';
 
-    // Icon slightly larger than prior inline layout; amount below, smaller than icon scale.
-    final iconSize = (rowWidth * 0.072).clamp(32.0, 76.0);
+    final stackCoinSize = (rowWidth * 0.062).clamp(24.0, 44.0);
     final amountFontSize = (rowWidth * 0.045).clamp(18.0, 34.0);
-    
 
-    // Dedicated gold so it is not overridden by theme (e.g. Dutch theme accentColor2 is green)
     const potColor = AppColors.matchPotGold;
     final iconColor = shouldShowPot ? potColor : AppColors.textSecondary;
+    final amountColor = shouldShowPot ? potColor : AppColors.textSecondary;
 
     return Center(
       child: ConstrainedBox(
@@ -3031,17 +3101,26 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            CoinIcon(
-              size: iconSize,
-              color: iconColor,
-            ),
-            const SizedBox(height: 4),
+            _buildMatchPotCoinCluster(stackCoinSize, iconColor),
+            SizedBox(height: stackCoinSize * 0.1),
             Text(
               shouldShowPot ? matchPot.toString() : '—',
               style: AppTextStyles.headingLarge().copyWith(
-                color: shouldShowPot ? potColor : AppColors.textSecondary,
+                color: amountColor,
                 fontWeight: FontWeight.bold,
                 fontSize: amountFontSize,
+                shadows: [
+                  Shadow(
+                    color: AppColors.black.withValues(alpha: 0.7),
+                    offset: Offset(0, amountFontSize * 0.08),
+                    blurRadius: amountFontSize * 0.22,
+                  ),
+                  Shadow(
+                    color: AppColors.black.withValues(alpha: 0.45),
+                    offset: Offset(0, amountFontSize * 0.04),
+                    blurRadius: amountFontSize * 0.1,
+                  ),
+                ],
               ),
             ),
           ],
@@ -3472,17 +3551,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          (dutchActive && dutchCalledBy == _myBoardPlayerId(board))
-                              ? Icons.flag
-                              : Icons.flag_outlined,
+                          Icons.flag,
                           size: 12,
                           color: AppColors.textOnAccent,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          (dutchActive && dutchCalledBy == _myBoardPlayerId(board))
-                              ? 'You Called Dutch'
-                              : 'Dutch Active',
+                          'Dutch Called',
                           style: AppTextStyles.bodySmall().copyWith(
                             color: AppColors.textOnAccent,
                             fontSize: 10,
@@ -4261,7 +4336,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     try {
       setState(() {
         _isProcessingAction = true;
-        _callDutchTappedPending = true; // Show "Dutch Active" immediately
+        _callDutchTappedPending = true; // Show Dutch Called chip immediately
       });
       
       
@@ -4303,6 +4378,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             (drawnCardRaw['cardId']?.toString() ?? '').isNotEmpty
         ? drawnCardRaw
         : null;
+    final discardPile = board['discardPile'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? priorDiscardTop;
+    if (discardPile.isNotEmpty && discardPile.last is Map<String, dynamic>) {
+      priorDiscardTop =
+          Map<String, dynamic>.from(discardPile.last as Map<String, dynamic>);
+    }
 
     if (LOGGING_SWITCH) {
       customlog(
@@ -4320,6 +4401,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       actionType: actionType,
       drawnCard: drawnCard,
       handCards: handCards,
+      priorDiscardTop: priorDiscardTop,
     );
   }
 

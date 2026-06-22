@@ -2169,7 +2169,60 @@ When anyone has played a card with the **same rank** as your **collection card**
         'handleGameAnimation: enqueue server action=$actionType gameId=$gameId$handIdxBrief',
       );
     }
-    DutchAnimRuntime.instance.enqueueGameAnimation(Map<String, dynamic>.from(data));
+    DutchAnimRuntime.instance.enqueueGameAnimation(
+      _withPriorDiscardTopForPlayAnim(Map<String, dynamic>.from(data)),
+    );
+  }
+
+  /// Attach [DutchAnimRuntime.priorDiscardTopKey] for server play hints when state already advanced.
+  static Map<String, dynamic> _withPriorDiscardTopForPlayAnim(Map<String, dynamic> data) {
+    final action = data['action_type']?.toString() ?? '';
+    if (!DutchAnimRuntime.isPlayToDiscardAction(action)) return data;
+    final existing = data[DutchAnimRuntime.priorDiscardTopKey];
+    if (existing is Map && existing.isNotEmpty) return data;
+    final prior = _inferPriorDiscardTopForPlayAnim(data);
+    if (prior == null) return data;
+    final copy = Map<String, dynamic>.from(data);
+    copy[DutchAnimRuntime.priorDiscardTopKey] = prior;
+    return copy;
+  }
+
+  static Map<String, dynamic>? _inferPriorDiscardTopForPlayAnim(Map<String, dynamic> data) {
+    String? playedCardId;
+    final cards = data['cards'] as List? ?? [];
+    for (final e in cards) {
+      if (e is! Map) continue;
+      final card = e['card'];
+      if (card is Map) {
+        playedCardId = card['cardId']?.toString();
+        if (playedCardId != null && playedCardId.isNotEmpty) break;
+      }
+    }
+
+    final state = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    var pile = state['discardPile'] as List? ?? [];
+    if (pile.isEmpty) {
+      final gameId = state['currentGameId']?.toString() ?? data['game_id']?.toString() ?? '';
+      final games = state['games'] as Map? ?? {};
+      final game = games[gameId] as Map? ?? {};
+      final gs = game['gameData']?['game_state'] as Map? ?? {};
+      pile = gs['discardPile'] as List? ?? [];
+    }
+    if (pile.isEmpty) return null;
+
+    final top = pile.last;
+    if (top is! Map) return null;
+    final topId = top['cardId']?.toString() ?? '';
+
+    if (playedCardId != null &&
+        playedCardId.isNotEmpty &&
+        topId == playedCardId &&
+        pile.length >= 2) {
+      final prior = pile[pile.length - 2];
+      if (prior is Map) return Map<String, dynamic>.from(prior);
+      return null;
+    }
+    return Map<String, dynamic>.from(top);
   }
 
   static bool _playersHaveDealableCards(List<dynamic> players) {

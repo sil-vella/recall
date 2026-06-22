@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/dev_logger.dart';
 import '../backend_core/utils/gameplay_profiles_store.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Persists declarative gameplay profiles from init-data for lobby UI labels.
 class GameplayProfilesBootstrap {

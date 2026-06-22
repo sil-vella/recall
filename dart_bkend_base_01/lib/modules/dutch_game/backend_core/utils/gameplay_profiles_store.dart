@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:dart_game_server/utils/dev_logger.dart';
 import '../../../../utils/config.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// In-memory gameplay rule profiles from declarative JSON (Python SSOT mirror).
 class GameplayProfilesStore {

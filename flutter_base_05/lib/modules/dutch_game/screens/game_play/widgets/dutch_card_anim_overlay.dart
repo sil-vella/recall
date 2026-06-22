@@ -257,6 +257,7 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     // Mask destination slots from payload as soon as the queue changes, so a same-frame or
     // early [game_state_updated] cannot paint the real card before [_kick] resolves rects.
     _syncHandMaskFromQueueHead();
+    if (mounted) setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) => _kick());
   }
 
@@ -1063,59 +1064,108 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
     return null;
   }
 
+  Widget? _buildDiscardTopOverlayLayer() {
+    final hold = _runtime.discardTopOverlayCard;
+    if (hold == null || hold.isEmpty) return null;
+    final anim = _runtime.snapshotForAnim();
+    final piles = anim[DutchAnimRuntime.pileRectsKey] as Map<String, dynamic>? ?? {};
+    final r = piles['discard'];
+    if (r is! Map) return null;
+    final left = (r['left'] as num?)?.toDouble();
+    final top = (r['top'] as num?)?.toDouble();
+    final w = (r['width'] as num?)?.toDouble();
+    final h = (r['height'] as num?)?.toDouble();
+    if (left == null || top == null || w == null || h == null) return null;
+    CardModel model;
+    try {
+      model = CardModel.fromMap(hold);
+    } catch (_) {
+      return null;
+    }
+    final portrait = _portraitCardSizeFromLayoutRect(w, h);
+    return Positioned(
+      left: left,
+      top: top,
+      width: w,
+      height: h,
+      child: Center(
+        child: CardWidget(
+          card: model,
+          dimensions: portrait,
+          config: CardDisplayConfig.forDiscardPile(),
+          showBack: !model.hasFullData,
+          isSelected: false,
+        ),
+      ),
+    );
+  }
+
+  Widget _wrapOverlayStack(List<Widget> children) {
+    return TickerMode(
+      enabled: true,
+      child: RepaintBoundary(
+        child: IgnorePointer(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: children,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_controller == null) return const SizedBox.shrink();
+    final discardHold = _buildDiscardTopOverlayLayer();
+
+    if (_controller == null) {
+      if (discardHold == null) return const SizedBox.shrink();
+      return _wrapOverlayStack([discardHold]);
+    }
     if (!_shouldPaintAnim()) {
-      return const SizedBox.shrink();
+      if (discardHold == null) return const SizedBox.shrink();
+      return _wrapOverlayStack([discardHold]);
     }
     final anim = _runtime.snapshotForAnim();
     final events = anim[DutchAnimRuntime.eventDataKey] as List? ?? [];
-    if (events.isEmpty) return const SizedBox.shrink();
+    if (events.isEmpty) {
+      if (discardHold == null) return const SizedBox.shrink();
+      return _wrapOverlayStack([discardHold]);
+    }
     final head = events.first;
-    if (head is! Map<String, dynamic>) return const SizedBox.shrink();
+    if (head is! Map<String, dynamic>) {
+      if (discardHold == null) return const SizedBox.shrink();
+      return _wrapOverlayStack([discardHold]);
+    }
     final seq = head['_seq'] as int?;
-    if (seq != _runningSeq) return const SizedBox.shrink();
+    if (seq != _runningSeq) {
+      if (discardHold == null) return const SizedBox.shrink();
+      return _wrapOverlayStack([discardHold]);
+    }
 
     final t = _controller!.value;
 
     if (_activePlan == _PlanTag.queenPeek && _peekTargetRect != null) {
-      return TickerMode(
-        enabled: true,
-        child: RepaintBoundary(
-          child: IgnorePointer(
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                _peekGlowPulseFrame(_peekTargetRect!, AppColors.statusQueenPeek, t),
-              ],
-            ),
-          ),
-        ),
-      );
+      final peekChildren = <Widget>[
+        _peekGlowPulseFrame(_peekTargetRect!, AppColors.statusQueenPeek, t),
+      ];
+      if (discardHold != null) peekChildren.insert(0, discardHold);
+      return _wrapOverlayStack(peekChildren);
     }
 
     if (_activePlan == _PlanTag.initialPeek &&
         _peekTargetRects != null &&
         _peekTargetRects!.isNotEmpty) {
-      return TickerMode(
-        enabled: true,
-        child: RepaintBoundary(
-          child: IgnorePointer(
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                for (final r in _peekTargetRects!)
-                  if (r['left'] != null &&
-                      r['top'] != null &&
-                      r['width'] != null &&
-                      r['height'] != null)
-                    _peekGlowPulseFrame(r, AppColors.statusInitialPeek, t),
-              ],
-            ),
-          ),
-        ),
-      );
+      final peekChildren = <Widget>[
+        for (final r in _peekTargetRects!)
+          if (r['left'] != null &&
+              r['top'] != null &&
+              r['width'] != null &&
+              r['height'] != null)
+            _peekGlowPulseFrame(r, AppColors.statusInitialPeek, t),
+      ];
+      if (discardHold != null) peekChildren.insert(0, discardHold);
+      return _wrapOverlayStack(peekChildren);
     }
 
     Widget positionedCard({
@@ -1223,16 +1273,10 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
       }
     }
 
-    return TickerMode(
-      enabled: true,
-      child: RepaintBoundary(
-        child: IgnorePointer(
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: children,
-          ),
-        ),
-      ),
-    );
+    if (discardHold != null) {
+      children.insert(0, discardHold);
+    }
+
+    return _wrapOverlayStack(children);
   }
 }

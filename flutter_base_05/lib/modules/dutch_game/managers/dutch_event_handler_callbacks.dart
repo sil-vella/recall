@@ -2941,12 +2941,6 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
     }
 
-    GameCoordinator().maybeLogFirebaseStartMatchOnServerPhaseTransition(
-      gameId: gameId,
-      previousUiPhase: previousUiPhase,
-      rawPhase: rawPhase,
-    );
-
     _updateMainGameState(consolidatedMainStatePatch);
 
     final dealAnimPending = consolidatedMainStatePatch['dealAnimActive'] == true ||

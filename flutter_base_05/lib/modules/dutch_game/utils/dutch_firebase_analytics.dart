@@ -9,19 +9,27 @@ abstract final class DutchFirebaseAnalytics {
     _matchCompletedLoggedGameIds.clear();
   }
 
-  static Future<void> logLobbyRandomJoinStarted({
-    required bool isClearAndCollect,
-    required int gameLevel,
-    String? specialEventId,
-  }) {
+  /// Server confirmed a new room the user created (lobby create, not random matchmaking).
+  static Future<void> logRoomCreated({required String roomId}) {
     return AnalyticsService.logEvent(
-      name: 'lobby_random_join_started',
-      parameters: {
-        'mode': isClearAndCollect ? 'clear_collect' : 'classic',
-        'game_level': gameLevel,
-        if (specialEventId != null && specialEventId.isNotEmpty)
-          'special_event_id': specialEventId,
-      },
+      name: 'room_created',
+      parameters: {'room_id': roomId},
+    );
+  }
+
+  /// Server confirmed the user joined a room session (join, random join, or re-join).
+  static Future<void> logRoomJoined({required String roomId}) {
+    return AnalyticsService.logEvent(
+      name: 'room_joined',
+      parameters: {'room_id': roomId},
+    );
+  }
+
+  /// Play screen Start Match button tap (practice or multiplayer).
+  static Future<void> logStartMatchTapped({required String gameId}) {
+    return AnalyticsService.logEvent(
+      name: 'start_match_tapped',
+      parameters: {'game_id': gameId},
     );
   }
 
@@ -32,28 +40,6 @@ abstract final class DutchFirebaseAnalytics {
       parameters: {
         'reason': trimmed.length > 100 ? trimmed.substring(0, 100) : trimmed,
       },
-    );
-  }
-
-  static Future<void> logLobbyCreateRoom({
-    required String gameType,
-    required int autoStart,
-    int? gameLevel,
-  }) {
-    return AnalyticsService.logEvent(
-      name: 'lobby_create_room',
-      parameters: {
-        'game_type': gameType,
-        'auto_start': autoStart,
-        if (gameLevel != null) 'game_level': gameLevel,
-      },
-    );
-  }
-
-  static Future<void> logLobbyJoinRoom({required String roomId}) {
-    return AnalyticsService.logEvent(
-      name: 'lobby_join_room',
-      parameters: {'room_id': roomId},
     );
   }
 
@@ -80,6 +66,25 @@ abstract final class DutchFirebaseAnalytics {
 
   static Future<void> logAdmobInterstitialShown() {
     return AnalyticsService.logEvent(name: 'admob_interstitial_shown');
+  }
+
+  /// Premium subscription canceled or lapsed.
+  ///
+  /// [reason]: `purchase_sheet` (store UI dismissed) or `lapsed` (server sync, no longer premium).
+  static Future<void> logPremiumSubscriptionCanceled({
+    required bool isIos,
+    required String reason,
+    String? productId,
+  }) {
+    return AnalyticsService.logEvent(
+      name: isIos
+          ? 'apple_premium_subscription_canceled'
+          : 'play_premium_subscription_canceled',
+      parameters: {
+        'reason': reason,
+        if (productId != null && productId.isNotEmpty) 'product_id': productId,
+      },
+    );
   }
 
   /// Logs once per [gameId] when a match ends with standings.

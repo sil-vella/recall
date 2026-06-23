@@ -8,6 +8,7 @@ import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import '../../../core/managers/module_manager.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../modules/connections_api_module/connections_api_module.dart';
+import '../../../modules/dutch_game/utils/dutch_firebase_analytics.dart';
 import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../../modules/dutch_game/widgets/ui_kit/dutch_section_header.dart';
 import 'account_panel_style.dart';
@@ -150,14 +151,24 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     if (!_isNativeStore || !mounted) return;
     final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
     if (api == null) return;
+    final wasPremium = _isPremium;
     final endpoint = _isIos ? '/userauth/apple/subscription-status' : '/userauth/play/subscription-status';
     try {
       final raw = await api.sendGetRequest(endpoint);
       if (raw is! Map || raw['success'] != true) return;
-      if (raw['refreshed'] == true) {
+      final refreshed = raw['refreshed'] == true;
+      if (refreshed) {
         await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
       }
       if (!mounted) return;
+      final tier = raw['subscription_tier']?.toString().trim().toLowerCase() ?? '';
+      final isNowPremium = tier == 'premium';
+      if (wasPremium && refreshed && !isNowPremium) {
+        unawaited(DutchFirebaseAnalytics.logPremiumSubscriptionCanceled(
+          isIos: _isIos,
+          reason: 'lapsed',
+        ));
+      }
       final exp = raw['expires_at']?.toString();
       setState(() => _premiumExpiresAt = (exp != null && exp.isNotEmpty) ? exp : null);
     } catch (_) {}
@@ -224,6 +235,11 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
           }
           break;
         case PurchaseStatus.canceled:
+          unawaited(DutchFirebaseAnalytics.logPremiumSubscriptionCanceled(
+            isIos: _isIos,
+            reason: 'purchase_sheet',
+            productId: purchase.productID,
+          ));
           if (purchase.pendingCompletePurchase) {
             await _storeIap.completePurchase(purchase);
           }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../managers/validated_event_emitter.dart';
+import '../../../utils/dutch_firebase_analytics.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../widgets/dutch_slice_builder.dart';
 
@@ -542,8 +544,14 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       // Get current game state to check if it's a dutch game
       final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final gameInfo = dutchGameState['gameInfo'] as Map<String, dynamic>? ?? {};
-      final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
+      final currentGameId = gameInfo['currentGameId']?.toString().trim().isNotEmpty == true
+          ? gameInfo['currentGameId'].toString()
+          : (dutchGameState['currentGameId']?.toString() ?? '');
       final currentGamePhase = gameInfo['gamePhase']?.toString() ?? 'unknown';
+
+      if (currentGameId.isNotEmpty) {
+        unawaited(DutchFirebaseAnalytics.logStartMatchTapped(gameId: currentGameId));
+      }
       
       
       

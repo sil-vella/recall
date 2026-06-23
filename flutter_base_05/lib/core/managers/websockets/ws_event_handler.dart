@@ -3,6 +3,7 @@ import 'dart:async';
 import '../state_manager.dart';
 import '../module_manager.dart';
 import '../hooks_manager.dart';
+import '../../../modules/dutch_game/utils/dutch_firebase_analytics.dart';
 import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../../modules/dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../modules/dutch_game/managers/dutch_game_state_updater.dart';
@@ -272,6 +273,10 @@ class WSEventHandler {
       if (rs.startsWith('room_')) {
         unawaited(DutchGameHelpers.persistLastMultiplayerRoomId(rs));
       }
+
+      if (rs.isNotEmpty) {
+        unawaited(DutchFirebaseAnalytics.logRoomJoined(roomId: rs));
+      }
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
@@ -327,6 +332,11 @@ class WSEventHandler {
         roomId: roomId,
         roomInfo: roomData,
       );
+
+      final ajRoomId = roomId.toString();
+      if (ajRoomId.isNotEmpty) {
+        unawaited(DutchFirebaseAnalytics.logRoomJoined(roomId: ajRoomId));
+      }
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
@@ -429,6 +439,14 @@ class WSEventHandler {
       final crs = roomId.toString();
       if (crs.startsWith('room_')) {
         unawaited(DutchGameHelpers.persistLastMultiplayerRoomId(crs));
+      }
+
+      if (crs.isNotEmpty) {
+        if (isRandomJoin) {
+          unawaited(DutchFirebaseAnalytics.logRoomJoined(roomId: crs));
+        } else {
+          unawaited(DutchFirebaseAnalytics.logRoomCreated(roomId: crs));
+        }
       }
       
       // Set room ownership and game state in dutch game state

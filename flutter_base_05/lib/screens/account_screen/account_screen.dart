@@ -408,23 +408,49 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: Text('Already signed in', style: AppTextStyles.headingSmall()),
+        backgroundColor: AppColors.scaffoldBackgroundColor.withValues(alpha: 0.95),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: AppColors.accentContrast.withValues(alpha: 0.35),
+          ),
+        ),
+        title: Text(
+          'Already signed in',
+          style: AppTextStyles.headingSmall(color: AppColors.white),
+        ),
         content: SingleChildScrollView(
           child: Text(
             message,
-            style: AppTextStyles.bodyMedium(),
+            style: AppTextStyles.bodyMedium(
+              color: AppColors.white.withValues(alpha: 0.88),
+            ),
           ),
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Cancel', style: AppTextStyles.bodyMedium()),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: AppColors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            ),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.bodyMedium(color: AppColors.white),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
+            style: _accountPrimaryAuthButtonStyle.copyWith(
+              padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+              ),
+            ),
             child: Text(
               'Sign in here',
-              style: AppTextStyles.bodyMedium(color: AppColors.primaryColor),
+              style: AppTextStyles.bodyMedium(color: AppColors.white),
             ),
           ),
         ],

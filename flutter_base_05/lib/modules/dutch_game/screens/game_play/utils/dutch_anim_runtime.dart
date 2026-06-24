@@ -57,6 +57,69 @@ class DutchAnimRuntime extends ChangeNotifier {
 
   static const Duration _resumeEnqueueSuppressDuration = Duration(milliseconds: 800);
 
+  /// Fired when the overlay dequeues a completed animation head (FIFO remove).
+  final List<void Function(Map<String, dynamic> head)> _headCompletedListeners = [];
+
+  /// Fired when [same_rank_penalty_rebound] is enqueued (wrong-rank penalty path).
+  final List<void Function(Map<String, dynamic> payload)> _penaltyReboundEnqueuedListeners =
+      [];
+
+  void addHeadCompletedListener(void Function(Map<String, dynamic> head) listener) {
+    if (!_headCompletedListeners.contains(listener)) {
+      _headCompletedListeners.add(listener);
+    }
+  }
+
+  void removeHeadCompletedListener(void Function(Map<String, dynamic> head) listener) {
+    _headCompletedListeners.remove(listener);
+  }
+
+  void addPenaltyReboundEnqueuedListener(
+    void Function(Map<String, dynamic> payload) listener,
+  ) {
+    if (!_penaltyReboundEnqueuedListeners.contains(listener)) {
+      _penaltyReboundEnqueuedListeners.add(listener);
+    }
+  }
+
+  void removePenaltyReboundEnqueuedListener(
+    void Function(Map<String, dynamic> payload) listener,
+  ) {
+    _penaltyReboundEnqueuedListeners.remove(listener);
+  }
+
+  void _notifyHeadCompleted(Map<String, dynamic> head) {
+    if (_headCompletedListeners.isEmpty) return;
+    final copy = Map<String, dynamic>.from(head);
+    for (final listener in List<void Function(Map<String, dynamic> head)>.from(
+      _headCompletedListeners,
+    )) {
+      listener(copy);
+    }
+  }
+
+  void _notifyPenaltyReboundEnqueued(Map<String, dynamic> payload) {
+    if (_penaltyReboundEnqueuedListeners.isEmpty) return;
+    final copy = Map<String, dynamic>.from(payload);
+    for (final listener
+        in List<void Function(Map<String, dynamic> payload)>.from(
+      _penaltyReboundEnqueuedListeners,
+    )) {
+      listener(copy);
+    }
+  }
+
+  /// Acting player id from a game_animation cards payload.
+  static String? ownerIdFromAnimPayload(Map<String, dynamic> payload) {
+    final cards = payload['cards'] as List? ?? [];
+    for (final c in cards) {
+      if (c is! Map) continue;
+      final id = c['owner_id']?.toString();
+      if (id != null && id.isNotEmpty) return id;
+    }
+    return null;
+  }
+
   /// App lifecycle hook from [GamePlayScreen] — drop/stale anim while backgrounded.
   void handleAppLifecycleState(AppLifecycleState state) {
     switch (state) {
@@ -246,6 +309,9 @@ class DutchAnimRuntime extends ChangeNotifier {
     if (_isPlayToDiscardAction(action)) {
       _syncDiscardTopOverlayFromQueueHead();
     }
+    if (action == 'same_rank_penalty_rebound') {
+      _notifyPenaltyReboundEnqueued(entry);
+    }
     notifyListeners();
   }
 
@@ -305,6 +371,7 @@ class DutchAnimRuntime extends ChangeNotifier {
     if (_isPlayToDiscardAction(removedAction)) {
       _syncDiscardTopOverlayFromQueueHead();
     }
+    _notifyHeadCompleted(removed);
     notifyListeners();
   }
 

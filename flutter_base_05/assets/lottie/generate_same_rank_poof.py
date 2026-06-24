@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import math
 import zipfile
@@ -46,7 +45,7 @@ def shake_pos_kf():
 
 def shake_rot_kf():
     rots = [0, 2.5, -3, 2, -2.5, 1.5, -1, 0.8, -0.5, 0.3, 0, 0, 0, 0, 0]
-    return {"a": 1, "k": [hold([r, 0, 0], i) for i, r in enumerate(rots)]}
+    return {"a": 1, "k": [hold(r, i) for i, r in enumerate(rots)]}
 
 
 def card_scale_kf():
@@ -66,11 +65,11 @@ def card_opacity_kf():
     return {
         "a": 1,
         "k": [
-            hold([100], 0),
-            hold([100], 16),
-            hold([100], 20),
-            hold([0], 34),
-            hold([0], 60),
+            hold(100, 0),
+            hold(100, 16),
+            hold(100, 20),
+            hold(0, 34),
+            hold(0, 60),
         ],
     }
 
@@ -122,7 +121,7 @@ def smoke_wisp_layer(
     start_y = CY + oy
     dx = math.cos(rad) * drift
     dy = math.sin(rad) * drift
-    start_t = 16 + delay
+    start_t = 22 + delay
     mid_t = start_t + int(duration * 0.35)
     end_t = start_t + duration
     end_sx, end_sy = scale_end or (size_w * 2.4, size_h * 2.1)
@@ -151,16 +150,16 @@ def smoke_wisp_layer(
             "o": {
                 "a": 1,
                 "k": [
-                    hold([0], 0),
-                    hold([0], start_t),
-                    hold([peak_opacity], start_t + 1),
-                    hold([peak_opacity * 0.72], mid_t),
-                    hold([peak_opacity * 0.25], mid_t + 6),
-                    hold([0], end_t),
-                    hold([0], 60),
+                    hold(0, 0),
+                    hold(0, start_t),
+                    hold(peak_opacity, start_t + 1),
+                    hold(peak_opacity * 0.72, mid_t),
+                    hold(peak_opacity * 0.25, mid_t + 6),
+                    hold(0, end_t),
+                    hold(0, 60),
                 ],
             },
-            "r": {"a": 0, "k": [rot, 0, 0]},
+            "r": {"a": 0, "k": rot},
             "p": {
                 "a": 1,
                 "k": [
@@ -269,7 +268,14 @@ def main() -> None:
     if not SRC.exists():
         raise SystemExit(f"Missing source image: {SRC}")
 
-    b64 = base64.b64encode(SRC.read_bytes()).decode("ascii")
+    image_asset = {
+        "id": "image_0",
+        "w": CARD_W,
+        "h": CARD_H,
+        "u": "images/",
+        "p": "dutch_card_icon.png",
+        "e": 0,
+    }
     card_layer = {
         "ddd": 0,
         "ind": 1,
@@ -300,17 +306,8 @@ def main() -> None:
         "h": H,
         "nm": "Same Rank Poof",
         "ddd": 0,
-        "assets": [
-            {
-                "id": "image_0",
-                "w": CARD_W,
-                "h": CARD_H,
-                "u": "",
-                "p": f"data:image/png;base64,{b64}",
-                "e": 1,
-            }
-        ],
-        "layers": [card_layer] + build_smoke_layers(),
+        "assets": [image_asset],
+        "layers": build_smoke_layers() + [card_layer],
         "markers": [],
     }
 
@@ -329,9 +326,15 @@ def main() -> None:
         )
     )
 
+    images_dir = BUILD / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    card_png = images_dir / "dutch_card_icon.png"
+    card_png.write_bytes(SRC.read_bytes())
+
     with zipfile.ZipFile(OUT, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.write(anim_path, "a/Main Scene.json")
         zf.write(manifest_path, "manifest.json")
+        zf.write(card_png, "images/dutch_card_icon.png")
 
     print(f"Wrote {OUT}")
 

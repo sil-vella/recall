@@ -2,6 +2,7 @@
 *.class
 *.log
 *.pyc
+tools/lottie/_build_*/
 *.swp
 .DS_Store
 .atom/

@@ -16,8 +16,6 @@ import '../utils/dutch_optimistic_anim.dart';
 import '../utils/dutch_opponent_seat_layout.dart';
 import '../utils/dutch_turn_feed_formatter.dart';
 import 'dutch_card_anim_overlay.dart';
-import 'play_band_lottie_overlay.dart';
-import '../../../utils/dutch_dot_lottie.dart';
 import 'player_status_chip_widget.dart';
 import 'circular_timer_widget.dart';
 import '../../../managers/player_action.dart';
@@ -294,18 +292,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   final GlobalKey _myHandSectionKey = GlobalKey(debugLabel: 'my_hand_section');
   double _feedOverlayBottomInset = 0;
 
-  /// Middle play row height for same-rank poof band geometry.
-  final GlobalKey _middleRowSectionKey = GlobalKey(debugLabel: 'middle_play_row');
-  static const double _kGapAboveMyHand = 16.0;
-  double _poofOverlayBottomInset = 0;
-  double _poofOverlayHeight = 0;
-  bool _poofOverlayGeometryReady = false;
-  int _sameRankPoofTriggerToken = 0;
-  int _finalRoundCallTriggerToken = 0;
-  String? _sameRankPoofDedupeKey;
-  String? _finalRoundLottieDedupeKey;
-  bool? _wasDutchActiveForLottie;
-
   bool _animLayoutCommitScheduled = false;
 
   /// Avoid mergeLayout loops when layout post-frame runs repeatedly with same geometry.
@@ -374,10 +360,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     ));
 
     DutchAnimRuntime.instance.addListener(_onAnimRuntimeForHandMask);
-    DutchAnimRuntime.instance.addHeadCompletedListener(_onAnimHeadCompleted);
-    DutchAnimRuntime.instance.addPenaltyReboundEnqueuedListener(
-      _onPenaltyReboundEnqueued,
-    );
     _lastAnimRuntimeStabilitySig = _computeAnimRuntimeStabilitySig();
     StateManager().addListener(_onStateManagerForTurnFeed);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -411,145 +393,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     if (!dealCleared && sig == _lastAnimRuntimeStabilitySig) return;
     _lastAnimRuntimeStabilitySig = sig;
     setState(() {});
-  }
-
-  void _clearSameRankPoofState() {
-    _sameRankPoofDedupeKey = null;
-  }
-
-  void _clearFinalRoundLottieState() {
-    _finalRoundLottieDedupeKey = null;
-    _wasDutchActiveForLottie = null;
-  }
-
-  void _tryFireFinalRoundLottie({
-    required String gameId,
-    required String actingPlayerId,
-    required String source,
-  }) {
-    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-    if (actingPlayerId.isEmpty || actingPlayerId != currentUserId) {
-      if (LOGGING_SWITCH) {
-        customlog(
-          'PlayBandLottie: final_round skip source=$source '
-          'acting=$actingPlayerId current=$currentUserId (not local)',
-        );
-      }
-      return;
-    }
-    if (gameId.isEmpty) return;
-    final dedupeKey = '$gameId|$actingPlayerId';
-    if (_finalRoundLottieDedupeKey == dedupeKey) {
-      if (LOGGING_SWITCH) {
-        customlog('PlayBandLottie: final_round skip source=$source deduped $dedupeKey');
-      }
-      return;
-    }
-    _finalRoundLottieDedupeKey = dedupeKey;
-    _finalRoundCallTriggerToken++;
-    if (LOGGING_SWITCH) {
-      customlog(
-        'PlayBandLottie: final_round FIRE source=$source token=$_finalRoundCallTriggerToken '
-        'geomReady=$_poofOverlayGeometryReady h=$_poofOverlayHeight bottom=$_poofOverlayBottomInset',
-      );
-    }
-    if (mounted) setState(() {});
-  }
-
-  /// Fires final-round Lottie when [dutchActive] becomes true for a local call
-  /// (fallback if turn_feed ingest was skipped or delayed).
-  void _syncFinalRoundLottiePhaseFromBoard(Map<String, dynamic> board) {
-    final gameState = board['boardGameState'] as Map<String, dynamic>? ?? {};
-    final dutchActive = gameState['dutchActive'] == true;
-    final gameId = board['currentGameId']?.toString() ?? '';
-
-    if (_wasDutchActiveForLottie == null) {
-      _wasDutchActiveForLottie = dutchActive;
-      return;
-    }
-
-    if (!dutchActive) {
-      _wasDutchActiveForLottie = false;
-      return;
-    }
-
-    if (_wasDutchActiveForLottie == true) return;
-    _wasDutchActiveForLottie = true;
-
-    final calledBy = gameState['dutchCalledBy']?.toString() ?? '';
-    _tryFireFinalRoundLottie(
-      gameId: gameId,
-      actingPlayerId: calledBy,
-      source: 'board_dutch_active_edge',
-    );
-  }
-
-  bool get _playBandLottieLayerVisible =>
-      _poofOverlayGeometryReady && _poofOverlayHeight > 0;
-
-  double get _playBandOverlayBottom =>
-      _poofOverlayGeometryReady && _poofOverlayBottomInset > 0
-          ? _poofOverlayBottomInset
-          : (_feedOverlayBottomInset > 0 ? _feedOverlayBottomInset : 80);
-
-  double get _playBandOverlayHeight => math.max(
-        _poofOverlayHeight > 0 ? _poofOverlayHeight : 0,
-        kPlayBandContainerMinHeight,
-      );
-
-  void _tryFireSameRankPoof({
-    required String gameId,
-    required String feedId,
-    required String source,
-  }) {
-    if (gameId.isEmpty || feedId.isEmpty) return;
-    final dedupeKey = '$gameId|$feedId';
-    if (_sameRankPoofDedupeKey == dedupeKey) {
-      if (LOGGING_SWITCH) {
-        customlog('PlayBandLottie: same_rank skip source=$source deduped $dedupeKey');
-      }
-      return;
-    }
-    _sameRankPoofDedupeKey = dedupeKey;
-    _sameRankPoofTriggerToken++;
-    if (LOGGING_SWITCH) {
-      customlog(
-        'PlayBandLottie: same_rank FIRE source=$source feedId=$feedId '
-        'token=$_sameRankPoofTriggerToken '
-        'geomReady=$_poofOverlayGeometryReady h=$_poofOverlayHeight bottom=$_poofOverlayBottomInset',
-      );
-    }
-    if (mounted) setState(() {});
-  }
-
-  void _onAnimHeadCompleted(Map<String, dynamic> head) {
-    final action = head['action_type']?.toString() ?? '';
-    if (action != 'same_rank_play') return;
-    final ownerId = DutchAnimRuntime.ownerIdFromAnimPayload(head);
-    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-    if (ownerId == null || ownerId != currentUserId) return;
-
-    final context = head['context'];
-    final rejected = context is Map && context['rejected'] == true;
-    if (LOGGING_SWITCH) {
-      customlog(
-        'PlayBandLottie: anim_head_completed same_rank owner=$ownerId rejected=$rejected',
-      );
-    }
-    if (rejected) {
-      _clearSameRankPoofState();
-    }
-  }
-
-  void _onPenaltyReboundEnqueued(Map<String, dynamic> payload) {
-    final ownerId = DutchAnimRuntime.ownerIdFromAnimPayload(payload);
-    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-    if (ownerId != null && ownerId == currentUserId) {
-      if (LOGGING_SWITCH) {
-        customlog('PlayBandLottie: penalty_rebound_enqueued clear same_rank poof');
-      }
-      _clearSameRankPoofState();
-    }
   }
 
   /// Hides the real hand card at [playerId]/[handIndex] during flight/swap overlays (not peek glow).
@@ -685,9 +528,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _turnFeedUiEntries.clear();
     _seenTurnFeedIds.clear();
     _lastTurnFeedIngestSig = '';
-    _clearSameRankPoofState();
-    _clearFinalRoundLottieState();
-    PlayBandLottieOverlay.resetPlayedTokens();
   }
 
   void _clearPersistentTurnFeedUi() {
@@ -853,9 +693,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final gamePhase = dutch['gamePhase']?.toString() ?? '';
     final isGameActive = dutch['isGameActive'] == true;
     if (!isGameActive || gamePhase == 'game_ended') {
-      _clearSameRankPoofState();
-      _clearFinalRoundLottieState();
-      PlayBandLottieOverlay.resetPlayedTokens();
       final hadPersistent = _turnFeedUiEntries.any((e) => e.persistent);
       if (hadPersistent) {
         _clearPersistentTurnFeedUi();
@@ -901,33 +738,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       final entry = Map<String, dynamic>.from(raw);
       final feedId = entry['feed_id']?.toString() ?? '';
       if (feedId.isEmpty || _seenTurnFeedIds.contains(feedId)) continue;
-
-      final actionType = entry['action_type']?.toString() ?? '';
-      final actingId = entry['acting_player_id']?.toString() ?? '';
-      if (actingId == currentUserId) {
-        if (actionType == 'same_rank_play') {
-          _tryFireSameRankPoof(
-            gameId: gameId,
-            feedId: feedId,
-            source: 'turn_feed',
-          );
-        } else if (actionType == 'same_rank_penalty_rebound') {
-          if (LOGGING_SWITCH) {
-            customlog('PlayBandLottie: turn_feed penalty_rebound clear poof feedId=$feedId');
-          }
-          _clearSameRankPoofState();
-        }
-      }
-      if (actionType == 'call_dutch' && actingId == currentUserId) {
-        if (LOGGING_SWITCH) {
-          customlog('PlayBandLottie: turn_feed call_dutch feedId=$feedId acting=$actingId');
-        }
-        _tryFireFinalRoundLottie(
-          gameId: gameId,
-          actingPlayerId: actingId,
-          source: 'turn_feed',
-        );
-      }
 
       _seenTurnFeedIds.add(feedId);
 
@@ -1030,47 +840,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     });
   }
 
-  void _schedulePoofOverlayGeometryUpdate() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final myHandBox =
-          _myHandSectionKey.currentContext?.findRenderObject() as RenderBox?;
-      final middleBox =
-          _middleRowSectionKey.currentContext?.findRenderObject() as RenderBox?;
-      if (myHandBox == null ||
-          !myHandBox.hasSize ||
-          middleBox == null ||
-          !middleBox.hasSize) {
-        return;
-      }
-      final myHandH = myHandBox.size.height;
-      final middleH = middleBox.size.height;
-      final bottom = myHandH;
-      final height = math.max(_kGapAboveMyHand + middleH / 2, kPlayBandContainerMinHeight);
-      if ((bottom - _poofOverlayBottomInset).abs() > 0.5 ||
-          (height - _poofOverlayHeight).abs() > 0.5 ||
-          !_poofOverlayGeometryReady) {
-        if (LOGGING_SWITCH) {
-          customlog(
-            'PlayBandLottie: geometry bottom=$bottom height=$height '
-            'myHandH=$myHandH middleH=$middleH',
-          );
-        }
-        setState(() {
-          _poofOverlayBottomInset = bottom;
-          _poofOverlayHeight = height;
-          _poofOverlayGeometryReady = true;
-        });
-      }
-    });
-  }
-
   static const double _kTurnFeedBackgroundAlpha = 0.42;
 
   Widget _buildTurnFeedOverlay() {
-    if (_turnFeedUiEntries.isEmpty) {
-      return const SizedBox.shrink();
-    }
     final myTurnPlayPersistent = _turnFeedUiEntries
         .where((e) => e.persistent && e.feedId == _myTurnPlayFeedId)
         .toList();
@@ -1176,10 +948,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     StateManager().removeListener(_onStateManagerForTurnFeed);
     _clearTurnFeedUiCache();
     DutchAnimRuntime.instance.removeListener(_onAnimRuntimeForHandMask);
-    DutchAnimRuntime.instance.removeHeadCompletedListener(_onAnimHeadCompleted);
-    DutchAnimRuntime.instance.removePenaltyReboundEnqueuedListener(
-      _onPenaltyReboundEnqueued,
-    );
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
     _selectedCardOverlayTimer?.cancel();
@@ -1193,9 +961,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       selector: _unifiedBoardViewSlice,
       builder: (context, board, child) {
         _maybeResetLocalPlayFlagsForPhaseEntry(board);
-        _syncFinalRoundLottiePhaseFromBoard(board);
         _scheduleAnimLayoutReport();
-        _schedulePoofOverlayGeometryUpdate();
         return Stack(
           key: _animStackAnchorKey,
           clipBehavior: Clip.none,
@@ -1220,12 +986,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                         _buildTopOppStrip(board, ctx),
                         if (ctx.buckets.top.isNotEmpty) const SizedBox(height: 8),
                         Expanded(
-                          child: KeyedSubtree(
-                            key: _middleRowSectionKey,
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: _buildMiddlePlayRow(board, ctx),
-                            ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: _buildMiddlePlayRow(board, ctx),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -1241,31 +1004,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                         right: AppPadding.mediumPadding.right,
                         bottom: _feedOverlayBottomInset,
                         child: _buildTurnFeedOverlay(),
-                      ),
-                    if (_playBandLottieLayerVisible)
-                      Positioned(
-                        left: AppPadding.mediumPadding.left,
-                        right: AppPadding.mediumPadding.right,
-                        bottom: _playBandOverlayBottom,
-                        height: _playBandOverlayHeight,
-                        child: IgnorePointer(
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            fit: StackFit.expand,
-                            children: [
-                              PlayBandLottieOverlay(
-                                key: const ValueKey('play_band_same_rank_poof'),
-                                triggerToken: _sameRankPoofTriggerToken,
-                                lottieAsset: kSameRankPoofLottie,
-                              ),
-                              PlayBandLottieOverlay(
-                                key: const ValueKey('play_band_final_round_call'),
-                                triggerToken: _finalRoundCallTriggerToken,
-                                lottieAsset: kFinalRoundCallLottie,
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
                   ],
                 );
@@ -1309,9 +1047,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   void _resetLocalPlayFlagsForNewDeal() {
-    _clearSameRankPoofState();
-    _clearFinalRoundLottieState();
-    PlayBandLottieOverlay.resetPlayedTokens();
     _callDutchTappedPending = false;
     _isProcessingAction = false;
     _clickedCardId = null;

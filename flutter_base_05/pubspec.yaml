@@ -1,7 +1,7 @@
 name: dutch
 description: "Dutch Card Game."
 publish_to: 'none'
-version: 2.0.99+20099
+version: 2.1.2+20102
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -78,7 +78,9 @@ flutter:
   assets:
     - assets/
     - assets/audio/
-    - assets/lottie/
+    - assets/lottie/achievement.lottie
+    - assets/lottie/coin_stack.lottie
+    - assets/lottie/winner01.lottie
     - assets/images/
     - assets/videos/
     # Celebration share templates (gitignored locally; paths match DutchShareTemplateCatalog).

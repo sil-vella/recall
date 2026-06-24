@@ -71,6 +71,7 @@ Use this script for **manual testing on a physical device**.
 
 **Notes**:
 - Video only (no audio). Each segment max **180s** (adb limit); press **V** again before 180s to stop early.
+- Recordings are stopped via SIGINT on the host `adb shell` process so the MP4 `moov` atom is written (device-side `pkill` on OnePlus often leaves unplayable files).
 - Optional env: `SCREENRECORD_SIZE`, `SCREENRECORD_BIT_RATE` (default `8000000`).
 
 ---

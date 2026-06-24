@@ -328,6 +328,145 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     'guest_username', 'guest_email', 'guest_user_id',
     'is_guest_account', 'is_logged_in', 'last_login_timestamp',
   ];
+
+  /// True when delete-account flow should collect the account password (email/guest).
+  bool _deleteAccountRequiresPassword() {
+    if (_isGuestAccount) return true;
+    final password = SharedPrefManager().getString('password');
+    return password != null && password.isNotEmpty;
+  }
+
+  Future<void> _handleDeleteAccount() async {
+    if (_loginModule == null) return;
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          backgroundColor: AppColors.scaffoldBackgroundColor.withValues(alpha: 0.95),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppColors.errorColor.withValues(alpha: 0.45)),
+          ),
+          title: Text(
+            'Delete account permanently?',
+            style: AppTextStyles.headingSmall(color: AppColors.white),
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              'This will permanently delete your account, game statistics, purchase history, '
+              'and notifications from our servers. This cannot be undone.\n\n'
+              'This is different from "Clear all user data from this device", which only removes '
+              'saved data on this phone.',
+              style: AppTextStyles.bodyMedium(
+                color: AppColors.white.withValues(alpha: 0.88),
+              ),
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              style: _accountDialogCancelButtonStyle,
+              child: Text(
+                'Cancel',
+                style: AppTextStyles.bodyMedium(color: AppColors.white),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: _accountDestructiveDialogButtonStyle,
+              child: Text(
+                'Continue',
+                style: AppTextStyles.bodyMedium(color: AppColors.textOnAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (proceed != true || !mounted) return;
+
+    final requiresPassword = _deleteAccountRequiresPassword();
+    String? passwordRetryError;
+
+    while (mounted) {
+      final verifiedPassword = await showDialog<String?>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _DeleteAccountConfirmDialog(
+          requiresPassword: requiresPassword,
+          fieldDecoration: _accountAuthFieldDecoration,
+          initialPasswordError: passwordRetryError,
+        ),
+      );
+
+      if (verifiedPassword == null || !mounted) return;
+
+      passwordRetryError = null;
+      setState(() {
+        _isLoading = true;
+        _clearMessages();
+      });
+
+      try {
+        final result = await _loginModule!.deleteAccount(
+          context: context,
+          confirmation: 'DELETE',
+          password: requiresPassword ? verifiedPassword : null,
+        );
+
+        if (!mounted) return;
+
+        if (result['success'] != null) {
+          _recentUploadedProfilePhotoBytes = null;
+          setState(() {
+            _isLoading = false;
+            _successMessage = result['success']?.toString() ?? 'Account deleted';
+          });
+          return;
+        }
+
+        final rawError = result['error']?.toString() ?? 'Failed to delete account';
+        final isWrongPassword = rawError.toLowerCase().contains('password');
+
+        if (isWrongPassword && requiresPassword) {
+          passwordRetryError = 'Incorrect password. Try again.';
+          setState(() => _isLoading = false);
+          continue;
+        }
+
+        final message = isWrongPassword
+            ? 'Incorrect password. Your account was not deleted.'
+            : rawError;
+        setState(() {
+          _isLoading = false;
+          _errorMessage = message;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                message,
+                style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+              ),
+              backgroundColor: AppColors.errorColor,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Failed to delete account: $e';
+          });
+        }
+        return;
+      }
+    }
+  }
   
   Future<void> _handleClearAllUserDataFromStorage() async {
     final confirmed = await showDialog<bool>(
@@ -1599,6 +1738,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       ),
                     ),
                   
+                  _buildDeleteAccountSection(),
                   _buildClearStorageSection(),
                 ],
                     ),
@@ -2065,6 +2205,44 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     );
   }
 
+  /// Logged-in only: permanently delete the server account (distinct from local storage clear).
+  Widget _buildDeleteAccountSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: _isLoading ? null : _handleDeleteAccount,
+          icon: Icon(Icons.person_remove_outlined, size: 20, color: AppColors.errorColor),
+          label: Text(
+            'Delete account',
+            style: AppTextStyles.bodyMedium(color: AppColors.errorColor),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.errorColor,
+            side: BorderSide(color: AppColors.errorColor.withValues(alpha: 0.85)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            'Permanently deletes your account and all server-side data. '
+            'You will need to create a new account to play again.',
+            style: AppTextStyles.bodySmall().copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Section: button to clear all user data from app storage + explanatory note.
   Widget _buildClearStorageSection() {
     return Column(
@@ -2112,6 +2290,25 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         disabledBackgroundColor: AppColors.accentColor.withValues(alpha: 0.45),
         disabledForegroundColor: AppColors.white.withValues(alpha: 0.7),
         padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      );
+
+  /// Account dialogs — transparent cancel (matches session-conflict dialog).
+  static ButtonStyle get _accountDialogCancelButtonStyle => TextButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.white,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      );
+
+  /// Destructive dialog confirm — red fill, light label (matches clear-storage button).
+  static ButtonStyle get _accountDestructiveDialogButtonStyle => ElevatedButton.styleFrom(
+        backgroundColor: AppColors.errorColor,
+        foregroundColor: AppColors.textOnAccent,
+        disabledBackgroundColor: AppColors.errorColor.withValues(alpha: 0.45),
+        disabledForegroundColor: AppColors.textOnAccent.withValues(alpha: 0.7),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -2426,6 +2623,199 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Confirmation step for account deletion; owns [TextEditingController]s so they
+/// are not disposed while the route is still closing.
+class _DeleteAccountConfirmDialog extends StatefulWidget {
+  final bool requiresPassword;
+  final String? initialPasswordError;
+  final InputDecoration Function({
+    required String hintText,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+    Color? fillColor,
+  }) fieldDecoration;
+
+  const _DeleteAccountConfirmDialog({
+    required this.requiresPassword,
+    required this.fieldDecoration,
+    this.initialPasswordError,
+  });
+
+  @override
+  State<_DeleteAccountConfirmDialog> createState() => _DeleteAccountConfirmDialogState();
+}
+
+class _DeleteAccountConfirmDialogState extends State<_DeleteAccountConfirmDialog> {
+  final TextEditingController _confirmationController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _obscurePassword = true;
+  String? _confirmationError;
+  String? _passwordError;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordError = widget.initialPasswordError;
+  }
+
+  @override
+  void dispose() {
+    _confirmationController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  String? _validateConfirmation(String typed) {
+    final trimmed = typed.trim();
+    if (trimmed.isEmpty) {
+      return 'Type DELETE to confirm.';
+    }
+    if (trimmed == 'DELETE') {
+      return null;
+    }
+    if (trimmed.toLowerCase() == 'delete') {
+      return 'Use all capital letters: DELETE';
+    }
+    return 'Must type exactly DELETE (all caps, no extra spaces).';
+  }
+
+  void _onConfirm() {
+    setState(() {
+      _confirmationError = _validateConfirmation(_confirmationController.text);
+      _passwordError = null;
+    });
+
+    if (_confirmationError != null) {
+      return;
+    }
+
+    if (widget.requiresPassword && _passwordController.text.isEmpty) {
+      setState(() {
+        _passwordError = 'Enter your password to continue.';
+      });
+      return;
+    }
+
+    final password = widget.requiresPassword ? _passwordController.text : '';
+    Navigator.of(context).pop(password);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.scaffoldBackgroundColor.withValues(alpha: 0.95),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.errorColor.withValues(alpha: 0.45)),
+      ),
+      title: Text(
+        'Confirm account deletion',
+        style: AppTextStyles.headingSmall(color: AppColors.white),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Type DELETE (all caps) to confirm.',
+              style: AppTextStyles.bodyMedium(
+                color: AppColors.white.withValues(alpha: 0.88),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _confirmationController,
+              onChanged: (_) => setState(() {
+                if (_confirmationError != null) {
+                  _confirmationError = _validateConfirmation(_confirmationController.text);
+                }
+              }),
+              style: AppTextStyles.bodyMedium(color: AppColors.white),
+              cursorColor: AppColors.white,
+              decoration: widget.fieldDecoration(
+                hintText: 'DELETE',
+                prefixIcon: Icon(
+                  Icons.warning_amber_outlined,
+                  color: AppColors.errorColor.withValues(alpha: 0.9),
+                ),
+              ),
+            ),
+            if (_confirmationError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _confirmationError!,
+                style: AppTextStyles.errorText(),
+              ),
+            ],
+            if (widget.requiresPassword) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Enter your password to verify this account.',
+                style: AppTextStyles.bodyMedium(
+                  color: AppColors.white.withValues(alpha: 0.88),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                onChanged: (_) => setState(() {
+                  if (_passwordError != null && _passwordController.text.isNotEmpty) {
+                    _passwordError = null;
+                  }
+                }),
+                style: AppTextStyles.bodyMedium(color: AppColors.white),
+                cursorColor: AppColors.white,
+                decoration: widget.fieldDecoration(
+                  hintText: 'Password',
+                  prefixIcon: Icon(
+                    Icons.lock_outlined,
+                    color: AppColors.white.withValues(alpha: 0.85),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.white.withValues(alpha: 0.85),
+                    ),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                ),
+              ),
+              if (_passwordError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _passwordError!,
+                  style: AppTextStyles.errorText(),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: _AccountScreenState._accountDialogCancelButtonStyle,
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.bodyMedium(color: AppColors.white),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: _onConfirm,
+          style: _AccountScreenState._accountDestructiveDialogButtonStyle,
+          child: Text(
+            'Delete account',
+            style: AppTextStyles.bodyMedium(color: AppColors.textOnAccent),
+          ),
+        ),
+      ],
     );
   }
 } 

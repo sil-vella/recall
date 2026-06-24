@@ -3,7 +3,7 @@ import 'package:lottie/lottie.dart';
 
 import '../../../../../utils/dev_logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Bundle path for the same-rank hand-slot poof celebration.
 const String kSameRankPoofLottie = 'assets/lottie/same_rank_poof.lottie';

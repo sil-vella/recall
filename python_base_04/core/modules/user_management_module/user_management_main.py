@@ -89,6 +89,7 @@ class UserManagementModule(BaseModule):
         self._register_auth_route_helper("/userauth/users/settings", self.get_user_settings, methods=["GET"])
         self._register_auth_route_helper("/userauth/users/settings", self.update_user_settings, methods=["PUT"])
         self._register_auth_route_helper("/userauth/logout", self.logout_user, methods=["POST"])
+        self._register_auth_route_helper("/userauth/users/delete-account", self.delete_my_account, methods=["POST"])
         self._register_auth_route_helper("/userauth/me", self.get_current_user, methods=["GET"])
         
         # Public routes (no authentication required)
@@ -351,7 +352,7 @@ class UserManagementModule(BaseModule):
                 try:
                     guest_user_id = guest_user.get("_id")
                     if guest_user_id:
-                        self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
+                        self._purge_user_data(str(guest_user_id), guest_user)
                 except Exception:
                     # Log error but don't fail registration (data integrity maintained)
                     pass
@@ -644,22 +645,217 @@ class UserManagementModule(BaseModule):
             return jsonify({'error': 'Failed to update user'}), 500
 
     def delete_user(self, user_id):
-        """Delete a user with queued operation."""
+        """Delete a user with queued operation (internal / admin-style helper)."""
         try:
-            # Delete user using queue system
-            deleted_count = self.db_manager.delete("users", {"_id": user_id})
-            
-            if deleted_count > 0:
-                return jsonify({
-                    'message': 'User deleted successfully',
-                    'user_id': user_id,
-                    'status': 'deleted'
-                }), 200
-            else:
+            uid_str = str(user_id)
+            user = None
+            try:
+                user = self.db_manager.find_one("users", {"_id": ObjectId(uid_str)})
+            except Exception:
+                user = self.db_manager.find_one("users", {"_id": user_id})
+            if not user:
                 return jsonify({'error': 'User not found'}), 404
-                
+            self._purge_user_data(uid_str, user)
+            return jsonify({
+                'message': 'User deleted successfully',
+                'user_id': uid_str,
+                'status': 'deleted'
+            }), 200
         except Exception as e:
             return jsonify({'error': 'Failed to delete user'}), 500
+
+    @staticmethod
+    def _is_google_only_account(user: Dict[str, Any]) -> bool:
+        """True when account was created via Google Sign-In with no local password."""
+        providers = user.get('auth_providers') or []
+        stored_password = user.get('password') or ''
+        return providers == ['google'] and not stored_password
+
+    @staticmethod
+    def _account_requires_password_for_deletion(user: Dict[str, Any]) -> bool:
+        if user.get('is_comp_player'):
+            return False
+        return not UserManagementModule._is_google_only_account(user)
+
+    @staticmethod
+    def _verify_user_password(user: Dict[str, Any], password: str) -> bool:
+        stored_password = user.get('password') or ''
+        if not stored_password:
+            return False
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8'))
+        except Exception:
+            return False
+
+    def _delete_user_avatar_file(self, user_doc: Dict[str, Any]) -> None:
+        """Best-effort removal of uploaded avatar file from disk."""
+        try:
+            profile = user_doc.get('profile') or {}
+            picture = (profile.get('picture') or '').strip()
+            marker = '/public/avatar-media/'
+            if marker not in picture:
+                return
+            fname = picture.split(marker, 1)[1].split('?', 1)[0].strip()
+            if not fname or '/' in fname or '..' in fname:
+                return
+            storage_root = os.path.abspath(os.path.expanduser(Config.AVATAR_STORAGE_DIR))
+            dest = os.path.join(storage_root, fname)
+            if os.path.isfile(dest):
+                os.remove(dest)
+        except Exception:
+            pass
+
+    def _purge_user_data(self, user_id: str, user_doc: Dict[str, Any]) -> None:
+        """Remove user row and related satellite data from MongoDB, Redis, and avatar storage."""
+        uid_str = str(user_id).strip()
+        uid_oid = None
+        try:
+            uid_oid = ObjectId(uid_str)
+        except Exception:
+            pass
+
+        oid_field_collections = (
+            'notifications',
+            'global_broadcast_reads',
+            'admob_rewarded_claims',
+        )
+        if uid_oid is not None:
+            for coll in oid_field_collections:
+                try:
+                    self.db_manager.delete(coll, {'user_id': uid_oid})
+                except Exception:
+                    pass
+
+        dual_key_collections = (
+            'user_events',
+            'user_audit_logs',
+            'play_coin_purchases',
+            'apple_coin_purchases',
+            'play_subscriptions',
+            'apple_subscriptions',
+            'credit_purchases',
+            'failed_payments',
+            'dutch_match_win_outcomes',
+        )
+        for coll in dual_key_collections:
+            try:
+                self.db_manager.delete(coll, {'user_id': uid_str})
+            except Exception:
+                pass
+            if uid_oid is not None:
+                try:
+                    self.db_manager.delete(coll, {'user_id': uid_oid})
+                except Exception:
+                    pass
+
+        self._delete_user_avatar_file(user_doc)
+
+        if uid_oid is not None:
+            self.db_manager.delete('users', {'_id': uid_oid})
+        else:
+            self.db_manager.delete('users', {'_id': user_id})
+
+        redis_mgr = self.app_manager.get_redis_manager() if self.app_manager else None
+        if redis_mgr and uid_str:
+            try:
+                redis_mgr.clear_user_login_session_active(uid_str)
+                redis_mgr.bump_user_auth_generation(uid_str)
+            except Exception:
+                pass
+
+        if self.app_manager:
+            try:
+                from core.modules.dutch_game.utils.redis_read_cache import invalidate_init_stats
+                invalidate_init_stats(self.app_manager, uid_str)
+            except Exception:
+                pass
+
+    def _revoke_request_tokens(self, uid_str: str, data: Dict[str, Any]) -> None:
+        """Revoke access (+ optional refresh) JWTs for the current request."""
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return
+        token = auth_header.split(' ', 1)[1]
+        jwt_manager = self.app_manager.jwt_manager if self.app_manager else None
+        if not jwt_manager:
+            return
+        refresh_from_body = data.get('refresh_token')
+        if refresh_from_body:
+            rp = jwt_manager.verify_token(refresh_from_body, TokenType.REFRESH)
+            if rp and str(rp.get('user_id')) == uid_str:
+                jwt_manager.revoke_token(refresh_from_body)
+        jwt_manager.revoke_token(token)
+
+    def delete_my_account(self):
+        """Permanently delete the authenticated user's account and related data."""
+        try:
+            user_id = getattr(request, 'user_id', None)
+            if not user_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'User not authenticated',
+                }), 401
+
+            data = request.get_json(silent=True) or {}
+            confirmation = (data.get('confirmation') or '').strip()
+            if confirmation != 'DELETE':
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid confirmation',
+                    'message': 'Type DELETE to confirm account deletion',
+                }), 400
+
+            uid_str = str(user_id)
+            try:
+                user = self.db_manager.find_one('users', {'_id': ObjectId(uid_str)})
+            except Exception:
+                user = self.db_manager.find_one('users', {'_id': user_id})
+
+            if not user:
+                return jsonify({
+                    'success': False,
+                    'error': 'User not found',
+                }), 404
+
+            if user.get('is_comp_player') is True:
+                return jsonify({
+                    'success': False,
+                    'error': 'Account cannot be deleted',
+                    'message': 'Computer player accounts cannot be deleted from the app',
+                }), 403
+
+            if self._account_requires_password_for_deletion(user):
+                password = data.get('password')
+                if not password:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Password required',
+                        'message': 'Enter your password to delete this account',
+                    }), 400
+                if not self._verify_user_password(user, password):
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid password',
+                        'message': 'Incorrect password',
+                    }), 401
+
+            self._purge_user_data(uid_str, user)
+            self._revoke_request_tokens(uid_str, data)
+
+            if LOGGING_SWITCH:
+                customlog(f'delete_my_account: purged user_id={uid_str}')
+
+            return jsonify({
+                'success': True,
+                'message': 'Account deleted',
+            }), 200
+        except Exception as e:
+            if LOGGING_SWITCH:
+                customlog(f'delete_my_account exception: {e!r}')
+            return jsonify({
+                'success': False,
+                'error': 'Internal server error',
+            }), 500
 
     def search_users_by_username(self, username, limit=50):
         """Internal: search users by username or email (partial, case-insensitive). Same doc appears once if it matches both. Returns (list of user dicts with user_id, no password), or ([], error_msg)."""
@@ -1318,7 +1514,7 @@ class UserManagementModule(BaseModule):
                     try:
                         guest_user_id = guest_user.get("_id")
                         if guest_user_id:
-                            self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
+                            self._purge_user_data(str(guest_user_id), guest_user)
                     except Exception:
                         # Log error but don't fail registration (data integrity maintained)
                         pass

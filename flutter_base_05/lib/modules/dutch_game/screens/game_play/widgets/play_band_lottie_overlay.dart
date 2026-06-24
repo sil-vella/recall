@@ -4,7 +4,7 @@ import 'package:lottie/lottie.dart';
 import '../../../../../utils/dev_logger.dart';
 import '../../../utils/dutch_dot_lottie.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Minimum play-band [Positioned] height (layout geometry).
 const double kPlayBandContainerMinHeight = 168;

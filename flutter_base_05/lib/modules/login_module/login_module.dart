@@ -1125,6 +1125,74 @@ class LoginModule extends ModuleBase {
     }
   }
 
+  /// Permanently delete the authenticated account on the server and wipe local session.
+  Future<Map<String, dynamic>> deleteAccount({
+    required String confirmation,
+    String? password,
+    BuildContext? context,
+  }) async {
+    if (context != null) {
+      _initDependencies(context);
+    } else if (_currentContext != null) {
+      _initDependencies(_currentContext!);
+    }
+
+    if (_connectionModule == null) {
+      return {"error": "Service not available"};
+    }
+
+    try {
+      final body = <String, dynamic>{
+        'confirmation': confirmation,
+      };
+      if (password != null && password.isNotEmpty) {
+        body['password'] = password;
+      }
+
+      final am = _authManager ?? AuthManager();
+      final refresh = await am.getRefreshToken();
+      if (refresh != null && refresh.isNotEmpty) {
+        body['refresh_token'] = refresh;
+      }
+
+      final response = await _connectionModule!.sendPostRequest(
+        '/userauth/users/delete-account',
+        body,
+      );
+
+      if (response is Map &&
+          (response['success'] == true ||
+              response['message']?.toString().toLowerCase().contains('deleted') == true)) {
+        await _runFullAuthTeardown(
+          triggerContext: context ?? _currentContext,
+          keepLoginFormFields: false,
+        );
+        await AnalyticsService.setUserId(null);
+
+        final stateManager = StateManager();
+        final dutchState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game');
+        if (dutchState != null) {
+          stateManager.updateModuleState('dutch_game', {
+            ...dutchState,
+            'userStats': null,
+          });
+        }
+
+        return {
+          "success": response['message']?.toString() ?? "Account deleted",
+        };
+      }
+
+      final error = response is Map
+          ? (response['message'] ?? response['error'] ?? 'Failed to delete account')
+              .toString()
+          : 'Failed to delete account';
+      return {"error": error};
+    } catch (e) {
+      return {"error": "Failed to delete account: $e"};
+    }
+  }
+
   /// Fetch and update user profile data including picture
   /// Stores profile data in StateManager under "login" state
   Future<bool> fetchAndUpdateUserProfile() async {

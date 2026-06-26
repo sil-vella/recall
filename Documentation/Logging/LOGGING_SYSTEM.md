@@ -130,8 +130,8 @@ const bool LOGGING_SWITCH = _loggingSwitchDevLog == '1' ||
 
 | Writer script | Process | Terminal | Appended to `global.log` |
 |---------------|---------|----------|---------------------------|
-| `playbooks/frontend/run_python_app_to_global_log.sh` | `python3 app.debug.py` | Full stdout/stderr | Lines matching **`^\[dev\]`** |
-| `playbooks/frontend/run_dart_ws_to_global_log.sh` | `dart run app.debug.dart` | Full stdout/stderr | Lines matching **`^\[dev\]`** |
+| `playbooks/00_local/run_python_app_to_global_log.sh` | `python3 app.debug.py` | Full stdout/stderr | Lines matching **`^\[dev\]`** |
+| `playbooks/00_local/run_dart_ws_to_global_log.sh` | `dart run app.debug.dart` | Full stdout/stderr | Lines matching **`^\[dev\]`** |
 | `playbooks/frontend/run_flutter_app_to_global_log.sh` | `flutter run …` | Full stdout/stderr | Lines matching **`I/flutter` or `I flutter`** and containing **`[dev]`**; consecutive duplicates skipped |
 
 Implementation uses **`awk`** (not `grep` in a process substitution) so:
@@ -180,8 +180,8 @@ Both scripts **source** `playbooks/frontend/agent_server_log_helpers.sh` for **`
 Configurations under **`.vscode/launch.json`** run **`/bin/bash`** on:
 
 - `playbooks/frontend/run_flutter_app_to_global_log.sh` (Chrome or a **fixed** Android serial per configuration).
-- `playbooks/frontend/run_dart_ws_to_global_log.sh`
-- `playbooks/frontend/run_python_app_to_global_log.sh`
+- `playbooks/00_local/run_dart_ws_to_global_log.sh`
+- `playbooks/00_local/run_python_app_to_global_log.sh`
 
 **Compound:** “Dart WS + Python Flask” starts both; **`stopAll`** stops both.
 
@@ -224,8 +224,8 @@ Python **`custom_log`** (and similar) is the broader application logging path an
 | `dart_bkend_base_01/lib/utils/dev_logger.dart` | Env-only gate. |
 | `python_base_04/tools/dev_logger.py` | Env gate, stderr `[dev]`. |
 | `playbooks/frontend/run_flutter_app_to_global_log.sh` | Flutter → terminal + filtered `global.log`. |
-| `playbooks/frontend/run_python_app_to_global_log.sh` | Flask debug → terminal + `[dev]` → `global.log`. |
-| `playbooks/frontend/run_dart_ws_to_global_log.sh` | Dart WS → terminal + `[dev]` → `global.log`. |
+| `playbooks/00_local/run_python_app_to_global_log.sh` | Flask debug → terminal + `[dev]` → `global.log`. |
+| `playbooks/00_local/run_dart_ws_to_global_log.sh` | Dart WS → terminal + `[dev]` → `global.log`. |
 | `playbooks/frontend/launch_chrome.sh` | Chrome `flutter run`, `filter_logs`, no `global.log`. |
 | `playbooks/frontend/launch_oneplus.sh` | Android `flutter run`, `sed` + `filter_logs`, no `global.log`. |
 | `.vscode/launch.json` | Uses `run_*_to_global_log.sh`. |

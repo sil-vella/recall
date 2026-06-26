@@ -19,7 +19,7 @@ from tools.dev_logger import customlog
 
 from .notification_service import NOTIFICATION_TYPES_PREDEFINED
 
-# On when ``run_python_app_to_global_log.sh`` / ``DUTCH_DEV_LOG=1`` (same truthy set as customlog).
+# On when ``playbooks/00_local/run_python_app_to_global_log.sh`` / ``DUTCH_DEV_LOG=1`` (same truthy set as customlog).
 LOGGING_SWITCH = (os.environ.get("DUTCH_DEV_LOG") or "").strip().lower() in ("1", "true", "yes")
 
 GLOBAL_BROADCAST_MESSAGES_COLL = "global_broadcast_messages"

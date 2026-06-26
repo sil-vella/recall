@@ -382,7 +382,7 @@ Reload scripts POST to `/service/dutch/reload-catalogs` with:
 X-Service-Key: <DART_BACKEND_SERVICE_KEY>
 ```
 
-Local SSOT: repo-root **`.env.local`** (same key used by Dart WS and Python via `run_python_app_to_global_log.sh` / `run_dart_ws_to_global_log.sh`).
+Local SSOT: repo-root **`.env.local`** (same key used by Dart WS and Python via `playbooks/00_local/run_python_app_to_global_log.sh` / `run_dart_ws_to_global_log.sh`).
 
 ---
 

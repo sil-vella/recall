@@ -77,7 +77,7 @@ if LOGGING_SWITCH:
 1. **`LOGGING_SWITCH`** — file-level: if `false`, **do not call** `customlog` in that block.
 2. **`DUTCH_DEV_LOG`** — inside `customlog`: if off, `customlog` no-ops even when called.
 
-Launch via **`playbooks/frontend/run_*_to_global_log.sh`** or VS Code configs that use them so **`DUTCH_DEV_LOG=1`** and `global.log` filtering work.
+Launch via **`playbooks/00_local/run_*_to_global_log.sh`** (Flask/Dart WS), **`playbooks/frontend/run_flutter_*_to_global_log.sh`** (Flutter), or VS Code configs that use them so **`DUTCH_DEV_LOG=1`** and `global.log` filtering work.
 
 ## Agent behavior
 

@@ -9,7 +9,7 @@ Usage:
   python3 playbooks/00_local/reload_dutch_catalogs.py
 
 Requires app.debug.py running (default http://127.0.0.1:5001), e.g.:
-  playbooks/frontend/run_python_app_to_global_log.sh
+  playbooks/00_local/run_python_app_to_global_log.sh
 
 Env (repo-root .env.local loaded automatically):
   DART_BACKEND_SERVICE_KEY — X-Service-Key (same as Dart WS / Python local stack)

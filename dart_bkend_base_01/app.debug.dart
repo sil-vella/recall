@@ -16,7 +16,7 @@ void main(List<String> args) async {
     final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;
 
     // Python Flask URL for validateToken / stats (host dev: same machine as compound launch).
-    // SSOT: .env.local PYTHON_API_URL when run via run_dart_ws_to_global_log.sh (sources .env.local).
+    // SSOT: .env.local PYTHON_API_URL when run via playbooks/00_local/run_dart_ws_to_global_log.sh (sources .env.local).
     final pythonApiUrl = () {
       final fromEnv = Platform.environment['PYTHON_API_URL']?.trim();
       if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;

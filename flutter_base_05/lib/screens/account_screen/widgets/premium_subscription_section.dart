@@ -42,6 +42,12 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
   String? _pendingPremiumPlanKey;
   String? _premiumExpiresAt;
   bool _syncing = false;
+  bool _loadingProducts = false;
+  bool _productsLoadFailed = false;
+
+  /// iOS App Store subscription IDs (SSOT: dutch_coin_catalog.json); used if catalog load fails.
+  static const String _iosMonthlyProductIdFallback = 'premium_auto_renew_monthly';
+  static const String _iosYearlyProductIdFallback = 'premium_auto_renew_yearly';
 
   bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
@@ -56,9 +62,21 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
 
   bool get _isPremium => (_subscriptionTier()?.trim().toLowerCase() ?? '') == 'premium';
 
-  String get _monthlyPlanKey => _isIos ? CoinCatalog.premiumAppleProductIdMonthly : CoinCatalog.premiumBasePlanMonthly;
+  String get _monthlyPlanKey {
+    if (_isIos) {
+      final id = CoinCatalog.premiumAppleProductIdMonthly;
+      return id.isNotEmpty ? id : _iosMonthlyProductIdFallback;
+    }
+    return CoinCatalog.premiumBasePlanMonthly;
+  }
 
-  String get _yearlyPlanKey => _isIos ? CoinCatalog.premiumAppleProductIdYearly : CoinCatalog.premiumBasePlanYearly;
+  String get _yearlyPlanKey {
+    if (_isIos) {
+      final id = CoinCatalog.premiumAppleProductIdYearly;
+      return id.isNotEmpty ? id : _iosYearlyProductIdFallback;
+    }
+    return CoinCatalog.premiumBasePlanYearly;
+  }
 
   Set<String> get _premiumProductIds {
     if (_isIos) {
@@ -84,10 +102,25 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
 
   Future<void> _bootstrapNativeStoreBilling() async {
     if (!_isNativeStore || !mounted) return;
+
+    setState(() {
+      _loadingProducts = true;
+      _productsLoadFailed = false;
+    });
+
+    await CoinCatalog.ensureLoaded();
+    if (!mounted) return;
+
     final ok = await _storeIap.isAvailable();
     if (!mounted) return;
     setState(() => _storeBillingAvailable = ok);
-    if (!ok) return;
+    if (!ok) {
+      setState(() {
+        _loadingProducts = false;
+        _productsLoadFailed = true;
+      });
+      return;
+    }
 
     _purchaseSub?.cancel();
     _purchaseSub = _storeIap.purchaseStream.listen(_handleStorePurchases, onError: (_) {});
@@ -95,7 +128,14 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     if (_isAndroid) {
       await _loadAndroidPremiumProducts();
     } else if (_isIos) {
-      await _loadIosPremiumProducts();
+      await _loadIosPremiumProductsWithRetry();
+    }
+
+    if (mounted) {
+      setState(() {
+        _loadingProducts = false;
+        _productsLoadFailed = !_premiumProductsReady;
+      });
     }
 
     await _refreshSubscriptionStatus();
@@ -130,6 +170,36 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
         ..clear()
         ..addAll(offerTokens);
     });
+  }
+
+  Future<void> _loadIosPremiumProductsWithRetry({int attempts = 3}) async {
+    for (var i = 0; i < attempts; i++) {
+      await _loadIosPremiumProducts();
+      if (_premiumProductsReady || !mounted) return;
+      if (i < attempts - 1) {
+        await Future<void>.delayed(Duration(milliseconds: 800 * (i + 1)));
+      }
+    }
+  }
+
+  Future<void> _reloadPremiumProducts() async {
+    if (!_isNativeStore || !mounted) return;
+    setState(() {
+      _loadingProducts = true;
+      _productsLoadFailed = false;
+    });
+    await CoinCatalog.ensureLoaded();
+    if (_isAndroid) {
+      await _loadAndroidPremiumProducts();
+    } else if (_isIos) {
+      await _loadIosPremiumProductsWithRetry();
+    }
+    if (mounted) {
+      setState(() {
+        _loadingProducts = false;
+        _productsLoadFailed = !_premiumProductsReady;
+      });
+    }
   }
 
   Future<void> _loadIosPremiumProducts() async {
@@ -190,6 +260,14 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
       if (!sessionOk) {
         _showSnack('Could not start purchase. Check your connection and try again.');
         return;
+      }
+
+      if (!_premiumProductsReady) {
+        await _reloadPremiumProducts();
+        if (!_premiumProductsReady) {
+          _showSnack('Subscription prices are still loading. Try again in a moment.');
+          return;
+        }
       }
 
       if (_isAndroid) {
@@ -554,6 +632,42 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
           '• Ad-free app experience\n• +$bonus% coins on every coin pack',
           style: AppTextStyles.bodyMedium(color: AppColors.textSecondary),
         ),
+        if (_loadingProducts) ...[
+          const SizedBox(height: 16),
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.accentColor,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Loading subscription prices…',
+                  style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_productsLoadFailed && !_loadingProducts) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Could not load prices from the App Store. Check your connection and tap Retry.',
+            style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _reloadPremiumProducts,
+            style: accountPanelOutlinedButtonStyle(),
+            child: const Text('Retry loading prices'),
+          ),
+        ],
         const SizedBox(height: 12),
         Row(
           children: [
@@ -565,7 +679,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
                   disabledBackgroundColor: AppColors.accentColor.withValues(alpha: 0.45),
                   disabledForegroundColor: AppColors.white.withValues(alpha: 0.6),
                 ),
-                onPressed: (_premiumBusyPlanKey != null || !_premiumProductsReady)
+                onPressed: (_premiumBusyPlanKey != null || _loadingProducts || !_premiumProductsReady)
                     ? null
                     : () => _buyPremiumSubscription(monthlyPlan),
                 child: _premiumBusyPlanKey == monthlyPlan
@@ -589,7 +703,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
                   disabledBackgroundColor: AppColors.accentColor.withValues(alpha: 0.45),
                   disabledForegroundColor: AppColors.white.withValues(alpha: 0.6),
                 ),
-                onPressed: (_premiumBusyPlanKey != null || !_premiumProductsReady)
+                onPressed: (_premiumBusyPlanKey != null || _loadingProducts || !_premiumProductsReady)
                     ? null
                     : () => _buyPremiumSubscription(yearlyPlan),
                 child: _premiumBusyPlanKey == yearlyPlan

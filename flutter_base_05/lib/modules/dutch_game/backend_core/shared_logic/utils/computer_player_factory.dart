@@ -12,12 +12,12 @@ class ComputerPlayerFactory {
   final Random _random = Random();
   ComputerPlayerFactory(this.config);
   
-  /// Calculate timer-based delay (randomized between 0.4 and 0.8 of timer value)
+  /// Calculate timer-based delay (randomized between 0.2 and 0.4 of timer value)
   /// [timerValue] The timer duration in seconds
-  /// Returns delay in seconds (between 0.4 * timerValue and 0.8 * timerValue)
+  /// Returns delay in seconds (between 0.2 * timerValue and 0.4 * timerValue)
   double _calculateTimerBasedDelay(int timerValue) {
-    final minDelay = timerValue * 0.4;
-    final maxDelay = timerValue * 0.8;
+    final minDelay = timerValue * 0.2;
+    final maxDelay = timerValue * 0.4;
     final delay = minDelay + (_random.nextDouble() * (maxDelay - minDelay));
     return delay;
   }
@@ -61,7 +61,7 @@ class ComputerPlayerFactory {
     final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     final drawingCardTimeLimit = timerConfig['drawing_card'] ?? 5;
     
-    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    // Calculate timer-based delay (0.2 to 0.4 of timer)
     final decisionDelay = _calculateTimerBasedDelay(drawingCardTimeLimit);
     
     final drawFromDiscardProb = config.getDrawFromDiscardProbability(difficulty);
@@ -92,7 +92,7 @@ class ComputerPlayerFactory {
     final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     final playingCardTimeLimit = timerConfig['playing_card'] ?? 15;
     
-    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    // Calculate timer-based delay (0.2 to 0.4 of timer)
     final decisionDelay = _calculateTimerBasedDelay(playingCardTimeLimit);
     
     
@@ -151,7 +151,7 @@ class ComputerPlayerFactory {
     final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     final sameRankTimeLimit = timerConfig['same_rank_window'] ?? 5;
     
-    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    // Calculate timer-based delay (0.2 to 0.4 of timer)
     final decisionDelay = _calculateTimerBasedDelay(sameRankTimeLimit);
     
     // Check miss chance first (before checking play probability)
@@ -313,7 +313,7 @@ class ComputerPlayerFactory {
       return {
         'action': 'jack_swap',
         'use': false,
-        'delay_seconds': 0.5,
+        'delay_seconds': 0.25,
         'difficulty': difficulty,
         'reasoning': 'jack_swap_disabled_by_profile',
       };
@@ -332,7 +332,7 @@ class ComputerPlayerFactory {
     final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     final jackSwapTimeLimit = timerConfig['jack_swap'] ?? 10;
     
-    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    // Calculate timer-based delay (0.2 to 0.4 of timer)
     final decisionDelay = _calculateTimerBasedDelay(jackSwapTimeLimit);
     
     
@@ -477,7 +477,7 @@ class ComputerPlayerFactory {
       return {
         'action': 'queen_peek',
         'use': false,
-        'delay_seconds': 0.5,
+        'delay_seconds': 0.25,
         'difficulty': difficulty,
         'reasoning': 'queen_peek_disabled_by_profile',
       };
@@ -496,7 +496,7 @@ class ComputerPlayerFactory {
     final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     final queenPeekTimeLimit = timerConfig['queen_peek'] ?? 10;
     
-    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    // Calculate timer-based delay (0.2 to 0.4 of timer)
     final decisionDelay = _calculateTimerBasedDelay(queenPeekTimeLimit);
     
     
@@ -572,7 +572,7 @@ class ComputerPlayerFactory {
       return {
         'action': 'collect_from_discard',
         'collect': false,
-        'delay_seconds': 0.5,
+        'delay_seconds': 0.25,
         'difficulty': difficulty,
         'reasoning': 'collection_disabled_by_profile',
       };
@@ -584,7 +584,7 @@ class ComputerPlayerFactory {
     final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     final collectTimeLimit = timerConfig['same_rank_window'] ?? 5; // Use same_rank_window timer for collection
     
-    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    // Calculate timer-based delay (0.2 to 0.4 of timer)
     final decisionDelay = _calculateTimerBasedDelay(collectTimeLimit);
     
     // Check miss chance first

@@ -7,6 +7,7 @@ import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
+import '../../../audio_module/audio_module.dart';
 import '../../backend_core/utils/dutch_rank_level_change_checker.dart';
 import '../../utils/dutch_share_moment.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
@@ -69,8 +70,16 @@ class _DutchPromotionScreenState extends State<DutchPromotionScreen>
       _entryController.forward();
       _leftConfetti.play();
       _rightConfetti.play();
-      
+      _playCelebrationSound(
+        widget.kind == DutchPromotionKind.levelUp ? 'level_up' : 'rank_up',
+      );
     });
+  }
+
+  void _playCelebrationSound(String soundKey) {
+    try {
+      ModuleManager().getModuleByType<AudioModule>()?.playSound(soundKey);
+    } catch (_) {}
   }
 
   void _initConfetti() {

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../animations_module/animations_module.dart';
+import '../../../audio_module/audio_module.dart';
 import '../../utils/dutch_share_moment.dart';
 import '../../widgets/ui_kit/dutch_animated_cta_button.dart';
 import '../../widgets/ui_kit/dutch_share_cta_button.dart';
@@ -52,8 +53,14 @@ class _DutchWinCelebrationScreenState extends State<DutchWinCelebrationScreen>
       _entryController.forward();
       _leftConfetti.play();
       _rightConfetti.play();
-      
+      _playCelebrationSound('you_win');
     });
+  }
+
+  void _playCelebrationSound(String soundKey) {
+    try {
+      ModuleManager().getModuleByType<AudioModule>()?.playSound(soundKey);
+    } catch (_) {}
   }
 
   void _initConfetti() {

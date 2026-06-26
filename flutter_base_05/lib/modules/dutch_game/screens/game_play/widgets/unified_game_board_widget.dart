@@ -189,7 +189,7 @@ class UnifiedGameBoardWidget extends StatefulWidget {
   State<UnifiedGameBoardWidget> createState() => _UnifiedGameBoardWidgetState();
 }
 
-class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
+class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with TickerProviderStateMixin {
   // ========== Opponents Panel State ==========
   String? _clickedCardId;
   bool _isCardsToPeekProtected = false;
@@ -198,6 +198,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   
   // ========== Draw Pile State ==========
   String? _clickedPileType;
+  AnimationController? _actionBorderAnimationController;
+  Animation<double>? _actionBorderAnimation;
   
   // ========== Discard Pile State ==========
   // (No state needed - using _cardKeys for all cards)
@@ -344,6 +346,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     super.initState();
     final dutch = _dutchGameState();
     _liveFeedEnabled = dutch['liveTurnFeedEnabled'] != false;
+
+    _actionBorderAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..repeat(reverse: true);
+    _actionBorderAnimation = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _actionBorderAnimationController!,
+      curve: Curves.easeInOut,
+    ));
 
     DutchAnimRuntime.instance.addListener(_onAnimRuntimeForHandMask);
     _lastAnimRuntimeStabilitySig = _computeAnimRuntimeStabilitySig();
@@ -984,6 +998,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
     _selectedCardOverlayTimer?.cancel();
+    _actionBorderAnimationController?.dispose();
     super.dispose();
   }
 
@@ -2430,17 +2445,21 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     );
   }
 
-  /// Solid status-colored border + thin dark shadow; does not affect layout.
-  BoxDecoration _buildActionBorderDecoration(Color statusColor) {
+  /// Matches former glow pulse strength (dimmer floor/ceiling than raw animation).
+  static const double _kActionBorderPulseScale = 0.6;
+
+  /// Solid status-colored border + thin dark shadow; [pulse] 0.3–1.0 like legacy glow.
+  BoxDecoration _buildActionBorderDecoration(Color statusColor, double pulse) {
+    final o = pulse.clamp(0.0, 1.0) * _kActionBorderPulseScale;
     return BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       border: Border.all(
-        color: statusColor,
+        color: statusColor.withValues(alpha: o),
         width: 2.5,
       ),
       boxShadow: [
         BoxShadow(
-          color: AppColors.black.withValues(alpha: 0.32),
+          color: AppColors.black.withValues(alpha: 0.32 * o),
           blurRadius: 3,
           spreadRadius: 0,
           offset: const Offset(0, 1),
@@ -2451,9 +2470,21 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
 
   Widget _wrapActionStatusBorder(Widget child, Color? statusColor) {
     if (statusColor == null) return child;
-    return _wrapStatusBorderOverlay(
-      child,
-      _buildActionBorderDecoration(statusColor),
+    final animation = _actionBorderAnimation;
+    if (animation == null) {
+      return _wrapStatusBorderOverlay(
+        child,
+        _buildActionBorderDecoration(statusColor, 1.0),
+      );
+    }
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        return _wrapStatusBorderOverlay(
+          child,
+          _buildActionBorderDecoration(statusColor, animation.value),
+        );
+      },
     );
   }
 

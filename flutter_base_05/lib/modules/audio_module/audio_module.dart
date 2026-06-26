@@ -57,12 +57,19 @@ class AudioModule extends ModuleBase {
     "same_rank": "assets/audio/same_rank.mp3",
   };
 
+  final Map<String, String> celebrationSounds = {
+    "you_win": "assets/audio/you_won.mp3",
+    "level_up": "assets/audio/level_up.mp3",
+    "rank_up": "assets/audio/rank_up.mp3",
+  };
+
   Future<void> preloadAllSounds() async {
     final allSounds = <String, String>{};
     allSounds.addAll(correctSounds);
     allSounds.addAll(incorrectSounds);
     allSounds.addAll(flushingFiles);
     allSounds.addAll(gameSounds);
+    allSounds.addAll(celebrationSounds);
 
     for (final entry in allSounds.entries) {
       await _cacheSource(entry.key, entry.value);
@@ -219,6 +226,8 @@ class AudioModule extends ModuleBase {
       return flushingFiles[soundKey];
     } else if (gameSounds.containsKey(soundKey)) {
       return gameSounds[soundKey];
+    } else if (celebrationSounds.containsKey(soundKey)) {
+      return celebrationSounds[soundKey];
     }
     return null;
   }

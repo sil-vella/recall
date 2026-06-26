@@ -189,7 +189,7 @@ class UnifiedGameBoardWidget extends StatefulWidget {
   State<UnifiedGameBoardWidget> createState() => _UnifiedGameBoardWidgetState();
 }
 
-class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with TickerProviderStateMixin {
+class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   // ========== Opponents Panel State ==========
   String? _clickedCardId;
   bool _isCardsToPeekProtected = false;
@@ -198,8 +198,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   
   // ========== Draw Pile State ==========
   String? _clickedPileType;
-  AnimationController? _glowAnimationController;
-  Animation<double>? _glowAnimation;
   
   // ========== Discard Pile State ==========
   // (No state needed - using _cardKeys for all cards)
@@ -306,6 +304,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   final List<_TurnFeedUiEntry> _turnFeedUiEntries = [];
   String? _turnFeedBoundGameId;
   String _lastTurnFeedIngestSig = '';
+  String? _sameRankSoundDedupeKey;
   static const String _myTurnPlayFeedId = 'local_my_turn_play';
   static const String _myTurnSameRankFeedId = 'local_my_turn_same_rank';
 
@@ -345,19 +344,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     super.initState();
     final dutch = _dutchGameState();
     _liveFeedEnabled = dutch['liveTurnFeedEnabled'] != false;
-    // Initialize glow animation controller
-    _glowAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    )..repeat(reverse: true);
-    
-    _glowAnimation = Tween<double>(
-      begin: 0.3,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _glowAnimationController!,
-      curve: Curves.easeInOut,
-    ));
 
     DutchAnimRuntime.instance.addListener(_onAnimRuntimeForHandMask);
     _lastAnimRuntimeStabilitySig = _computeAnimRuntimeStabilitySig();
@@ -528,6 +514,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _turnFeedUiEntries.clear();
     _seenTurnFeedIds.clear();
     _lastTurnFeedIngestSig = '';
+    _sameRankSoundDedupeKey = null;
   }
 
   void _clearPersistentTurnFeedUi() {
@@ -663,6 +650,42 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
+  void _tryPlaySameRankSound({
+    required String gameId,
+    required String feedId,
+    required String source,
+  }) {
+    if (gameId.isEmpty || feedId.isEmpty) return;
+    final dedupeKey = '$gameId|$feedId';
+    if (_sameRankSoundDedupeKey == dedupeKey) {
+      if (LOGGING_SWITCH) {
+        customlog('UnifiedGameBoard: same_rank sound skip source=$source deduped $dedupeKey');
+      }
+      return;
+    }
+    _sameRankSoundDedupeKey = dedupeKey;
+    try {
+      final audio = ModuleManager().getModuleByType<AudioModule>();
+      if (audio == null) {
+        if (LOGGING_SWITCH) {
+          customlog('UnifiedGameBoard: same_rank sound skip source=$source (no AudioModule)');
+        }
+        return;
+      }
+      if (LOGGING_SWITCH) {
+        customlog(
+          'UnifiedGameBoard: same_rank sound play source=$source feedId=$feedId '
+          'muted=${AudioModule.isMuted}',
+        );
+      }
+      audio.playSound('same_rank');
+    } catch (e) {
+      if (LOGGING_SWITCH) {
+        customlog('UnifiedGameBoard: same_rank sound error source=$source err=$e');
+      }
+    }
+  }
+
   static const Set<String> _timerSoundPlayerStatuses = {
     'drawing_card',
     'queen_peek',
@@ -738,6 +761,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       final entry = Map<String, dynamic>.from(raw);
       final feedId = entry['feed_id']?.toString() ?? '';
       if (feedId.isEmpty || _seenTurnFeedIds.contains(feedId)) continue;
+
+      final actionType = entry['action_type']?.toString() ?? '';
+      final actingId = entry['acting_player_id']?.toString() ?? '';
+      if (actionType == 'same_rank_play' && actingId == currentUserId) {
+        _tryPlaySameRankSound(
+          gameId: gameId,
+          feedId: feedId,
+          source: 'turn_feed',
+        );
+      }
 
       _seenTurnFeedIds.add(feedId);
 
@@ -951,7 +984,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
     _selectedCardOverlayTimer?.cancel();
-    _glowAnimationController?.dispose();
     super.dispose();
   }
 
@@ -1047,6 +1079,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   void _resetLocalPlayFlagsForNewDeal() {
+    _sameRankSoundDedupeKey = null;
     _callDutchTappedPending = false;
     _isProcessingAction = false;
     _clickedCardId = null;
@@ -1964,23 +1997,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       onTap: () => _handleOpponentCardClick(card, playerId),
     );
     
-    // Per-card status glow from this seat's status (or local jack/queen action on opponents).
-    final glowColor = seatGlowStatus != null
+    // Per-card status border from this seat's status (or local jack/queen action on opponents).
+    final borderColor = seatGlowStatus != null
         ? _getGlowColorForCards(seatGlowStatus, isMyHand: false)
         : null;
-    
-    if (glowColor != null && _glowAnimation != null) {
-      return AnimatedBuilder(
-        animation: _glowAnimation!,
-        builder: (context, child) {
-          final glowOpacity = _glowAnimation!.value;
-          final glowDecoration = _buildGlowDecoration(glowColor, glowOpacity);
-          return _wrapDecorationOnlyGlow(cardWidget, glowDecoration);
-        },
-      );
-    }
-    
-    return cardWidget;
+
+    return _wrapActionStatusBorder(cardWidget, borderColor);
   }
 
   Widget _buildEmptyHand() {
@@ -2391,7 +2413,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   ///
   /// Background [DecoratedBox] hid the border under the opaque card face; overlay + [Clip.none]
   /// keeps the stroke visible and lets [BoxShadow] bleed outside without widening the [Row].
-  Widget _wrapDecorationOnlyGlow(Widget child, BoxDecoration decoration) {
+  Widget _wrapStatusBorderOverlay(Widget child, BoxDecoration decoration) {
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.center,
@@ -2408,31 +2430,30 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  /// Scales border/shadow alpha (0.6 = 40% dimmer than base glow recipe).
-  static const double _kGlowOpacityScale = 0.6;
-
-  /// Shared glow for draw pile, my-hand cards, and opponent cards (same size/opacity).
-  BoxDecoration _buildGlowDecoration(Color statusColor, double glowOpacity) {
-    final o = glowOpacity * _kGlowOpacityScale;
-    // Border on overlay + outside halo (boxShadow does not expand layout).
+  /// Solid status-colored border + thin dark shadow; does not affect layout.
+  BoxDecoration _buildActionBorderDecoration(Color statusColor) {
     return BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       border: Border.all(
-        color: statusColor.withValues(alpha: 0.98 * o),
+        color: statusColor,
         width: 2.5,
       ),
       boxShadow: [
         BoxShadow(
-          color: statusColor.withValues(alpha: 0.5 * o),
-          blurRadius: 10,
-          spreadRadius: 0.6,
-        ),
-        BoxShadow(
-          color: statusColor.withValues(alpha: 0.32 * o),
-          blurRadius: 16,
-          spreadRadius: 1.2,
+          color: AppColors.black.withValues(alpha: 0.32),
+          blurRadius: 3,
+          spreadRadius: 0,
+          offset: const Offset(0, 1),
         ),
       ],
+    );
+  }
+
+  Widget _wrapActionStatusBorder(Widget child, Color? statusColor) {
+    if (statusColor == null) return child;
+    return _wrapStatusBorderOverlay(
+      child,
+      _buildActionBorderDecoration(statusColor),
     );
   }
 
@@ -2467,8 +2488,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
-  /// Card glow from [seatStatus]. Opponent jack/queen glow only via [_opponentSeatGlowStatusForLocalUser].
-  /// My-hand [drawing_card] uses draw-pile glow only — no per-card glow.
+  /// Card action border from [seatStatus]. Opponent jack/queen only via [_opponentSeatGlowStatusForLocalUser].
+  /// My-hand [drawing_card] uses draw-pile border only — no per-card border.
   Color? _getGlowColorForCards(String seatStatus, {required bool isMyHand}) {
     switch (seatStatus) {
       case 'drawing_card':
@@ -2726,21 +2747,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     _wrapCardTapSelectionBorder(drawPileContent, cardDimensions);
               }
               
-              // Wrap with animated glow effect when in drawing status
-              if (isDrawingStatus && statusChipColor != null && _glowAnimation != null) {
-                return AnimatedBuilder(
-                  animation: _glowAnimation!,
-                  builder: (context, child) {
-                    final glowOpacity = _glowAnimation!.value;
-                    final glowDecoration = _buildGlowDecoration(
-                      statusChipColor,
-                      glowOpacity,
-                    );
-                    return _wrapDecorationOnlyGlow(drawPileContent, glowDecoration);
-                  },
-                );
+              if (isDrawingStatus && statusChipColor != null) {
+                return _wrapActionStatusBorder(drawPileContent, statusChipColor);
               }
-              
+
               return drawPileContent;
             },
           ),
@@ -4669,23 +4679,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       onTap: () => _handleMyHandCardSelection(context, index, cardMap),
     );
     
-    // Per-card status glow (including queen_peek / jack_swap selection windows).
-    final glowColor = currentPlayerStatus != null
+    // Per-card status border (including queen_peek / jack_swap selection windows).
+    final borderColor = currentPlayerStatus != null
         ? _getGlowColorForCards(currentPlayerStatus, isMyHand: true)
         : null;
-    
-    if (glowColor != null && _glowAnimation != null) {
-      return AnimatedBuilder(
-        animation: _glowAnimation!,
-        builder: (context, child) {
-          final glowOpacity = _glowAnimation!.value;
-          final glowDecoration = _buildGlowDecoration(glowColor, glowOpacity);
-          return _wrapDecorationOnlyGlow(cardWidget, glowDecoration);
-        },
-      );
-    }
-    
-    return cardWidget;
+
+    return _wrapActionStatusBorder(cardWidget, borderColor);
   }
 
   /// Build circular profile picture widget

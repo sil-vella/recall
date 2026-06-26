@@ -54,6 +54,7 @@ class AudioModule extends ModuleBase {
     "play": "assets/audio/play_003.mp3",
     "swap": "assets/audio/swap_003.mp3",
     "timer": "assets/audio/timer_003.mp3",
+    "same_rank": "assets/audio/same_rank.mp3",
   };
 
   Future<void> preloadAllSounds() async {

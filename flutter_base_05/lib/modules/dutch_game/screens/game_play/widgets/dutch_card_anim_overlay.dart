@@ -10,6 +10,7 @@ import '../../../models/card_display_config.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../utils/dutch_anim_runtime.dart';
+import '../../../managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/dev_logger.dart';
 
 const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
@@ -407,7 +408,16 @@ class _DutchCardAnimOverlayState extends State<DutchCardAnimOverlay>
         action == 'collect_from_discard' ||
         action == 'same_rank_penalty_rebound') {
       soundKey = 'draw';
-    } else if (action == 'play_card' || action == 'same_rank_play') {
+    } else if (action == 'same_rank_play') {
+      final ownerId = DutchAnimRuntime.ownerIdFromAnimPayload(
+        Map<String, dynamic>.from(head),
+      );
+      final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+      if (ownerId != null && ownerId == currentUserId) {
+        return;
+      }
+      soundKey = 'play';
+    } else if (action == 'play_card') {
       soundKey = 'play';
     } else if (action == 'jack_swap') {
       soundKey = 'swap';

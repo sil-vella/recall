@@ -19,6 +19,8 @@ import '../../utils/analytics_service.dart';
 import '../../utils/coin_catalog.dart';
 import '../../utils/consts/config.dart';
 import '../../utils/consts/theme_consts.dart';
+import '../../utils/iap_session_helper.dart';
+import '../../modules/login_module/login_module.dart';
 import '../../utils/play_purchase_token.dart';
 import '../../utils/widgets/coin_icon.dart';
 import 'coin_purchase_celebration_screen.dart';
@@ -175,6 +177,29 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   }
 
   Future<void> _verifyNativePurchaseOnServer(PurchaseDetails purchase) async {
+    final loginModule = ModuleManager().getModuleByType<LoginModule>();
+    if (loginModule != null && !await loginModule.hasValidToken()) {
+      if (!mounted) return;
+      final sessionOk = await IapSessionHelper.ensureSessionForPurchase(
+        context: context,
+        guestProvisionSource: 'iap_coins',
+      );
+      if (!sessionOk) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not verify purchase. Tap Buy again to retry.',
+                style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+              ),
+              backgroundColor: AppColors.primaryColor,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     final verifyFields = nativeCoinVerifyBody(purchase);
     final productId = purchase.productID;
     if (verifyFields.isEmpty) {
@@ -271,6 +296,25 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   Future<void> _buyPlayProduct(ProductDetails details) async {
     setState(() => _playBusyProductId = details.id);
     try {
+      final sessionOk = await IapSessionHelper.ensureSessionForPurchase(
+        context: context,
+        guestProvisionSource: 'iap_coins',
+      );
+      if (!sessionOk) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not start purchase. Check your connection and try again.',
+                style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+              ),
+              backgroundColor: AppColors.primaryColor,
+            ),
+          );
+        }
+        return;
+      }
+
       final started = await _playIap.buyConsumable(purchaseParam: PurchaseParam(productDetails: details));
       if (!started && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -554,6 +598,15 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       return;
     }
 
+    final sessionOk = await IapSessionHelper.ensureSessionForPurchase(
+      context: context,
+      guestProvisionSource: 'iap_coins',
+    );
+    if (!sessionOk) {
+      _showRewardedSnack('Could not start reward. Check your connection and try again.');
+      return;
+    }
+
     final pref = SharedPrefManager();
     if (!RewardedAdDailyCap.canClaimToday(pref)) {
       _showRewardedSnack(
@@ -824,6 +877,11 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
                       ? 'Purchases are processed by the App Store. Your account is credited after our server confirms the transaction.'
                       : 'Purchases are processed by Google Play. Your account is credited after our server confirms the transaction.',
                 ),
+                Text(
+                  'No email required to buy coins. Create an account anytime to sync across devices.',
+                  style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
+                ),
+                SizedBox(height: AppPadding.smallPadding.top),
                 if (!_catalogReady)
                   Padding(
                     padding: EdgeInsets.symmetric(vertical: AppPadding.largePadding.top),

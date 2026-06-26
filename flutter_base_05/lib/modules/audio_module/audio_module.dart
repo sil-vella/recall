@@ -49,11 +49,11 @@ class AudioModule extends ModuleBase {
   };
 
   final Map<String, String> gameSounds = {
-    "init_deal": "assets/audio/init_deal.mp3",
-    "draw": "assets/audio/draw_002.mp3",
-    "play": "assets/audio/play.mp3",
-    "swap": "assets/audio/swap_002.mp3",
-    "timer": "assets/audio/timer_002.mp3",
+    "init_deal": "assets/audio/init_deal_003.mp3",
+    "draw": "assets/audio/draw_003.mp3",
+    "play": "assets/audio/play_003.mp3",
+    "swap": "assets/audio/swap_003.mp3",
+    "timer": "assets/audio/timer_003.mp3",
   };
 
   Future<void> preloadAllSounds() async {

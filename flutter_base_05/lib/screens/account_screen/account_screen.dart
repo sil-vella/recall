@@ -1776,6 +1776,17 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   tooltip: 'Back to Profile',
                 ),
               ),
+
+            if (!isLoggedIn) ...[
+              const PremiumSubscriptionSection(),
+              const SizedBox(height: 12),
+              Text(
+                'No email required to subscribe. Create an account anytime to sync across devices.',
+                style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+            ],
             
             const SizedBox(height: 40),
             

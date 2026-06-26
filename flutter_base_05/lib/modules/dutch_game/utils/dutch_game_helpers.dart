@@ -864,10 +864,10 @@ class DutchGameHelpers {
           }
 
           // Wait for login process to fully complete
-          final loginCompleted = await _waitForLoginCompletion();
+          final loginCompleted = await waitForLoginStateReady();
           if (!loginCompleted) {
             if (LOGGING_SWITCH) {
-              customlog('DutchGameHelpers.ensureWebSocketReady: _waitForLoginCompletion => false');
+              customlog('DutchGameHelpers.ensureWebSocketReady: waitForLoginStateReady => false');
             }
 
             return false;
@@ -995,9 +995,9 @@ class DutchGameHelpers {
     return false;
   }
   
-  /// Wait for login completion after guest creation
-  /// Returns true if login is complete (isLoggedIn, userId, username, email all set), false if timeout
-  static Future<bool> _waitForLoginCompletion({int timeoutSeconds = 10}) async {
+  /// Wait for login completion after guest creation or guest re-login.
+  /// Returns true if login is complete (isLoggedIn, userId, username, email all set), false if timeout.
+  static Future<bool> waitForLoginStateReady({int timeoutSeconds = 10}) async {
     final stateManager = StateManager();
     final startTime = DateTime.now();
     const checkInterval = Duration(milliseconds: 100);

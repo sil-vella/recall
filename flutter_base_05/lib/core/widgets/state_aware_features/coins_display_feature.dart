@@ -13,6 +13,18 @@ import '../../../utils/widgets/coin_icon.dart';
 class StateAwareCoinsDisplayFeature extends StatelessWidget {
   const StateAwareCoinsDisplayFeature({Key? key}) : super(key: key);
 
+  void _navigateToCoinPurchase(BuildContext context) {
+    try {
+      final navigationManager =
+          Provider.of<NavigationManager>(context, listen: false);
+      navigationManager.navigateTo('/coin-purchase');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Navigation failed: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -22,16 +34,37 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final userStats = dutchGameState['userStats'] as Map<String, dynamic>?;
         
-        // Get coins from userStats, default to 0 if not available
-        final coins = userStats?['coins'] as int? ?? 0;
-        
-        // Return empty widget if userStats is not available (user not logged in or stats not loaded)
-        if (userStats == null) {
-          return const SizedBox.shrink();
-        }
-        
-        // Tappable coins display — same navigation pattern as notifications / profile app bar features.
         final goldColor = AppColors.matchPotGold;
+
+        if (userStats == null) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Semantics(
+              label: 'Buy coins',
+              identifier: 'app_bar_coins_purchase',
+              button: true,
+              child: ActionChip(
+                avatar: CoinIcon(size: 18, color: goldColor),
+                label: Text(
+                  'Buy coins',
+                  style: AppTextStyles.label().copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: goldColor,
+                  ),
+                ),
+                tooltip: 'Buy coins',
+                onPressed: () => _navigateToCoinPurchase(context),
+                backgroundColor: goldColor.withOpacity(0.2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          );
+        }
+
+        final coins = userStats['coins'] as int? ?? 0;
+        
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Semantics(
@@ -48,17 +81,7 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
                 ),
               ),
               tooltip: 'Buy coins',
-              onPressed: () {
-                try {
-                  final navigationManager =
-                      Provider.of<NavigationManager>(context, listen: false);
-                  navigationManager.navigateTo('/coin-purchase');
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Navigation failed: $e')),
-                  );
-                }
-              },
+              onPressed: () => _navigateToCoinPurchase(context),
               backgroundColor: goldColor.withOpacity(0.2),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

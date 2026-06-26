@@ -472,7 +472,8 @@ class LoginModule extends ModuleBase {
 
   Future<Map<String, dynamic>> registerGuestUser({
     required BuildContext context,
-    /// `ui` from Account screen; `auto_websocket` from [DutchGameHelpers.ensureWebSocketReady].
+    /// `ui` from Account screen; `auto_websocket` from [DutchGameHelpers.ensureWebSocketReady];
+    /// `iap_coins` / `iap_premium` from [IapSessionHelper].
     String guestProvisionSource = 'ui',
   }) async {
     

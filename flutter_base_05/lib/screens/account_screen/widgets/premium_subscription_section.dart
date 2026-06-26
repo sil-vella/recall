@@ -6,6 +6,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 
 import '../../../core/managers/module_manager.dart';
+import '../../../modules/login_module/login_module.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../modules/dutch_game/utils/dutch_firebase_analytics.dart';
@@ -15,7 +16,9 @@ import 'account_panel_style.dart';
 import '../../../utils/analytics_service.dart';
 import '../../../utils/coin_catalog.dart';
 import '../../../utils/consts/theme_consts.dart';
+import '../../../utils/iap_session_helper.dart';
 import '../../../utils/play_purchase_token.dart';
+import 'subscription_legal_footer.dart';
 
 /// Native store Premium subscription: purchase, server verify, and sync.
 /// Android: Google Play `premium_subscription` SKU + base plans.
@@ -180,6 +183,15 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
       _pendingPremiumPlanKey = planKey;
     });
     try {
+      final sessionOk = await IapSessionHelper.ensureSessionForPurchase(
+        context: context,
+        guestProvisionSource: 'iap_premium',
+      );
+      if (!sessionOk) {
+        _showSnack('Could not start purchase. Check your connection and try again.');
+        return;
+      }
+
       if (_isAndroid) {
         final details = _premiumPlayDetails;
         final offerToken = _premiumOfferTokenByBasePlan[planKey];
@@ -253,6 +265,19 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
   }
 
   Future<void> _verifySubscriptionOnServer(PurchaseDetails purchase) async {
+    final loginModule = ModuleManager().getModuleByType<LoginModule>();
+    if (loginModule != null && !await loginModule.hasValidToken()) {
+      if (!mounted) return;
+      final sessionOk = await IapSessionHelper.ensureSessionForPurchase(
+        context: context,
+        guestProvisionSource: 'iap_premium',
+      );
+      if (!sessionOk) {
+        _showSnack('Could not verify subscription. Tap Sync to retry.');
+        return;
+      }
+    }
+
     final productId = _isIos ? purchase.productID : CoinCatalog.premiumSubscriptionProductId;
     final verifyFields = nativeSubscriptionVerifyBody(purchase, productId: productId);
     if (verifyFields.isEmpty || !verifyFields.containsKey('product_id')) {
@@ -313,6 +338,18 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
 
   Future<void> _restoreStorePurchases({bool silent = false}) async {
     if (!_isNativeStore || _syncing) return;
+
+    if (!silent) {
+      final sessionOk = await IapSessionHelper.ensureSessionForPurchase(
+        context: context,
+        guestProvisionSource: 'iap_premium',
+      );
+      if (!sessionOk) {
+        _showSnack('Could not sync subscription. Check your connection and try again.');
+        return;
+      }
+    }
+
     setState(() => _syncing = true);
     try {
       await _storeIap.restorePurchases();
@@ -483,7 +520,18 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
                 )
               : const Text('Sync subscription with server'),
         ),
+        _buildLegalFooter(),
       ],
+    );
+  }
+
+  Widget _buildLegalFooter() {
+    final monthlyPrice = _premiumProductsReady ? _priceForPlan(_monthlyPlanKey) : '—';
+    final yearlyPrice = _premiumProductsReady ? _priceForPlan(_yearlyPlanKey) : '—';
+    return SubscriptionLegalFooter(
+      monthlyPrice: monthlyPrice,
+      yearlyPrice: yearlyPrice,
+      productsReady: _premiumProductsReady,
     );
   }
 
@@ -573,6 +621,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
                 )
               : const Text('Already subscribed? Sync with server'),
         ),
+        _buildLegalFooter(),
       ],
     );
   }

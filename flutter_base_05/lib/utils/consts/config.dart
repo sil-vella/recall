@@ -155,4 +155,16 @@ class Config {
     'APP_STORE_URL',
     defaultValue: '',
   );
+
+  /// Privacy policy for IAP / subscription disclosures (override via --dart-define).
+  static const String privacyPolicyUrl = String.fromEnvironment(
+    'PRIVACY_POLICY_URL',
+    defaultValue: 'https://reignofplay.com/privacy_policy/dutchmt-privacy-policy.html',
+  );
+
+  /// Terms of Use (EULA) for subscription disclosures (override via --dart-define).
+  static const String termsOfUseUrl = String.fromEnvironment(
+    'TERMS_OF_USE_URL',
+    defaultValue: 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+  );
 }

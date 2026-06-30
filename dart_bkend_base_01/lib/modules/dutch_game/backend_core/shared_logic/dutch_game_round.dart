@@ -14,6 +14,9 @@ import '../services/game_registry.dart';
 
 const bool LOGGING_SWITCH = false;
 
+const int _cpuKnownCardsClearHandThreshold = 7;
+const double _cpuKnownCardsClearProbability = 0.8;
+
 class DutchGameRound {
   final GameStateCallback _stateCallback;
   final String _gameId;
@@ -1218,6 +1221,7 @@ class DutchGameRound {
       hand.add(penaltyCardIdOnly);
       _trimTrailingNullSlotsFromIndex4(hand);
       player['hand'] = hand;
+      _maybeClearKnownCardsForCpuOnPenalty(player);
       final penaltyCardIndex = hand.length - 1;
 
       _updatePlayerStatusInGamesMap('waiting', playerId: playerId, gamesMap: currentGames);
@@ -6354,6 +6358,16 @@ class DutchGameRound {
       }
     } catch (e) {
       ;
+    }
+  }
+
+  /// CPU-only: on penalty, if hand is bloated, probabilistically forget known cards.
+  void _maybeClearKnownCardsForCpuOnPenalty(Map<String, dynamic> player) {
+    if (player['isHuman'] as bool? ?? true) return;
+    final hand = player['hand'] as List<dynamic>? ?? [];
+    if (hand.length < _cpuKnownCardsClearHandThreshold) return;
+    if (Random().nextDouble() < _cpuKnownCardsClearProbability) {
+      player['known_cards'] = <String, dynamic>{};
     }
   }
 

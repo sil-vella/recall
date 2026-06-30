@@ -71,6 +71,10 @@ class IapSessionHelper {
         ? email
         : 'guest_$username@guest.local';
 
+    if (!guestEmail.toLowerCase().endsWith('@guest.local')) {
+      return false;
+    }
+
     final password = sharedPref.getString('password') ?? username;
 
     final result = await loginModule.loginUser(

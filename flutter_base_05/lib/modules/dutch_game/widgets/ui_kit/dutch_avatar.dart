@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 
 import '../../../../utils/consts/config.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../../../utils/profile_photo_helper.dart';
 
 /// Circle avatar with deterministic colored initials fallback.
 ///
 /// Image precedence (first wins):
 ///   1. [imageBytes]  — already-decoded photo bytes (e.g. profile uploads).
 ///   2. [imageUrl]    — remote URL (web/native).
-///   3. [assetPath]   — local asset (`assets/...`).
-///   4. Initials fallback derived from [displayName].
+///   3. [assetPath] or [kDefaultProfilePictureAsset] when no upload exists.
+///   4. Initials fallback only if the bundled asset fails to load.
 ///
 /// The initials background is hashed from `displayName` so the same player
 /// always gets the same shade — useful for leaderboard rows / opponent chips.
@@ -159,23 +160,31 @@ class DutchAvatar extends StatelessWidget {
         fit: BoxFit.cover,
         errorBuilder: (_, error, stack) {
           
-          return _buildInitials();
+          return _buildDefaultAsset();
         },
       );
     }
-    if (assetPath != null && assetPath!.isNotEmpty) {
-      
-      return Image.asset(
-        assetPath!,
-        fit: BoxFit.cover,
-        errorBuilder: (_, error, stack) {
-          
-          return _buildInitials();
-        },
-      );
+    final resolvedAsset = (assetPath != null && assetPath!.isNotEmpty)
+        ? assetPath!
+        : kDefaultProfilePictureAsset;
+    if (resolvedAsset.isNotEmpty) {
+      return _buildAssetImage(resolvedAsset);
     }
     
     return _buildInitials();
+  }
+
+  Widget _buildDefaultAsset() => _buildAssetImage(kDefaultProfilePictureAsset);
+
+  Widget _buildAssetImage(String path) {
+    return Image.asset(
+      path,
+      fit: BoxFit.cover,
+      errorBuilder: (_, error, stack) {
+        
+        return _buildInitials();
+      },
+    );
   }
 
   Widget _buildInitials() {

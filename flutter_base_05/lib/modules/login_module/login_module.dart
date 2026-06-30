@@ -18,6 +18,7 @@ import '../../core/managers/websockets/websocket_manager.dart';
 import '../../utils/consts/config.dart';
 import '../../utils/analytics_service.dart';
 import '../../utils/dev_logger.dart';
+import '../../utils/profile_photo_helper.dart';
 import 'utils/ws_jwt_access_expiry.dart';
 import 'auth_session_messages.dart';
 
@@ -62,8 +63,9 @@ class LoginModule extends ModuleBase {
         "username": _sharedPref?.getString('username'),
         "email": _sharedPref?.getString('email'),
         // Hydrate avatar URL immediately for already-authenticated sessions.
-        // This avoids initials fallback while profile refresh is still in flight.
-        "profilePicture": _sharedPref?.getString('profile_picture'),
+        "profilePicture": resolveProfilePictureStoredValue(
+          _sharedPref?.getString('profile_picture'),
+        ),
         "error": null,
         "sessionStartupPending": true,
         "multiplayerSessionReady": false,
@@ -725,6 +727,9 @@ class LoginModule extends ModuleBase {
           // Explicitly set to false for regular accounts to clear any previous guest account flag
           
           await _sharedPref!.setBool('is_guest_account', false);
+          await _sharedPref!.remove('guest_username');
+          await _sharedPref!.remove('guest_email');
+          await _sharedPref!.remove('guest_user_id');
         }
         
         // Log successful login
@@ -1229,7 +1234,7 @@ class LoginModule extends ModuleBase {
       final updates = <String, dynamic>{
         ...currentLoginState,
         "profile": profile ?? {},
-        "profilePicture": pictureUrl,
+        "profilePicture": resolveProfilePictureStoredValue(pictureUrl),
       };
       final responseRole = response['role'] as String?;
       
@@ -1258,7 +1263,10 @@ class LoginModule extends ModuleBase {
         
       } else {
         if (_sharedPref != null) {
-          await _sharedPref!.remove('profile_picture');
+          await _sharedPref!.setString(
+            'profile_picture',
+            kDefaultProfilePictureAsset,
+          );
         }
         
       }

@@ -1158,17 +1158,17 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     required String email,
   }) {
     final loginState = StateManager().getModuleState<Map<String, dynamic>>("login") ?? {};
-    final profilePictureUrl = (loginState["profilePicture"] as String?)?.trim();
+    final profilePictureStored = (loginState["profilePicture"] as String?)?.trim();
     final profile = loginState["profile"] as Map<String, dynamic>? ?? const {};
     final avatarVersion = (profile["updated_at"]?.toString() ??
             loginState["profile_updated_at"]?.toString() ??
             '')
         .trim();
-    final effectivePictureUrl = (profilePictureUrl != null && profilePictureUrl.isNotEmpty)
-        ? (avatarVersion.isNotEmpty
-            ? '$profilePictureUrl${profilePictureUrl.contains('?') ? '&' : '?'}v=${Uri.encodeQueryComponent(avatarVersion)}'
-            : profilePictureUrl)
-        : null;
+    final avatarDisplay = resolveProfilePictureDisplay(
+      profilePictureStored,
+      cacheBustVersion:
+          isRemoteProfilePictureUrl(profilePictureStored) ? avatarVersion : null,
+    );
     final displayName = username.isNotEmpty ? username : email;
     
 
@@ -1182,7 +1182,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               DutchAvatar(
                 displayName: displayName.isNotEmpty ? displayName : 'Player',
                 imageBytes: _recentUploadedProfilePhotoBytes,
-                imageUrl: effectivePictureUrl,
+                imageUrl: avatarDisplay.imageUrl,
+                assetPath: avatarDisplay.assetPath,
                 size: 96,
                 semanticIdentifier: 'profile_avatar',
                 onTap: _uploadingProfilePhoto ? null : _pickAndUploadProfilePhoto,

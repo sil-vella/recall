@@ -27,15 +27,15 @@ Full path from Apple Developer enrollment through **production IPA**, **TestFlig
 7. [Coin catalog SSOT](#7-coin-catalog-ssot-product-ids)
 8. [Repo and Xcode](#8-repo-and-xcode-configuration)
 9. [Xcode signing](#9-xcode-signing-one-time)
-10. [Build IPA](#10-build-the-ipa)
+10. [Build the IPA — local vs GitHub / Xcode Cloud](#10-build-the-ipa--local-vs-github--xcode-cloud)
 11. [Upload](#11-upload-to-app-store-connect)
 12. [TestFlight and review](#12-after-upload--testflight-and-review)
-13. [In-app purchases (next)](#13-in-app-purchases-after-paid-apps-is-active)
+13. [In-app purchases](#13-in-app-purchases)
 14. [Android vs iOS](#14-android-vs-ios-release-same-repo)
-15. [Repo automation](#15-what-automation-exists-in-the-repo)
-16. [Troubleshooting](#16-troubleshooting)
+15. [What automation exists in the repo](#15-what-automation-exists-in-the-repo)
+16. [Troubleshooting and issues we hit](#16-troubleshooting-and-issues-we-hit)
 17. [Official Apple links](#17-official-apple-references)
-18. [Timeline](#18-process-timeline)
+18. [Process timeline](#18-process-timeline)
 
 ---
 
@@ -75,7 +75,9 @@ Full path from Apple Developer enrollment through **production IPA**, **TestFlig
 
 ## 4. Register the App ID (bundle ID)
 
-[Identifiers](https://developer.apple.com/account/resources/identifiers/list) → **+** → App → Explicit **`com.reignofplay.dutch`** → capabilities off unless needed.
+[Identifiers](https://developer.apple.com/account/resources/identifiers/list) → **+** → App → Explicit **`com.reignofplay.dutch`**.
+
+Enable **In-App Purchase** on this App ID (required for coin packs + Premium). Do **not** add a `Runner.entitlements` entry for `com.apple.developer.in-app-payments` — that key is **Apple Pay**, not StoreKit, and breaks Xcode Cloud export (see [§16.4](#164-export-archive-exit-code-70-after-archive-succeeds)).
 
 [Register an App ID](https://developer.apple.com/help/account/manage-identifiers/register-an-app-id/)
 
@@ -168,26 +170,16 @@ Setup in Connect: [IOS_IN_APP_PURCHASES_SETUP.md](IOS_IN_APP_PURCHASES_SETUP.md)
 | Team + signing | `DEVELOPMENT_TEAM = D6J4Y6ZQGV`, automatic signing |
 | Display name | `Info.plist` → Dutch Card Game |
 | Firebase | `GoogleService-Info.plist` |
-| AdMob | `Debug.xcconfig` / `Release.xcconfig` |
+| AdMob app ID (native) | `ios/Flutter/Debug.xcconfig` / `Release.xcconfig` → `GAD_APPLICATION_ID` |
+| AdMob unit IDs (Dart) | `.env.dart.defines.prod` + `playbooks/frontend/admob_test_ids.py` (iOS test override on Cloud) |
 | Coin catalog | `assets/dutch_coin_catalog.json` |
-| IPA script | `playbooks/frontend/build_ipa.sh` |
-| Xcode Cloud | `ios/ci_scripts/ci_post_clone.sh`, `ci_pre_xcodebuild.sh` |
+| Local IPA script | `playbooks/frontend/build_ipa.sh` |
+| Xcode Cloud CI | `ios/ci_scripts/ci_post_clone.sh`, `ci_pre_xcodebuild.sh` |
+| Env materialize (Cloud) | `playbooks/frontend/xcode_cloud_materialize_env.sh` |
 
 Open: `flutter_base_05/ios/Runner.xcworkspace`
 
-### Xcode Cloud — prod env (same dart-defines as AAB)
-
-Local `build_ipa.sh` / `build_appbundle.sh` read **`.env.dart.defines.prod`** (gitignored). Xcode Cloud runners do not — **`ci_pre_xcodebuild.sh`** decodes it from workflow secret **`DUTCH_DART_DEFINES_PROD_B64`** before compiling.
-
-```bash
-base64 -i .env.dart.defines.prod | pbcopy
-```
-
-App Store Connect → Xcode Cloud → workflow → **Environment** → add secret `DUTCH_DART_DEFINES_PROD_B64`. Optional: `DUTCH_ENV_PROD_B64` for `.env.prod`.
-
-Pre-xcodebuild must log `API_URL validated: https://dutch.reignofplay.com`. If login hangs on device, the secret is missing or stale.
-
-See [IOS_RELEASE_CHECKLIST.md](../flutter_base_05/IOS_RELEASE_CHECKLIST.md) (Xcode Cloud section).
+**Gitignored locally (not on GitHub):** `.env.prod`, `.env.dart.defines.prod`, `secrets/apple-iap-key.p8`. Xcode Cloud recreates dart-defines from workflow secrets (below).
 
 ---
 
@@ -200,17 +192,78 @@ CLI `flutter build ipa` failed with *No Accounts* until step 1 was done.
 
 ---
 
-## 10. Build the IPA
+## 10. Build the IPA — local vs GitHub / Xcode Cloud
+
+Two supported paths. **Production TestFlight builds use GitHub + Xcode Cloud** in practice: push to the tracked branch, Cloud archives, exports, and (when configured) uploads to App Store Connect.
+
+### 10.1 GitHub + Xcode Cloud (recommended)
+
+**Flow:** commit + push to GitHub → Xcode Cloud workflow on the linked repo → Apple-managed Mac runs CI scripts → archive → export → TestFlight.
+
+```mermaid
+flowchart LR
+  dev[Mac: edit code + pubspec version]
+  git[git push GitHub]
+  xc[Xcode Cloud workflow]
+  post[ci_post_clone.sh]
+  pre[ci_pre_xcodebuild.sh]
+  arch[xcodebuild archive]
+  exp[exportArchive]
+  asc[TestFlight / App Store Connect]
+
+  dev --> git --> xc --> post --> pre --> arch --> exp --> asc
+```
+
+| Step | Script / action | What it does |
+|------|-----------------|--------------|
+| 1 | **Push to GitHub** | Triggers Xcode Cloud (workflow linked in App Store Connect). `.env*` files are **not** in the repo. |
+| 2 | `ci_post_clone.sh` | Install Flutter (if needed), `flutter pub get`, `precache --ios`, `pod install` under `ios/`. |
+| 3 | `xcode_cloud_materialize_env.sh` | Decode workflow secret **`DUTCH_DART_DEFINES_PROD_B64`** → repo-root `.env.dart.defines.prod`. Optional **`DUTCH_ENV_PROD_B64`** → `.env.prod`. |
+| 4 | `ci_pre_xcodebuild.sh` | Sync version from `pubspec.yaml`, release deck + `LOGGING_SWITCH` off, **AdMob iOS test IDs** (`DART_DEFINES_PLATFORM=ios`, `ios_admob_gad_app_id.sh`), `env_for_flutter_dart_defines.py` → JSON, validate `API_URL`, `flutter build ios --config-only --dart-define-from-file`. |
+| 5 | Xcode Cloud | `xcodebuild archive` then `exportArchive` (app-store / ad-hoc / development). |
+| 6 | Distribution | If workflow includes **Distribute to App Store Connect**, build appears under **TestFlight → Build Uploads** — no Transporter needed. |
+
+**One-time: Xcode Cloud workflow secrets** (App Store Connect → **Xcode Cloud** → workflow → **Environment** — **not** GitHub Secrets):
+
+| Secret | Required | Contents |
+|--------|----------|----------|
+| `DUTCH_DART_DEFINES_PROD_B64` | **Yes** | Base64 of repo-root `.env.dart.defines.prod` (`API_URL`, `WS_URL`, Firebase client keys, `APP_STORE_URL`, etc.) |
+| `DUTCH_ENV_PROD_B64` | No | Base64 of `.env.prod` (version bump; can also use committed `pubspec.yaml`) |
+
+Refresh after changing local dart-defines:
+
+```bash
+cd /path/to/app_dev
+base64 -i .env.dart.defines.prod | pbcopy
+# Paste into App Store Connect → Xcode Cloud → Environment → DUTCH_DART_DEFINES_PROD_B64
+```
+
+**Before each Cloud build:** bump `flutter_base_05/pubspec.yaml` `version:` (and optionally run `playbooks/frontend/sync_pubspec_version.sh` locally), commit, push.
+
+**Verify in pre-xcodebuild logs:**
+
+- `API_URL validated: https://dutch.reignofplay.com` (not `localhost` / `10.0.2.2`)
+- `note: AdMob test ids applied for ios` (during App Review / TestFlight; see [§16.3](#163-admob-test-ids-on-ios-vs-android))
+- `Generated.xcconfig includes API_URL`
+
+**Apple IAP server keys** (`APPLE_IAP_*`, `.p8`) are **not** in dart-defines — they deploy to the VPS via Ansible (`playbooks/rop01/08_deploy_docker_compose.yml`), not Xcode Cloud.
+
+See also [IOS_RELEASE_CHECKLIST.md](../flutter_base_05/IOS_RELEASE_CHECKLIST.md) (Xcode Cloud section) and `playbooks/frontend/00_documentation.md` (§ Xcode Cloud).
+
+### 10.2 Local `build_ipa.sh` (optional)
+
+On a Mac with Xcode and signing configured:
 
 ```bash
 ./playbooks/frontend/build_ipa.sh
 ```
 
-- Version from `.env.prod` (e.g. `2.0.20` → build `20020`)
-- Dart-defines from `.env.dart.defines.prod` (include `APP_STORE_URL`)
-- Output: `flutter_base_05/build/ios/ipa/Dutch Card Game.ipa`
+- Version from `.env.prod` / prompt; dart-defines from `.env.dart.defines.prod`
+- Same AdMob iOS platform override as Cloud (`DART_DEFINES_PLATFORM=ios`)
+- Output: `flutter_base_05/build/ios/ipa/*.ipa`
+- Upload manually via Transporter if not using Cloud distribution
 
-See `playbooks/frontend/00_documentation.md` (§ `build_ipa.sh`).
+CLI `flutter build ipa` failed with *No Accounts* until Xcode → **Settings → Accounts** had the Apple ID (see [§9](#9-xcode-signing-one-time)).
 
 ---
 
@@ -245,11 +298,16 @@ Wait for **Processing** in TestFlight.
 
 ---
 
-## 13. In-app purchases (after Paid Apps is Active)
+## 13. In-app purchases
 
-1. Follow [IOS_IN_APP_PURCHASES_SETUP.md](IOS_IN_APP_PURCHASES_SETUP.md)
-2. Create six **consumables** + subscription group with monthly/yearly IDs from [§7](#7-coin-catalog-ssot-product-ids)
-3. Later: enable StoreKit in Flutter + Apple verify API on backend (see IAP doc §8)
+1. **App Store Connect** — follow [IOS_IN_APP_PURCHASES_SETUP.md](IOS_IN_APP_PURCHASES_SETUP.md): six **consumables** + subscription group (`premium_auto_renew_monthly` / `premium_auto_renew_yearly`) from [§7](#7-coin-catalog-ssot-product-ids).
+2. **App ID** — **In-App Purchase** enabled on `com.reignofplay.dutch` in Developer Portal (no Apple Pay entitlements file).
+3. **Flutter** — StoreKit via `in_app_purchase` (coins + Premium); no Stripe redirect on iOS.
+4. **Backend** — `apple_billing_module` on Flask (`/userauth/apple/*`); secrets in `.env.prod` + VPS deploy.
+
+Server setup: [APPLE_APP_STORE_BILLING.md](../python_base_04/APPLE_APP_STORE_BILLING.md)
+
+**App Review:** Attach IAPs to the app version; note that digital coins and Premium are sold only via Apple IAP on iOS (rewarded ads optional).
 
 ---
 
@@ -257,7 +315,7 @@ Wait for **Processing** in TestFlight.
 
 | | Android | iOS |
 |--|---------|-----|
-| Build | `build_apk.sh` | `build_ipa.sh` |
+| Build | `build_apk.sh` / `build_appbundle.sh` | **GitHub push → Xcode Cloud** (`ci_post_clone` + `ci_pre_xcodebuild`) or local `build_ipa.sh` |
 | Store IDs | Package = bundle ID | Bundle ID + Apple ID `6772967073` |
 | IAP SSOT | `dutch_coin_catalog.json` | Same file |
 | IAP live | Play + server verify | App Store IAP + `apple_billing_module` server verify |
@@ -269,27 +327,77 @@ Wait for **Processing** in TestFlight.
 
 ## 15. What automation exists in the repo
 
-| In repo | Manual |
-|---------|--------|
-| `build_ipa.sh`, signing in `pbxproj` | Business agreements, tax, bank, DSA |
+| In repo (GitHub) | Manual / secrets outside git |
+|------------------|------------------------------|
+| `ci_post_clone.sh`, `ci_pre_xcodebuild.sh` | Xcode Cloud workflow + Apple signing |
+| `xcode_cloud_materialize_env.sh` | **`DUTCH_DART_DEFINES_PROD_B64`** in App Store Connect (not GitHub) |
+| `build_ipa.sh`, `admob_test_ids.py`, `ios_admob_gad_app_id.sh` | Refresh base64 secret when dart-defines change |
+| `env_for_flutter_dart_defines.py` | Local `.env.dart.defines.prod` authoring |
 | `dutch_coin_catalog.json` + loaders | Create IAPs in Connect (match JSON) |
-| `APP_STORE_URL` in local `.env.dart.defines.prod` | TestFlight check, Transporter (if needed), metadata, review |
-| `DUTCH_DART_DEFINES_PROD_B64` on Xcode Cloud workflow | Required for Cloud builds — mirrors `.env.dart.defines.prod` |
-| `IOS_*` docs in `Documentation/Android_V_ios/` | TestFlight on device |
+| `apple_billing_module` + deploy playbook | `APPLE_IAP_*` + `secrets/apple-iap-key.p8` on VPS |
+| `APP_STORE_URL` in dart-defines template | Business agreements, tax, bank, DSA |
+| `IOS_*` docs in `Documentation/Android_V_ios/` | TestFlight on device, metadata, **Add for Review** |
 
 ---
 
-## 16. Troubleshooting
+## 16. Troubleshooting and issues we hit
+
+### 16.1 App Store rejection — “billing not enabled” / Stripe message
+
+**Symptom:** Review showed *“App Store billing is not enabled in this build. Use the web app (Stripe)…”* on the coin screen.
+
+**Cause:** iOS had Android Play + web Stripe only; StoreKit IAP was not wired after RevenueCat removal.
+
+**Fix:** Flutter native store bootstrap for iOS, `apple_billing_module` server verify, remove Stripe stub UI. Resubmit with IAPs attached to the version and App Review notes explaining coins/Premium via Apple IAP only.
+
+### 16.2 No `.env` files on GitHub — Cloud login / API failures
+
+**Symptom:** TestFlight build archives but app cannot reach API, or login spins forever.
+
+**Cause:** Xcode Cloud clone has no `.env.dart.defines.prod`; missing or stale **`DUTCH_DART_DEFINES_PROD_B64`**.
+
+**Fix:**
+
+1. Edit local `.env.dart.defines.prod` (`API_URL`, `WS_URL`, etc.).
+2. `base64 -i .env.dart.defines.prod | pbcopy` → update secret in **App Store Connect → Xcode Cloud → Environment** (not GitHub repo settings).
+3. Re-run workflow; confirm pre-xcodebuild log: `API_URL validated: https://dutch.reignofplay.com`.
+
+### 16.3 AdMob test IDs on iOS vs Android
+
+**Symptom:** Ads fail to load on iOS TestFlight, or wrong creatives during review.
+
+**Cause:** iOS `GAD_APPLICATION_ID` lives in `ios/Flutter/*.xcconfig` (not Gradle). Android demo unit IDs (`ca-app-pub-3940256099942544/6300978111`, app id `~3347511713`) do **not** work on iOS — iOS uses different [Google demo IDs](https://developers.google.com/admob/ios/test-ads) (e.g. banner `/2934735716`, app id `~1458002511`).
+
+**Fix (in repo):** `ci_pre_xcodebuild.sh` sets `DART_DEFINES_PLATFORM=ios` and applies `playbooks/frontend/admob_test_ids.py`. `ios_admob_gad_app_id.sh` syncs `GAD_APPLICATION_ID` from `ADMOB_IOS_USE_TEST_IDS` in dart-defines (default test). Optional in `.env.dart.defines.prod`: `ADMOB_IOS_USE_TEST_IDS=1` (set `0` when shipping real Dutch ad units).
+
+Re-base64 the workflow secret only when non-AdMob keys in dart-defines change; test AdMob IDs are applied by committed scripts even if the secret still lists production `ADMOBS_*`.
+
+### 16.4 Export archive exit code 70 (after archive succeeds)
+
+**Symptom:** Xcode Cloud: **Run xcodebuild archive** ✅, then all three **Export archive** steps fail with **exit code 70** (ad-hoc, development, app-store).
+
+**Cause (our case):** `Runner.entitlements` contained `com.apple.developer.in-app-payments` with an empty array — that is **Apple Pay**, not StoreKit IAP. Xcode Cloud managed provisioning profiles did not include it → export signing failed.
+
+**Fix:**
+
+1. Remove bogus `Runner.entitlements` (StoreKit IAP does not need an entitlements plist entry).
+2. Enable **In-App Purchase** on the App ID in [Developer Portal](https://developer.apple.com/account/resources/identifiers/list) only.
+3. Commit, push, re-run Cloud workflow.
+
+**If still failing:** Download build artifact **`app-store-export-archive-logs/xcodebuild-export-archive.log`** and search `error: exportArchive`. Certificate issues: revoke stale **Xcode Cloud managed** distribution certificates in Developer Portal, then rebuild.
+
+### 16.5 General troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| IAP **+** disabled | Wait for Paid Apps **Active** + tax + bank |
-| No Accounts on `flutter build ipa` | Xcode → Accounts |
-| CocoaPods UTF-8 | `LANG=en_US.UTF-8` in `build_ipa.sh` |
-| Duplicate build / `previousBundleVersion` in Transporter | **TestFlight → Build Uploads** first — build may already be there from Xcode Cloud; only upload if missing, else bump and run a **new** Cloud/archive build |
-| Share link empty | `APP_STORE_URL` + rebuild |
+| IAP **+** disabled in Connect | Wait for Paid Apps **Active** + tax + bank |
+| No Accounts on `flutter build ipa` | Xcode → Settings → Accounts |
+| CocoaPods UTF-8 | `LANG=en_US.UTF-8` in `build_ipa.sh` / Cloud scripts |
+| Duplicate build / `previousBundleVersion` | **TestFlight → Build Uploads** first — Cloud may have uploaded already; bump build number for new bits |
+| Share link empty | `APP_STORE_URL=https://apps.apple.com/app/id6772967073` in dart-defines + refresh secret |
 | SDK compile errors | [README.md](README.md) pins |
 | Unknown product on Play verify | Add ID to `in_app_products` in catalog |
+| `Missing DUTCH_DART_DEFINES_PROD_B64` | Add workflow secret in App Store Connect |
 
 ---
 
@@ -312,29 +420,32 @@ Wait for **Processing** in TestFlight.
 ```mermaid
 flowchart TD
   enroll[Developer Program]
-  appId[App ID com.reignofplay.dutch]
+  appId[App ID + In-App Purchase capability]
   ascApp[ASC app record]
   business[Paid Apps tax bank DSA]
   catalog[Coin catalog SSOT]
   iapConnect[IAPs in App Store Connect]
-  xcode[Xcode signing]
-  ipa[build_ipa.sh or Xcode Cloud]
-  checkTf[TestFlight Build Uploads check]
+  gitPush[git push GitHub]
+  xcCloud[Xcode Cloud ci_post + ci_pre]
+  secret[DUTCH_DART_DEFINES_PROD_B64]
+  arch[archive + export]
+  checkTf[TestFlight Build Uploads]
   upload[Transporter only if missing]
-  tf[TestFlight]
-  storekit[StoreKit plus Apple verify - future]
+  tf[TestFlight smoke test]
+  appleSrv[apple_billing_module on VPS]
   review[Add for Review]
 
   enroll --> appId --> ascApp --> business
   business --> iapConnect
   catalog --> iapConnect
-  ascApp --> xcode --> ipa --> checkTf
+  secret --> xcCloud
+  ascApp --> gitPush --> xcCloud --> arch --> checkTf
   checkTf -->|already listed| tf
   checkTf -->|not listed| upload --> tf
-  iapConnect --> storekit
+  iapConnect --> appleSrv
   tf --> review
 ```
 
 ---
 
-*Last updated: 2026-05-26 — includes Business/DSA workflow, catalog SSOT v3 (`store_recommended_packages`), IAP guide links, IPA 2.0.20 (20020), Apple ID 6772967073.*
+*Last updated: 2026-06-22 — GitHub + Xcode Cloud pipeline, env secrets, AdMob iOS test IDs, export exit 70 / entitlements fix, StoreKit IAP + Apple server verify live.*

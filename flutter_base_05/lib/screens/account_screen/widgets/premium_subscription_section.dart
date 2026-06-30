@@ -44,6 +44,8 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
   bool _syncing = false;
   bool _loadingProducts = false;
   bool _productsLoadFailed = false;
+  /// True only during an explicit buy/sync so verify may provision a guest session.
+  bool _iapVerifyMayProvisionGuest = false;
 
   /// iOS App Store subscription IDs (SSOT: dutch_coin_catalog.json); used if catalog load fails.
   static const String _iosMonthlyProductIdFallback = 'premium_auto_renew_monthly';
@@ -138,8 +140,12 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
       });
     }
 
-    await _refreshSubscriptionStatus();
-    await _restoreStorePurchases(silent: true);
+    final loginModule = ModuleManager().getModuleByType<LoginModule>();
+    final hasSession = loginModule != null && await loginModule.hasValidToken();
+    if (hasSession) {
+      await _refreshSubscriptionStatus();
+      await _restoreStorePurchases(silent: true);
+    }
   }
 
   Future<void> _loadAndroidPremiumProducts() async {
@@ -261,6 +267,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
         _showSnack('Could not start purchase. Check your connection and try again.');
         return;
       }
+      _iapVerifyMayProvisionGuest = true;
 
       if (!_premiumProductsReady) {
         await _reloadPremiumProducts();
@@ -344,16 +351,27 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
 
   Future<void> _verifySubscriptionOnServer(PurchaseDetails purchase) async {
     final loginModule = ModuleManager().getModuleByType<LoginModule>();
-    if (loginModule != null && !await loginModule.hasValidToken()) {
+    final hasToken = loginModule != null && await loginModule.hasValidToken();
+
+    if (!hasToken) {
+      if (!_iapVerifyMayProvisionGuest) {
+        if (purchase.pendingCompletePurchase) {
+          await _storeIap.completePurchase(purchase);
+        }
+        return;
+      }
       if (!mounted) return;
       final sessionOk = await IapSessionHelper.ensureSessionForPurchase(
         context: context,
         guestProvisionSource: 'iap_premium',
       );
+      _iapVerifyMayProvisionGuest = false;
       if (!sessionOk) {
         _showSnack('Could not verify subscription. Tap Sync to retry.');
         return;
       }
+    } else {
+      _iapVerifyMayProvisionGuest = false;
     }
 
     final productId = _isIos ? purchase.productID : CoinCatalog.premiumSubscriptionProductId;
@@ -426,6 +444,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
         _showSnack('Could not sync subscription. Check your connection and try again.');
         return;
       }
+      _iapVerifyMayProvisionGuest = true;
     }
 
     setState(() => _syncing = true);

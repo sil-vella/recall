@@ -51,6 +51,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   Map<String, ProductDetails> _playProductDetails = {};
   String? _playBusyProductId;
   bool _rewardedAdBusy = false;
+  bool _iapVerifyMayProvisionGuest = false;
 
   bool get _nativeMobile => !kIsWeb;
 
@@ -178,12 +179,21 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
 
   Future<void> _verifyNativePurchaseOnServer(PurchaseDetails purchase) async {
     final loginModule = ModuleManager().getModuleByType<LoginModule>();
-    if (loginModule != null && !await loginModule.hasValidToken()) {
+    final hasToken = loginModule != null && await loginModule.hasValidToken();
+
+    if (!hasToken) {
+      if (!_iapVerifyMayProvisionGuest) {
+        if (purchase.pendingCompletePurchase) {
+          await _playIap.completePurchase(purchase);
+        }
+        return;
+      }
       if (!mounted) return;
       final sessionOk = await IapSessionHelper.ensureSessionForPurchase(
         context: context,
         guestProvisionSource: 'iap_coins',
       );
+      _iapVerifyMayProvisionGuest = false;
       if (!sessionOk) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -198,6 +208,8 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         }
         return;
       }
+    } else {
+      _iapVerifyMayProvisionGuest = false;
     }
 
     final verifyFields = nativeCoinVerifyBody(purchase);
@@ -314,6 +326,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
         }
         return;
       }
+      _iapVerifyMayProvisionGuest = true;
 
       final started = await _playIap.buyConsumable(purchaseParam: PurchaseParam(productDetails: details));
       if (!started && mounted) {

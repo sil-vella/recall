@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_avatar.dart';
+import '../../utils/profile_photo_helper.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_section_header.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_settings_row.dart';
 import '../../utils/consts/theme_consts.dart';
@@ -29,6 +30,7 @@ class CustomDrawer extends StatelessWidget {
     final displayName = (loginState['username']?.toString() ?? '').trim();
     final email = (loginState['email']?.toString() ?? '').trim();
     final profilePicture = (loginState['profilePicture']?.toString() ?? '').trim();
+    final avatarDisplay = resolveProfilePictureDisplay(profilePicture);
 
     print("Rendering Drawer Items: ${drawerRoutes.map((r) => r.path).toList()}");
 
@@ -91,7 +93,8 @@ class CustomDrawer extends StatelessWidget {
                         displayName: displayName.isNotEmpty
                             ? displayName
                             : (email.isNotEmpty ? email : 'Player'),
-                        imageUrl: profilePicture.isNotEmpty ? profilePicture : null,
+                        imageUrl: avatarDisplay.imageUrl,
+                        assetPath: avatarDisplay.assetPath,
                         size: 38,
                         semanticIdentifier: 'drawer_profile_avatar',
                       ),

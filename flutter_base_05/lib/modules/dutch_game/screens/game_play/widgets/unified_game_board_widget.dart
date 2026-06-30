@@ -21,6 +21,7 @@ import 'circular_timer_widget.dart';
 import '../../../managers/player_action.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../utils/profile_photo_helper.dart';
 import '../../../../../utils/widgets/coin_icon.dart';
 import '../../demo/demo_action_handler.dart';
 import '../../demo/demo_functionality.dart';
@@ -4720,7 +4721,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   /// Build circular profile picture widget
   /// Size is 1.5x the status chip height (small size)
-  /// Shows user's profile picture if available, otherwise shows default icon
+  /// Shows user's profile picture if available, otherwise bundled default avatar
   /// [playerId] The player's session ID
   /// [profilePictureUrl] Optional profile picture URL (for opponents from player data)
   /// [diameter] Circle size; use [_kHudAvatarInRing] when nested inside [CircularTimerWidget].
@@ -4747,59 +4748,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         // Player not found in game_state, profilePictureUrl remains null
       }
     }
-    
-    // If we have a profile picture URL, show it
-    if (profilePictureUrl != null && profilePictureUrl.isNotEmpty) {
-      return Container(
-        width: profilePictureSize,
-        height: profilePictureSize,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppColors.surfaceVariant,
-          border: Border.all(
-            color: AppColors.borderDefault,
-            width: 1.5,
-          ),
-        ),
-        child: ClipOval(
-          child: Image.network(
-            profilePictureUrl,
-            width: profilePictureSize,
-            height: profilePictureSize,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              // Fallback to icon if image fails to load
-              return Icon(
-                Icons.person,
-                size: profilePictureSize * 0.6,
-                color: AppColors.textSecondary,
-              );
-            },
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) {
-                return child;
-              }
-              // Show loading indicator while image loads
-              return Center(
-                child: SizedBox(
-                  width: profilePictureSize * 0.4,
-                  height: profilePictureSize * 0.4,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    value: loadingProgress.expectedTotalBytes != null
-                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                        : null,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-    }
-    
-    // Fallback to default icon
+
+    return _buildProfilePictureCircle(
+      profilePictureSize,
+      child: _buildProfilePictureContent(
+        profilePictureUrl,
+        profilePictureSize,
+      ),
+    );
+  }
+
+  Widget _buildProfilePictureCircle(double profilePictureSize, {required Widget child}) {
     return Container(
       width: profilePictureSize,
       height: profilePictureSize,
@@ -4811,11 +4770,64 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           width: 1.5,
         ),
       ),
-      child: Icon(
-        Icons.person,
-        size: profilePictureSize * 0.6, // Icon is 60% of container size
-        color: AppColors.textSecondary,
-      ),
+      child: ClipOval(child: child),
+    );
+  }
+
+  Widget _buildProfilePictureContent(String? profilePictureUrl, double profilePictureSize) {
+    if (isBundledProfilePictureAsset(profilePictureUrl)) {
+      return Image.asset(
+        profilePictureUrl!.trim(),
+        width: profilePictureSize,
+        height: profilePictureSize,
+        fit: BoxFit.cover,
+      );
+    }
+
+    final remoteUrl = isRemoteProfilePictureUrl(profilePictureUrl)
+        ? profilePictureUrl!.trim()
+        : null;
+
+    if (remoteUrl != null) {
+      return Image.network(
+        remoteUrl,
+        width: profilePictureSize,
+        height: profilePictureSize,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildDefaultProfilePictureAsset(profilePictureSize);
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
+          return Center(
+            child: SizedBox(
+              width: profilePictureSize * 0.4,
+              height: profilePictureSize * 0.4,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return _buildDefaultProfilePictureAsset(profilePictureSize);
+  }
+
+  Widget _buildDefaultProfilePictureAsset(double profilePictureSize) {
+    return Image.asset(
+      kDefaultProfilePictureAsset,
+      width: profilePictureSize,
+      height: profilePictureSize,
+      fit: BoxFit.cover,
     );
   }
 }

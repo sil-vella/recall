@@ -7,6 +7,9 @@ import '../../utils/dutch_achievement_catalog.dart';
 import '../../utils/dutch_game_helpers.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 
+const int _achievementsTabUnlocked = 0;
+const int _achievementsTabLocked = 1;
+
 /// Route: `/dutch/achievements` — progress from [DutchGameHelpers.getUserDutchGameStats].
 class AchievementsScreen extends BaseScreen {
   const AchievementsScreen({Key? key}) : super(key: key);
@@ -33,6 +36,7 @@ class _AchievementsScreenState extends BaseScreenState<AchievementsScreen> {
   bool _loading = true;
   String? _error;
   Set<String> _unlocked = {};
+  int _selectedTab = _achievementsTabUnlocked;
 
   @override
   void initState() {
@@ -124,29 +128,64 @@ class _AchievementsScreenState extends BaseScreenState<AchievementsScreen> {
               ),
             ),
           ),
-          ...DutchAchievementCatalog.all.map((entry) {
-            final done = _unlocked.contains(entry.id);
-            final progress = achievementProgressFor(
-              entry: entry,
-              unlocked: done,
-              stats: DutchGameHelpers.getUserDutchGameStats(),
-            );
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Semantics(
-                identifier: 'achievement_row_${entry.id}',
-                label: _semanticsLabel(entry, done, progress),
-                child: _AchievementTile(
-                  entry: entry,
-                  unlocked: done,
-                  progress: progress,
-                ),
-              ),
-            );
-          }),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _AchievementsTabBar(
+              tabIndex: _selectedTab,
+              unlockedCount: _unlocked.length,
+              lockedCount: DutchAchievementCatalog.all.length - _unlocked.length,
+              onChanged: (index) => setState(() => _selectedTab = index),
+            ),
+          ),
+          ..._achievementRowsForTab(_selectedTab),
         ],
       ),
     );
+  }
+
+  List<Widget> _achievementRowsForTab(int tabIndex) {
+    final stats = DutchGameHelpers.getUserDutchGameStats();
+    final showUnlocked = tabIndex == _achievementsTabUnlocked;
+    final entries = DutchAchievementCatalog.all.where((entry) {
+      final done = _unlocked.contains(entry.id);
+      return showUnlocked ? done : !done;
+    }).toList();
+
+    if (entries.isEmpty) {
+      return [
+        DutchEmptyStateCard(
+          title: showUnlocked ? 'Nothing unlocked yet' : 'All caught up',
+          message: showUnlocked
+              ? 'Win games, climb the leaderboard, and complete challenges to unlock achievements.'
+              : 'You have unlocked every achievement. Great work!',
+          icon: showUnlocked ? Icons.lock_outline : Icons.emoji_events_outlined,
+          semanticIdentifier: showUnlocked
+              ? 'achievements_unlocked_empty'
+              : 'achievements_locked_empty',
+        ),
+      ];
+    }
+
+    return entries.map((entry) {
+      final done = _unlocked.contains(entry.id);
+      final progress = achievementProgressFor(
+        entry: entry,
+        unlocked: done,
+        stats: stats,
+      );
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Semantics(
+          identifier: 'achievement_row_${entry.id}',
+          label: _semanticsLabel(entry, done, progress),
+          child: _AchievementTile(
+            entry: entry,
+            unlocked: done,
+            progress: progress,
+          ),
+        ),
+      );
+    }).toList();
   }
 
   String _semanticsLabel(
@@ -159,6 +198,127 @@ class _AchievementsScreenState extends BaseScreenState<AchievementsScreen> {
       return '${entry.title}, locked, ${progress.current} of ${progress.required}';
     }
     return '${entry.title}, locked';
+  }
+}
+
+/// Unlocked vs locked — matches join-random / leaderboard segmented toggle styling.
+class _AchievementsTabBar extends StatelessWidget {
+  const _AchievementsTabBar({
+    required this.tabIndex,
+    required this.unlockedCount,
+    required this.lockedCount,
+    required this.onChanged,
+  });
+
+  final int tabIndex;
+  final int unlockedCount;
+  final int lockedCount;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final inactiveBg = AppColors.accentContrast.withValues(alpha: 0.28);
+    final inactiveFg = AppColors.textOnPrimary.withValues(alpha: 0.45);
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.scaffoldDeepPlumColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cardVariant,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _AchievementsTabSegment(
+              label: 'Unlocked ($unlockedCount)',
+              selected: tabIndex == _achievementsTabUnlocked,
+              inactiveBg: inactiveBg,
+              inactiveFg: inactiveFg,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                bottomLeft: Radius.circular(12),
+              ),
+              semanticsLabel: 'Achievements unlocked tab',
+              semanticsIdentifier: 'achievements_tab_unlocked',
+              onTap: () => onChanged(_achievementsTabUnlocked),
+            ),
+          ),
+          Expanded(
+            child: _AchievementsTabSegment(
+              label: 'Locked ($lockedCount)',
+              selected: tabIndex == _achievementsTabLocked,
+              inactiveBg: inactiveBg,
+              inactiveFg: inactiveFg,
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(12),
+                bottomRight: Radius.circular(12),
+              ),
+              semanticsLabel: 'Achievements locked tab',
+              semanticsIdentifier: 'achievements_tab_locked',
+              onTap: () => onChanged(_achievementsTabLocked),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AchievementsTabSegment extends StatelessWidget {
+  const _AchievementsTabSegment({
+    required this.label,
+    required this.selected,
+    required this.inactiveBg,
+    required this.inactiveFg,
+    required this.borderRadius,
+    required this.semanticsLabel,
+    required this.semanticsIdentifier,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final Color inactiveBg;
+  final Color inactiveFg;
+  final BorderRadius borderRadius;
+  final String semanticsLabel;
+  final String semanticsIdentifier;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: borderRadius,
+        child: Semantics(
+          label: semanticsLabel,
+          identifier: semanticsIdentifier,
+          button: true,
+          selected: selected,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.accentContrast : inactiveBg,
+              borderRadius: borderRadius,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: AppTextStyles.bodyMedium(
+                color: selected ? AppColors.textOnAccent : inactiveFg,
+              ).copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

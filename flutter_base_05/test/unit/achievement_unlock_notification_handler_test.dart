@@ -51,4 +51,27 @@ void main() {
       expect(partition.achievementUnlocks.first['id'], '1');
     });
   });
+
+  group('achievementUnlockMessagesToShow', () {
+    tearDown(resetAchievementCelebrationSessionForTest);
+
+    test('keeps one row per achievement id', () {
+      final show = achievementUnlockMessagesToShow([
+        {
+          'id': 'n1',
+          'data': {'achievement_id': 'lb_alltime_classic_top_50'},
+        },
+        {
+          'id': 'n2',
+          'data': {'achievement_id': 'lb_alltime_classic_top_50'},
+        },
+        {
+          'id': 'n3',
+          'data': {'achievement_id': 'lb_alltime_classic_top_10'},
+        },
+      ]);
+      expect(show.length, 2);
+      expect(show.map((m) => m['id']).toList(), ['n1', 'n3']);
+    });
+  });
 }

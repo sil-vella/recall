@@ -50,18 +50,65 @@ String achievementIdFromNotification(Map<String, dynamic> message) {
   return '';
 }
 
+/// Inbox rows that should show a celebration modal (deduped by achievement id).
+List<Map<String, dynamic>> achievementUnlockMessagesToShow(
+  List<Map<String, dynamic>> messages,
+) {
+  final out = <Map<String, dynamic>>[];
+  final seen = <String>{};
+  for (final message in messages) {
+    final achId = achievementIdFromNotification(message);
+    if (achId.isEmpty) {
+      out.add(message);
+      continue;
+    }
+    if (_celebratedAchievementIds.contains(achId) || !seen.add(achId)) {
+      continue;
+    }
+    out.add(message);
+  }
+  return out;
+}
+
 /// Shows fullscreen achievement celebration(s), then marks each notification read.
+/// Duplicate inbox rows for the same [achievement_id] show at most one modal per app session.
 Future<void> drainAchievementUnlockNotifications(
+  BuildContext context, {
+  required List<Map<String, dynamic>> messages,
+  required Future<void> Function(String messageId) onMarkAsRead,
+}) {
+  _achievementDrainChain = _achievementDrainChain.then(
+    (_) => _drainAchievementUnlockNotificationsImpl(
+      context,
+      messages: messages,
+      onMarkAsRead: onMarkAsRead,
+    ),
+  );
+  return _achievementDrainChain;
+}
+
+Future<void> _achievementDrainChain = Future.value();
+
+Future<void> _drainAchievementUnlockNotificationsImpl(
   BuildContext context, {
   required List<Map<String, dynamic>> messages,
   required Future<void> Function(String messageId) onMarkAsRead,
 }) async {
   if (messages.isEmpty) return;
+  final seenAchievementIds = <String>{};
   for (final message in messages) {
     final navCtx = NavigationManager().navigatorKey.currentContext ?? context;
     if (!navCtx.mounted) return;
     final id = message['id']?.toString() ?? '';
     final achId = achievementIdFromNotification(message);
+    if (achId.isNotEmpty) {
+      if (_celebratedAchievementIds.contains(achId) || !seenAchievementIds.add(achId)) {
+        if (id.isNotEmpty) {
+          await onMarkAsRead(id);
+        }
+        continue;
+      }
+    }
     final title = message['title']?.toString().trim() ??
         (achId.isEmpty ? 'Achievement unlocked' : DutchAchievementCatalog.displayTitle(achId));
     final entry = achId.isEmpty ? null : DutchAchievementEntry.byId(achId);
@@ -76,9 +123,20 @@ Future<void> drainAchievementUnlockNotifications(
         ),
       ),
     );
+    if (achId.isNotEmpty) {
+      _celebratedAchievementIds.add(achId);
+    }
     if (id.isNotEmpty) {
       await onMarkAsRead(id);
     }
   }
   await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
+}
+
+/// Achievement ids already celebrated this app session (avoids repeat modals from duplicate inbox rows).
+final Set<String> _celebratedAchievementIds = <String>{};
+
+/// Test-only: reset session dedupe between tests.
+void resetAchievementCelebrationSessionForTest() {
+  _celebratedAchievementIds.clear();
 }

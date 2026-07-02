@@ -139,29 +139,22 @@ def grant_period_placement(
   Returns True when a new period grant was created (notification sent).
     """
     grant_key = _period_grant_field_key(period, period_key, game_type, rank_tier, placement)
-    existing = db_manager.db["users"].find_one(
-        {"_id": user_oid, grant_key: {"$exists": True}},
-        {"_id": 1},
+    grant_doc = {
+        "achievement_id": achievement_id,
+        "granted_at": timestamp,
+        "period": period,
+        "period_key": period_key,
+        "game_type": game_type,
+        "rank_tier": rank_tier,
+        "placement": placement,
+    }
+    result = db_manager.db["users"].update_one(
+        {"_id": user_oid, grant_key: {"$exists": False}},
+        {"$set": {grant_key: grant_doc}},
     )
-    if existing:
+    if not result.modified_count:
         return False
     _grant_lifetime_unlock(db_manager, user_oid, achievement_id, timestamp)
-    db_manager.db["users"].update_one(
-        {"_id": user_oid},
-        {
-            "$set": {
-                grant_key: {
-                    "achievement_id": achievement_id,
-                    "granted_at": timestamp,
-                    "period": period,
-                    "period_key": period_key,
-                    "game_type": game_type,
-                    "rank_tier": rank_tier,
-                    "placement": placement,
-                }
-            }
-        },
-    )
     _notify_achievement_unlock(
         app_manager,
         user_id,
@@ -183,26 +176,13 @@ def grant_alltime_placement(
     timestamp: str,
 ) -> bool:
     """Grant all-time placement once per band. Returns True when newly granted."""
-    user = db_manager.db["users"].find_one(
-        {"_id": user_oid},
-        {"modules.dutch_game.achievements.unlocked": 1},
+    unlock_path = f"modules.dutch_game.achievements.unlocked.{achievement_id}"
+    result = db_manager.db["users"].update_one(
+        {"_id": user_oid, unlock_path: {"$exists": False}},
+        {"$set": {unlock_path: {"unlocked_at": timestamp}}},
     )
-    if not user:
+    if not result.modified_count:
         return False
-    dutch_game = (user.get("modules") or {}).get("dutch_game") or {}
-    already = achcat.unlocked_achievement_ids_from_dutch_game(dutch_game)
-    if achievement_id in already:
-        return False
-    db_manager.db["users"].update_one(
-        {"_id": user_oid},
-        {
-            "$set": {
-                f"modules.dutch_game.achievements.unlocked.{achievement_id}": {
-                    "unlocked_at": timestamp,
-                }
-            }
-        },
-    )
     _notify_achievement_unlock(
         app_manager,
         user_id,

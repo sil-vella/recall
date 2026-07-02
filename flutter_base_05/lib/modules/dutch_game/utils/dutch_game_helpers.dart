@@ -49,6 +49,10 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   /// Game IDs we just left (clear flow / leave button). Used to ignore stale game_state_updated.
   static final Set<String> _recentlyLeftGameIds = {};
+
+  /// Single in-flight [ensureWebSocketReady] so guest login / lobby gates do not race parallel connects.
+  static Future<bool>? _ensureWebSocketReadyInFlight;
+
   static bool wasGameRecentlyLeft(String gameId) => gameId.isNotEmpty && _recentlyLeftGameIds.contains(gameId);
   static void clearRecentlyLeftGameId(String gameId) {
     _recentlyLeftGameIds.remove(gameId);
@@ -794,6 +798,31 @@ class DutchGameHelpers {
   static Future<bool> ensureWebSocketReady({
     BuildContext? context,
     bool allowTransportResetRetry = true,
+  }) {
+    final inFlight = _ensureWebSocketReadyInFlight;
+    if (inFlight != null) {
+      if (LOGGING_SWITCH) {
+        customlog('DutchGameHelpers.ensureWebSocketReady: join in-flight');
+      }
+      return inFlight;
+    }
+
+    final future = _ensureWebSocketReadyImpl(
+      context: context,
+      allowTransportResetRetry: allowTransportResetRetry,
+    );
+    _ensureWebSocketReadyInFlight = future;
+    future.whenComplete(() {
+      if (identical(_ensureWebSocketReadyInFlight, future)) {
+        _ensureWebSocketReadyInFlight = null;
+      }
+    });
+    return future;
+  }
+
+  static Future<bool> _ensureWebSocketReadyImpl({
+    BuildContext? context,
+    bool allowTransportResetRetry = true,
   }) async {
     if (LOGGING_SWITCH) {
       customlog(
@@ -879,7 +908,7 @@ class DutchGameHelpers {
 
           // Recursively retry - now user should be fully logged in
           // Pass context to avoid re-fetching it
-          return await ensureWebSocketReady(
+          return await _ensureWebSocketReadyImpl(
             context: effectiveContext,
             allowTransportResetRetry: allowTransportResetRetry,
           );
@@ -921,7 +950,10 @@ class DutchGameHelpers {
       if (allowTransportResetRetry) {
         
         wsManager.resetTransportState(reason: 'ensure_ready_init_failed');
-        return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
+        return _ensureWebSocketReadyImpl(
+          context: context,
+          allowTransportResetRetry: false,
+        );
       }
       return false;
     }
@@ -960,7 +992,10 @@ class DutchGameHelpers {
       if (allowTransportResetRetry) {
         
         wsManager.resetTransportState(reason: 'ensure_ready_auth_timeout');
-        return ensureWebSocketReady(context: context, allowTransportResetRetry: false);
+        return _ensureWebSocketReadyImpl(
+          context: context,
+          allowTransportResetRetry: false,
+        );
       }
       return false;
     }

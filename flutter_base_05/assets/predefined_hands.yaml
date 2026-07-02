@@ -2,7 +2,7 @@
 # player_0..2: jack + queen + ace + one number (standard deck, unique suits)
 # player_3+: random deal (omit from hands)
 # Keep in sync with dart_bkend_base_01/lib/modules/dutch_game/config/predefined_hands.yaml
-enabled: true
+enabled: false
 
 hands:
   player_0:

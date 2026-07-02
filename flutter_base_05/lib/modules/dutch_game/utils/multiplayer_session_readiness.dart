@@ -137,13 +137,19 @@ class MultiplayerSessionReadiness {
   }
 
   /// Block Quick join / create room until startup + WS auth are both OK.
+  ///
+  /// When not logged in, delegates to [DutchGameHelpers.ensureWebSocketReady] so a
+  /// fresh install can auto-provision a guest account (same path as join/create helpers).
   static Future<bool> ensureReadyForMultiplayerAction() async {
     if (!isLoggedIn) {
-      DutchGameHelpers.navigateToAccountScreen(
-        'ws_auth_required',
-        'Please log in to connect to the game server.',
-      );
-      return false;
+      _markChecking();
+      final wsReady = await DutchGameHelpers.ensureWebSocketReady();
+      if (!wsReady) {
+        _markBlocked(
+          'Not connected to the game server yet. Check your network, then try again.',
+        );
+        return false;
+      }
     }
 
     if (isReady) {

@@ -63,8 +63,12 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     _load();
   }
 
-  List<Map<String, dynamic>> _filteredAndRanked(List<Map<String, dynamic>> raw) {
-    final tierLc = _selectedRankTier?.toLowerCase().trim();
+  List<Map<String, dynamic>> _filteredAndRanked(
+    List<Map<String, dynamic>> raw, {
+    bool ignoreRankTier = false,
+  }) {
+    final tierLc =
+        ignoreRankTier ? null : _selectedRankTier?.toLowerCase().trim();
     final filtered = <Map<String, dynamic>>[];
     if (tierLc == null || tierLc.isEmpty) {
       for (final r in raw) {
@@ -88,7 +92,8 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
 
   List<Map<String, dynamic>> get _visibleMonthly => _filteredAndRanked(_rawMonthly);
   List<Map<String, dynamic>> get _visibleYearly => _filteredAndRanked(_rawYearly);
-  List<Map<String, dynamic>> get _visibleAllTime => _filteredAndRanked(_rawAllTime);
+  List<Map<String, dynamic>> get _visibleAllTime =>
+      _filteredAndRanked(_rawAllTime, ignoreRankTier: true);
   List<Map<String, dynamic>> get _visibleRows {
     switch (_periodScope) {
       case 'yearly':
@@ -257,9 +262,11 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
         : (_selectedGameType == 'clear_and_collect'
             ? 'Clear and Collect'
             : 'All types');
-    final rank = (_selectedRankTier == null || _selectedRankTier!.isEmpty)
-        ? 'All ranks'
-        : _capitalizeRank(_selectedRankTier!);
+    final rank = _periodScope == 'all_time'
+        ? 'Global'
+        : ((_selectedRankTier == null || _selectedRankTier!.isEmpty)
+            ? 'All ranks'
+            : _capitalizeRank(_selectedRankTier!));
     return 'Filters · $period · $rank · $game';
   }
 
@@ -311,8 +318,9 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
             : 'Month $_monthlyPeriodKey (UTC)';
     }
     final t = _selectedRankTier;
-    final rankSuffix =
-        (t == null || t.isEmpty) ? '' : ' · ${_capitalizeRank(t)} only';
+    final rankSuffix = _periodScope == 'all_time' || t == null || t.isEmpty
+        ? ''
+        : ' · ${_capitalizeRank(t)} only';
     return '$base${_gameTypeFilterSuffix()}$rankSuffix';
   }
 
@@ -949,10 +957,11 @@ class _LeaderboardFiltersPanel extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        _LeaderboardFilterChipBar(
-          label: 'Rank',
-          chips: rankChips,
-        ),
+        if (periodScope != 'all_time')
+          _LeaderboardFilterChipBar(
+            label: 'Rank',
+            chips: rankChips,
+          ),
       ],
     );
   }

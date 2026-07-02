@@ -56,6 +56,14 @@
         group: www-data
         mode: "0644"
 
+    - name: Install app-ads.txt (AdMob / App Store verification)
+      ansible.builtin.copy:
+        src: "{{ landing_src }}/app-ads.txt"
+        dest: "{{ dutch_web_root }}/app-ads.txt"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
     - name: Install static landing CSS
       ansible.builtin.copy:
         src: "{{ landing_src }}/static_landing_css/{{ item }}"

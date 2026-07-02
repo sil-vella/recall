@@ -153,7 +153,8 @@ class Config {
   /// App Store listing for share-to-social copy on iOS (override via --dart-define).
   static const String appStoreUrl = String.fromEnvironment(
     'APP_STORE_URL',
-    defaultValue: '',
+    defaultValue:
+        'https://apps.apple.com/us/app/dutch-card-game/id6772967073',
   );
 
   /// Privacy policy for IAP / subscription disclosures (override via --dart-define).

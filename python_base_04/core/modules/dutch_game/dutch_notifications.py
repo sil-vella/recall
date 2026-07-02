@@ -8,9 +8,11 @@ from typing import Any, Dict, List, Optional
 # Source and subtypes: use these everywhere so they stay in sync with registered handlers.
 DUTCH_GAME_SOURCE = "dutch_game"
 SUBTYPE_MATCH_INVITE = "dutch_match_invite"
+SUBTYPE_ACHIEVEMENT_UNLOCK = "dutch_achievement_unlock"
 
 # Logical message id for match invite (admin tournaments flow). Used when creating notifications and when registering response handlers.
 MSG_ID_MATCH_INVITE = "dutch_game_invite_to_match_001"
+MSG_ID_ACHIEVEMENT_UNLOCK = "dutch_game_achievement_unlock_001"
 
 # Standard response map for match invite (label + action_identifier).
 MATCH_INVITE_RESPONSES = [

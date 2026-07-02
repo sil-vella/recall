@@ -1295,6 +1295,15 @@ def update_game_stats():
                             end_points=match_end_points,
                             duration_seconds=match_duration_seconds,
                         )
+                        from . import leaderboard_achievement_processor as lb_ach
+
+                        lb_ach.schedule_alltime_leaderboard_achievement_check(
+                            _app_manager,
+                            db_manager,
+                            user_id=user_id_str,
+                            user_oid=user_id,
+                            game_type=match_game_type,
+                        )
                     analytics_service = _app_manager.services_manager.get_service('analytics_service') if _app_manager else None
                     if analytics_service:
                         game_mode = player_result.get('game_mode', 'multiplayer')
@@ -1668,6 +1677,31 @@ def reload_catalogs_service():
             "error": "catalog_reload_failed",
             "message": str(e),
         }), 500
+
+
+def process_leaderboard_period_achievements_service():
+    """Service: grant monthly/yearly leaderboard placement achievements for completed UTC periods."""
+    try:
+        from . import leaderboard_achievement_processor as lb_ach
+
+        if not _app_manager:
+            return jsonify({"success": False, "error": "Server not initialized"}), 503
+        db_manager = _app_manager.get_db_manager(role="read_write")
+        if not db_manager:
+            return jsonify({"success": False, "error": "Database connection unavailable"}), 500
+        data = request.get_json() or {}
+        period = (data.get("period") or "").strip().lower() or None
+        period_key = (data.get("period_key") or "").strip() or None
+        result = lb_ach.process_pending_period_achievements(
+            _app_manager,
+            db_manager,
+            period=period,
+            period_key=period_key,
+        )
+        result["timestamp"] = datetime.utcnow().isoformat()
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def get_inventory_service():

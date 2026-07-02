@@ -20,6 +20,7 @@ import '../../modules/notifications_module/notifications_module.dart';
 import '../../modules/notifications_module/utils/global_broadcast_modal_filter.dart';
 import '../../modules/notifications_module/utils/notification_inbox_merge.dart';
 import '../../modules/notifications_module/utils/notification_message_cta.dart';
+import '../../modules/notifications_module/utils/achievement_unlock_notification_handler.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../utils/dev_logger.dart';
 // Note: Do not import dutch game types here to keep BaseScreen generic.
@@ -589,26 +590,38 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     }
     if (!modalContext.mounted) return;
     if (combined.isEmpty) return;
+    final partition = partitionAchievementUnlockMessages(combined);
+    Future<void> Function(String) markRead = (id) async {
+      final sid = id.toString();
+      final row = combined
+          .cast<Map<String, dynamic>>()
+          .where((m) => m['id']?.toString() == sid)
+          .firstOrNull;
+      if (row != null && isVersionGatedInstantModal(row)) return;
+      if (sid.startsWith('glob_')) {
+        await mod.markGlobalBroadcastsRead([sid]);
+      } else {
+        await mod.markAsRead([sid]);
+      }
+    };
+    if (partition.achievementUnlocks.isNotEmpty) {
+      await drainAchievementUnlockNotifications(
+        modalContext,
+        messages: partition.achievementUnlocks,
+        onMarkAsRead: markRead,
+      );
+    }
+    if (!modalContext.mounted) return;
+    final remaining = partition.otherMessages;
+    if (remaining.isEmpty) return;
     await InstantMessageModal.showUnreadInstantModals(
       modalContext,
-      messages: combined,
-      onMarkAsRead: (id) async {
-        final sid = id.toString();
-        final row = combined
-            .cast<Map<String, dynamic>>()
-            .where((m) => m['id']?.toString() == sid)
-            .firstOrNull;
-        if (row != null && isVersionGatedInstantModal(row)) return;
-        if (sid.startsWith('glob_')) {
-          await mod.markGlobalBroadcastsRead([sid]);
-        } else {
-          await mod.markAsRead([sid]);
-        }
-      },
+      messages: remaining,
+      onMarkAsRead: markRead,
       onSendResponse: api == null
           ? null
           : (String messageId, String actionIdentifier) async {
-              final message = combined
+              final message = remaining
                   .cast<Map<String, dynamic>>()
                   .where((m) => m['id']?.toString() == messageId)
                   .firstOrNull ??

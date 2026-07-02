@@ -117,6 +117,38 @@ def _normalize_achievement_entry(raw: Dict[str, Any]) -> Optional[Dict[str, Any]
                 "requires_win": requires_win,
             },
         }
+    if utype == "leaderboard_placement":
+        period = str(unlock.get("period") or "").strip().lower()
+        if period not in ("monthly", "yearly", "all_time"):
+            return None
+        game_type = str(unlock.get("game_type") or "").strip().lower()
+        if game_type not in ("classic", "clear_and_collect"):
+            return None
+        placement = str(unlock.get("placement") or "").strip().lower()
+        valid_placements = ("first", "second", "third", "top_10", "top_50", "top_100")
+        if placement not in valid_placements:
+            return None
+        repeatable = unlock.get("repeatable", period in ("monthly", "yearly"))
+        if not isinstance(repeatable, bool):
+            repeatable = period in ("monthly", "yearly")
+        norm_unlock: Dict[str, Any] = {
+            "type": "leaderboard_placement",
+            "period": period,
+            "game_type": game_type,
+            "placement": placement,
+            "repeatable": repeatable,
+        }
+        if period != "all_time":
+            rank_tier = str(unlock.get("rank_tier") or "").strip().lower()
+            if not rank_tier:
+                return None
+            norm_unlock["rank_tier"] = rank_tier
+        return {
+            "id": ach_id,
+            "title": title,
+            "description": desc,
+            "unlock": norm_unlock,
+        }
     return None
 
 
@@ -329,3 +361,86 @@ def compute_new_unlocks(
                 continue
             out.append(eid)
     return out
+
+
+_LEADERBOARD_PLACEMENTS = ("first", "second", "third", "top_10", "top_50", "top_100")
+
+
+def placement_for_rank(rank: int) -> Optional[str]:
+    """Map dense leaderboard rank (1-based) to a placement band."""
+    try:
+        r = int(rank)
+    except (TypeError, ValueError):
+        return None
+    if r == 1:
+        return "first"
+    if r == 2:
+        return "second"
+    if r == 3:
+        return "third"
+    if 4 <= r <= 10:
+        return "top_10"
+    if 11 <= r <= 50:
+        return "top_50"
+    if 51 <= r <= 100:
+        return "top_100"
+    return None
+
+
+def _game_type_id_segment(game_type: str) -> str:
+    gt = str(game_type or "").strip().lower()
+    return "cc" if gt == "clear_and_collect" else "classic"
+
+
+def achievement_id_for_leaderboard_placement(
+    *,
+    period: str,
+    game_type: str,
+    placement: str,
+    rank_tier: Optional[str] = None,
+) -> Optional[str]:
+    """Resolve catalog id for a leaderboard placement slice."""
+    per = str(period or "").strip().lower()
+    pl = str(placement or "").strip().lower()
+    if pl not in _LEADERBOARD_PLACEMENTS:
+        return None
+    gt_seg = _game_type_id_segment(game_type)
+    if per == "all_time":
+        return f"lb_alltime_{gt_seg}_{pl}"
+    if per not in ("monthly", "yearly"):
+        return None
+    tier = str(rank_tier or "").strip().lower()
+    if not tier:
+        return None
+    return f"lb_{per}_{gt_seg}_{tier}_{pl}"
+
+
+def format_leaderboard_period_label(period: str, period_key: str) -> str:
+    """Human label for notification copy (e.g. November 2025)."""
+    per = str(period or "").strip().lower()
+    key = str(period_key or "").strip()
+    if per == "yearly" and key.isdigit():
+        return key
+    if per == "monthly" and len(key) == 7 and key[4] == "-":
+        try:
+            year_s, month_s = key.split("-", 1)
+            month_i = int(month_s)
+            months = (
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            )
+            if 1 <= month_i <= 12:
+                return f"{months[month_i - 1]} {year_s}"
+        except (TypeError, ValueError):
+            pass
+    return key or per

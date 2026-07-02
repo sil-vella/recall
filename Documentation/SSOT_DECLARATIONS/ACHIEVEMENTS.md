@@ -28,6 +28,7 @@ Each entry:
   - `{ "type": "total_wins", "min": <int> }` — unlock when post-match lifetime `modules.dutch_game.wins` ≥ `min`.
   - `{ "type": "match_flag", "flag": "<string>", "requires_win": true }` — unlock when the player’s `game_results` row carries the flag (see below) and, if `requires_win` is true (default), they won the match.
   - `{ "type": "event_win", "special_event_id": "<string>", "min": <int> }` — unlock when the player won the match, `special_event_id` on `update-game-stats` matches, and lifetime wins in that event lane are ≥ `min` (default **1**). Counts live in `modules.dutch_game.special_event_wins.<special_event_id>`.
+  - `{ "type": "leaderboard_placement", "period": "monthly"|"yearly"|"all_time", "game_type": "classic"|"clear_and_collect", "placement": "first"|"second"|"third"|"top_10"|"top_50"|"top_100", "rank_tier": "<tier>", "repeatable": true|false }` — **not** evaluated in `update-game-stats`. Monthly/yearly: per competitive rank tier, repeatable each UTC period (batch job). All-time: global board (no `rank_tier`), once per band when first entered (post-win check). Celebrations via inbox notification → client achievement modal.
 
 **Match flags (v1):** Dart sets `dutch_called: true` on the caller’s row (`game_state.dutchCalledBy`). `empty_hand` is derived server-side from `win_type` / `winType` == `empty_hand` on winners.
 
@@ -41,6 +42,7 @@ Flutter hydrates titles/descriptions via init / public init-config (`achievement
 
 ```text
 modules.dutch_game.achievements.unlocked.<achievement_id>
+modules.dutch_game.leaderboard_period_grants.<period>.<period_key>.<game_type>.<rank_tier>.<placement>   # repeatable monthly/yearly grants
 modules.dutch_game.special_event_wins.<special_event_id>   # int, per-event lane wins
 modules.dutch_game.win_streak_current / win_streak_best
 ```

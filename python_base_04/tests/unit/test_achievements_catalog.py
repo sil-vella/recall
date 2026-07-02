@@ -162,6 +162,10 @@ class TestAchievementsCatalog(unittest.TestCase):
         self.assertIn("win_streak_3", ac.compute_new_unlocks(3, set(), is_winner=True))
         self.assertIn("win_streak_10", ac.compute_new_unlocks(10, set(), is_winner=True))
 
+    def test_compute_new_unlocks_ignores_leaderboard_placement(self):
+        unlocked = ac.compute_new_unlocks(100, set(), is_winner=True, total_wins_after=100)
+        self.assertFalse(any(x.startswith("lb_") for x in unlocked))
+
 
 if __name__ == "__main__":
     unittest.main()

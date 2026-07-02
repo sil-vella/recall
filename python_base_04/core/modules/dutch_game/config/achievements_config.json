@@ -5,85 +5,3398 @@
       "id": "win_streak_2",
       "title": "Hot hand",
       "description": "Win 2 matches in a row.",
-      "unlock": { "type": "win_streak", "min": 2 }
+      "unlock": {
+        "type": "win_streak",
+        "min": 2
+      }
     },
     {
       "id": "win_streak_3",
       "title": "Threepeat",
       "description": "Win 3 matches in a row.",
-      "unlock": { "type": "win_streak", "min": 3 }
+      "unlock": {
+        "type": "win_streak",
+        "min": 3
+      }
     },
     {
       "id": "win_streak_5",
       "title": "On a roll",
       "description": "Win 5 matches in a row.",
-      "unlock": { "type": "win_streak", "min": 5 }
+      "unlock": {
+        "type": "win_streak",
+        "min": 5
+      }
     },
     {
       "id": "win_streak_7",
       "title": "Lucky seven",
       "description": "Win 7 matches in a row.",
-      "unlock": { "type": "win_streak", "min": 7 }
+      "unlock": {
+        "type": "win_streak",
+        "min": 7
+      }
     },
     {
       "id": "win_streak_10",
       "title": "Unstoppable",
       "description": "Win 10 matches in a row.",
-      "unlock": { "type": "win_streak", "min": 10 }
+      "unlock": {
+        "type": "win_streak",
+        "min": 10
+      }
     },
     {
       "id": "first_blood",
       "title": "First victory",
       "description": "Win your first match.",
-      "unlock": { "type": "total_wins", "min": 1 }
+      "unlock": {
+        "type": "total_wins",
+        "min": 1
+      }
     },
     {
       "id": "centurion",
       "title": "Centurion",
       "description": "Win 100 matches.",
-      "unlock": { "type": "total_wins", "min": 100 }
+      "unlock": {
+        "type": "total_wins",
+        "min": 100
+      }
     },
     {
       "id": "called_dutch",
       "title": "Dutch caller",
       "description": "Win a match after calling Dutch.",
-      "unlock": { "type": "match_flag", "flag": "dutch_called", "requires_win": true }
+      "unlock": {
+        "type": "match_flag",
+        "flag": "dutch_called",
+        "requires_win": true
+      }
     },
     {
       "id": "empty_hand",
       "title": "Clean sweep",
       "description": "Win a match with no cards left in your hand.",
-      "unlock": { "type": "match_flag", "flag": "empty_hand", "requires_win": true }
+      "unlock": {
+        "type": "match_flag",
+        "flag": "empty_hand",
+        "requires_win": true
+      }
     },
     {
       "id": "cards_night_winner",
       "title": "Cards Night champion",
       "description": "Win a Cards Night special event match.",
-      "unlock": { "type": "event_win", "special_event_id": "cards_night", "min": 1 }
+      "unlock": {
+        "type": "event_win",
+        "special_event_id": "cards_night",
+        "min": 1
+      }
     },
     {
       "id": "dutch_explorer_winner",
       "title": "Dutch Explorer",
       "description": "Win a Dutch Explorer special event match.",
-      "unlock": { "type": "event_win", "special_event_id": "dutch_explorer", "min": 1 }
+      "unlock": {
+        "type": "event_win",
+        "special_event_id": "dutch_explorer",
+        "min": 1
+      }
     },
     {
       "id": "the_challenger_winner",
       "title": "The Challenger",
       "description": "Win a Challenger special event match.",
-      "unlock": { "type": "event_win", "special_event_id": "the_challenger", "min": 1 }
+      "unlock": {
+        "type": "event_win",
+        "special_event_id": "the_challenger",
+        "min": 1
+      }
     },
     {
       "id": "dutch_hobbyist_winner",
       "title": "Dutch Hobbyist",
       "description": "Win a Dutch Hobbyist special event match.",
-      "unlock": { "type": "event_win", "special_event_id": "dutch_hobbyist", "min": 1 }
+      "unlock": {
+        "type": "event_win",
+        "special_event_id": "dutch_hobbyist",
+        "min": 1
+      }
     },
     {
       "id": "dutch_fan_winner",
       "title": "Dutch Fan",
       "description": "Win a Dutch Fan special event match.",
-      "unlock": { "type": "event_win", "special_event_id": "dutch_fan", "min": 1 }
+      "unlock": {
+        "type": "event_win",
+        "special_event_id": "dutch_fan",
+        "min": 1
+      }
+    },
+    {
+      "id": "lb_monthly_classic_beginner_first",
+      "title": "Monthly Beginner champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_beginner_second",
+      "title": "Monthly Beginner runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_beginner_third",
+      "title": "Monthly Beginner bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_beginner_top_10",
+      "title": "Monthly Beginner top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_beginner_top_50",
+      "title": "Monthly Beginner top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_beginner_top_100",
+      "title": "Monthly Beginner top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_novice_first",
+      "title": "Monthly Novice champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_novice_second",
+      "title": "Monthly Novice runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_novice_third",
+      "title": "Monthly Novice bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_novice_top_10",
+      "title": "Monthly Novice top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_novice_top_50",
+      "title": "Monthly Novice top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_novice_top_100",
+      "title": "Monthly Novice top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_apprentice_first",
+      "title": "Monthly Apprentice champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_apprentice_second",
+      "title": "Monthly Apprentice runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_apprentice_third",
+      "title": "Monthly Apprentice bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_apprentice_top_10",
+      "title": "Monthly Apprentice top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_apprentice_top_50",
+      "title": "Monthly Apprentice top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_apprentice_top_100",
+      "title": "Monthly Apprentice top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_skilled_first",
+      "title": "Monthly Skilled champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_skilled_second",
+      "title": "Monthly Skilled runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_skilled_third",
+      "title": "Monthly Skilled bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_skilled_top_10",
+      "title": "Monthly Skilled top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_skilled_top_50",
+      "title": "Monthly Skilled top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_skilled_top_100",
+      "title": "Monthly Skilled top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_advanced_first",
+      "title": "Monthly Advanced champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_advanced_second",
+      "title": "Monthly Advanced runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_advanced_third",
+      "title": "Monthly Advanced bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_advanced_top_10",
+      "title": "Monthly Advanced top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_advanced_top_50",
+      "title": "Monthly Advanced top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_advanced_top_100",
+      "title": "Monthly Advanced top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_expert_first",
+      "title": "Monthly Expert champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_expert_second",
+      "title": "Monthly Expert runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_expert_third",
+      "title": "Monthly Expert bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_expert_top_10",
+      "title": "Monthly Expert top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_expert_top_50",
+      "title": "Monthly Expert top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_expert_top_100",
+      "title": "Monthly Expert top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_veteran_first",
+      "title": "Monthly Veteran champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_veteran_second",
+      "title": "Monthly Veteran runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_veteran_third",
+      "title": "Monthly Veteran bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_veteran_top_10",
+      "title": "Monthly Veteran top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_veteran_top_50",
+      "title": "Monthly Veteran top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_veteran_top_100",
+      "title": "Monthly Veteran top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_master_first",
+      "title": "Monthly Master champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_master_second",
+      "title": "Monthly Master runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_master_third",
+      "title": "Monthly Master bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_master_top_10",
+      "title": "Monthly Master top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_master_top_50",
+      "title": "Monthly Master top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_master_top_100",
+      "title": "Monthly Master top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_elite_first",
+      "title": "Monthly Elite champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_elite_second",
+      "title": "Monthly Elite runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_elite_third",
+      "title": "Monthly Elite bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_elite_top_10",
+      "title": "Monthly Elite top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_elite_top_50",
+      "title": "Monthly Elite top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_elite_top_100",
+      "title": "Monthly Elite top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_legend_first",
+      "title": "Monthly Legend champion (Classic)",
+      "description": "Finish 1st on the monthly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_legend_second",
+      "title": "Monthly Legend runner-up (Classic)",
+      "description": "Finish 2nd on the monthly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_legend_third",
+      "title": "Monthly Legend bronze (Classic)",
+      "description": "Finish 3rd on the monthly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_legend_top_10",
+      "title": "Monthly Legend top 10 (Classic)",
+      "description": "Finish in the top 10 on the monthly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_legend_top_50",
+      "title": "Monthly Legend top 50 (Classic)",
+      "description": "Finish in the top 50 on the monthly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_classic_legend_top_100",
+      "title": "Monthly Legend top 100 (Classic)",
+      "description": "Finish in the top 100 on the monthly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_beginner_first",
+      "title": "Monthly Beginner champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_beginner_second",
+      "title": "Monthly Beginner runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_beginner_third",
+      "title": "Monthly Beginner bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_beginner_top_10",
+      "title": "Monthly Beginner top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_beginner_top_50",
+      "title": "Monthly Beginner top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_beginner_top_100",
+      "title": "Monthly Beginner top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_novice_first",
+      "title": "Monthly Novice champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_novice_second",
+      "title": "Monthly Novice runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_novice_third",
+      "title": "Monthly Novice bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_novice_top_10",
+      "title": "Monthly Novice top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_novice_top_50",
+      "title": "Monthly Novice top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_novice_top_100",
+      "title": "Monthly Novice top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_apprentice_first",
+      "title": "Monthly Apprentice champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_apprentice_second",
+      "title": "Monthly Apprentice runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_apprentice_third",
+      "title": "Monthly Apprentice bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_apprentice_top_10",
+      "title": "Monthly Apprentice top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_apprentice_top_50",
+      "title": "Monthly Apprentice top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_apprentice_top_100",
+      "title": "Monthly Apprentice top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_skilled_first",
+      "title": "Monthly Skilled champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_skilled_second",
+      "title": "Monthly Skilled runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_skilled_third",
+      "title": "Monthly Skilled bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_skilled_top_10",
+      "title": "Monthly Skilled top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_skilled_top_50",
+      "title": "Monthly Skilled top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_skilled_top_100",
+      "title": "Monthly Skilled top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_advanced_first",
+      "title": "Monthly Advanced champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_advanced_second",
+      "title": "Monthly Advanced runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_advanced_third",
+      "title": "Monthly Advanced bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_advanced_top_10",
+      "title": "Monthly Advanced top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_advanced_top_50",
+      "title": "Monthly Advanced top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_advanced_top_100",
+      "title": "Monthly Advanced top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_expert_first",
+      "title": "Monthly Expert champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_expert_second",
+      "title": "Monthly Expert runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_expert_third",
+      "title": "Monthly Expert bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_expert_top_10",
+      "title": "Monthly Expert top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_expert_top_50",
+      "title": "Monthly Expert top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_expert_top_100",
+      "title": "Monthly Expert top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_veteran_first",
+      "title": "Monthly Veteran champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_veteran_second",
+      "title": "Monthly Veteran runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_veteran_third",
+      "title": "Monthly Veteran bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_veteran_top_10",
+      "title": "Monthly Veteran top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_veteran_top_50",
+      "title": "Monthly Veteran top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_veteran_top_100",
+      "title": "Monthly Veteran top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_master_first",
+      "title": "Monthly Master champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_master_second",
+      "title": "Monthly Master runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_master_third",
+      "title": "Monthly Master bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_master_top_10",
+      "title": "Monthly Master top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_master_top_50",
+      "title": "Monthly Master top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_master_top_100",
+      "title": "Monthly Master top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_elite_first",
+      "title": "Monthly Elite champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_elite_second",
+      "title": "Monthly Elite runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_elite_third",
+      "title": "Monthly Elite bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_elite_top_10",
+      "title": "Monthly Elite top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_elite_top_50",
+      "title": "Monthly Elite top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_elite_top_100",
+      "title": "Monthly Elite top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_legend_first",
+      "title": "Monthly Legend champion (Clear & Collect)",
+      "description": "Finish 1st on the monthly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_legend_second",
+      "title": "Monthly Legend runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the monthly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_legend_third",
+      "title": "Monthly Legend bronze (Clear & Collect)",
+      "description": "Finish 3rd on the monthly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_legend_top_10",
+      "title": "Monthly Legend top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the monthly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_legend_top_50",
+      "title": "Monthly Legend top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the monthly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_monthly_cc_legend_top_100",
+      "title": "Monthly Legend top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the monthly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "monthly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_beginner_first",
+      "title": "Yearly Beginner champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_beginner_second",
+      "title": "Yearly Beginner runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_beginner_third",
+      "title": "Yearly Beginner bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_beginner_top_10",
+      "title": "Yearly Beginner top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_beginner_top_50",
+      "title": "Yearly Beginner top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_beginner_top_100",
+      "title": "Yearly Beginner top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "beginner",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_novice_first",
+      "title": "Yearly Novice champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_novice_second",
+      "title": "Yearly Novice runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_novice_third",
+      "title": "Yearly Novice bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_novice_top_10",
+      "title": "Yearly Novice top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_novice_top_50",
+      "title": "Yearly Novice top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_novice_top_100",
+      "title": "Yearly Novice top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "novice",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_apprentice_first",
+      "title": "Yearly Apprentice champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_apprentice_second",
+      "title": "Yearly Apprentice runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_apprentice_third",
+      "title": "Yearly Apprentice bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_apprentice_top_10",
+      "title": "Yearly Apprentice top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_apprentice_top_50",
+      "title": "Yearly Apprentice top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_apprentice_top_100",
+      "title": "Yearly Apprentice top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "apprentice",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_skilled_first",
+      "title": "Yearly Skilled champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_skilled_second",
+      "title": "Yearly Skilled runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_skilled_third",
+      "title": "Yearly Skilled bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_skilled_top_10",
+      "title": "Yearly Skilled top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_skilled_top_50",
+      "title": "Yearly Skilled top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_skilled_top_100",
+      "title": "Yearly Skilled top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "skilled",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_advanced_first",
+      "title": "Yearly Advanced champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_advanced_second",
+      "title": "Yearly Advanced runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_advanced_third",
+      "title": "Yearly Advanced bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_advanced_top_10",
+      "title": "Yearly Advanced top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_advanced_top_50",
+      "title": "Yearly Advanced top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_advanced_top_100",
+      "title": "Yearly Advanced top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "advanced",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_expert_first",
+      "title": "Yearly Expert champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_expert_second",
+      "title": "Yearly Expert runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_expert_third",
+      "title": "Yearly Expert bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_expert_top_10",
+      "title": "Yearly Expert top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_expert_top_50",
+      "title": "Yearly Expert top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_expert_top_100",
+      "title": "Yearly Expert top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "expert",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_veteran_first",
+      "title": "Yearly Veteran champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_veteran_second",
+      "title": "Yearly Veteran runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_veteran_third",
+      "title": "Yearly Veteran bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_veteran_top_10",
+      "title": "Yearly Veteran top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_veteran_top_50",
+      "title": "Yearly Veteran top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_veteran_top_100",
+      "title": "Yearly Veteran top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "veteran",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_master_first",
+      "title": "Yearly Master champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_master_second",
+      "title": "Yearly Master runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_master_third",
+      "title": "Yearly Master bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_master_top_10",
+      "title": "Yearly Master top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_master_top_50",
+      "title": "Yearly Master top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_master_top_100",
+      "title": "Yearly Master top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "master",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_elite_first",
+      "title": "Yearly Elite champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_elite_second",
+      "title": "Yearly Elite runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_elite_third",
+      "title": "Yearly Elite bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_elite_top_10",
+      "title": "Yearly Elite top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_elite_top_50",
+      "title": "Yearly Elite top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_elite_top_100",
+      "title": "Yearly Elite top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "elite",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_legend_first",
+      "title": "Yearly Legend champion (Classic)",
+      "description": "Finish 1st on the yearly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_legend_second",
+      "title": "Yearly Legend runner-up (Classic)",
+      "description": "Finish 2nd on the yearly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_legend_third",
+      "title": "Yearly Legend bronze (Classic)",
+      "description": "Finish 3rd on the yearly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_legend_top_10",
+      "title": "Yearly Legend top 10 (Classic)",
+      "description": "Finish in the top 10 on the yearly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_legend_top_50",
+      "title": "Yearly Legend top 50 (Classic)",
+      "description": "Finish in the top 50 on the yearly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_classic_legend_top_100",
+      "title": "Yearly Legend top 100 (Classic)",
+      "description": "Finish in the top 100 on the yearly Classic leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "classic",
+        "rank_tier": "legend",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_beginner_first",
+      "title": "Yearly Beginner champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_beginner_second",
+      "title": "Yearly Beginner runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_beginner_third",
+      "title": "Yearly Beginner bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_beginner_top_10",
+      "title": "Yearly Beginner top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_beginner_top_50",
+      "title": "Yearly Beginner top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_beginner_top_100",
+      "title": "Yearly Beginner top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Beginner tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "beginner",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_novice_first",
+      "title": "Yearly Novice champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_novice_second",
+      "title": "Yearly Novice runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_novice_third",
+      "title": "Yearly Novice bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_novice_top_10",
+      "title": "Yearly Novice top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_novice_top_50",
+      "title": "Yearly Novice top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_novice_top_100",
+      "title": "Yearly Novice top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Novice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "novice",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_apprentice_first",
+      "title": "Yearly Apprentice champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_apprentice_second",
+      "title": "Yearly Apprentice runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_apprentice_third",
+      "title": "Yearly Apprentice bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_apprentice_top_10",
+      "title": "Yearly Apprentice top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_apprentice_top_50",
+      "title": "Yearly Apprentice top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_apprentice_top_100",
+      "title": "Yearly Apprentice top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Apprentice tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "apprentice",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_skilled_first",
+      "title": "Yearly Skilled champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_skilled_second",
+      "title": "Yearly Skilled runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_skilled_third",
+      "title": "Yearly Skilled bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_skilled_top_10",
+      "title": "Yearly Skilled top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_skilled_top_50",
+      "title": "Yearly Skilled top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_skilled_top_100",
+      "title": "Yearly Skilled top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Skilled tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "skilled",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_advanced_first",
+      "title": "Yearly Advanced champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_advanced_second",
+      "title": "Yearly Advanced runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_advanced_third",
+      "title": "Yearly Advanced bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_advanced_top_10",
+      "title": "Yearly Advanced top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_advanced_top_50",
+      "title": "Yearly Advanced top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_advanced_top_100",
+      "title": "Yearly Advanced top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Advanced tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "advanced",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_expert_first",
+      "title": "Yearly Expert champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_expert_second",
+      "title": "Yearly Expert runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_expert_third",
+      "title": "Yearly Expert bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_expert_top_10",
+      "title": "Yearly Expert top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_expert_top_50",
+      "title": "Yearly Expert top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_expert_top_100",
+      "title": "Yearly Expert top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Expert tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "expert",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_veteran_first",
+      "title": "Yearly Veteran champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_veteran_second",
+      "title": "Yearly Veteran runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_veteran_third",
+      "title": "Yearly Veteran bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_veteran_top_10",
+      "title": "Yearly Veteran top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_veteran_top_50",
+      "title": "Yearly Veteran top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_veteran_top_100",
+      "title": "Yearly Veteran top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Veteran tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "veteran",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_master_first",
+      "title": "Yearly Master champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_master_second",
+      "title": "Yearly Master runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_master_third",
+      "title": "Yearly Master bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_master_top_10",
+      "title": "Yearly Master top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_master_top_50",
+      "title": "Yearly Master top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_master_top_100",
+      "title": "Yearly Master top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Master tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "master",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_elite_first",
+      "title": "Yearly Elite champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_elite_second",
+      "title": "Yearly Elite runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_elite_third",
+      "title": "Yearly Elite bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_elite_top_10",
+      "title": "Yearly Elite top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_elite_top_50",
+      "title": "Yearly Elite top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_elite_top_100",
+      "title": "Yearly Elite top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Elite tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "elite",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_legend_first",
+      "title": "Yearly Legend champion (Clear & Collect)",
+      "description": "Finish 1st on the yearly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "first",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_legend_second",
+      "title": "Yearly Legend runner-up (Clear & Collect)",
+      "description": "Finish 2nd on the yearly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "second",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_legend_third",
+      "title": "Yearly Legend bronze (Clear & Collect)",
+      "description": "Finish 3rd on the yearly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "third",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_legend_top_10",
+      "title": "Yearly Legend top 10 (Clear & Collect)",
+      "description": "Finish in the top 10 on the yearly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "top_10",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_legend_top_50",
+      "title": "Yearly Legend top 50 (Clear & Collect)",
+      "description": "Finish in the top 50 on the yearly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "top_50",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_yearly_cc_legend_top_100",
+      "title": "Yearly Legend top 100 (Clear & Collect)",
+      "description": "Finish in the top 100 on the yearly Clear & Collect leaderboard in the Legend tier.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "yearly",
+        "game_type": "clear_and_collect",
+        "rank_tier": "legend",
+        "placement": "top_100",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "lb_alltime_classic_first",
+      "title": "All-time champion (Classic)",
+      "description": "Reach 1st on the all-time Classic leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "classic",
+        "placement": "first",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_classic_second",
+      "title": "All-time runner-up (Classic)",
+      "description": "Reach 2nd on the all-time Classic leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "classic",
+        "placement": "second",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_classic_third",
+      "title": "All-time bronze (Classic)",
+      "description": "Reach 3rd on the all-time Classic leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "classic",
+        "placement": "third",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_classic_top_10",
+      "title": "All-time top 10 (Classic)",
+      "description": "Reach the top 10 on the all-time Classic leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "classic",
+        "placement": "top_10",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_classic_top_50",
+      "title": "All-time top 50 (Classic)",
+      "description": "Reach the top 50 on the all-time Classic leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "classic",
+        "placement": "top_50",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_classic_top_100",
+      "title": "All-time top 100 (Classic)",
+      "description": "Reach the top 100 on the all-time Classic leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "classic",
+        "placement": "top_100",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_cc_first",
+      "title": "All-time champion (Clear & Collect)",
+      "description": "Reach 1st on the all-time Clear & Collect leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "clear_and_collect",
+        "placement": "first",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_cc_second",
+      "title": "All-time runner-up (Clear & Collect)",
+      "description": "Reach 2nd on the all-time Clear & Collect leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "clear_and_collect",
+        "placement": "second",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_cc_third",
+      "title": "All-time bronze (Clear & Collect)",
+      "description": "Reach 3rd on the all-time Clear & Collect leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "clear_and_collect",
+        "placement": "third",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_cc_top_10",
+      "title": "All-time top 10 (Clear & Collect)",
+      "description": "Reach the top 10 on the all-time Clear & Collect leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "clear_and_collect",
+        "placement": "top_10",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_cc_top_50",
+      "title": "All-time top 50 (Clear & Collect)",
+      "description": "Reach the top 50 on the all-time Clear & Collect leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "clear_and_collect",
+        "placement": "top_50",
+        "repeatable": false
+      }
+    },
+    {
+      "id": "lb_alltime_cc_top_100",
+      "title": "All-time top 100 (Clear & Collect)",
+      "description": "Reach the top 100 on the all-time Clear & Collect leaderboard.",
+      "unlock": {
+        "type": "leaderboard_placement",
+        "period": "all_time",
+        "game_type": "clear_and_collect",
+        "placement": "top_100",
+        "repeatable": false
+      }
     }
   ]
 }

@@ -48,4 +48,16 @@ cd /path/to/app_dev
 ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/17_upload_dutch_landing_site.yml -e vm_name=rop01
 ```
 
-Only updates `index.html` and the three `static_landing_*` trees above — **not** `downloads/`, `app_media/`, or `sim_players/`.
+Only updates `index.html`, `app-ads.txt`, and the three `static_landing_*` trees above — **not** `downloads/`, `app_media/`, or `sim_players/`.
+
+## AdMob `app-ads.txt`
+
+Google requires `https://<your-app-store-domain>/app-ads.txt` for iOS (and Play) app verification. The file must live at the **domain root** that matches **App Store Connect** exactly (e.g. `dutch.reignofplay.com` or `reignofplay.com` — not both unless both are listed).
+
+After deploy, verify:
+
+```bash
+curl -s https://dutch.reignofplay.com/app-ads.txt
+```
+
+Then in AdMob → Apps → Dutch Card Game (iOS) → **Check for updates**.

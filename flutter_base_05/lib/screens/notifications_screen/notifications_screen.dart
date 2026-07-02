@@ -5,6 +5,7 @@ import '../../core/widgets/instant_message_modal.dart';
 import '../../core/widgets/instant_notification_response.dart';
 import '../../modules/notifications_module/utils/global_broadcast_modal_filter.dart';
 import '../../modules/notifications_module/utils/notification_message_cta.dart';
+import '../../modules/notifications_module/utils/achievement_unlock_notification_handler.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/notifications_module/notifications_module.dart';
 import '../../utils/consts/theme_consts.dart';
@@ -107,6 +108,17 @@ class _NotificationsScreenState extends BaseScreenState<NotificationsScreen> {
     final message = Map<String, dynamic>.from(raw);
     final id = message['id']?.toString() ?? '';
     if (!mounted) return;
+    if (isAchievementUnlockNotification(message)) {
+      await drainAchievementUnlockNotifications(
+        context,
+        messages: [message],
+        onMarkAsRead: (mid) async {
+          await _markAsRead(mid);
+          _syncReadInList(mid);
+        },
+      );
+      return;
+    }
     final api = _moduleManager.getModuleByType<ConnectionsApiModule>();
     await InstantMessageModal.show(
       context,

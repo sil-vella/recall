@@ -237,6 +237,7 @@ Constants in `dutch_notifications.py`:
 
 - `DUTCH_GAME_SOURCE = "dutch_game"`
 - `SUBTYPE_MATCH_INVITE = "dutch_match_invite"`
+- `SUBTYPE_ACHIEVEMENT_UNLOCK = "dutch_achievement_unlock"` — leaderboard placement grants; Flutter intercepts before generic `InstantMessageModal` and opens `DutchAchievementCelebrationScreen` (`data.achievement_id`, optional `period_key`).
 - `MSG_ID_MATCH_INVITE = "dutch_game_invite_to_match_001"`
 - `MATCH_INVITE_RESPONSES` → Join / Decline → `join`, `decline`
 

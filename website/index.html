@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Dutch — a fast-paced card game. Rules overview and how to play." />
+  <meta name="description" content="Dutch — classic card game and Clear and collect mode. Rules, gameplay, final round, and how to win." />
   <title>Dutch — Card game</title>
   <link rel="icon" href="/static_landing_images/favicon.ico" sizes="any" />
   <link rel="apple-touch-icon" href="/static_landing_images/apple-touch-icon.png" />
@@ -21,66 +21,87 @@
         <h1 class="brand-title">Dutch</h1>
       </div>
     </div>
-    <p class="tagline">A quick, tactical card game — empty your hand or own the lowest score when Dutch is called.</p>
+    <p class="tagline">Classic Dutch and Clear and collect — empty your hand, score the lowest, or collect all four of your rank.</p>
+    <nav class="store-links" aria-label="Download Dutch">
+      <a class="store-badge store-badge--apple" href="https://apps.apple.com/us/app/dutch-card-game/id6772967073" rel="noopener noreferrer" target="_blank">
+        <span class="store-badge__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        </span>
+        <span class="store-badge__text">
+          <span class="store-badge__label">Download on the</span>
+          <span class="store-badge__name">App Store</span>
+        </span>
+      </a>
+      <a class="store-badge store-badge--google" href="https://play.google.com/store/apps/details?id=com.reignofplay.dutch" rel="noopener noreferrer" target="_blank">
+        <span class="store-badge__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3.609 1.814L13.792 12 3.61 22.186a1.003 1.003 0 0 1-.41-.875V2.689a1.003 1.003 0 0 1 .409-.875zm12.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 0 1 0 1.73l-2.808 1.626L15.206 12l4.492-4.491zM5.864 2.658L16.8 8.99l-2.303 2.303L5.864 2.658z"/></svg>
+        </span>
+        <span class="store-badge__text">
+          <span class="store-badge__label">Get it on</span>
+          <span class="store-badge__name">Google Play</span>
+        </span>
+      </a>
+    </nav>
   </header>
 
   <main class="content">
-    <section class="card" id="objective">
-      <h2>Objective</h2>
-      <p>You win by either <strong>playing all of your cards</strong>, or by having the <strong>fewest points with the fewest cards</strong> after someone calls <em>Dutch</em> and everyone finishes their last turn.</p>
-    </section>
-
-    <section class="card" id="setup">
-      <h2>Setup</h2>
-      <ul>
-        <li>Each player receives <strong>four face-down</strong> cards.</li>
-        <li>You may peek at <strong>two</strong> of them before play begins.</li>
-        <li>Draw and discard piles sit in the center.</li>
-      </ul>
-    </section>
-
-    <section class="card" id="turn">
-      <h2>On your turn</h2>
-      <ol>
-        <li>Draw from the <strong>draw pile</strong> or take the <strong>top discard</strong> (others see what you took from discard).</li>
-        <li>Play one card to the discard — from your hand <strong>or</strong> the card you just drew.</li>
-        <li>If you play from your hand, your drawn card usually <strong>replaces</strong> a face-down slot.</li>
-      </ol>
-    </section>
-
-    <section class="card" id="special">
-      <h2>Special ranks</h2>
-      <div class="grid-2">
-        <div>
-          <h3>Queen</h3>
-          <p>When played, you may <strong>peek at one</strong> face-down card — any player, any slot.</p>
-        </div>
-        <div>
-          <h3>Jack</h3>
-          <p>When played, you may <strong>swap any two</strong> face-down cards between players.</p>
-        </div>
+    <section class="card" id="tutorial">
+      <h2>Tutorial video</h2>
+      <p class="muted">Watch a quick walkthrough of how to play Dutch.</p>
+      <div class="video-embed">
+        <iframe
+          src="https://www.youtube.com/embed/eWYu_m5ftwM?si=r19Ose29OYZPH-rb"
+          title="Dutch card game tutorial"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen
+        ></iframe>
       </div>
     </section>
 
-    <section class="card" id="dutch">
-      <h2>Calling Dutch</h2>
-      <p>After your play, you may call <strong>Dutch</strong> to signal the <strong>final round</strong>: every other player gets <strong>one more turn</strong>. Then hands are scored; lowest points wins, with ties broken by fewer cards, then Dutch-caller rules as in your house table.</p>
+    <section class="card" id="gameplay">
+      <h2>Gameplay</h2>
+      <ul>
+        <li>Tap the <strong>draw pile</strong> to draw a card.</li>
+        <li>Select a card from your hand to play <span class="mode-note">Clear and collect mode — excluding collection cards</span>.</li>
+        <li>Play cards with the <strong>same rank</strong> as the last played card <strong>out of turn</strong>.</li>
+        <li><strong>Queens</strong> let you peek at face-down cards from any player&rsquo;s hand, including your own.</li>
+        <li><strong>Jacks</strong> let you swap any two cards from any player&rsquo;s hand, including your own <span class="mode-note">Clear and collect mode — including collection cards</span>.</li>
+      </ul>
+
+      <h3>Clear and collect mode</h3>
+      <p>Collect cards from the discard pile when they match your <strong>collection rank</strong>. Collecting all <strong>four cards</strong> of your rank wins the game.</p>
+    </section>
+
+    <section class="card" id="final-round">
+      <h2>Final round</h2>
+      <p>If you think you have the <strong>least points</strong> during your turn, you can call <strong>final round</strong> after you play your card. That triggers the final round — this was your final turn, so you won&rsquo;t play again.</p>
+    </section>
+
+    <section class="card" id="winning">
+      <h2>Winning</h2>
+      <ul class="compact">
+        <li>Player with <strong>no cards</strong> wins.</li>
+        <li>Player with <strong>least points</strong> wins.</li>
+        <li>If same points, player with <strong>least cards</strong> wins.</li>
+        <li>If same points and same cards, player who <strong>called final round</strong> wins.</li>
+      </ul>
+      <p class="mode-note block">Clear and collect mode — the player who collects all four cards of their rank wins the game.</p>
     </section>
 
     <section class="card" id="scoring">
       <h2>Scoring snapshot</h2>
       <ul class="compact">
         <li><strong>2–10</strong> — face value</li>
-        <li><strong>Ace</strong> — 1 &nbsp;·&nbsp; <strong>Q / J / black K</strong> — 10</li>
-        <li><strong>Joker</strong> — 0 &nbsp;·&nbsp; <strong>Red king</strong> — 0</li>
+        <li><strong>Ace</strong> — 1 &nbsp;·&nbsp; <strong>Q / J / K</strong> — 10</li>
+        <li><strong>Joker</strong> — 0</li>
       </ul>
-      <p class="muted">Power cards may add effects — agree table rules before you deal.</p>
     </section>
   </main>
 
   <footer class="site-footer">
-    <p><a href="https://reignofplay.com">reignofplay.com</a> · <span id="year"></span></p>
-    <p class="muted small">This page is static information only. The live game runs in the mobile app.</p>
+    <p><a href="https://reignofplay.com">reignofplay.com</a> · <a href="https://reignofplay.com">Contact</a> · <span id="year"></span></p>
+    <p class="muted small">This page is static information only. The live game runs in the <a href="https://apps.apple.com/us/app/dutch-card-game/id6772967073" rel="noopener noreferrer" target="_blank">iOS</a> and <a href="https://play.google.com/store/apps/details?id=com.reignofplay.dutch" rel="noopener noreferrer" target="_blank">Android</a> apps.</p>
   </footer>
 
   <script src="/static_landing_js/main.js" defer></script>

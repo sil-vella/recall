@@ -11,7 +11,7 @@ import '../../utils/dutch_game_helpers.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 import '../lobby_room/widgets/collapsible_section_widget.dart';
 
-const int _kLeaderboardDisplayLimit = 20;
+const int _kLeaderboardDisplayLimit = 100;
 
 /// Route: `/dutch/leaderboard` — one bundle fetch; monthly/yearly/all-time; rank tier filtered on device.
 class LeaderboardScreen extends BaseScreen {

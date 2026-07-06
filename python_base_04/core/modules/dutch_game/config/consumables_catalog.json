@@ -455,6 +455,586 @@
           "#282828"
         ]
       }
+    },
+    {
+      "item_id": "table_design_ancient_egyptian",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 750,
+      "display_name": "Table Design Ancient Egyptian",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#785828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_candy_kingdom",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 680,
+      "display_name": "Table Design Candy Kingdom",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#D8A878"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_cyber_hacker_desk",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 720,
+      "display_name": "Table Design Cyber Hacker Desk",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#08B9E6"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_frozen_kingdom",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 780,
+      "display_name": "Table Design Frozen Kingdom",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#1062F8"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_haunted_seance_table",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 740,
+      "display_name": "Table Design Haunted Seance Table",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#A86828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_japanese_zen_garden",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 620,
+      "display_name": "Table Design Japanese Zen Garden",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#B88848"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_living_jungle_temple",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 680,
+      "display_name": "Table Design Living Jungle Temple",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_luxury_penthouse",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 900,
+      "display_name": "Table Design Luxury Penthouse",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#785828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_mad_scientists_laboratory",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 760,
+      "display_name": "Table Design Mad Scientists Laboratory",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_magical_wizard_library",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 800,
+      "display_name": "Table Design Magical Wizard Library",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8D888"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_medieval_tavern",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 700,
+      "display_name": "Table Design Medieval Tavern",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#A88858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_neon_underground",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 680,
+      "display_name": "Table Design Neon Underground",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#0A95CF"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_pirate_captains_table",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 750,
+      "display_name": "Table Design Pirate Captains Table",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_retro_arcade",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 720,
+      "display_name": "Table Design Retro Arcade",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#D89858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_royal_casino",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "royal",
+      "price_coins": 950,
+      "display_name": "Table Design Royal Casino",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684818"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_space_station",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 820,
+      "display_name": "Table Design Space Station",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#786848"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_street_basketball_court",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 880,
+      "display_name": "Table Design Street Basketball Court",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#E8B888"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_underwater_atlantis",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 780,
+      "display_name": "Table Design Underwater Atlantis",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_viking_feast_table",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 720,
+      "display_name": "Table Design Viking Feast Table",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_volcanic_arena",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "warm",
+      "price_coins": 700,
+      "display_name": "Table Design Volcanic Arena",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F88818"
+        ]
+      }
+    },
+    {
+      "item_id": "card_back_ancient_egyptian",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 440,
+      "display_name": "Card Cover Ancient Egyptian",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#181818",
+        "frame_border_color": "#181818"
+      }
+    },
+    {
+      "item_id": "card_back_candy_kingdom",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 400,
+      "display_name": "Card Cover Candy Kingdom",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#481808",
+        "frame_border_color": "#581808"
+      }
+    },
+    {
+      "item_id": "card_back_cyber_hacker_desk",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "neon",
+      "price_coins": 380,
+      "display_name": "Card Cover Cyber Hacker Desk",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#081818",
+        "frame_border_color": "#080808"
+      }
+    },
+    {
+      "item_id": "card_back_frozen_kingdom",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 450,
+      "display_name": "Card Cover Frozen Kingdom",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#085898",
+        "frame_border_color": "#4888C8"
+      }
+    },
+    {
+      "item_id": "card_back_haunted_seance_table",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 430,
+      "display_name": "Card Cover Haunted Seance Table",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#080808",
+        "frame_border_color": "#080808"
+      }
+    },
+    {
+      "item_id": "card_back_japanese_zen_garden",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "nature",
+      "price_coins": 360,
+      "display_name": "Card Cover Japanese Zen Garden",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#786848",
+        "frame_border_color": "#C89858"
+      }
+    },
+    {
+      "item_id": "card_back_living_jungle_temple",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "nature",
+      "price_coins": 380,
+      "display_name": "Card Cover Living Jungle Temple",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#181808",
+        "frame_border_color": "#181808"
+      }
+    },
+    {
+      "item_id": "card_back_luxury_penthouse",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "classic",
+      "price_coins": 480,
+      "display_name": "Card Cover Luxury Penthouse",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#A89878",
+        "frame_border_color": "#C8B8A8"
+      }
+    },
+    {
+      "item_id": "card_back_mad_scientists_laboratory",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 420,
+      "display_name": "Card Cover Mad Scientists Laboratory",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#080808",
+        "frame_border_color": "#080808"
+      }
+    },
+    {
+      "item_id": "card_back_magical_wizard_library",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 460,
+      "display_name": "Card Cover Magical Wizard Library",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#180838",
+        "frame_border_color": "#080808"
+      }
+    },
+    {
+      "item_id": "card_back_medieval_tavern",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "classic",
+      "price_coins": 410,
+      "display_name": "Card Cover Medieval Tavern",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#180808",
+        "frame_border_color": "#180808"
+      }
+    },
+    {
+      "item_id": "card_back_neon_underground",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "neon",
+      "price_coins": 370,
+      "display_name": "Card Cover Neon Underground",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#080818",
+        "frame_border_color": "#080808"
+      }
+    },
+    {
+      "item_id": "card_back_pirate_captains_table",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "classic",
+      "price_coins": 430,
+      "display_name": "Card Cover Pirate Captains Table",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#081818",
+        "frame_border_color": "#281808"
+      }
+    },
+    {
+      "item_id": "card_back_retro_arcade",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "neon",
+      "price_coins": 390,
+      "display_name": "Card Cover Retro Arcade",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#080828",
+        "frame_border_color": "#080818"
+      }
+    },
+    {
+      "item_id": "card_back_royal_casino",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "classic",
+      "price_coins": 490,
+      "display_name": "Card Cover Royal Casino",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#183818",
+        "frame_border_color": "#180808"
+      }
+    },
+    {
+      "item_id": "card_back_space_station",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "cosmic",
+      "price_coins": 440,
+      "display_name": "Card Cover Space Station",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#080818",
+        "frame_border_color": "#081828"
+      }
+    },
+    {
+      "item_id": "card_back_street_basketball_court",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "sports",
+      "price_coins": 470,
+      "display_name": "Card Cover Street Basketball Court",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#081838",
+        "frame_border_color": "#080818"
+      }
+    },
+    {
+      "item_id": "card_back_underwater_atlantis",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "fantasy",
+      "price_coins": 450,
+      "display_name": "Card Cover Underwater Atlantis",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#082838",
+        "frame_border_color": "#081828"
+      }
+    },
+    {
+      "item_id": "card_back_viking_feast_table",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "classic",
+      "price_coins": 420,
+      "display_name": "Card Cover Viking Feast Table",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#080808",
+        "frame_border_color": "#080808"
+      }
+    },
+    {
+      "item_id": "card_back_volcanic_arena",
+      "item_type": "card_back",
+      "category_group": "card_backs",
+      "category_theme": "warm",
+      "price_coins": 410,
+      "display_name": "Card Cover Volcanic Arena",
+      "asset_url_or_path": "assets/images/card_back.webp",
+      "is_active": true,
+      "style": {
+        "card_background_color": "#080808",
+        "frame_border_color": "#080808"
+      }
     }
   ]
 }

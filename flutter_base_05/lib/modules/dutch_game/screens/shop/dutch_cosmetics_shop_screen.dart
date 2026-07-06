@@ -1,23 +1,16 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/00_base/screen_base.dart';
-import '../../../../../utils/consts/config.dart';
 import '../../../../../utils/dev_logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../utils/consumables_catalog_bootstrap.dart';
 import '../../utils/customize_shop_route_hints.dart';
 import '../../../../../utils/widgets/coin_icon.dart';
-import '../../../../../utils/widgets/felt_texture_widget.dart';
-import '../../models/card_display_config.dart';
-import '../../models/card_model.dart';
-import '../game_play/utils/table_design_style_helpers.dart';
 import '../../utils/dutch_game_helpers.dart';
-import '../../utils/dutch_game_play_table_style_mapping.dart';
-import '../../widgets/card_widget.dart';
 import '../lobby_room/widgets/collapsible_section_widget.dart';
+import 'widgets/cosmetic_catalog_preview.dart';
+import 'widgets/cosmetic_preview_modal.dart';
 
 class DutchCustomizeScreen extends BaseScreen {
   final bool equipOnly;
@@ -266,40 +259,6 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     );
   }
 
-  void _logItemPreview(Map<String, dynamic> item) {
-    if (!LOGGING_SWITCH) return;
-    final id = item['item_id']?.toString() ?? '';
-    final type = item['item_type']?.toString() ?? '';
-    if (type != 'card_back' && type != 'table_design') return;
-    final inline = item['style'];
-    final inlineKeys = inline is Map ? Map<String, dynamic>.from(inline).keys.join(',') : 'none';
-    final boot = ConsumablesCatalogBootstrap.getStyleForItem(id);
-    final bootKeys = boot.keys.join(',');
-    if (type == 'card_back') {
-      final url = id.isNotEmpty
-          ? '${Config.apiUrl}/app_media/media/card_back.webp?skinId=$id&v=3'
-          : TableDesignStyleHelpers.defaultCardBackAsset;
-      customlog(
-        'CustomizeScreen preview card_back: id=$id inlineStyleKeys=$inlineKeys '
-        'bootstrapStyleKeys=$bootKeys imageUrl=$url',
-      );
-      return;
-    }
-    final borderStyle = TableDesignStyleHelpers.borderStyleForDesign(id);
-    final borderColors = TableDesignStyleHelpers.borderColorsForDesign(id);
-    final overlayNetworkUrl = TableDesignStyleHelpers.buildOverlayNetworkUrl(
-      currentGameId: '',
-      equippedTableDesignId: id,
-      imageVersion: 1,
-    );
-    customlog(
-      'CustomizeScreen preview table_design: id=$id inlineStyleKeys=$inlineKeys '
-      'bootstrapStyleKeys=$bootKeys borderStyle=$borderStyle borderColorCount=${borderColors.length} '
-      'juventus=${TableDesignStyleHelpers.isJuventusTableDesign(id)} '
-      'overlayNetworkUrl=${overlayNetworkUrl ?? TableDesignStyleHelpers.defaultTableOverlayAsset}',
-    );
-  }
-
   bool _isOwned(Map<String, dynamic> item) {
     final type = item['item_type']?.toString() ?? '';
     final id = item['item_id']?.toString() ?? '';
@@ -352,37 +311,6 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     if (p is int) return p;
     if (p is num) return p.round();
     return int.tryParse(p?.toString() ?? '') ?? 0;
-  }
-
-  /// Tile label without catalog category prefix (section header already shows category).
-  String _itemShortTitle(Map<String, dynamic> item) {
-    final raw = (item['display_name']?.toString() ?? 'Item').trim();
-    if (raw.isEmpty) return 'Item';
-
-    final type = item['item_type']?.toString() ?? '';
-    if (type == 'card_back') {
-      for (final prefix in const ['Card Cover ', 'Card Back ']) {
-        if (raw.length > prefix.length) {
-          final lower = raw.toLowerCase();
-          final prefixLower = prefix.toLowerCase();
-          if (lower.startsWith(prefixLower)) {
-            final short = raw.substring(prefix.length).trim();
-            if (short.isNotEmpty) return short;
-          }
-        }
-      }
-    } else if (type == 'table_design') {
-      const prefix = 'Table Design ';
-      if (raw.length > prefix.length) {
-        final lower = raw.toLowerCase();
-        final prefixLower = prefix.toLowerCase();
-        if (lower.startsWith(prefixLower)) {
-          final short = raw.substring(prefix.length).trim();
-          if (short.isNotEmpty) return short;
-        }
-      }
-    }
-    return raw;
   }
 
   String _accordionTitleForItem(Map<String, dynamic> item) {
@@ -801,182 +729,6 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     );
   }
 
-  /// Portrait card back preview (same network/skin rules as [CardWidget]).
-  Widget _centeredItemPreview(Map<String, dynamic> item) {
-    final type = item['item_type']?.toString() ?? '';
-    final id = item['item_id']?.toString() ?? '';
-    if (LOGGING_SWITCH) {
-      _logItemPreview(item);
-    }
-    return LayoutBuilder(
-      builder: (context, c) {
-        if (type == 'card_back') {
-          const aspect = 0.63;
-          final maxW = math.min(92.0, c.maxWidth);
-          final maxH = math.min(118.0, c.maxHeight);
-          var h = maxH;
-          var w = h * aspect;
-          if (w > maxW) {
-            w = maxW;
-            h = w / aspect;
-          }
-          return CardWidget(
-            card: const CardModel(
-              cardId: 'shop_preview',
-              rank: '?',
-              suit: '?',
-              points: 0,
-              isFaceDown: true,
-            ),
-            dimensions: Size(w, h),
-            config: const CardDisplayConfig(
-              showPoints: false,
-              showSpecialPower: false,
-              isSelectable: false,
-            ),
-            showBack: true,
-            ownerCardBackId: id,
-          );
-        }
-        if (type == 'table_design') {
-          final maxW = math.min(110.0, c.maxWidth);
-          final maxH = math.min(104.0, c.maxHeight);
-          const surfaceAspect = 1.55;
-          var w = maxW;
-          var h = w / surfaceAspect;
-          if (h > maxH) {
-            h = maxH;
-            w = h * surfaceAspect;
-          }
-          return _miniTableDesignPreview(skinId: id, width: w, height: h);
-        }
-        final side = math.min(58.0, math.min(c.maxWidth, c.maxHeight) * 0.55);
-        final icon = type.contains('boost') ? Icons.bolt : Icons.shopping_bag_outlined;
-        return Icon(
-          icon,
-          size: side,
-          color: AppColors.accentColor2,
-        );
-      },
-    );
-  }
-
-  Widget _miniTableDesignPreview({required String skinId, required double width, required double height}) {
-    if (LOGGING_SWITCH) {
-      customlog(
-        'CustomizeScreen _miniTableDesignPreview build: skinId=$skinId '
-        'resolvedBorder=${TableDesignStyleHelpers.outerBorderColorForDesign(skinId)}',
-      );
-    }
-    final tableStyle = DutchGamePlayTableStyles.forLevel(1);
-    final borderColor = TableDesignStyleHelpers.outerBorderColorForDesign(skinId);
-    final borderGlow = TableDesignStyleHelpers.outerBorderGlowForDesign(skinId);
-    final borderColors = TableDesignStyleHelpers.borderColorsForDesign(skinId);
-    final isJuventus = TableDesignStyleHelpers.isJuventusTableDesign(skinId);
-    final overlayNetworkUrl = TableDesignStyleHelpers.buildOverlayNetworkUrl(
-      currentGameId: '',
-      equippedTableDesignId: skinId,
-      imageVersion: 1,
-    );
-    final outerBorderW = (width * 0.04).clamp(2.0, 9.0);
-    const outerR = 10.0;
-    const innerR = 6.0;
-
-    return SizedBox(
-      width: width,
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(outerR),
-          boxShadow: [
-            BoxShadow(
-              color: borderGlow,
-              blurRadius: math.min(14.0, width * 0.18),
-              spreadRadius: 1,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(outerR),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(
-                child: FeltTextureWidget(
-                  backgroundColor: tableStyle.feltBackground,
-                ),
-              ),
-              if (!isJuventus)
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(outerR),
-                      border: Border.all(color: borderColor, width: outerBorderW),
-                    ),
-                  ),
-                ),
-              if (isJuventus)
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: JuventusStripeBorderPainter(
-                      borderWidth: outerBorderW,
-                      borderRadius: outerR,
-                      stripeColors: borderColors.isEmpty
-                          ? const [AppColors.black, AppColors.white]
-                          : borderColors,
-                    ),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              Positioned.fill(
-                child: Padding(
-                  padding: EdgeInsets.all(outerBorderW),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(innerR),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Positioned.fill(
-                          child: FeltTextureWidget(
-                            backgroundColor: tableStyle.feltBackground,
-                          ),
-                        ),
-                        Positioned.fill(
-                          child: SizedBox.expand(
-                            child: overlayNetworkUrl == null
-                                ? TableDesignStyleHelpers.defaultTableOverlayImage()
-                                : TableDesignStyleHelpers.wrapCosmeticTableDesignOverlay(
-                                    Image.network(
-                                      overlayNetworkUrl,
-                                      fit: BoxFit.cover,
-                                      alignment: Alignment.center,
-                                      gaplessPlayback: true,
-                                      errorBuilder: (_, error, __) {
-                                        if (LOGGING_SWITCH) {
-                                          customlog(
-                                            'CustomizeScreen table overlay load failed: '
-                                            'skinId=$skinId url=$overlayNetworkUrl error=$error',
-                                          );
-                                        }
-                                        return TableDesignStyleHelpers.defaultTableOverlayImage();
-                                      },
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _tileSecondaryAction(String label, VoidCallback onTap) {
     return Padding(
       padding: EdgeInsets.only(bottom: AppPadding.smallPadding.top / 2),
@@ -1018,7 +770,13 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     return Semantics(
       identifier: 'customize_shop_item_$id',
       child: GestureDetector(
-        onTap: () => setState(() => _selectedItemId = selected ? '' : id),
+        onTap: () {
+          final willSelect = !selected;
+          setState(() => _selectedItemId = willSelect ? id : '');
+          if (willSelect && (type == 'card_back' || type == 'table_design')) {
+            CosmeticPreviewModal.show(context, item: item);
+          }
+        },
         child: KeyedSubtree(
         key: _scrollKeyForItem(id),
         child: Container(
@@ -1043,7 +801,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                 _textScrim(
                   padding: EdgeInsets.zero,
                   child: Text(
-                    _itemShortTitle(item),
+                    cosmeticCatalogItemShortTitle(item),
                     style: AppTextStyles.caption(color: AppColors.white).copyWith(
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
@@ -1059,7 +817,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                     children: [
                       Expanded(
                         child: Center(
-                          child: _centeredItemPreview(item),
+                          child: CosmeticCatalogPreview(item: item),
                         ),
                       ),
                       if (selected)

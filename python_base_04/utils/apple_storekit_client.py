@@ -80,15 +80,53 @@ def _parse_environment():
     return Environment.SANDBOX
 
 
+def _parse_environment_name() -> str:
+    """Config SSOT as 'production' or 'sandbox' (for cached verifier/client keys)."""
+    from appstoreserverlibrary.models.Environment import Environment
+
+    return "production" if _parse_environment() == Environment.PRODUCTION else "sandbox"
+
+
+def _environment_from_name(env_name: str):
+    from appstoreserverlibrary.models.Environment import Environment
+
+    if (env_name or "").strip().lower() == "production":
+        return Environment.PRODUCTION
+    return Environment.SANDBOX
+
+
+def _app_apple_id() -> Optional[int]:
+    try:
+        app_id_raw = (Config.APPLE_APP_ID or "").strip()
+        if app_id_raw:
+            return int(app_id_raw)
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
+def _env_try_order() -> Tuple[str, str]:
+    """Primary env from config, then the alternate (Sandbox for App Review + Production for live)."""
+    primary = _parse_environment_name()
+    secondary = "sandbox" if primary == "production" else "production"
+    return primary, secondary
+
+
 def apple_billing_configured() -> bool:
     issuer = (Config.APPLE_IAP_ISSUER_ID or "").strip()
     key_id = (Config.APPLE_IAP_KEY_ID or "").strip()
     bundle = (Config.APPLE_BUNDLE_ID or "").strip()
-    return bool(issuer and key_id and bundle and _load_private_key() and _load_root_certificates())
+    if not (issuer and key_id and bundle and _load_private_key() and _load_root_certificates()):
+        return False
+    # At least one verifier (Sandbox always; Production needs APPLE_APP_ID).
+    return _get_signed_data_verifier_for_env("sandbox") is not None or _get_signed_data_verifier_for_env(
+        "production"
+    ) is not None
 
 
-@lru_cache(maxsize=1)
-def _get_signed_data_verifier():
+@lru_cache(maxsize=2)
+def _get_signed_data_verifier_for_env(env_name: str):
+    from appstoreserverlibrary.models.Environment import Environment
     from appstoreserverlibrary.signed_data_verifier import SignedDataVerifier
 
     root_certs = _load_root_certificates()
@@ -97,16 +135,8 @@ def _get_signed_data_verifier():
     bundle_id = (Config.APPLE_BUNDLE_ID or "").strip()
     if not bundle_id:
         return None
-    environment = _parse_environment()
-    app_apple_id: Optional[int] = None
-    try:
-        app_id_raw = (Config.APPLE_APP_ID or "").strip()
-        if app_id_raw:
-            app_apple_id = int(app_id_raw)
-    except (TypeError, ValueError):
-        app_apple_id = None
-    from appstoreserverlibrary.models.Environment import Environment
-
+    environment = _environment_from_name(env_name)
+    app_apple_id = _app_apple_id()
     if environment == Environment.PRODUCTION and app_apple_id is None:
         return None
     return SignedDataVerifier(
@@ -118,8 +148,8 @@ def _get_signed_data_verifier():
     )
 
 
-@lru_cache(maxsize=1)
-def _get_api_client():
+@lru_cache(maxsize=2)
+def _get_api_client_for_env(env_name: str):
     from appstoreserverlibrary.api_client import AppStoreServerAPIClient
 
     private_key = _load_private_key()
@@ -133,7 +163,7 @@ def _get_api_client():
         key_id,
         issuer_id,
         bundle_id,
-        _parse_environment(),
+        _environment_from_name(env_name),
     )
 
 
@@ -170,44 +200,71 @@ def _normalize_transaction_payload(decoded: Any) -> Dict[str, Any]:
 
 
 def verify_signed_transaction(signed_transaction: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    """Verify StoreKit 2 JWS from device. Returns (payload, error_message)."""
+    """Verify StoreKit 2 JWS from device. Tries configured env, then the alternate."""
     signed = (signed_transaction or "").strip()
     if not signed:
         return None, "signed_transaction is required"
-    verifier = _get_signed_data_verifier()
-    if verifier is None:
-        return None, "Apple IAP verification is not configured"
-    try:
-        from appstoreserverlibrary.signed_data_verifier import VerificationException
 
-        decoded = verifier.verify_and_decode_signed_transaction(signed)
-        return _normalize_transaction_payload(decoded), None
-    except VerificationException as e:
-        return None, f"Invalid signed transaction: {e}"
-    except Exception as e:
-        return None, f"Transaction verification failed: {e}"
+    from appstoreserverlibrary.signed_data_verifier import VerificationException
+
+    primary, secondary = _env_try_order()
+    last_err: Optional[str] = None
+    saw_verifier = False
+
+    for env_name in (primary, secondary):
+        verifier = _get_signed_data_verifier_for_env(env_name)
+        if verifier is None:
+            continue
+        saw_verifier = True
+        try:
+            decoded = verifier.verify_and_decode_signed_transaction(signed)
+            return _normalize_transaction_payload(decoded), None
+        except VerificationException as e:
+            last_err = str(e)
+        except Exception as e:
+            last_err = str(e)
+
+    if not saw_verifier:
+        return None, "Apple IAP verification is not configured"
+    return None, f"Invalid signed transaction: {last_err or 'verification failed'}"
 
 
 def fetch_transaction_by_id(transaction_id: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    """Fallback: App Store Server API lookup by transaction id."""
+    """Fallback: App Store Server API lookup by transaction id (both envs)."""
     tid = (transaction_id or "").strip()
     if not tid:
         return None, "transaction_id is required"
-    client = _get_api_client()
-    if client is None:
-        return None, "Apple IAP API client is not configured"
-    try:
-        from appstoreserverlibrary.api_client import APIException
 
-        response = client.get_transaction_info(tid)
-        signed = getattr(response, "signedTransactionInfo", None) or ""
-        if not signed:
-            return None, "Transaction not found"
-        return verify_signed_transaction(signed)
-    except APIException as e:
-        return None, f"Apple API error: {e}"
-    except Exception as e:
-        return None, f"Transaction lookup failed: {e}"
+    from appstoreserverlibrary.api_client import APIException
+
+    primary, secondary = _env_try_order()
+    last_err: Optional[str] = None
+    saw_client = False
+
+    for env_name in (primary, secondary):
+        client = _get_api_client_for_env(env_name)
+        if client is None:
+            continue
+        saw_client = True
+        try:
+            response = client.get_transaction_info(tid)
+            signed = getattr(response, "signedTransactionInfo", None) or ""
+            if not signed:
+                last_err = "Transaction not found"
+                continue
+            payload, err = verify_signed_transaction(signed)
+            if err or not payload:
+                last_err = err or "Transaction verification failed"
+                continue
+            return payload, None
+        except APIException as e:
+            last_err = f"Apple API error ({env_name}): {e}"
+        except Exception as e:
+            last_err = f"Transaction lookup failed ({env_name}): {e}"
+
+    if not saw_client:
+        return None, "Apple IAP API client is not configured"
+    return None, last_err or "Transaction not found"
 
 
 def resolve_transaction(

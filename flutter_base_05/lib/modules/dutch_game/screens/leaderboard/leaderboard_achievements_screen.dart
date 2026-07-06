@@ -9,7 +9,7 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../utils/dutch_achievement_catalog.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 
-const int _kAchievementsDisplayLimit = 20;
+const int _kAchievementsDisplayLimit = 100;
 
 /// Route `/dutch/leaderboard/achievements` — all-time achievement count ranking from bundle `achievements`.
 class LeaderboardAchievementsScreen extends BaseScreen {

@@ -66,6 +66,17 @@ Grafana dashboard documentation and customization guide.
 - Query examples
 - Troubleshooting
 
+### [FIREBASE_IMPLEMENTATION.md](./FIREBASE_IMPLEMENTATION.md)
+Complete Firebase (GA4) client implementation for the Flutter app.
+
+**Topics**:
+- Firebase project `dutch-mt` and registered apps
+- Android/iOS/macOS native config (`google-services.json`, plists, Gradle, CocoaPods)
+- Dart-define SSOT (`.env.dart.defines.*`) and `firebase_options.dart`
+- `AnalyticsService` / `DutchFirebaseAnalytics` event catalog
+- Dual analytics path (Firebase GA4 vs backend `AnalyticsModule`)
+- Launch scripts, DebugView, AdMob interaction, troubleshooting
+
 ## Quick Start
 
 1. **Read Overview**: Start with [OVERVIEW.md](./OVERVIEW.md) to understand the system
@@ -82,8 +93,9 @@ Grafana dashboard documentation and customization guide.
 
 ## Key Concepts
 
-- **Metrics are collected in Python backend only**
-- **Flutter frontend sends events to backend via API/WebSocket**
+- **Backend metrics (Prometheus/Grafana)** are collected in `python_base_04` only
+- **Flutter also sends product events to Firebase GA4** on native Android/iOS — see [FIREBASE_IMPLEMENTATION.md](./FIREBASE_IMPLEMENTATION.md)
+- **Flutter backend analytics** (`AnalyticsModule`) posts to `/userauth/analytics/track` and feeds Prometheus
 - **Metrics exposed via Flask route (port 5001) and HTTP server (port 8000)**
 - **Prometheus scrapes every 15 seconds**
 - **Grafana dashboards auto-refresh every 30 seconds**

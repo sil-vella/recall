@@ -34,7 +34,7 @@ APPLE_APP_STORE_ENVIRONMENT=Production
 APPLE_APP_ID=6772967073
 ```
 
-Use `Sandbox` for TestFlight/sandbox testing against sandbox purchases.
+Use `Production` for live App Store purchases. The server **also tries Sandbox** when verifying signed transactions and API lookups, so App Review sandbox purchases work without changing this setting.
 
 Deploy flow: [`playbooks/rop01/08_deploy_docker_compose.yml`](../../playbooks/rop01/08_deploy_docker_compose.yml) reads `.env.prod` → templates [`env.j2`](../../playbooks/rop01/templates/env.j2) → VPS `.env`.
 

@@ -3,9 +3,9 @@
 name: dutch
 
 services:
-  # MongoDB Service (for external app)
+  # MongoDB Service (for external app) — local Mac has AVX; bitnami 8.2.2 matches prod FCV 8.2.
   dutch_mongodb-external:
-    image: bitnami/mongodb:latest
+    image: bitnami/mongodb@sha256:7830f3dca01196cc34dc250af008ed311a5d11fa2d83787eb3ddae0c0c3d7aba
     container_name: dutch_external_app_mongodb
     env_file: .env.local
     environment:

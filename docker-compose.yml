@@ -8,22 +8,18 @@ x-docker-logging: &docker-logging
     max-file: "5"
 
 services:
-  # MongoDB Service (for external app)
+  # MongoDB — rop01 QEMU CPU has no AVX; official/bitnami Mongo 5+ images SIGILL (Jul 2026 outage).
+  # Use mongo-qemu-avx (MongoDB 8.2 + QEMU user-mode for AVX ops). Pin digest; do NOT use :latest.
+  # Local dev (Mac, has AVX): docker-compose.debug.yml still uses bitnami/mongodb@sha256:7830f3dca011…
+  # Known-bad bitnami (AVX): sha256:c65378e6661b… and sha256:992fe530992c…
   dutch_mongodb-external:
-    image: bitnami/mongodb:latest
+    image: ghcr.io/stevekerrison/mongo-qemu-avx@sha256:dbf2e3ba6a70bdfb1db01f2144c145ecbbe049732a33cf4225f4ca4856c9d37c
     container_name: dutch_external_app_mongodb
-    env_file: .env
-    environment:
-      - MONGODB_ROOT_USER=mongodb_admin
-      - MONGODB_DATABASE=external_system
-      - MONGODB_USERNAME=external_app_user
-      - MONGODB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
-      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
-      - ALLOW_EMPTY_PASSWORD=yes
+    command: ["mongod", "--bind_ip_all", "--dbpath", "/data/db"]
     ports:
       - "27018:27017"
     volumes:
-      - /opt/apps/reignofplay/dutch/data/mongodb:/bitnami/mongodb
+      - /opt/apps/reignofplay/dutch/data/mongodb/data/db:/data/db
     networks:
       - app-network
     restart: unless-stopped

@@ -40,7 +40,7 @@ The current system addresses that with:
 |-----------|-------|------|------|
 | `dutch_external_app_flask` | `silvella/dutch_flask_app:${FLASK_IMAGE_TAG}` | 5001 | REST API, `/service/*` (Dart → Flask) |
 | `dutch_dart_game_server` | `silvella/dutch_dart_game_server:${DART_IMAGE_TAG}` | 8080 | WebSocket game server |
-| `dutch_external_app_mongodb` | `bitnami/mongodb:latest` | 27018 | Database |
+| `dutch_external_app_mongodb` | `ghcr.io/stevekerrison/mongo-qemu-avx@sha256:dbf2e3ba…` (8.2, non-AVX) | 27018 | Database |
 | `dutch_external_app_redis` | `redis:8-alpine` | 6380 | Cache / pub-sub |
 
 **Traffic**

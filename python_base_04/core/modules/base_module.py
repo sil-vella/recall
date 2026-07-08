@@ -94,6 +94,16 @@ class BaseModule(ABC):
             'details': 'Module is functioning normally' if self._initialized else 'Module not initialized'
         }
     
+    def _route_endpoint_name(self, route: str, view_func) -> str:
+        """Unique Flask endpoint (defaults to view_func.__name__ and collides across modules/paths)."""
+        base = f"{self.module_name}.{view_func.__name__}"
+        if base not in self.app.view_functions:
+            return base
+        route_slug = route.strip("/").replace("/", "_").replace("-", "_")
+        for ch in "<>:.":
+            route_slug = route_slug.replace(ch, "")
+        return f"{base}.{route_slug}"
+
     def _register_route_helper(self, route: str, view_func, methods: List[str] = None, auth: str = None):
         """
         Helper method to register a route and track it.
@@ -109,8 +119,8 @@ class BaseModule(ABC):
         if methods is None:
             methods = ["GET"]
         
-        # Register with Flask
-        self.app.add_url_rule(route, view_func=view_func, methods=methods)
+        endpoint = self._route_endpoint_name(route, view_func)
+        self.app.add_url_rule(route, endpoint=endpoint, view_func=view_func, methods=methods)
         
         # Track route with authentication info
         route_info = (route, view_func.__name__, methods, auth)

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../../../../utils/consts/theme_consts.dart';
 import 'cosmetic_catalog_preview.dart';
 
+/// Dark scrim behind modal title — matches customize shop tiles.
+final Color _kTitleScrimFill = AppColors.darkGray.withValues(alpha: 0.92);
+
 /// Large preview modal for card covers and table designs on the Customize screen.
 class CosmeticPreviewModal extends StatelessWidget {
   const CosmeticPreviewModal({
@@ -48,8 +51,9 @@ class CosmeticPreviewModal extends StatelessWidget {
           ),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: AppBorderRadius.largeRadius,
+              color: AppColors.accentContrast,
+              borderRadius: AppBorderRadius.mediumRadius,
+              border: Border.all(color: AppColors.borderDefault),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.black.withValues(alpha: AppOpacity.shadow),
@@ -59,40 +63,46 @@ class CosmeticPreviewModal extends StatelessWidget {
               ],
             ),
             child: ClipRRect(
-              borderRadius: AppBorderRadius.largeRadius,
+              borderRadius: AppBorderRadius.mediumRadius,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    padding: AppPadding.defaultPadding,
+                  DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.primaryColor,
+                      color: _kTitleScrimFill,
                       borderRadius: AppBorderRadius.only(
-                        topLeft: AppBorderRadius.large,
-                        topRight: AppBorderRadius.large,
+                        topLeft: AppBorderRadius.medium,
+                        topRight: AppBorderRadius.medium,
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: AppTextStyles.headingSmall(
-                              color: AppColors.textOnPrimary,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 12, right: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: AppTextStyles.caption(color: AppColors.white).copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                        IconButton(
-                          onPressed: () => _close(context),
-                          icon: Icon(
-                            Icons.close,
-                            color: AppColors.textOnPrimary,
-                            size: AppSizes.iconMedium,
+                          IconButton(
+                            onPressed: () => _close(context),
+                            icon: Icon(
+                              Icons.close,
+                              color: AppColors.white,
+                              size: AppSizes.iconMedium,
+                            ),
+                            tooltip: 'Close',
                           ),
-                          tooltip: 'Close',
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   Flexible(

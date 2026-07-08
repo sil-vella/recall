@@ -174,7 +174,7 @@ class Config {
   static int get DUTCH_WINS_PER_USER_LEVEL => _getConfigInt(
     'DUTCH_WINS_PER_USER_LEVEL',
     'dutch_wins_per_user_level',
-    10,
+    37,
   );
 
   static int get DUTCH_LEVELS_PER_RANK => _getConfigInt(

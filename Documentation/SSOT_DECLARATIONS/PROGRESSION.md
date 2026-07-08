@@ -20,10 +20,12 @@ Defines **global rules** for competitive rank, user progression level (from wins
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "progression": {
     "user_level_min": 1,
-    "wins_per_user_level": 10,
+    "max_user_level": 55,
+    "wins_for_max_user_level": 2000,
+    "wins_per_level_steps": [10, 10, "… 54 integers …", 73],
     "levels_per_rank": {
       "beginner": 5,
       "novice": 5,
@@ -42,13 +44,20 @@ Defines **global rules** for competitive rank, user progression level (from wins
 }
 ```
 
+Client payloads also include derived `cumulative_wins_for_user_level` (min wins per level 1…max).
+
 ### `progression`
 
 | Field | Meaning |
 |-------|---------|
 | `user_level_min` | Floor for user progression level (default 1). |
-| `wins_per_user_level` | Lifetime wins per +1 user level: `level = 1 + wins // wins_per_user_level`. |
+| `max_user_level` | Derived from sum of `levels_per_rank` spans (55 with default ranks). |
+| `wins_for_max_user_level` | Target lifetime wins to reach `max_user_level` (default **2000**). |
+| `wins_per_level_steps` | **54 integers**: wins required for each +1 user level after level 1 (level 2…55). Early steps are smaller (faster beginner progress); later steps increase. Default bands: **10×9**, **18×9**, **28×9**, **40×9**, **55×9**, **71×8+73** (sum **2000**). |
+| `wins_per_user_level` | **Legacy fallback only** when `wins_per_level_steps` is missing/invalid (`level = 1 + wins // step`). |
 | `levels_per_rank` | **Map** `rank_id → user levels in that tier` before advancing to the next rank. Legacy **scalar** int applies the same span to every rank in `rank_hierarchy`. |
+
+**Wins → user level:** walk cumulative sum of `wins_per_level_steps`; highest level whose threshold ≤ lifetime wins. Example defaults: level **2 @ 10** wins, level **10 @ 90**, level **46 @ 1359** (enter **legend**), level **55 @ 2000**.
 
 **Rank from user level:** walk ranks in order; user level falls in the first tier whose cumulative span contains it; overflow stays on **legend**.
 

@@ -154,9 +154,9 @@ def _finalize_row_style(level: int, raw_style: Any) -> Dict[str, Any]:
     """Ensures packaged table back-graphic filenames are present when omitted from declarative JSON."""
     defaults: Dict[int, str] = {
         1: "home-table-backgraphic_002.webp",
-        2: "local-table-backgraphic.webp",
-        3: "town-table-backgraphic.webp",
-        4: "city-table-backgraphic.webp",
+        3: "local-table-backgraphic.webp",
+        4: "town-table-backgraphic.webp",
+        5: "city-table-backgraphic.webp",
     }
     st = dict(raw_style) if isinstance(raw_style, dict) else {}
     st.setdefault("back_graphic_file", defaults.get(level, ""))

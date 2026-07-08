@@ -29,6 +29,7 @@ import '../dutch_game/screens/leaderboard/leaderboard_screen.dart';
 import '../dutch_game/screens/leaderboard/leaderboard_history_screen.dart';
 import '../dutch_game/screens/leaderboard/leaderboard_achievements_screen.dart';
 import '../dutch_game/screens/achievements/achievements_screen.dart';
+import '../dutch_game/screens/progression/progression_screen.dart';
 
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
@@ -355,6 +356,14 @@ class DutchGameMain extends ModuleBase {
       drawerTitle: 'Achievements',
       drawerIcon: Icons.workspace_premium,
       drawerPosition: 45,
+    );
+
+    navigationManager.registerRoute(
+      path: '/dutch/progression',
+      screen: (BuildContext context) => const ProgressionScreen(),
+      drawerTitle: null,
+      drawerIcon: null,
+      drawerPosition: 999,
     );
 
     navigationManager.registerRoute(

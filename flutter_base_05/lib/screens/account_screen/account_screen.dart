@@ -1386,6 +1386,26 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           ),
           const SizedBox(height: 12),
           _buildInfoRow('Subscription Tier', subscriptionTier.toUpperCase()),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => NavigationManager().navigateTo('/dutch/achievements'),
+            icon: Icon(Icons.workspace_premium, color: AppColors.accentColor),
+            label: Text(
+              'View Achievements',
+              style: AppTextStyles.bodyMedium(color: AppColors.accentColor),
+            ),
+            style: accountPanelOutlinedButtonStyle(),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => NavigationManager().navigateTo('/dutch/progression'),
+            icon: Icon(Icons.trending_up, color: AppColors.accentColor),
+            label: Text(
+              'Check Progression',
+              style: AppTextStyles.bodyMedium(color: AppColors.accentColor),
+            ),
+            style: accountPanelOutlinedButtonStyle(),
+          ),
         ],
       ),
     );

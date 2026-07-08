@@ -23,6 +23,68 @@ _DEFAULT_RANK_HIERARCHY = (
 )
 _VALID_DIFFICULTIES = frozenset({"easy", "medium", "hard", "expert"})
 
+# Wins to advance user level L → L+1 (54 steps: level 2 … 55). Sum = 2000.
+_DEFAULT_WINS_PER_LEVEL_STEPS: Tuple[int, ...] = (
+    (10,) * 9
+    + (18,) * 9
+    + (28,) * 9
+    + (40,) * 9
+    + (55,) * 9
+    + (71,) * 8
+    + (73,)
+)
+
+
+def _parse_wins_per_level_steps(
+    prog: Dict[str, Any],
+    *,
+    expected_len: int,
+) -> Tuple[int, ...]:
+    """Parse ``progression.wins_per_level_steps`` (wins for each +1 user level after level 1)."""
+    raw = prog.get("wins_per_level_steps")
+    if not isinstance(raw, list) or not raw:
+        return _DEFAULT_WINS_PER_LEVEL_STEPS
+    steps: List[int] = []
+    for item in raw:
+        try:
+            n = int(item)
+        except (TypeError, ValueError):
+            continue
+        if n < 1:
+            continue
+        steps.append(n)
+    if len(steps) != expected_len:
+        return _DEFAULT_WINS_PER_LEVEL_STEPS
+    return tuple(steps)
+
+
+def build_cumulative_wins_for_user_level(steps: Tuple[int, ...]) -> Tuple[int, ...]:
+    """``cumulative[i]`` = minimum lifetime wins for user level ``i + 1`` (index 0 → level 1 @ 0 wins)."""
+    cum: List[int] = [0]
+    total = 0
+    for step in steps:
+        total += step
+        cum.append(total)
+    return tuple(cum)
+
+
+def wins_to_user_level(
+    wins: Optional[int],
+    *,
+    cumulative_wins_for_user_level: Tuple[int, ...],
+    user_level_min: int,
+    legacy_wins_per_user_level: int,
+) -> int:
+    """Map lifetime wins → user progression level (accelerating steps or legacy flat divisor)."""
+    w = 0 if wins is None else max(0, int(wins))
+    if len(cumulative_wins_for_user_level) > 1:
+        for i in range(len(cumulative_wins_for_user_level) - 1, -1, -1):
+            if w >= cumulative_wins_for_user_level[i]:
+                return max(user_level_min, i + 1)
+        return max(user_level_min, 1)
+    step = max(1, int(legacy_wins_per_user_level))
+    return max(user_level_min, 1 + w // step)
+
 
 def _read_json_file(path: Path) -> Optional[Dict[str, Any]]:
     try:
@@ -116,7 +178,7 @@ def _normalize_document(doc: Dict[str, Any]) -> Dict[str, Any]:
             return default
 
     user_level_min = _int_prog("user_level_min", "DUTCH_USER_LEVEL_MIN", 1)
-    wins_per_user_level = _int_prog("wins_per_user_level", "DUTCH_WINS_PER_USER_LEVEL", 10)
+    wins_per_user_level = _int_prog("wins_per_user_level", "DUTCH_WINS_PER_USER_LEVEL", 37)
     default_levels_per_rank = 5
     try:
         default_levels_per_rank = max(
@@ -132,6 +194,19 @@ def _normalize_document(doc: Dict[str, Any]) -> Dict[str, Any]:
     levels_per_rank_map = _parse_levels_per_rank_map(
         prog, rank_hierarchy, default_span=default_levels_per_rank
     )
+    max_user_level = sum(max(1, int(v)) for v in levels_per_rank_map.values())
+    if max_user_level < 1:
+        max_user_level = 55
+    wins_per_level_steps = _parse_wins_per_level_steps(
+        prog, expected_len=max(1, max_user_level - 1)
+    )
+    cumulative_wins_for_user_level = list(
+        build_cumulative_wins_for_user_level(wins_per_level_steps)
+    )
+    try:
+        wins_for_max = int(prog.get("wins_for_max_user_level", cumulative_wins_for_user_level[-1]))
+    except (TypeError, ValueError):
+        wins_for_max = cumulative_wins_for_user_level[-1]
 
     matchmaking = doc.get("rank_matchmaking") if isinstance(doc.get("rank_matchmaking"), dict) else {}
     try:
@@ -170,6 +245,10 @@ def _normalize_document(doc: Dict[str, Any]) -> Dict[str, Any]:
         "schema_version": schema_version,
         "progression": {
             "user_level_min": user_level_min,
+            "max_user_level": max_user_level,
+            "wins_for_max_user_level": wins_for_max,
+            "wins_per_level_steps": list(wins_per_level_steps),
+            "cumulative_wins_for_user_level": cumulative_wins_for_user_level,
             "wins_per_user_level": wins_per_user_level,
             "levels_per_rank": levels_per_rank_map,
         },
@@ -206,6 +285,14 @@ PROGRESSION_CONFIG_REVISION: str = _compute_revision(_CANONICAL_DOC)
 _prog = _CANONICAL_DOC["progression"]
 USER_LEVEL_MIN: int = int(_prog["user_level_min"])
 WINS_PER_USER_LEVEL: int = int(_prog["wins_per_user_level"])
+MAX_USER_LEVEL: int = int(_prog.get("max_user_level") or 55)
+WINS_FOR_MAX_USER_LEVEL: int = int(_prog.get("wins_for_max_user_level") or 2000)
+WINS_PER_LEVEL_STEPS: Tuple[int, ...] = tuple(
+    int(x) for x in (_prog.get("wins_per_level_steps") or _DEFAULT_WINS_PER_LEVEL_STEPS)
+)
+CUMULATIVE_WINS_FOR_USER_LEVEL: Tuple[int, ...] = tuple(
+    int(x) for x in (_prog.get("cumulative_wins_for_user_level") or build_cumulative_wins_for_user_level(WINS_PER_LEVEL_STEPS))
+)
 LEVELS_PER_RANK_MAP: Dict[str, int] = dict(_prog["levels_per_rank"])
 RANK_HIERARCHY: Tuple[str, ...] = tuple(_CANONICAL_DOC["rank_hierarchy"])
 LEVELS_PER_RANK_BY_RANK: Tuple[int, ...] = tuple(
@@ -269,3 +356,13 @@ def user_level_to_rank_index(user_level: Optional[int]) -> int:
 
 def user_level_to_rank(user_level: Optional[int]) -> str:
     return RANK_HIERARCHY[user_level_to_rank_index(user_level)]
+
+
+def wins_to_user_level_from_catalog(wins: Optional[int]) -> int:
+    """Public wins → user level using loaded catalog thresholds."""
+    return wins_to_user_level(
+        wins,
+        cumulative_wins_for_user_level=CUMULATIVE_WINS_FOR_USER_LEVEL,
+        user_level_min=USER_LEVEL_MIN,
+        legacy_wins_per_user_level=WINS_PER_USER_LEVEL,
+    )

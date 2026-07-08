@@ -43,14 +43,27 @@ Defines **room table tiers** (lobby `game_level`: title, coin fee, min user leve
 }
 ```
 
-### `tiers[]` (standard tables 1–4)
+### `tiers[]` (standard tables 1–20)
 
 | Field | Meaning |
 |-------|---------|
-| `level` | Room `game_level` id (integer). |
+| `level` | Room `game_level` id (integer, 1–20). |
 | `title` | Display name (lobby UI). |
 | `coin_fee` | Entry cost per player when match is coin-based. |
 | `min_user_level` | Minimum **user progression level** required to join (gates with `WinsLevelRankMatcher`). |
+
+**Standard tier ladder (levels 1–20):** Home → Street → Local → Town → City → Capital → Regional → National → Continental → World → Prestige → Royal → Diamond → Elite → Master → Grandmaster → Mythic → Immortal → Eternal → Legend (each suffixed with ` Table` in `title`).
+
+**`min_user_level` gates (accelerating):** cumulative user progression level required to join. Step size increases by tier band:
+
+| Table tiers | Step per tier | Example gates |
+|-------------|---------------|---------------|
+| 1 | — | 1 |
+| 2–6 | +2 | 3, 5, 7, 9, 11 |
+| 7–11 | +3 | 14, 17, 20, 23, 26 |
+| 12–16 | +4 | 30, 34, 38, 42, 46 |
+| 17–18 | +5 | 51, 55 |
+| 19–20 | cap | 55 (max progression level; higher coin fees) |
 | `style` | `felt_hex`, `spotlight_hex`, optional `back_graphic_file` / URLs after server resolves public base. |
 
 ### `special_events[]`

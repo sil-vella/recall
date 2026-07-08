@@ -7,7 +7,10 @@ class ProgressionConfigStore {
   static List<String> _rankHierarchy = List.from(_builtinRankHierarchy);
   static List<int> _levelsPerRankSpans = List.filled(_builtinRankHierarchy.length, 5);
   static int _userLevelMin = 1;
-  static int _winsPerUserLevel = 10;
+  static int _winsPerUserLevel = 37;
+  static List<int> _winsPerLevelSteps = List.from(_builtinWinsPerLevelSteps);
+  static List<int> _cumulativeWinsForUserLevel =
+      List.from(_builtinCumulativeWinsForUserLevel);
   static int _maxRankDelta = 1;
   static final Map<String, String> _rankToDifficulty =
       Map<String, String>.from(_builtinRankToDifficulty);
@@ -40,12 +43,27 @@ class ProgressionConfigStore {
     'legend': 'expert',
   };
 
+  static const List<int> _builtinWinsPerLevelSteps = [
+    ...[10, 10, 10, 10, 10, 10, 10, 10, 10],
+    ...[18, 18, 18, 18, 18, 18, 18, 18, 18],
+    ...[28, 28, 28, 28, 28, 28, 28, 28, 28],
+    ...[40, 40, 40, 40, 40, 40, 40, 40, 40],
+    ...[55, 55, 55, 55, 55, 55, 55, 55, 55],
+    ...[71, 71, 71, 71, 71, 71, 71, 71, 73],
+  ];
+
+  static final List<int> _builtinCumulativeWinsForUserLevel =
+      _buildCumulativeWinsForUserLevel(_builtinWinsPerLevelSteps);
+
   static List<String> get rankHierarchy => List.unmodifiable(_rankHierarchy);
   static List<int> get levelsPerRankSpans => List.unmodifiable(_levelsPerRankSpans);
   static int get levelsPerRank =>
       _levelsPerRankSpans.isEmpty ? 5 : _levelsPerRankSpans.first;
   static int get userLevelMin => _userLevelMin;
   static int get winsPerUserLevel => _winsPerUserLevel;
+  static List<int> get winsPerLevelSteps => List.unmodifiable(_winsPerLevelSteps);
+  static List<int> get cumulativeWinsForUserLevel =>
+      List.unmodifiable(_cumulativeWinsForUserLevel);
   static int get maxRankDelta => _maxRankDelta;
   static String? get cachedRevision => _cachedRevision;
 
@@ -75,6 +93,32 @@ class ProgressionConfigStore {
   static String userLevelToRank(int? userLevel) {
     if (_rankHierarchy.isEmpty) return 'beginner';
     return _rankHierarchy[userLevelToRankIndex(userLevel)];
+  }
+
+  static int winsToUserLevel(int? wins) {
+    final w = wins == null ? 0 : (wins < 0 ? 0 : wins);
+    if (_cumulativeWinsForUserLevel.length > 1) {
+      for (var i = _cumulativeWinsForUserLevel.length - 1; i >= 0; i--) {
+        if (w >= _cumulativeWinsForUserLevel[i]) {
+          final lv = i + 1;
+          return lv < userLevelMin ? userLevelMin : lv;
+        }
+      }
+      return userLevelMin < 1 ? 1 : userLevelMin;
+    }
+    final step = winsPerUserLevel < 1 ? 1 : winsPerUserLevel;
+    final lv = 1 + w ~/ step;
+    return lv < userLevelMin ? userLevelMin : lv;
+  }
+
+  static List<int> _buildCumulativeWinsForUserLevel(List<int> steps) {
+    final cum = <int>[0];
+    var total = 0;
+    for (final step in steps) {
+      total += step < 1 ? 1 : step;
+      cum.add(total);
+    }
+    return cum;
   }
 
   static void updateRevisionOnly(String revision) {
@@ -123,6 +167,12 @@ class ProgressionConfigStore {
       defaultSpan: defaultSpan,
     );
 
+    if (prog is Map<String, dynamic>) {
+      _applyWinsProgressionFromProg(prog);
+    } else if (prog is Map) {
+      _applyWinsProgressionFromProg(Map<String, dynamic>.from(prog));
+    }
+
     final matchmaking = doc['rank_matchmaking'];
     if (matchmaking is Map) {
       _maxRankDelta =
@@ -164,6 +214,8 @@ class ProgressionConfigStore {
     _levelsPerRankSpans = List.filled(_rankHierarchy.length, span);
     _userLevelMin = Config.DUTCH_USER_LEVEL_MIN;
     _winsPerUserLevel = Config.DUTCH_WINS_PER_USER_LEVEL;
+    _winsPerLevelSteps = List.from(_builtinWinsPerLevelSteps);
+    _cumulativeWinsForUserLevel = List.from(_builtinCumulativeWinsForUserLevel);
     _maxRankDelta = 1;
     _rankToDifficulty
       ..clear()
@@ -214,4 +266,47 @@ class ProgressionConfigStore {
 
   static bool _validDifficulty(String d) =>
       d == 'easy' || d == 'medium' || d == 'hard' || d == 'expert';
+
+  static void _applyWinsProgressionFromProg(Map<String, dynamic> prog) {
+    final maxUserLevel = _levelsPerRankSpans.fold<int>(
+      0,
+      (a, b) => a + (b < 1 ? 1 : b),
+    );
+    final expectedSteps = maxUserLevel > 1 ? maxUserLevel - 1 : 54;
+
+    final cumRaw = prog['cumulative_wins_for_user_level'];
+    if (cumRaw is List && cumRaw.isNotEmpty) {
+      final parsed = <int>[];
+      for (final item in cumRaw) {
+        final n = item is int ? item : int.tryParse('$item');
+        if (n != null && n >= 0) parsed.add(n);
+      }
+      if (parsed.isNotEmpty && parsed.first == 0) {
+        _cumulativeWinsForUserLevel = parsed;
+        if (parsed.length > 1) {
+          _winsPerLevelSteps = [
+            for (var i = 1; i < parsed.length; i++) parsed[i] - parsed[i - 1],
+          ];
+        }
+        return;
+      }
+    }
+
+    final stepsRaw = prog['wins_per_level_steps'];
+    if (stepsRaw is List && stepsRaw.isNotEmpty) {
+      final parsed = <int>[];
+      for (final item in stepsRaw) {
+        final n = item is int ? item : int.tryParse('$item');
+        if (n != null && n >= 1) parsed.add(n);
+      }
+      if (parsed.length == expectedSteps) {
+        _winsPerLevelSteps = parsed;
+        _cumulativeWinsForUserLevel = _buildCumulativeWinsForUserLevel(parsed);
+        return;
+      }
+    }
+
+    _winsPerLevelSteps = List.from(_builtinWinsPerLevelSteps);
+    _cumulativeWinsForUserLevel = List.from(_builtinCumulativeWinsForUserLevel);
+  }
 }

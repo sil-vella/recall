@@ -29,7 +29,7 @@ Color? dutchHexToColor(String? raw) {
   return null;
 }
 /// Per–table-tier styling for the **inset game table** (felt + spotlights), keyed by room **table**
-/// tier (`game_level` / `gameLevel` 1–4), not the user's progression level.
+/// tier (`game_level` / `gameLevel` from the table-tiers catalog), not the user's progression level.
 ///
 /// The game play screen body backdrop uses the same tier [feltBackground] as the table.
 /// [playScreenBackdropColor] remains available as a neutral default where a fixed backdrop is needed.

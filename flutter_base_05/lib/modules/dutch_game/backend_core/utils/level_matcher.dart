@@ -20,11 +20,7 @@ class LevelMatcher {
     catalogChangeVersion.value++;
   }
 
-  static const String _builtinJson = r'''{"schema_version":1,"special_events":[],"tiers":[
-{"level":1,"title":"Home Table","coin_fee":25,"min_user_level":1,"style":{"felt_hex":"#4E8065","spotlight_hex":"#FFD4A3"}},
-{"level":2,"title":"Local Table","coin_fee":50,"min_user_level":2,"style":{"felt_hex":"#514E80","spotlight_hex":"#FFD4A3"}},
-{"level":3,"title":"Town Table","coin_fee":100,"min_user_level":3,"style":{"felt_hex":"#994C59","spotlight_hex":"#FFD4A3"}},
-{"level":4,"title":"City Table","coin_fee":200,"min_user_level":4,"style":{"felt_hex":"#734E80","spotlight_hex":"#FFD4A3"}}]}''';
+  static const String _builtinJson = r'''{"schema_version":8,"special_events":[],"tiers":[{"level":1,"title":"Home Table","coin_fee":25,"min_user_level":1,"style":{"felt_hex":"#603838","spotlight_hex":"#FFD4A3"}},{"level":2,"title":"Street Table","coin_fee":35,"min_user_level":3,"style":{"felt_hex":"#8C663F","spotlight_hex":"#FFD4A3"}},{"level":3,"title":"Local Table","coin_fee":50,"min_user_level":5,"style":{"felt_hex":"#695D2F","spotlight_hex":"#FFD4A3"}},{"level":4,"title":"Town Table","coin_fee":100,"min_user_level":7,"style":{"felt_hex":"#858C3F","spotlight_hex":"#FFD4A3"}},{"level":5,"title":"City Table","coin_fee":200,"min_user_level":9,"style":{"felt_hex":"#607B37","spotlight_hex":"#FFD4A3"}},{"level":6,"title":"Capital Table","coin_fee":300,"min_user_level":11,"style":{"felt_hex":"#446038","spotlight_hex":"#FFD4A3"}},{"level":7,"title":"Regional Table","coin_fee":400,"min_user_level":14,"style":{"felt_hex":"#3F8C3F","spotlight_hex":"#FFD4A3"}},{"level":8,"title":"National Table","coin_fee":500,"min_user_level":17,"style":{"felt_hex":"#4B805B","spotlight_hex":"#FFD4A3"}},{"level":9,"title":"Continental Table","coin_fee":700,"min_user_level":20,"style":{"felt_hex":"#2F6952","spotlight_hex":"#FFD4A3"}},{"level":10,"title":"World Table","coin_fee":1000,"min_user_level":23,"style":{"felt_hex":"#3F8C85","spotlight_hex":"#FFD4A3"}},{"level":11,"title":"Prestige Table","coin_fee":1500,"min_user_level":26,"style":{"felt_hex":"#3C6A75","spotlight_hex":"#FFD4A3"}},{"level":12,"title":"Royal Table","coin_fee":2000,"min_user_level":30,"style":{"felt_hex":"#2F4C69","spotlight_hex":"#FFD4A3"}},{"level":13,"title":"Diamond Table","coin_fee":2500,"min_user_level":34,"style":{"felt_hex":"#3F4E8C","spotlight_hex":"#FFD4A3"}},{"level":14,"title":"Elite Table","coin_fee":3000,"min_user_level":38,"style":{"felt_hex":"#352F69","spotlight_hex":"#FFD4A3"}},{"level":15,"title":"Master Table","coin_fee":3500,"min_user_level":42,"style":{"felt_hex":"#544270","spotlight_hex":"#FFD4A3"}},{"level":16,"title":"Grandmaster Table","coin_fee":4000,"min_user_level":46,"style":{"felt_hex":"#753F8C","spotlight_hex":"#FFD4A3"}},{"level":17,"title":"Mythic Table","coin_fee":4500,"min_user_level":51,"style":{"felt_hex":"#692F69","spotlight_hex":"#FFD4A3"}},{"level":18,"title":"Immortal Table","coin_fee":4750,"min_user_level":55,"style":{"felt_hex":"#8C3F75","spotlight_hex":"#FFD4A3"}},{"level":19,"title":"Eternal Table","coin_fee":4900,"min_user_level":55,"style":{"felt_hex":"#7B3752","spotlight_hex":"#FFD4A3"}},{"level":20,"title":"Legend Table","coin_fee":5000,"min_user_level":55,"style":{"felt_hex":"#804B60","spotlight_hex":"#FFD4A3"}}]}''';
 
   static Map<int, Map<String, dynamic>> _tablesConfig = {};
   static List<int> _levelOrder = [];
@@ -65,26 +61,33 @@ class LevelMatcher {
     }
   }
 
-  /// When tiers lack `style`, use same palette as bundled fallback (graphics come from API URL + cache).
+  /// When tiers lack `style`, use catalog-aligned palette (graphics come from API URL + cache).
   static Map<String, dynamic> _defaultStyleFallbackForLevel(int level) {
-    String feltHex;
-    switch (level) {
-      case 2:
-        feltHex = '#514E80';
-        break;
-      case 3:
-        feltHex = '#994C59';
-        break;
-      case 4:
-        feltHex = '#734E80';
-        break;
-      case 1:
-      default:
-        feltHex = '#4E8065';
-        break;
-    }
+    const palette = [
+      '#603838',
+      '#8C663F',
+      '#695D2F',
+      '#858C3F',
+      '#607B37',
+      '#446038',
+      '#3F8C3F',
+      '#4B805B',
+      '#2F6952',
+      '#3F8C85',
+      '#3C6A75',
+      '#2F4C69',
+      '#3F4E8C',
+      '#352F69',
+      '#544270',
+      '#753F8C',
+      '#692F69',
+      '#8C3F75',
+      '#7B3752',
+      '#804B60',
+    ];
+    final idx = (level - 1).clamp(0, palette.length - 1);
     return {
-      'felt_hex': feltHex,
+      'felt_hex': palette[idx],
       'spotlight_hex': '#FFD4A3',
     };
   }
@@ -369,7 +372,7 @@ class LevelMatcher {
       levelOrder.isEmpty ? 1 : levelOrder.reduce((a, b) => a < b ? a : b);
 
   static int get maxConfiguredTableLevel =>
-      levelOrder.isEmpty ? 4 : levelOrder.reduce((a, b) => a > b ? a : b);
+      levelOrder.isEmpty ? 20 : levelOrder.reduce((a, b) => a > b ? a : b);
 
   static int specialEventCoinFeeFromRow(Map<String, dynamic> row, {int defaultFee = 25}) {
     final cf = row['coin_fee'];

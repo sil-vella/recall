@@ -4,7 +4,7 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../../utils/widgets/felt_texture_widget.dart';
 import '../utils/dutch_game_play_table_style_mapping.dart';
 
-/// Felt + spotlight + border + scrim for a room table tier (`game_level` 1–4).
+/// Felt + spotlight + border + scrim for a room table tier (`game_level` from catalog).
 /// Used by Join Random content and create-room table dropdown items.
 ///
 /// When [feltOverride] / [spotlightOverride] are set (e.g. special-event catalog hex), they replace the tier palette.

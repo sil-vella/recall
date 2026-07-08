@@ -1306,10 +1306,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         fallbackTableLevel: gl,
       );
     }
-    if (e is JoinRandomTierEntry) {
-      return DutchGamePlayTableStyles.tableBackGraphicFill(e.level);
-    }
-    return DutchGamePlayTableStyles.tableBackGraphicFill(1);
+    return const SizedBox.shrink();
   }
 
   Widget _buildFeltOverlay() {
@@ -1346,7 +1343,6 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     /// Special events: felt base, then hero art at reduced opacity so felt shows through.
     const eventBannerOpacity = 0.58;
     const eventFeltOpacity = 0.82;
-    const quickJoinFeltOpacity = 0.7;
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
@@ -1374,15 +1370,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
             ] else ...[
               Positioned.fill(
                 child: IgnorePointer(
-                  child: _buildBackdrop(),
-                ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Opacity(
-                    opacity: quickJoinFeltOpacity,
-                    child: _buildFeltOverlay(),
-                  ),
+                  child: _buildFeltOverlay(),
                 ),
               ),
             ],

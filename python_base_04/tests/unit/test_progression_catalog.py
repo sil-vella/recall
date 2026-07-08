@@ -17,6 +17,14 @@ class TestProgressionCatalog(unittest.TestCase):
         self.assertEqual(WinsLevelRankMatcher.wins_to_user_level(0), 1)
         self.assertEqual(WinsLevelRankMatcher.wins_to_user_level(9), 1)
         self.assertEqual(WinsLevelRankMatcher.wins_to_user_level(10), 2)
+        self.assertEqual(WinsLevelRankMatcher.wins_to_user_level(90), 10)
+        self.assertEqual(WinsLevelRankMatcher.wins_to_user_level(1999), 54)
+        self.assertEqual(WinsLevelRankMatcher.wins_to_user_level(2000), 55)
+
+    def test_accelerating_wins_steps_sum_to_max(self):
+        self.assertEqual(len(pc.WINS_PER_LEVEL_STEPS), 54)
+        self.assertEqual(sum(pc.WINS_PER_LEVEL_STEPS), 2000)
+        self.assertEqual(pc.CUMULATIVE_WINS_FOR_USER_LEVEL[-1], 2000)
 
     def test_user_level_to_rank_index(self):
         self.assertEqual(WinsLevelRankMatcher.user_level_to_rank_index(1), 0)

@@ -12,7 +12,7 @@ from core.modules.dutch_game import progression_catalog as pc
 
 # Game table tiers (room game_level / LevelMatcher) — eligibility only
 TABLE_LEVEL_MIN: int = min(matcher.LEVEL_ORDER) if matcher.LEVEL_ORDER else 1
-TABLE_LEVEL_MAX: int = max(matcher.LEVEL_ORDER) if matcher.LEVEL_ORDER else 4
+TABLE_LEVEL_MAX: int = max(matcher.LEVEL_ORDER) if matcher.LEVEL_ORDER else 20
 
 USER_LEVEL_MIN: int = pc.USER_LEVEL_MIN
 RANK_HIERARCHY = pc.RANK_HIERARCHY
@@ -22,7 +22,7 @@ DEFAULT_RANK: str = pc.DEFAULT_RANK
 class WinsLevelRankMatcher:
     """
     User **level** is progression from wins (unbounded). **Rank** is derived from
-    user level. **Game table** access uses user level vs room ``game_level`` (1–4).
+    user level. **Game table** access uses user level vs room ``game_level`` (catalog tiers, currently 1–20).
     """
 
     WINS_PER_USER_LEVEL: int = pc.WINS_PER_USER_LEVEL
@@ -30,10 +30,8 @@ class WinsLevelRankMatcher:
 
     @classmethod
     def wins_to_user_level(cls, wins: Optional[int]) -> int:
-        """Lifetime wins → user level (1 + wins // step)."""
-        w = 0 if wins is None else max(0, int(wins))
-        step = max(1, cls.WINS_PER_USER_LEVEL)
-        return max(USER_LEVEL_MIN, 1 + w // step)
+        """Lifetime wins → user level (accelerating ``wins_per_level_steps`` from catalog)."""
+        return pc.wins_to_user_level_from_catalog(wins)
 
     @classmethod
     def user_level_to_rank_index(cls, user_level: Optional[int]) -> int:

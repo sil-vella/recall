@@ -15,10 +15,7 @@ class WinsLevelRankMatcher {
   static int get levelsPerRank => ProgressionConfigStore.levelsPerRank;
 
   static int winsToUserLevel(int? wins) {
-    final w = wins == null ? 0 : (wins < 0 ? 0 : wins);
-    final step = winsPerUserLevel < 1 ? 1 : winsPerUserLevel;
-    final lv = 1 + w ~/ step;
-    return lv < userLevelMin ? userLevelMin : lv;
+    return ProgressionConfigStore.winsToUserLevel(wins);
   }
 
   static int userLevelToRankIndex(int? userLevel) =>

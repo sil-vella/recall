@@ -56,6 +56,9 @@ def create_player_document(player_json: Dict[str, Any], current_time: datetime) 
     email = player_json.get('email', f"{username}@cp.com")
     level = player_json.get('level', 1)
     rank = player_json.get('rank', 'beginner').lower()
+    wins = player_json.get('wins')
+    if wins is None:
+        wins = 0
     coins = player_json.get('coins', 1000)
     
     # Use first_name and last_name from JSON if available, otherwise extract from username
@@ -109,7 +112,7 @@ def create_player_document(player_json: Dict[str, Any], current_time: datetime) 
             },
             "dutch_game": {
                 "enabled": True,
-                "wins": 0,
+                "wins": wins,
                 "losses": 0,
                 "total_matches": 0,
                 "points": 0,

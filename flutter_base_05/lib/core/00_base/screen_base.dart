@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../managers/app_manager.dart';
 import '../managers/module_manager.dart';
-import '../../utils/consts/config.dart';
+import 'package:dutch/modules/admobs/admob_config_store.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
 import '../widgets/feature_slot.dart';
@@ -975,8 +975,8 @@ class _AdBannerBar extends StatelessWidget {
     if (kIsWeb || bannerAdModule == null) return false;
     if (!AdExperiencePolicy.showMonetizedAds) return false;
     final unitId = slot == 'bottom'
-        ? Config.admobsBottomBanner
-        : Config.admobsTopBanner;
+        ? AdmobConfigStore.bottomBanner
+        : AdmobConfigStore.topBanner;
     return unitId.trim().isNotEmpty;
   }
 

@@ -1,4 +1,8 @@
-"""Google AdMob demo (test) app + unit ids per platform.
+"""Google AdMob demo (test) application + unit ids per platform.
+
+Used by `admob_test_ids.py` as reference for Google **sample** ids (legacy / docs only).
+Build scripts always use production `IOS_ADMOB_PROD_APP_ID` / dart-define `ADMOB_APPLICATION_ID`.
+Unit ids are SSOT in `.env.local` / `.env.prod` (Flask init-config), not dart-defines.
 
 See https://developers.google.com/admob/ios/test-ads
 and https://developers.google.com/admob/android/test-ads

@@ -16,8 +16,10 @@ services:
     image: ghcr.io/stevekerrison/mongo-qemu-avx@sha256:dbf2e3ba6a70bdfb1db01f2144c145ecbbe049732a33cf4225f4ca4856c9d37c
     container_name: dutch_external_app_mongodb
     command: ["mongod", "--bind_ip_all", "--dbpath", "/data/db"]
+    # Localhost only — never publish Mongo on 0.0.0.0 (internet scanners / ransomware).
+    # App containers use dutch_mongodb-external:27017 on app-network; host access via SSH + 127.0.0.1:27018.
     ports:
-      - "27018:27017"
+      - "127.0.0.1:27018:27017"
     volumes:
       - /opt/apps/reignofplay/dutch/data/mongodb/data/db:/data/db
     networks:
@@ -38,7 +40,8 @@ services:
       - --appendonly
       - "yes"
     ports:
-      - "6380:6379"
+      # Localhost only — same as Mongo; app containers use dutch_redis-external:6379 on app-network.
+      - "127.0.0.1:6380:6379"
     volumes:
       - /opt/apps/reignofplay/dutch/data/redis/data:/data
     networks:

@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/00_base/module_base.dart';
 import '../../../core/managers/module_manager.dart';
-import '../../../utils/consts/config.dart';
 import 'ad_experience_policy.dart';
+import 'admob_config_store.dart';
 import 'admob_trace.dart';
 import 'banner/banner_ad.dart';
 
@@ -41,7 +41,7 @@ class AdvertsModule extends ModuleBase {
       return;
     }
     admobTrace('Adverts', 'preload banners top+bottom');
-    banner.loadBannerAd(Config.admobsTopBanner, slot: 'top');
-    banner.loadBannerAd(Config.admobsBottomBanner, slot: 'bottom');
+    banner.loadBannerAd(AdmobConfigStore.topBanner, slot: 'top');
+    banner.loadBannerAd(AdmobConfigStore.bottomBanner, slot: 'bottom');
   }
 }

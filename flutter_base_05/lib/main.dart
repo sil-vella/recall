@@ -17,18 +17,33 @@ import 'utils/firebase_runtime_config.dart';
 import 'utils/consts/theme_consts.dart';
 import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 import 'modules/admobs/admob_bootstrap.dart';
+import 'modules/admobs/admob_config_bootstrap.dart';
+import 'modules/admobs/admob_config_store.dart';
 import 'utils/dev_logger.dart';
 import 'utils/web_bootstrap_log.dart';
 import 'utils/consts/config.dart';
 
 // ignore: constant_identifier_names — set false when not debugging this entrypoint (release tooling may flip).
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Matches [flutter_native_splash] `color` / `android_12.color` in pubspec.yaml.
 const Color _kNativeSplashGreen = Color(0xFF2A5C32);
 
 /// Full-bleed splash used in Flutter after the Android 12 icon splash (WebP in assets).
 const String _kBootstrapSplashAsset = 'assets/images/splash_screen.webp';
+
+bool _nativeSplashRemoved = false;
+
+/// Removes the native launch overlay. Safe to call multiple times.
+///
+/// Must not depend on [_AppBootstrapSplash] still being mounted — init can finish
+/// and swap to [MaterialApp.router] while [precacheImage] is still in flight.
+void _ensureNativeSplashRemoved() {
+  if (kIsWeb || _nativeSplashRemoved) return;
+  _nativeSplashRemoved = true;
+  FlutterNativeSplash.remove();
+  webBootstrapLog('FlutterNativeSplash.remove');
+}
 
 /// Locks the app to upright portrait on native targets (not web).
 Future<void> _lockPortraitOrientation() async {
@@ -93,6 +108,18 @@ Future<void> main() async {
   webBootstrapLog('PromotionalAdsConfigLoader.initialize start');
   await PromotionalAdsConfigLoader.initialize();
   webBootstrapLog('PromotionalAdsConfigLoader.initialize done');
+
+  webBootstrapLog('AdmobConfigBootstrap hydrate + fetch start');
+  await AdmobConfigBootstrap.hydrateFromPrefsBeforeStats();
+  final admobFetchOk = await AdmobConfigBootstrap.fetchPublicConfigIfNeeded();
+  webBootstrapLog('AdmobConfigBootstrap hydrate + fetch done ok=$admobFetchOk');
+  if (LOGGING_SWITCH) {
+    customlog(
+      'main: AdmobConfig after startup fetchOk=$admobFetchOk '
+      'top=${AdmobConfigStore.topBanner} interstitial=${AdmobConfigStore.interstitial} '
+      'rewarded=${AdmobConfigStore.rewarded}',
+    );
+  }
 
   webBootstrapLog('bootstrapConsentAndMobileAds start');
   await bootstrapConsentAndMobileAds();
@@ -222,6 +249,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           _isInitializing = false;
         });
       }
+      _ensureNativeSplashRemoved();
       webBootstrapLog('MyApp._initializeApp complete → MaterialApp.router');
     } catch (e, st) {
       webBootstrapLog('_initializeApp failed: $e');
@@ -231,6 +259,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           _isInitializing = false;
         });
       }
+      _ensureNativeSplashRemoved();
     }
   }
 
@@ -289,8 +318,6 @@ class _AppBootstrapSplash extends StatefulWidget {
 }
 
 class _AppBootstrapSplashState extends State<_AppBootstrapSplash> {
-  static bool _nativeSplashRemoved = false;
-
   @override
   void initState() {
     super.initState();
@@ -298,18 +325,19 @@ class _AppBootstrapSplashState extends State<_AppBootstrapSplash> {
   }
 
   Future<void> _onFirstSplashFrame() async {
-    if (!mounted) return;
     webBootstrapLog('bootstrap splash first frame');
     if (kIsWeb) {
       return;
     }
-    final provider = const AssetImage(_kBootstrapSplashAsset);
-    await precacheImage(provider, context);
-    if (!mounted) return;
-    if (!_nativeSplashRemoved) {
-      _nativeSplashRemoved = true;
-      FlutterNativeSplash.remove();
-      webBootstrapLog('FlutterNativeSplash.remove');
+    try {
+      if (mounted) {
+        final provider = const AssetImage(_kBootstrapSplashAsset);
+        await precacheImage(provider, context);
+      }
+    } catch (e, st) {
+      debugPrint('[AppBootstrapSplash] precache failed: $e\n$st');
+    } finally {
+      _ensureNativeSplashRemoved();
     }
   }
 

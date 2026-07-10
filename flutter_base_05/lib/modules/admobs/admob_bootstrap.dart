@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../utils/consts/config.dart';
+import 'admob_config_store.dart';
 import 'admob_trace.dart';
 
 bool _mobileAdsInitialized = false;
@@ -63,7 +64,7 @@ Future<void> bootstrapConsentAndMobileAds() async {
   );
   admobTrace(
     'Bootstrap',
-    'banner top len=${Config.admobsTopBanner.length} bottom len=${Config.admobsBottomBanner.length}',
+    'banner top len=${AdmobConfigStore.topBanner.length} bottom len=${AdmobConfigStore.bottomBanner.length}',
   );
   admobTrace(
     'Bootstrap',

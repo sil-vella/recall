@@ -7,17 +7,19 @@
     "coins": 1000,
     "first_name": "Sam",
     "last_name": "Pickle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img000.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img000.jpg",
+    "wins": 10
   },
   {
     "username": "emmafox",
     "email": "emmafox@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Fox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img001.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img001.jpg",
+    "wins": 30
   },
   {
     "username": "zoebean668",
@@ -27,7 +29,8 @@
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img002.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img002.jpg",
+    "wins": 0
   },
   {
     "username": "toastlord",
@@ -37,96 +40,106 @@
     "coins": 1000,
     "first_name": "Toast",
     "last_name": "Evans",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img003.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img003.jpg",
+    "wins": 30
   },
   {
     "username": "ben.leo6",
     "email": "ben.leo6@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Leo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img004.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img004.jpg",
+    "wins": 40
   },
   {
     "username": "fred_noah1",
     "email": "fred_noah1@cp.com",
-    "level": 89,
+    "level": 44,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Fred",
     "last_name": "Noah",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img492.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img492.jpg",
+    "wins": 1249
   },
   {
     "username": "ryan_tom",
     "email": "ryan_tom@cp.com",
-    "level": 81,
+    "level": 41,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Tom",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img493.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img493.jpg",
+    "wins": 1084
   },
   {
     "username": "duckirl",
     "email": "duckirl@cp.com",
-    "level": 81,
+    "level": 41,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Ducki",
     "last_name": "Nguyen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img494.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img494.jpg",
+    "wins": 1084
   },
   {
     "username": "katesleepy354",
     "email": "katesleepy354@cp.com",
-    "level": 97,
+    "level": 52,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Kates",
     "last_name": "Clark",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img495.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img495.jpg",
+    "wins": 1785
   },
   {
     "username": "mikevoid",
     "email": "mikevoid@cp.com",
-    "level": 96,
+    "level": 51,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Mikev",
     "last_name": "Alvarez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img496.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img496.jpg",
+    "wins": 1714
   },
   {
     "username": "amywobbly",
     "email": "amywobbly@cp.com",
-    "level": 94,
+    "level": 49,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Amywo",
     "last_name": "Moore",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img497.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img497.jpg",
+    "wins": 1572
   },
   {
     "username": "fredwobbly",
     "email": "fredwobbly@cp.com",
-    "level": 97,
+    "level": 52,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Fredw",
     "last_name": "Jackson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img498.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img498.jpg",
+    "wins": 1785
   },
   {
     "username": "rubypickle",
     "email": "rubypickle@cp.com",
-    "level": 96,
+    "level": 51,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Pickle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img499.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img499.jpg",
+    "wins": 1714
   }
 ]

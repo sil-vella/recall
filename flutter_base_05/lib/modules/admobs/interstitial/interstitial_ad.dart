@@ -12,27 +12,41 @@ import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
 import '../../dutch_game/utils/dutch_firebase_analytics.dart';
 import '../ad_experience_policy.dart';
+import '../admob_config_store.dart';
 import '../admob_trace.dart';
 import '../../promotional_ads_module/route_path_utils.dart';
 
 /// Preloads and shows AdMob interstitials after the navigation gate in [PromotionalAdsModule].
 class InterstitialAdModule extends ModuleBase {
-  InterstitialAdModule(this.adUnitId) : super('admobs_interstitial_ad_module', dependencies: []);
+  InterstitialAdModule() : super('admobs_interstitial_ad_module', dependencies: []);
 
-  final String adUnitId;
   InterstitialAd? _interstitialAd;
   bool _isAdReady = false;
+  late final VoidCallback _configListener;
+
+  String get adUnitId => AdmobConfigStore.interstitial;
 
   bool get isReady => _isAdReady && _interstitialAd != null;
 
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
+    _configListener = () {
+      unawaited(_reloadOnConfigChange());
+    };
+    AdmobConfigStore.changeVersion.addListener(_configListener);
     if (adUnitId.trim().isEmpty) {
       admobTrace('Interstitial', 'initialize: empty adUnitId — skip loadAd()');
       return;
     }
     loadAd();
+  }
+
+  Future<void> _reloadOnConfigChange() async {
+    await _interstitialAd?.dispose();
+    _interstitialAd = null;
+    _isAdReady = false;
+    await loadAd();
   }
 
   /// Loads the next interstitial when the unit id is set (no-op on web or empty id).
@@ -127,6 +141,7 @@ class InterstitialAdModule extends ModuleBase {
 
   @override
   void dispose() {
+    AdmobConfigStore.changeVersion.removeListener(_configListener);
     _interstitialAd?.dispose();
     _interstitialAd = null;
     _isAdReady = false;

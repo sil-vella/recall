@@ -433,6 +433,20 @@ class Config:
         "apple_root_certs_dir", "APPLE_ROOT_CERTS_DIR", ""
     )
 
+    # AdMob unit IDs (served to Flutter via init-config; not secrets)
+    ADMOBS_TOP_BANNER01 = get_file_first_config_value(
+        "admobs_top_banner01", "ADMOBS_TOP_BANNER01", "ca-app-pub-6524100109992126/3612268528"
+    ).strip()
+    ADMOBS_BOTTOM_BANNER01 = get_file_first_config_value(
+        "admobs_bottom_banner01", "ADMOBS_BOTTOM_BANNER01", "ca-app-pub-6524100109992126/3612268528"
+    ).strip()
+    ADMOBS_INTERSTITIAL01 = get_file_first_config_value(
+        "admobs_interstitial01", "ADMOBS_INTERSTITIAL01", "ca-app-pub-6524100109992126/4685169868"
+    ).strip()
+    ADMOBS_REWARDED01 = get_file_first_config_value(
+        "admobs_rewarded01", "ADMOBS_REWARDED01", "ca-app-pub-6524100109992126/8821901598"
+    ).strip()
+
     # AdMob rewarded claim (Flask /userauth/admob/claim-rewarded-ad; client after RewardedAd earned)
     ADMOB_REWARDED_COINS_PER_CLAIM = int(
         get_file_first_config_value("admob_rewarded_coins_per_claim", "ADMOB_REWARDED_COINS_PER_CLAIM", "10")

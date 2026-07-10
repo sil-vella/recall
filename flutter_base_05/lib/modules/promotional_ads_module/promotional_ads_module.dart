@@ -7,7 +7,7 @@ import '../../core/managers/app_manager.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/navigation_manager.dart';
 import '../../core/managers/state_manager.dart';
-import '../../utils/consts/config.dart';
+import '../admobs/admob_config_store.dart';
 import '../admobs/ad_experience_policy.dart';
 import '../admobs/interstitial/interstitial_ad.dart';
 import 'route_path_utils.dart';
@@ -33,7 +33,7 @@ class PromotionalAdsModule extends ModuleBase {
   }
 
   void _onSwitchScreenHook(Map<String, dynamic> data) {
-    if (Config.admobsInterstitial01.trim().isEmpty) {
+    if (AdmobConfigStore.interstitial.trim().isEmpty) {
       return;
     }
     if (!AdExperiencePolicy.showMonetizedAds) {

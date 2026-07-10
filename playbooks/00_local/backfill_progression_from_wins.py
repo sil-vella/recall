@@ -2,14 +2,18 @@
 """
 Recompute modules.dutch_game.level and .rank from existing wins (progression_config SSOT).
 
-Local Docker MongoDB only. Does not change wins or other stats.
+Does not change wins or other stats.
 
 Usage (from repo root):
-  python3 playbooks/00_local/backfill_progression_from_wins.py --dry-run
+  # Local Docker MongoDB (default)
+  python3 playbooks/00_local/backfill_progression_from_wins.py
   python3 playbooks/00_local/backfill_progression_from_wins.py --apply
-  python3 playbooks/00_local/backfill_progression_from_wins.py --apply --user-id 69aae0b0095ba0c771e43091
 
-Reads MONGODB_PASSWORD from app_dev/.env.local (or env).
+  # VPS (SSH + docker mongosh; dry-run by default)
+  python3 playbooks/00_local/backfill_progression_from_wins.py --target vps
+  python3 playbooks/00_local/backfill_progression_from_wins.py --target vps --apply
+
+Reads MONGODB_PASSWORD from .env.local (local) or .env.prod (vps), or env.
 """
 from __future__ import annotations
 
@@ -19,16 +23,22 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+import uuid
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PYTHON_BASE = REPO_ROOT / "python_base_04"
 DEFAULT_CONTAINER = "dutch_external_app_mongodb"
 DEFAULT_USER_ID = "69aae0b0095ba0c771e43091"
+DEFAULT_SSH_USER = "rop01_user"
+DEFAULT_SSH_HOST = "65.181.125.135"
+DEFAULT_SSH_KEY = os.path.expanduser("~/.ssh/rop01_key")
+MONGODB_USER = "external_app_user"
+MONGODB_AUTH_DB = "external_system"
 
 
-def _load_env_local() -> dict[str, str]:
-    path = REPO_ROOT / ".env.local"
+def _load_env_file(path: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     if not path.is_file():
         return out
@@ -53,18 +63,18 @@ def _compute_level_rank(wins: int) -> tuple[int, str]:
     return level, rank
 
 
-def _mongosh_eval(password: str, js: str) -> str:
+def _mongosh_local(password: str, js: str, *, container: str) -> str:
     cmd = [
         "docker",
         "exec",
-        DEFAULT_CONTAINER,
+        container,
         "mongosh",
         "-u",
-        "external_app_user",
+        MONGODB_USER,
         "-p",
         password,
         "--authenticationDatabase",
-        "external_system",
+        MONGODB_AUTH_DB,
         "--quiet",
         "--eval",
         js,
@@ -77,7 +87,70 @@ def _mongosh_eval(password: str, js: str) -> str:
     return result.stdout.strip()
 
 
-def _fetch_users(password: str, user_id: str | None) -> list[dict]:
+def _mongosh_vps(password: str, js: str, ssh_user: str, ssh_host: str, ssh_key: str) -> str:
+    token = uuid.uuid4().hex[:12]
+    remote_name = f"backfill_progression_{token}.js"
+    remote_host_path = f"/tmp/{remote_name}"
+    container_path = f"/tmp/{remote_name}"
+
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
+        tmp.write(js)
+        local_path = tmp.name
+
+    try:
+        scp = subprocess.run(
+            ["scp", "-i", ssh_key, local_path, f"{ssh_user}@{ssh_host}:{remote_host_path}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if scp.returncode != 0:
+            raise RuntimeError(f"scp failed: {scp.stderr.strip() or scp.stdout.strip()}")
+
+        remote_cmd = (
+            f'docker cp {remote_host_path} {DEFAULT_CONTAINER}:{container_path} && '
+            f'docker exec {DEFAULT_CONTAINER} mongosh -u {MONGODB_USER} -p "{password}" '
+            f'--authenticationDatabase {MONGODB_AUTH_DB} --quiet {container_path} && '
+            f'rm -f {remote_host_path}'
+        )
+        ssh = subprocess.run(
+            ["ssh", "-i", ssh_key, f"{ssh_user}@{ssh_host}", remote_cmd],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if ssh.returncode != 0:
+            raise RuntimeError(f"ssh mongosh failed: {ssh.stderr.strip() or ssh.stdout.strip()}")
+        return ssh.stdout.strip()
+    finally:
+        Path(local_path).unlink(missing_ok=True)
+
+
+def _mongosh_eval(
+    password: str,
+    js: str,
+    *,
+    target: str,
+    container: str,
+    ssh_user: str,
+    ssh_host: str,
+    ssh_key: str,
+) -> str:
+    if target == "vps":
+        return _mongosh_vps(password, js, ssh_user, ssh_host, ssh_key)
+    return _mongosh_local(password, js, container=container)
+
+
+def _fetch_users(
+    password: str,
+    user_id: str | None,
+    *,
+    target: str,
+    container: str,
+    ssh_user: str,
+    ssh_host: str,
+    ssh_key: str,
+) -> list[dict]:
     filter_js = (
         f"{{ _id: ObjectId('{user_id}') }}"
         if user_id
@@ -103,14 +176,31 @@ cur.forEach(function(u) {{
 }});
 print(JSON.stringify(rows));
 """
-    raw = _mongosh_eval(password, js)
+    raw = _mongosh_eval(
+        password,
+        js,
+        target=target,
+        container=container,
+        ssh_user=ssh_user,
+        ssh_host=ssh_host,
+        ssh_key=ssh_key,
+    )
     line = next((ln for ln in raw.splitlines() if ln.startswith("[")), raw)
     if not line:
         return []
     return json.loads(line)
 
 
-def _apply_updates(password: str, updates: list[dict]) -> int:
+def _apply_updates(
+    password: str,
+    updates: list[dict],
+    *,
+    target: str,
+    container: str,
+    ssh_user: str,
+    ssh_host: str,
+    ssh_key: str,
+) -> int:
     if not updates:
         return 0
     payload = json.dumps(updates)
@@ -133,7 +223,15 @@ updates.forEach(function(row) {{
 }});
 print(JSON.stringify({{ updated: changed, candidates: updates.length }}));
 """
-    raw = _mongosh_eval(password, js)
+    raw = _mongosh_eval(
+        password,
+        js,
+        target=target,
+        container=container,
+        ssh_user=ssh_user,
+        ssh_host=ssh_host,
+        ssh_key=ssh_key,
+    )
     line = next((ln for ln in raw.splitlines() if ln.startswith("{")), raw)
     data = json.loads(line)
     return int(data.get("updated", 0))
@@ -162,16 +260,52 @@ def main() -> int:
         action="store_true",
         help="LOCAL TEST ONLY: set level=99 rank=legend on --user-id before backfill (requires --user-id and --apply)",
     )
+    parser.add_argument(
+        "--target",
+        choices=("local", "vps"),
+        default="local",
+        help="MongoDB target: local Docker or VPS via SSH (default: local)",
+    )
+    parser.add_argument("--ssh-user", default=DEFAULT_SSH_USER)
+    parser.add_argument("--ssh-host", default=DEFAULT_SSH_HOST)
+    parser.add_argument("--ssh-key", default=DEFAULT_SSH_KEY)
+    parser.add_argument(
+        "--container",
+        default=DEFAULT_CONTAINER,
+        help="Local Docker MongoDB container name or id (default: dutch_external_app_mongodb)",
+    )
     args = parser.parse_args()
 
-    env = _load_env_local()
+    env_file = REPO_ROOT / (".env.prod" if args.target == "vps" else ".env.local")
+    env = _load_env_file(env_file)
     password = os.environ.get("MONGODB_PASSWORD") or env.get("MONGODB_PASSWORD", "")
+    ssh_user = os.environ.get("VPS_SSH_USER") or env.get("VPS_SSH_USER") or args.ssh_user
+    ssh_host = os.environ.get("VPS_SSH_HOST") or env.get("VPS_SSH_HOST") or args.ssh_host
+    ssh_key = os.path.expanduser(
+        os.environ.get("VPS_SSH_KEY") or env.get("VPS_SSH_KEY") or args.ssh_key
+    )
+
     if not password:
-        print("ERROR: MONGODB_PASSWORD not set (.env.local or env)", file=sys.stderr)
+        print(f"ERROR: MONGODB_PASSWORD not set ({env_file.name} or env)", file=sys.stderr)
         return 1
+    if args.target == "vps" and not Path(ssh_key).is_file():
+        print(f"ERROR: SSH key not found: {ssh_key}", file=sys.stderr)
+        return 1
+
+    container = (os.environ.get("MONGODB_CONTAINER") or args.container).strip()
+    mongo_kw = dict(
+        target=args.target,
+        container=container,
+        ssh_user=ssh_user,
+        ssh_host=ssh_host,
+        ssh_key=ssh_key,
+    )
 
     user_id = args.user_id
     if args.inject_stale_for_test:
+        if args.target != "local":
+            print("ERROR: --inject-stale-for-test is local-only", file=sys.stderr)
+            return 1
         if not args.apply or not user_id:
             print("ERROR: --inject-stale-for-test requires --apply and --user-id", file=sys.stderr)
             return 1
@@ -186,13 +320,11 @@ var res = d.users.updateOne(
 if (res.matchedCount === 0) {{ print('NOT_FOUND'); quit(1); }}
 print('injected_stale=1');
 """,
+            **mongo_kw,
         )
         print(f"injected stale level=99 rank=legend for ...{user_id[-6:]}")
 
-    users = _fetch_users(password, user_id)
-    if not users:
-        print("No users matched.")
-        return 0
+    users = _fetch_users(password, user_id, **mongo_kw)
 
     mismatches: list[dict] = []
     for row in users:
@@ -220,7 +352,11 @@ print('injected_stale=1');
             )
 
     mode = "APPLY" if args.apply else "DRY-RUN"
-    print(f"[{mode}] users_scanned={len(users)} mismatches={len(mismatches)}")
+    container_label = container if args.target == "local" else args.target
+    print(
+        f"[{mode}] target={args.target} container={container_label} "
+        f"users_scanned={len(users)} mismatches={len(mismatches)}"
+    )
 
     for i, m in enumerate(mismatches[: max(0, args.limit_sample)]):
         uid = m["id"]
@@ -238,11 +374,11 @@ print('injected_stale=1');
         return 0
 
     to_write = [{"id": m["id"], "level": m["level"], "rank": m["rank"]} for m in mismatches]
-    updated = _apply_updates(password, to_write)
+    updated = _apply_updates(password, to_write, **mongo_kw)
     print(f"updated_documents={updated}")
 
     if user_id and mismatches:
-        after = _fetch_users(password, user_id)
+        after = _fetch_users(password, user_id, **mongo_kw)
         if after:
             a = after[0]
             lvl, rk = _compute_level_rank(int(a.get("wins") or 0))

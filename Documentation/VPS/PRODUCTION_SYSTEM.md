@@ -6,6 +6,7 @@ Operations reference for the Dutch stack on the VPS (`rop01`): hardened Gunicorn
 
 | Doc | Scope |
 |-----|--------|
+| [`Documentation/VPS/BACKUP_STRATEGY.md`](BACKUP_STRATEGY.md) | What to back up on rop01 (Mongo, secrets, static files) |
 | [`playbooks/rop01/00_documentation_and_instructions.md`](../../playbooks/rop01/00_documentation_and_instructions.md) | Ansible deploy playbooks |
 | [`Documentation/python_base_04/VPS_PRODUCTION.md`](../python_base_04/VPS_PRODUCTION.md) | Flask-focused quick reference (nginx checklist, cache keys) |
 | [`Documentation/Logging/LOGGING_SYSTEM.md`](../Logging/LOGGING_SYSTEM.md) | Local dev only (`customlog`, `DUTCH_DEV_LOG`, `global.log`) |
@@ -40,8 +41,8 @@ The current system addresses that with:
 |-----------|-------|------|------|
 | `dutch_external_app_flask` | `silvella/dutch_flask_app:${FLASK_IMAGE_TAG}` | 5001 | REST API, `/service/*` (Dart → Flask) |
 | `dutch_dart_game_server` | `silvella/dutch_dart_game_server:${DART_IMAGE_TAG}` | 8080 | WebSocket game server |
-| `dutch_external_app_mongodb` | `ghcr.io/stevekerrison/mongo-qemu-avx@sha256:dbf2e3ba…` (8.2, non-AVX) | 27018 | Database |
-| `dutch_external_app_redis` | `redis:8-alpine` | 6380 | Cache / pub-sub |
+| `dutch_external_app_mongodb` | `ghcr.io/stevekerrison/mongo-qemu-avx@sha256:dbf2e3ba…` (8.2, non-AVX) | 127.0.0.1:27018 | Database (not public) |
+| `dutch_external_app_redis` | `redis:8-alpine` | 127.0.0.1:6380 | Cache / pub-sub (not public) |
 
 **Traffic**
 

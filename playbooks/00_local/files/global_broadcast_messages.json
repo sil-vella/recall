@@ -53,12 +53,30 @@
       "is_active": true,
       "data": {
         "deeplink": "store_link",
-        "target_version": "2.1.12"
+        "target_version": "2.1.11"
       },
       "responses": [
         {
           "label": "Update",
           "action_identifier": "open_store"
+        }
+      ]
+    },
+    {
+      "_id": "65f0a1b2c3d4e5f607182905",
+      "title": "We're sorry",
+      "body": "A recent security incident wiped all player accounts. We sincerely apologize for the disruption and appreciate your patience.",
+      "type": "instant",
+      "subtype": "announcement",
+      "source": "global_broadcast",
+      "msg_id": "global_account_reset_apology_v1",
+      "target_ranks": ["all"],
+      "is_active": true,
+      "data": {},
+      "responses": [
+        {
+          "label": "Got it",
+          "action_identifier": "dismiss"
         }
       ]
     }

@@ -151,7 +151,7 @@ if ! command -v python3 &>/dev/null; then
 fi
 DART_DEF_JSON="$(mktemp "${TMPDIR:-/tmp}/flutter-dart-defines.XXXXXX")" || exit 1
 python3 "$SCRIPT_DIR/env_for_flutter_dart_defines.py" "$DART_DEFINES_ENV" "$DART_DEF_JSON" || exit 1
-echo "ℹ️  ADMOBS_* in .env.dart.defines.prod are for native builds; web skips AdMob. See Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md"
+echo "ℹ️  AdMob unit IDs: .env.prod ADMOBS_* (Flask init-config). Native app id: .env.dart.defines.prod ADMOB_APPLICATION_ID. Web skips AdMob."
 
 # Build the web release
 echo "🌐 Building Flutter web release..."

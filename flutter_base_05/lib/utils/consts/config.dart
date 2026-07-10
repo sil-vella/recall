@@ -66,7 +66,7 @@ class Config {
     defaultValue: '',
   );
 
-  // AdMob IDs (override with --dart-define=ADMOBS_* for staging/other units).
+  // AdMob unit IDs — SSOT: Flask .env.local|.prod → init-config. Compile-time defaults = offline fallback only.
   static const String admobsTopBanner = String.fromEnvironment(
     'ADMOBS_TOP_BANNER01',
     defaultValue: 'ca-app-pub-6524100109992126/3612268528',

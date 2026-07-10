@@ -9,7 +9,7 @@ import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/app_manager.dart';
 import '../../../../core/managers/hooks_manager.dart';
 import '../../../../core/managers/module_manager.dart';
-import '../../../../utils/consts/config.dart';
+import '../admob_config_store.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
 
@@ -59,7 +59,7 @@ class BannerAdModule extends ModuleBase {
     required Key hostKey,
   }) {
     final adUnitId =
-        slot == 'bottom' ? Config.admobsBottomBanner : Config.admobsTopBanner;
+        slot == 'bottom' ? AdmobConfigStore.bottomBanner : AdmobConfigStore.topBanner;
     if (kIsWeb || adUnitId.trim().isEmpty) {
       _diagOnceLog(
         'shrink|$slot',
@@ -91,13 +91,13 @@ class BannerAdModule extends ModuleBase {
   void _registerBannerCallbacks(HooksManager hooksManager) {
     hooksManager.registerHookWithData('top_banner_bar_loaded', (data) {
       admobTrace('Banner', 'hook top_banner_bar_loaded → loadBannerAd(top)');
-      loadBannerAd(Config.admobsTopBanner, slot: 'top');
+      loadBannerAd(AdmobConfigStore.topBanner, slot: 'top');
     }, priority: 10);
 
     hooksManager.registerHookWithData('bottom_banner_bar_loaded', (data) {
       if (kIsWeb) return;
       admobTrace('Banner', 'hook bottom_banner_bar_loaded → loadBannerAd(bottom)');
-      loadBannerAd(Config.admobsBottomBanner, slot: 'bottom');
+      loadBannerAd(AdmobConfigStore.bottomBanner, slot: 'bottom');
     }, priority: 10);
   }
 

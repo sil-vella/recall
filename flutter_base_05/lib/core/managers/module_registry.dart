@@ -118,8 +118,8 @@ class ModuleRegistry {
     // promotional (navigation-gated interstitial) so registration order matches
     // PluginManager Main → … → Adverts in the reference project.
     registerModule('admobs_banner_ad_module', () => BannerAdModule());
-    registerModule('admobs_interstitial_ad_module', () => InterstitialAdModule(Config.admobsInterstitial01));
-    registerModule('admobs_rewarded_ad_module', () => RewardedAdModule(Config.admobsRewarded01));
+    registerModule('admobs_interstitial_ad_module', () => InterstitialAdModule());
+    registerModule('admobs_rewarded_ad_module', () => RewardedAdModule());
     registerModule(
       'adverts_module',
       () => AdvertsModule(),

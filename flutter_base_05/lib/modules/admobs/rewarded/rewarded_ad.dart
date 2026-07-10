@@ -11,20 +11,23 @@ import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
 import '../../dutch_game/utils/dutch_firebase_analytics.dart';
 import '../ad_experience_policy.dart';
+import '../admob_config_store.dart';
 import '../admob_trace.dart';
 
 /// Rewarded AdMob unit: preload, [isReady], [showAd] with earn + dismiss callbacks.
 class RewardedAdModule extends ModuleBase {
-  RewardedAdModule(this.adUnitId) : super('admobs_rewarded_ad_module', dependencies: []);
+  RewardedAdModule() : super('admobs_rewarded_ad_module', dependencies: []);
 
-  final String adUnitId;
   RewardedAd? _rewardedAd;
   bool _isAdReady = false;
+  late final VoidCallback _configListener;
 
   /// Bumps when load state changes so UI can enable/disable the watch-ad control.
   final ValueNotifier<int> stateTick = ValueNotifier<int>(0);
 
   void _bump() => stateTick.value++;
+
+  String get adUnitId => AdmobConfigStore.rewarded;
 
   bool get isReady =>
       !kIsWeb &&
@@ -36,11 +39,23 @@ class RewardedAdModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
+    _configListener = () {
+      unawaited(_reloadOnConfigChange());
+    };
+    AdmobConfigStore.changeVersion.addListener(_configListener);
     if (adUnitId.trim().isEmpty) {
       admobTrace('Rewarded', 'initialize: empty adUnitId — skip loadAd()');
       return;
     }
     loadAd();
+  }
+
+  Future<void> _reloadOnConfigChange() async {
+    await _rewardedAd?.dispose();
+    _rewardedAd = null;
+    _isAdReady = false;
+    _bump();
+    await loadAd();
   }
 
   /// Preloads the next rewarded ad (no-op on web or empty unit id).
@@ -162,6 +177,7 @@ class RewardedAdModule extends ModuleBase {
 
   @override
   void dispose() {
+    AdmobConfigStore.changeVersion.removeListener(_configListener);
     _rewardedAd?.dispose();
     _rewardedAd = null;
     _isAdReady = false;

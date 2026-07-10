@@ -27,6 +27,7 @@ Always present:
 | `consumables_catalog_revision` | Current server hash |
 | `progression_config_revision` | Current server hash |
 | `achievements_catalog_revision` | Current server hash |
+| `admob_config_revision` | Current server hash (AdMob unit IDs + rewarded UI knobs) |
 | `global_broadcast_messages` | Rank-filtered broadcasts (not declarative) |
 
 Present **only when client revision is missing or stale**:
@@ -37,6 +38,7 @@ Present **only when client revision is missing or stale**:
 | `consumables_catalog` | [CONSUMABLES.md](./CONSUMABLES.md) | [consumables_catalog.json](../../python_base_04/core/modules/dutch_game/config/consumables_catalog.json) |
 | `progression_config` | [PROGRESSION.md](./PROGRESSION.md) | [progression_config.json](../../python_base_04/core/modules/dutch_game/config/progression_config.json) |
 | `achievements_catalog` | [ACHIEVEMENTS.md](./ACHIEVEMENTS.md) | [achievements_config.json](../../python_base_04/core/modules/dutch_game/config/achievements_config.json) |
+| `admob_config` | [Admobs README](../Admobs/README.md) | Flask `Config.ADMOBS_*` / `ADMOB_REWARDED_*` env vars |
 
 ## Client revision query parameters
 
@@ -46,6 +48,7 @@ Present **only when client revision is missing or stale**:
 | `client_consumables_catalog_revision` | Consumables / cosmetics shop |
 | `client_progression_config_revision` | Progression rules |
 | `client_achievements_catalog_revision` | Achievements metadata + unlock rule definitions (client receives full doc for UI; unlocks still server-evaluated) |
+| `client_admob_config_revision` | AdMob unit IDs + rewarded coins/cap for client UI |
 
 Service `POST` uses the same names in the JSON body.
 
@@ -56,11 +59,12 @@ Service `POST` uses the same names in the JSON body.
    - `ConsumablesCatalogBootstrap.hydrateFromPrefsBeforeStats()`
    - `ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats()`
    - `AchievementsCatalogBootstrap.hydrateFromPrefsBeforeStats()`
+   - `AdmobConfigBootstrap.hydrateFromPrefsBeforeStats()`
 2. **Request** — `DutchGameHelpers.getInitData()` → `GET /userauth/dutch/get-init-data?...`
 3. **After response** — merge envelopes into prefs + in-memory stores; read `data` → `StateManager` `userStats`
 4. **Convenience** — `fetchAndUpdateInitData()` (alias: deprecated `fetchAndUpdateUserDutchGameData`)
 
-**Pre-login:** `fetchPublicInitConfig()` → `GET /public/dutch/init-config` (progression + optional table tiers + achievements metadata; no user stats).
+**Pre-login:** `main()` and `fetchPublicInitConfig()` → `GET /public/dutch/init-config` (progression + optional table tiers + achievements + AdMob config; no user stats).
 
 | Bootstrap | Prefs keys |
 |-----------|------------|
@@ -68,6 +72,7 @@ Service `POST` uses the same names in the JSON body.
 | Consumables | `dutch_consumables_catalog_revision`, `dutch_consumables_catalog_doc_json` |
 | Progression | `dutch_progression_config_revision`, `dutch_progression_config_doc_json` |
 | Achievements | `dutch_achievements_catalog_revision`, `dutch_achievements_catalog_doc_json` |
+| AdMob | `dutch_admob_config_revision`, `dutch_admob_config_doc_json` |
 
 ## Dart game server
 

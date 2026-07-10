@@ -3,7 +3,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../../core/managers/navigation_manager.dart';
 import '../../core/managers/hooks_manager.dart';
-import '../../utils/consts/config.dart';
+import '../admobs/admob_config_store.dart';
 import '../admobs/ad_experience_policy.dart';
 import 'ad_registry.dart';
 import 'route_path_utils.dart';
@@ -41,7 +41,7 @@ class AdsSwitchScreenNavigatorObserver extends NavigatorObserver {
     required BuildContext context,
     required String destinationPath,
   }) {
-    if (Config.admobsInterstitial01.trim().isEmpty) {
+    if (AdmobConfigStore.interstitial.trim().isEmpty) {
       return;
     }
     if (_isSuppressedNow()) {

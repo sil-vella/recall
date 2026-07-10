@@ -9,6 +9,7 @@ import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../core/services/shared_preferences.dart';
+import '../../modules/admobs/admob_config_store.dart';
 import '../../modules/admobs/ad_experience_policy.dart';
 import '../../modules/admobs/rewarded/rewarded_ad.dart';
 import '../../modules/admobs/rewarded/rewarded_ad_daily_cap.dart';
@@ -17,7 +18,6 @@ import '../../modules/dutch_game/utils/dutch_firebase_analytics.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../utils/analytics_service.dart';
 import '../../utils/coin_catalog.dart';
-import '../../utils/consts/config.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../utils/iap_session_helper.dart';
 import '../../modules/login_module/login_module.dart';
@@ -607,7 +607,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
   }
 
   Future<void> _watchRewardedAdForCoins() async {
-    if (kIsWeb || Config.admobsRewarded01.trim().isEmpty) {
+    if (kIsWeb || AdmobConfigStore.rewarded.trim().isEmpty) {
       return;
     }
 
@@ -769,7 +769,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
       return const SizedBox.shrink();
     }
     final pref = SharedPrefManager();
-    final coins = Config.admobRewardedCoinsPerClaim;
+    final coins = AdmobConfigStore.rewardedCoinsPerClaim;
     final cap = RewardedAdDailyCap.dailyCap;
     final remaining = RewardedAdDailyCap.remainingToday(pref);
     final atDailyCap = remaining <= 0;
@@ -855,7 +855,7 @@ class _CoinPurchaseScreenState extends BaseScreenState<CoinPurchaseScreen> {
             children: [
               _buildBalanceHeader(coins),
               SizedBox(height: AppPadding.defaultPadding.top),
-              if (_nativeMobile && Config.admobsRewarded01.trim().isNotEmpty) ...[
+              if (_nativeMobile && AdmobConfigStore.rewarded.trim().isNotEmpty) ...[
                 ListenableBuilder(
                   listenable: StateManager(),
                   builder: (context, _) {

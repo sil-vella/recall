@@ -66,7 +66,8 @@ d = json.load(open(p, encoding="utf-8"))
 mode = os.environ.get("FLUTTER_DART_DEFINES_MODE", "")
 for k in ("API_URL", "WS_URL", "BUILD_MODE", "APP_VERSION", "APP_PLATFORM", "PUBSPEC_BUILD_NUMBER"):
     print(f"   {k}={d.get(k, '')}")
-admob_keys = ("ADMOB_APPLICATION_ID", "ADMOBS_TOP_BANNER01", "ADMOBS_REWARDED01")
+admob_keys = ("ADMOB_APPLICATION_ID",)
+# ADMOBS_* unit IDs are not dart-defines — SSOT: .env.local|.prod → Flask init-config.
 for k in admob_keys:
     v = d.get(k, "")
     if v:

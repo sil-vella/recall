@@ -24,6 +24,7 @@ import 'consumables_catalog_bootstrap.dart';
 import 'gameplay_profiles_bootstrap.dart';
 import 'progression_config_bootstrap.dart';
 import 'achievements_catalog_bootstrap.dart';
+import '../../admobs/admob_config_bootstrap.dart';
 import '../screens/game_play/utils/dutch_anim_runtime.dart';
 import 'game_ended_modal_pin.dart';
 import 'multiplayer_session_readiness.dart';
@@ -1332,6 +1333,7 @@ class DutchGameHelpers {
       await GameplayProfilesBootstrap.hydrateFromPrefsBeforeStats();
       await ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats();
       await AchievementsCatalogBootstrap.hydrateFromPrefsBeforeStats();
+      await AdmobConfigBootstrap.hydrateFromPrefsBeforeStats();
 
       final moduleManager = ModuleManager();
       final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
@@ -1345,6 +1347,7 @@ class DutchGameHelpers {
           await GameplayProfilesBootstrap.getStoredRevisionForApi();
       final progressionRevision = await ProgressionConfigBootstrap.getStoredRevisionForApi();
       final achievementsRevision = await AchievementsCatalogBootstrap.getStoredRevisionForApi();
+      final admobRevision = await AdmobConfigBootstrap.getStoredRevisionForApi();
       final queryParts = <String>[];
       if (revision != null && revision.isNotEmpty) {
         queryParts.add('client_table_tiers_revision=${Uri.encodeQueryComponent(revision)}');
@@ -1362,6 +1365,10 @@ class DutchGameHelpers {
       if (achievementsRevision != null && achievementsRevision.isNotEmpty) {
         queryParts.add(
             'client_achievements_catalog_revision=${Uri.encodeQueryComponent(achievementsRevision)}');
+      }
+      if (admobRevision != null && admobRevision.isNotEmpty) {
+        queryParts.add(
+            'client_admob_config_revision=${Uri.encodeQueryComponent(admobRevision)}');
       }
       final route = queryParts.isEmpty
           ? '/userauth/dutch/get-init-data'
@@ -1414,6 +1421,7 @@ class DutchGameHelpers {
       await GameplayProfilesBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await ProgressionConfigBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
       await AchievementsCatalogBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
+      await AdmobConfigBootstrap.mergeStatsEnvelope(Map<String, dynamic>.from(response));
 
       try {
         final gRaw = response['global_broadcast_messages'];
@@ -1499,6 +1507,7 @@ class DutchGameHelpers {
       await TableTiersBootstrap.hydrateFromPrefsBeforeStats();
       await ProgressionConfigBootstrap.hydrateFromPrefsBeforeStats();
       await AchievementsCatalogBootstrap.hydrateFromPrefsBeforeStats();
+      await AdmobConfigBootstrap.hydrateFromPrefsBeforeStats();
 
       final connectionsModule =
           ModuleManager().getModuleByType<ConnectionsApiModule>();
@@ -1508,6 +1517,7 @@ class DutchGameHelpers {
       final tableRev = await TableTiersBootstrap.getStoredRevisionForApi();
       final progRev = await ProgressionConfigBootstrap.getStoredRevisionForApi();
       final achRev = await AchievementsCatalogBootstrap.getStoredRevisionForApi();
+      final admobRev = await AdmobConfigBootstrap.getStoredRevisionForApi();
       if (tableRev != null && tableRev.isNotEmpty) {
         queryParts.add('client_table_tiers_revision=${Uri.encodeQueryComponent(tableRev)}');
       }
@@ -1516,6 +1526,9 @@ class DutchGameHelpers {
       }
       if (achRev != null && achRev.isNotEmpty) {
         queryParts.add('client_achievements_catalog_revision=${Uri.encodeQueryComponent(achRev)}');
+      }
+      if (admobRev != null && admobRev.isNotEmpty) {
+        queryParts.add('client_admob_config_revision=${Uri.encodeQueryComponent(admobRev)}');
       }
       final route = queryParts.isEmpty
           ? '/public/dutch/init-config'
@@ -1528,6 +1541,7 @@ class DutchGameHelpers {
       await TableTiersBootstrap.mergeStatsEnvelope(envelope);
       await ProgressionConfigBootstrap.mergePublicConfigEnvelope(envelope);
       await AchievementsCatalogBootstrap.mergePublicConfigEnvelope(envelope);
+      await AdmobConfigBootstrap.mergePublicConfigEnvelope(envelope);
       return true;
     } catch (_) {
       return false;

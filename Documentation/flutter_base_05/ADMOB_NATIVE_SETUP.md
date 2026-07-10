@@ -2,21 +2,19 @@
 
 **Full implementation guide (banner / interstitial / rewarded, hooks, test vs prod):** [`Documentation/Admobs/README.md`](../Admobs/README.md).
 
-## Flutter `--dart-define` (ad **unit** IDs)
+## Flutter `--dart-define` (native **application** id only)
 
-Set in `.env.prod`, `.env.local`, or your launch script (see `playbooks/frontend/env_for_flutter_dart_defines.py` + `launch_oneplus.sh` / `build_*.sh`, which pass `--dart-define-from-file`). Release builds go through `playbooks/frontend/build_appbundle.sh`, `build_apk.sh`, and `build_web.sh`; local Android device runs use `launch_oneplus.sh` — not `flutter_base_05/build.py` (that file is an optional manual AAB helper only).
+Set in `.env.dart.defines.local` / `.env.dart.defines.prod` (see `playbooks/frontend/env_for_flutter_dart_defines.py` + launch/build scripts).
 
 | Variable | Purpose |
 |----------|---------|
-| `ADMOB_APPLICATION_ID` | Android AdMob **app** id (`ca-app-pub-…~…`, **not** an ad unit). Same `.env` files as below; Gradle prefers this over `local.properties`. |
-| `ADMOBS_TOP_BANNER01` | Top banner ad unit |
-| `ADMOBS_BOTTOM_BANNER01` | Bottom banner ad unit |
-| `ADMOBS_INTERSTITIAL01` | Full-screen interstitial — **Interstitial_001** `ca-app-pub-6524100109992126/4685169868` (navigation gate) |
-| `ADMOBS_REWARDED01` | Rewarded unit — **Rewarded_001** `ca-app-pub-6524100109992126/8821901598` (coin purchase screen) |
+| `ADMOB_APPLICATION_ID` | Android/iOS AdMob **app** id (`ca-app-pub-…~…`, **not** an ad unit). Gradle/xcconfig; rebuild required to change. |
 
-**Defaults in repo:** `lib/utils/consts/config.dart` compiles in production banner, **Interstitial_001**, and **Rewarded_001** unless you override with `--dart-define`. For local test app id, use Google sample units in `.env.dart.defines.local` (rewarded: `ca-app-pub-3940256099942544/5224354917`).
+**Ad unit IDs** (`ADMOBS_*`, `ADMOB_REWARDED_*`) are **not** dart-defines. SSOT: `.env.local` / `.env.prod` (Flask) → `GET /public/dutch/init-config`. See [`Documentation/Admobs/README.md`](../Admobs/README.md).
 
-For **optional** Google test creatives (different publisher), see [Android test ads](https://developers.google.com/admob/android/test-ads) and set matching **application** id + sample units via `.env.local` / `local.properties` so app id and unit ids stay from the same account.
+`lib/utils/consts/config.dart` keeps compile-time **offline fallbacks** only when init-config and prefs are unavailable.
+
+For **optional** Google test creatives, set test units in **`.env.local`** and use matching **application** id in `.env.dart.defines.local` (`ca-app-pub-3940256099942544~…`).
 
 ## Premium (`subscription_tier`)
 
@@ -36,14 +34,19 @@ Gradle injects `ADMOB_APPLICATION_ID` into the manifest placeholder.
 
 **Precedence:**
 
-1. **`ADMOB_APPLICATION_ID`** in `.env.local` / `.env.prod` — emitted as `--dart-define` by `dart_defines_from_env.sh` (used by `launch_oneplus.sh`, `build_appbundle.sh`, etc.). **Wins when present.**
+1. **`ADMOB_APPLICATION_ID`** in `.env.dart.defines.local` / `.env.dart.defines.prod` — emitted as `--dart-define` by build scripts. **Wins when present.**
 2. **`admob.application_id`** in `flutter_base_05/android/local.properties` — optional fallback (e.g. opening only the `android` module in Android Studio without Flutter’s dart-defines).
 3. If both are absent, Gradle uses the **production** default `ca-app-pub-6524100109992126~6470366151` (see `android/app/build.gradle.kts`).
 
-Example overrides in `.env.prod` (same values as defaults; useful when you add more units later):
+Example in `.env.dart.defines.prod`:
 
 ```properties
 ADMOB_APPLICATION_ID='ca-app-pub-6524100109992126~6470366151'
+```
+
+Unit ids in `.env.prod` (Flask):
+
+```properties
 ADMOBS_TOP_BANNER01='ca-app-pub-6524100109992126/3612268528'
 ADMOBS_BOTTOM_BANNER01='ca-app-pub-6524100109992126/3612268528'
 ADMOBS_INTERSTITIAL01='ca-app-pub-6524100109992126/4685169868'

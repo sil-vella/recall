@@ -10,11 +10,13 @@ For a shorter checklist focused on native app IDs and Gradle, see [`Documentatio
 
 | Layer | Role |
 |--------|------|
-| **`.env.local` / `.env.prod`** (repo root) | Single source of truth for keys consumed as Dart compile-time constants and (on Android) for `ADMOB_APPLICATION_ID` in Gradle. |
-| **`playbooks/frontend/env_for_flutter_dart_defines.py`** | Converts `KEY=value` env files to JSON for `flutter run` / `flutter build … --dart-define-from-file=…` (avoids shell `ARG_MAX` with large envs). |
-| **`lib/utils/consts/config.dart`** | `String.fromEnvironment` / `bool.fromEnvironment` / `int.fromEnvironment` for each AdMob-related key. |
-| **`lib/modules/admobs/admob_bootstrap.dart`** | Native only: UMP consent update + `MobileAds.instance.initialize()` before any ad load. Called from `main.dart` before `runApp`. |
-| **`BannerAdModule` / `InterstitialAdModule` / `RewardedAdModule`** | Load/show logic; read unit IDs from `Config.*`. |
+| **`.env.local` / `.env.prod`** (repo root, Flask) | **SSOT for ad unit IDs** (`ADMOBS_*`) and rewarded UI knobs (`ADMOB_REWARDED_*`). Served via `GET /public/dutch/init-config`. |
+| **`.env.dart.defines.*`** (Flutter build) | `ADMOB_APPLICATION_ID` for native manifest / xcconfig; optional offline fallback for unit IDs in `config.dart`. |
+| **`lib/modules/admobs/admob_config_bootstrap.dart`** | Hydrates from SharedPreferences; fetches init-config at startup; merges revision-gated `admob_config`. |
+| **`lib/modules/admobs/admob_config_store.dart`** | Runtime unit IDs + rewarded coins/cap; falls back to `Config.*` compile-time defaults when offline. |
+| **`lib/utils/consts/config.dart`** | Compile-time fallback defaults and consent/tag flags (`ADMOB_TAG_*`, `ADMOB_CONSENT_*`). |
+| **`lib/modules/admobs/admob_bootstrap.dart`** | Native only: UMP consent update + `MobileAds.instance.initialize()` before any ad load. Called from `main.dart` after AdMob config hydrate/fetch. |
+| **`BannerAdModule` / `InterstitialAdModule` / `RewardedAdModule`** | Load/show logic; read unit IDs from `AdmobConfigStore`. |
 | **`AdExperiencePolicy`** | Gates monetized ads when `subscription_tier` is `premium`. |
 | **Android `android/app/build.gradle.kts`** | Injects `ADMOB_APPLICATION_ID` into `AndroidManifest.xml` via `manifestPlaceholders`. |
 | **iOS `ios/Flutter/*.xcconfig` + `Info.plist`** | `GAD_APPLICATION_ID` for the same AdMob **app** as your units. |
@@ -27,19 +29,28 @@ Web builds do not use AdMob (`kIsWeb` guards); use AdSense keys from env where a
 
 ### 2.1 Keys you typically set
 
+**Backend (Flask `.env.local` / `.env.prod`) — unit IDs (no app rebuild to change):**
+
+| Variable | Used for |
+|----------|-----------|
+| **`ADMOBS_TOP_BANNER01`** | Top banner unit |
+| **`ADMOBS_BOTTOM_BANNER01`** | Bottom banner unit |
+| **`ADMOBS_INTERSTITIAL01`** | Interstitial unit (**Interstitial_001**) |
+| **`ADMOBS_REWARDED01`** | Rewarded unit (**Rewarded_001**) |
+| **`ADMOB_REWARDED_COINS_PER_CLAIM`** | Coins shown in UI + server claim API |
+| **`ADMOB_REWARDED_DAILY_CAP`** | Client UTC daily cap for watch-ad button |
+
+**Flutter build (`.env.dart.defines.*`) — native app id + consent only:**
+
 | Variable | Used for | Notes |
 |----------|-----------|--------|
-| **`ADMOB_APPLICATION_ID`** | Android **app** id (`ca-app-pub-XXXXXXXX~YYYYYYYY`). **Not** an ad unit. | Must belong to the **same** AdMob app as every `ADMOBS_*` unit id you use. |
-| **`ADMOBS_TOP_BANNER01`** | Top banner unit | Can equal bottom unit; two `BannerAd` instances are used (see §4). |
-| **`ADMOBS_BOTTOM_BANNER01`** | Bottom banner unit | Skipped on web in `BannerAdModule` hook. |
-| **`ADMOBS_INTERSTITIAL01`** | Interstitial unit (**Interstitial_001**) | Default `ca-app-pub-6524100109992126/4685169868`. If **empty**, switch-screen interstitial flow is skipped. |
-| **`ADMOBS_REWARDED01`** | Rewarded unit (**Rewarded_001**) | Default `ca-app-pub-6524100109992126/8821901598`. If **empty**, coin-purchase “watch ad” path is skipped. |
+| **`ADMOB_APPLICATION_ID`** | Android **app** id (`ca-app-pub-XXXXXXXX~YYYYYYYY`). **Not** an ad unit. | Requires **rebuild** to change. Must match the AdMob app for your unit IDs. |
 | **`ADMOB_DEBUG_LOGS`** | Extra `[AdMob]` logs via `dbgAdMob` | `true` / `false`. |
 | **`ADMOB_TAG_FOR_CHILD_DIRECTED_TREATMENT`** | `RequestConfiguration` | `-1` default unspecified; `0` / `1` per SDK. |
 | **`ADMOB_TAG_FOR_UNDER_AGE_OF_CONSENT_REQUEST`** | Same | `-1` default. |
 | **`ADMOB_CONSENT_TAG_UNDER_AGE_OF_CONSENT`** | UMP `ConsentRequestParameters` | `true` / `false`. |
 
-All of the above are plain `KEY=value` lines in `.env.local` (device/web dev) or `.env.prod` (release builds). Launch/build scripts merge the whole file into Flutter via **`--dart-define-from-file`** (see `playbooks/frontend/launch_oneplus.sh`, `launch_chrome.sh`, `build_apk.sh`, `build_appbundle.sh`, `build_web.sh`).
+**Do not** put `ADMOBS_*` or `ADMOB_REWARDED_*` in dart-defines — SSOT is `.env.local` / `.env.prod` (Flask) → `GET /public/dutch/init-config`. Native **application** id is always production (`6524100109992126~6470366151`); unit ids may differ per env file.
 
 ### 2.2 Android application ID precedence (`build.gradle.kts`)
 
@@ -72,28 +83,18 @@ For **local testing with Google’s sample ad units** (`ca-app-pub-3940256099942
 
 ---
 
-## 3. `Config` compile-time mapping (`config.dart`)
+## 3. Runtime config (`AdmobConfigStore`) and compile-time fallback
 
-Dart reads compile-time constants (fed by `--dart-define-from-file`):
+At startup, `main()` calls `AdmobConfigBootstrap.hydrateFromPrefsBeforeStats()` then `fetchPublicConfigIfNeeded()` (`GET /public/dutch/init-config`) **before** `bootstrapConsentAndMobileAds()`. Ad modules read effective IDs from `AdmobConfigStore`.
+
+`config.dart` still defines compile-time **fallback** defaults (used when prefs empty and network unavailable):
 
 ```dart
-// Ad unit IDs (examples — real values come from .env)
 static const String admobsTopBanner = String.fromEnvironment(
   'ADMOBS_TOP_BANNER01',
   defaultValue: 'ca-app-pub-6524100109992126/3612268528',
 );
-static const String admobsBottomBanner = String.fromEnvironment(
-  'ADMOBS_BOTTOM_BANNER01',
-  defaultValue: 'ca-app-pub-6524100109992126/3612268528',
-);
-static const String admobsInterstitial01 = String.fromEnvironment(
-  'ADMOBS_INTERSTITIAL01',
-  defaultValue: 'ca-app-pub-6524100109992126/4685169868',
-);
-static const String admobsRewarded01 = String.fromEnvironment(
-  'ADMOBS_REWARDED01',
-  defaultValue: 'ca-app-pub-6524100109992126/8821901598',
-);
+// ... bottom, interstitial, rewarded ...
 ```
 
 **Note:** `ADMOB_APPLICATION_ID` is **not** read in Dart; it exists for Gradle (Android) / xcconfig (iOS) only.
@@ -114,8 +115,8 @@ static const String admobsRewarded01 = String.fromEnvironment(
 1. **`AdvertsModule`** (`lib/modules/admobs/adverts_module.dart`), after other ad modules register, calls on native + non-premium:
 
    ```dart
-   banner.loadBannerAd(Config.admobsTopBanner, slot: 'top');
-   banner.loadBannerAd(Config.admobsBottomBanner, slot: 'bottom');
+   banner.loadBannerAd(AdmobConfigStore.topBanner, slot: 'top');
+   banner.loadBannerAd(AdmobConfigStore.bottomBanner, slot: 'bottom');
    ```
 
 2. **`BaseScreen`** (`lib/core/00_base/screen_base.dart`), `initState` → post-frame:
@@ -125,7 +126,7 @@ static const String admobsRewarded01 = String.fromEnvironment(
 
 3. **`BannerAdModule.initialize`** registers **HooksManager** callbacks:
 
-   - `top_banner_bar_loaded` → `loadBannerAd(Config.admobsTopBanner, slot: 'top')`
+   - `top_banner_bar_loaded` → `loadBannerAd(AdmobConfigStore.topBanner, slot: 'top')`
    - `bottom_banner_bar_loaded` → `loadBannerAd(..., slot: 'bottom')` (skipped if `kIsWeb`)
 
 `AppManager` registers **stub** hooks at priority **1**; `BannerAdModule` registers at priority **10** so real handlers run.

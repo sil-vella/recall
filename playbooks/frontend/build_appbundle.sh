@@ -112,7 +112,7 @@ echo "✅ Version bumped: $CURRENT_VERSION → $APP_VERSION"
 echo "📝 Updated APP_VERSION in $ENV_FILE"
 echo ""
 echo "📦 Building with APP_VERSION=$APP_VERSION"
-echo "ℹ️  AdMob: set ADMOBS_* and ADMOB_APPLICATION_ID in .env.dart.defines.prod (dart-define; see Documentation/flutter_base_05/ADMOB_NATIVE_SETUP.md). Optional fallback: android/local.properties admob.application_id"
+echo "ℹ️  AdMob: set ADMOB_APPLICATION_ID in .env.dart.defines.prod (native app id; rebuild required). Unit IDs: Flask ADMOBS_* in .env.prod (init-config; no rebuild). See Documentation/Admobs/README.md"
 
 # shellcheck source=sync_pubspec_version.sh
 source "$SCRIPT_DIR/sync_pubspec_version.sh"

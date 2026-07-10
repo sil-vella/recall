@@ -7,17 +7,19 @@
     "coins": 1000,
     "first_name": "Sam",
     "last_name": "Pickle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img000.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img000.jpg",
+    "wins": 10
   },
   {
     "username": "emmafox",
     "email": "emmafox@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Fox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img001.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img001.jpg",
+    "wins": 30
   },
   {
     "username": "zoebean668",
@@ -27,7 +29,8 @@
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img002.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img002.jpg",
+    "wins": 0
   },
   {
     "username": "toastlord",
@@ -37,17 +40,19 @@
     "coins": 1000,
     "first_name": "Toast",
     "last_name": "Evans",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img003.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img003.jpg",
+    "wins": 30
   },
   {
     "username": "ben.leo6",
     "email": "ben.leo6@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Leo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img004.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img004.jpg",
+    "wins": 40
   },
   {
     "username": "jamesangry",
@@ -57,17 +62,19 @@
     "coins": 1000,
     "first_name": "James",
     "last_name": "Angry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img005.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img005.jpg",
+    "wins": 40
   },
   {
     "username": "ryan_zoe62",
     "email": "ryan_zoe62@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Zoe",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img006.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img006.jpg",
+    "wins": 10
   },
   {
     "username": "lucas_sam80",
@@ -77,7 +84,8 @@
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Sam",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img007.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img007.jpg",
+    "wins": 0
   },
   {
     "username": "ella.ella50",
@@ -87,17 +95,19 @@
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Ella",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img008.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img008.jpg",
+    "wins": 40
   },
   {
     "username": "daisyvoid",
     "email": "daisyvoid@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img009.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img009.jpg",
+    "wins": 0
   },
   {
     "username": "harrynugget",
@@ -107,47 +117,52 @@
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img010.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img010.jpg",
+    "wins": 20
   },
   {
     "username": "gremlingg",
     "email": "gremlingg@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "Stewart",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img011.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img011.jpg",
+    "wins": 20
   },
   {
     "username": "max_jordan",
     "email": "max_jordan@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Jordan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img012.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img012.jpg",
+    "wins": 10
   },
   {
     "username": "ellacheese301",
     "email": "ellacheese301@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Cheese",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img013.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img013.jpg",
+    "wins": 10
   },
   {
     "username": "pixellol",
     "email": "pixellol@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Pixel",
     "last_name": "Ramos",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img014.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img014.jpg",
+    "wins": 40
   },
   {
     "username": "mike.ruby96",
@@ -157,47 +172,52 @@
     "coins": 1000,
     "first_name": "Mike",
     "last_name": "Ruby",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img015.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img015.jpg",
+    "wins": 10
   },
   {
     "username": "milowizard100",
     "email": "milowizard100@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Milow",
     "last_name": "Moore",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img016.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img016.jpg",
+    "wins": 30
   },
   {
     "username": "zoe75",
     "email": "zoe75@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Morgan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img017.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img017.jpg",
+    "wins": 0
   },
   {
     "username": "angrybot",
     "email": "angrybot@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Chavez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img018.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img018.jpg",
+    "wins": 10
   },
   {
     "username": "tompanda385",
     "email": "tompanda385@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Tompa",
     "last_name": "Taylor",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img019.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img019.jpg",
+    "wins": 20
   },
   {
     "username": "oscarpickle984",
@@ -207,7 +227,8 @@
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Morris",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img020.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img020.jpg",
+    "wins": 40
   },
   {
     "username": "sarawobbly",
@@ -217,47 +238,52 @@
     "coins": 1000,
     "first_name": "Saraw",
     "last_name": "Lewis",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img021.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img021.jpg",
+    "wins": 40
   },
   {
     "username": "foxlol",
     "email": "foxlol@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Foxlo",
     "last_name": "Howard",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img022.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img022.jpg",
+    "wins": 10
   },
   {
     "username": "lucyvoid",
     "email": "lucyvoid@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img023.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img023.jpg",
+    "wins": 30
   },
   {
     "username": "alexmoose",
     "email": "alexmoose@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Alexm",
     "last_name": "Clark",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img024.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img024.jpg",
+    "wins": 10
   },
   {
     "username": "wobblyxd",
     "email": "wobblyxd@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Green",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img025.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img025.jpg",
+    "wins": 20
   },
   {
     "username": "milocheese243",
@@ -267,27 +293,30 @@
     "coins": 1000,
     "first_name": "Miloc",
     "last_name": "Ramirez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img026.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img026.jpg",
+    "wins": 20
   },
   {
     "username": "pandairl",
     "email": "pandairl@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Torres",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img027.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img027.jpg",
+    "wins": 30
   },
   {
     "username": "fredfox",
     "email": "fredfox@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Fredf",
     "last_name": "Myers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img028.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img028.jpg",
+    "wins": 40
   },
   {
     "username": "harrysleepy641",
@@ -297,47 +326,52 @@
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Sleepy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img029.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img029.jpg",
+    "wins": 40
   },
   {
     "username": "wobblylord",
     "email": "wobblylord@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Watson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img030.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img030.jpg",
+    "wins": 10
   },
   {
     "username": "harry_emma",
     "email": "harry_emma@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Emma",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img031.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img031.jpg",
+    "wins": 20
   },
   {
     "username": "sara80",
     "email": "sara80@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Sara",
     "last_name": "Hill",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img032.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img032.jpg",
+    "wins": 0
   },
   {
     "username": "mianugget775",
     "email": "mianugget775@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img033.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img033.jpg",
+    "wins": 30
   },
   {
     "username": "ava59",
@@ -347,7 +381,8 @@
     "coins": 1000,
     "first_name": "Ava",
     "last_name": "Rivera",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img034.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img034.jpg",
+    "wins": 0
   },
   {
     "username": "zoefox",
@@ -357,7 +392,8 @@
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Fox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img035.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img035.jpg",
+    "wins": 30
   },
   {
     "username": "gremlinping",
@@ -367,7 +403,8 @@
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "Kelly",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img036.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img036.jpg",
+    "wins": 20
   },
   {
     "username": "olivertoast600",
@@ -377,7 +414,8 @@
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Toast",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img037.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img037.jpg",
+    "wins": 40
   },
   {
     "username": "lena",
@@ -387,47 +425,52 @@
     "coins": 1000,
     "first_name": "Lena",
     "last_name": "Reed",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img038.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img038.jpg",
+    "wins": 10
   },
   {
     "username": "foxping",
     "email": "foxping@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Foxpi",
     "last_name": "Lewis",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img039.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img039.jpg",
+    "wins": 20
   },
   {
     "username": "ellasleepy918",
     "email": "ellasleepy918@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Sleepy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img040.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img040.jpg",
+    "wins": 40
   },
   {
     "username": "mike.kate81",
     "email": "mike.kate81@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Mike",
     "last_name": "Kate",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img041.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img041.jpg",
+    "wins": 0
   },
   {
     "username": "bananaoops",
     "email": "bananaoops@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Banan",
     "last_name": "Young",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img042.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img042.jpg",
+    "wins": 10
   },
   {
     "username": "pandalol",
@@ -437,7 +480,8 @@
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Myers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img043.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img043.jpg",
+    "wins": 30
   },
   {
     "username": "pandalord",
@@ -447,7 +491,8 @@
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Hughes",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img044.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img044.jpg",
+    "wins": 0
   },
   {
     "username": "wobblyalt",
@@ -457,17 +502,19 @@
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Adams",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img045.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img045.jpg",
+    "wins": 40
   },
   {
     "username": "alexpickle",
     "email": "alexpickle@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Alexp",
     "last_name": "Thompson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img046.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img046.jpg",
+    "wins": 40
   },
   {
     "username": "mike.noah49",
@@ -477,57 +524,63 @@
     "coins": 1000,
     "first_name": "Mike",
     "last_name": "Noah",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img047.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img047.jpg",
+    "wins": 40
   },
   {
     "username": "moosexd",
     "email": "moosexd@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Garcia",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img048.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img048.jpg",
+    "wins": 40
   },
   {
     "username": "leo_nina",
     "email": "leo_nina@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Leo",
     "last_name": "Nina",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img049.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img049.jpg",
+    "wins": 40
   },
   {
     "username": "chrisnugget770",
     "email": "chrisnugget770@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Chris",
     "last_name": "Turner",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img050.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img050.jpg",
+    "wins": 40
   },
   {
     "username": "toast404",
     "email": "toast404@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Toast",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img051.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img051.jpg",
+    "wins": 0
   },
   {
     "username": "james.harry",
     "email": "james.harry@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "James",
     "last_name": "Harry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img052.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img052.jpg",
+    "wins": 40
   },
   {
     "username": "ryanangry659",
@@ -537,7 +590,8 @@
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Angry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img053.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img053.jpg",
+    "wins": 10
   },
   {
     "username": "sara",
@@ -547,7 +601,8 @@
     "coins": 1000,
     "first_name": "Sara",
     "last_name": "Diaz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img054.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img054.jpg",
+    "wins": 0
   },
   {
     "username": "ethancheese788",
@@ -557,7 +612,8 @@
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "Ramirez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img055.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img055.jpg",
+    "wins": 40
   },
   {
     "username": "gremlinjam",
@@ -567,27 +623,30 @@
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "Richardson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img056.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img056.jpg",
+    "wins": 10
   },
   {
     "username": "ethanduck347",
     "email": "ethanduck347@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "White",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img057.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img057.jpg",
+    "wins": 20
   },
   {
     "username": "wobblyafk",
     "email": "wobblyafk@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Rodriguez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img058.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img058.jpg",
+    "wins": 10
   },
   {
     "username": "jamesduck",
@@ -597,7 +656,8 @@
     "coins": 1000,
     "first_name": "James",
     "last_name": "Duck",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img059.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img059.jpg",
+    "wins": 40
   },
   {
     "username": "lucas.ava",
@@ -607,27 +667,30 @@
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Ava",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img060.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img060.jpg",
+    "wins": 10
   },
   {
     "username": "sara50",
     "email": "sara50@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Sara",
     "last_name": "Phillips",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img061.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img061.jpg",
+    "wins": 30
   },
   {
     "username": "mikeduck",
     "email": "mikeduck@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Miked",
     "last_name": "Cruz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img062.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img062.jpg",
+    "wins": 30
   },
   {
     "username": "nina.nina79",
@@ -637,7 +700,8 @@
     "coins": 1000,
     "first_name": "Nina",
     "last_name": "Nina",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img063.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img063.jpg",
+    "wins": 10
   },
   {
     "username": "jack.sam",
@@ -647,17 +711,19 @@
     "coins": 1000,
     "first_name": "Jack",
     "last_name": "Sam",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img064.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img064.jpg",
+    "wins": 30
   },
   {
     "username": "tunaping",
     "email": "tunaping@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Tunap",
     "last_name": "Hernandez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img065.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img065.jpg",
+    "wins": 30
   },
   {
     "username": "max.oliver",
@@ -667,17 +733,19 @@
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Oliver",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img066.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img066.jpg",
+    "wins": 0
   },
   {
     "username": "maxtuna",
     "email": "maxtuna@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Tuna",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img067.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img067.jpg",
+    "wins": 0
   },
   {
     "username": "nugget404",
@@ -687,17 +755,19 @@
     "coins": 1000,
     "first_name": "Nugge",
     "last_name": "Cheese",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img068.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img068.jpg",
+    "wins": 40
   },
   {
     "username": "avabean",
     "email": "avabean@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Avabe",
     "last_name": "Thomas",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img069.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img069.jpg",
+    "wins": 40
   },
   {
     "username": "voidalt",
@@ -707,17 +777,19 @@
     "coins": 1000,
     "first_name": "Voida",
     "last_name": "Bennett",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img070.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img070.jpg",
+    "wins": 10
   },
   {
     "username": "daisy.alex39",
     "email": "daisy.alex39@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Alex",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img071.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img071.jpg",
+    "wins": 20
   },
   {
     "username": "mike.harry",
@@ -727,37 +799,41 @@
     "coins": 1000,
     "first_name": "Mike",
     "last_name": "Harry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img072.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img072.jpg",
+    "wins": 40
   },
   {
     "username": "lena79",
     "email": "lena79@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Lena",
     "last_name": "Lewis",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img073.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img073.jpg",
+    "wins": 40
   },
   {
     "username": "oscarnugget",
     "email": "oscarnugget@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Moore",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img074.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img074.jpg",
+    "wins": 40
   },
   {
     "username": "lucas",
     "email": "lucas@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img075.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img075.jpg",
+    "wins": 30
   },
   {
     "username": "noah12",
@@ -767,27 +843,30 @@
     "coins": 1000,
     "first_name": "Noah",
     "last_name": "Lopez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img076.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img076.jpg",
+    "wins": 40
   },
   {
     "username": "milopickle849",
     "email": "milopickle849@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Milop",
     "last_name": "Ortiz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img077.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img077.jpg",
+    "wins": 20
   },
   {
     "username": "jack22",
     "email": "jack22@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Jack",
     "last_name": "Long",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img078.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img078.jpg",
+    "wins": 10
   },
   {
     "username": "ryanpanda",
@@ -797,17 +876,19 @@
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Panda",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img079.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img079.jpg",
+    "wins": 20
   },
   {
     "username": "ducktv",
     "email": "ducktv@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Duckt",
     "last_name": "Perry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img080.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img080.jpg",
+    "wins": 20
   },
   {
     "username": "kate",
@@ -817,7 +898,8 @@
     "coins": 1000,
     "first_name": "Kate",
     "last_name": "Brooks",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img081.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img081.jpg",
+    "wins": 0
   },
   {
     "username": "foxmain",
@@ -827,7 +909,8 @@
     "coins": 1000,
     "first_name": "Foxma",
     "last_name": "Flores",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img082.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img082.jpg",
+    "wins": 20
   },
   {
     "username": "lucas.ella",
@@ -837,7 +920,8 @@
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Ella",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img083.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img083.jpg",
+    "wins": 40
   },
   {
     "username": "will",
@@ -847,17 +931,19 @@
     "coins": 1000,
     "first_name": "Will",
     "last_name": "Gutierrez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img084.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img084.jpg",
+    "wins": 40
   },
   {
     "username": "jordanspoon774",
     "email": "jordanspoon774@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Jorda",
     "last_name": "Wood",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img085.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img085.jpg",
+    "wins": 20
   },
   {
     "username": "mooseoops",
@@ -867,7 +953,8 @@
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Stewart",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img086.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img086.jpg",
+    "wins": 0
   },
   {
     "username": "mike_ivy",
@@ -877,17 +964,19 @@
     "coins": 1000,
     "first_name": "Mike",
     "last_name": "Ivy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img087.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img087.jpg",
+    "wins": 30
   },
   {
     "username": "fredtuna",
     "email": "fredtuna@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Fredt",
     "last_name": "Rodriguez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img088.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img088.jpg",
+    "wins": 10
   },
   {
     "username": "noahspoon106",
@@ -897,7 +986,8 @@
     "coins": 1000,
     "first_name": "Noahs",
     "last_name": "Jordan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img089.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img089.jpg",
+    "wins": 10
   },
   {
     "username": "ethan1",
@@ -907,17 +997,19 @@
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "Fox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img090.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img090.jpg",
+    "wins": 20
   },
   {
     "username": "beangg",
     "email": "beangg@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Beang",
     "last_name": "Thomas",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img091.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img091.jpg",
+    "wins": 10
   },
   {
     "username": "ben",
@@ -927,27 +1019,30 @@
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Jordan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img092.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img092.jpg",
+    "wins": 40
   },
   {
     "username": "ruby.ethan20",
     "email": "ruby.ethan20@cp.com",
-    "level": 8,
+    "level": 3,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Ethan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img093.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img093.jpg",
+    "wins": 20
   },
   {
     "username": "harry.max37",
     "email": "harry.max37@cp.com",
-    "level": 9,
+    "level": 4,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Max",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img094.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img094.jpg",
+    "wins": 30
   },
   {
     "username": "james7",
@@ -957,17 +1052,19 @@
     "coins": 1000,
     "first_name": "James",
     "last_name": "Lopez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img095.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img095.jpg",
+    "wins": 30
   },
   {
     "username": "jordanbanana",
     "email": "jordanbanana@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Jorda",
     "last_name": "Morales",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img096.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img096.jpg",
+    "wins": 0
   },
   {
     "username": "fred_jordan",
@@ -977,7 +1074,8 @@
     "coins": 1000,
     "first_name": "Fred",
     "last_name": "Jordan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img097.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img097.jpg",
+    "wins": 0
   },
   {
     "username": "lucypickle",
@@ -987,17 +1085,19 @@
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Pickle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img098.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img098.jpg",
+    "wins": 40
   },
   {
     "username": "jacknoodle385",
     "email": "jacknoodle385@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Jackn",
     "last_name": "Rivera",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img099.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img099.jpg",
+    "wins": 40
   },
   {
     "username": "bellagremlin",
@@ -1007,27 +1107,30 @@
     "coins": 1000,
     "first_name": "Bella",
     "last_name": "Gremlin",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img100.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img100.jpg",
+    "wins": 0
   },
   {
     "username": "mooselol",
     "email": "mooselol@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Flores",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img101.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img101.jpg",
+    "wins": 0
   },
   {
     "username": "oscarwobbly",
     "email": "oscarwobbly@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Robinson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img102.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img102.jpg",
+    "wins": 40
   },
   {
     "username": "oscar.liam",
@@ -1037,7 +1140,8 @@
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Liam",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img103.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img103.jpg",
+    "wins": 40
   },
   {
     "username": "picklejam",
@@ -1047,7 +1151,8 @@
     "coins": 1000,
     "first_name": "Pickl",
     "last_name": "Scott",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img104.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img104.jpg",
+    "wins": 20
   },
   {
     "username": "jackspoon",
@@ -1057,7 +1162,8 @@
     "coins": 1000,
     "first_name": "Jacks",
     "last_name": "Wright",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img105.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img105.jpg",
+    "wins": 0
   },
   {
     "username": "jamesvoid105",
@@ -1067,7 +1173,8 @@
     "coins": 1000,
     "first_name": "James",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img106.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img106.jpg",
+    "wins": 20
   },
   {
     "username": "nuggetmain",
@@ -1077,17 +1184,19 @@
     "coins": 1000,
     "first_name": "Nugge",
     "last_name": "Sanders",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img107.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img107.jpg",
+    "wins": 10
   },
   {
     "username": "wizardirl",
     "email": "wizardirl@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Stewart",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img108.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img108.jpg",
+    "wins": 40
   },
   {
     "username": "moosegg",
@@ -1097,17 +1206,19 @@
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Perry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img109.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img109.jpg",
+    "wins": 10
   },
   {
     "username": "angrymain",
     "email": "angrymain@cp.com",
-    "level": 10,
+    "level": 5,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Nelson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img110.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img110.jpg",
+    "wins": 40
   },
   {
     "username": "voidafk",
@@ -1117,17 +1228,19 @@
     "coins": 1000,
     "first_name": "Voida",
     "last_name": "Bailey",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img111.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img111.jpg",
+    "wins": 20
   },
   {
     "username": "emmatoast612",
     "email": "emmatoast612@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Toast",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img112.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img112.jpg",
+    "wins": 0
   },
   {
     "username": "daisybean239",
@@ -1137,7 +1250,8 @@
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img113.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img113.jpg",
+    "wins": 30
   },
   {
     "username": "oliver_ella",
@@ -1147,7 +1261,8 @@
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Ella",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img114.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img114.jpg",
+    "wins": 30
   },
   {
     "username": "pickle404",
@@ -1157,17 +1272,19 @@
     "coins": 1000,
     "first_name": "Pickl",
     "last_name": "Toast",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img115.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img115.jpg",
+    "wins": 40
   },
   {
     "username": "leospoon",
     "email": "leospoon@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Leosp",
     "last_name": "Rogers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img116.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img116.jpg",
+    "wins": 10
   },
   {
     "username": "lena.jack30",
@@ -1177,7 +1294,8 @@
     "coins": 1000,
     "first_name": "Lena",
     "last_name": "Jack",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img117.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img117.jpg",
+    "wins": 0
   },
   {
     "username": "samspoon",
@@ -1187,7 +1305,8 @@
     "coins": 1000,
     "first_name": "Sam",
     "last_name": "Spoon",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img118.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img118.jpg",
+    "wins": 40
   },
   {
     "username": "ruby.will",
@@ -1197,17 +1316,19 @@
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Will",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img119.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img119.jpg",
+    "wins": 20
   },
   {
     "username": "sara14",
     "email": "sara14@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Sara",
     "last_name": "Campbell",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img120.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img120.jpg",
+    "wins": 10
   },
   {
     "username": "lucypanda16",
@@ -1217,7 +1338,8 @@
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Panda",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img121.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img121.jpg",
+    "wins": 30
   },
   {
     "username": "wizardlol",
@@ -1227,7 +1349,8 @@
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Torres",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img122.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img122.jpg",
+    "wins": 20
   },
   {
     "username": "harry79",
@@ -1237,27 +1360,30 @@
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Sullivan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img123.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img123.jpg",
+    "wins": 0
   },
   {
     "username": "wobblylol",
     "email": "wobblylol@cp.com",
-    "level": 7,
+    "level": 2,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "White",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img124.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img124.jpg",
+    "wins": 10
   },
   {
     "username": "emmagremlin",
     "email": "emmagremlin@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Gremlin",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img125.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img125.jpg",
+    "wins": 0
   },
   {
     "username": "bananaxd",
@@ -1267,17 +1393,19 @@
     "coins": 1000,
     "first_name": "Banan",
     "last_name": "Cheese",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img126.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img126.jpg",
+    "wins": 0
   },
   {
     "username": "alex",
     "email": "alex@cp.com",
-    "level": 6,
+    "level": 1,
     "rank": "Beginner",
     "coins": 1000,
     "first_name": "Alex",
     "last_name": "Robinson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img127.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img127.jpg",
+    "wins": 0
   },
   {
     "username": "milospoon716",
@@ -1287,7 +1415,8 @@
     "coins": 1000,
     "first_name": "Milos",
     "last_name": "Nelson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img128.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img128.jpg",
+    "wins": 30
   },
   {
     "username": "max73",
@@ -1297,3706 +1426,4077 @@
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Wright",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img129.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img129.jpg",
+    "wins": 30
   },
   {
     "username": "picklexd",
     "email": "picklexd@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Pickl",
     "last_name": "Cheese",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img130.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img130.jpg",
+    "wins": 70
   },
   {
     "username": "nuggetxd",
     "email": "nuggetxd@cp.com",
-    "level": 16,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Nugge",
     "last_name": "Brooks",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img131.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img131.jpg",
+    "wins": 50
   },
   {
     "username": "picklelord",
     "email": "picklelord@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Pickl",
     "last_name": "Murphy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img132.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img132.jpg",
+    "wins": 90
   },
   {
     "username": "daisy_will",
     "email": "daisy_will@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Will",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img133.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img133.jpg",
+    "wins": 80
   },
   {
     "username": "lenagremlin461",
     "email": "lenagremlin461@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lenag",
     "last_name": "Murphy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img134.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img134.jpg",
+    "wins": 70
   },
   {
     "username": "sampixel625",
     "email": "sampixel625@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Sam",
     "last_name": "Pixel",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img135.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img135.jpg",
+    "wins": 50
   },
   {
     "username": "ryanvoid417",
     "email": "ryanvoid417@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img136.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img136.jpg",
+    "wins": 80
   },
   {
     "username": "mia",
     "email": "mia@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Ramos",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img137.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img137.jpg",
+    "wins": 50
   },
   {
     "username": "jamesangry660",
     "email": "jamesangry660@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "James",
     "last_name": "Angry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img138.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img138.jpg",
+    "wins": 50
   },
   {
     "username": "ivybanana606",
     "email": "ivybanana606@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ivyba",
     "last_name": "Toast",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img139.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img139.jpg",
+    "wins": 50
   },
   {
     "username": "ruby",
     "email": "ruby@cp.com",
-    "level": 20,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Reyes",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img140.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img140.jpg",
+    "wins": 90
   },
   {
     "username": "beantv",
     "email": "beantv@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Beant",
     "last_name": "Kelly",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img141.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img141.jpg",
+    "wins": 90
   },
   {
     "username": "lucassleepy354",
     "email": "lucassleepy354@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Sleepy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img142.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img142.jpg",
+    "wins": 70
   },
   {
     "username": "cheeseafk",
     "email": "cheeseafk@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Chees",
     "last_name": "Scott",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img143.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img143.jpg",
+    "wins": 50
   },
   {
     "username": "alex.chris91",
     "email": "alex.chris91@cp.com",
-    "level": 17,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Alex",
     "last_name": "Chris",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img144.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img144.jpg",
+    "wins": 60
   },
   {
     "username": "bentuna184",
     "email": "bentuna184@cp.com",
-    "level": 16,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Tuna",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img145.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img145.jpg",
+    "wins": 50
   },
   {
     "username": "bananaalt",
     "email": "bananaalt@cp.com",
-    "level": 16,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Banan",
     "last_name": "Murphy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img146.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img146.jpg",
+    "wins": 50
   },
   {
     "username": "lucasspoon",
     "email": "lucasspoon@cp.com",
-    "level": 14,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Spoon",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img147.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img147.jpg",
+    "wins": 80
   },
   {
     "username": "zoe14",
     "email": "zoe14@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Morris",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img148.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img148.jpg",
+    "wins": 70
   },
   {
     "username": "jameswizard515",
     "email": "jameswizard515@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "James",
     "last_name": "Wizard",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img149.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img149.jpg",
+    "wins": 80
   },
   {
     "username": "daisyangry",
     "email": "daisyangry@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Angry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img150.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img150.jpg",
+    "wins": 90
   },
   {
     "username": "ryan_ethan",
     "email": "ryan_ethan@cp.com",
-    "level": 16,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Ethan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img151.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img151.jpg",
+    "wins": 50
   },
   {
     "username": "bellaangry409",
     "email": "bellaangry409@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Bella",
     "last_name": "Angry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img152.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img152.jpg",
+    "wins": 70
   },
   {
     "username": "katespoon",
     "email": "katespoon@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Kates",
     "last_name": "Turner",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img153.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img153.jpg",
+    "wins": 80
   },
   {
     "username": "tunaafk",
     "email": "tunaafk@cp.com",
-    "level": 14,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Tunaa",
     "last_name": "King",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img154.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img154.jpg",
+    "wins": 80
   },
   {
     "username": "beanbot",
     "email": "beanbot@cp.com",
-    "level": 17,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Beanb",
     "last_name": "Wilson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img155.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img155.jpg",
+    "wins": 60
   },
   {
     "username": "ethan56",
     "email": "ethan56@cp.com",
-    "level": 14,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "Johnson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img156.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img156.jpg",
+    "wins": 80
   },
   {
     "username": "oscar",
     "email": "oscar@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Morgan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img157.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img157.jpg",
+    "wins": 70
   },
   {
     "username": "milo76",
     "email": "milo76@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Milo",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img158.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img158.jpg",
+    "wins": 70
   },
   {
     "username": "noah_ava42",
     "email": "noah_ava42@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Noah",
     "last_name": "Ava",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img159.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img159.jpg",
+    "wins": 60
   },
   {
     "username": "tunamain",
     "email": "tunamain@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Tunam",
     "last_name": "Cook",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img160.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img160.jpg",
+    "wins": 50
   },
   {
     "username": "chrisbean820",
     "email": "chrisbean820@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Chris",
     "last_name": "Martinez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img161.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img161.jpg",
+    "wins": 60
   },
   {
     "username": "oliver.chris",
     "email": "oliver.chris@cp.com",
-    "level": 20,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Chris",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img162.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img162.jpg",
+    "wins": 90
   },
   {
     "username": "mike_ella94",
     "email": "mike_ella94@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Mike",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img163.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img163.jpg",
+    "wins": 90
   },
   {
     "username": "tommoose656",
     "email": "tommoose656@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Tommo",
     "last_name": "Ramirez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img164.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img164.jpg",
+    "wins": 50
   },
   {
     "username": "noodleping",
     "email": "noodleping@cp.com",
-    "level": 17,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Noodl",
     "last_name": "Campbell",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img165.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img165.jpg",
+    "wins": 60
   },
   {
     "username": "mia2",
     "email": "mia2@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Ramos",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img166.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img166.jpg",
+    "wins": 50
   },
   {
     "username": "lucas_kate",
     "email": "lucas_kate@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Kate",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img167.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img167.jpg",
+    "wins": 60
   },
   {
     "username": "moose404",
     "email": "moose404@cp.com",
-    "level": 17,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Jenkins",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img168.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img168.jpg",
+    "wins": 60
   },
   {
     "username": "lucypanda219",
     "email": "lucypanda219@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Panda",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img169.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img169.jpg",
+    "wins": 80
   },
   {
     "username": "duckgg",
     "email": "duckgg@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Duckg",
     "last_name": "Johnson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img170.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img170.jpg",
+    "wins": 70
   },
   {
     "username": "sleepygg",
     "email": "sleepygg@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Sleep",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img171.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img171.jpg",
+    "wins": 70
   },
   {
     "username": "leo.liam",
     "email": "leo.liam@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Leo",
     "last_name": "Liam",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img172.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img172.jpg",
+    "wins": 80
   },
   {
     "username": "jordancheese787",
     "email": "jordancheese787@cp.com",
-    "level": 17,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Jorda",
     "last_name": "Castillo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img173.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img173.jpg",
+    "wins": 60
   },
   {
     "username": "pandagg",
     "email": "pandagg@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Rogers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img174.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img174.jpg",
+    "wins": 90
   },
   {
     "username": "ruby55",
     "email": "ruby55@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "King",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img175.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img175.jpg",
+    "wins": 70
   },
   {
     "username": "kategremlin",
     "email": "kategremlin@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Kateg",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img176.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img176.jpg",
+    "wins": 70
   },
   {
     "username": "angryping",
     "email": "angryping@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Peterson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img177.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img177.jpg",
+    "wins": 70
   },
   {
     "username": "lenabean751",
     "email": "lenabean751@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lenab",
     "last_name": "Young",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img178.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img178.jpg",
+    "wins": 50
   },
   {
     "username": "pickleoops",
     "email": "pickleoops@cp.com",
-    "level": 20,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Pickl",
     "last_name": "Castillo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img179.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img179.jpg",
+    "wins": 90
   },
   {
     "username": "chris_amy",
     "email": "chris_amy@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Chris",
     "last_name": "Amy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img180.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img180.jpg",
+    "wins": 60
   },
   {
     "username": "wizardmain",
     "email": "wizardmain@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Hall",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img181.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img181.jpg",
+    "wins": 60
   },
   {
     "username": "wizardtv",
     "email": "wizardtv@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Gomez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img182.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img182.jpg",
+    "wins": 50
   },
   {
     "username": "fox404",
     "email": "fox404@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Fox",
     "last_name": "Flores",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img183.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img183.jpg",
+    "wins": 60
   },
   {
     "username": "tomangry172",
     "email": "tomangry172@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Toman",
     "last_name": "Price",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img184.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img184.jpg",
+    "wins": 80
   },
   {
     "username": "leopickle",
     "email": "leopickle@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Leopi",
     "last_name": "Allen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img185.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img185.jpg",
+    "wins": 90
   },
   {
     "username": "miapixel619",
     "email": "miapixel619@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Pixel",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img186.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img186.jpg",
+    "wins": 70
   },
   {
     "username": "liamcheese",
     "email": "liamcheese@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Liamc",
     "last_name": "Moore",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img187.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img187.jpg",
+    "wins": 90
   },
   {
     "username": "ivy_daisy",
     "email": "ivy_daisy@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Ivy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img188.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img188.jpg",
+    "wins": 70
   },
   {
     "username": "ethanvoid589",
     "email": "ethanvoid589@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "Garcia",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img189.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img189.jpg",
+    "wins": 90
   },
   {
     "username": "jack",
     "email": "jack@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Jack",
     "last_name": "Moore",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img190.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img190.jpg",
+    "wins": 60
   },
   {
     "username": "pixel404",
     "email": "pixel404@cp.com",
-    "level": 16,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Pixel",
     "last_name": "Perry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img191.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img191.jpg",
+    "wins": 50
   },
   {
     "username": "lucybean776",
     "email": "lucybean776@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img192.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img192.jpg",
+    "wins": 70
   },
   {
     "username": "wizardxd",
     "email": "wizardxd@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Ramos",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img193.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img193.jpg",
+    "wins": 50
   },
   {
     "username": "voidmain",
     "email": "voidmain@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Voidm",
     "last_name": "Roberts",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img194.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img194.jpg",
+    "wins": 60
   },
   {
     "username": "jackbean",
     "email": "jackbean@cp.com",
-    "level": 20,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Jackb",
     "last_name": "Cooper",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img195.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img195.jpg",
+    "wins": 90
   },
   {
     "username": "katepickle",
     "email": "katepickle@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Katep",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img196.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img196.jpg",
+    "wins": 70
   },
   {
     "username": "wizardalt",
     "email": "wizardalt@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Foster",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img197.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img197.jpg",
+    "wins": 70
   },
   {
     "username": "picklealt",
     "email": "picklealt@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Pickl",
     "last_name": "Gutierrez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img198.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img198.jpg",
+    "wins": 60
   },
   {
     "username": "liam",
     "email": "liam@cp.com",
-    "level": 14,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Liam",
     "last_name": "Martinez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img199.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img199.jpg",
+    "wins": 80
   },
   {
     "username": "sampixel",
     "email": "sampixel@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Sam",
     "last_name": "Pixel",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img200.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img200.jpg",
+    "wins": 70
   },
   {
     "username": "ryan",
     "email": "ryan@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Cruz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img201.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img201.jpg",
+    "wins": 70
   },
   {
     "username": "wizardjam",
     "email": "wizardjam@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Edwards",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img202.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img202.jpg",
+    "wins": 50
   },
   {
     "username": "fredangry",
     "email": "fredangry@cp.com",
-    "level": 20,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Freda",
     "last_name": "Stewart",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img203.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img203.jpg",
+    "wins": 90
   },
   {
     "username": "lenapixel",
     "email": "lenapixel@cp.com",
-    "level": 14,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lenap",
     "last_name": "Russell",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img204.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img204.jpg",
+    "wins": 80
   },
   {
     "username": "maxduck",
     "email": "maxduck@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Duck",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img205.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img205.jpg",
+    "wins": 80
   },
   {
     "username": "ducklol",
     "email": "ducklol@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Duckl",
     "last_name": "Murphy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img206.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img206.jpg",
+    "wins": 50
   },
   {
     "username": "mike",
     "email": "mike@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Mike",
     "last_name": "Allen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img207.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img207.jpg",
+    "wins": 80
   },
   {
     "username": "mike_ben",
     "email": "mike_ben@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Mike",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img208.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img208.jpg",
+    "wins": 80
   },
   {
     "username": "alex1",
     "email": "alex1@cp.com",
-    "level": 18,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Alex",
     "last_name": "Jones",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img209.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img209.jpg",
+    "wins": 70
   },
   {
     "username": "lena_mia",
     "email": "lena_mia@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Lena",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img210.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img210.jpg",
+    "wins": 50
   },
   {
     "username": "wizardlord",
     "email": "wizardlord@cp.com",
-    "level": 16,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "James",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img211.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img211.jpg",
+    "wins": 50
   },
   {
     "username": "noodlealt",
     "email": "noodlealt@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Noodl",
     "last_name": "Toast",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img212.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img212.jpg",
+    "wins": 90
   },
   {
     "username": "tunalord",
     "email": "tunalord@cp.com",
-    "level": 16,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Tunal",
     "last_name": "Sanders",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img213.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img213.jpg",
+    "wins": 50
   },
   {
     "username": "lena_will44",
     "email": "lena_will44@cp.com",
-    "level": 11,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Lena",
     "last_name": "Will",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img214.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img214.jpg",
+    "wins": 50
   },
   {
     "username": "emma_lucy1",
     "email": "emma_lucy1@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Lucy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img215.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img215.jpg",
+    "wins": 90
   },
   {
     "username": "bananaping",
     "email": "bananaping@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Banan",
     "last_name": "Murphy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img216.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img216.jpg",
+    "wins": 80
   },
   {
     "username": "duckalt",
     "email": "duckalt@cp.com",
-    "level": 16,
+    "level": 6,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ducka",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img217.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img217.jpg",
+    "wins": 50
   },
   {
     "username": "ava",
     "email": "ava@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ava",
     "last_name": "Flores",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img218.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img218.jpg",
+    "wins": 70
   },
   {
     "username": "maxspoon",
     "email": "maxspoon@cp.com",
-    "level": 13,
+    "level": 8,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Spoon",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img219.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img219.jpg",
+    "wins": 70
   },
   {
     "username": "leo13",
     "email": "leo13@cp.com",
-    "level": 20,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Leo",
     "last_name": "Clark",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img220.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img220.jpg",
+    "wins": 90
   },
   {
     "username": "pixelmain",
     "email": "pixelmain@cp.com",
-    "level": 19,
+    "level": 9,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Pixel",
     "last_name": "Bennett",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img221.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img221.jpg",
+    "wins": 80
   },
   {
     "username": "zoespoon",
     "email": "zoespoon@cp.com",
-    "level": 17,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Spoon",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img222.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img222.jpg",
+    "wins": 60
   },
   {
     "username": "ben.fred61",
     "email": "ben.fred61@cp.com",
-    "level": 12,
+    "level": 7,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Fred",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img223.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img223.jpg",
+    "wins": 60
   },
   {
     "username": "mianugget",
     "email": "mianugget@cp.com",
-    "level": 15,
+    "level": 10,
     "rank": "Novice",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img224.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img224.jpg",
+    "wins": 90
   },
   {
     "username": "ellagremlin290",
     "email": "ellagremlin290@cp.com",
-    "level": 30,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Gremlin",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img225.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img225.jpg",
+    "wins": 180
   },
   {
     "username": "ellapanda",
     "email": "ellapanda@cp.com",
-    "level": 30,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Panda",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img226.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img226.jpg",
+    "wins": 180
   },
   {
     "username": "ivy_amy",
     "email": "ivy_amy@cp.com",
-    "level": 26,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ivy",
     "last_name": "Amy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img227.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img227.jpg",
+    "wins": 108
   },
   {
     "username": "voidgg",
     "email": "voidgg@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Voidg",
     "last_name": "Robinson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img228.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img228.jpg",
+    "wins": 180
   },
   {
     "username": "lucas_lucas",
     "email": "lucas_lucas@cp.com",
-    "level": 22,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Lucas",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img229.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img229.jpg",
+    "wins": 126
   },
   {
     "username": "fredtuna209",
     "email": "fredtuna209@cp.com",
-    "level": 26,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Fredt",
     "last_name": "Lopez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img230.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img230.jpg",
+    "wins": 108
   },
   {
     "username": "avamoose547",
     "email": "avamoose547@cp.com",
-    "level": 24,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Avamo",
     "last_name": "Evans",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img231.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img231.jpg",
+    "wins": 162
   },
   {
     "username": "miapanda112",
     "email": "miapanda112@cp.com",
-    "level": 24,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Panda",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img232.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img232.jpg",
+    "wins": 162
   },
   {
     "username": "angrygg",
     "email": "angrygg@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Cruz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img233.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img233.jpg",
+    "wins": 144
   },
   {
     "username": "oscar.noah10",
     "email": "oscar.noah10@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Noah",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img234.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img234.jpg",
+    "wins": 180
   },
   {
     "username": "liamwobbly630",
     "email": "liamwobbly630@cp.com",
-    "level": 27,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Liamw",
     "last_name": "Parker",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img235.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img235.jpg",
+    "wins": 126
   },
   {
     "username": "lucas55",
     "email": "lucas55@cp.com",
-    "level": 21,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Phillips",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img236.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img236.jpg",
+    "wins": 108
   },
   {
     "username": "mikewizard",
     "email": "mikewizard@cp.com",
-    "level": 27,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Mikew",
     "last_name": "King",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img237.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img237.jpg",
+    "wins": 126
   },
   {
     "username": "voidping",
     "email": "voidping@cp.com",
-    "level": 27,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Voidp",
     "last_name": "Rodriguez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img238.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img238.jpg",
+    "wins": 126
   },
   {
     "username": "pandajam",
     "email": "pandajam@cp.com",
-    "level": 23,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Gutierrez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img239.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img239.jpg",
+    "wins": 144
   },
   {
     "username": "foxoops",
     "email": "foxoops@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Foxoo",
     "last_name": "Parker",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img240.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img240.jpg",
+    "wins": 144
   },
   {
     "username": "harrynugget325",
     "email": "harrynugget325@cp.com",
-    "level": 22,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img241.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img241.jpg",
+    "wins": 126
   },
   {
     "username": "harrypanda641",
     "email": "harrypanda641@cp.com",
-    "level": 26,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Panda",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img242.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img242.jpg",
+    "wins": 108
   },
   {
     "username": "ivywobbly",
     "email": "ivywobbly@cp.com",
-    "level": 23,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ivywo",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img243.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img243.jpg",
+    "wins": 144
   },
   {
     "username": "lucastoast",
     "email": "lucastoast@cp.com",
-    "level": 27,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Toast",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img244.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img244.jpg",
+    "wins": 126
   },
   {
     "username": "wobblybot",
     "email": "wobblybot@cp.com",
-    "level": 21,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Nelson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img245.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img245.jpg",
+    "wins": 108
   },
   {
     "username": "liam82",
     "email": "liam82@cp.com",
-    "level": 27,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Liam",
     "last_name": "Leo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img246.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img246.jpg",
+    "wins": 126
   },
   {
     "username": "ella",
     "email": "ella@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Jenkins",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img247.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img247.jpg",
+    "wins": 144
   },
   {
     "username": "nuggetjam",
     "email": "nuggetjam@cp.com",
-    "level": 29,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Nugge",
     "last_name": "Stewart",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img248.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img248.jpg",
+    "wins": 162
   },
   {
     "username": "leocheese907",
     "email": "leocheese907@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Leoch",
     "last_name": "Young",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img249.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img249.jpg",
+    "wins": 144
   },
   {
     "username": "ava_ella22",
     "email": "ava_ella22@cp.com",
-    "level": 23,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Ava",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img250.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img250.jpg",
+    "wins": 144
   },
   {
     "username": "saragremlin215",
     "email": "saragremlin215@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Sarag",
     "last_name": "Cruz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img251.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img251.jpg",
+    "wins": 180
   },
   {
     "username": "ethanduck605",
     "email": "ethanduck605@cp.com",
-    "level": 29,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "Phillips",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img252.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img252.jpg",
+    "wins": 162
   },
   {
     "username": "ella.alex",
     "email": "ella.alex@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Alex",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img253.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img253.jpg",
+    "wins": 180
   },
   {
     "username": "avapixel665",
     "email": "avapixel665@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Avapi",
     "last_name": "Gomez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img254.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img254.jpg",
+    "wins": 180
   },
   {
     "username": "amybanana",
     "email": "amybanana@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Amyba",
     "last_name": "Flores",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img255.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img255.jpg",
+    "wins": 144
   },
   {
     "username": "lucassleepy",
     "email": "lucassleepy@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Sleepy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img256.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img256.jpg",
+    "wins": 180
   },
   {
     "username": "benangry",
     "email": "benangry@cp.com",
-    "level": 30,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Angry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img257.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img257.jpg",
+    "wins": 180
   },
   {
     "username": "ivy_oliver",
     "email": "ivy_oliver@cp.com",
-    "level": 29,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Ivy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img258.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img258.jpg",
+    "wins": 162
   },
   {
     "username": "lucas.oliver70",
     "email": "lucas.oliver70@cp.com",
-    "level": 29,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Oliver",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img259.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img259.jpg",
+    "wins": 162
   },
   {
     "username": "pixelpls",
     "email": "pixelpls@cp.com",
-    "level": 21,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Pixel",
     "last_name": "Walker",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img260.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img260.jpg",
+    "wins": 108
   },
   {
     "username": "noodleirl",
     "email": "noodleirl@cp.com",
-    "level": 21,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Noodl",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img261.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img261.jpg",
+    "wins": 108
   },
   {
     "username": "wobblyping",
     "email": "wobblyping@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Nguyen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img262.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img262.jpg",
+    "wins": 144
   },
   {
     "username": "kate.ben",
     "email": "kate.ben@cp.com",
-    "level": 30,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Kate",
     "last_name": "Ben",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img263.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img263.jpg",
+    "wins": 180
   },
   {
     "username": "ryanbanana291",
     "email": "ryanbanana291@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Banana",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img264.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img264.jpg",
+    "wins": 144
   },
   {
     "username": "nuggetping",
     "email": "nuggetping@cp.com",
-    "level": 24,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Nugge",
     "last_name": "Campbell",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img265.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img265.jpg",
+    "wins": 162
   },
   {
     "username": "cheesejam",
     "email": "cheesejam@cp.com",
-    "level": 22,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Chees",
     "last_name": "Sanders",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img266.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img266.jpg",
+    "wins": 126
   },
   {
     "username": "pandamain",
     "email": "pandamain@cp.com",
-    "level": 24,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Rogers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img267.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img267.jpg",
+    "wins": 162
   },
   {
     "username": "tunaoops",
     "email": "tunaoops@cp.com",
-    "level": 24,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Tunao",
     "last_name": "Hughes",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img268.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img268.jpg",
+    "wins": 162
   },
   {
     "username": "oscar89",
     "email": "oscar89@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Torres",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img269.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img269.jpg",
+    "wins": 180
   },
   {
     "username": "miafox631",
     "email": "miafox631@cp.com",
-    "level": 30,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Fox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img270.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img270.jpg",
+    "wins": 180
   },
   {
     "username": "fred.ivy82",
     "email": "fred.ivy82@cp.com",
-    "level": 23,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Fred",
     "last_name": "Ivy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img271.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img271.jpg",
+    "wins": 144
   },
   {
     "username": "moosealt",
     "email": "moosealt@cp.com",
-    "level": 30,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Clark",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img272.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img272.jpg",
+    "wins": 180
   },
   {
     "username": "wobblyjam",
     "email": "wobblyjam@cp.com",
-    "level": 22,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Nelson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img273.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img273.jpg",
+    "wins": 126
   },
   {
     "username": "james.sara",
     "email": "james.sara@cp.com",
-    "level": 24,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "James",
     "last_name": "Sara",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img274.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img274.jpg",
+    "wins": 162
   },
   {
     "username": "emma36",
     "email": "emma36@cp.com",
-    "level": 26,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Nguyen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img275.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img275.jpg",
+    "wins": 108
   },
   {
     "username": "sara8",
     "email": "sara8@cp.com",
-    "level": 26,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Sara",
     "last_name": "Brown",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img276.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img276.jpg",
+    "wins": 108
   },
   {
     "username": "max",
     "email": "max@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Hughes",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img277.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img277.jpg",
+    "wins": 144
   },
   {
     "username": "sampickle398",
     "email": "sampickle398@cp.com",
-    "level": 27,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Sam",
     "last_name": "Pickle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img278.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img278.jpg",
+    "wins": 126
   },
   {
     "username": "bean404",
     "email": "bean404@cp.com",
-    "level": 24,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Bean",
     "last_name": "Ross",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img279.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img279.jpg",
+    "wins": 162
   },
   {
     "username": "benbean",
     "email": "benbean@cp.com",
-    "level": 27,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img280.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img280.jpg",
+    "wins": 126
   },
   {
     "username": "pixelgg",
     "email": "pixelgg@cp.com",
-    "level": 23,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Pixel",
     "last_name": "White",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img281.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img281.jpg",
+    "wins": 144
   },
   {
     "username": "bellasleepy",
     "email": "bellasleepy@cp.com",
-    "level": 30,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Bella",
     "last_name": "Sleepy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img282.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img282.jpg",
+    "wins": 180
   },
   {
     "username": "ryannoodle370",
     "email": "ryannoodle370@cp.com",
-    "level": 23,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Noodle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img283.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img283.jpg",
+    "wins": 144
   },
   {
     "username": "jordan.lena2",
     "email": "jordan.lena2@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Jordan",
     "last_name": "Lena",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img284.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img284.jpg",
+    "wins": 180
   },
   {
     "username": "emmawobbly952",
     "email": "emmawobbly952@cp.com",
-    "level": 29,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Wobbly",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img285.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img285.jpg",
+    "wins": 162
   },
   {
     "username": "lucy_daisy53",
     "email": "lucy_daisy53@cp.com",
-    "level": 26,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Daisy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img286.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img286.jpg",
+    "wins": 108
   },
   {
     "username": "amytoast459",
     "email": "amytoast459@cp.com",
-    "level": 29,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Amyto",
     "last_name": "Hall",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img287.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img287.jpg",
+    "wins": 162
   },
   {
     "username": "noah62",
     "email": "noah62@cp.com",
-    "level": 25,
+    "level": 15,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Noah",
     "last_name": "Campbell",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img288.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img288.jpg",
+    "wins": 180
   },
   {
     "username": "angrypls",
     "email": "angrypls@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Turner",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img289.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img289.jpg",
+    "wins": 144
   },
   {
     "username": "bananamain",
     "email": "bananamain@cp.com",
-    "level": 27,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Banan",
     "last_name": "Anderson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img290.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img290.jpg",
+    "wins": 126
   },
   {
     "username": "oliverpickle",
     "email": "oliverpickle@cp.com",
-    "level": 29,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Pickle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img291.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img291.jpg",
+    "wins": 162
   },
   {
     "username": "liamwobbly784",
     "email": "liamwobbly784@cp.com",
-    "level": 24,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Liamw",
     "last_name": "Walker",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img292.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img292.jpg",
+    "wins": 162
   },
   {
     "username": "void404",
     "email": "void404@cp.com",
-    "level": 21,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Void",
     "last_name": "Morales",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img293.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img293.jpg",
+    "wins": 108
   },
   {
     "username": "katepixel",
     "email": "katepixel@cp.com",
-    "level": 23,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Katep",
     "last_name": "Kim",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img294.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img294.jpg",
+    "wins": 144
   },
   {
     "username": "daisynugget",
     "email": "daisynugget@cp.com",
-    "level": 22,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img295.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img295.jpg",
+    "wins": 126
   },
   {
     "username": "benspoon",
     "email": "benspoon@cp.com",
-    "level": 22,
+    "level": 12,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Spoon",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img296.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img296.jpg",
+    "wins": 126
   },
   {
     "username": "kateduck116",
     "email": "kateduck116@cp.com",
-    "level": 29,
+    "level": 14,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Kated",
     "last_name": "Flores",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img297.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img297.jpg",
+    "wins": 162
   },
   {
     "username": "lenavoid924",
     "email": "lenavoid924@cp.com",
-    "level": 21,
+    "level": 11,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Lenav",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img298.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img298.jpg",
+    "wins": 108
   },
   {
     "username": "pandapls",
     "email": "pandapls@cp.com",
-    "level": 28,
+    "level": 13,
     "rank": "Apprentice",
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Campbell",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img299.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img299.jpg",
+    "wins": 144
   },
   {
     "username": "ryan_kate",
     "email": "ryan_kate@cp.com",
-    "level": 38,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Kate",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img300.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img300.jpg",
+    "wins": 234
   },
   {
     "username": "mia_alex",
     "email": "mia_alex@cp.com",
-    "level": 36,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Alex",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img301.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img301.jpg",
+    "wins": 198
   },
   {
     "username": "ethan_oscar",
     "email": "ethan_oscar@cp.com",
-    "level": 33,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "Oscar",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img302.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img302.jpg",
+    "wins": 234
   },
   {
     "username": "noodleoops",
     "email": "noodleoops@cp.com",
-    "level": 36,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Noodl",
     "last_name": "Taylor",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img303.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img303.jpg",
+    "wins": 198
   },
   {
     "username": "milo_oliver",
     "email": "milo_oliver@cp.com",
-    "level": 37,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Milo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img304.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img304.jpg",
+    "wins": 216
   },
   {
     "username": "harrywobbly",
     "email": "harrywobbly@cp.com",
-    "level": 40,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Wobbly",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img305.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img305.jpg",
+    "wins": 280
   },
   {
     "username": "ava.amy46",
     "email": "ava.amy46@cp.com",
-    "level": 38,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ava",
     "last_name": "Amy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img306.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img306.jpg",
+    "wins": 234
   },
   {
     "username": "liam.leo58",
     "email": "liam.leo58@cp.com",
-    "level": 37,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Liam",
     "last_name": "Leo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img307.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img307.jpg",
+    "wins": 216
   },
   {
     "username": "bellavoid",
     "email": "bellavoid@cp.com",
-    "level": 32,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Bella",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img308.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img308.jpg",
+    "wins": 216
   },
   {
     "username": "liampanda",
     "email": "liampanda@cp.com",
-    "level": 34,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Liamp",
     "last_name": "Patel",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img309.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img309.jpg",
+    "wins": 252
   },
   {
     "username": "cheeseoops",
     "email": "cheeseoops@cp.com",
-    "level": 31,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Chees",
     "last_name": "Long",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img310.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img310.jpg",
+    "wins": 198
   },
   {
     "username": "wobblyirl",
     "email": "wobblyirl@cp.com",
-    "level": 32,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img311.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img311.jpg",
+    "wins": 216
   },
   {
     "username": "lenanugget",
     "email": "lenanugget@cp.com",
-    "level": 34,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Lenan",
     "last_name": "Moore",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img312.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img312.jpg",
+    "wins": 252
   },
   {
     "username": "duckmain",
     "email": "duckmain@cp.com",
-    "level": 38,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Duckm",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img313.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img313.jpg",
+    "wins": 234
   },
   {
     "username": "lucyfox961",
     "email": "lucyfox961@cp.com",
-    "level": 38,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Fox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img314.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img314.jpg",
+    "wins": 234
   },
   {
     "username": "rubybean35",
     "email": "rubybean35@cp.com",
-    "level": 34,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img315.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img315.jpg",
+    "wins": 252
   },
   {
     "username": "harry_chris73",
     "email": "harry_chris73@cp.com",
-    "level": 32,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Chris",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img316.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img316.jpg",
+    "wins": 216
   },
   {
     "username": "milo58",
     "email": "milo58@cp.com",
-    "level": 37,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Milo",
     "last_name": "Sanchez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img317.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img317.jpg",
+    "wins": 216
   },
   {
     "username": "ivy",
     "email": "ivy@cp.com",
-    "level": 35,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ivy",
     "last_name": "Sanchez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img318.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img318.jpg",
+    "wins": 280
   },
   {
     "username": "zoe63",
     "email": "zoe63@cp.com",
-    "level": 38,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Bailey",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img319.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img319.jpg",
+    "wins": 234
   },
   {
     "username": "sara26",
     "email": "sara26@cp.com",
-    "level": 36,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Sara",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img320.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img320.jpg",
+    "wins": 198
   },
   {
     "username": "ruby54",
     "email": "ruby54@cp.com",
-    "level": 35,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Phillips",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img321.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img321.jpg",
+    "wins": 280
   },
   {
     "username": "jordanmoose",
     "email": "jordanmoose@cp.com",
-    "level": 32,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Jorda",
     "last_name": "Rogers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img322.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img322.jpg",
+    "wins": 216
   },
   {
     "username": "tunajam",
     "email": "tunajam@cp.com",
-    "level": 40,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Tunaj",
     "last_name": "Sullivan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img323.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img323.jpg",
+    "wins": 280
   },
   {
     "username": "ninavoid",
     "email": "ninavoid@cp.com",
-    "level": 33,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ninav",
     "last_name": "Alvarez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img324.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img324.jpg",
+    "wins": 234
   },
   {
     "username": "ryannugget",
     "email": "ryannugget@cp.com",
-    "level": 32,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img325.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img325.jpg",
+    "wins": 216
   },
   {
     "username": "gremlinlord",
     "email": "gremlinlord@cp.com",
-    "level": 31,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "Young",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img326.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img326.jpg",
+    "wins": 198
   },
   {
     "username": "daisywobbly324",
     "email": "daisywobbly324@cp.com",
-    "level": 36,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Wobbly",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img327.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img327.jpg",
+    "wins": 198
   },
   {
     "username": "tunatv",
     "email": "tunatv@cp.com",
-    "level": 38,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Tunat",
     "last_name": "Kim",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img328.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img328.jpg",
+    "wins": 234
   },
   {
     "username": "oliverbean662",
     "email": "oliverbean662@cp.com",
-    "level": 39,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img329.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img329.jpg",
+    "wins": 252
   },
   {
     "username": "amycheese",
     "email": "amycheese@cp.com",
-    "level": 40,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Amych",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img330.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img330.jpg",
+    "wins": 280
   },
   {
     "username": "noahbanana101",
     "email": "noahbanana101@cp.com",
-    "level": 34,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Noahb",
     "last_name": "Jordan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img331.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img331.jpg",
+    "wins": 252
   },
   {
     "username": "wizardoops",
     "email": "wizardoops@cp.com",
-    "level": 36,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Jimenez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img332.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img332.jpg",
+    "wins": 198
   },
   {
     "username": "christoast789",
     "email": "christoast789@cp.com",
-    "level": 31,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Chris",
     "last_name": "Nelson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img333.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img333.jpg",
+    "wins": 198
   },
   {
     "username": "harrypixel",
     "email": "harrypixel@cp.com",
-    "level": 32,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Pixel",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img334.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img334.jpg",
+    "wins": 216
   },
   {
     "username": "ivynoodle106",
     "email": "ivynoodle106@cp.com",
-    "level": 39,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Ivyno",
     "last_name": "Long",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img335.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img335.jpg",
+    "wins": 252
   },
   {
     "username": "toasttv",
     "email": "toasttv@cp.com",
-    "level": 38,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Toast",
     "last_name": "Gray",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img336.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img336.jpg",
+    "wins": 234
   },
   {
     "username": "james.ryan",
     "email": "james.ryan@cp.com",
-    "level": 36,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "James",
     "last_name": "Ryan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img337.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img337.jpg",
+    "wins": 198
   },
   {
     "username": "angryoops",
     "email": "angryoops@cp.com",
-    "level": 33,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Walker",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img338.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img338.jpg",
+    "wins": 234
   },
   {
     "username": "sleepybot",
     "email": "sleepybot@cp.com",
-    "level": 32,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Sleep",
     "last_name": "Stewart",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img339.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img339.jpg",
+    "wins": 216
   },
   {
     "username": "sam_emma",
     "email": "sam_emma@cp.com",
-    "level": 36,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Sam",
     "last_name": "Emma",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img340.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img340.jpg",
+    "wins": 198
   },
   {
     "username": "mooseirl",
     "email": "mooseirl@cp.com",
-    "level": 35,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Fox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img341.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img341.jpg",
+    "wins": 280
   },
   {
     "username": "gremlintv",
     "email": "gremlintv@cp.com",
-    "level": 38,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "James",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img342.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img342.jpg",
+    "wins": 234
   },
   {
     "username": "wizardping",
     "email": "wizardping@cp.com",
-    "level": 32,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Nelson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img343.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img343.jpg",
+    "wins": 216
   },
   {
     "username": "miabean833",
     "email": "miabean833@cp.com",
-    "level": 35,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img344.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img344.jpg",
+    "wins": 280
   },
   {
     "username": "tom",
     "email": "tom@cp.com",
-    "level": 36,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Tom",
     "last_name": "Scott",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img345.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img345.jpg",
+    "wins": 198
   },
   {
     "username": "chrispickle",
     "email": "chrispickle@cp.com",
-    "level": 39,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Chris",
     "last_name": "Johnson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img346.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img346.jpg",
+    "wins": 252
   },
   {
     "username": "emmatoast",
     "email": "emmatoast@cp.com",
-    "level": 34,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Toast",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img347.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img347.jpg",
+    "wins": 252
   },
   {
     "username": "bella",
     "email": "bella@cp.com",
-    "level": 35,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Bella",
     "last_name": "Price",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img348.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img348.jpg",
+    "wins": 280
   },
   {
     "username": "zoe_daisy23",
     "email": "zoe_daisy23@cp.com",
-    "level": 37,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Daisy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img349.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img349.jpg",
+    "wins": 216
   },
   {
     "username": "beanlol",
     "email": "beanlol@cp.com",
-    "level": 37,
+    "level": 17,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Beanl",
     "last_name": "Allen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img350.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img350.jpg",
+    "wins": 216
   },
   {
     "username": "noah19",
     "email": "noah19@cp.com",
-    "level": 39,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Noah",
     "last_name": "Kim",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img351.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img351.jpg",
+    "wins": 252
   },
   {
     "username": "sleepy404",
     "email": "sleepy404@cp.com",
-    "level": 40,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Sleep",
     "last_name": "Myers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img352.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img352.jpg",
+    "wins": 280
   },
   {
     "username": "harry",
     "email": "harry@cp.com",
-    "level": 31,
+    "level": 16,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Jordan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img353.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img353.jpg",
+    "wins": 198
   },
   {
     "username": "oscarpixel844",
     "email": "oscarpixel844@cp.com",
-    "level": 40,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Myers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img354.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img354.jpg",
+    "wins": 280
   },
   {
     "username": "alexnugget746",
     "email": "alexnugget746@cp.com",
-    "level": 40,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Alexn",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img355.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img355.jpg",
+    "wins": 280
   },
   {
     "username": "emmapickle",
     "email": "emmapickle@cp.com",
-    "level": 34,
+    "level": 19,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Emma",
     "last_name": "Pickle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img356.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img356.jpg",
+    "wins": 252
   },
   {
     "username": "sleepyjam",
     "email": "sleepyjam@cp.com",
-    "level": 33,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Sleep",
     "last_name": "Myers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img357.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img357.jpg",
+    "wins": 234
   },
   {
     "username": "fred_lucas",
     "email": "fred_lucas@cp.com",
-    "level": 33,
+    "level": 18,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Fred",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img358.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img358.jpg",
+    "wins": 234
   },
   {
     "username": "gremlinpls",
     "email": "gremlinpls@cp.com",
-    "level": 40,
+    "level": 20,
     "rank": "Skilled",
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img359.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img359.jpg",
+    "wins": 280
   },
   {
     "username": "angryxd",
     "email": "angryxd@cp.com",
-    "level": 49,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Ortiz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img360.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img360.jpg",
+    "wins": 392
   },
   {
     "username": "oliver_lucy",
     "email": "oliver_lucy@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Lucy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img361.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img361.jpg",
+    "wins": 392
   },
   {
     "username": "zoesleepy",
     "email": "zoesleepy@cp.com",
-    "level": 48,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Sleepy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img362.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img362.jpg",
+    "wins": 364
   },
   {
     "username": "jordansleepy",
     "email": "jordansleepy@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Jorda",
     "last_name": "Foster",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img363.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img363.jpg",
+    "wins": 392
   },
   {
     "username": "pickleafk",
     "email": "pickleafk@cp.com",
-    "level": 45,
+    "level": 25,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Pickl",
     "last_name": "Cook",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img364.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img364.jpg",
+    "wins": 420
   },
   {
     "username": "bengremlin",
     "email": "bengremlin@cp.com",
-    "level": 48,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Gremlin",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img365.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img365.jpg",
+    "wins": 364
   },
   {
     "username": "daisy_bella",
     "email": "daisy_bella@cp.com",
-    "level": 41,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Daisy",
     "last_name": "Bella",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img366.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img366.jpg",
+    "wins": 308
   },
   {
     "username": "gremlinafk",
     "email": "gremlinafk@cp.com",
-    "level": 48,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "Turner",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img367.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img367.jpg",
+    "wins": 364
   },
   {
     "username": "lena.milo51",
     "email": "lena.milo51@cp.com",
-    "level": 46,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Lena",
     "last_name": "Milo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img368.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img368.jpg",
+    "wins": 308
   },
   {
     "username": "bennoodle234",
     "email": "bennoodle234@cp.com",
-    "level": 47,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Noodle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img369.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img369.jpg",
+    "wins": 336
   },
   {
     "username": "olivertuna",
     "email": "olivertuna@cp.com",
-    "level": 46,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Tuna",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img370.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img370.jpg",
+    "wins": 308
   },
   {
     "username": "james_tom",
     "email": "james_tom@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "James",
     "last_name": "Tom",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img371.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img371.jpg",
+    "wins": 392
   },
   {
     "username": "saracheese",
     "email": "saracheese@cp.com",
-    "level": 46,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Sarac",
     "last_name": "Murphy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img372.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img372.jpg",
+    "wins": 308
   },
   {
     "username": "foxxd",
     "email": "foxxd@cp.com",
-    "level": 47,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Foxxd",
     "last_name": "Harris",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img373.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img373.jpg",
+    "wins": 336
   },
   {
     "username": "lenawizard",
     "email": "lenawizard@cp.com",
-    "level": 46,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Lenaw",
     "last_name": "Cheese",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img374.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img374.jpg",
+    "wins": 308
   },
   {
     "username": "panda404",
     "email": "panda404@cp.com",
-    "level": 45,
+    "level": 25,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Reed",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img375.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img375.jpg",
+    "wins": 420
   },
   {
     "username": "olivervoid",
     "email": "olivervoid@cp.com",
-    "level": 47,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img376.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img376.jpg",
+    "wins": 336
   },
   {
     "username": "lena2",
     "email": "lena2@cp.com",
-    "level": 50,
+    "level": 25,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Lena",
     "last_name": "Hughes",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img377.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img377.jpg",
+    "wins": 420
   },
   {
     "username": "lucy41",
     "email": "lucy41@cp.com",
-    "level": 46,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Ramos",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img378.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img378.jpg",
+    "wins": 308
   },
   {
     "username": "voidlord",
     "email": "voidlord@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Voidl",
     "last_name": "Bailey",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img379.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img379.jpg",
+    "wins": 392
   },
   {
     "username": "beanirl",
     "email": "beanirl@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Beani",
     "last_name": "Turner",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img380.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img380.jpg",
+    "wins": 392
   },
   {
     "username": "noah.chris",
     "email": "noah.chris@cp.com",
-    "level": 46,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Noah",
     "last_name": "Chris",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img381.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img381.jpg",
+    "wins": 308
   },
   {
     "username": "oliver_alex",
     "email": "oliver_alex@cp.com",
-    "level": 42,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Alex",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img382.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img382.jpg",
+    "wins": 336
   },
   {
     "username": "noodleafk",
     "email": "noodleafk@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Noodl",
     "last_name": "Lopez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img383.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img383.jpg",
+    "wins": 392
   },
   {
     "username": "noah_lucas",
     "email": "noah_lucas@cp.com",
-    "level": 45,
+    "level": 25,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Noah",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img384.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img384.jpg",
+    "wins": 420
   },
   {
     "username": "wobblytv",
     "email": "wobblytv@cp.com",
-    "level": 43,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Lewis",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img385.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img385.jpg",
+    "wins": 364
   },
   {
     "username": "lucynugget",
     "email": "lucynugget@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img386.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img386.jpg",
+    "wins": 392
   },
   {
     "username": "foxgg",
     "email": "foxgg@cp.com",
-    "level": 47,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Foxgg",
     "last_name": "Allen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img387.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img387.jpg",
+    "wins": 336
   },
   {
     "username": "wizardpls",
     "email": "wizardpls@cp.com",
-    "level": 42,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Evans",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img388.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img388.jpg",
+    "wins": 336
   },
   {
     "username": "ninagremlin903",
     "email": "ninagremlin903@cp.com",
-    "level": 42,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Ninag",
     "last_name": "Nelson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img389.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img389.jpg",
+    "wins": 336
   },
   {
     "username": "oliverwobbly233",
     "email": "oliverwobbly233@cp.com",
-    "level": 45,
+    "level": 25,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Wobbly",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img390.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img390.jpg",
+    "wins": 420
   },
   {
     "username": "max_ben",
     "email": "max_ben@cp.com",
-    "level": 43,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Ben",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img391.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img391.jpg",
+    "wins": 364
   },
   {
     "username": "ethan61",
     "email": "ethan61@cp.com",
-    "level": 47,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "Davis",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img392.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img392.jpg",
+    "wins": 336
   },
   {
     "username": "chriswobbly123",
     "email": "chriswobbly123@cp.com",
-    "level": 48,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Chris",
     "last_name": "Leo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img393.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img393.jpg",
+    "wins": 364
   },
   {
     "username": "pandabot",
     "email": "pandabot@cp.com",
-    "level": 48,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Panda",
     "last_name": "Green",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img394.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img394.jpg",
+    "wins": 364
   },
   {
     "username": "pixeltv",
     "email": "pixeltv@cp.com",
-    "level": 41,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Pixel",
     "last_name": "Reed",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img395.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img395.jpg",
+    "wins": 308
   },
   {
     "username": "jamestuna",
     "email": "jamestuna@cp.com",
-    "level": 45,
+    "level": 25,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "James",
     "last_name": "Tuna",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img396.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img396.jpg",
+    "wins": 420
   },
   {
     "username": "ruby2",
     "email": "ruby2@cp.com",
-    "level": 47,
+    "level": 22,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Thompson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img397.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img397.jpg",
+    "wins": 336
   },
   {
     "username": "nina_lena",
     "email": "nina_lena@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Nina",
     "last_name": "Lena",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img398.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img398.jpg",
+    "wins": 392
   },
   {
     "username": "chris",
     "email": "chris@cp.com",
-    "level": 44,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Chris",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img399.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img399.jpg",
+    "wins": 392
   },
   {
     "username": "spoonping",
     "email": "spoonping@cp.com",
-    "level": 49,
+    "level": 24,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Spoon",
     "last_name": "Torres",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img400.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img400.jpg",
+    "wins": 392
   },
   {
     "username": "saraspoon",
     "email": "saraspoon@cp.com",
-    "level": 43,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Saras",
     "last_name": "Hernandez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img401.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img401.jpg",
+    "wins": 364
   },
   {
     "username": "lenabean365",
     "email": "lenabean365@cp.com",
-    "level": 48,
+    "level": 23,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Lenab",
     "last_name": "Young",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img402.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img402.jpg",
+    "wins": 364
   },
   {
     "username": "gremlinbot",
     "email": "gremlinbot@cp.com",
-    "level": 41,
+    "level": 21,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "Cooper",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img403.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img403.jpg",
+    "wins": 308
   },
   {
     "username": "wobblypls",
     "email": "wobblypls@cp.com",
-    "level": 45,
+    "level": 25,
     "rank": "Advanced",
     "coins": 1000,
     "first_name": "Wobbl",
     "last_name": "Edwards",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img404.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img404.jpg",
+    "wins": 420
   },
   {
     "username": "noahvoid385",
     "email": "noahvoid385@cp.com",
-    "level": 54,
+    "level": 29,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Noahv",
     "last_name": "Bailey",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img405.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img405.jpg",
+    "wins": 544
   },
   {
     "username": "ella.noah",
     "email": "ella.noah@cp.com",
-    "level": 55,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Noah",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img406.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img406.jpg",
+    "wins": 584
   },
   {
     "username": "willpanda",
     "email": "willpanda@cp.com",
-    "level": 56,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Willp",
     "last_name": "Ruiz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img407.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img407.jpg",
+    "wins": 448
   },
   {
     "username": "duck404",
     "email": "duck404@cp.com",
-    "level": 52,
+    "level": 27,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Duck",
     "last_name": "Wilson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img408.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img408.jpg",
+    "wins": 476
   },
   {
     "username": "noodlejam",
     "email": "noodlejam@cp.com",
-    "level": 51,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Noodl",
     "last_name": "Rogers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img409.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img409.jpg",
+    "wins": 448
   },
   {
     "username": "jordanbean",
     "email": "jordanbean@cp.com",
-    "level": 55,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Jorda",
     "last_name": "Lewis",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img410.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img410.jpg",
+    "wins": 584
   },
   {
     "username": "ethan_oliver",
     "email": "ethan_oliver@cp.com",
-    "level": 51,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Oliver",
     "last_name": "Ethan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img411.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img411.jpg",
+    "wins": 448
   },
   {
     "username": "milowizard",
     "email": "milowizard@cp.com",
-    "level": 56,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Milow",
     "last_name": "Long",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img412.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img412.jpg",
+    "wins": 448
   },
   {
     "username": "spoonmain",
     "email": "spoonmain@cp.com",
-    "level": 56,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Spoon",
     "last_name": "Void",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img413.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img413.jpg",
+    "wins": 448
   },
   {
     "username": "mike67",
     "email": "mike67@cp.com",
-    "level": 55,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Mike",
     "last_name": "Turner",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img414.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img414.jpg",
+    "wins": 584
   },
   {
     "username": "voidlol",
     "email": "voidlol@cp.com",
-    "level": 51,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Voidl",
     "last_name": "Howard",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img415.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img415.jpg",
+    "wins": 448
   },
   {
     "username": "ducklord",
     "email": "ducklord@cp.com",
-    "level": 53,
+    "level": 28,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Duckl",
     "last_name": "Reed",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img416.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img416.jpg",
+    "wins": 504
   },
   {
     "username": "ava.zoe92",
     "email": "ava.zoe92@cp.com",
-    "level": 52,
+    "level": 27,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Ava",
     "last_name": "Zoe",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img417.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img417.jpg",
+    "wins": 476
   },
   {
     "username": "jackduck317",
     "email": "jackduck317@cp.com",
-    "level": 55,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Jackd",
     "last_name": "Ward",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img418.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img418.jpg",
+    "wins": 584
   },
   {
     "username": "ella85",
     "email": "ella85@cp.com",
-    "level": 52,
+    "level": 27,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Collins",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img419.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img419.jpg",
+    "wins": 476
   },
   {
     "username": "gremlinoops",
     "email": "gremlinoops@cp.com",
-    "level": 58,
+    "level": 28,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Greml",
     "last_name": "Brown",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img420.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img420.jpg",
+    "wins": 504
   },
   {
     "username": "fred",
     "email": "fred@cp.com",
-    "level": 51,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Fred",
     "last_name": "Gomez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img421.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img421.jpg",
+    "wins": 448
   },
   {
     "username": "ryan_alex22",
     "email": "ryan_alex22@cp.com",
-    "level": 51,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Alex",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img422.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img422.jpg",
+    "wins": 448
   },
   {
     "username": "liamnoodle863",
     "email": "liamnoodle863@cp.com",
-    "level": 58,
+    "level": 28,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Liamn",
     "last_name": "Morgan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img423.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img423.jpg",
+    "wins": 504
   },
   {
     "username": "fred.liam",
     "email": "fred.liam@cp.com",
-    "level": 54,
+    "level": 29,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Fred",
     "last_name": "Liam",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img424.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img424.jpg",
+    "wins": 544
   },
   {
     "username": "lucycheese",
     "email": "lucycheese@cp.com",
-    "level": 60,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Cheese",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img425.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img425.jpg",
+    "wins": 584
   },
   {
     "username": "alexcheese",
     "email": "alexcheese@cp.com",
-    "level": 55,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Alexc",
     "last_name": "Nguyen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img426.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img426.jpg",
+    "wins": 584
   },
   {
     "username": "liam.leo4",
     "email": "liam.leo4@cp.com",
-    "level": 52,
+    "level": 27,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Liam",
     "last_name": "Leo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img427.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img427.jpg",
+    "wins": 476
   },
   {
     "username": "ellawizard715",
     "email": "ellawizard715@cp.com",
-    "level": 52,
+    "level": 27,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Ella",
     "last_name": "Wizard",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img428.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img428.jpg",
+    "wins": 476
   },
   {
     "username": "sleepytv",
     "email": "sleepytv@cp.com",
-    "level": 56,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Sleep",
     "last_name": "Rivera",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img429.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img429.jpg",
+    "wins": 448
   },
   {
     "username": "beanpls",
     "email": "beanpls@cp.com",
-    "level": 58,
+    "level": 28,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Beanp",
     "last_name": "Leo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img430.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img430.jpg",
+    "wins": 504
   },
   {
     "username": "fredtoast",
     "email": "fredtoast@cp.com",
-    "level": 51,
+    "level": 26,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Fredt",
     "last_name": "Walker",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img431.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img431.jpg",
+    "wins": 448
   },
   {
     "username": "miatuna825",
     "email": "miatuna825@cp.com",
-    "level": 52,
+    "level": 27,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Tuna",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img432.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img432.jpg",
+    "wins": 476
   },
   {
     "username": "miatuna70",
     "email": "miatuna70@cp.com",
-    "level": 54,
+    "level": 29,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Mia",
     "last_name": "Tuna",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img433.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img433.jpg",
+    "wins": 544
   },
   {
     "username": "zoe",
     "email": "zoe@cp.com",
-    "level": 53,
+    "level": 28,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Zoe",
     "last_name": "Foster",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img434.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img434.jpg",
+    "wins": 504
   },
   {
     "username": "jordanpixel",
     "email": "jordanpixel@cp.com",
-    "level": 60,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Jorda",
     "last_name": "Brooks",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img435.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img435.jpg",
+    "wins": 584
   },
   {
     "username": "sam",
     "email": "sam@cp.com",
-    "level": 52,
+    "level": 27,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Sam",
     "last_name": "Perry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img436.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img436.jpg",
+    "wins": 476
   },
   {
     "username": "ethan",
     "email": "ethan@cp.com",
-    "level": 55,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Ethan",
     "last_name": "Rodriguez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img437.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img437.jpg",
+    "wins": 584
   },
   {
     "username": "noodlegg",
     "email": "noodlegg@cp.com",
-    "level": 59,
+    "level": 29,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Noodl",
     "last_name": "Cruz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img438.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img438.jpg",
+    "wins": 544
   },
   {
     "username": "milo51",
     "email": "milo51@cp.com",
-    "level": 55,
+    "level": 30,
     "rank": "Expert",
     "coins": 1000,
     "first_name": "Milo",
     "last_name": "Patel",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img439.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img439.jpg",
+    "wins": 584
   },
   {
     "username": "lenamoose",
     "email": "lenamoose@cp.com",
-    "level": 65,
+    "level": 35,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Lenam",
     "last_name": "Gomez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img440.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img440.jpg",
+    "wins": 784
   },
   {
     "username": "beanafk",
     "email": "beanafk@cp.com",
-    "level": 68,
+    "level": 33,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Beana",
     "last_name": "Collins",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img441.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img441.jpg",
+    "wins": 704
   },
   {
     "username": "angrylord",
     "email": "angrylord@cp.com",
-    "level": 69,
+    "level": 34,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Brown",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img442.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img442.jpg",
+    "wins": 744
   },
   {
     "username": "wizard404",
     "email": "wizard404@cp.com",
-    "level": 66,
+    "level": 31,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Wizar",
     "last_name": "Thomas",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img443.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img443.jpg",
+    "wins": 624
   },
   {
     "username": "angryalt",
     "email": "angryalt@cp.com",
-    "level": 63,
+    "level": 33,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Angry",
     "last_name": "Bean",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img444.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img444.jpg",
+    "wins": 704
   },
   {
     "username": "ben_jordan12",
     "email": "ben_jordan12@cp.com",
-    "level": 65,
+    "level": 35,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Jordan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img445.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img445.jpg",
+    "wins": 784
   },
   {
     "username": "liamcheese658",
     "email": "liamcheese658@cp.com",
-    "level": 62,
+    "level": 32,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Liamc",
     "last_name": "Foster",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img446.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img446.jpg",
+    "wins": 664
   },
   {
     "username": "noah",
     "email": "noah@cp.com",
-    "level": 69,
+    "level": 34,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Noah",
     "last_name": "Howard",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img447.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img447.jpg",
+    "wins": 744
   },
   {
     "username": "nuggetalt",
     "email": "nuggetalt@cp.com",
-    "level": 66,
+    "level": 31,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Nugge",
     "last_name": "Nugget",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img448.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img448.jpg",
+    "wins": 624
   },
   {
     "username": "nuggetpls",
     "email": "nuggetpls@cp.com",
-    "level": 68,
+    "level": 33,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Nugge",
     "last_name": "Richardson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img449.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img449.jpg",
+    "wins": 704
   },
   {
     "username": "lucy",
     "email": "lucy@cp.com",
-    "level": 67,
+    "level": 32,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Myers",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img450.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img450.jpg",
+    "wins": 664
   },
   {
     "username": "spoonalt",
     "email": "spoonalt@cp.com",
-    "level": 64,
+    "level": 34,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Spoon",
     "last_name": "Ramirez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img451.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img451.jpg",
+    "wins": 744
   },
   {
     "username": "willduck",
     "email": "willduck@cp.com",
-    "level": 61,
+    "level": 31,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Willd",
     "last_name": "Ramirez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img452.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img452.jpg",
+    "wins": 624
   },
   {
     "username": "moosepls",
     "email": "moosepls@cp.com",
-    "level": 64,
+    "level": 34,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Green",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img453.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img453.jpg",
+    "wins": 744
   },
   {
     "username": "pixelping",
     "email": "pixelping@cp.com",
-    "level": 69,
+    "level": 34,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Pixel",
     "last_name": "Thomas",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img454.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img454.jpg",
+    "wins": 744
   },
   {
     "username": "amy",
     "email": "amy@cp.com",
-    "level": 61,
+    "level": 31,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Amy",
     "last_name": "Rivera",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img455.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img455.jpg",
+    "wins": 624
   },
   {
     "username": "spoongg",
     "email": "spoongg@cp.com",
-    "level": 61,
+    "level": 31,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Spoon",
     "last_name": "Torres",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img456.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img456.jpg",
+    "wins": 624
   },
   {
     "username": "lucy83",
     "email": "lucy83@cp.com",
-    "level": 70,
+    "level": 35,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Lucy",
     "last_name": "Reed",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img457.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img457.jpg",
+    "wins": 784
   },
   {
     "username": "jacknoodle544",
     "email": "jacknoodle544@cp.com",
-    "level": 65,
+    "level": 35,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Jackn",
     "last_name": "Wright",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img458.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img458.jpg",
+    "wins": 784
   },
   {
     "username": "noah_fred",
     "email": "noah_fred@cp.com",
-    "level": 70,
+    "level": 35,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Noah",
     "last_name": "Fred",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img459.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img459.jpg",
+    "wins": 784
   },
   {
     "username": "jack.ben",
     "email": "jack.ben@cp.com",
-    "level": 66,
+    "level": 31,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Jack",
     "last_name": "Ben",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img460.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img460.jpg",
+    "wins": 624
   },
   {
     "username": "bananatv",
     "email": "bananatv@cp.com",
-    "level": 63,
+    "level": 33,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Banan",
     "last_name": "White",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img461.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img461.jpg",
+    "wins": 704
   },
   {
     "username": "amy_ruby76",
     "email": "amy_ruby76@cp.com",
-    "level": 70,
+    "level": 35,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Amy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img462.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img462.jpg",
+    "wins": 784
   },
   {
     "username": "benbanana",
     "email": "benbanana@cp.com",
-    "level": 68,
+    "level": 33,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Banana",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img463.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img463.jpg",
+    "wins": 704
   },
   {
     "username": "noahwobbly837",
     "email": "noahwobbly837@cp.com",
-    "level": 67,
+    "level": 32,
     "rank": "Veteran",
     "coins": 1000,
     "first_name": "Noahw",
     "last_name": "Jackson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img464.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img464.jpg",
+    "wins": 664
   },
   {
     "username": "max35",
     "email": "max35@cp.com",
-    "level": 74,
+    "level": 39,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Max",
     "last_name": "Gomez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img465.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img465.jpg",
+    "wins": 974
   },
   {
     "username": "pixeljam",
     "email": "pixeljam@cp.com",
-    "level": 80,
+    "level": 40,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Pixel",
     "last_name": "Sullivan",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img466.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img466.jpg",
+    "wins": 1029
   },
   {
     "username": "harry_amy",
     "email": "harry_amy@cp.com",
-    "level": 77,
+    "level": 37,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Harry",
     "last_name": "Amy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img467.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img467.jpg",
+    "wins": 864
   },
   {
     "username": "beanalt",
     "email": "beanalt@cp.com",
-    "level": 75,
+    "level": 40,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Beana",
     "last_name": "Ramirez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img468.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img468.jpg",
+    "wins": 1029
   },
   {
     "username": "amy51",
     "email": "amy51@cp.com",
-    "level": 78,
+    "level": 38,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Amy",
     "last_name": "Hall",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img469.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img469.jpg",
+    "wins": 919
   },
   {
     "username": "chris.bella75",
     "email": "chris.bella75@cp.com",
-    "level": 75,
+    "level": 40,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Chris",
     "last_name": "Bella",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img470.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img470.jpg",
+    "wins": 1029
   },
   {
     "username": "lucaswizard",
     "email": "lucaswizard@cp.com",
-    "level": 77,
+    "level": 37,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Wizard",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img471.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img471.jpg",
+    "wins": 864
   },
   {
     "username": "ava.milo32",
     "email": "ava.milo32@cp.com",
-    "level": 79,
+    "level": 39,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Ava",
     "last_name": "Milo",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img472.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img472.jpg",
+    "wins": 974
   },
   {
     "username": "belladuck",
     "email": "belladuck@cp.com",
-    "level": 80,
+    "level": 40,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Bella",
     "last_name": "Duck",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img473.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img473.jpg",
+    "wins": 1029
   },
   {
     "username": "moosetv",
     "email": "moosetv@cp.com",
-    "level": 72,
+    "level": 37,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Moose",
     "last_name": "Ortiz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img474.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img474.jpg",
+    "wins": 864
   },
   {
     "username": "sleepyafk",
     "email": "sleepyafk@cp.com",
-    "level": 77,
+    "level": 37,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Sleep",
     "last_name": "Rodriguez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img475.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img475.jpg",
+    "wins": 864
   },
   {
     "username": "picklelol",
     "email": "picklelol@cp.com",
-    "level": 80,
+    "level": 40,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Pickl",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img476.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img476.jpg",
+    "wins": 1029
   },
   {
     "username": "jordan_will46",
     "email": "jordan_will46@cp.com",
-    "level": 77,
+    "level": 37,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Jordan",
     "last_name": "Will",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img477.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img477.jpg",
+    "wins": 864
   },
   {
     "username": "cheesexd",
     "email": "cheesexd@cp.com",
-    "level": 79,
+    "level": 39,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Chees",
     "last_name": "Davis",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img478.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img478.jpg",
+    "wins": 974
   },
   {
     "username": "milotuna551",
     "email": "milotuna551@cp.com",
-    "level": 79,
+    "level": 39,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Milot",
     "last_name": "Cox",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img479.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img479.jpg",
+    "wins": 974
   },
   {
     "username": "ben.lucy9",
     "email": "ben.lucy9@cp.com",
-    "level": 74,
+    "level": 39,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Ben",
     "last_name": "Lucy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img480.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img480.jpg",
+    "wins": 974
   },
   {
     "username": "oscarangry471",
     "email": "oscarangry471@cp.com",
-    "level": 72,
+    "level": 37,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Patel",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img481.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img481.jpg",
+    "wins": 864
   },
   {
     "username": "liam_ivy",
     "email": "liam_ivy@cp.com",
-    "level": 77,
+    "level": 37,
     "rank": "Master",
     "coins": 1000,
     "first_name": "Liam",
     "last_name": "Ivy",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img482.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img482.jpg",
+    "wins": 864
   },
   {
     "username": "noodlexd",
     "email": "noodlexd@cp.com",
-    "level": 87,
+    "level": 42,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Noodl",
     "last_name": "Ruiz",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img483.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img483.jpg",
+    "wins": 1139
   },
   {
     "username": "miketuna",
     "email": "miketuna@cp.com",
-    "level": 86,
+    "level": 41,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Miket",
     "last_name": "Hill",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img484.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img484.jpg",
+    "wins": 1084
   },
   {
     "username": "avawobbly321",
     "email": "avawobbly321@cp.com",
-    "level": 84,
+    "level": 44,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Avawo",
     "last_name": "Morales",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img485.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img485.jpg",
+    "wins": 1249
   },
   {
     "username": "ruby_ella",
     "email": "ruby_ella@cp.com",
-    "level": 81,
+    "level": 41,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Ella",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img486.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img486.jpg",
+    "wins": 1084
   },
   {
     "username": "lucas_mia38",
     "email": "lucas_mia38@cp.com",
-    "level": 82,
+    "level": 42,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Lucas",
     "last_name": "Mia",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img487.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img487.jpg",
+    "wins": 1139
   },
   {
     "username": "toastafk",
     "email": "toastafk@cp.com",
-    "level": 85,
+    "level": 45,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Toast",
     "last_name": "Perry",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img488.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img488.jpg",
+    "wins": 1304
   },
   {
     "username": "jamesmoose198",
     "email": "jamesmoose198@cp.com",
-    "level": 86,
+    "level": 41,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "James",
     "last_name": "Moose",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img489.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img489.jpg",
+    "wins": 1084
   },
   {
     "username": "oscar.lucas",
     "email": "oscar.lucas@cp.com",
-    "level": 85,
+    "level": 45,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Oscar",
     "last_name": "Lucas",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img490.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img490.jpg",
+    "wins": 1304
   },
   {
     "username": "foxafk",
     "email": "foxafk@cp.com",
-    "level": 87,
+    "level": 42,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Foxaf",
     "last_name": "Scott",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img491.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img491.jpg",
+    "wins": 1139
   },
   {
     "username": "fred_noah1",
     "email": "fred_noah1@cp.com",
-    "level": 89,
+    "level": 44,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Fred",
     "last_name": "Noah",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img492.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img492.jpg",
+    "wins": 1249
   },
   {
     "username": "ryan_tom",
     "email": "ryan_tom@cp.com",
-    "level": 81,
+    "level": 41,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Ryan",
     "last_name": "Tom",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img493.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img493.jpg",
+    "wins": 1084
   },
   {
     "username": "duckirl",
     "email": "duckirl@cp.com",
-    "level": 81,
+    "level": 41,
     "rank": "Elite",
     "coins": 1000,
     "first_name": "Ducki",
     "last_name": "Nguyen",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img494.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img494.jpg",
+    "wins": 1084
   },
   {
     "username": "katesleepy354",
     "email": "katesleepy354@cp.com",
-    "level": 97,
+    "level": 52,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Kates",
     "last_name": "Clark",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img495.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img495.jpg",
+    "wins": 1785
   },
   {
     "username": "mikevoid",
     "email": "mikevoid@cp.com",
-    "level": 96,
+    "level": 51,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Mikev",
     "last_name": "Alvarez",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img496.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img496.jpg",
+    "wins": 1714
   },
   {
     "username": "amywobbly",
     "email": "amywobbly@cp.com",
-    "level": 94,
+    "level": 49,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Amywo",
     "last_name": "Moore",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img497.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img497.jpg",
+    "wins": 1572
   },
   {
     "username": "fredwobbly",
     "email": "fredwobbly@cp.com",
-    "level": 97,
+    "level": 52,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Fredw",
     "last_name": "Jackson",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img498.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img498.jpg",
+    "wins": 1785
   },
   {
     "username": "rubypickle",
     "email": "rubypickle@cp.com",
-    "level": 96,
+    "level": 51,
     "rank": "Legend",
     "coins": 1000,
     "first_name": "Ruby",
     "last_name": "Pickle",
-    "picture": "https://dutch.reignofplay.com/sim_players/images/img499.jpg"
+    "picture": "https://dutch.reignofplay.com/sim_players/images/img499.jpg",
+    "wins": 1714
   }
 ]

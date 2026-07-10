@@ -1,12 +1,12 @@
 import '../../../core/services/shared_preferences.dart';
-import '../../../utils/consts/config.dart';
+import '../admob_config_store.dart';
 
 /// Client-side daily limit for rewarded ads (UTC calendar day). Server still credits coins via claim API.
 abstract final class RewardedAdDailyCap {
   static const String _utcDayKey = 'rewarded_ad_claims_utc_date';
   static const String _countKey = 'rewarded_ad_claims_utc_count';
 
-  static int get dailyCap => Config.admobRewardedDailyCap;
+  static int get dailyCap => AdmobConfigStore.rewardedDailyCap;
 
   static String _utcDayString() {
     final u = DateTime.now().toUtc();

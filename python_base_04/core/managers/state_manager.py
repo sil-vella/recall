@@ -215,7 +215,10 @@ class StateManager:
             updated_state = current_state.copy()
             updated_state['data'].update(new_data)
             updated_state['updated_at'] = datetime.utcnow().isoformat()
-            updated_state['version'] += 1
+            try:
+                updated_state['version'] = int(updated_state.get('version', 1)) + 1
+            except (TypeError, ValueError):
+                updated_state['version'] = 1
             
             # Store updated state
             self._states[state_id] = updated_state

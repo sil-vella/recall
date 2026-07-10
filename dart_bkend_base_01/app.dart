@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'lib/server/http_notify_handler.dart';
+import 'lib/server/server_lifecycle.dart';
 import 'lib/server/websocket_server.dart';
 
 void main(List<String> args) async {
@@ -18,11 +19,7 @@ void main(List<String> args) async {
     // Start server
     final server = await shelf_io.serve(handler, '0.0.0.0', port);
 
-    // Handle shutdown signals
-    ProcessSignal.sigint.watch().listen((signal) async {
-      await server.close(force: true);
-      exit(0);
-    });
+    registerGracefulShutdown(server);
   } catch (e, stackTrace) {
     stderr.writeln('❌ Failed to start Dart Game Server: $e');
     stderr.writeln('Stack trace: $stackTrace');

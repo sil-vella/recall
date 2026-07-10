@@ -300,6 +300,22 @@ class MessageHandler {
     }
 
     // Unified switch for ALL events
+    const matchmakingEvents = {
+      'create_room',
+      'join_room',
+      'join_random_game',
+      'start_match',
+    };
+    if (_server.drainMode && matchmakingEvents.contains(event)) {
+      _server.sendToSession(sessionId, {
+        'event': 'server_maintenance',
+        'message':
+            'Server is in maintenance mode. New matches are not available.',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      return;
+    }
+
     switch (event) {
       // Connection events
       case 'ping':

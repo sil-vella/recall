@@ -7,6 +7,7 @@ Operations reference for the Dutch stack on the VPS (`rop01`): hardened Gunicorn
 | Doc | Scope |
 |-----|--------|
 | [`Documentation/VPS/BACKUP_STRATEGY.md`](BACKUP_STRATEGY.md) | What to back up on rop01 (Mongo, secrets, static files) |
+| [`Documentation/VPS/DR_UPDATE_PIPELINE.md`](DR_UPDATE_PIPELINE.md) | App drain + update sequence; edge/nginx in **`rop01_server`** |
 | [`playbooks/rop01/00_documentation_and_instructions.md`](../../playbooks/rop01/00_documentation_and_instructions.md) | Ansible deploy playbooks |
 | [`Documentation/python_base_04/VPS_PRODUCTION.md`](../python_base_04/VPS_PRODUCTION.md) | Flask-focused quick reference (nginx checklist, cache keys) |
 | [`Documentation/Logging/LOGGING_SYSTEM.md`](../Logging/LOGGING_SYSTEM.md) | Local dev only (`customlog`, `DUTCH_DEV_LOG`, `global.log`) |

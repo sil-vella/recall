@@ -355,6 +355,11 @@ class Config:
     MONGODB_PASSWORD = get_sensitive_config_value("flask-app/mongodb", "user_password", "mongodb_user_password", "MONGODB_PASSWORD", "external_app_password")
     MONGODB_DB_NAME = get_config_value("flask-app/mongodb", "database_name", "mongodb_db_name", "MONGODB_DB_NAME", "external_system")
     MONGODB_PORT = int(get_config_value("flask-app/mongodb", "port", "mongodb_port", "MONGODB_PORT", "27017"))
+    # Local host Flask → Docker Mongo on localhost:27018 with replSet rs0 advertises dutch_mongodb-external:27017.
+    # Set MONGODB_DIRECT_CONNECTION=true in .env.local to skip replica-set discovery (host dev only).
+    MONGODB_DIRECT_CONNECTION = get_file_first_config_value(
+        "mongodb_direct_connection", "MONGODB_DIRECT_CONNECTION", "false"
+    ).lower() in ("true", "1", "yes")
 
     # Redis Configuration
     REDIS_SERVICE_NAME = get_config_value("flask-app/redis", "service_name", "redis_service_name", "REDIS_SERVICE_NAME", "redis")

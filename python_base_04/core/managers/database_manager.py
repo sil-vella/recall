@@ -421,6 +421,8 @@ class DatabaseManager:
 
         # Construct MongoDB URI with encoded credentials
         mongodb_uri = f"mongodb://{encoded_user}:{encoded_password}@{mongodb_host}:{mongodb_port}/{mongodb_db}?authSource={mongodb_db}"
+        if getattr(Config, "MONGODB_DIRECT_CONNECTION", False):
+            mongodb_uri += "&directConnection=true"
 
         # Set up connection options
         options = {

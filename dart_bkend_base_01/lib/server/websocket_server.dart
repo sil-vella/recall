@@ -56,6 +56,9 @@ class WebSocketServer {
   /// Single resumable room hint per authenticated user (latest grace entry wins).
   final Map<String, String> _resumableRoomByUserId = {};
 
+  /// When true, reject new WS sessions and matchmaking; in-flight games may continue.
+  bool drainMode = false;
+
   WebSocketServer({required String pythonApiUrl}) {
     _messageHandler = MessageHandler(_roomManager, this);
     // Python API URL is passed from app.dart (VPS) or app.debug.dart (local)
@@ -253,17 +256,69 @@ class WebSocketServer {
   }
 
   bool _disconnectEligibleGameState(String roomId) {
+    return isActiveMatchRoom(roomId);
+  }
+
+  /// True when a room has an in-progress match (not lobby-only or finished).
+  bool isActiveMatchRoom(String roomId) {
     try {
+      final storeRoot = GameStateStore.instance.getState(roomId);
       final gs = GameStateStore.instance.getGameState(roomId);
-      final phase = gs['phase']?.toString() ?? '';
+      final phaseRoot = storeRoot['gamePhase']?.toString() ?? '';
+      final phaseInner =
+          gs['phase']?.toString() ?? gs['gamePhase']?.toString() ?? '';
+      final phase = phaseRoot.isNotEmpty ? phaseRoot : phaseInner;
       if (phase == 'waiting_for_players' || phase == 'game_ended') {
         return false;
       }
-      if (gs['isGameActive'] == true) return true;
+      final isActive =
+          storeRoot['isGameActive'] == true || gs['isGameActive'] == true;
+      if (isActive) return true;
       return phase.isNotEmpty;
     } catch (_) {
       return false;
     }
+  }
+
+  void setDrainMode(bool enabled) {
+    drainMode = enabled;
+    if (enabled) {
+      _broadcastServerMaintenance();
+    }
+  }
+
+  void _broadcastServerMaintenance() {
+    final message = {
+      'event': 'server_maintenance',
+      'message':
+          'Server is entering maintenance. New games are not available.',
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    for (final sessionId in _connections.keys.toList()) {
+      sendToSession(sessionId, message);
+    }
+  }
+
+  int get connectionCount => _connections.length;
+
+  int countActiveMatches() {
+    var count = 0;
+    for (final room in _roomManager.getAllRooms()) {
+      if (isActiveMatchRoom(room.roomId)) count++;
+    }
+    return count;
+  }
+
+  Map<String, dynamic> drainStatusPayload() {
+    final activeMatches = countActiveMatches();
+    return {
+      'ok': true,
+      'drain_mode': drainMode,
+      'active_matches': activeMatches,
+      'dart_connections': connectionCount,
+      'room_count': _roomManager.roomCount,
+      'matches_clear': activeMatches == 0,
+    };
   }
 
   bool _shouldOfferDisconnectGrace({
@@ -414,6 +469,19 @@ class WebSocketServer {
   }
 
   void handleConnection(WebSocketChannel webSocket) {
+    if (drainMode) {
+      try {
+        webSocket.sink.add(jsonEncode({
+          'event': 'server_maintenance',
+          'message':
+              'Server is in maintenance mode. New connections are not accepted.',
+          'timestamp': DateTime.now().toIso8601String(),
+        }));
+      } catch (_) {}
+      webSocket.sink.close();
+      return;
+    }
+
     final sessionId = const Uuid().v4();
     _connections[sessionId] = webSocket;
     _connectionHashes[sessionId] = webSocket.hashCode.toString();
@@ -686,6 +754,4 @@ class WebSocketServer {
       sendToSession(sessionId, message);
     }
   }
-  
-  int get connectionCount => _connections.length;
 }

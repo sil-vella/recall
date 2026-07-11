@@ -4,12 +4,14 @@
 - name: Delete all tournaments from MongoDB (VPS)
   hosts: "{{ vm_name }}_user"
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   vars:
     mongodb_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('') }}"
   tasks:
     - name: Delete all documents in tournaments collection
       shell: |
-        sg docker -c 'docker exec dutch_external_app_mongodb mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        sg docker -c 'docker exec dutch_external_app_mongodb mongosh {{ mongodb_mongosh_tls_args }} -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
           var d = db.getSiblingDB(\"external_system\");
           var r = d.tournaments.deleteMany({});
           print(\"Deleted: \" + r.deletedCount + \" tournaments\");

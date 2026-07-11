@@ -4,15 +4,17 @@ Operations module: deploy drain mode, readiness polling, and HTTP admission cont
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 from flask import jsonify, request
 
-from core.managers.state_manager import StateManager, StateTransition
+from core.managers.state_manager import StateManager
 from core.modules.base_module import BaseModule
 from core.modules.ops_module.dart_drain_client import fetch_dart_drain_status, set_dart_drain_mode
 from core.modules.ops_module.drain_gate import path_allowed_during_drain
+
+# Shared across Gunicorn workers; no TTL (unlike state:main_state cache entries).
+DRAIN_MODE_REDIS_KEY = "dutch:ops:drain_mode"
 
 
 class OpsModule(BaseModule):
@@ -69,34 +71,22 @@ class OpsModule(BaseModule):
             }), 503
 
     def _is_drain_mode(self) -> bool:
-        if not self._state_manager:
+        redis_manager = self._drain_redis_manager()
+        if not redis_manager:
             return False
-        state = self._state_manager.get_state("main_state")
-        if not state or not isinstance(state.get("data"), dict):
-            return False
-        return state["data"].get("drain_mode") is True
+        value = redis_manager.get(DRAIN_MODE_REDIS_KEY)
+        return value is True or value == 1 or value == "1"
 
     def _set_drain_state(self, enabled: bool) -> bool:
+        redis_manager = self._drain_redis_manager()
+        if not redis_manager:
+            return False
+        return bool(redis_manager.set(DRAIN_MODE_REDIS_KEY, enabled, expire=None))
+
+    def _drain_redis_manager(self):
         if not self._state_manager:
-            return False
-        current = self._state_manager.get_state("main_state")
-        if not current:
-            return False
-        patch: Dict[str, Any] = {
-            "drain_mode": enabled,
-            "last_updated": datetime.utcnow().isoformat(),
-        }
-        if enabled:
-            patch["app_status"] = "maintenance"
-            patch["drain_started_at"] = datetime.utcnow().isoformat()
-        else:
-            patch["app_status"] = "idle"
-            patch["drain_started_at"] = None
-        return self._state_manager.update_state(
-            "main_state",
-            patch,
-            StateTransition.UPDATE,
-        )
+            return None
+        return getattr(self._state_manager, "redis_manager", None)
 
     def _count_store_in_flight(self) -> int:
         try:

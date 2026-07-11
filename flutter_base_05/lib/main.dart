@@ -24,7 +24,7 @@ import 'utils/web_bootstrap_log.dart';
 import 'utils/consts/config.dart';
 
 // ignore: constant_identifier_names — set false when not debugging this entrypoint (release tooling may flip).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Matches [flutter_native_splash] `color` / `android_12.color` in pubspec.yaml.
 const Color _kNativeSplashGreen = Color(0xFF2A5C32);

@@ -48,6 +48,8 @@
 - name: Introspect MongoDB structure on VPS
   hosts: "{{ vm_name | default('rop01') }}_user"
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   vars:
     mongodb_container_name: "dutch_external_app_mongodb"
     app_user: "external_app_user"
@@ -56,7 +58,7 @@
   tasks:
     - name: List databases and collections (root)
       shell: |
-        docker exec {{ mongodb_container_name }} mongosh -u mongodb_admin -p "{{ root_password }}" --authenticationDatabase admin --quiet --eval "
+        docker exec {{ mongodb_container_name }} mongosh {{ mongodb_mongosh_tls_args }} -u mongodb_admin -p "{{ root_password }}" --authenticationDatabase admin --quiet --eval "
           var dbs = db.adminCommand('listDatabases').databases;
           print('=== DATABASES ===');
           dbs.forEach(function(d){ print(d.name + ' (' + (d.sizeOnDisk/1024).toFixed(1) + ' KB)'); });
@@ -76,7 +78,7 @@
 
     - name: Get sample document from each collection (external_system)
       shell: |
-        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase external_system --quiet --eval "
+        docker exec {{ mongodb_container_name }} mongosh {{ mongodb_mongosh_tls_args }} -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase external_system --quiet --eval "
           var edb = db.getSiblingDB('external_system');
           var cols = edb.getCollectionNames().filter(function(c){ return c.indexOf('system') !== 0; });
           cols.forEach(function(cname) {

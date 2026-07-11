@@ -4,6 +4,8 @@
 - name: Add 3 comp players to tournament participants
   hosts: "{{ vm_name }}_user"
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   vars:
     mongodb_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('') }}"
     tournament_id: "69adeb5405b55a7d0122d60f"
@@ -17,7 +19,7 @@
 
     - name: Run script in MongoDB container (add 3 comp players to tournament)
       shell: |
-        sg docker -c 'docker cp /tmp/add_launch_participant.js dutch_external_app_mongodb:/tmp/ && docker exec dutch_external_app_mongodb mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/add_launch_participant.js'
+        sg docker -c 'docker cp /tmp/add_launch_participant.js dutch_external_app_mongodb:/tmp/ && docker exec dutch_external_app_mongodb mongosh {{ mongodb_mongosh_tls_args }} -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/add_launch_participant.js'
       register: script_out
       changed_when: true
 

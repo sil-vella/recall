@@ -10,18 +10,32 @@ x-docker-logging: &docker-logging
 services:
   # MongoDB — rop01 QEMU CPU has no AVX; official/bitnami Mongo 5+ images SIGILL (Jul 2026 outage).
   # Use mongo-qemu-avx (MongoDB 8.2 + QEMU user-mode for AVX ops). Pin digest; do NOT use :latest.
-  # Local dev (Mac, has AVX): docker-compose.debug.yml still uses bitnami/mongodb@sha256:7830f3dca011…
+  # Local dev uses the same image in docker-compose.debug.yml (prod parity for PITR testing).
   # Known-bad bitnami (AVX): sha256:c65378e6661b… and sha256:992fe530992c…
   dutch_mongodb-external:
     image: ghcr.io/stevekerrison/mongo-qemu-avx@sha256:dbf2e3ba6a70bdfb1db01f2144c145ecbbe049732a33cf4225f4ca4856c9d37c
     container_name: dutch_external_app_mongodb
-    command: ["mongod", "--bind_ip_all", "--dbpath", "/data/db"]
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --dbpath
+      - /data/db
+      - --tlsMode
+      - requireTLS
+      - --tlsCertificateKeyFile
+      - /etc/mongo-tls/mongod.pem
+      - --tlsCAFile
+      - /etc/mongo-tls/ca.pem
+      - --tlsAllowConnectionsWithoutCertificates
     # Localhost only — never publish Mongo on 0.0.0.0 (internet scanners / ransomware).
     # App containers use dutch_mongodb-external:27017 on app-network; host access via SSH + 127.0.0.1:27018.
     ports:
       - "127.0.0.1:27018:27017"
     volumes:
       - /opt/apps/reignofplay/dutch/data/mongodb/data/db:/data/db
+      - ./data/mongodb/tls:/etc/mongo-tls:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -108,11 +122,14 @@ services:
       - DUTCH_CACHE_INIT_STATS_TTL=${DUTCH_CACHE_INIT_STATS_TTL:-30}
       - DUTCH_CACHE_CATALOG_TTL=${DUTCH_CACHE_CATALOG_TTL:-3600}
       - DUTCH_CACHE_BROADCAST_TTL=${DUTCH_CACHE_BROADCAST_TTL:-60}
+      - MONGODB_SSL=true
+      - MONGODB_SSL_CA_FILE=/etc/mongo-tls/ca.pem
     volumes:
       - /opt/apps/reignofplay/dutch/data/mobile_release.json:/app/data/mobile_release.json:ro
       - /opt/apps/reignofplay/dutch/data/avatars:/app/data/avatars
       - /opt/apps/reignofplay/dutch/data/secrets:/app/secrets:ro
       - /var/www/dutch.reignofplay.com/app_media/media:/app_media/media:ro
+      - ./data/mongodb/tls:/etc/mongo-tls:ro
     depends_on:
       - dutch_mongodb-external
       - dutch_redis-external

@@ -433,6 +433,20 @@ class DatabaseManager:
             'retryReads': True
         }
 
+        if getattr(Config, "MONGODB_SSL", False):
+            options['tls'] = True
+            ca_file = getattr(Config, "MONGODB_SSL_CA_FILE", "") or ""
+            if ca_file:
+                options['tlsCAFile'] = ca_file
+            cert_file = getattr(Config, "MONGODB_SSL_CERT_FILE", "") or ""
+            key_file = getattr(Config, "MONGODB_SSL_KEY_FILE", "") or ""
+            if cert_file:
+                options['tlsCertificateKeyFile'] = cert_file
+            elif key_file:
+                options['tlsCertificateKeyFile'] = key_file
+            if getattr(Config, "MONGODB_SSL_ALLOW_INVALID_CERTIFICATES", False):
+                options['tlsAllowInvalidCertificates'] = True
+
         # Create MongoDB client
         self.client = MongoClient(mongodb_uri, **options)
         self.db = self.client[mongodb_db]

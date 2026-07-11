@@ -100,6 +100,8 @@
 - name: Sync global_broadcast_messages on VPS (Docker MongoDB)
   hosts: "{{ vm_name | default('rop01') }}_user"
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   gather_facts: false
   vars:
     mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
@@ -128,7 +130,7 @@
 
     - name: Run sync in MongoDB container
       shell: |
-        sg docker -c 'docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ mongodb_password }}" --authenticationDatabase {{ mongodb_auth_db }} --quiet /tmp/sync_global_broadcast_messages.js'
+        sg docker -c 'docker exec {{ mongodb_container_name }} mongosh {{ mongodb_mongosh_tls_args }} -u {{ app_user }} -p "{{ mongodb_password }}" --authenticationDatabase {{ mongodb_auth_db }} --quiet /tmp/sync_global_broadcast_messages.js'
       register: script_out
       changed_when: true
 

@@ -4,6 +4,8 @@
 - name: Verify launch tournament
   hosts: "{{ vm_name }}_user"
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   vars:
     mongodb_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('') }}"
   tasks:
@@ -15,7 +17,7 @@
 
     - name: Run verify script in MongoDB container
       shell: |
-        sg docker -c 'docker cp /tmp/verify_launch_tournament.js dutch_external_app_mongodb:/tmp/ && docker exec dutch_external_app_mongodb mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/verify_launch_tournament.js'
+        sg docker -c 'docker cp /tmp/verify_launch_tournament.js dutch_external_app_mongodb:/tmp/ && docker exec dutch_external_app_mongodb mongosh {{ mongodb_mongosh_tls_args }} -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/verify_launch_tournament.js'
       register: verify_out
       changed_when: false
 

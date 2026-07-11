@@ -59,6 +59,8 @@
 - name: Set a single user's Dutch coins (VPS Docker)
   hosts: "{{ vm_name | default('rop01') }}_user"
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   gather_facts: false
   vars:
     mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
@@ -164,7 +166,7 @@
 
     - name: Run script in MongoDB container
       shell: |
-        sg docker -c 'docker exec {{ mongodb_container_name }} mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/set_user_coins.js'
+        sg docker -c 'docker exec {{ mongodb_container_name }} mongosh {{ mongodb_mongosh_tls_args }} -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/set_user_coins.js'
       register: script_out
       changed_when: true
 

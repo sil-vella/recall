@@ -2,12 +2,14 @@
 - name: Check DB players (counts + sample)
   hosts: rop01_user_host
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   vars:
     mongodb_password: "{{ lookup('env', 'MONGODB_PASSWORD') | default('') }}"
   tasks:
     - name: Get user and comp player counts
       shell: |
-        sg docker -c 'docker exec dutch_external_app_mongodb mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
+        sg docker -c 'docker exec dutch_external_app_mongodb mongosh {{ mongodb_mongosh_tls_args }} -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet --eval "
           var d = db.getSiblingDB(\"external_system\");
           print(\"Total users: \" + d.users.countDocuments());
           print(\"Computer players (is_comp_player=true): \" + d.users.countDocuments({is_comp_player: true}));

@@ -44,6 +44,8 @@
 - name: Add Missing Modules to Existing Database (Non-Destructive, Remote Docker)
   hosts: "{{ (vm_name | default('rop01')) }}_user"
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   vars:
     mongodb_container_name: "dutch_external_app_mongodb"
     database_name: "external_system"
@@ -59,7 +61,7 @@
 
   tasks:
     - name: Wait for MongoDB container to be ready
-      shell: docker exec {{ mongodb_container_name }} mongosh --eval "db.adminCommand('ping')" --quiet
+      shell: docker exec {{ mongodb_container_name }} mongosh {{ mongodb_mongosh_tls_args }} --eval "db.adminCommand('ping')" --quiet
       register: mongodb_ready
       retries: 30
       delay: 2
@@ -561,7 +563,7 @@
 
     - name: Execute module update script
       shell: |
-        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "$(cat /tmp/add_missing_modules.js)"
+        docker exec {{ mongodb_container_name }} mongosh {{ mongodb_mongosh_tls_args }} -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "$(cat /tmp/add_missing_modules.js)"
       register: update_result
       changed_when: true
 
@@ -571,7 +573,7 @@
 
     - name: Verify module updates
       shell: |
-        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "
+        docker exec {{ mongodb_container_name }} mongosh {{ mongodb_mongosh_tls_args }} -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "
           db = db.getSiblingDB('external_system');
           print('\\n📊 VERIFICATION SUMMARY:');
           print('=====================');

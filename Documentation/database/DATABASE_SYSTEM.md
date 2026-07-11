@@ -1198,7 +1198,11 @@ db.users.createIndex({ "status": 1, "created_at": -1 });
 
 - ✅ Use Docker networks for container communication
 - ✅ Don't expose MongoDB port publicly
-- ✅ Use TLS/SSL in production (when configured)
+- ✅ TLS/SSL in production (`MONGODB_SSL`, `MONGODB_SSL_CA_FILE` — see [MONGODB_TLS.md](../MONGODB_TLS.md))
+
+### 5. TLS configuration (production)
+
+When `MONGODB_SSL=true`, `DatabaseManager` enables PyMongo TLS and uses `MONGODB_SSL_CA_FILE` (default in compose: `/etc/mongo-tls/ca.pem`). Server-side `mongod` runs with `requireTLS` in [`docker-compose.yml`](../../docker-compose.yml). Local dev (`docker-compose.debug.yml`) keeps TLS off via config defaults.
 
 ---
 
@@ -1212,7 +1216,6 @@ db.users.createIndex({ "status": 1, "created_at": -1 });
 4. **Migration System**: Database schema migration tools
 5. **Backup Integration**: Automated backup scheduling
 6. **Performance Monitoring**: Query performance tracking
-7. **TLS/SSL Support**: Encrypted connections to MongoDB
 
 ---
 

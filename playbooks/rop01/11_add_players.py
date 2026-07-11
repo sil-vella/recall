@@ -20,6 +20,11 @@ from datetime import datetime
 from typing import Dict, Any, List, Set
 from pathlib import Path
 
+_ROP01_DIR = Path(__file__).resolve().parent
+if str(_ROP01_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROP01_DIR))
+from mongodb_tls.mongosh_tls import mongosh_tls_shell_prefix
+
 # Bcrypt hash for password "comp_player_pass"
 COMP_PLAYER_PASSWORD = "$2b$12$PHGvsjOG3/fjNuEZQP1Szu5/igAj8pppp8XoAFeVyzDbj2EBh3o82"
 
@@ -164,7 +169,8 @@ def check_existing_players(ssh_base: str, players_data: List[Dict[str, Any]]) ->
     
     check_script = f'''db = db.getSiblingDB('{MONGODB_DATABASE}'); var existing = db.users.find({query_str}, {{username: 1, email: 1}}).toArray(); existing.forEach(function(u) {{ print(u.username + "|" + u.email); }});'''
     
-    mongosh_cmd = f'docker exec {MONGODB_CONTAINER} mongosh -u {MONGODB_USER} -p "{MONGODB_PASSWORD}" --authenticationDatabase {MONGODB_AUTH_DB} --eval "{check_script}"'
+    tls = mongosh_tls_shell_prefix()
+    mongosh_cmd = f'docker exec {MONGODB_CONTAINER} mongosh {tls} -u {MONGODB_USER} -p "{MONGODB_PASSWORD}" --authenticationDatabase {MONGODB_AUTH_DB} --eval "{check_script}"'
     
     full_cmd = f'{ssh_base} "{mongosh_cmd}"'
     
@@ -381,7 +387,8 @@ def upsert_players(ssh_base: str, players: List[Dict[str, Any]], batch_size: int
             continue
         
         # Execute the JavaScript file
-        mongosh_cmd = f'docker exec {MONGODB_CONTAINER} mongosh -u {MONGODB_USER} -p "{MONGODB_PASSWORD}" --authenticationDatabase {MONGODB_AUTH_DB} /tmp/upsert_players_batch.js'
+        tls = mongosh_tls_shell_prefix()
+        mongosh_cmd = f'docker exec {MONGODB_CONTAINER} mongosh {tls} -u {MONGODB_USER} -p "{MONGODB_PASSWORD}" --authenticationDatabase {MONGODB_AUTH_DB} /tmp/upsert_players_batch.js'
         
         full_cmd = f'{ssh_base} "{mongosh_cmd}"'
         
@@ -503,7 +510,8 @@ def main():
     # Verify final count
     verify_script = f'''db = db.getSiblingDB('{MONGODB_DATABASE}'); var count = db.users.countDocuments({{"is_comp_player": true}}); print("Total comp players in database: " + count);'''
     
-    mongosh_cmd = f'docker exec {MONGODB_CONTAINER} mongosh -u {MONGODB_USER} -p "{MONGODB_PASSWORD}" --authenticationDatabase {MONGODB_AUTH_DB} --eval "{verify_script}"'
+    tls = mongosh_tls_shell_prefix()
+    mongosh_cmd = f'docker exec {MONGODB_CONTAINER} mongosh {tls} -u {MONGODB_USER} -p "{MONGODB_PASSWORD}" --authenticationDatabase {MONGODB_AUTH_DB} --eval "{verify_script}"'
     full_cmd = f'{ssh_base} "{mongosh_cmd}"'
     
     try:

@@ -44,6 +44,8 @@
 - name: Check user in VPS MongoDB
   hosts: "{{ vm_name | default('rop01') }}_user"
   become: true
+  vars_files:
+    - vars/mongodb_tls.yml
   vars:
     mongodb_password: "{{ (hostvars['localhost'] | default({})).get('mongodb_password') or lookup('env', 'MONGODB_PASSWORD') | default('') }}"
   tasks:
@@ -55,7 +57,7 @@
 
     - name: Run check script in MongoDB container
       shell: |
-        sg docker -c 'docker cp /tmp/check_user_role.js dutch_external_app_mongodb:/tmp/ && docker exec dutch_external_app_mongodb mongosh -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/check_user_role.js'
+        sg docker -c 'docker cp /tmp/check_user_role.js dutch_external_app_mongodb:/tmp/ && docker exec dutch_external_app_mongodb mongosh {{ mongodb_mongosh_tls_args }} -u external_app_user -p "{{ mongodb_password }}" --authenticationDatabase external_system --quiet /tmp/check_user_role.js'
       register: check_out
       changed_when: false
       failed_when: false

@@ -1,0 +1,4 @@
+---
+# mongosh TLS args for docker exec into dutch_external_app_mongodb on prod VPS (requireTLS).
+# In-container CA path matches compose volume ./data/mongodb/tls:/etc/mongo-tls:ro
+mongodb_mongosh_tls_args: "--tls --tlsCAFile /etc/mongo-tls/ca.pem"

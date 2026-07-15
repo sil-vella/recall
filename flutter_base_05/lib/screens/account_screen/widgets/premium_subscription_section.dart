@@ -44,6 +44,8 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
   bool _syncing = false;
   bool _loadingProducts = false;
   bool _productsLoadFailed = false;
+  /// StoreKit notFoundIDs or query error — shown when prices fail to load.
+  String? _productLoadDetail;
   /// True only during an explicit buy/sync so verify may provision a guest session.
   bool _iapVerifyMayProvisionGuest = false;
 
@@ -108,6 +110,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     setState(() {
       _loadingProducts = true;
       _productsLoadFailed = false;
+      _productLoadDetail = null;
     });
 
     await CoinCatalog.ensureLoaded();
@@ -193,6 +196,7 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     setState(() {
       _loadingProducts = true;
       _productsLoadFailed = false;
+      _productLoadDetail = null;
     });
     await CoinCatalog.ensureLoaded();
     if (_isAndroid) {
@@ -219,10 +223,25 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
     for (final p in resp.productDetails) {
       map[p.id] = p;
     }
+
+    String? detail;
+    if (map.isEmpty) {
+      if (resp.notFoundIDs.isNotEmpty) {
+        detail =
+            'App Store did not return: ${resp.notFoundIDs.join(", ")}. '
+            'Create these subscription products in App Store Connect (Monetization → Subscriptions).';
+      } else if (resp.error != null) {
+        detail = resp.error!.message;
+      }
+    }
+
     setState(() {
       _applePremiumDetails
         ..clear()
         ..addAll(map);
+      if (detail != null) {
+        _productLoadDetail = detail;
+      }
     });
   }
 
@@ -677,7 +696,8 @@ class _PremiumSubscriptionSectionState extends State<PremiumSubscriptionSection>
         if (_productsLoadFailed && !_loadingProducts) ...[
           const SizedBox(height: 12),
           Text(
-            'Could not load prices from the App Store. Check your connection and tap Retry.',
+            _productLoadDetail ??
+                'Could not load prices from the App Store. Check your connection and tap Retry.',
             style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 8),

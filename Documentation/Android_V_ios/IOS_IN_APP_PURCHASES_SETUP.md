@@ -161,6 +161,22 @@ Single-tier setup (only one product) is also valid if you ship monthly-only firs
 - Each IAP needs **Ready to Submit** metadata (localizations, pricing, review notes).
 - App Review must approve IAPs before they work in production; **Sandbox** works earlier for development.
 
+### 5.1 App version status ≠ IAP / subscription status
+
+**IAPs and subscriptions have their own review state**, independent of the iOS app version.
+
+| Example | Meaning |
+|---------|---------|
+| App version **Ready for Distribution** / live on the store | Binary passed review; app can be downloaded |
+| IAP or subscription **Waiting for Review** | That product is still in App Review (or queued) — **not** approved for production |
+| IAP/sub **Developer Action Needed** / localization **Rejected** | Product was returned; fix metadata and resubmit **with a version + build** |
+
+So the app can be **in distribution** while individual IAPs or subscriptions are still **Waiting for Review**, **Rejected**, or **Developer Action Needed**. Coins may work in production if those consumables were approved earlier; Premium may show no prices if subscription products were never approved or were returned.
+
+**First-time IAPs/subscriptions** must be linked on the app **version page** (**In-App Purchases and Subscriptions**) and submitted via **Add for Review** on that version — not only from the Monetization → Subscriptions product page. If Apple returns IAPs because *“the required binary was not submitted”*, fix product status to **Ready to Submit**, attach products + build on the version page, and submit the version again.
+
+See [Submit an In-App Purchase](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-in-app-purchase).
+
 ---
 
 ## 6. Sandbox testing (no real charges)

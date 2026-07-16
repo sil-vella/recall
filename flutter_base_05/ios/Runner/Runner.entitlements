@@ -6,7 +6,5 @@
 	<array>
 		<string>applinks:dutch.reignofplay.com</string>
 	</array>
-	<key>com.apple.developer.in-app-payments</key>
-	<array/>
 </dict>
 </plist>

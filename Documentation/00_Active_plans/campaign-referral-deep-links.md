@@ -19,5 +19,6 @@ Full detail: [`Documentation/Referrals/CAMPAIGN_REFERRAL_CODES.md`](../Referrals
 - [x] Play signing SHA-256 in `assetlinks.json` (production)
 - [x] Temporary: on `coins_awarded > 0`, push [DutchWinCelebrationScreen](../../flutter_base_05/lib/modules/dutch_game/screens/promotion/dutch_win_celebration_screen.dart) (replace later)
 - [x] Dedicated [DutchReferralBonusCelebrationScreen](../../flutter_base_05/lib/modules/dutch_game/screens/promotion/dutch_referral_bonus_celebration_screen.dart) for successful awards
+- [x] Custom scheme `dutch://gotoapp/<CODE>` for same-site Safari (landing button) + HTTPS fallback
 - [x] Per-user cap: campaign `max_per_user` + user `referral_code_counts` (TESTREF8719 = 1000)
 - [x] Unsuccessful sync → `InstantMessageModal` (try again / already applied)

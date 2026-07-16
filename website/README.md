@@ -70,15 +70,16 @@ If you previously added `/images/`, remove that block and use `/static_landing_i
 1. **Shlink** short URL ends with `/rl/<REFCODE>` (social / tracking).
 2. Nginx **302** → `https://dutch.reignofplay.com/?ref=<REFCODE>`.
 3. Root **landing** (`index.html`): if `?ref=` is set, show **GET BONUS COINS**.
-4. Button opens **`/gotoapp/<REFCODE>`** (Universal Link / App Link).
+4. Button tries **`dutch://gotoapp/<REFCODE>`** first (custom scheme; works from same-site Safari), then falls back to **`/gotoapp/<REFCODE>`**.
 5. App receives the code and syncs rewards (see [`Documentation/Referrals/CAMPAIGN_REFERRAL_CODES.md`](../Documentation/Referrals/CAMPAIGN_REFERRAL_CODES.md)).
 
 | URL | Purpose |
 |-----|---------|
 | Shlink → `…/rl/<CODE>` | Short share / tracking entry |
 | `…/rl/<CODE>` | **302** → `/?ref=<CODE>` |
-| `/?ref=<CODE>` | Landing; **GET BONUS COINS** → `/gotoapp/<CODE>` |
+| `/?ref=<CODE>` | Landing; **GET BONUS COINS** → `dutch://` then `/gotoapp/<CODE>` |
 | `/gotoapp/<CODE>` | Opens installed app; fallback home → `/?ref=<CODE>` |
+| `dutch://gotoapp/<CODE>` | Custom scheme for same-site Safari / simulator |
 | `/.well-known/apple-app-site-association` | iOS — paths `/gotoapp/*` only |
 | `/.well-known/assetlinks.json` | Android |
 

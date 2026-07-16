@@ -19,8 +19,10 @@ Shlink short URL ending in /rl/<REFCODE>
 | 1. Share | Shlink → `…/rl/<REFCODE>` | Tracking / social short link |
 | 2. Redirect | nginx `302` → `/?ref=<REFCODE>` | Same root landing as `/` |
 | 3. Landing | `/?ref=<REFCODE>` | Store badges always; **GET BONUS COINS** only if `ref` set |
-| 4. Open app | `/gotoapp/<REFCODE>` | AASA / App Links path only; carries code into the app |
-| 5. App | Flutter `/gotoapp/:code` | Prefs list → guest/login if needed → sync + coins |
+| 4. Open app | `/gotoapp/<REFCODE>` or `dutch://gotoapp/<REFCODE>` | HTTPS Universal/App Link; custom scheme for same-site Safari |
+| 5. App | Flutter `/gotoapp/:code` or `dutch://gotoapp/...` | Prefs list → guest/login if needed → sync + coins |
+
+**Safari note:** Tapping a same-host HTTPS link from the landing page does **not** open Universal Links. **GET BONUS COINS** tries `dutch://gotoapp/<CODE>` first, then falls back to `/gotoapp/<CODE>` if the app is not installed.
 
 Fallback: if the app is not installed, `/gotoapp/<REFCODE>` shows store CTAs; **Back to Dutch home** goes to `/?ref=<REFCODE>` (keeps the code).
 
@@ -28,6 +30,7 @@ Fallback: if the app is not installed, `/gotoapp/<REFCODE>` shows store CTAs; **
 
 - `/rl/*` is **web/tracking only** (redirect). Not in AASA / `assetlinks.json`.
 - Only **`/gotoapp/*`** is declared for Universal Links / Android App Links.
+- Custom scheme: `dutch://gotoapp/<CODE>` (iOS `CFBundleURLTypes` + Android intent-filter).
 
 ## Backend
 

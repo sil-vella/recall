@@ -61,6 +61,15 @@
                     android:host="dutch.reignofplay.com"
                     android:pathPrefix="/gotoapp" />
             </intent-filter>
+            <!-- Custom scheme (Safari same-site cannot use Universal Links) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="dutch"
+                    android:host="gotoapp" />
+            </intent-filter>
         </activity>
         <!-- Flutter built-in deep linking (go_router) -->
         <meta-data

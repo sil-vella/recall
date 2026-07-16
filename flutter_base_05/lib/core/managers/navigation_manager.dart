@@ -267,6 +267,26 @@ class NavigationManager extends ChangeNotifier {
       initialLocation: kIsWeb ? computeWebInitialLocation() : '/',
       routes: allRoutes,
       observers: <NavigatorObserver>[_adsSwitchScreenObserver],
+      // Custom scheme dutch://gotoapp/<CODE> (Safari same-site cannot use Universal Links).
+      redirect: (context, state) {
+        final uri = state.uri;
+        if (uri.scheme != 'dutch') return null;
+
+        String? code;
+        if (uri.host.toLowerCase() == 'gotoapp') {
+          if (uri.pathSegments.isNotEmpty) {
+            code = uri.pathSegments.first;
+          }
+        } else if (uri.pathSegments.length >= 2 &&
+            uri.pathSegments.first.toLowerCase() == 'gotoapp') {
+          code = uri.pathSegments[1];
+        }
+
+        code = (code ?? '').trim();
+        if (code.isEmpty) return '/';
+        ReferralSessionHelper.onDeepLinkCode(code);
+        return '/';
+      },
     );
     
     // Store the router instance

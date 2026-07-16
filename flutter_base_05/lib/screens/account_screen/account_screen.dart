@@ -327,6 +327,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     'user_id', 'username', 'email', 'password',
     'guest_username', 'guest_email', 'guest_user_id',
     'is_guest_account', 'is_logged_in', 'last_login_timestamp',
+    'pending_referral_codes',
   ];
 
   /// True when delete-account flow should collect the account password (email/guest).

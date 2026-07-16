@@ -21,6 +21,7 @@ import '../../utils/dev_logger.dart';
 import '../../utils/profile_photo_helper.dart';
 import 'utils/ws_jwt_access_expiry.dart';
 import 'auth_session_messages.dart';
+import '../../utils/referral_session_helper.dart';
 
 // ignore: constant_identifier_names — flip false when done debugging (see Documentation/Logging/LOGGING_SYSTEM.md).
 const bool LOGGING_SWITCH = false;
@@ -44,6 +45,7 @@ class LoginModule extends ModuleBase {
     _localModuleManager = moduleManager;
     _initDependencies(context);
     _registerAuthHooks();
+    ReferralSessionHelper.registerHooks();
   }
 
   /// ✅ Fetch dependencies once per context

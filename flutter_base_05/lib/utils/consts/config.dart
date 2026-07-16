@@ -1,5 +1,8 @@
 // lib/config/config.dart
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+
 class Config {
 
   static const String appTitle = "Dutch";
@@ -67,6 +70,41 @@ class Config {
   );
 
   // AdMob unit IDs — SSOT: Flask .env.local|.prod → init-config. Compile-time defaults = offline fallback only.
+  static const String admobsAndroidTopBanner = String.fromEnvironment(
+    'ADMOBS_ANDROID_TOP_BANNER01',
+    defaultValue: 'ca-app-pub-6524100109992126/3612268528',
+  );
+  static const String admobsAndroidBottomBanner = String.fromEnvironment(
+    'ADMOBS_ANDROID_BOTTOM_BANNER01',
+    defaultValue: 'ca-app-pub-6524100109992126/3612268528',
+  );
+  static const String admobsAndroidInterstitial = String.fromEnvironment(
+    'ADMOBS_ANDROID_INTERSTITIAL01',
+    defaultValue: 'ca-app-pub-6524100109992126/4685169868',
+  );
+  static const String admobsAndroidRewarded = String.fromEnvironment(
+    'ADMOBS_ANDROID_REWARDED01',
+    defaultValue: 'ca-app-pub-6524100109992126/8821901598',
+  );
+
+  static const String admobsIosTopBanner = String.fromEnvironment(
+    'ADMOBS_IOS_TOP_BANNER01',
+    defaultValue: 'ca-app-pub-6524100109992126/4416705385',
+  );
+  static const String admobsIosBottomBanner = String.fromEnvironment(
+    'ADMOBS_IOS_BOTTOM_BANNER01',
+    defaultValue: 'ca-app-pub-6524100109992126/4416705385',
+  );
+  static const String admobsIosInterstitial = String.fromEnvironment(
+    'ADMOBS_IOS_INTERSTITIAL01',
+    defaultValue: 'ca-app-pub-6524100109992126/2483988254',
+  );
+  static const String admobsIosRewarded = String.fromEnvironment(
+    'ADMOBS_IOS_REWARDED01',
+    defaultValue: 'ca-app-pub-6524100109992126/4336814337',
+  );
+
+  /// Legacy flat keys (Android) — kept for older dart-define files.
   static const String admobsTopBanner = String.fromEnvironment(
     'ADMOBS_TOP_BANNER01',
     defaultValue: 'ca-app-pub-6524100109992126/3612268528',
@@ -87,6 +125,42 @@ class Config {
     'ADMOBS_REWARDED01',
     defaultValue: 'ca-app-pub-6524100109992126/8821901598',
   );
+
+  static String get admobsTopBannerForPlatform {
+    if (kIsWeb) return '';
+    return defaultTargetPlatform == TargetPlatform.iOS
+        ? admobsIosTopBanner
+        : (admobsAndroidTopBanner.isNotEmpty
+            ? admobsAndroidTopBanner
+            : admobsTopBanner);
+  }
+
+  static String get admobsBottomBannerForPlatform {
+    if (kIsWeb) return '';
+    return defaultTargetPlatform == TargetPlatform.iOS
+        ? admobsIosBottomBanner
+        : (admobsAndroidBottomBanner.isNotEmpty
+            ? admobsAndroidBottomBanner
+            : admobsBottomBanner);
+  }
+
+  static String get admobsInterstitialForPlatform {
+    if (kIsWeb) return '';
+    return defaultTargetPlatform == TargetPlatform.iOS
+        ? admobsIosInterstitial
+        : (admobsAndroidInterstitial.isNotEmpty
+            ? admobsAndroidInterstitial
+            : admobsInterstitial01);
+  }
+
+  static String get admobsRewardedForPlatform {
+    if (kIsWeb) return '';
+    return defaultTargetPlatform == TargetPlatform.iOS
+        ? admobsIosRewarded
+        : (admobsAndroidRewarded.isNotEmpty
+            ? admobsAndroidRewarded
+            : admobsRewarded01);
+  }
 
   /// Coins granted per rewarded ad (UI + local cap; server uses `ADMOB_REWARDED_COINS_PER_CLAIM`).
   static const int admobRewardedCoinsPerClaim = int.fromEnvironment(

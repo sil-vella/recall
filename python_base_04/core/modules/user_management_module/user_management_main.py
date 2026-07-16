@@ -308,6 +308,7 @@ class UserManagementModule(BaseModule):
                     'referrals': {
                         'enabled': True,
                         'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
+                        'referral_codes': [],
                         'referrals_count': 0
                     },
                     'dutch_game': {
@@ -513,6 +514,7 @@ class UserManagementModule(BaseModule):
                     'referrals': {
                         'enabled': True,
                         'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
+                        'referral_codes': [],
                         'referrals_count': 0
                     },
                     'dutch_game': {
@@ -1471,6 +1473,7 @@ class UserManagementModule(BaseModule):
                             'referrals': {
                                 'enabled': True,
                                 'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
+                                'referral_codes': [],
                                 'referrals_count': 0
                             },
                             'dutch_game': {

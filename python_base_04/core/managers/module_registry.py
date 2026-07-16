@@ -99,6 +99,7 @@ class ModuleRegistry:
             "dutch_game": ["user_management_module"],  # Needs user management for JWT auth
             "play_billing_module": ["user_management_module"],
             "apple_billing_module": ["user_management_module"],
+            "referral_campaigns_module": ["user_management_module"],
             "ops_module": [],
             # "communications_module": [],  # Communications module - no dependencies (temporarily disabled due to missing debugpy)
             # "stripe_module": ["user_management_module"],  # Needs user management (temporarily disabled due to missing stripe)

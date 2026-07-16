@@ -33,24 +33,30 @@ Web builds do not use AdMob (`kIsWeb` guards); use AdSense keys from env where a
 
 | Variable | Used for |
 |----------|-----------|
-| **`ADMOBS_TOP_BANNER01`** | Top banner unit |
-| **`ADMOBS_BOTTOM_BANNER01`** | Bottom banner unit |
-| **`ADMOBS_INTERSTITIAL01`** | Interstitial unit (**Interstitial_001**) |
-| **`ADMOBS_REWARDED01`** | Rewarded unit (**Rewarded_001**) |
-| **`ADMOB_REWARDED_COINS_PER_CLAIM`** | Coins shown in UI + server claim API |
-| **`ADMOB_REWARDED_DAILY_CAP`** | Client UTC daily cap for watch-ad button |
+| **`ADMOBS_ANDROID_TOP_BANNER01`** | Android top banner |
+| **`ADMOBS_ANDROID_BOTTOM_BANNER01`** | Android bottom banner |
+| **`ADMOBS_ANDROID_INTERSTITIAL01`** | Android interstitial |
+| **`ADMOBS_ANDROID_REWARDED01`** | Android rewarded |
+| **`ADMOBS_IOS_TOP_BANNER01`** | iOS top banner |
+| **`ADMOBS_IOS_BOTTOM_BANNER01`** | iOS bottom banner |
+| **`ADMOBS_IOS_INTERSTITIAL01`** | iOS interstitial |
+| **`ADMOBS_IOS_REWARDED01`** | iOS rewarded |
+| **`ADMOB_REWARDED_COINS_PER_CLAIM`** | Coins shown in UI + server claim API (shared) |
+| **`ADMOB_REWARDED_DAILY_CAP`** | Client UTC daily cap for watch-ad button (shared) |
+
+Legacy flat keys (`ADMOBS_TOP_BANNER01`, etc.) still map to **Android** when `ADMOBS_ANDROID_*` are unset.
 
 **Flutter build (`.env.dart.defines.*`) — native app id + consent only:**
 
 | Variable | Used for | Notes |
 |----------|-----------|--------|
-| **`ADMOB_APPLICATION_ID`** | Android **app** id (`ca-app-pub-XXXXXXXX~YYYYYYYY`). **Not** an ad unit. | Requires **rebuild** to change. Must match the AdMob app for your unit IDs. |
+| **`ADMOB_APPLICATION_ID`** | Android **app** id (`ca-app-pub-XXXXXXXX~YYYYYYYY`). **Not** an ad unit. | Requires **rebuild** to change. Must match Android unit IDs. |
 | **`ADMOB_DEBUG_LOGS`** | Extra `[AdMob]` logs via `dbgAdMob` | `true` / `false`. |
 | **`ADMOB_TAG_FOR_CHILD_DIRECTED_TREATMENT`** | `RequestConfiguration` | `-1` default unspecified; `0` / `1` per SDK. |
 | **`ADMOB_TAG_FOR_UNDER_AGE_OF_CONSENT_REQUEST`** | Same | `-1` default. |
 | **`ADMOB_CONSENT_TAG_UNDER_AGE_OF_CONSENT`** | UMP `ConsentRequestParameters` | `true` / `false`. |
 
-**Do not** put `ADMOBS_*` or `ADMOB_REWARDED_*` in dart-defines — SSOT is `.env.local` / `.env.prod` (Flask) → `GET /public/dutch/init-config`. Native **application** id is always production (`6524100109992126~6470366151`); unit ids may differ per env file.
+**Do not** put `ADMOBS_*` or `ADMOB_REWARDED_*` in dart-defines — SSOT is `.env.local` / `.env.prod` (Flask) → `GET /public/dutch/init-config`. Native app ids are per platform: Android `~6470366151`, iOS `~6082396455` (rebuild required to change).
 
 ### 2.2 Android application ID precedence (`build.gradle.kts`)
 
@@ -76,8 +82,10 @@ android/app/src/main/AndroidManifest.xml
 Example line:
 
 ```properties
-GAD_APPLICATION_ID=ca-app-pub-6524100109992126~6470366151
+GAD_APPLICATION_ID=ca-app-pub-6524100109992126~6082396455
 ```
+
+Android Gradle uses `ADMOB_APPLICATION_ID=ca-app-pub-6524100109992126~6470366151` from dart-defines.
 
 For **local testing with Google’s sample ad units** (`ca-app-pub-3940256099942544/…`), you must use Google’s **sample app id** on iOS as well (`ca-app-pub-3940256099942544~3347511713`), or use **your** real units with **your** `6524100109992126~…` app id. **Never** mix a production app id with Google’s `3940256099942544` sample units — the SDK returns `onAdFailedToLoad` code **1** (“Cannot determine request type…”).
 
@@ -87,15 +95,7 @@ For **local testing with Google’s sample ad units** (`ca-app-pub-3940256099942
 
 At startup, `main()` calls `AdmobConfigBootstrap.hydrateFromPrefsBeforeStats()` then `fetchPublicConfigIfNeeded()` (`GET /public/dutch/init-config`) **before** `bootstrapConsentAndMobileAds()`. Ad modules read effective IDs from `AdmobConfigStore`.
 
-`config.dart` still defines compile-time **fallback** defaults (used when prefs empty and network unavailable):
-
-```dart
-static const String admobsTopBanner = String.fromEnvironment(
-  'ADMOBS_TOP_BANNER01',
-  defaultValue: 'ca-app-pub-6524100109992126/3612268528',
-);
-// ... bottom, interstitial, rewarded ...
-```
+`AdmobConfigStore` picks `admob_config.android` or `admob_config.ios` by platform. `config.dart` defines per-platform compile-time fallbacks (`admobsAndroidTopBanner`, `admobsIosTopBanner`, etc.).
 
 **Note:** `ADMOB_APPLICATION_ID` is **not** read in Dart; it exists for Gradle (Android) / xcconfig (iOS) only.
 

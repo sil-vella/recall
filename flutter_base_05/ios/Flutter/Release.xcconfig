@@ -1,4 +1,4 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
-// Production Dutch AdMob app id. Unit ids from Flask init-config. Sync: playbooks/frontend/ios_admob_gad_app_id.sh
-GAD_APPLICATION_ID=ca-app-pub-6524100109992126~6470366151
+// Production Dutch iOS AdMob app id. Android uses Gradle ADMOB_APPLICATION_ID (~6470366151).
+GAD_APPLICATION_ID=ca-app-pub-6524100109992126~6082396455

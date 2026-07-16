@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.reignofplay.dutch",
+      "sha256_cert_fingerprints": [
+        "4B:14:C9:82:37:F6:F5:DE:4F:A7:F5:0F:C5:E6:CA:0A:C0:C3:5A:F8:23:C1:FA:DA:BF:DB:A8:3C:4C:E7:3D:18"
+      ]
+    }
+  }
+]

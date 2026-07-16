@@ -12,6 +12,10 @@ import '../../../../core/managers/module_manager.dart';
 import '../admob_config_store.dart';
 import '../ad_experience_policy.dart';
 import '../admob_trace.dart';
+import '../../../../utils/dev_logger.dart';
+
+// ignore: constant_identifier_names — set false when not debugging banner loads.
+const bool LOGGING_SWITCH = true;
 
 /// Loads banner units and displays each slot with its own [BannerAd] + [AdWidget].
 ///
@@ -115,15 +119,29 @@ class BannerAdModule extends ModuleBase {
 
     _loadsInFlight.add(key);
     final size = await adaptiveSizeForWidth(anchorWidthDp);
+    if (LOGGING_SWITCH) {
+      customlog('BannerAdModule: loadBannerAd slot=$slot unitId=$adUnitId');
+    }
     final bannerAd = BannerAd(
       adUnitId: adUnitId,
       size: size,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdLoaded: (Ad ad) => _preloadedByKey[key] = ad as BannerAd,
+        onAdLoaded: (Ad ad) {
+          _preloadedByKey[key] = ad as BannerAd;
+          if (LOGGING_SWITCH) {
+            customlog('BannerAdModule: onAdLoaded slot=$slot unitId=$adUnitId');
+          }
+        },
         onAdFailedToLoad: (Ad ad, LoadAdError error) {
           ad.dispose();
           _preloadedByKey.remove(key);
+          if (LOGGING_SWITCH) {
+            customlog(
+              'BannerAdModule: onAdFailedToLoad slot=$slot unitId=$adUnitId '
+              'code=${error.code} domain=${error.domain} message=${error.message}',
+            );
+          }
         },
       ),
     );
@@ -153,12 +171,22 @@ class BannerAdModule extends ModuleBase {
 
     final completer = Completer<BannerAd?>();
     final size = await adaptiveSizeForWidth(anchorWidthDp);
+    if (LOGGING_SWITCH) {
+      customlog(
+        'BannerAdModule: loadBannerAdForHost slot=$slot unitId=$adUnitId host=${hostKey.hashCode}',
+      );
+    }
     final bannerAd = BannerAd(
       adUnitId: adUnitId,
       size: size,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) {
+          if (LOGGING_SWITCH) {
+            customlog(
+              'BannerAdModule: host onAdLoaded slot=$slot unitId=$adUnitId host=${hostKey.hashCode}',
+            );
+          }
           if (!completer.isCompleted) completer.complete(ad as BannerAd);
         },
         onAdFailedToLoad: (Ad ad, LoadAdError error) {
@@ -167,6 +195,12 @@ class BannerAdModule extends ModuleBase {
             'host onAdFailedToLoad slot=$slot host=${hostKey.hashCode} '
             'width=$anchorWidthDp code=${error.code} message=${error.message}',
           );
+          if (LOGGING_SWITCH) {
+            customlog(
+              'BannerAdModule: host onAdFailedToLoad slot=$slot unitId=$adUnitId '
+              'code=${error.code} message=${error.message}',
+            );
+          }
           ad.dispose();
           if (!completer.isCompleted) completer.complete(null);
         },

@@ -12,20 +12,45 @@ from tools.dev_logger import customlog
 LOGGING_SWITCH = True
 
 
+def _platform_units(
+    *,
+    top: str,
+    bottom: str,
+    interstitial: str,
+    rewarded: str,
+) -> Dict[str, str]:
+    return {
+        "top_banner": top,
+        "bottom_banner": bottom,
+        "interstitial": interstitial,
+        "rewarded": rewarded,
+    }
+
+
 def build_client_admob_payload() -> Dict[str, Any]:
-    """Non-secret AdMob unit IDs and rewarded UI knobs for Flutter."""
-    payload = {
-        "top_banner": Config.ADMOBS_TOP_BANNER01,
-        "bottom_banner": Config.ADMOBS_BOTTOM_BANNER01,
-        "interstitial": Config.ADMOBS_INTERSTITIAL01,
-        "rewarded": Config.ADMOBS_REWARDED01,
+    """Non-secret AdMob unit IDs and rewarded UI knobs for Flutter (per platform)."""
+    payload: Dict[str, Any] = {
+        "android": _platform_units(
+            top=Config.ADMOBS_ANDROID_TOP_BANNER01,
+            bottom=Config.ADMOBS_ANDROID_BOTTOM_BANNER01,
+            interstitial=Config.ADMOBS_ANDROID_INTERSTITIAL01,
+            rewarded=Config.ADMOBS_ANDROID_REWARDED01,
+        ),
+        "ios": _platform_units(
+            top=Config.ADMOBS_IOS_TOP_BANNER01,
+            bottom=Config.ADMOBS_IOS_BOTTOM_BANNER01,
+            interstitial=Config.ADMOBS_IOS_INTERSTITIAL01,
+            rewarded=Config.ADMOBS_IOS_REWARDED01,
+        ),
         "rewarded_coins_per_claim": Config.ADMOB_REWARDED_COINS_PER_CLAIM,
         "rewarded_daily_cap": Config.ADMOB_REWARDED_DAILY_CAP,
     }
     if LOGGING_SWITCH:
         customlog(
-            f"admob_client_config: build payload rewarded={payload['rewarded']} "
-            f"interstitial={payload['interstitial']} coins={payload['rewarded_coins_per_claim']}"
+            "admob_client_config: build payload "
+            f"android_rewarded={payload['android']['rewarded']} "
+            f"ios_rewarded={payload['ios']['rewarded']} "
+            f"coins={payload['rewarded_coins_per_claim']}"
         )
     return payload
 

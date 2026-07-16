@@ -1,17 +1,14 @@
 ---
 # Upload static landing to Dutch nginx docroot only (prefixed paths, not generic /css/ or /js/).
-# Replaces: index.html, files under static_landing_css/, static_landing_js/, static_landing_images/.
+# Replaces: index.html, app-ads.txt, .well-known/, gotoapp/, static_landing_* trees.
 # Does NOT modify: downloads/, app_media/, sim_players/, or any other paths.
 #
-# Nginx on the VPS must serve these prefixes from disk (before regex proxy to Flask), e.g.:
-#   location ^~ /static_landing_css/ { alias /var/www/dutch.reignofplay.com/static_landing_css/; ... }
-#   location ^~ /static_landing_js/   { alias .../static_landing_js/; ... }
-#   location ^~ /static_landing_images/ { alias .../static_landing_images/; ... }
-# See website/README.md
+# Nginx: /.well-known/ + /gotoapp/ static; /rl/<CODE> → 302 /?ref=<CODE> — see website/README.md
+# Referral flow: Shlink /rl/CODE → landing ?ref= → GET BONUS COINS → /gotoapp/CODE → app
 #
 #   ansible-playbook -i playbooks/rop01/inventory.ini playbooks/rop01/17_upload_dutch_landing_site.yml -e vm_name=rop01
 #
-- name: Upload Dutch static landing (index + static_landing_css + static_landing_js + static_landing_images)
+- name: Upload Dutch static landing (index + well-known + referral + static_landing_*)
   hosts: "{{ vm_name | default('rop01') }}_user"
   become: true
   vars:
@@ -47,6 +44,8 @@
         - "{{ dutch_web_root }}/static_landing_css"
         - "{{ dutch_web_root }}/static_landing_js"
         - "{{ dutch_web_root }}/static_landing_images"
+        - "{{ dutch_web_root }}/.well-known"
+        - "{{ dutch_web_root }}/gotoapp"
 
     - name: Install index.html
       ansible.builtin.copy:
@@ -60,6 +59,30 @@
       ansible.builtin.copy:
         src: "{{ landing_src }}/app-ads.txt"
         dest: "{{ dutch_web_root }}/app-ads.txt"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
+    - name: Install apple-app-site-association (iOS Universal Links)
+      ansible.builtin.copy:
+        src: "{{ landing_src }}/.well-known/apple-app-site-association"
+        dest: "{{ dutch_web_root }}/.well-known/apple-app-site-association"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
+    - name: Install assetlinks.json (Android App Links)
+      ansible.builtin.copy:
+        src: "{{ landing_src }}/.well-known/assetlinks.json"
+        dest: "{{ dutch_web_root }}/.well-known/assetlinks.json"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
+    - name: Install gotoapp fallback page (/gotoapp/* when app not installed)
+      ansible.builtin.copy:
+        src: "{{ landing_src }}/gotoapp/index.html"
+        dest: "{{ dutch_web_root }}/gotoapp/index.html"
         owner: www-data
         group: www-data
         mode: "0644"

@@ -1,0 +1,20 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "D6J4Y6ZQGV.com.reignofplay.dutch"
+        ],
+        "paths": [
+          "/gotoapp/*"
+        ],
+        "components": [
+          {
+            "/": "/gotoapp/*"
+          }
+        ]
+      }
+    ]
+  }
+}

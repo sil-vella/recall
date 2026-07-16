@@ -438,18 +438,62 @@ class Config:
         "apple_root_certs_dir", "APPLE_ROOT_CERTS_DIR", ""
     )
 
-    # AdMob unit IDs (served to Flutter via init-config; not secrets)
-    ADMOBS_TOP_BANNER01 = get_file_first_config_value(
-        "admobs_top_banner01", "ADMOBS_TOP_BANNER01", "ca-app-pub-6524100109992126/3612268528"
+    # AdMob unit IDs (served to Flutter via init-config; not secrets). Per-platform SSOT.
+    _ADMOBS_ANDROID_TOP_DEFAULT = "ca-app-pub-6524100109992126/3612268528"
+    _ADMOBS_ANDROID_BOTTOM_DEFAULT = "ca-app-pub-6524100109992126/3612268528"
+    _ADMOBS_ANDROID_INTERSTITIAL_DEFAULT = "ca-app-pub-6524100109992126/4685169868"
+    _ADMOBS_ANDROID_REWARDED_DEFAULT = "ca-app-pub-6524100109992126/8821901598"
+    _ADMOBS_IOS_TOP_DEFAULT = "ca-app-pub-6524100109992126/4416705385"
+    _ADMOBS_IOS_BOTTOM_DEFAULT = "ca-app-pub-6524100109992126/4416705385"
+    _ADMOBS_IOS_INTERSTITIAL_DEFAULT = "ca-app-pub-6524100109992126/2483988254"
+    _ADMOBS_IOS_REWARDED_DEFAULT = "ca-app-pub-6524100109992126/4336814337"
+
+    # Legacy flat keys (Android) — used when ADMOBS_ANDROID_* unset.
+    _ADMOBS_LEGACY_TOP = get_file_first_config_value(
+        "admobs_top_banner01", "ADMOBS_TOP_BANNER01", _ADMOBS_ANDROID_TOP_DEFAULT
     ).strip()
-    ADMOBS_BOTTOM_BANNER01 = get_file_first_config_value(
-        "admobs_bottom_banner01", "ADMOBS_BOTTOM_BANNER01", "ca-app-pub-6524100109992126/3612268528"
+    _ADMOBS_LEGACY_BOTTOM = get_file_first_config_value(
+        "admobs_bottom_banner01", "ADMOBS_BOTTOM_BANNER01", _ADMOBS_ANDROID_BOTTOM_DEFAULT
     ).strip()
-    ADMOBS_INTERSTITIAL01 = get_file_first_config_value(
-        "admobs_interstitial01", "ADMOBS_INTERSTITIAL01", "ca-app-pub-6524100109992126/4685169868"
+    _ADMOBS_LEGACY_INTERSTITIAL = get_file_first_config_value(
+        "admobs_interstitial01", "ADMOBS_INTERSTITIAL01", _ADMOBS_ANDROID_INTERSTITIAL_DEFAULT
     ).strip()
-    ADMOBS_REWARDED01 = get_file_first_config_value(
-        "admobs_rewarded01", "ADMOBS_REWARDED01", "ca-app-pub-6524100109992126/8821901598"
+    _ADMOBS_LEGACY_REWARDED = get_file_first_config_value(
+        "admobs_rewarded01", "ADMOBS_REWARDED01", _ADMOBS_ANDROID_REWARDED_DEFAULT
+    ).strip()
+
+    ADMOBS_ANDROID_TOP_BANNER01 = get_file_first_config_value(
+        "admobs_android_top_banner01",
+        "ADMOBS_ANDROID_TOP_BANNER01",
+        _ADMOBS_LEGACY_TOP or _ADMOBS_ANDROID_TOP_DEFAULT,
+    ).strip()
+    ADMOBS_ANDROID_BOTTOM_BANNER01 = get_file_first_config_value(
+        "admobs_android_bottom_banner01",
+        "ADMOBS_ANDROID_BOTTOM_BANNER01",
+        _ADMOBS_LEGACY_BOTTOM or _ADMOBS_ANDROID_BOTTOM_DEFAULT,
+    ).strip()
+    ADMOBS_ANDROID_INTERSTITIAL01 = get_file_first_config_value(
+        "admobs_android_interstitial01",
+        "ADMOBS_ANDROID_INTERSTITIAL01",
+        _ADMOBS_LEGACY_INTERSTITIAL or _ADMOBS_ANDROID_INTERSTITIAL_DEFAULT,
+    ).strip()
+    ADMOBS_ANDROID_REWARDED01 = get_file_first_config_value(
+        "admobs_android_rewarded01",
+        "ADMOBS_ANDROID_REWARDED01",
+        _ADMOBS_LEGACY_REWARDED or _ADMOBS_ANDROID_REWARDED_DEFAULT,
+    ).strip()
+
+    ADMOBS_IOS_TOP_BANNER01 = get_file_first_config_value(
+        "admobs_ios_top_banner01", "ADMOBS_IOS_TOP_BANNER01", _ADMOBS_IOS_TOP_DEFAULT
+    ).strip()
+    ADMOBS_IOS_BOTTOM_BANNER01 = get_file_first_config_value(
+        "admobs_ios_bottom_banner01", "ADMOBS_IOS_BOTTOM_BANNER01", _ADMOBS_IOS_BOTTOM_DEFAULT
+    ).strip()
+    ADMOBS_IOS_INTERSTITIAL01 = get_file_first_config_value(
+        "admobs_ios_interstitial01", "ADMOBS_IOS_INTERSTITIAL01", _ADMOBS_IOS_INTERSTITIAL_DEFAULT
+    ).strip()
+    ADMOBS_IOS_REWARDED01 = get_file_first_config_value(
+        "admobs_ios_rewarded01", "ADMOBS_IOS_REWARDED01", _ADMOBS_IOS_REWARDED_DEFAULT
     ).strip()
 
     # AdMob rewarded claim (Flask /userauth/admob/claim-rewarded-ad; client after RewardedAd earned)

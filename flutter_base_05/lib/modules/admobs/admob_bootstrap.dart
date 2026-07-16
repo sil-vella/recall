@@ -4,8 +4,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../utils/consts/config.dart';
+import '../../utils/dev_logger.dart';
 import 'admob_config_store.dart';
 import 'admob_trace.dart';
+
+// ignore: constant_identifier_names — set false when not debugging AdMob bootstrap.
+const bool LOGGING_SWITCH = true;
 
 bool _mobileAdsInitialized = false;
 
@@ -66,6 +70,13 @@ Future<void> bootstrapConsentAndMobileAds() async {
     'Bootstrap',
     'banner top len=${AdmobConfigStore.topBanner.length} bottom len=${AdmobConfigStore.bottomBanner.length}',
   );
+  if (LOGGING_SWITCH) {
+    customlog(
+      'AdmobBootstrap: MobileAds ready top=${AdmobConfigStore.topBanner} '
+      'bottom=${AdmobConfigStore.bottomBanner} interstitial=${AdmobConfigStore.interstitial} '
+      'rewarded=${AdmobConfigStore.rewarded}',
+    );
+  }
   admobTrace(
     'Bootstrap',
     'Android manifest APPLICATION_ID must match the same AdMob app as these ad unit ids.',

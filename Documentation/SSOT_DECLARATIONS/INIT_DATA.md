@@ -38,7 +38,7 @@ Present **only when client revision is missing or stale**:
 | `consumables_catalog` | [CONSUMABLES.md](./CONSUMABLES.md) | [consumables_catalog.json](../../python_base_04/core/modules/dutch_game/config/consumables_catalog.json) |
 | `progression_config` | [PROGRESSION.md](./PROGRESSION.md) | [progression_config.json](../../python_base_04/core/modules/dutch_game/config/progression_config.json) |
 | `achievements_catalog` | [ACHIEVEMENTS.md](./ACHIEVEMENTS.md) | [achievements_config.json](../../python_base_04/core/modules/dutch_game/config/achievements_config.json) |
-| `admob_config` | [Admobs README](../Admobs/README.md) | Flask `Config.ADMOBS_*` / `ADMOB_REWARDED_*` env vars |
+| `admob_config` | [Admobs README](../Admobs/README.md) | Flask `ADMOBS_ANDROID_*` / `ADMOBS_IOS_*` + `ADMOB_REWARDED_*` (nested `android` / `ios` blocks) |
 
 ## Client revision query parameters
 

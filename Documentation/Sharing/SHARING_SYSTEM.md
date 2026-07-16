@@ -308,7 +308,8 @@ On **web** (`kIsWeb`), media share is skipped: only **link/caption text** is sha
 | Feature | Status |
 |---------|--------|
 | Room invite deep links (`dutch://`, universal links) | Not implemented |
-| Referral codes in share URL | Not implemented |
+| Campaign referral short links (`/rl/` → landing → `/gotoapp/`) | Implemented — see [`Documentation/Referrals/CAMPAIGN_REFERRAL_CODES.md`](../Referrals/CAMPAIGN_REFERRAL_CODES.md) |
+| Referral codes in celebration share URL | Not in celebration share text yet |
 | Per-network SDKs (Facebook SDK, TikTok OpenSDK) | Not used — hybrid intents + share_plus only |
 | Dynamic screenshot / widget capture | Removed in favour of bundled assets |
 | Achievement share | Planned; same template pattern |

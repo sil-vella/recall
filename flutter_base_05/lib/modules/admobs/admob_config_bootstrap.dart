@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,7 +10,7 @@ import '../../utils/dev_logger.dart';
 import 'admob_config_store.dart';
 
 // ignore: constant_identifier_names — set false when not debugging AdMob remote config.
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Persists declarative AdMob config from get-init-data / public init-config.
 class AdmobConfigBootstrap {
@@ -37,7 +39,23 @@ class AdmobConfigBootstrap {
       }
       final decoded = jsonDecode(raw);
       if (decoded is Map<String, dynamic>) {
-        _cachedDoc = Map<String, dynamic>.from(decoded);
+        final typed = Map<String, dynamic>.from(decoded);
+        if (!kIsWeb &&
+            defaultTargetPlatform == TargetPlatform.iOS &&
+            AdmobConfigStore.isStaleFlatDocument(typed)) {
+          _cachedDoc = <String, dynamic>{};
+          await prefs.remove(prefDocKey);
+          await prefs.remove(prefRevisionKey);
+          AdmobConfigStore.ensureBuiltinFallback();
+          if (LOGGING_SWITCH) {
+            customlog(
+              'AdmobConfigBootstrap: cleared stale flat admob prefs on iOS '
+              '(old Android/test units) — will refetch nested ios block',
+            );
+          }
+          return;
+        }
+        _cachedDoc = typed;
         AdmobConfigStore.applyDocument(_cachedDoc);
         if (LOGGING_SWITCH) {
           customlog(

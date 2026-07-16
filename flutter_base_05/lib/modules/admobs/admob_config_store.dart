@@ -4,7 +4,7 @@ import '../../../utils/consts/config.dart';
 import '../../../utils/dev_logger.dart';
 
 // ignore: constant_identifier_names — set false when not debugging AdMob remote config.
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// In-memory AdMob unit IDs and rewarded UI knobs from server init-config.
 class AdmobConfigStore {
@@ -12,10 +12,10 @@ class AdmobConfigStore {
 
   static final ValueNotifier<int> changeVersion = ValueNotifier<int>(0);
 
-  static String _topBanner = Config.admobsTopBanner;
-  static String _bottomBanner = Config.admobsBottomBanner;
-  static String _interstitial = Config.admobsInterstitial01;
-  static String _rewarded = Config.admobsRewarded01;
+  static String _topBanner = Config.admobsTopBannerForPlatform;
+  static String _bottomBanner = Config.admobsBottomBannerForPlatform;
+  static String _interstitial = Config.admobsInterstitialForPlatform;
+  static String _rewarded = Config.admobsRewardedForPlatform;
   static int _rewardedCoinsPerClaim = Config.admobRewardedCoinsPerClaim;
   static int _rewardedDailyCap = Config.admobRewardedDailyCap;
 
@@ -27,10 +27,10 @@ class AdmobConfigStore {
   static int get rewardedDailyCap => _rewardedDailyCap;
 
   static void ensureBuiltinFallback() {
-    _topBanner = Config.admobsTopBanner;
-    _bottomBanner = Config.admobsBottomBanner;
-    _interstitial = Config.admobsInterstitial01;
-    _rewarded = Config.admobsRewarded01;
+    _topBanner = Config.admobsTopBannerForPlatform;
+    _bottomBanner = Config.admobsBottomBannerForPlatform;
+    _interstitial = Config.admobsInterstitialForPlatform;
+    _rewarded = Config.admobsRewardedForPlatform;
     _rewardedCoinsPerClaim = Config.admobRewardedCoinsPerClaim;
     _rewardedDailyCap = Config.admobRewardedDailyCap;
     if (LOGGING_SWITCH) {
@@ -42,10 +42,24 @@ class AdmobConfigStore {
   }
 
   static void applyDocument(Map<String, dynamic> doc) {
-    final top = doc['top_banner']?.toString().trim();
-    final bottom = doc['bottom_banner']?.toString().trim();
-    final interstitial = doc['interstitial']?.toString().trim();
-    final rewarded = doc['rewarded']?.toString().trim();
+    final platformDoc = _resolvePlatformDoc(doc);
+    if (LOGGING_SWITCH) {
+      customlog(
+        'AdmobConfigStore: applyDocument platform=${defaultTargetPlatform.name} '
+        'nestedIos=${doc['ios'] != null} nestedAndroid=${doc['android'] != null} '
+        'flatLegacy=${doc.containsKey('top_banner')} resolvedKeys=${platformDoc.keys.toList()}',
+      );
+    }
+    if (platformDoc.isEmpty) {
+      if (LOGGING_SWITCH) {
+        customlog('AdmobConfigStore: applyDocument skip — no platform block for this device');
+      }
+      return;
+    }
+    final top = platformDoc['top_banner']?.toString().trim();
+    final bottom = platformDoc['bottom_banner']?.toString().trim();
+    final interstitial = platformDoc['interstitial']?.toString().trim();
+    final rewarded = platformDoc['rewarded']?.toString().trim();
     final coinsRaw = doc['rewarded_coins_per_claim'];
     final capRaw = doc['rewarded_daily_cap'];
 
@@ -87,6 +101,39 @@ class AdmobConfigStore {
     } else if (LOGGING_SWITCH) {
       customlog('AdmobConfigStore: applyDocument no effective change');
     }
+  }
+
+  /// Picks `android` / `ios` nested block. Flat legacy docs apply on Android only.
+  static Map<String, dynamic> _resolvePlatformDoc(Map<String, dynamic> doc) {
+    if (kIsWeb) {
+      return const <String, dynamic>{};
+    }
+    final platformKey =
+        defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
+    final nested = doc[platformKey];
+    if (nested is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(nested);
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return const <String, dynamic>{};
+    }
+    if (doc.containsKey('top_banner') ||
+        doc.containsKey('bottom_banner') ||
+        doc.containsKey('interstitial') ||
+        doc.containsKey('rewarded')) {
+      return Map<String, dynamic>.from(doc);
+    }
+    return const <String, dynamic>{};
+  }
+
+  /// True when prefs hold pre-platform-split flat doc (often Android/test ids).
+  static bool isStaleFlatDocument(Map<String, dynamic> doc) {
+    final hasNested = doc['ios'] is Map || doc['android'] is Map;
+    if (hasNested) return false;
+    return doc.containsKey('top_banner') ||
+        doc.containsKey('bottom_banner') ||
+        doc.containsKey('interstitial') ||
+        doc.containsKey('rewarded');
   }
 
   static int? _parsePositiveInt(dynamic raw) {

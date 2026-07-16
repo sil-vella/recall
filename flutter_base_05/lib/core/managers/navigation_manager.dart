@@ -12,6 +12,7 @@ import '../00_base/module_base.dart';
 import 'hooks_manager.dart';
 import '../../modules/analytics_module/analytics_module.dart';
 import '../../utils/analytics_service.dart';
+import '../../utils/referral_session_helper.dart';
 import '../../modules/promotional_ads_module/ads_navigator_observer.dart';
 import 'module_manager.dart';
 
@@ -247,6 +248,17 @@ class NavigationManager extends ChangeNotifier {
     
     final allRoutes = [
       GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+      // dutch.reignofplay.com/gotoapp/<CODE> — Universal / App Link (opens app)
+      GoRoute(
+        path: '/gotoapp/:code',
+        redirect: (context, state) {
+          final code = state.pathParameters['code'] ?? '';
+          if (code.isNotEmpty) {
+            ReferralSessionHelper.onDeepLinkCode(code);
+          }
+          return '/';
+        },
+      ),
       ...routes, // ✅ Include dynamically registered plugin routes
     ];
     

@@ -54,5 +54,8 @@
 		<false/>
 		<key>GADApplicationIdentifier</key>
 		<string>$(GAD_APPLICATION_ID)</string>
+		<key>FlutterDeepLinkingEnabled</key>
+		<true/>
 	</dict>
 </plist>
+

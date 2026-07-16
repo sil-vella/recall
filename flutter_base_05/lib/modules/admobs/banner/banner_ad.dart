@@ -15,7 +15,7 @@ import '../admob_trace.dart';
 import '../../../../utils/dev_logger.dart';
 
 // ignore: constant_identifier_names — set false when not debugging banner loads.
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Loads banner units and displays each slot with its own [BannerAd] + [AdWidget].
 ///

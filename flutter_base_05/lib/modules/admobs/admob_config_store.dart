@@ -4,7 +4,7 @@ import '../../../utils/consts/config.dart';
 import '../../../utils/dev_logger.dart';
 
 // ignore: constant_identifier_names — set false when not debugging AdMob remote config.
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// In-memory AdMob unit IDs and rewarded UI knobs from server init-config.
 class AdmobConfigStore {

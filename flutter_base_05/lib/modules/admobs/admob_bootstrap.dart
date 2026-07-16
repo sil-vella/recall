@@ -9,7 +9,7 @@ import 'admob_config_store.dart';
 import 'admob_trace.dart';
 
 // ignore: constant_identifier_names — set false when not debugging AdMob bootstrap.
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 bool _mobileAdsInitialized = false;
 

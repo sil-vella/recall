@@ -15,7 +15,7 @@ import 'dev_logger.dart';
 import 'referral_prefs.dart';
 
 // ignore: constant_identifier_names — file-level gate for customlog (see Logging rules).
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Deep-link → SharedPrefs list → ensure JWT session → POST /userauth/referrals/sync.
 class ReferralSessionHelper {

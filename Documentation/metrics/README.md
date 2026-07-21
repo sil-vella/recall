@@ -77,6 +77,16 @@ Complete Firebase (GA4) client implementation for the Flutter app.
 - Dual analytics path (Firebase GA4 vs backend `AnalyticsModule`)
 - Launch scripts, DebugView, AdMob interaction, troubleshooting
 
+### [USER_PLAYING_HABITS.md](./USER_PLAYING_HABITS.md)
+How to derive user play cadence and related habits from **current** Mongo + Firebase data (no new pipeline).
+
+**Topics**:
+- Data source map (`user_events`, `last_match_date`, win outcomes, GA4 events)
+- Inter-match interval, finish→start gap, matches per day, recency, duration
+- Identity joins (user id vs username)
+- Gaps and recommended KPI definitions
+- Code touchpoints
+
 ## Quick Start
 
 1. **Read Overview**: Start with [OVERVIEW.md](./OVERVIEW.md) to understand the system
@@ -95,6 +105,7 @@ Complete Firebase (GA4) client implementation for the Flutter app.
 
 - **Backend metrics (Prometheus/Grafana)** are collected in `python_base_04` only
 - **Flutter also sends product events to Firebase GA4** on native Android/iOS — see [FIREBASE_IMPLEMENTATION.md](./FIREBASE_IMPLEMENTATION.md)
+- **Playing habits from existing events** (inter-match gaps, recency, etc.) — see [USER_PLAYING_HABITS.md](./USER_PLAYING_HABITS.md)
 - **Flutter backend analytics** (`AnalyticsModule`) posts to `/userauth/analytics/track` and feeds Prometheus
 - **Metrics exposed via Flask route (port 5001) and HTTP server (port 8000)**
 - **Prometheus scrapes every 15 seconds**

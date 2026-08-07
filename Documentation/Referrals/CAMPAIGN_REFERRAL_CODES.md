@@ -45,6 +45,37 @@ Fallback: if the app is not installed, `/gotoapp/<REFCODE>` shows store CTAs; **
 - Endpoint: `POST /userauth/referrals/sync` `{ "codes": ["…"] }`
 - Seed: `playbooks/00_local/seed_referral_campaign.py` (`--max-per-user`)
 
+## How we tell how a ref code is doing
+
+Measurement is **aggregate per code**, not click→user attribution.
+
+### Typical user path (no deferred deep link)
+
+1. First open of Shlink `/rl/<CODE>` (often **no app yet**) → landing `/?ref=<CODE>` → store badges / GET BONUS COINS. Shlink records a **visit**.
+2. User installs from the store.
+3. User opens the **same Shlink again** → landing → GET BONUS COINS → app opens with the code → `POST /userauth/referrals/sync` → coins if campaign allows.
+
+We do **not** join the first and second Shlink clicks to the same Dutch `user_id`. There is no shared click ID or device fingerprint between Shlink and the app. The second open only proves that **this** logged-in/guest user redeemed the code.
+
+### Aggregate signals (per code)
+
+| Signal | Source | What it means |
+|--------|--------|----------------|
+| Interest / clicks | Shlink visit count on `/rl/<CODE>` | How often the share link was opened |
+| Claims / rewards | Mongo `referral_campaigns.redemption_count` | Successful reward credits for that campaign |
+| Who claimed | Users with that code in `modules.referrals.referral_codes` / `referral_code_counts` | Distinct redeemers (and per-user counts) |
+| Rough funnel | Shlink visits vs `redemption_count` (or distinct redeemers) | Code-level performance: clicks → paid-out usage |
+
+### What this does *not* prove
+
+| Claim | Supported? |
+|-------|------------|
+| “This Shlink visit became that install” | **No** — Shlink does not track App Store / Play installs |
+| “Pre-install click and post-install claim are the same person” | **No** — no identity link across the two clicks |
+| “How many installs a post drove” | **No** from Shlink alone — needs store / attribution tooling |
+
+Use Shlink for **link interest**, Mongo redemptions for **reward conversion**, and compare them for a **code-level** view of how the ref is doing.
+
 ## Hosting / deploy
 
 | Asset | Path |

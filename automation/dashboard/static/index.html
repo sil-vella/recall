@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+  <link rel="stylesheet" href="/static/style.css?v=palette-2">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1 id="dashboard-brand-title">dashboard</h1>
+      <p class="subtitle">GUI alternative to CLI wfrun</p>
+    </div>
+    <div class="session-meta" id="session-meta">Loading session…</div>
+  </header>
+
+  <nav class="main-tabs" id="main-tabs" aria-label="Dashboard views" role="tablist">
+    <button type="button" class="main-tab active" role="tab" aria-selected="true" aria-controls="view-scripts" id="tab-scripts" data-view="scripts">Scripts</button>
+    <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-task-manager" id="tab-task-manager" data-view="task-manager">Task Manager</button>
+    <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-marketing" id="tab-marketing" data-view="marketing">Marketing</button>
+  </nav>
+
+  <div class="view-stack">
+    <div class="view-panel active" id="view-scripts" role="tabpanel" aria-labelledby="tab-scripts" data-view="scripts">
+      <main class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <h2>Scripts</h2>
+            <button type="button" id="stop-btn" class="stop-btn" disabled>Stop</button>
+          </div>
+          <div class="sidebar-body">
+            <nav id="accordion-nav" class="accordion-nav" aria-label="Script groups"></nav>
+            <div id="accordion-content" class="accordion-content">
+              <p class="accordion-placeholder">Select a section</p>
+            </div>
+          </div>
+        </aside>
+
+        <section class="terminal-pane">
+          <div class="terminal-tabs" id="terminal-tabs" aria-label="Open terminals"></div>
+          <div class="terminal-toolbar" id="terminal-toolbar" hidden>
+            <button type="button" id="run-btn" class="run-btn">Run script</button>
+            <div class="session-id-group">
+              <span class="session-id-label">log</span>
+              <button type="button" id="session-id-btn" class="session-id-btn" title="Relative log file path"></button>
+              <button type="button" id="copy-session-id-btn" class="copy-btn" title="Copy relative log path">Copy</button>
+            </div>
+            <span id="active-script" class="active-script-path"></span>
+          </div>
+          <div id="terminal-stack" class="terminal-stack">
+            <p class="terminal-placeholder" id="terminal-placeholder">
+              Select a script to open its terminal
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="view-panel" id="view-task-manager" role="tabpanel" aria-labelledby="tab-task-manager" data-view="task-manager" hidden>
+      <iframe
+        id="task-manager-frame"
+        class="embed-frame"
+        title="Task Manager"
+        referrerpolicy="no-referrer-when-downgrade"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
+      ></iframe>
+      <p class="placeholder-panel" id="task-manager-missing" hidden>
+        Set <code>TASK_MANAGER_BASE_URL</code> and <code>TASK_MANAGER_SLUG</code> in <code>.env.local</code> / <code>.env.prod</code>.
+      </p>
+      <p class="embed-status" id="task-manager-status" hidden></p>
+    </div>
+
+    <div class="view-panel" id="view-marketing" role="tabpanel" aria-labelledby="tab-marketing" data-view="marketing" hidden>
+      <!-- Landing: saved posts list -->
+      <div class="marketing-landing" id="mkt-landing">
+        <div class="marketing-header">
+          <div>
+            <h2>Marketing</h2>
+            <p class="marketing-sub">Saved posts. Create a new post or open details (includes publish results).</p>
+          </div>
+          <button type="button" class="run-btn" id="mkt-create-new">Create New Post</button>
+        </div>
+        <p class="marketing-hint" id="mkt-list-status" hidden></p>
+        <ul class="marketing-post-list" id="mkt-post-list" aria-label="Saved posts"></ul>
+        <p class="marketing-empty" id="mkt-list-empty" hidden>No posts yet. Create New Post to compose one.</p>
+      </div>
+
+      <!-- Detail: one saved post -->
+      <div class="marketing-detail" id="mkt-detail" hidden>
+        <div class="marketing-header">
+          <div>
+            <button type="button" class="copy-btn" id="mkt-detail-back">← Back</button>
+            <h2 id="mkt-detail-title">Post</h2>
+            <p class="marketing-sub" id="mkt-detail-meta"></p>
+          </div>
+        </div>
+        <pre id="mkt-detail-json" class="marketing-preview-json"></pre>
+      </div>
+
+      <!-- Compose: current create-post form -->
+      <div class="marketing-layout" id="mkt-compose" hidden>
+        <div class="marketing-main">
+          <div class="marketing-header">
+            <div>
+              <button type="button" class="copy-btn" id="mkt-compose-back">← Back</button>
+              <h2>Create post</h2>
+              <p class="marketing-sub">Compose for Facebook, YouTube, and/or TikTok. Publishes only to the platforms you select. YouTube keeps title + description separate; Facebook and TikTok merge them (title, then description).</p>
+            </div>
+          </div>
+
+          <form id="mkt-form" class="marketing-form" novalidate>
+            <fieldset class="marketing-fieldset">
+              <legend>Platforms</legend>
+              <div class="marketing-platforms" role="group" aria-label="Select platforms">
+                <label class="marketing-check">
+                  <input type="checkbox" name="platform" value="facebook" data-platform="facebook">
+                  <span>Facebook</span>
+                </label>
+                <label class="marketing-check">
+                  <input type="checkbox" name="platform" value="youtube" data-platform="youtube">
+                  <span>YouTube</span>
+                </label>
+                <label class="marketing-check">
+                  <input type="checkbox" name="platform" value="tiktok" data-platform="tiktok">
+                  <span>TikTok</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="marketing-fieldset">
+              <legend>Post details</legend>
+              <label class="marketing-field">
+                <span>Title</span>
+                <input type="text" id="mkt-title" name="title" maxlength="200" required autocomplete="off">
+              </label>
+              <label class="marketing-field">
+                <span>Description</span>
+                <textarea id="mkt-description" name="description" rows="5" maxlength="5000"></textarea>
+              </label>
+              <label class="marketing-field">
+                <span>Image / video</span>
+                <input type="file" id="mkt-media" name="media" accept="image/*,video/*">
+                <span class="marketing-hint" id="mkt-media-hint">No file selected</span>
+              </label>
+              <div class="marketing-field">
+                <span>Hashtags</span>
+                <div class="marketing-hashtag-row">
+                  <input type="text" id="mkt-hashtag-input" maxlength="64" placeholder="#campaign" autocomplete="off">
+                  <button type="button" class="copy-btn" id="mkt-hashtag-add">Add</button>
+                </div>
+                <div class="marketing-chip-list" id="mkt-hashtag-selected" aria-live="polite"></div>
+              </div>
+            </fieldset>
+
+            <div id="mkt-opts-facebook" class="marketing-platform-opts" data-platform-opts="facebook" hidden>
+              <h3>Facebook options</h3>
+              <p class="marketing-hint">Posts to FACEBOOK_PAGE_ID from env.</p>
+              <label class="marketing-field">
+                <span>Post type</span>
+                <select id="mkt-fb-type" name="fb_type">
+                  <option value="feed">Feed</option>
+                  <option value="link">Link</option>
+                </select>
+              </label>
+              <label class="marketing-field" id="mkt-fb-link-wrap" hidden>
+                <span>Link URL</span>
+                <input type="url" id="mkt-fb-link" name="fb_link" placeholder="https://">
+              </label>
+              <label class="marketing-check">
+                <input type="checkbox" id="mkt-fb-schedule-later" name="fb_schedule_later">
+                <span>Schedule for later</span>
+              </label>
+              <label class="marketing-field" id="mkt-fb-schedule-wrap" hidden>
+                <span>Schedule at</span>
+                <input type="datetime-local" id="mkt-fb-schedule" name="fb_schedule">
+              </label>
+            </div>
+
+            <div id="mkt-opts-youtube" class="marketing-platform-opts" data-platform-opts="youtube" hidden>
+              <h3>YouTube options</h3>
+              <label class="marketing-field">
+                <span>Privacy</span>
+                <select id="mkt-yt-privacy" name="yt_privacy">
+                  <option value="private">Private</option>
+                  <option value="unlisted">Unlisted</option>
+                  <option value="public">Public</option>
+                </select>
+              </label>
+              <label class="marketing-field">
+                <span>Playlist</span>
+                <select id="mkt-yt-playlist" name="yt_playlist">
+                  <option value="">— none —</option>
+                </select>
+              </label>
+              <p id="mkt-yt-playlist-status" class="marketing-hint" hidden></p>
+              <button type="button" id="mkt-yt-playlist-refresh" class="copy-btn">Refresh playlists</button>
+              <label class="marketing-check">
+                <input type="checkbox" id="mkt-yt-schedule-later" name="yt_schedule_later">
+                <span>Schedule for later</span>
+              </label>
+              <label class="marketing-field" id="mkt-yt-schedule-wrap" hidden>
+                <span>Publish at</span>
+                <input type="datetime-local" id="mkt-yt-publish-at" name="yt_publish_at">
+              </label>
+              <p class="marketing-hint">Tags will use the post hashtags list. Schedule uses privacy=private + publishAt. Playlist is applied after upload.</p>
+            </div>
+
+            <div id="mkt-opts-tiktok" class="marketing-platform-opts" data-platform-opts="tiktok" hidden>
+              <h3>TikTok options</h3>
+              <label class="marketing-field">
+                <span>Privacy level</span>
+                <select id="mkt-tt-privacy" name="tt_privacy">
+                  <option value="SELF_ONLY">Self only</option>
+                  <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
+                  <option value="PUBLIC_TO_EVERYONE">Public</option>
+                </select>
+              </label>
+              <label class="marketing-check">
+                <input type="checkbox" id="mkt-tt-disable-comment" name="tt_disable_comment">
+                <span>Disable comments</span>
+              </label>
+              <label class="marketing-check">
+                <input type="checkbox" id="mkt-tt-disable-duet" name="tt_disable_duet">
+                <span>Disable duet</span>
+              </label>
+              <label class="marketing-check">
+                <input type="checkbox" id="mkt-tt-disable-stitch" name="tt_disable_stitch">
+                <span>Disable stitch</span>
+              </label>
+              <label class="marketing-check">
+                <input type="checkbox" id="mkt-tt-schedule-later" name="tt_schedule_later">
+                <span>Schedule for later</span>
+              </label>
+              <label class="marketing-field" id="mkt-tt-schedule-wrap" hidden>
+                <span>Schedule at</span>
+                <input type="datetime-local" id="mkt-tt-schedule" name="tt_schedule">
+              </label>
+              <p class="marketing-hint">Caption = title + newline + description (hashtags appended). Sandbox/unaudited often requires SELF_ONLY. Schedule intent is stored; live schedule depends on TikTok API eligibility.</p>
+            </div>
+
+            <div class="marketing-actions">
+              <button type="submit" class="run-btn" id="mkt-submit">Publish</button>
+              <p class="marketing-error" id="mkt-error" hidden></p>
+              <p class="marketing-warn" id="mkt-warn" hidden></p>
+            </div>
+          </form>
+
+          <section class="marketing-preview" id="mkt-preview" hidden>
+            <h3>Preview payload</h3>
+            <pre id="mkt-preview-json" class="marketing-preview-json"></pre>
+          </section>
+        </div>
+
+        <aside class="marketing-side">
+          <section class="marketing-side-card">
+            <h3>Hashtag quick-add</h3>
+            <p class="marketing-hint">Click a chip to add it to this post. New hashtags are saved here.</p>
+            <div class="marketing-chip-list" id="mkt-hashtag-library"></div>
+          </section>
+          <section class="marketing-side-card">
+            <h3>Description snippets</h3>
+            <p class="marketing-hint">Click to append to the description.</p>
+            <div class="marketing-snippet-list" id="mkt-snippet-list"></div>
+            <div class="marketing-hashtag-row">
+              <input type="text" id="mkt-snippet-input" maxlength="500" placeholder="New snippet (e.g. URL)" autocomplete="off">
+              <button type="button" class="copy-btn" id="mkt-snippet-add">Add</button>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <script src="/static/app.js?v=brand-1"></script>
+  <script src="/static/marketing.js?v=marketing-6"></script>
+</body>
+</html>

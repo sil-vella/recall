@@ -9,10 +9,11 @@ computer_settings:
   decision_delay_seconds: 1.0
   error_rate: 0.05
   # Miss chance to play (probability of not playing when action is available)
+  # Kept low so CPUs rarely skip draw / play / peek / swap.
   miss_chance_to_play:
-    easy: 0.05    # 5% miss chance
-    medium: 0.03  # 3% miss chance
-    hard: 0.01    # 1% miss chance
+    easy: 0.02    # 2% miss chance
+    medium: 0.01  # 1% miss chance
+    hard: 0.0     # 0% miss chance
     expert: 0.0   # 0% miss chance
 
 # Difficulty levels and their corresponding behaviors
@@ -141,6 +142,14 @@ events:
     strategies:
       best_option: "random_unknown_card"  # Play random card not in known_cards
       fallback_option: "highest_known_points"  # Play highest points from known_cards (exclude Jacks)
+
+    # Chance to dump a known own card whose rank matches a known opponent card (1B hard avoid).
+    # Applied only to known own cards; unknown own cards are never filtered by opponent rank.
+    dump_same_rank_as_known_opponent:
+      easy: 0.12
+      medium: 0.06
+      hard: 0.02
+      expert: 0.0
     
     # NEW: YAML-driven strategy rules
     strategy_rules:
@@ -377,6 +386,7 @@ events:
       
   queen_peek:
     # Decision logic for Queen peek
+    # Prefer own unknown cards first; if none, peek another player. Skip only rarely.
     optimal_peek_probability:
       easy: 0.6      # 60% chance to peek optimally
       medium: 0.8    # 80% chance to peek optimally
@@ -385,34 +395,31 @@ events:
     
     # NEW: YAML-driven strategy rules (ordered from expert down to easy)
     strategy_rules:
-      # Rule 1 (Expert/Hard): Peek at own cards that are not yet in known cards (excluding collection cards)
+      # Rule 1: While any own hand card is still unknown, peek it (e.g. 3 known + 1 unknown → peek that one)
       - name: "peek_own_unknown_cards"
         priority: 1
-        description: "Peek at own cards that are not yet in known cards (excluding collection cards)"
+        description: "Peek own hand cards not yet in known_cards until the whole hand is known"
         condition:
           type: "and"
           conditions:
-            # Check if acting player has cards in hand
+            # Hand required; target selection peeks only cards still missing from known_cards
             - field: "acting_player.hand"
-              operator: "not_empty"
-            # Check if acting player has known cards (to compare against)
-            - field: "acting_player.known_cards"
               operator: "not_empty"
         action:
           type: "use_special_play"
           select_targets: true
           target_strategy: "own_unknown_cards"
-        # Probability-based execution (expert/hard use this rule)
+        # High chance to take this rule when own unknowns exist (skips reduced)
         execution_probability:
-          expert: 1.0    # 100% chance to execute if condition met
-          hard: 0.95     # 95% chance to execute if condition met
-          medium: 0.7    # 70% chance to execute if condition met
-          easy: 0.5      # 50% chance to execute if condition met
+          expert: 1.0
+          hard: 1.0
+          medium: 0.98
+          easy: 0.95
       
-      # Rule 2 (Medium/Easy): Random peek at any player's card (excluding their collection cards)
+      # Rule 2: Whole own hand already known (or rule 1 missed) — peek an opponent's card
       - name: "peek_random_other_player"
         priority: 2
-        description: "Random peek at any player's card (excluding their collection cards)"
+        description: "Peek a random card from another player (excluding their collection cards)"
         condition:
           type: "and"
           conditions:
@@ -423,13 +430,14 @@ events:
           type: "use_special_play"
           select_targets: true
           target_strategy: "random_other_player"
+        # Strongly prefer peeking vs skip when no own unknowns left
         execution_probability:
-          expert: 1.0    # 100% chance to execute if condition met
-          hard: 0.95     # 95% chance to execute if condition met
-          medium: 0.7    # 70% chance to execute if condition met
-          easy: 0.5      # 50% chance to execute if condition met
+          expert: 1.0
+          hard: 1.0
+          medium: 0.98
+          easy: 0.95
       
-      # Rule 3: Skip peek (fallback)
+      # Rule 3: Skip peek (rare fallback only)
       - name: "skip_queen_peek"
         priority: 3
         description: "Skip using Queen peek"

@@ -1,0 +1,26 @@
+{
+  "platforms": ["facebook", "youtube", "tiktok"],
+  "title": "",
+  "description": "",
+  "hashtags": [],
+  "facebook": {
+    "post_type": "feed",
+    "link": "",
+    "schedule_at": null,
+    "publish_mode": "now"
+  },
+  "youtube": {
+    "privacy": "public",
+    "tags": [],
+    "publish_at": null,
+    "playlist_id": null,
+    "playlist_title": null
+  },
+  "tiktok": {
+    "privacy_level": "PUBLIC_TO_EVERYONE",
+    "disable_comment": false,
+    "disable_duet": false,
+    "disable_stitch": false,
+    "schedule_at": null
+  }
+}

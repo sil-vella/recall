@@ -46,13 +46,13 @@ Statement: *Other players’ cards enter `known_cards` mainly via queen peek, wr
 
 | Path | Adds other-player cards? | Verified |
 |------|--------------------------|----------|
-| Queen peek | Intended yes; **implementation wrong** (see below) | ✅ audited |
+| Queen peek | Yes — peeker only, under `targetPlayerId` (fixed) | ✅ |
 | Wrong same-rank | Yes — correct | ✅ |
 | Jack swap | Moves already-known cards between owner keys only (no new learn) | ✅ |
 | Discard take | No for observers — only drawing CPU gets own card in `handleDrawCard` | ✅ |
 | Normal play / successful same-rank | No add — `_processPlayCardUpdate` only removes played id (remember-prob) | ✅ |
 
-### Queen peek — expected vs actual ❌
+### Queen peek — expected vs actual (fixed 2026-08-07)
 
 **Expected** (docs + user): only the peeker learns the card, keyed by **opponent (target) owner id** + card id:
 
@@ -60,23 +60,9 @@ Statement: *Other players’ cards enter `known_cards` mainly via queen peek, wr
 peeker.known_cards[targetPlayerId][peekedCardId] = { rank, suit, points, handIndex: targetCardIndex, ... }
 ```
 
-**Actual** (`_processQueenPeekUpdate`, backend + Flutter mirror):
+**Was (bug):** every player’s map got `known_cards[peekerId][peekedCardId]` (wrong owner + broadcast).
 
-1. `updateKnownCards` loops **every** player and mutates each `player['known_cards']`.
-2. Inside the helper, the card is written under **`actingPlayerId` (peeker)**, not `targetPlayerId`.
-3. Card id key is correct (`peekedCardId`); `handIndex` is the target’s index (right index, wrong owner bucket).
-
-Resulting shape for **every** player:
-
-```text
-player.known_cards[peekerId][peekedCardId] = { ..., handIndex: targetCardIndex }
-```
-
-Impacts:
-
-- Peeker’s view of the opponent is **missing** (`known_cards[targetId]` never gets the peek) → jack-swap “lowest opponent” strategies cannot see peeked cards.
-- Peeked card is stored as if it belonged to the **peeker** → can pollute own same-rank candidates / handIndex checks.
-- Non-peekers incorrectly “learn” a card under the peeker’s owner key (info leak / wrong model).
+**Now (fixed):** `updateKnownCards` applies queen_peek only when `player.id == peeker`; `_processQueenPeekUpdate` writes under `targetPlayerId`. Backend + Flutter mirrors. Verify via `QueenPeekKnownCards:` logs (`LOGGING_SWITCH = true` in both `dutch_game_round.dart`).
 
 Call site: `handleQueenPeek` → `updateKnownCards('queen_peek', peekingPlayerId, [targetCardId], swapData: { targetPlayerId, targetCardIndex })`.
 
@@ -96,10 +82,21 @@ Matches `COMP_PLAYER_JACK_SWAP.md`: wrong same-rank reveals go into every player
 
 | Decision | Uses own known? | Uses other players’ known? |
 |----------|-----------------|----------------------------|
-| Play card | Yes (prefer unknown own; else highest points) | **No** |
+| Play card | Yes (prefer unknown own; else highest points among known, with opponent-rank skip) | **Yes (1B+2A)** — known own cards whose rank matches `known_cards[opponentId]` are dump candidates; rare `dump_same_rank_as_known_opponent` may still dump |
 | Same-rank | Yes — **only** own `known_cards[playerId]` matching discard rank | **No** |
 | Jack swap | Yes (own highest for some strategies) | **Yes** — but only strategies that read `known_cards[opponentId]` |
-| Queen peek | Prefer own unknown | Else random other hand |
+| Queen peek | Prefer own unknown first | Else **opponents only** (not self) |
+
+### Queen peek decision (2026-08-07)
+
+**Priority:** keep peeking **own hand cards that are still unknown** until the **whole hand is known**. Partial knowledge is fine (e.g. 3 known + 1 unknown → peek that unknown). Only then → opponent hands → rare skip.
+
+**Skips reduced:** rule 1/2 `execution_probability` raised to expert/hard **1.0**, medium **0.98**, easy **0.95** (was medium 0.7 / easy 0.5 — main skip source when miss_chance already low).
+
+**Fixes:**
+- Rule 1 peeks any hand card missing from `known_cards` (not “empty known only”).
+- Rule 2 target selection excludes acting player (opponents only).
+- `QueenPeekDecision:` logs (`use`, `ownHand`, `targetOwner`, `reasoning`).
 
 ### Verified: jack swap vs queen peek (2026-08-07)
 
@@ -108,13 +105,13 @@ Matches `COMP_PLAYER_JACK_SWAP.md`: wrong same-rank reveals go into every player
 | Part | Result |
 |------|--------|
 | `known_cards` affect jack swap? | **Yes** — `dutch_caller_swap` and `lowest_opponent_higher_own` read the acting player’s full `known_cards` from game state, keyed by **owner** id (`ourFullKnownCards[opponentId]` / skip self). Wrong same-rank (and successful jack-swap moves of already-known cards) can populate those opponent buckets and change swap targets. |
-| Queen peeks affect jack swap? | **No in practice** — `_processQueenPeekUpdate` writes under **peeker** id, not `targetPlayerId`. Strategies that look for `known_cards[opponentId]` never see peeked cards. A peek can only pollute the peeker’s **own** bucket (and is skipped when scanning opponents). |
+| Queen peeks affect jack swap? | **Yes after fix** — peeker stores under `known_cards[targetId]`; `lowest_opponent_higher_own` / `dutch_caller_swap` can see peeked cards. Was broken (stored under peeker id for everyone). |
 
 Strategies that **do not** use opponent `known_cards`: `collection_three_swap`, `one_card_player_priority`, `random_except_own` (hand / collection structure only).
 
-Docs note: `COMP_PLAYER_JACK_SWAP.md` still says peeks feed `lowest_opponent_higher_own` and lists outdated 0% fallbacks; live `getJackSwapDecision` tries all five strategies with high % rolls. Intent in docs matches expected peek write; **code write path breaks that link**.
+Docs note: `COMP_PLAYER_JACK_SWAP.md` lists outdated 0% fallbacks; live `getJackSwapDecision` tries all five strategies with high % rolls. Peek → opponent-bucket → jack-swap link restored by queen-peek known_cards fix.
 
-**Verdict:** Wrong same-rank is correct. Queen peek owner key + broadcast-to-all is a **bug**. Discard take / normal play do not add other players’ cards. Opponent knowledge (when keyed correctly) feeds jack swap; peeks currently do not.
+**Verdict:** Wrong same-rank correct. Queen peek fixed (peeker-only, owner = target). Discard take / normal play do not add other players’ cards. Opponent knowledge feeds jack swap (including peeks after fix).
 
 ### Same-rank / miss path (current)
 
@@ -138,12 +135,12 @@ Docs note: `COMP_PLAYER_JACK_SWAP.md` still says peeks feed `lowest_opponent_hig
 - [x] Confirmed discard take / normal play do not add other players’ cards
 - [ ] List exact config knobs for miss + same-rank (`miss_chance_to_play`, `play_probability`, remember-prob, penalty wipe)
 
-### 2. Fix known_cards correctness (queen peek)
+### 2. Fix known_cards correctness (queen peek) ✅
 
-- [ ] Fix `_processQueenPeekUpdate`: write `known_cards[targetPlayerId][peekedCardId]` with target `handIndex`
-- [ ] Restrict update to **peeker only** (do not write into every player’s map)
-- [ ] Ensure peek `handIndex` stays valid after later hand mutations
-- [ ] Mirror fix in Flutter `dutch_game_round.dart`
+- [x] Fix `_processQueenPeekUpdate`: write `known_cards[targetPlayerId][peekedCardId]` with target `handIndex`
+- [x] Restrict update to **peeker only** (do not write into every player’s map)
+- [x] Mirror fix in Flutter `dutch_game_round.dart`
+- [x] `LOGGING_SWITCH = true` + `QueenPeekKnownCards:` traces for verification
 - [ ] Optionally later: discard-take → observers learn `known_cards[drawerId]` (out of scope unless requested)
 
 ### 3. Lessen missed chances & same-rank skips
@@ -154,38 +151,51 @@ Docs note: `COMP_PLAYER_JACK_SWAP.md` still says peeks feed `lowest_opponent_hig
 - [ ] Review `_maybeClearKnownCardsForCpuOnPenalty` (80% wipe at hand ≥ 7) — softens memory and increases later same-rank skips
 - [ ] Confirm `handIndex` stays in sync after play removals so valid matches are not dropped as out-of-range
 
-### 4. Use other-player knowledge in decisions (optional stretch)
+### 4. Use other-player knowledge in decisions ✅ (play dump skip)
 
-- [ ] Play: avoid dumping ranks opponents are known to hold if same-rank risk matters
+- [x] Play: avoid dumping known own ranks opponents are known to hold (1B hard avoid + `dump_same_rank_as_known_opponent`; 2A known-only)
 - [ ] Same-rank: still primarily own hand; opponent knowledge only for threat awareness
-- [ ] Keep jack-swap strategies working after queen-peek key fix
+- [x] Keep jack-swap strategies working after queen-peek key fix
 
 ### 5. Verify
 
 - [ ] Practice/demo: CPU same-ranks when own known matches discard top
-- [ ] Queen peek → jack swap uses peeked card under correct owner
+- [x] Queen peek → known_cards under correct owner (`QueenPeekKnownCards:`)
 - [ ] Miss rates match YAML (log counts of miss vs play for same-rank)
-- [ ] Sync backend + Flutter YAML and shared_logic copies
+- [x] Sync backend + Flutter YAML and shared_logic copies (play dump skip)
 
 ## Current Progress
 
-- Active plan created.
-- Queen peek / wrong same-rank / discard / play entry paths verified in code (backend + Flutter mirror match).
-- Queen peek bug confirmed; wrong same-rank correct. No code fix yet.
+- Queen peek known_cards bug fixed (peeker-only; owner = target) on backend + Flutter.
+- Play-card opponent same-rank skip (1B+2A) implemented: `dump_same_rank_as_known_opponent` YAML + factory safe/risky split; `PlayCardOpponentRank:` logs (`LOGGING_SWITCH = true` in factories).
+- Wrong same-rank left unchanged (intended broadcast under acting owner).
+- Queen peek skips reduced + opponent-only after own unknowns; own-unknown-first kept; `QueenPeekDecision:` logs.
 
 ## Next Steps
 
-1. Fix `_processQueenPeekUpdate` (owner = target; peeker-only write); mirror Flutter.
-2. Decide miss/skip policy (config-only vs logic change for unknown matches).
-3. Implement same-rank miss reduction.
+1. Redeploy backend; filter `global.log` for `QueenPeekDecision:` — expect `use=true` often, `ownHand=true` while unknowns remain, then `ownHand=false` for opponents.
+2. Runtime verify: filter `global.log` for `PlayCardOpponentRank:` after peek + CPU play.
+3. Decide miss/skip policy for same-rank window.
+4. Implement same-rank miss reduction.
 
 ## Files Modified
 
-_(none yet)_
+- `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart`
+- `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart`
+- `dart_bkend_base_01/lib/modules/dutch_game/config/computer_player_config.yaml`
+- `flutter_base_05/assets/computer_player_config.yaml`
+- `dart_bkend_base_01/lib/modules/dutch_game/utils/platform/computer_player_config_parser.dart`
+- `flutter_base_05/lib/modules/dutch_game/utils/platform/computer_player_config_parser.dart`
+- `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart`
+- `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart`
+- `Documentation/00_Active_plans/cpu-player-decision-making.md`
 
 ## Notes
 
 - CPU same-rank runs **at end of window**, not mid-window like humans — timing is by design for now; change only if product wants mid-window CPU plays.
 - Dead path: `_handleComputerActionWithYAML` case `'same_rank_play'` still uses empty `availableCards`; live path is `_checkComputerPlayerSameRankPlays` only.
 - Remember: edit both Dart backend and Flutter practice mirrors for behavior + YAML.
-)
+- Play dump skip: unknowns never filtered; known matching opponent ranks skipped unless `allowDump` (easy 0.12 … expert 0.0). When `!allowDump`, known-risky also stripped from `playable_cards` so P3 random fallback cannot dump. Optimal-play roll uses difficulty (not strategy name).
+- `PlayCardOpponentRank` logs include `knownRiskyDetail`, `rule=`, `selectedWasRisky=` for live verification.
+- `miss_chance_to_play` lowered: easy 0.02, medium 0.01, hard/expert 0.0 (draw/play/peek/swap/collect).
+- Queen peek: own unknown first; then opponents only; execution_probability easy 0.95 / medium 0.98 / hard+expert 1.0.)

@@ -12,7 +12,7 @@ import 'utils/game_rules_context.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 const int _cpuKnownCardsClearHandThreshold = 7;
 const double _cpuKnownCardsClearProbability = 0.8;
@@ -4372,8 +4372,7 @@ class DutchGameRound {
       
       
 
-      // Update all players' known_cards after successful Queen peek
-      // This adds the peeked card to the peeking player's known_cards (with handIndex in target's hand)
+      // Update peeker's known_cards only: peeker.known_cards[targetPlayerId][cardId]
       updateKnownCards('queen_peek', peekingPlayerId, [targetCardId], swapData: {
         'targetPlayerId': targetPlayerId,
         'targetCardIndex': targetCardIndex,
@@ -6300,7 +6299,9 @@ class DutchGameRound {
   /// This method is called after any card play action to maintain accurate
   /// knowledge tracking for all players (both human and computer).
   /// 
-  /// [eventType]: Type of event ('play_card', 'same_rank_play', 'jack_swap', 'queen_peek', 'wrong_same_rank'). For wrong_same_rank: acting player attempted wrong same rank; add that card to all players' known_cards.
+  /// [eventType]: Type of event ('play_card', 'same_rank_play', 'jack_swap', 'queen_peek', 'wrong_same_rank').
+  /// For wrong_same_rank: acting player attempted wrong same rank; add that card to all players' known_cards.
+  /// For queen_peek: only the peeker's known_cards are updated — peeker.known_cards[targetPlayerId][cardId].
   /// [actingPlayerId]: ID of the player who performed the action
   /// [affectedCardIds]: List of card IDs involved in the action
   /// [swapData]: Optional data (e.g. Jack swap: sourcePlayerId, targetPlayerId, firstCardNewIndex, secondCardNewIndex; Queen peek: targetPlayerId, targetCardIndex; wrong_same_rank: handIndex)
@@ -6336,13 +6337,17 @@ class DutchGameRound {
         
         // Get player's known_cards
         final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+        final thisPlayerId = player['id']?.toString() ?? '';
         
         if (eventType == 'play_card' || eventType == 'same_rank_play') {
           _processPlayCardUpdate(knownCards, affectedCardIds, rememberProb, actingPlayerId, actingPlayer);
         } else if (eventType == 'jack_swap' && swapData != null) {
           _processJackSwapUpdate(knownCards, affectedCardIds, swapData, rememberProb);
         } else if (eventType == 'queen_peek' && swapData != null) {
-          _processQueenPeekUpdate(knownCards, affectedCardIds, swapData, actingPlayerId);
+          // Queen peek is private: only the peeker's known_cards are updated.
+          if (thisPlayerId == actingPlayerId) {
+            _processQueenPeekUpdate(knownCards, affectedCardIds, swapData, actingPlayerId);
+          }
         } else if (eventType == 'wrong_same_rank' && swapData != null) {
           _processWrongSameRankUpdate(knownCards, affectedCardIds, swapData, actingPlayerId);
         }
@@ -6571,7 +6576,9 @@ class DutchGameRound {
     }
   }
 
-  /// Process known_cards update for queen_peek event
+  /// Process known_cards update for queen_peek event.
+  /// Called only for the peeker's known_cards map. Stores under target (owner) id:
+  /// peeker.known_cards[targetPlayerId][peekedCardId] = card + handIndex.
   void _processQueenPeekUpdate(
     Map<String, dynamic> knownCards,
     List<String> affectedCardIds,
@@ -6583,7 +6590,7 @@ class DutchGameRound {
     final peekedCardId = affectedCardIds[0];
     final targetPlayerId = swapData['targetPlayerId']?.toString();
     
-    if (targetPlayerId == null) return;
+    if (targetPlayerId == null || targetPlayerId.isEmpty) return;
     
     // Get the game state to retrieve full card data
     final currentGames = _stateCallback.currentGamesMap;
@@ -6597,32 +6604,46 @@ class DutchGameRound {
     // Get full card data for the peeked card
     final fullCardData = _stateCallback.getCardById(gameState, peekedCardId);
     if (fullCardData == null) {
-      
+      if (LOGGING_SWITCH) {
+        customlog(
+          'QueenPeekKnownCards: abort no cardData peeker=$actingPlayerId '
+          'target=$targetPlayerId cardId=$peekedCardId',
+        );
+      }
       return;
     }
     
-    // Add the peeked card to the peeking player's known_cards
-    // actingPlayerId is the peeking player
-    if (!knownCards.containsKey(actingPlayerId)) {
-      knownCards[actingPlayerId] = <String, dynamic>{};
+    // Peeker learns target's card: key by owner (target), not by peeker.
+    if (!knownCards.containsKey(targetPlayerId)) {
+      knownCards[targetPlayerId] = <String, dynamic>{};
     }
     
-    final peekingPlayerCardsRaw = knownCards[actingPlayerId];
-    Map<String, dynamic> peekingPlayerCards;
-    if (peekingPlayerCardsRaw is Map) {
-      peekingPlayerCards = Map<String, dynamic>.from(peekingPlayerCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+    final targetOwnerCardsRaw = knownCards[targetPlayerId];
+    Map<String, dynamic> targetOwnerCards;
+    if (targetOwnerCardsRaw is Map) {
+      targetOwnerCards = Map<String, dynamic>.from(targetOwnerCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
     } else {
-      peekingPlayerCards = <String, dynamic>{};
+      targetOwnerCards = <String, dynamic>{};
     }
     
-    // Add the peeked card to known_cards with handIndex in target player's hand
-    final targetCardIndex = swapData['targetCardIndex'] is int ? swapData['targetCardIndex'] as int : (swapData['targetCardIndex'] is num ? (swapData['targetCardIndex'] as num).toInt() : -1);
+    final targetCardIndex = swapData['targetCardIndex'] is int
+        ? swapData['targetCardIndex'] as int
+        : (swapData['targetCardIndex'] is num ? (swapData['targetCardIndex'] as num).toInt() : -1);
     final cardWithIndex = Map<String, dynamic>.from(fullCardData);
     cardWithIndex['handIndex'] = targetCardIndex;
-    peekingPlayerCards[peekedCardId] = cardWithIndex;
-    knownCards[actingPlayerId] = peekingPlayerCards;
-    
-    
+    targetOwnerCards[peekedCardId] = cardWithIndex;
+    knownCards[targetPlayerId] = targetOwnerCards;
+
+    if (LOGGING_SWITCH) {
+      final ownerKeys = knownCards.keys.map((k) => k.toString()).toList()..sort();
+      final targetBucketIds = targetOwnerCards.keys.map((k) => k.toString()).toList()..sort();
+      customlog(
+        'QueenPeekKnownCards: peekerOnly peeker=$actingPlayerId '
+        'owner=$targetPlayerId cardId=$peekedCardId handIndex=$targetCardIndex '
+        'rank=${cardWithIndex['rank']} points=${cardWithIndex['points']} '
+        'peekerOwnerBuckets=$ownerKeys targetBucketCardIds=$targetBucketIds',
+      );
+    }
   }
 
   /// Process known_cards update for wrong_same_rank event (wrong same-rank attempt: add the attempted card to all players' known_cards).

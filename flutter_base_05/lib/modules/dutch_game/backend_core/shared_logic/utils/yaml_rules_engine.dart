@@ -4,7 +4,8 @@ import '../../../utils/platform/shared_imports.dart';
 /// YAML Rules Engine - Generic interpreter for YAML-defined decision rules
 class YamlRulesEngine {
   final Random _random = Random();
-  /// Execute YAML rules and return selected card ID
+  /// Execute YAML rules and return selected card ID.
+  /// Also sets [gameData]['_last_yaml_rule'] to the rule name (or fallback label).
   String executeRules(List<dynamic> rules, Map<String, dynamic> gameData, bool shouldPlayOptimal) {
     
     
@@ -17,7 +18,7 @@ class YamlRulesEngine {
     // If not playing optimally, skip to last rule (random fallback)
     if (!shouldPlayOptimal && sortedRules.isNotEmpty) {
       final lastRule = sortedRules.last;
-      
+      gameData['_last_yaml_rule'] = lastRule['name']?.toString() ?? 'non_optimal_last_rule';
       return _executeAction(lastRule['action'], gameData);
     }
     
@@ -34,7 +35,7 @@ class YamlRulesEngine {
         if (conditionResult) {
           final action = rule['action'] as Map<String, dynamic>?;
           if (action != null) {
-            
+            gameData['_last_yaml_rule'] = ruleName.toString();
             return _executeAction(action, gameData);
           }
         }
@@ -46,13 +47,13 @@ class YamlRulesEngine {
     // Ultimate fallback: random from playable cards
     final playableCards = gameData['playable_cards'] as List<dynamic>? ?? [];
     if (playableCards.isNotEmpty) {
-      
+      gameData['_last_yaml_rule'] = 'fallback_playable';
       return playableCards[_random.nextInt(playableCards.length)].toString();
     }
     
     // Last resort: random from available cards
     final availableCards = gameData['available_cards'] as List<dynamic>? ?? [];
-    
+    gameData['_last_yaml_rule'] = 'fallback_available';
     return availableCards[_random.nextInt(availableCards.length)].toString();
   }
   

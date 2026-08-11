@@ -2,9 +2,11 @@ import '../../../utils/platform/shared_imports.dart';
 
 // Platform-specific import - must be imported from outside shared_logic
 import '../../../utils/platform/computer_player_config_parser.dart';
+import 'package:dart_game_server/utils/dev_logger.dart';
 import 'yaml_rules_engine.dart';
 import 'game_rules_context.dart';
 
+const bool LOGGING_SWITCH = false;
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -132,7 +134,14 @@ class ComputerPlayerFactory {
     
     // Select card based on strategy
     // Pass timerConfig to _selectCard so it can adjust strategy based on time pressure
-    final selectedCard = _selectCard(availableCards, cardSelection, evaluationWeights, gameState, timerConfig: timerConfig);
+    final selectedCard = _selectCard(
+      availableCards,
+      cardSelection,
+      evaluationWeights,
+      gameState,
+      difficulty: difficulty,
+      timerConfig: timerConfig,
+    );
     
     ;
     
@@ -500,12 +509,14 @@ class ComputerPlayerFactory {
     // Calculate timer-based delay (0.2 to 0.4 of timer)
     final decisionDelay = _calculateTimerBasedDelay(queenPeekTimeLimit);
     
-    ;
-    
     // Check miss chance first
     if (_checkMissChance(difficulty)) {
       final missChance = config.getMissChanceToPlay(difficulty);
-      ;
+      if (LOGGING_SWITCH) {
+        customlog(
+          'QueenPeekDecision: miss peeker=$playerId difficulty=$difficulty missChance=$missChance',
+        );
+      }
       return {
         'action': 'queen_peek',
         'use': false,
@@ -523,21 +534,16 @@ class ComputerPlayerFactory {
     final queenPeekConfig = config.getEventConfig('queen_peek');
     final strategyRules = queenPeekConfig['strategy_rules'] as List<dynamic>? ?? [];
     
-    ;
-    if (strategyRules.isNotEmpty) {
-      ;
-    }
-    
     // Determine shouldPlayOptimal based on difficulty (same pattern as getPlayCardDecision)
     final cardSelection = config.getCardSelectionStrategy(difficulty);
     final shouldPlayOptimal = cardSelection['should_play_optimal'] as bool? ?? 
       (difficulty == 'hard' || difficulty == 'expert');
     
-    ;
-    
     // If no strategy rules defined, fallback to simple decision
     if (strategyRules.isEmpty) {
-      ;
+      if (LOGGING_SWITCH) {
+        customlog('QueenPeekDecision: no YAML rules peeker=$playerId');
+      }
       return {
         'action': 'queen_peek',
         'use': false,
@@ -548,16 +554,27 @@ class ComputerPlayerFactory {
     }
     
     // Evaluate rules using YAML rules engine
+    // Prefer own unknown first; if none valid, opponent peek; skip only rare fallback.
     final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'queen_peek');
     
-    ;
+    final use = decision['use'] as bool? ?? false;
+    final targetCardId = decision['target_card_id'] as String?;
+    final targetPlayerId = decision['target_player_id'] as String?;
+    if (LOGGING_SWITCH) {
+      final ownHand = targetPlayerId != null && targetPlayerId == playerId;
+      customlog(
+        'QueenPeekDecision: peeker=$playerId difficulty=$difficulty use=$use '
+        'targetOwner=$targetPlayerId ownHand=$ownHand cardId=$targetCardId '
+        'reasoning=${decision['reasoning']}',
+      );
+    }
     
     // Merge decision with timer-based delay and difficulty
     return {
       'action': 'queen_peek',
-      'use': decision['use'] as bool? ?? false,
-      'target_card_id': decision['target_card_id'] as String?,
-      'target_player_id': decision['target_player_id'] as String?,
+      'use': use,
+      'target_card_id': targetCardId,
+      'target_player_id': targetPlayerId,
       'delay_seconds': decisionDelay,
       'difficulty': difficulty,
       'reasoning': decision['reasoning']?.toString() ?? 'Queen peek decision',
@@ -665,65 +682,99 @@ class ComputerPlayerFactory {
 
   /// Select a card based on strategy and evaluation weights
   /// [timerConfig] Optional timer configuration to influence decisions based on time pressure
-  String _selectCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState, {Map<String, int>? timerConfig}) {
-    ;
-    
+  /// [difficulty] Used for dump_same_rank_as_known_opponent probability
+  String _selectCard(
+    List<String> availableCards,
+    Map<String, dynamic> cardSelection,
+    Map<String, double> evaluationWeights,
+    Map<String, dynamic> gameState, {
+    required String difficulty,
+    Map<String, int>? timerConfig,
+  }) {
     // Use timer config to influence decision-making based on time pressure
     // If time is short, prefer simpler/faster strategies
     final playingCardTimeLimit = timerConfig?['playing_card'] ?? 30;
     final isTimePressure = playingCardTimeLimit < 10; // Less than 10 seconds = time pressure
     
-    if (isTimePressure) {
-      ;
-    }
-    
-    final strategy = cardSelection['strategy'] ?? 'random';
-    ;
-    
     // Get current player from game state
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
     if (currentPlayer == null) {
-      ;
       return availableCards[_random.nextInt(availableCards.length)];
     }
     
-    ;
-    
     // Prepare game data for YAML rules engine
     final gameData = _prepareGameDataForYAML(availableCards, currentPlayer, gameState);
-    ;
-    ;
-    ;
-    ;
-    ;
-    ;
+
+    // 1B hard avoid: known own cards matching opponent-known ranks are dump candidates.
+    // Unknown own cards are never filtered by opponent rank (2A).
+    final knownSafe = List<String>.from(
+      (gameData['known_safe'] as List<dynamic>? ?? []).map((e) => e.toString()),
+    );
+    final knownRisky = List<String>.from(
+      (gameData['known_risky'] as List<dynamic>? ?? []).map((e) => e.toString()),
+    );
+    final knownPlayable = List<String>.from(
+      (gameData['known_playable'] as List<dynamic>? ?? []).map((e) => e.toString()),
+    );
+    final dumpProb = config.getDumpSameRankAsKnownOpponentProbability(difficulty);
+    final allowDump = _random.nextDouble() < dumpProb;
+    String knownSourceLabel;
+    if (knownSafe.isNotEmpty) {
+      gameData['known_cards'] = allowDump ? knownPlayable : knownSafe;
+      knownSourceLabel = allowDump ? 'known_playable_allow_dump' : 'known_safe';
+    } else {
+      gameData['known_cards'] = allowDump ? knownRisky : <String>[];
+      knownSourceLabel = allowDump ? 'known_risky_allow_dump' : 'known_empty_no_dump';
+    }
+
+    // Hard avoid: when not dumping, strip known-risky from playable so P3 random
+    // fallback cannot dump a matching rank either. If that empties playable, keep
+    // original (must play something).
+    if (!allowDump && knownRisky.isNotEmpty) {
+      final riskySet = knownRisky.toSet();
+      final playableRaw = gameData['playable_cards'] as List<dynamic>? ?? [];
+      final playableSafe = playableRaw
+          .map((e) => e.toString())
+          .where((id) => id.isNotEmpty && id != 'null' && !riskySet.contains(id))
+          .toList();
+      if (playableSafe.isNotEmpty) {
+        gameData['playable_cards'] = playableSafe;
+      }
+    }
+
+    if (LOGGING_SWITCH) {
+      final playerId = currentPlayer['id']?.toString() ?? '';
+      final opponentRanks = (gameData['opponent_known_ranks'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList();
+      final riskyDetail = (gameData['known_risky_detail'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList();
+      customlog(
+        'PlayCardOpponentRank: self=$playerId difficulty=$difficulty '
+        'opponentRanks=$opponentRanks knownSafe=${knownSafe.length} '
+        'knownRisky=${knownRisky.length} knownRiskyDetail=$riskyDetail '
+        'allowDump=$allowDump dumpProb=$dumpProb '
+        'knownSource=$knownSourceLabel knownForYaml=${(gameData['known_cards'] as List).length}',
+      );
+    }
     
     // Get YAML rules from config
     final playCardConfig = config.getEventConfig('play_card');
     final strategyRules = playCardConfig['strategy_rules'] as List<dynamic>? ?? [];
     
-    ;
-    if (strategyRules.isNotEmpty) {
-      ;
-    }
-    
     if (strategyRules.isEmpty) {
-      ;
       // Fallback to old logic if no YAML rules defined
       return _selectCardLegacy(availableCards, cardSelection, evaluationWeights, gameState, timerConfig: timerConfig);
     }
     
-    // Determine if we should play optimally
-    // Adjust optimal play probability based on time pressure (less time = simpler decisions)
-    var optimalPlayProb = _getOptimalPlayProbability(strategy);
+    // Optimal-play chance is per difficulty (not card_selection.strategy name).
+    var optimalPlayProb = _getOptimalPlayProbability(difficulty);
     if (isTimePressure) {
       // Reduce optimal play probability under time pressure (favor simpler/faster decisions)
       optimalPlayProb = optimalPlayProb * 0.7; // 30% reduction in optimal play probability
-      ;
     }
     final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
-    
-    ;
     
     // Add timer config to gameData so YAML rules engine can access it
     gameData['timer_config'] = timerConfig;
@@ -733,8 +784,16 @@ class ComputerPlayerFactory {
     // Execute YAML rules
     final rulesEngine = YamlRulesEngine();
     final result = rulesEngine.executeRules(strategyRules, gameData, shouldPlayOptimal);
-    
-    ;
+
+    if (LOGGING_SWITCH) {
+      final selectedWasRisky = knownRisky.contains(result);
+      final rule = gameData['_last_yaml_rule']?.toString() ?? 'unknown';
+      customlog(
+        'PlayCardOpponentRank: selected=$result rule=$rule '
+        'selectedWasRisky=$selectedWasRisky allowDump=$allowDump '
+        'knownSource=$knownSourceLabel shouldPlayOptimal=$shouldPlayOptimal',
+      );
+    }
     
     return result;
   }
@@ -743,8 +802,6 @@ class ComputerPlayerFactory {
   Map<String, dynamic> _prepareGameDataForYAML(List<String> availableCards, 
                                                 Map<String, dynamic> currentPlayer, 
                                                 Map<String, dynamic> gameState) {
-    ;
-    
     // Get player's known_cards and collection_rank_cards
     final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
     final collectionRankCards = currentPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
@@ -755,13 +812,8 @@ class ComputerPlayerFactory {
       return c.toString();
     }).where((id) => id.isNotEmpty).toSet();
     
-    ;
-    ;
-    ;
-    
     // Filter out collection rank cards
     final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
-    ;
     
     // Extract player's own known card IDs (card-ID-based structure)
     final knownCardIds = <String>{};
@@ -778,22 +830,50 @@ class ComputerPlayerFactory {
         }
       }
     }
-    ;
     
     // Get unknown cards
     final unknownCards = playableCards.where((cardId) => !knownCardIds.contains(cardId)).toList();
-    ;
     
     // Get known playable cards
     final knownPlayableCards = playableCards.where((cardId) => knownCardIds.contains(cardId)).toList();
-    ;
     
     // Filter out null cards and collection cards from all lists
     availableCards.removeWhere((card) => card.toString() == 'null');
     playableCards.removeWhere((card) => card.toString() == 'null');
     unknownCards.removeWhere((card) => card.toString() == 'null');
     knownPlayableCards.removeWhere((card) => card.toString() == 'null');
-    ;
+
+    // Opponent-known ranks from this player's known_cards (all owners except self)
+    final opponentKnownRanks = <String>{};
+    for (final entry in knownCards.entries) {
+      final ownerId = entry.key.toString();
+      if (ownerId.isEmpty || ownerId == playerId) continue;
+      final ownerCards = entry.value;
+      if (ownerCards is! Map) continue;
+      for (final cardEntry in ownerCards.entries) {
+        final cardData = cardEntry.value;
+        if (cardData is! Map) continue;
+        final rank = cardData['rank']?.toString() ?? '';
+        if (rank.isNotEmpty && rank != 'null') {
+          opponentKnownRanks.add(rank);
+        }
+      }
+    }
+
+    // Split known playable only (2A): safe vs risky by opponent-known rank
+    final knownSafe = <String>[];
+    final knownRisky = <String>[];
+    final knownRiskyDetail = <String>[]; // "cardId:rank" for verification logs
+    for (final cardId in knownPlayableCards) {
+      final ownData = playerOwnKnownCards?[cardId];
+      final rank = ownData is Map ? (ownData['rank']?.toString() ?? '') : '';
+      if (rank.isNotEmpty && opponentKnownRanks.contains(rank)) {
+        knownRisky.add(cardId);
+        knownRiskyDetail.add('$cardId:$rank');
+      } else {
+        knownSafe.add(cardId);
+      }
+    }
     
     // Get all cards data for filters
     final allCardsData = <Map<String, dynamic>>[];
@@ -806,23 +886,23 @@ class ComputerPlayerFactory {
         }
       }
     }
-    ;
     
-    // Return comprehensive game data
-    final result = {
+    // known_cards default = full known playable; _selectCard overwrites after dump roll
+    return {
       'available_cards': availableCards,
       'playable_cards': playableCards,
       'unknown_cards': unknownCards,
       'known_cards': knownPlayableCards,
+      'known_playable': knownPlayableCards,
+      'known_safe': knownSafe,
+      'known_risky': knownRisky,
+      'known_risky_detail': knownRiskyDetail,
+      'opponent_known_ranks': opponentKnownRanks.toList(),
       'collection_cards': collectionCardIds.toList(),
       'all_cards_data': allCardsData,
       'current_player': currentPlayer,
       'game_state': gameState,
     };
-    
-    ;
-    
-    return result;
   }
   
   /// Legacy card selection (fallback if YAML rules not defined)
@@ -2306,14 +2386,15 @@ class ComputerPlayerFactory {
     }
   }
   
-  /// Rule 1: Peek at own cards that are not yet in known cards (excluding collection cards)
+  /// Rule 1: Peek a card from own hand that is not yet in known_cards.
+  /// Goal: keep going until every playable hand card is known (partial known OK —
+  /// e.g. 3 known + 1 unknown still peeks that unknown). Only when none remain
+  /// does evaluation fall through to opponent peek.
   Map<String, dynamic> _selectOwnUnknownCard(
     String actingPlayerId,
     Map<String, dynamic> actingPlayer,
     Map<String, dynamic> gameState,
   ) {
-    ;
-    
     // Get acting player's collection card IDs (to exclude)
     final actingPlayerCollectionCards = actingPlayer['collection_cards'] as List<dynamic>? ?? [];
     final collectionCardIds = actingPlayerCollectionCards
@@ -2321,52 +2402,40 @@ class ComputerPlayerFactory {
         .where((id) => id.isNotEmpty)
         .toSet();
     
-    ;
-    
     // Get acting player's hand (excluding collection cards)
     final actingPlayerHand = actingPlayer['hand'] as List<dynamic>? ?? [];
     final playableHand = actingPlayerHand
         .where((cardId) => !collectionCardIds.contains(cardId.toString()))
         .toList();
     
-    ;
-    
     if (playableHand.isEmpty) {
-      ;
       return {
         'target_card_id': null,
         'target_player_id': null,
       };
     }
     
-    // Get acting player's known card IDs
+    // Get acting player's known card IDs (own bucket, already flattened in gameData)
     final actingPlayerKnownCards = actingPlayer['known_cards'] as Map<String, dynamic>? ?? {};
     final knownCardIds = actingPlayerKnownCards.keys
         .map((id) => id.toString())
         .where((id) => id.isNotEmpty)
         .toSet();
     
-    ;
-    
-    // Find cards in hand that are NOT in known cards
+    // Any hand card missing from known_cards — not "empty known" only
     final unknownCards = playableHand
         .where((cardId) => !knownCardIds.contains(cardId.toString()))
         .toList();
     
-    ;
-    
     if (unknownCards.isEmpty) {
-      ;
+      // Whole hand known → invalid for rule 1; caller tries opponent peek
       return {
         'target_card_id': null,
         'target_player_id': null,
       };
     }
     
-    // Select a random unknown card
     final selectedCardId = unknownCards[_random.nextInt(unknownCards.length)].toString();
-    
-    ;
     
     return {
       'target_card_id': selectedCardId,
@@ -2374,27 +2443,26 @@ class ComputerPlayerFactory {
     };
   }
   
-  /// Rule 2: Random peek at any player's card (excluding their collection cards)
+  /// Rule 2: Peek an opponent's card (excluding collection). Used after own unknowns are gone.
   Map<String, dynamic> _selectRandomOtherPlayerCard(
     String actingPlayerId,
     Map<String, dynamic> allPlayers,
     Map<String, dynamic> gameState,
   ) {
-    ;
+    // Opponents only — own unknowns are handled by rule 1 (own_unknown_cards).
+    final otherPlayerEntries = allPlayers.entries
+        .where((e) => e.key.toString() != actingPlayerId)
+        .toList();
     
-    // Get all players (including acting player, but we'll prefer others)
-    final allPlayerEntries = allPlayers.entries.toList();
-    
-    if (allPlayerEntries.isEmpty) {
-      ;
+    if (otherPlayerEntries.isEmpty) {
       return {
         'target_card_id': null,
         'target_player_id': null,
       };
     }
     
-    // Shuffle players and try to find one with playable cards
-    final shuffledPlayers = List.from(allPlayerEntries)..shuffle(_random);
+    // Shuffle opponents and try to find one with playable cards
+    final shuffledPlayers = List.from(otherPlayerEntries)..shuffle(_random);
     
     for (final playerEntry in shuffledPlayers) {
       final playerId = playerEntry.key;
@@ -2404,7 +2472,6 @@ class ComputerPlayerFactory {
       final playerHand = playerData['hand'] as List<dynamic>? ?? [];
       
       if (playerHand.isEmpty) {
-        ;
         continue;
       }
       

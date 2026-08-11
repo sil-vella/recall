@@ -1,0 +1,29 @@
+# wfrun menu exclusions — one path per line, relative to automation/
+# Lines starting with # and blank lines are ignored.
+
+# dashboard internals (serve.py is the wfrun entry point)
+dashboard/env_for_script.py
+dashboard/pty_runner.py
+dashboard/run_log.py
+dashboard/script_discovery.py
+dashboard/requirements.txt
+dashboard/static/index.html
+dashboard/static/app.js
+dashboard/static/style.css
+
+# sourced helpers (not standalone runners)
+frontend/dart_defines_from_env.sh
+frontend/global_log_filter.sh
+
+# package / shared modules
+marketing/publish_common.py
+marketing/cron_social_auto_post.py
+production/mongodb_tls/__init__.py
+production_host/mongodb_tls/__init__.py
+production/mongodb_tls/mongo_tls_common.sh
+production_host/mongodb_tls/mongo_tls_common.sh
+production/mongodb_tls/load_mongo_tls_args.sh
+production_host/mongodb_tls/load_mongo_tls_args.sh
+
+# static seed data (not standalone runners)
+backend/data/ai_players_500.json

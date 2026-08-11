@@ -148,6 +148,14 @@ class ComputerPlayerConfig {
     final missChances = computerSettings['miss_chance_to_play'] ?? {};
     return (missChances[difficulty] ?? 0.0).toDouble();
   }
+
+  /// Chance to dump a known own card whose rank matches a known opponent card.
+  /// Low by design (hard avoid); expert defaults to 0.0.
+  double getDumpSameRankAsKnownOpponentProbability(String difficulty) {
+    final playCardConfig = getEventConfig('play_card');
+    final probabilities = playCardConfig['dump_same_rank_as_known_opponent'] ?? {};
+    return (probabilities[difficulty] ?? 0.0).toDouble();
+  }
   
   /// Get card evaluation weights for play_card event
   Map<String, double> getCardEvaluationWeights() {

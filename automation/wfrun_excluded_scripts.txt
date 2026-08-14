@@ -6,24 +6,37 @@ dashboard/env_for_script.py
 dashboard/pty_runner.py
 dashboard/run_log.py
 dashboard/script_discovery.py
+dashboard/static/docs.js
+dashboard/docs_discovery.py
 dashboard/requirements.txt
 dashboard/static/index.html
 dashboard/static/app.js
 dashboard/static/style.css
+dashboard/static/marketing.js
+dashboard/data/marketing_posts.json
 
 # sourced helpers (not standalone runners)
 frontend/dart_defines_from_env.sh
 frontend/global_log_filter.sh
 
-# package / shared modules
+# marketing — hide helpers / platform runners from wfrun; keep upload_queue_to_hostinger.py
 marketing/publish_common.py
 marketing/cron_social_auto_post.py
+marketing/facebook_publish_post.py
+marketing/youtube_post_metrics.py
+marketing/facebook_post_metrics.py
+marketing/facebook_validate_page_token.py
+marketing/youtube_publish_video.py
+marketing/youtube_oauth_get_refresh_token.py
+marketing/youtube_refresh_access_token.py
+marketing/tiktok_publish_video.py
+marketing/tiktok_oauth_get_refresh_token.py
+marketing/tiktok_refresh_access_token.py
+marketing/tiktok_post_video_smoke.py
+# package / shared modules
 production/mongodb_tls/__init__.py
 production_host/mongodb_tls/__init__.py
 production/mongodb_tls/mongo_tls_common.sh
 production_host/mongodb_tls/mongo_tls_common.sh
 production/mongodb_tls/load_mongo_tls_args.sh
 production_host/mongodb_tls/load_mongo_tls_args.sh
-
-# static seed data (not standalone runners)
-backend/data/ai_players_500.json

@@ -4,12 +4,14 @@
   "description": "",
   "hashtags": [],
   "facebook": {
+    "description": "",
     "post_type": "feed",
     "link": "",
     "schedule_at": null,
     "publish_mode": "now"
   },
   "youtube": {
+    "description": "",
     "privacy": "public",
     "tags": [],
     "publish_at": null,
@@ -17,7 +19,8 @@
     "playlist_title": null
   },
   "tiktok": {
-    "privacy_level": "PUBLIC_TO_EVERYONE",
+    "description": "",
+    "privacy_level": "SELF_ONLY",
     "disable_comment": false,
     "disable_duet": false,
     "disable_stitch": false,

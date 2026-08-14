@@ -49,7 +49,7 @@
       <p class="bonus-coins-wrap" id="open-app-wrap" hidden>
         <a class="bonus-coins-btn" id="open-app-btn" href="#">Open in Dutch</a>
       </p>
-      <p><a id="home-link" href="/">Back to Dutch home</a></p>
+      <p><a class="text-link" id="home-link" href="/">Back to Dutch home</a></p>
     </section>
   </main>
   <script src="/static_landing_js/main.js" defer></script>
@@ -72,14 +72,14 @@
         var btn = document.getElementById("open-app-btn");
         var wrap = document.getElementById("open-app-wrap");
         if (!btn || !wrap) return;
-        var schemeUrl = typeof window.dutchBonusSchemeUrl === "function"
-          ? window.dutchBonusSchemeUrl(code)
+        var openHref = typeof window.dutchBonusOpenHref === "function"
+          ? window.dutchBonusOpenHref(code)
           : ("dutch://gotoapp/" + encodeURIComponent(code));
-        btn.href = schemeUrl;
+        btn.href = openHref;
         wrap.hidden = false;
       }
 
-      if (typeof window.dutchBonusSchemeUrl === "function") {
+      if (typeof window.dutchBonusOpenHref === "function") {
         wire();
       } else {
         window.addEventListener("DOMContentLoaded", wire);

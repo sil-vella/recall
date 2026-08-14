@@ -12,7 +12,7 @@ import 'utils/game_rules_context.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 const int _cpuKnownCardsClearHandThreshold = 7;
 const double _cpuKnownCardsClearProbability = 0.8;

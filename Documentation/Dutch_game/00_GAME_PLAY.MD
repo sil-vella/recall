@@ -12,7 +12,7 @@ Clear all cards from your hand or end the game with the least points possible.
 
 
 **Dutch:**
-If you think you have the least points during your turn, you can call **Dutch** just before you play a card. This will trigger the Dutch phase - this was your final turn so you won't play again.
+If you think you have the least points during your turn, you can call **Dutch** just before you play a card. This will trigger the Dutch phase - this was your final turn so you won't play again, unless for same rank.
 
 **Winning:**
 • Player with **no cards** wins

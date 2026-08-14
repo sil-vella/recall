@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dashboard</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=palette-2">
+  <link rel="stylesheet" href="/static/style.css?v=docs-3">
 </head>
 <body>
   <header class="topbar">
@@ -20,6 +20,8 @@
     <button type="button" class="main-tab active" role="tab" aria-selected="true" aria-controls="view-scripts" id="tab-scripts" data-view="scripts">Scripts</button>
     <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-task-manager" id="tab-task-manager" data-view="task-manager">Task Manager</button>
     <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-marketing" id="tab-marketing" data-view="marketing">Marketing</button>
+    <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-docs" id="tab-docs" data-view="docs">Documentation</button>
+    <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-case-study" id="tab-case-study" data-view="case-study">Case Study</button>
   </nav>
 
   <div class="view-stack">
@@ -73,18 +75,50 @@
     </div>
 
     <div class="view-panel" id="view-marketing" role="tabpanel" aria-labelledby="tab-marketing" data-view="marketing" hidden>
-      <!-- Landing: saved posts list -->
+      <nav class="marketing-subtabs" id="mkt-subtabs" aria-label="Marketing sections">
+        <button type="button" class="marketing-subtab active" data-mkt-tab="saved" id="mkt-subtab-saved">Saved</button>
+        <button type="button" class="marketing-subtab" data-mkt-tab="platform" id="mkt-subtab-platform">Platform posts</button>
+      </nav>
+
+      <!-- Landing: saved posts list (GUI drafts / publishes) -->
       <div class="marketing-landing" id="mkt-landing">
         <div class="marketing-header">
           <div>
-            <h2>Marketing</h2>
-            <p class="marketing-sub">Saved posts. Create a new post or open details (includes publish results).</p>
+            <h2>Saved posts</h2>
+            <p class="marketing-sub">Posts created in this dashboard. Open details for publish results and metrics.</p>
           </div>
           <button type="button" class="run-btn" id="mkt-create-new">Create New Post</button>
         </div>
         <p class="marketing-hint" id="mkt-list-status" hidden></p>
         <ul class="marketing-post-list" id="mkt-post-list" aria-label="Saved posts"></ul>
         <p class="marketing-empty" id="mkt-list-empty" hidden>No posts yet. Create New Post to compose one.</p>
+      </div>
+
+      <!-- Platform: remote posts from FB / YT / TT -->
+      <div class="marketing-landing" id="mkt-platform" hidden>
+        <div class="marketing-header">
+          <div>
+            <h2>Platform posts</h2>
+            <p class="marketing-sub">Latest 5 live posts per load (filter by platform). Open a row for metrics &amp; Insights — use Load more for older posts.</p>
+          </div>
+          <div class="marketing-platform-toolbar">
+            <label class="marketing-field marketing-field-inline">
+              <span>Platform</span>
+              <select id="mkt-platform-filter" aria-label="Filter by platform">
+                <option value="facebook">Facebook</option>
+                <option value="youtube">YouTube</option>
+                <option value="tiktok">TikTok</option>
+              </select>
+            </label>
+            <button type="button" class="copy-btn" id="mkt-platform-refresh">Refresh</button>
+          </div>
+        </div>
+        <p class="marketing-hint" id="mkt-platform-status" hidden></p>
+        <ul class="marketing-post-list" id="mkt-platform-list" aria-label="Platform posts"></ul>
+        <p class="marketing-empty" id="mkt-platform-empty" hidden>No posts returned for this platform.</p>
+        <div class="marketing-platform-more" id="mkt-platform-more-wrap" hidden>
+          <button type="button" class="copy-btn" id="mkt-platform-more">Load more</button>
+        </div>
       </div>
 
       <!-- Detail: one saved post -->
@@ -96,7 +130,57 @@
             <p class="marketing-sub" id="mkt-detail-meta"></p>
           </div>
         </div>
+
+        <section class="marketing-metrics" id="mkt-metrics" hidden>
+          <div class="marketing-metrics-header">
+            <h3>Metrics</h3>
+            <button type="button" class="copy-btn" id="mkt-metrics-refresh">Refresh</button>
+          </div>
+          <p class="marketing-hint" id="mkt-metrics-status" hidden></p>
+          <div class="marketing-metrics-grid" id="mkt-metrics-facebook" hidden>
+            <h4>Facebook</h4>
+            <dl class="marketing-metrics-dl" id="mkt-metrics-facebook-dl"></dl>
+            <p class="marketing-hint" id="mkt-metrics-facebook-warn" hidden></p>
+          </div>
+          <div class="marketing-metrics-grid" id="mkt-metrics-youtube" hidden>
+            <h4>YouTube</h4>
+            <dl class="marketing-metrics-dl" id="mkt-metrics-youtube-dl"></dl>
+            <p class="marketing-hint" id="mkt-metrics-youtube-warn" hidden></p>
+          </div>
+        </section>
+
         <pre id="mkt-detail-json" class="marketing-preview-json"></pre>
+      </div>
+
+      <!-- Detail: one platform (remote) post -->
+      <div class="marketing-detail" id="mkt-platform-detail" hidden>
+        <div class="marketing-header">
+          <div>
+            <button type="button" class="copy-btn" id="mkt-platform-detail-back">← Back</button>
+            <h2 id="mkt-platform-detail-title">Platform post</h2>
+            <p class="marketing-sub" id="mkt-platform-detail-meta"></p>
+          </div>
+        </div>
+
+        <section class="marketing-metrics" id="mkt-platform-metrics">
+          <div class="marketing-metrics-header">
+            <h3>Metrics</h3>
+            <button type="button" class="copy-btn" id="mkt-platform-metrics-refresh">Refresh</button>
+          </div>
+          <p class="marketing-hint" id="mkt-platform-metrics-status" hidden></p>
+          <div class="marketing-metrics-grid" id="mkt-platform-metrics-facebook" hidden>
+            <h4>Facebook</h4>
+            <dl class="marketing-metrics-dl" id="mkt-platform-metrics-facebook-dl"></dl>
+            <p class="marketing-hint" id="mkt-platform-metrics-facebook-warn" hidden></p>
+          </div>
+          <div class="marketing-metrics-grid" id="mkt-platform-metrics-youtube" hidden>
+            <h4>YouTube</h4>
+            <dl class="marketing-metrics-dl" id="mkt-platform-metrics-youtube-dl"></dl>
+            <p class="marketing-hint" id="mkt-platform-metrics-youtube-warn" hidden></p>
+          </div>
+        </section>
+
+        <pre id="mkt-platform-detail-json" class="marketing-preview-json"></pre>
       </div>
 
       <!-- Compose: current create-post form -->
@@ -271,11 +355,63 @@
         </aside>
       </div>
     </div>
+
+    <div class="view-panel" id="view-docs" role="tabpanel" aria-labelledby="tab-docs" data-view="docs" hidden>
+      <main class="layout docs-layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <h2>Documentation</h2>
+          </div>
+          <div class="sidebar-body">
+            <nav id="docs-accordion-nav" class="accordion-nav" aria-label="Documentation groups"></nav>
+            <div id="docs-accordion-content" class="accordion-content">
+              <p class="accordion-placeholder">Select a section</p>
+            </div>
+          </div>
+        </aside>
+        <section class="docs-pane">
+          <div class="docs-toolbar" id="docs-toolbar" hidden>
+            <span class="docs-title" id="docs-title"></span>
+            <span class="docs-path" id="docs-path"></span>
+          </div>
+          <article class="docs-markdown" id="docs-markdown">
+            <p class="docs-placeholder">Select a document</p>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <div class="view-panel" id="view-case-study" role="tabpanel" aria-labelledby="tab-case-study" data-view="case-study" hidden>
+      <main class="layout docs-layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <h2>Case Study</h2>
+          </div>
+          <div class="sidebar-body">
+            <nav id="case-accordion-nav" class="accordion-nav" aria-label="Case study files"></nav>
+            <div id="case-accordion-content" class="accordion-content">
+              <p class="accordion-placeholder">Select a section</p>
+            </div>
+          </div>
+        </aside>
+        <section class="docs-pane">
+          <div class="docs-toolbar" id="case-toolbar" hidden>
+            <span class="docs-title" id="case-title"></span>
+            <span class="docs-path" id="case-path"></span>
+          </div>
+          <article class="docs-markdown" id="case-markdown">
+            <p class="docs-placeholder">Select a section</p>
+          </article>
+        </section>
+      </main>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/static/app.js?v=brand-1"></script>
-  <script src="/static/marketing.js?v=marketing-6"></script>
+  <script src="/static/marketing.js?v=marketing-8"></script>
+  <script src="/static/docs.js?v=docs-1"></script>
 </body>
 </html>

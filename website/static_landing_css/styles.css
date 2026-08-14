@@ -311,3 +311,20 @@ body {
   text-decoration: underline;
   color: var(--color-accent-2);
 }
+
+/* In-card / body text links (e.g. gotoapp “Back to Dutch home”) */
+.text-link {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+  color: var(--color-accent-2);
+}
+
+.text-link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

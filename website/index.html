@@ -110,7 +110,7 @@
   <script src="/static_landing_js/main.js" defer></script>
   <script>
     (function () {
-      // /rl/CODE → nginx 302 → /?ref=CODE — GET BONUS COINS uses dutch:// (top-level)
+      // /rl/CODE → /?ref=CODE — GET BONUS COINS opens app (dutch:// / intent://)
       var params = new URLSearchParams(window.location.search || "");
       var code = (params.get("ref") || "").trim();
       if (!code || code.toLowerCase() === "index.html") return;
@@ -123,32 +123,23 @@
       if (!wrap || !btn) return;
 
       function wire() {
-        var schemeUrl = typeof window.dutchBonusSchemeUrl === "function"
-          ? window.dutchBonusSchemeUrl(code)
+        var openHref = typeof window.dutchBonusOpenHref === "function"
+          ? window.dutchBonusOpenHref(code)
           : ("dutch://gotoapp/" + encodeURIComponent(code));
-        var httpsPath = typeof window.dutchBonusHttpsPath === "function"
-          ? window.dutchBonusHttpsPath(code)
-          : ("/gotoapp/" + encodeURIComponent(code));
 
-        // Native top-level navigation — required for iOS custom schemes.
-        btn.href = schemeUrl || httpsPath;
+        btn.href = openHref;
         btn.addEventListener("click", function () {
-          // Do not preventDefault — let Safari open dutch://.
-          if (typeof window.dutchScheduleHttpsFallback === "function") {
-            window.dutchScheduleHttpsFallback(code);
-          } else {
-            window.setTimeout(function () {
-              if (!document.hidden) window.location.href = httpsPath;
-            }, 1500);
+          // Let the browser follow href (scheme / intent). Schedule store fallback on iOS only.
+          if (typeof window.dutchScheduleOpenFallback === "function") {
+            window.dutchScheduleOpenFallback(code);
           }
         });
         wrap.hidden = false;
       }
 
-      if (typeof window.dutchBonusSchemeUrl === "function") {
+      if (typeof window.dutchBonusOpenHref === "function") {
         wire();
       } else {
-        // main.js is defer — wait until it runs
         window.addEventListener("DOMContentLoaded", wire);
       }
     })();

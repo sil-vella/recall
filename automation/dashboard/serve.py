@@ -30,6 +30,11 @@ except ImportError:
 from env_for_script import cwd_for_script, env_for_script
 from pty_runner import PtyRunner
 from run_log import LOGS_DIR, RunLog, log_path_for_script
+from docs_discovery import (
+    discover_case_studies,
+    discover_docs,
+    read_doc,
+)
 from script_discovery import build_command, discover_scripts, resolve_script
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -111,6 +116,228 @@ async def handle_marketing_post_get(request: web.Request) -> web.Response:
         if str(post.get("id")) == post_id:
             return web.json_response({"ok": True, "post": post})
     return web.json_response({"ok": False, "error": "not_found"}, status=404)
+
+
+def _safe_media_filename(name: str) -> str:
+    base = Path(name or "upload.bin").name
+    cleaned = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in base)
+    return cleaned[:120] or "upload.bin"
+
+
+
+async def handle_marketing_post_metrics_facebook(request: web.Request) -> web.Response:
+    """Live Facebook engagement + Insights for a saved Marketing post."""
+    post_id = request.match_info.get("post_id", "").strip()
+    posts = await asyncio.to_thread(_read_marketing_posts)
+    post: dict[str, object] | None = None
+    for item in posts:
+        if str(item.get("id")) == post_id:
+            post = item
+            break
+    if post is None:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {"code": "not_found", "message": "Post not found"},
+            },
+            status=404,
+        )
+
+    from facebook_post_metrics import (
+        facebook_object_id_from_post,
+        fetch_facebook_post_metrics,
+    )
+
+    object_id = facebook_object_id_from_post(post)
+    if not object_id:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {
+                    "code": "facebook_not_published",
+                    "message": "No successful Facebook publish id on this post",
+                },
+            },
+            status=400,
+        )
+
+    result = await asyncio.to_thread(fetch_facebook_post_metrics, object_id)
+    if not result.get("ok"):
+        err = result.get("error") if isinstance(result.get("error"), dict) else {}
+        code = str(err.get("code") or "facebook_metrics_failed")
+        status = 400
+        if code == "missing_facebook_credentials":
+            status = 400
+        elif code == "facebook_metrics_permission":
+            status = 403
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {
+                    "code": code,
+                    "message": str(err.get("message") or "Facebook metrics failed"),
+                },
+            },
+            status=status,
+        )
+    return web.json_response({"ok": True, "metrics": result.get("data") or {}})
+
+
+def _marketing_metrics_error_response(result: dict[str, object]) -> web.Response:
+    err = result.get("error") if isinstance(result.get("error"), dict) else {}
+    code = str(err.get("code") or "facebook_metrics_failed")
+    status = 403 if code.endswith("_permission") else 400
+    return web.json_response(
+        {
+            "ok": False,
+            "error": {
+                "code": code,
+                "message": str(err.get("message") or "Request failed"),
+            },
+        },
+        status=status,
+    )
+
+
+async def handle_marketing_metrics_facebook(request: web.Request) -> web.Response:
+    """Live Facebook metrics by Graph object id (platform-posts browser)."""
+    object_id = (request.query.get("object_id") or "").strip()
+    if not object_id:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {
+                    "code": "object_id_required",
+                    "message": "Query param object_id is required",
+                },
+            },
+            status=400,
+        )
+    from facebook_post_metrics import fetch_facebook_post_metrics
+
+    result = await asyncio.to_thread(fetch_facebook_post_metrics, object_id)
+    if not result.get("ok"):
+        return _marketing_metrics_error_response(result)
+    return web.json_response({"ok": True, "metrics": result.get("data") or {}})
+
+
+async def handle_marketing_metrics_youtube(request: web.Request) -> web.Response:
+    """Live YouTube statistics by video id (platform-posts browser)."""
+    object_id = (request.query.get("object_id") or "").strip()
+    if not object_id:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {
+                    "code": "object_id_required",
+                    "message": "Query param object_id is required",
+                },
+            },
+            status=400,
+        )
+    from youtube_post_metrics import fetch_youtube_video_metrics
+
+    result = await asyncio.to_thread(fetch_youtube_video_metrics, object_id)
+    if not result.get("ok"):
+        return _marketing_metrics_error_response(result)
+    return web.json_response({"ok": True, "metrics": result.get("data") or {}})
+
+
+async def handle_marketing_post_metrics_youtube(request: web.Request) -> web.Response:
+    """Live YouTube statistics for a saved Marketing post."""
+    post_id = request.match_info.get("post_id", "").strip()
+    posts = await asyncio.to_thread(_read_marketing_posts)
+    post: dict[str, object] | None = None
+    for item in posts:
+        if str(item.get("id")) == post_id:
+            post = item
+            break
+    if post is None:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {"code": "not_found", "message": "Post not found"},
+            },
+            status=404,
+        )
+
+    from youtube_post_metrics import (
+        fetch_youtube_video_metrics,
+        youtube_video_id_from_post,
+    )
+
+    video_id = youtube_video_id_from_post(post)
+    if not video_id:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {
+                    "code": "youtube_not_published",
+                    "message": "No successful YouTube publish id on this post",
+                },
+            },
+            status=400,
+        )
+
+    result = await asyncio.to_thread(fetch_youtube_video_metrics, video_id)
+    if not result.get("ok"):
+        return _marketing_metrics_error_response(result)
+    return web.json_response({"ok": True, "metrics": result.get("data") or {}})
+
+
+async def handle_marketing_platform_posts(request: web.Request) -> web.Response:
+    """List remote posts for a platform (Facebook / YouTube; TikTok later)."""
+    platform = (request.query.get("platform") or "facebook").strip().lower()
+    limit_raw = (request.query.get("limit") or "5").strip()
+    after = (request.query.get("after") or "").strip() or None
+    try:
+        limit = int(limit_raw)
+    except ValueError:
+        limit = 5
+    limit = max(1, min(limit, 25))
+
+    if platform == "facebook":
+        from facebook_post_metrics import list_facebook_page_posts
+
+        result = await asyncio.to_thread(
+            list_facebook_page_posts, limit=limit, after=after
+        )
+        if not result.get("ok"):
+            return _marketing_metrics_error_response(result)
+        return web.json_response({"ok": True, **(result.get("data") or {})})
+
+    if platform == "youtube":
+        from youtube_post_metrics import list_youtube_channel_videos
+
+        result = await asyncio.to_thread(
+            list_youtube_channel_videos, limit=limit, page_token=after
+        )
+        if not result.get("ok"):
+            return _marketing_metrics_error_response(result)
+        return web.json_response({"ok": True, **(result.get("data") or {})})
+
+    if platform == "tiktok":
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {
+                    "code": "platform_not_implemented",
+                    "message": "tiktok platform posts browser is not wired yet",
+                },
+            },
+            status=501,
+        )
+
+    return web.json_response(
+        {
+            "ok": False,
+            "error": {
+                "code": "unknown_platform",
+                "message": f"Unknown platform: {platform}",
+            },
+        },
+        status=400,
+    )
 
 
 def _safe_media_filename(name: str) -> str:
@@ -886,6 +1113,44 @@ async def handle_open_env_file(_request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "path": str(path)})
 
 
+
+async def handle_docs(request: web.Request) -> web.Response:
+    root: Path = request.app["root"]
+    entries = discover_docs(root)
+    return web.json_response({"ok": True, "docs": [e.to_dict() for e in entries]})
+
+
+async def handle_case_studies(request: web.Request) -> web.Response:
+    root: Path = request.app["root"]
+    entries = discover_case_studies(root)
+    return web.json_response(
+        {"ok": True, "docs": [e.to_dict() for e in entries]}
+    )
+
+
+async def handle_doc_content(request: web.Request) -> web.Response:
+    root: Path = request.app["root"]
+    rel = (request.query.get("path") or "").strip()
+    if not rel:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {"code": "path_required", "message": "Missing path"},
+            },
+            status=400,
+        )
+    doc = read_doc(root, rel)
+    if doc is None:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {"code": "not_found", "message": "Document not found"},
+            },
+            status=404,
+        )
+    return web.json_response({"ok": True, "doc": doc})
+
+
 async def handle_scripts(request: web.Request) -> web.Response:
     root: Path = request.app["root"]
     entries = discover_scripts(root)
@@ -973,9 +1238,29 @@ def create_app(root: Path) -> web.Application:
     app.router.add_get("/api/session", handle_session)
     app.router.add_post("/api/open-env-file", handle_open_env_file)
     app.router.add_get("/api/scripts", handle_scripts)
+    app.router.add_get("/api/docs", handle_docs)
+    app.router.add_get("/api/case-studies", handle_case_studies)
+    app.router.add_get("/api/docs/content", handle_doc_content)
     app.router.add_get("/api/marketing/posts", handle_marketing_posts_get)
     app.router.add_post("/api/marketing/posts", handle_marketing_posts_create)
+    app.router.add_get("/api/marketing/platform-posts", handle_marketing_platform_posts)
+    app.router.add_get(
+        "/api/marketing/metrics/facebook",
+        handle_marketing_metrics_facebook,
+    )
+    app.router.add_get(
+        "/api/marketing/metrics/youtube",
+        handle_marketing_metrics_youtube,
+    )
     app.router.add_get("/api/marketing/posts/{post_id}", handle_marketing_post_get)
+    app.router.add_get(
+        "/api/marketing/posts/{post_id}/metrics/facebook",
+        handle_marketing_post_metrics_facebook,
+    )
+    app.router.add_get(
+        "/api/marketing/posts/{post_id}/metrics/youtube",
+        handle_marketing_post_metrics_youtube,
+    )
     app.router.add_get(
         "/api/marketing/youtube/playlists",
         handle_marketing_youtube_playlists,

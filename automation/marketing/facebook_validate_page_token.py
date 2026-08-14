@@ -127,10 +127,73 @@ def _print_debug(label: str, data: dict) -> None:
     print(f"  profile_id: {data.get('profile_id') or data.get('user_id')}")
     print(f"  expiry:     {_fmt_expiry(data)}")
     if scopes:
-        print(f"  scopes:     {', '.join(str(s) for s in scopes)}")
+        scope_list = [str(s) for s in scopes]
+        print(f"  scopes:     {', '.join(scope_list)}")
+        if "read_insights" not in scope_list:
+            print(
+                "  ⚠️  missing read_insights — Marketing Insights will be empty. "
+                "Re-auth User token with read_insights, then resolve a new Page token. "
+                "fb_exchange_token alone cannot add permissions."
+            )
     err = data.get("error")
     if err:
         print(f"  error:      {err}")
+
+
+def _probe_insights(page_id: str, page_token: str) -> None:
+    """Best-effort Insights permission check (does not print tokens)."""
+    qs = urllib.parse.urlencode(
+        {"fields": "id", "limit": "1", "access_token": page_token}
+    )
+    try:
+        posts = _get_json(f"{GRAPH}/{page_id}/published_posts?{qs}")
+    except SystemExit as exc:
+        print(f"⚠️  Insights probe skipped (list posts failed): {exc}")
+        return
+    rows = posts.get("data") if isinstance(posts.get("data"), list) else []
+    if not rows or not isinstance(rows[0], dict):
+        print("⚠️  Insights probe skipped — no published posts yet.")
+        return
+    oid = str(rows[0].get("id") or "").strip()
+    if not oid:
+        print("⚠️  Insights probe skipped — empty post id.")
+        return
+    iqs = urllib.parse.urlencode(
+        {
+            "metric": "post_clicks",
+            "period": "lifetime",
+            "access_token": page_token,
+        }
+    )
+    # Use raw urllib for non-fatal probe
+    import urllib.error
+    import urllib.request
+
+    url = f"{GRAPH}/{urllib.parse.quote(oid)}/insights?{iqs}"
+    try:
+        with urllib.request.urlopen(url, timeout=45) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            payload = {"error": {"message": body[:200]}}
+    err = payload.get("error") if isinstance(payload.get("error"), dict) else {}
+    msg = str(err.get("message") or "")
+    data = payload.get("data") if isinstance(payload.get("data"), list) else []
+    if "read_insights" in msg.lower() or err.get("code") == 200:
+        print(
+            "❌ Insights probe: read_insights missing — remint Page token "
+            "after User re-auth with that permission."
+        )
+    elif data:
+        print(f"✅ Insights probe: got {len(data)} metric row(s) for latest post.")
+    else:
+        print(
+            "⚠️  Insights probe: HTTP OK but empty data. Usually missing "
+            "read_insights / Page ANALYZE, or metrics not ready yet."
+        )
 
 
 def _smoke_page(page_id: str, page_token: str) -> None:
@@ -219,6 +282,13 @@ def main() -> int:
     if not app_id or not app_secret:
         print("❌ Need FACEBOOK_APP_ID and FACEBOOK_APP_SECRET.", file=sys.stderr)
         return 1
+    if not app_id.isdigit():
+        print(
+            f"❌ FACEBOOK_APP_ID looks malformed ({app_id!r}). "
+            "It must be digits only (App settings → Basic).",
+            file=sys.stderr,
+        )
+        return 1
     if not page_id:
         print("❌ Need FACEBOOK_PAGE_ID.", file=sys.stderr)
         return 1
@@ -262,12 +332,17 @@ def main() -> int:
                 f"⚠️  profile_id {profile} != FACEBOOK_PAGE_ID {page_id}"
             )
         _smoke_page(page_id, page_token)
+        _probe_insights(page_id, page_token)
 
     if not do_extend:
         print("Done (validate only).")
         return 0
 
     print("——— extend ———")
+    print(
+        "Note: extend cannot add new permissions (e.g. read_insights). "
+        "Re-auth the User token first if scopes are missing."
+    )
     source = user_token or page_token
     if user_token:
         print("Exchanging FACEBOOK_USER_ACCESS_TOKEN…")
@@ -297,6 +372,7 @@ def main() -> int:
             return 1
 
     _smoke_page(page_id, final_page)
+    _probe_insights(page_id, final_page)
 
     if args.print_token:
         print(f"FACEBOOK_PAGE_ACCESS_TOKEN={final_page}")

@@ -104,6 +104,10 @@
       ensureEmbedLoaded(taskManagerFrame);
     }
 
+    if (window.DocsDash && typeof window.DocsDash.onView === "function") {
+      window.DocsDash.onView(view);
+    }
+
     if (view === "scripts" && activeScriptId) {
       const session = sessions.get(activeScriptId);
       if (session) {

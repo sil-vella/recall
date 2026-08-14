@@ -6,7 +6,7 @@ import '../../../../../utils/dev_logger.dart';
 import 'yaml_rules_engine.dart';
 import 'game_rules_context.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {

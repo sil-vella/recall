@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dutch Card Game · Stack · Ops Desk — Case Study</title>
+  <meta name="description" content="Solo case study: Dutch multiplayer card game on Flask/Mongo/Dart/Flutter, plus local ops dashboard with marketing and revenue.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #08110f;
+      --bg-2: #0d1a16;
+      --panel: #12201c;
+      --ink: #e8f2ee;
+      --muted: #8aa399;
+      --line: #243832;
+      --accent: #2ec4a2;
+      --accent-2: #f0c75e;
+      --max: 72rem;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(46, 196, 162, 0.14), transparent 55%),
+        radial-gradient(900px 500px at -10% 20%, rgba(240, 199, 94, 0.08), transparent 50%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 40%, var(--bg) 100%);
+      font-family: "Public Sans", sans-serif;
+      font-size: 1.05rem;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+    a:hover { color: #7ee0c8; }
+
+    .wrap {
+      width: min(100% - 2rem, var(--max));
+      margin-inline: auto;
+    }
+
+    .hero {
+      position: relative;
+      min-height: min(100vh, 54rem);
+      display: grid;
+      align-items: end;
+      padding: 2rem 0 3.25rem;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(46, 196, 162, 0.05) 1px, transparent 1px) 0 0 / 48px 48px,
+        linear-gradient(rgba(46, 196, 162, 0.04) 1px, transparent 1px) 0 0 / 48px 48px;
+      mask-image: linear-gradient(180deg, #000 30%, transparent 95%);
+      pointer-events: none;
+      animation: gridDrift 28s linear infinite;
+    }
+
+    @keyframes gridDrift {
+      from { background-position: 0 0, 0 0; }
+      to { background-position: 48px 48px, 48px 48px; }
+    }
+
+    .hero-inner { position: relative; z-index: 1; }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin: 0 0 1.25rem;
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 1.5rem;
+      height: 2px;
+      background: var(--accent);
+    }
+
+    .hero h1 {
+      margin: 0 0 1rem;
+      max-width: 16ch;
+      font-family: Syne, sans-serif;
+      font-weight: 800;
+      font-size: clamp(2.35rem, 6.2vw, 4.2rem);
+      line-height: 0.96;
+      letter-spacing: -0.03em;
+      animation: rise 0.9s var(--ease) both;
+    }
+
+    .hero-lead {
+      margin: 0 0 1.75rem;
+      max-width: 42rem;
+      color: var(--muted);
+      font-size: 1.12rem;
+      animation: rise 0.9s var(--ease) 0.12s both;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-bottom: 1.5rem;
+      animation: rise 0.9s var(--ease) 0.18s both;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.35rem 0.7rem;
+      border: 1px solid var(--line);
+      background: rgba(18, 32, 28, 0.7);
+      color: var(--ink);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .pillars {
+      display: grid;
+      gap: 0.65rem;
+      margin-bottom: 1.75rem;
+      animation: rise 0.9s var(--ease) 0.22s both;
+    }
+    @media (min-width: 720px) {
+      .pillars { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .pillar {
+      padding: 0.85rem 0.95rem;
+      border-top: 2px solid var(--accent);
+      background: rgba(18, 32, 28, 0.55);
+    }
+
+    .pillar-num {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--accent-2);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+    }
+
+    .pillar strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-family: Syne, sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .pillar span {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .version-switch {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.3rem;
+      border: 1px solid var(--line);
+      background: rgba(8, 17, 15, 0.75);
+      animation: rise 0.9s var(--ease) 0.28s both;
+    }
+
+    .version-switch button {
+      appearance: none;
+      border: 0;
+      margin: 0;
+      padding: 0.55rem 0.95rem;
+      background: transparent;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s var(--ease), color 0.2s var(--ease);
+    }
+
+    .version-switch button[aria-pressed="true"] {
+      background: var(--accent);
+      color: #04201a;
+    }
+
+    .version-switch button:focus-visible {
+      outline: 2px solid var(--accent-2);
+      outline-offset: 2px;
+    }
+
+    .version-hint {
+      margin: 0.75rem 0 0;
+      max-width: 36rem;
+      color: var(--muted);
+      font-size: 0.88rem;
+      animation: rise 0.9s var(--ease) 0.32s both;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .version[hidden] { display: none !important; }
+
+    section {
+      padding: 4.5rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-kicker {
+      margin: 0 0 0.65rem;
+      color: var(--accent-2);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0 0 1rem;
+      font-family: Syne, sans-serif;
+      font-weight: 700;
+      font-size: clamp(1.7rem, 3.2vw, 2.35rem);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    h3 {
+      margin: 2.25rem 0 0.75rem;
+      font-family: Syne, sans-serif;
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+
+    p { margin: 0 0 1rem; color: #c5d6cf; }
+    p:last-child { margin-bottom: 0; }
+    .lede { font-size: 1.12rem; color: #d5e4de; }
+
+    ul, ol {
+      margin: 0 0 1rem;
+      padding-left: 1.2rem;
+      color: #c5d6cf;
+    }
+    li { margin: 0.35rem 0; }
+    li::marker { color: var(--accent); }
+
+    .two-col {
+      display: grid;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+    @media (min-width: 840px) {
+      .two-col { grid-template-columns: 1fr 1fr; align-items: start; }
+    }
+
+    .stat-row {
+      display: grid;
+      gap: 1rem;
+      margin-top: 2rem;
+      grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+    }
+
+    .stat {
+      padding: 1.1rem 1rem 1.2rem;
+      border-top: 2px solid var(--accent);
+      background: linear-gradient(180deg, rgba(46, 196, 162, 0.08), transparent 70%);
+    }
+
+    .stat strong {
+      display: block;
+      font-family: Syne, sans-serif;
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.4;
+    }
+
+    .story-block {
+      margin-top: 1.75rem;
+      padding: 1.25rem 1.35rem;
+      border-left: 3px solid var(--accent);
+      background: rgba(18, 32, 28, 0.65);
+    }
+
+    .story-block p { color: #d5e4de; }
+
+    .shot { margin: 1.75rem 0 0; }
+
+    .shot-frame {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      border: 1px dashed rgba(46, 196, 162, 0.45);
+      background:
+        repeating-linear-gradient(
+          -45deg,
+          rgba(46, 196, 162, 0.04),
+          rgba(46, 196, 162, 0.04) 8px,
+          transparent 8px,
+          transparent 16px
+        ),
+        var(--panel);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 1.5rem;
+    }
+
+    .shot-frame::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent 40%, rgba(46, 196, 162, 0.07) 50%, transparent 60%);
+      transform: translateX(-100%);
+      animation: sheen 5.5s var(--ease) infinite;
+      pointer-events: none;
+    }
+
+    @keyframes sheen {
+      0%, 55% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .shot-frame img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .shot-frame.has-image {
+      aspect-ratio: auto;
+      max-height: min(28rem, 55vh);
+      padding: 0;
+      border-style: solid;
+      border-color: var(--line);
+      background: #0a1210;
+    }
+
+    .shot-frame.has-image::after {
+      display: none;
+    }
+
+    .shot-frame.has-image img {
+      position: static;
+      inset: auto;
+      display: block;
+      width: 100%;
+      height: 100%;
+      max-height: min(28rem, 55vh);
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .shot-frame.has-image .shot-ph { display: none; }
+
+    .shot-grid .shot-frame.has-image,
+    .shot-grid .shot-frame.has-image img {
+      max-height: min(20rem, 42vh);
+    }
+
+    .shot-ph {
+      position: relative;
+      z-index: 1;
+      max-width: 28rem;
+    }
+
+    .shot-id {
+      display: inline-block;
+      margin-bottom: 0.55rem;
+      padding: 0.2rem 0.45rem;
+      border: 1px solid var(--line);
+      color: var(--accent);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+    }
+
+    .shot-title {
+      margin: 0 0 0.4rem;
+      font-family: Syne, sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    .shot-hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    figcaption {
+      margin-top: 0.65rem;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .shot-grid {
+      display: grid;
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    @media (min-width: 760px) {
+      .shot-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .flow {
+      margin: 1.5rem 0 0;
+      padding: 1.15rem 1.2rem;
+      border-left: 3px solid var(--accent);
+      background: rgba(18, 32, 28, 0.85);
+      overflow-x: auto;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: #b7d0c6;
+      white-space: pre;
+    }
+
+    .callout {
+      margin: 1.5rem 0 0;
+      padding: 1rem 1.15rem;
+      border: 1px solid var(--line);
+      background: rgba(240, 199, 94, 0.06);
+    }
+
+    .callout strong { color: var(--accent-2); }
+
+    .toc {
+      display: grid;
+      gap: 0.45rem;
+      margin: 1.25rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a {
+      color: #c5d6cf;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .toc a:hover {
+      color: var(--accent);
+      border-bottom-color: rgba(46, 196, 162, 0.4);
+    }
+
+    .stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 1rem;
+    }
+
+    footer {
+      padding: 2.5rem 0 3.5rem;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    footer .wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.5rem;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap hero-inner">
+      <p class="eyebrow">Case study · solo project · Reign of Play</p>
+      <h1>Dutch Card Game · Live Stack · Ops Desk</h1>
+      <p class="hero-lead">
+        A shipped multiplayer card game on iOS and Android — built on an older Flask / MongoDB / Dart
+        WebSocket / Flutter stack — plus the local ops dashboard I use to run scripts, publish
+        social, and track revenue without leaving the product repo.
+      </p>
+
+      <div class="pillars" aria-label="Project pillars">
+        <div class="pillar">
+          <span class="pillar-num">01</span>
+          <strong>The game</strong>
+          <span>Dutch shedding/memory rules, lobbies, ranks, coins, practice + live multiplayer</span>
+        </div>
+        <div class="pillar">
+          <span class="pillar-num">02</span>
+          <strong>Live stack</strong>
+          <span>Flask API · Mongo · Redis · Dart game WS · Flutter client · store billing</span>
+        </div>
+        <div class="pillar">
+          <span class="pillar-num">03</span>
+          <strong>Ops desk</strong>
+          <span>wfrun dashboard — scripts, Task Manager, marketing, revenue, docs</span>
+        </div>
+      </div>
+
+      <div class="hero-meta">
+        <span class="chip">Solo · design + implementation</span>
+        <span class="chip">Flask · MongoDB · Redis · Dart WS · Flutter</span>
+        <span class="chip">iOS · Android · com.reignofplay.dutch</span>
+        <span class="chip">2024–2026</span>
+      </div>
+
+      <div class="version-switch" role="group" aria-label="Case study version">
+        <button type="button" id="btn-overview" aria-pressed="true" data-version="overview">Overview</button>
+        <button type="button" id="btn-technical" aria-pressed="false" data-version="technical">Technical</button>
+      </div>
+      <p class="version-hint" id="version-hint">
+        Overview — plain-language story of the Dutch card game, stack, and ops desk.
+      </p>
+    </div>
+  </header>
+
+  <!-- ========== OVERVIEW ========== -->
+  <div class="version" id="version-overview" data-version-panel="overview">
+    <main>
+      <section id="ov-snapshot">
+        <div class="wrap">
+          <p class="section-kicker">01 — In short</p>
+          <h2>A real card game, not a template demo</h2>
+          <p class="lede">
+            Dutch is a digital take on the Dutch shedding / memory card game: clear your hand or
+            finish with the lowest points, call <strong>Dutch</strong> to lock the endgame, and climb
+            ranks with coins on the line. It ships on the App Store and Google Play under
+            <code>com.reignofplay.dutch</code>. The codebase behind it is an older Reign of Play
+            stack — Flask and MongoDB for durable product truth, a Dart WebSocket server for hot
+            match traffic, Flutter for the client — not the newer FastAPI / Postgres template.
+          </p>
+          <div class="stat-row">
+            <div class="stat"><strong>2</strong><span>Store fronts (iOS + Android)</span></div>
+            <div class="stat"><strong>3</strong><span>Runtimes in play (Flask · Dart WS · Flutter)</span></div>
+            <div class="stat"><strong>6</strong><span>Ops dash tabs including Revenue</span></div>
+            <div class="stat"><strong>1</strong><span>Solo owner — product, ops, and growth</span></div>
+          </div>
+          <nav aria-label="Overview sections">
+            <ul class="toc">
+              <li><a href="#ov-problem">The problem</a></li>
+              <li><a href="#ov-game">Pillar 1 — The game</a></li>
+              <li><a href="#ov-stack">Pillar 2 — Live stack</a></li>
+              <li><a href="#ov-ops">Pillar 3 — Ops desk</a></li>
+              <li><a href="#ov-impact">Impact</a></li>
+            </ul>
+          </nav>
+
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="01">
+                <img src="images/01.jpg" alt="Dutch at a glance">
+              </div>
+              <figcaption>Reference — product overview.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="ov-problem">
+        <div class="wrap">
+          <p class="section-kicker">02 — The problem</p>
+          <h2>Ship a game, then keep running it alone</h2>
+          <div class="two-col">
+            <div>
+              <p>
+                Building Dutch meant more than cards on a screen: accounts and guests, coin stakes,
+                rank progression, practice AI vs real multiplayer, App Store and Play billing, ads,
+                and a VPS that stays healthy through deploys.
+              </p>
+              <p>
+                After launch, the same solo loop continues — releases, social posts, and revenue
+                checks. A CLI script menu helps, but I still needed a browser desk for marketing,
+                revenue, docs, and planning next to the code that ships the game.
+              </p>
+            </div>
+            <div class="story-block">
+              <p>
+                <strong style="color: var(--ink);">Goal:</strong> one product repo that is both the
+                live Dutch game and the ops surface I use every week — honest about its older stack,
+                not rewritten as a template story.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="ov-game">
+        <div class="wrap">
+          <p class="section-kicker">03 — Pillar 1 · The game</p>
+          <h2>Dutch rules players already know, online</h2>
+          <p class="lede">
+            Draw, play, peek with Queens, swap with Jacks, call Dutch, win by emptying your hand or
+            lowest score. Modes include live multiplayer lobbies and local practice against CPU.
+            Clear-and-collect adds a set-completion win path.
+          </p>
+          <div class="two-col">
+            <div>
+              <h3>What players feel</h3>
+              <ul>
+                <li>Coin-gated multiplayer tables with rank / table tiers</li>
+                <li>Progression from wins → level → rank (declarative catalogs)</li>
+                <li>Shop cosmetics and consumables; premium / promotional tiers</li>
+                <li>Guest or Google sign-in; Apple and Google Play purchases</li>
+                <li>AdMob rewarded paths alongside IAP</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Why it matters</h3>
+              <ul>
+                <li>Shared match rules run on Flutter and the Dart game server — one mental model</li>
+                <li>Practice doesn’t burn coins; multiplayer stakes feel real</li>
+                <li>Store listing: Dutch Card Game · Apple ID <code>6772967073</code></li>
+              </ul>
+            </div>
+          </div>
+
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="02">
+                <img src="images/02.jpg" alt="In-match table">
+              </div>
+              <figcaption>Reference — core play.</figcaption>
+            </figure>
+            <figure class="shot">
+              <div class="shot-frame has-image" data-shot="03">
+                <img src="images/03.png" alt="Lobby / home">
+              </div>
+              <figcaption>Reference — social entry.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="ov-stack">
+        <div class="wrap">
+          <p class="section-kicker">04 — Pillar 2 · Live stack</p>
+          <h2>Older base, still the production truth</h2>
+          <p class="lede">
+            Dutch did not migrate to the FastAPI / Postgres template. Production authority is
+            <code>python_base_04</code> Flask with MongoDB and Redis. Hot multiplayer traffic goes
+            through <code>dart_bkend_base_01</code>. The client is <code>flutter_base_05</code> with
+            manager-based modules (auth, nav, dutch_game, ads, billing).
+          </p>
+          <ul>
+            <li><strong>Flask</strong> — REST, Socket.IO helpers, module registry / AppManager</li>
+            <li><strong>MongoDB</strong> — users, dutch_game module docs, catalogs</li>
+            <li><strong>Redis</strong> — sessions / auth generation / caches</li>
+            <li><strong>Dart WS</strong> — match rooms; shared logic mirrored with Flutter</li>
+            <li><strong>Deploy</strong> — Docker Compose on VPS <code>rop01</code> via Ansible playbooks</li>
+          </ul>
+          <div class="callout">
+            <strong>Not this project:</strong> FastAPI + PostgreSQL + Flutter Riverpod template.
+            That is a separate codebase. Dutch’s case study stays faithful to Flask / Mongo / Dart WS.
+          </div>
+
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="05">
+                <img src="images/05.jpg" alt="Store / billing">
+              </div>
+              <figcaption>Reference — monetization surfaces.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="ov-ops">
+        <div class="wrap">
+          <p class="section-kicker">05 — Pillar 3 · Ops desk</p>
+          <h2>Same repo, browser twin of wfrun</h2>
+          <p class="lede">
+            The CLI runner stays default. The dashboard is the place I open when I want scripts,
+            a planning board, marketing compose, revenue KPIs, and docs without leaving Dutch.
+          </p>
+          <ul>
+            <li><strong>Scripts</strong> — discover and run automation with a live PTY terminal</li>
+            <li><strong>Task Manager</strong> — planning board proxied same-origin</li>
+            <li><strong>Marketing</strong> — compose once; publish to Facebook, YouTube, TikTok; metrics</li>
+            <li><strong>Revenue</strong> — AdMob / Play / App Store estimated + settled; expense ledger; profit</li>
+            <li><strong>Docs / Case Study</strong> — browse <code>Documentation/</code> and this narrative</li>
+          </ul>
+
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="06">
+                <img src="images/06.png" alt="Dashboard tabs">
+              </div>
+              <figcaption>Reference — ops chrome.</figcaption>
+            </figure>
+            <figure class="shot">
+              <div class="shot-frame has-image" data-shot="07">
+                <img src="images/07.png" alt="Revenue KPIs">
+              </div>
+              <figcaption>Reference — growth desk.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="ov-impact">
+        <div class="wrap">
+          <p class="section-kicker">06 — Impact</p>
+          <h2>What this unlocked</h2>
+          <ul>
+            <li>A live multiplayer card game on both mobile stores from one solo-owned repo.</li>
+            <li>Honest architecture docs — Flask/Mongo/Dart, not a pretend FastAPI rewrite.</li>
+            <li>Ops, marketing, and revenue live beside the same env the game deploys with.</li>
+            <li>Shared match logic between client and game server reduces “works in practice, breaks online.”</li>
+            <li>Patterns (dashboard, marketing, revenue) can still port to other RoP products without claiming Dutch is the new template.</li>
+          </ul>
+          <div class="two-col">
+            <div>
+              <h3>Scope</h3>
+              <p>
+                Solo end-to-end: game rules and UX, Flask modules, Dart WS, Flutter client, billing,
+                ads, VPS deploy playbooks, and the local ops desk.
+              </p>
+            </div>
+            <div>
+              <h3>What’s next</h3>
+              <p>
+                Keep improving CPU AI and progression catalogs, harden Play GCS revenue access,
+                and deepen marketing metrics — without forcing a premature stack migration.
+              </p>
+            </div>
+          </div>
+          <div class="callout">
+            <strong>Prefer depth?</strong> Switch to <em>Technical</em> for module paths, data shape,
+            dash APIs, and the hard problems that showed up in production.
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ========== TECHNICAL ========== -->
+  <div class="version" id="version-technical" data-version-panel="technical" hidden>
+    <main>
+      <section id="tech-snapshot">
+        <div class="wrap">
+          <p class="section-kicker">01 — Snapshot</p>
+          <h2>Flask + Mongo product · Dart match plane · Flutter client · aiohttp ops</h2>
+          <p class="lede">
+            Product code lives in <code>python_base_04/</code>, <code>dart_bkend_base_01/</code>, and
+            <code>flutter_base_05/</code>. Ops plane is <code>automation/dashboard/</code> plus
+            <code>automation/marketing/</code> and <code>automation/revenue/</code>. Env SSOT:
+            <code>.env.local</code> / <code>.env.prod</code> and Flutter dart-defines — not secrets in the browser UI.
+          </p>
+          <div class="stat-row">
+            <div class="stat"><strong>Flask 3</strong><span>Gunicorn HTTP API + modules</span></div>
+            <div class="stat"><strong>Mongo</strong><span>Primary app database</span></div>
+            <div class="stat"><strong>Dart WS</strong><span>Multiplayer match server</span></div>
+            <div class="stat"><strong>:8765</strong><span>Local wfrun dashboard</span></div>
+          </div>
+          <nav aria-label="Technical sections">
+            <ul class="toc">
+              <li><a href="#tech-principles">Principles</a></li>
+              <li><a href="#tech-game">Game systems</a></li>
+              <li><a href="#tech-stack">Product stack</a></li>
+              <li><a href="#tech-dashboard">Ops dash</a></li>
+              <li><a href="#tech-growth">Marketing &amp; revenue</a></li>
+              <li><a href="#tech-architecture">Architecture</a></li>
+              <li><a href="#tech-hard">Hard problems</a></li>
+              <li><a href="#tech-next">Stack &amp; next</a></li>
+            </ul>
+          </nav>
+        </div>
+      </section>
+
+      <section id="tech-principles">
+        <div class="wrap">
+          <p class="section-kicker">02 — Principles</p>
+          <h2>Non-negotiables on this older base</h2>
+          <ul>
+            <li>Features live in <strong>modules</strong> wired through <code>module_registry</code> / AppManager — not one-off Flask blueprints scattered forever.</li>
+            <li>Match rules shared in <code>backend_core/shared_logic/</code> between Flutter and Dart.</li>
+            <li>Mongo is the durable store; Redis for session / auth-generation / caches — not Postgres for Dutch gameplay data.</li>
+            <li>Env files SSOT; never log tokens, <code>.p8</code>, or Play service-account JSON.</li>
+            <li>CLI <code>wfrun</code> remains default; dashboard is opt-in.</li>
+            <li>Do not describe Dutch as FastAPI + Postgres — that is a different template.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="tech-game">
+        <div class="wrap">
+          <p class="section-kicker">03 — Game systems</p>
+          <h2><code>dutch_game</code> module + catalogs</h2>
+          <ul>
+            <li>Lobby create/join; coin check + deduct on multiplayer <code>start_match</code></li>
+            <li>Progression: wins → level → rank via <code>progression_config.json</code></li>
+            <li>Table tiers, consumables, achievements as declarative JSON (SSOT docs under <code>Documentation/Dutch_game/</code>)</li>
+            <li>Practice = simulated CPU; multiplayer can use DB comp players</li>
+            <li>Subscription tiers: promotional / free / regular + IAP coin packs</li>
+            <li>Init revision-gated catalogs via get-init-data / public init-config</li>
+          </ul>
+          <pre class="flow">flutter_base_05/lib/modules/dutch_game/
+python_base_04/core/modules/dutch_game/
+dart_bkend_base_01/  (+ shared_logic mirror)
+Documentation/Dutch_game/   rules · progression · coins · state</pre>
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="02t">
+                <img src="images/02.jpg" alt="In-match table">
+              </div>
+              <figcaption>Reference — client game.</figcaption>
+            </figure>
+            <figure class="shot">
+              <div class="shot-frame has-image" data-shot="03t">
+                <img src="images/03.png" alt="Lobby / home">
+              </div>
+              <figcaption>Reference — economy UI.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="tech-stack">
+        <div class="wrap">
+          <p class="section-kicker">04 — Product stack</p>
+          <h2>Monorepo layout (Dutch reality)</h2>
+          <pre class="flow">python_base_04/          Flask REST · Socket.IO managers · modules
+dart_bkend_base_01/      Game WebSocket server
+flutter_base_05/         Flutter client · managers · dutch_game
+docker-compose.yml       Mongo · Redis · Flask · Dart
+playbooks/rop01/         Ansible deploy / backup / landing
+automation/              wfrun · dashboard · marketing · revenue
+Documentation/           Dutch_game · VPS · billing · flutter_base_05
+website/                 dutch.reignofplay.com landing</pre>
+          <h3>Notable Python modules</h3>
+          <ul>
+            <li><code>dutch_game</code>, <code>user_management_module</code></li>
+            <li><code>apple_billing_module</code>, <code>play_billing_module</code>, <code>admob_rewards_module</code></li>
+            <li><code>wallet_module</code>, <code>credit_system_module</code>, <code>stripe_module</code>, <code>transactions_module</code></li>
+            <li><code>notification_module</code>, <code>analytics_module</code>, <code>referral_campaigns_module</code>, <code>ops_module</code></li>
+          </ul>
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="05t">
+                <img src="images/05.jpg" alt="Store / billing">
+              </div>
+              <figcaption>Reference — monetization code.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="tech-dashboard">
+        <div class="wrap">
+          <p class="section-kicker">05 — Ops dash</p>
+          <h2><code>automation/dashboard/serve.py</code></h2>
+          <ul>
+            <li>aiohttp app on <code>:8765</code>; script discovery + <code>/ws/run</code> PTY + xterm.js</li>
+            <li>Task Manager same-origin <code>/tm/*</code> proxy</li>
+            <li>Docs / Case Study via <code>docs_discovery.py</code> under <code>Documentation/</code></li>
+            <li>Brand via session / <code>REPO_BRAND</code> (Dutch dashboard)</li>
+          </ul>
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="06t">
+                <img src="images/06.png" alt="Dashboard tabs">
+              </div>
+              <figcaption>Reference — dash chrome.</figcaption>
+            </figure>
+            <figure class="shot">
+              <div class="shot-frame has-image" data-shot="08">
+                <img src="images/08.jpg" alt="Scripts PTY">
+              </div>
+              <figcaption>Reference — runners.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="tech-growth">
+        <div class="wrap">
+          <p class="section-kicker">06 — Marketing &amp; revenue</p>
+          <h2>Growth surfaces in-repo</h2>
+          <ul>
+            <li><strong>Marketing:</strong> <code>automation/marketing/*</code> — FB / YT / TT publish, metrics, OAuth refresh; dash Saved + Platform posts</li>
+            <li><strong>Revenue:</strong> <code>automation/revenue/*</code> — AdMob network report, Play GCS CSVs, ASC sales/finance; OpenSSL JWT (no PyJWT pip)</li>
+            <li>Persisted ledger <code>dashboard/data/revenue_ledger.json</code> — filters, last table load, day entries, expenses, profit = rev − exp</li>
+            <li>Package filter <code>com.reignofplay.dutch</code>; Apple ID <code>6772967073</code></li>
+          </ul>
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="07t">
+                <img src="images/07.png" alt="Revenue KPIs">
+              </div>
+              <figcaption>Reference — revenue tab.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="tech-architecture">
+        <div class="wrap">
+          <p class="section-kicker">07 — Architecture</p>
+          <h2>Product + ops plane</h2>
+          <pre class="flow">Flutter ──HTTPS/WS──► edge / Flask :8000 ──► MongoDB
+                        │                      Redis
+                        └─ Dart game WS :8080
+                              shared_logic ↔ Flutter dutch_game
+
+wfrun (local|prod env)
+  └─ automation/dashboard/serve.py :8765
+        Scripts | Task Manager | Marketing | Revenue | Docs | Case Study
+  └─ automation/marketing/* · automation/revenue/*
+playbooks/rop01/ ──► VPS docker compose (Flask · Dart · Mongo · Redis)</pre>
+          <figure class="shot">
+              <div class="shot-frame has-image" data-shot="09">
+                <img src="images/09.jpg" alt="Architecture diagram">
+              </div>
+              <figcaption>Reference — architecture.</figcaption>
+            </figure>
+        </div>
+      </section>
+
+      <section id="tech-hard">
+        <div class="wrap">
+          <p class="section-kicker">08 — Hard problems</p>
+          <h2>What production taught</h2>
+          <div class="two-col">
+            <div>
+              <h3>Game / stack</h3>
+              <ul>
+                <li>Keep Flutter and Dart match logic shared — drift creates “practice works, live doesn’t.”</li>
+                <li>Coin deduct timing on match start vs practice / promotional tier exceptions.</li>
+                <li>Guest + Google + JWT refresh with Redis auth-generation bumps.</li>
+                <li>Store billing: Apple Server API vs Play Billing; AdMob separate from IAP.</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Ops / growth</h3>
+              <ul>
+                <li>Play GCS 403 until SA invited with financial + bulk report account permissions.</li>
+                <li>“All-time revenue” is tracked ledger coverage after Refresh — not a magic lifetime API.</li>
+                <li>ASC sales reports are per-day downloads — slow ranges need patience.</li>
+                <li>Task Manager CSRF fixed with same-origin <code>/tm</code> proxy.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tech-next">
+        <div class="wrap">
+          <p class="section-kicker">09 — Stack &amp; next</p>
+          <h2>Implementation surface</h2>
+          <div class="stack">
+            <span class="chip">Flask</span>
+            <span class="chip">MongoDB</span>
+            <span class="chip">Redis</span>
+            <span class="chip">Dart WebSocket</span>
+            <span class="chip">Flutter</span>
+            <span class="chip">Docker Compose</span>
+            <span class="chip">Ansible</span>
+            <span class="chip">aiohttp dash</span>
+            <span class="chip">AdMob · Play · ASC</span>
+            <span class="chip">Meta · YouTube · TikTok</span>
+          </div>
+          <h3>Next</h3>
+          <ul>
+            <li>CPU AI / progression polish; referral and ops module depth as needed.</li>
+            <li>Revenue: confirm Play bucket access; grow tracked date range; keep expense ledger honest.</li>
+            <li>Stack migration to FastAPI/Postgres is <em>not</em> assumed — only if a deliberate project starts.</li>
+          </ul>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <span>Dutch Card Game · Live stack · Ops desk — case study</span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const panels = {
+        overview: document.getElementById("version-overview"),
+        technical: document.getElementById("version-technical"),
+      };
+      const buttons = document.querySelectorAll(".version-switch button");
+      const hint = document.getElementById("version-hint");
+      const hints = {
+        overview: "Overview — plain-language story of the Dutch card game, stack, and ops desk.",
+        technical: "Technical — Flask/Mongo/Dart/Flutter layout, game systems, dash, marketing & revenue.",
+      };
+
+      function setVersion(version) {
+        Object.entries(panels).forEach(([key, el]) => {
+          el.hidden = key !== version;
+        });
+        buttons.forEach((btn) => {
+          const on = btn.dataset.version === version;
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        hint.textContent = hints[version] || "";
+        try {
+          localStorage.setItem("dutch-case-study-version", version);
+        } catch (_) {}
+        if (location.hash && !document.querySelector(location.hash)) {
+          history.replaceState(null, "", location.pathname + location.search);
+        }
+      }
+
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => setVersion(btn.dataset.version));
+      });
+
+      function versionFromHash() {
+        const h = (location.hash || "").replace(/^#/, "");
+        if (
+          h === "version-technical" ||
+          h === "technical" ||
+          h.startsWith("tech-")
+        ) {
+          return "technical";
+        }
+        if (
+          h === "version-overview" ||
+          h === "overview" ||
+          h.startsWith("ov-")
+        ) {
+          return "overview";
+        }
+        return null;
+      }
+
+      let initial = "overview";
+      try {
+        const saved = localStorage.getItem("dutch-case-study-version");
+        if (saved === "overview" || saved === "technical") initial = saved;
+      } catch (_) {}
+      const fromHash = versionFromHash();
+      if (fromHash) initial = fromHash;
+      setVersion(initial);
+
+      window.addEventListener("hashchange", () => {
+        const next = versionFromHash();
+        if (next) setVersion(next);
+      });
+
+      function resolveCaseStudyAsset(rel) {
+        if (!rel || /^(https?:|data:|\/)/i.test(rel)) return rel;
+        const params = new URLSearchParams(location.search);
+        const docPath = params.get("path") || "";
+        if (location.pathname.includes("/api/docs/file") && docPath) {
+          const dir = docPath.replace(/[^/]+$/, "");
+          return (
+            "/api/docs/file?path=" + encodeURIComponent(dir + rel.replace(/^\.\//, ""))
+          );
+        }
+        return rel;
+      }
+
+      document.querySelectorAll(".shot-frame img").forEach((img) => {
+        const frame = img.closest(".shot-frame");
+        const raw = img.getAttribute("src");
+        if (raw) {
+          img.setAttribute("src", resolveCaseStudyAsset(raw));
+          frame.classList.add("has-image");
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

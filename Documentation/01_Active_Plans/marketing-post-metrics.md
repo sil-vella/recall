@@ -43,7 +43,7 @@ Show live post metrics on Marketing, and browse **all** remote platform posts (n
 - `Documentation/01_Active_Plans/marketing-post-metrics.md`
 - `Documentation/01_Active_Plans/00_MASTER_PLAN.md`
 - `Documentation/00_System_Wide/wfrun-dashboard-gui.md`
-- `Documentation/01_Active_Plans/02_CASE_STUDY.md`
+- `Documentation/01_Active_Plans/case-study-dutch-card-game.html`
 
 ## Notes
 
@@ -54,7 +54,7 @@ Show live post metrics on Marketing, and browse **all** remote platform posts (n
 
 ## Case study
 
-[02_CASE_STUDY.md](02_CASE_STUDY.md) §15 — Marketing metrics + platform posts browser (FB first).
+[case-study-dutch-card-game.html](case-study-dutch-card-game.html) §15 — Marketing metrics + platform posts browser (FB first).
 
 ## Task Manager
 

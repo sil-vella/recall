@@ -34,6 +34,7 @@ from docs_discovery import (
     discover_case_studies,
     discover_docs,
     read_doc,
+    resolve_doc_path,
 )
 from script_discovery import build_command, discover_scripts, resolve_script
 
@@ -1616,6 +1617,22 @@ async def handle_doc_content(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "doc": doc})
 
 
+async def handle_doc_file(request: web.Request) -> web.Response:
+    """Serve a Documentation file (HTML case studies) for iframe embedding."""
+    root: Path = request.app["root"]
+    rel = (request.query.get("path") or "").strip()
+    path = resolve_doc_path(root, rel) if rel else None
+    if path is None:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": {"code": "not_found", "message": "Document not found"},
+            },
+            status=404,
+        )
+    return web.FileResponse(path)
+
+
 async def handle_scripts(request: web.Request) -> web.Response:
     root: Path = request.app["root"]
     entries = discover_scripts(root)
@@ -1780,6 +1797,7 @@ def create_app(root: Path) -> web.Application:
     app.router.add_get("/api/docs", handle_docs)
     app.router.add_get("/api/case-studies", handle_case_studies)
     app.router.add_get("/api/docs/content", handle_doc_content)
+    app.router.add_get("/api/docs/file", handle_doc_file)
     app.router.add_get("/api/marketing/posts", handle_marketing_posts_get)
     app.router.add_post("/api/marketing/posts", handle_marketing_posts_create)
     app.router.add_get("/api/marketing/platform-posts", handle_marketing_platform_posts)

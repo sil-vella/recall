@@ -120,6 +120,15 @@
       if (!sectionId || !markdownEl) {
         return;
       }
+      const iframe = markdownEl.querySelector("iframe.case-study-frame");
+      if (iframe && iframe.contentWindow) {
+        try {
+          iframe.contentWindow.location.hash = sectionId;
+        } catch (_) {
+          /* cross-origin unlikely — same origin file API */
+        }
+        return;
+      }
       const target = markdownEl.querySelector(`#${CSS.escape(sectionId)}`);
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -156,6 +165,22 @@
       }
       if (pathEl) {
         pathEl.textContent = `Documentation/${doc.path}`;
+      }
+
+      const isHtml =
+        doc.format === "html" ||
+        (typeof doc.path === "string" &&
+          /\.html?$/i.test(doc.path));
+
+      if (isHtml) {
+        const fileUrl =
+          doc.file_url ||
+          `/api/docs/file?path=${encodeURIComponent(doc.path)}`;
+        const hash = sectionId ? `#${encodeURIComponent(sectionId)}` : "";
+        markdownEl.innerHTML = `<iframe class="case-study-frame" title="${escapeHtml(
+          doc.title || "Case study"
+        )}" src="${escapeHtml(fileUrl)}${hash}"></iframe>`;
+        return;
       }
 
       markdownEl.innerHTML = renderMarkdown(doc.markdown);

@@ -1,5 +1,5 @@
 # dash Discover Documentation/*.md for dashboard Docs / Case Study tabs
-"""List markdown under Documentation/ for the wfrun dashboard."""
+"""List markdown under Documentation/ for Docs; HTML case studies for Case Study."""
 
 from __future__ import annotations
 
@@ -8,6 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 MD_SUFFIXES = frozenset({".md", ".MD", ".markdown"})
+HTML_SUFFIXES = frozenset({".html", ".htm", ".HTML", ".HTM"})
+IMAGE_SUFFIXES = frozenset(
+    {".png", ".jpg", ".jpeg", ".webp", ".gif", ".PNG", ".JPG", ".JPEG", ".WEBP", ".GIF"}
+)
+# Case Study tab is HTML-only (Overview / Technical live inside the page)
+CASE_STUDY_SUFFIXES = HTML_SUFFIXES
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _MENU_LINK_RE = re.compile(
     r"^\s*\d+\.\s*\[([^\]]+)\]\(#([^)]+)\)\s*$"
@@ -129,13 +135,14 @@ def discover_docs(project_root: Path) -> list[DocEntry]:
 
 
 def discover_case_studies(project_root: Path) -> list[DocEntry]:
+    """HTML case studies only (filename matches case[_-]?study)."""
     root = documentation_root(project_root)
     if not root.is_dir():
         return []
 
     entries: list[DocEntry] = []
     for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix not in MD_SUFFIXES:
+        if not path.is_file() or path.suffix not in CASE_STUDY_SUFFIXES:
             continue
         if not _is_case_study(path):
             continue
@@ -164,9 +171,24 @@ def resolve_doc_path(project_root: Path, rel_path: str) -> Path | None:
         candidate.relative_to(root)
     except ValueError:
         return None
-    if not candidate.is_file() or candidate.suffix not in MD_SUFFIXES:
+    if not candidate.is_file():
         return None
-    return candidate
+    if candidate.suffix in MD_SUFFIXES:
+        return candidate
+    if candidate.suffix in HTML_SUFFIXES and _is_case_study(candidate):
+        return candidate
+    # Case study companion assets (e.g. 01_Active_Plans/images/*)
+    if candidate.suffix in IMAGE_SUFFIXES:
+        return candidate
+    return None
+
+
+def _sections_from_html(_html: str) -> list[DocSection]:
+    """Side nav mirrors the in-page Overview / Technical switcher."""
+    return [
+        DocSection(id="version-overview", title="Overview", level=2),
+        DocSection(id="version-technical", title="Technical", level=2),
+    ]
 
 
 def read_doc(project_root: Path, rel_path: str) -> dict[str, object] | None:
@@ -176,9 +198,20 @@ def read_doc(project_root: Path, rel_path: str) -> dict[str, object] | None:
     root = documentation_root(project_root)
     text = path.read_text(encoding="utf-8", errors="replace")
     rel = path.relative_to(root).as_posix()
+    if path.suffix in HTML_SUFFIXES:
+        return {
+            "path": rel,
+            "title": _title_from_path(path),
+            "format": "html",
+            "markdown": "",
+            "sections": [s.to_dict() for s in _sections_from_html(text)],
+            "is_case_study": True,
+            "file_url": f"/api/docs/file?path={rel}",
+        }
     return {
         "path": rel,
         "title": _title_from_path(path),
+        "format": "markdown",
         "markdown": text,
         "sections": [s.to_dict() for s in extract_sections(text)],
         "is_case_study": _is_case_study(path),

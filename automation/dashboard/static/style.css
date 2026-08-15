@@ -1194,6 +1194,20 @@ code {
   font-size: 0.92rem;
 }
 
+.docs-markdown:has(iframe.case-study-frame) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.case-study-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: calc(100vh - 180px);
+  border: 0;
+  background: #08110f;
+}
+
 .docs-placeholder {
   margin: 0;
   color: var(--muted);

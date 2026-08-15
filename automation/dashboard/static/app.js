@@ -107,6 +107,9 @@
     if (window.DocsDash && typeof window.DocsDash.onView === "function") {
       window.DocsDash.onView(view);
     }
+    if (window.RevenueDash && typeof window.RevenueDash.onView === "function") {
+      window.RevenueDash.onView(view);
+    }
 
     if (view === "scripts" && activeScriptId) {
       const session = sessions.get(activeScriptId);

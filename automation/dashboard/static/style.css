@@ -1302,3 +1302,342 @@ code {
   display: none;
 }
 
+
+/* —— Revenue —— */
+.revenue-subtabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.55rem 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.revenue-subtab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.revenue-subtab:hover {
+  color: var(--text);
+}
+
+.revenue-subtab.active {
+  color: var(--accent-hover);
+  border-bottom-color: var(--accent);
+}
+
+.revenue-layout {
+  padding: 1.25rem 1.5rem 2.5rem;
+  min-height: calc(100vh - 170px);
+}
+
+.revenue-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.35rem;
+}
+
+@media (max-width: 720px) {
+  .revenue-kpi-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.revenue-kpi {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem 1rem;
+  background: var(--panel);
+  position: relative;
+  overflow: hidden;
+}
+
+.revenue-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+}
+
+.revenue-kpi-alltime::before {
+  background: var(--success);
+}
+
+.revenue-kpi-month::before {
+  background: var(--info);
+}
+
+.revenue-kpi-alltime {
+  background: linear-gradient(135deg, var(--success-soft), transparent 55%);
+}
+
+.revenue-kpi-month {
+  background: linear-gradient(135deg, var(--info-soft), transparent 55%);
+}
+
+.revenue-kpi-label {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.revenue-kpi-sublabel {
+  margin: 0.65rem 0 0.2rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
+.revenue-kpi-sublabel:first-of-type {
+  margin-top: 0.15rem;
+}
+
+.revenue-kpi-amounts {
+  min-height: 1.6rem;
+}
+
+.revenue-kpi-amount {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.revenue-kpi-alltime .revenue-kpi-amount {
+  color: var(--success);
+}
+
+.revenue-kpi-month .revenue-kpi-amount {
+  color: var(--info);
+}
+
+.revenue-kpi-expenses .revenue-kpi-amount {
+  color: var(--warning);
+  font-size: 1.1rem;
+}
+
+.revenue-kpi-profit .revenue-kpi-amount {
+  font-size: 1.45rem;
+}
+
+.revenue-kpi-profit .revenue-kpi-amount.is-positive {
+  color: var(--success);
+}
+
+.revenue-kpi-profit .revenue-kpi-amount.is-negative {
+  color: var(--danger);
+}
+
+.revenue-kpi-placeholder {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+
+.revenue-kpi-meta {
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.revenue-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.revenue-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+}
+
+.revenue-sub {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.revenue-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 0.85rem;
+  align-items: flex-end;
+}
+
+.revenue-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.revenue-field input,
+.revenue-field select {
+  min-width: 9rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.expense-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.expense-field-wide {
+  flex: 1 1 16rem;
+  min-width: 14rem;
+}
+
+.expense-field-wide input {
+  min-width: 100%;
+  width: 100%;
+}
+
+.expense-delete {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.expense-delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.revenue-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.revenue-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.revenue-hint,
+.revenue-warn {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.revenue-status-error {
+  color: var(--danger);
+}
+
+.revenue-warn {
+  color: var(--warning);
+}
+
+.revenue-summary {
+  margin-bottom: 1.25rem;
+}
+
+.revenue-summary-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  margin-top: 0.65rem;
+}
+
+.revenue-card {
+  padding: 0.85rem 1rem;
+  border-top: 2px solid var(--accent);
+  background: var(--panel);
+}
+
+.revenue-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.revenue-card-amount {
+  margin: 0.15rem 0 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.revenue-empty,
+.revenue-empty-cell {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.revenue-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.revenue-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.revenue-table th,
+.revenue-table td {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.revenue-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.revenue-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+

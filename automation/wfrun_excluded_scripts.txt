@@ -7,6 +7,7 @@ dashboard/pty_runner.py
 dashboard/run_log.py
 dashboard/script_discovery.py
 dashboard/static/docs.js
+dashboard/static/revenue.js
 dashboard/docs_discovery.py
 dashboard/requirements.txt
 dashboard/static/index.html
@@ -40,3 +41,14 @@ production/mongodb_tls/mongo_tls_common.sh
 production_host/mongodb_tls/mongo_tls_common.sh
 production/mongodb_tls/load_mongo_tls_args.sh
 production_host/mongodb_tls/load_mongo_tls_args.sh
+
+# revenue — helpers + OAuth (dashboard API imports these)
+revenue/revenue_common.py
+revenue/admob_revenue.py
+revenue/play_revenue.py
+revenue/appstore_revenue.py
+revenue/fetch_revenue.py
+revenue/jwt_openssl.py
+revenue/admob_oauth_get_refresh_token.py
+revenue/__init__.py
+

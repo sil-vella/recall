@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dashboard</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=docs-3">
+  <link rel="stylesheet" href="/static/style.css?v=revenue-4">
 </head>
 <body>
   <header class="topbar">
@@ -20,6 +20,7 @@
     <button type="button" class="main-tab active" role="tab" aria-selected="true" aria-controls="view-scripts" id="tab-scripts" data-view="scripts">Scripts</button>
     <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-task-manager" id="tab-task-manager" data-view="task-manager">Task Manager</button>
     <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-marketing" id="tab-marketing" data-view="marketing">Marketing</button>
+    <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-revenue" id="tab-revenue" data-view="revenue">Revenue</button>
     <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-docs" id="tab-docs" data-view="docs">Documentation</button>
     <button type="button" class="main-tab" role="tab" aria-selected="false" aria-controls="view-case-study" id="tab-case-study" data-view="case-study">Case Study</button>
   </nav>
@@ -356,6 +357,166 @@
       </div>
     </div>
 
+    <div class="view-panel" id="view-revenue" role="tabpanel" aria-labelledby="tab-revenue" data-view="revenue" hidden>
+      <nav class="revenue-subtabs" id="rev-subtabs" aria-label="Revenue sections">
+        <button type="button" class="revenue-subtab active" data-rev-tab="revenue" id="rev-subtab-revenue">Revenue</button>
+        <button type="button" class="revenue-subtab" data-rev-tab="expense" id="rev-subtab-expense">Expense</button>
+      </nav>
+
+      <div class="revenue-subpanel" id="rev-panel-revenue" data-rev-panel="revenue">
+        <main class="revenue-layout">
+          <section class="revenue-kpi-row" aria-label="Revenue totals">
+            <article class="revenue-kpi revenue-kpi-alltime" id="rev-kpi-alltime">
+              <p class="revenue-kpi-label">All-time (tracked)</p>
+              <p class="revenue-kpi-sublabel">Revenue</p>
+              <div class="revenue-kpi-amounts" id="rev-kpi-alltime-amounts">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-sublabel">Expenses</p>
+              <div class="revenue-kpi-amounts revenue-kpi-expenses" id="rev-kpi-alltime-expenses">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-sublabel">Profit</p>
+              <div class="revenue-kpi-amounts revenue-kpi-profit" id="rev-kpi-alltime-profit">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-meta" id="rev-kpi-alltime-meta">Sum of days saved after Refresh</p>
+            </article>
+            <article class="revenue-kpi revenue-kpi-month" id="rev-kpi-month">
+              <p class="revenue-kpi-label">Current month</p>
+              <p class="revenue-kpi-sublabel">Revenue</p>
+              <div class="revenue-kpi-amounts" id="rev-kpi-month-amounts">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-sublabel">Expenses</p>
+              <div class="revenue-kpi-amounts revenue-kpi-expenses" id="rev-kpi-month-expenses">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-sublabel">Profit</p>
+              <div class="revenue-kpi-amounts revenue-kpi-profit" id="rev-kpi-month-profit">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-meta" id="rev-kpi-month-meta">From tracked ledger</p>
+            </article>
+          </section>
+
+          <header class="revenue-header">
+            <div>
+              <h2>Revenue</h2>
+              <p class="revenue-sub">Estimated and settled figures from AdMob, Google Play (GCS exports), and App Store Connect. Estimated ≠ bank payout.</p>
+            </div>
+            <div class="revenue-toolbar">
+              <label class="revenue-field">
+                <span>Kind</span>
+                <select id="rev-kind" aria-label="Estimated or settled">
+                  <option value="estimated" selected>Estimated</option>
+                  <option value="settled">Settled</option>
+                </select>
+              </label>
+              <label class="revenue-field">
+                <span>From</span>
+                <input type="date" id="rev-from" aria-label="From date">
+              </label>
+              <label class="revenue-field">
+                <span>To</span>
+                <input type="date" id="rev-to" aria-label="To date">
+              </label>
+              <button type="button" class="run-btn" id="rev-refresh">Refresh</button>
+            </div>
+          </header>
+
+          <div class="revenue-sources" role="group" aria-label="Revenue sources">
+            <label class="revenue-check"><input type="checkbox" name="rev-source" value="admob" checked> AdMob</label>
+            <label class="revenue-check"><input type="checkbox" name="rev-source" value="play" checked> Play</label>
+            <label class="revenue-check"><input type="checkbox" name="rev-source" value="appstore" checked> App Store</label>
+          </div>
+
+          <p class="revenue-hint" id="rev-status" hidden></p>
+          <p class="revenue-warn" id="rev-warn" hidden></p>
+
+          <section class="revenue-summary" id="rev-summary" aria-live="polite"></section>
+
+          <div class="revenue-table-wrap">
+            <table class="revenue-table" id="rev-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Source</th>
+                  <th>App</th>
+                  <th>Amount</th>
+                  <th>Currency</th>
+                  <th>Units</th>
+                  <th>Kind</th>
+                </tr>
+              </thead>
+              <tbody id="rev-tbody">
+                <tr><td colspan="7" class="revenue-empty-cell">Open this tab and Refresh to load revenue.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </main>
+      </div>
+
+      <div class="revenue-subpanel" id="rev-panel-expense" data-rev-panel="expense" hidden>
+        <main class="revenue-layout expense-layout">
+          <header class="revenue-header">
+            <div>
+              <h2>Expense</h2>
+              <p class="revenue-sub">Log costs for this product. Date is set automatically when you save.</p>
+            </div>
+          </header>
+
+          <form class="expense-form" id="expense-form">
+            <label class="revenue-field">
+              <span>Type</span>
+              <select id="exp-type" required>
+                <option value="ads">Ads</option>
+                <option value="tools">Tools</option>
+                <option value="hosting">Hosting</option>
+                <option value="contractors">Contractors</option>
+                <option value="apple">Apple</option>
+                <option value="google">Google</option>
+                <option value="legal">Legal</option>
+                <option value="other" selected>Other</option>
+              </select>
+            </label>
+            <label class="revenue-field">
+              <span>Amount</span>
+              <input type="number" id="exp-amount" min="0" step="0.01" required placeholder="0.00">
+            </label>
+            <label class="revenue-field">
+              <span>Currency</span>
+              <input type="text" id="exp-currency" maxlength="8" value="USD" required>
+            </label>
+            <label class="revenue-field expense-field-wide">
+              <span>Description</span>
+              <input type="text" id="exp-description" maxlength="500" placeholder="What was this for?">
+            </label>
+            <button type="submit" class="run-btn" id="exp-save">Save expense</button>
+          </form>
+          <p class="revenue-hint" id="exp-status" hidden></p>
+
+          <div class="revenue-table-wrap">
+            <table class="revenue-table" id="exp-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Currency</th>
+                  <th>Description</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="exp-tbody">
+                <tr><td colspan="6" class="revenue-empty-cell">No expenses yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </main>
+      </div>
+    </div>
+
     <div class="view-panel" id="view-docs" role="tabpanel" aria-labelledby="tab-docs" data-view="docs" hidden>
       <main class="layout docs-layout">
         <aside class="sidebar">
@@ -412,6 +573,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/static/app.js?v=brand-1"></script>
   <script src="/static/marketing.js?v=marketing-8"></script>
+  <script src="/static/revenue.js?v=revenue-4"></script>
   <script src="/static/docs.js?v=docs-1"></script>
 </body>
 </html>

@@ -28,4 +28,4 @@ Publish a dual-audience case study for Dutch that matches the template’s HTML 
 
 ## Task Manager
 
-n/a unless a Dutch TM label is used for docs — track here.
+Own Ops card **Case study HTML**, not App Dev.

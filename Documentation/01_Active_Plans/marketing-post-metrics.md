@@ -50,7 +50,6 @@ Show live post metrics on Marketing, and browse **all** remote platform posts (n
 - Saved list stays local JSON; Platform posts hit live APIs.
 - Never log tokens. Metrics are fetched live.
 - YouTube uses the same OAuth refresh credentials as publish (`YOUTUBE_*`).
-- Task Manager: n/a for this template repo — track in this plan only.
 
 ## Case study
 
@@ -58,4 +57,4 @@ Show live post metrics on Marketing, and browse **all** remote platform posts (n
 
 ## Task Manager
 
-n/a for this template repo — track progress in this plan only.
+Own Ops card **Marketing post metrics**, not App Dev.

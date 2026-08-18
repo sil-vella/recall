@@ -47,7 +47,6 @@ v1 estimated + settled wired; Revenue/Expense sub-tabs with persisted all-time +
 - Estimated ≠ bank payout. Settled lags (~monthly).
 - Never log tokens / `.p8` / service-account JSON.
 - Play/ASC JWTs: OpenSSL CLI via `jwt_openssl.py` (no PyJWT pip dep).
-- Task Manager: n/a for this template repo — track in this plan only.
 
 ## Case study
 
@@ -55,4 +54,4 @@ n/a for template narrative HTML unless productizing later.
 
 ## Task Manager
 
-n/a for this template repo — track progress in this plan only.
+Own Ops card **Dashboard Revenue tab**, not App Dev.

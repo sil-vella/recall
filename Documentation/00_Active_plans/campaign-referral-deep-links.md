@@ -22,3 +22,7 @@ Full detail: [`Documentation/Referrals/CAMPAIGN_REFERRAL_CODES.md`](../Referrals
 - [x] Custom scheme `dutch://gotoapp/<CODE>` for same-site Safari (landing button) + HTTPS fallback
 - [x] Per-user cap: campaign `max_per_user` + user `referral_code_counts` (TESTREF8719 = 1000)
 - [x] Unsuccessful sync → `InstantMessageModal` (try again / already applied)
+
+## Task Manager
+
+App Dev checklist — Campaign referral deep links (done). Do not create a new card.

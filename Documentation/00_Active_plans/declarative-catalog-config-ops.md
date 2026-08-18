@@ -81,3 +81,7 @@ Deck/hands YAML live under `dart_bkend_base_01/.../config/` and Flutter `assets/
 - Separate catalog container is justified for **frequent deploys / multiple consumers**, not for avoiding game interruption alone.
 - Clients already handle catalog updates via revision; no Flutter change required for server-side reload strategy.
 - See `Documentation/Dutch_game/CONSUMABLES_COSMETICS_MVP.md`, `Documentation/Consumables/DECLARATIVE_CATALOG.md`, `Documentation/SSOT_DECLARATIONS/`.
+
+## Task Manager
+
+App Dev checklist — Catalog reload / ops strategy. Do not create a new card.

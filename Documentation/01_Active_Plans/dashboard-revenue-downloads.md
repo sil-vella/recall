@@ -50,4 +50,4 @@ n/a — ops dashboard surface; product case study unchanged.
 
 ## Task Manager
 
-n/a for this template repo — track in this plan only.
+Own Ops card **Dashboard Revenue tab** (same workstream as [dashboard-revenue-tab.md](dashboard-revenue-tab.md)), not App Dev.

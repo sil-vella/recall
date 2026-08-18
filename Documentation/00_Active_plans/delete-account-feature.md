@@ -64,3 +64,7 @@ Also:
 - Dart WebSocket game server in-memory rooms
 - Admin self-delete block
 - Google re-auth (confirmation phrase only for Google-only)
+
+## Task Manager
+
+App Dev checklist — Delete account (done). Do not create a new card.

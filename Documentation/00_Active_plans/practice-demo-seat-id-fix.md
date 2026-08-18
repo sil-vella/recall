@@ -28,3 +28,7 @@ Launch with `playbooks/frontend/run_*_to_global_log.sh`, filter `global.log` for
 
 - Practice/demo: `selfIndex >= 0`, `oppCount` excludes human, `myHandSlice cardsLen=4` after deal.
 - Multiplayer: `getCurrentUserId source=hum_ws`, unchanged opponent filtering.
+
+## Task Manager
+
+App Dev checklist — Practice/demo local seat id (done). Do not create a new card.

@@ -199,3 +199,7 @@ Docs note: `COMP_PLAYER_JACK_SWAP.md` lists outdated 0% fallbacks; live `getJack
 - `PlayCardOpponentRank` logs include `knownRiskyDetail`, `rule=`, `selectedWasRisky=` for live verification.
 - `miss_chance_to_play` lowered: easy 0.02, medium 0.01, hard/expert 0.0 (draw/play/peek/swap/collect).
 - Queen peek: own unknown first; then opponents only; execution_probability easy 0.95 / medium 0.98 / hard+expert 1.0.)
+
+## Task Manager
+
+App Dev checklist — CPU known_cards / same-rank / miss chance. Do not create a new card.

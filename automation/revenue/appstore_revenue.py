@@ -287,3 +287,95 @@ def fetch_appstore_settled(start: date, end: date) -> dict[str, Any]:
     elif errors:
         result["warning"] = f"{len(errors)} month(s) failed; showing available rows"
     return result
+
+
+# App first downloads (free or paid) — not IAP / subscriptions
+_DOWNLOAD_PRODUCT_TYPES = frozenset({"1", "1-B", "F1", "1F"})
+
+
+def _parse_sales_downloads(
+    rows: list[dict[str, str]], *, day_fallback: str
+) -> list[dict[str, Any]]:
+    app_filter = _app_filter()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        apple_id = _col(row, "Apple Identifier", "SKU")
+        if app_filter and apple_id and apple_id != app_filter:
+            if _col(row, "Apple Identifier") and _col(row, "Apple Identifier") != app_filter:
+                continue
+        product_type = _col(row, "Product Type Identifier")
+        if product_type not in _DOWNLOAD_PRODUCT_TYPES:
+            continue
+        units = _parse_money(_col(row, "Units"))
+        if not units:
+            continue
+        day = _col(row, "Begin Date", "End Date") or day_fallback
+        if day and "/" in day:
+            parts = day.split("/")
+            if len(parts) == 3:
+                m, d, y = parts
+                day = f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+        else:
+            day = iso_day(day) if day else day_fallback
+        out.append(
+            revenue_row(
+                source="appstore",
+                day=day,
+                amount=0.0,
+                currency="—",
+                kind="downloads",
+                app_id=apple_id or _col(row, "SKU"),
+                units=units,
+                label=_col(row, "Title", "SKU") or "App Store",
+                raw_ref="salesReports/downloads",
+            )
+        )
+    return out
+
+
+def fetch_appstore_downloads(start: date, end: date) -> dict[str, Any]:
+    """App download units from daily salesReports (types 1 / 1-B / F1 / 1F)."""
+    try:
+        vendor = _vendor()
+        _asc_token()
+    except RuntimeError as exc:
+        return {"ok": False, "error": str(exc), "rows": []}
+
+    rows_out: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for day in _daterange_days(start, end):
+        params = {
+            "filter[frequency]": "DAILY",
+            "filter[reportDate]": day.isoformat(),
+            "filter[reportSubType]": "SUMMARY",
+            "filter[reportType]": "SALES",
+            "filter[vendorNumber]": vendor,
+            "filter[version]": "1_0",
+        }
+        try:
+            blob = _download_report("/v1/salesReports", params)
+            rows_out.extend(
+                _parse_sales_downloads(_tsv_rows(blob), day_fallback=day.isoformat())
+            )
+        except RuntimeError as exc:
+            msg = str(exc)
+            if "404" in msg or "NOT_FOUND" in msg:
+                continue
+            errors.append(f"{day.isoformat()}: {msg[:200]}")
+            continue
+
+    from revenue_common import filter_rows_by_range
+
+    rows_out = filter_rows_by_range(rows_out, start, end)
+    result: dict[str, Any] = {
+        "ok": True,
+        "rows": rows_out,
+        "source": "appstore",
+        "kind": "downloads",
+    }
+    if errors and not rows_out:
+        result["ok"] = False
+        result["error"] = "; ".join(errors[:5])
+    elif errors:
+        result["warning"] = f"{len(errors)} day(s) failed; showing available rows"
+    return result

@@ -360,6 +360,7 @@
     <div class="view-panel" id="view-revenue" role="tabpanel" aria-labelledby="tab-revenue" data-view="revenue" hidden>
       <nav class="revenue-subtabs" id="rev-subtabs" aria-label="Revenue sections">
         <button type="button" class="revenue-subtab active" data-rev-tab="revenue" id="rev-subtab-revenue">Revenue</button>
+        <button type="button" class="revenue-subtab" data-rev-tab="downloads" id="rev-subtab-downloads">Downloads</button>
         <button type="button" class="revenue-subtab" data-rev-tab="expense" id="rev-subtab-expense">Expense</button>
       </nav>
 
@@ -451,6 +452,81 @@
               </thead>
               <tbody id="rev-tbody">
                 <tr><td colspan="7" class="revenue-empty-cell">Open this tab and Refresh to load revenue.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </main>
+      </div>
+
+      <div class="revenue-subpanel" id="rev-panel-downloads" data-rev-panel="downloads" hidden>
+        <main class="revenue-layout">
+          <section class="revenue-kpi-row" aria-label="Download totals">
+            <article class="revenue-kpi revenue-kpi-alltime" id="dl-kpi-alltime">
+              <p class="revenue-kpi-label">All-time (tracked)</p>
+              <p class="revenue-kpi-sublabel">Total units</p>
+              <div class="revenue-kpi-amounts" id="dl-kpi-alltime-total">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-sublabel">By store</p>
+              <div class="revenue-kpi-amounts" id="dl-kpi-alltime-by-source">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-meta" id="dl-kpi-alltime-meta">Sum of days saved after Refresh</p>
+            </article>
+            <article class="revenue-kpi revenue-kpi-month" id="dl-kpi-month">
+              <p class="revenue-kpi-label">Current month</p>
+              <p class="revenue-kpi-sublabel">Total units</p>
+              <div class="revenue-kpi-amounts" id="dl-kpi-month-total">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-sublabel">By store</p>
+              <div class="revenue-kpi-amounts" id="dl-kpi-month-by-source">
+                <p class="revenue-kpi-placeholder">—</p>
+              </div>
+              <p class="revenue-kpi-meta" id="dl-kpi-month-meta">From tracked download ledger</p>
+            </article>
+          </section>
+
+          <header class="revenue-header">
+            <div>
+              <h2>Downloads</h2>
+              <p class="revenue-sub">Store install / download units from Google Play (GCS stats) and App Store Connect (salesReports). Not revenue.</p>
+            </div>
+            <div class="revenue-toolbar">
+              <label class="revenue-field">
+                <span>From</span>
+                <input type="date" id="dl-from" aria-label="Downloads from date">
+              </label>
+              <label class="revenue-field">
+                <span>To</span>
+                <input type="date" id="dl-to" aria-label="Downloads to date">
+              </label>
+              <button type="button" class="run-btn" id="dl-refresh">Refresh</button>
+            </div>
+          </header>
+
+          <div class="revenue-sources" role="group" aria-label="Download sources">
+            <label class="revenue-check"><input type="checkbox" name="dl-source" value="play" checked> Play</label>
+            <label class="revenue-check"><input type="checkbox" name="dl-source" value="appstore" checked> App Store</label>
+          </div>
+
+          <p class="revenue-hint" id="dl-status" hidden></p>
+          <p class="revenue-warn" id="dl-warn" hidden></p>
+
+          <section class="revenue-summary" id="dl-summary" aria-live="polite"></section>
+
+          <div class="revenue-table-wrap">
+            <table class="revenue-table" id="dl-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Source</th>
+                  <th>App</th>
+                  <th>Units</th>
+                </tr>
+              </thead>
+              <tbody id="dl-tbody">
+                <tr><td colspan="4" class="revenue-empty-cell">Open Downloads and Refresh to load installs.</td></tr>
               </tbody>
             </table>
           </div>
@@ -573,7 +649,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/static/app.js?v=brand-1"></script>
   <script src="/static/marketing.js?v=marketing-8"></script>
-  <script src="/static/revenue.js?v=revenue-4"></script>
+  <script src="/static/revenue.js?v=revenue-6"></script>
   <script src="/static/docs.js?v=docs-2"></script>
 </body>
 </html>

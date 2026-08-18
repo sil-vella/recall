@@ -334,3 +334,88 @@ def fetch_play_settled(start: date, end: date) -> dict[str, Any]:
         return {"ok": True, "rows": rows, "source": "play", "kind": "settled"}
     except RuntimeError as exc:
         return {"ok": False, "error": str(exc), "rows": []}
+
+
+def _decode_stats_csv(blob: bytes) -> str:
+    """Play stats CSVs are often UTF-16 (with or without BOM)."""
+    if blob.startswith(b"\xff\xfe") or blob.startswith(b"\xfe\xff"):
+        return blob.decode("utf-16")
+    sample = blob[:64]
+    if b"\x00" in sample:
+        return blob.decode("utf-16")
+    return blob.decode("utf-8-sig", errors="replace")
+
+
+def _parse_installs_overview(csv_rows: list[dict[str, str]]) -> list[dict[str, Any]]:
+    pkg_filter = _package_filter()
+    out: list[dict[str, Any]] = []
+    for row in csv_rows:
+        pkg = _col(row, "Package name", "Package Name", "Product ID")
+        if pkg_filter and pkg and pkg != pkg_filter:
+            continue
+        day = _col(row, "Date")
+        if not day:
+            continue
+        day_iso = iso_day(day)
+        # Prefer daily user installs; fall back to device installs / install events
+        units = _parse_money(
+            _col(
+                row,
+                "Daily User Installs",
+                "Daily Device Installs",
+                "Install events",
+            )
+        )
+        if units == 0.0:
+            continue
+        out.append(
+            revenue_row(
+                source="play",
+                day=day_iso,
+                amount=0.0,
+                currency="—",
+                kind="downloads",
+                app_id=pkg,
+                units=units,
+                label=pkg or "Play",
+                raw_ref="stats/installs/overview",
+            )
+        )
+    return out
+
+
+def fetch_play_downloads(start: date, end: date) -> dict[str, Any]:
+    """Daily installs from GCS stats/installs/*_overview.csv."""
+    try:
+        sa = _load_sa()
+        bucket = _bucket_id()
+        token = _sa_access_token(sa)
+    except RuntimeError as exc:
+        return {"ok": False, "error": str(exc), "rows": []}
+
+    months = months_touching(start, end)
+    pkg = _package_filter()
+    prefix = f"stats/installs/installs_{pkg}_" if pkg else "stats/installs/"
+    try:
+        objects = _list_objects(token, bucket, prefix)
+        rows: list[dict[str, Any]] = []
+        for obj in objects:
+            name = str(obj.get("name") or "")
+            if not name.endswith("_overview.csv"):
+                continue
+            if months and not any(m in name for m in months):
+                continue
+            blob = _download_object(token, bucket, name)
+            text = _decode_stats_csv(blob)
+            reader = csv.DictReader(io.StringIO(text))
+            csv_rows = [
+                {(k or "").strip(): (v or "").strip() for k, v in row.items()}
+                for row in reader
+            ]
+            rows.extend(_parse_installs_overview(csv_rows))
+        from revenue_common import filter_rows_by_range
+
+        rows = filter_rows_by_range(rows, start, end)
+        return {"ok": True, "rows": rows, "source": "play", "kind": "downloads"}
+    except RuntimeError as exc:
+        return {"ok": False, "error": str(exc), "rows": []}

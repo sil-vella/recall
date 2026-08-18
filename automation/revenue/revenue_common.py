@@ -14,6 +14,7 @@ from typing import Any
 
 
 SOURCES = frozenset({"admob", "play", "appstore"})
+DOWNLOAD_SOURCES = frozenset({"play", "appstore"})
 KINDS = frozenset({"estimated", "settled"})
 
 
@@ -181,6 +182,25 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "by_source": totals,
         "currencies": sorted(currencies),
         "mixed_currency": len(currencies) > 1,
+        "row_count": len(rows),
+    }
+
+
+def summarize_units(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Sum download/install units by source (no FX / money)."""
+    by_source: dict[str, float] = {}
+    total = 0.0
+    for row in rows:
+        src = str(row.get("source") or "unknown")
+        try:
+            units = float(row.get("units") or 0)
+        except (TypeError, ValueError):
+            units = 0.0
+        by_source[src] = by_source.get(src, 0.0) + units
+        total += units
+    return {
+        "by_source": {k: round(v, 3) for k, v in sorted(by_source.items())},
+        "total_units": round(total, 3),
         "row_count": len(rows),
     }
 

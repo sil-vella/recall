@@ -1035,6 +1035,1056 @@
         "card_background_color": "#080808",
         "frame_border_color": "#080808"
       }
+    },
+    {
+      "item_id": "table_design_obsidian",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 610,
+      "display_name": "Table Design Obsidian",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8B858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_midnight",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 620,
+      "display_name": "Table Design Midnight",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#C89868"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_y2k",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 650,
+      "display_name": "Table Design Y2K Chrome",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#8EC7FF"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_glitch",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 660,
+      "display_name": "Table Design Glitch",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#0ECEFF"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_industrial",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 590,
+      "display_name": "Table Design Industrial",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#885828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_skate_park",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 620,
+      "display_name": "Table Design Skate Park",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F89818"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_comic_book",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 640,
+      "display_name": "Table Design Comic Book",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8B808"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_pop_art",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 620,
+      "display_name": "Table Design Pop Art",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8C808"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_doodle",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "minimal",
+      "price_coins": 570,
+      "display_name": "Table Design Doodle",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#E8A808"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_newspaper",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 590,
+      "display_name": "Table Design Newspaper",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#886848"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_blueprint",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "minimal",
+      "price_coins": 610,
+      "display_name": "Table Design Blueprint",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_origami",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 620,
+      "display_name": "Table Design Origami",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#C8A878"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_chess",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 650,
+      "display_name": "Table Design Chess",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#987858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_domino",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 610,
+      "display_name": "Table Design Domino",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#B89878"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_billiards",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 590,
+      "display_name": "Table Design Billiards",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8D898"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_street_basketball",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 600,
+      "display_name": "Table Design Street Basketball",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8C878"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_football",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 630,
+      "display_name": "Table Design Football Stadium",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_ice_hockey",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 630,
+      "display_name": "Table Design Ice Hockey",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685848"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_tennis",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "sports",
+      "price_coins": 600,
+      "display_name": "Table Design Tennis",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684818"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_beach",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 590,
+      "display_name": "Table Design Beach",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#E8B888"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_poolside",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 620,
+      "display_name": "Table Design Poolside",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#D8B888"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_rooftop",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 650,
+      "display_name": "Table Design Rooftop Night",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#D89858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_paris_cafe",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 620,
+      "display_name": "Table Design Paris Café",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#E8B888"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_italian_piazza",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 620,
+      "display_name": "Table Design Italian Piazza",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#E8B888"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_wild_west",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 640,
+      "display_name": "Table Design Wild West Saloon",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#885828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_samurai",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 680,
+      "display_name": "Table Design Samurai",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8D898"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_aztec_temple",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 670,
+      "display_name": "Table Design Aztec Temple",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#E8B878"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_roman_empire",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 680,
+      "display_name": "Table Design Roman Empire",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#C89868"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_greek_mythology",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 690,
+      "display_name": "Table Design Greek Mythology",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#987858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_arabian_nights",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 690,
+      "display_name": "Table Design Arabian Nights",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#D8B888"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_dragon_scale",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 700,
+      "display_name": "Table Design Dragon Scale",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8B868"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_moon_temple",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 690,
+      "display_name": "Table Design Moon Temple",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#987858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_black_hole",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 720,
+      "display_name": "Table Design Black Hole",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8C878"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_mars_colony",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 690,
+      "display_name": "Table Design Mars Colony",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8C898"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_alien_world",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 710,
+      "display_name": "Table Design Alien World",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_toxic",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 620,
+      "display_name": "Table Design Toxic",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_biohazard_lab",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 650,
+      "display_name": "Table Design Biohazard Lab",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#585818"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_post_apocalypse",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "warm",
+      "price_coins": 680,
+      "display_name": "Table Design Post Apocalypse",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_overgrown_city",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 700,
+      "display_name": "Table Design Overgrown City",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_crystal_cave",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 720,
+      "display_name": "Table Design Crystal Cave",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#987858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_kings_day",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 640,
+      "display_name": "Table Design King's Day",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#683808"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_rotterdam",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 650,
+      "display_name": "Table Design Rotterdam Modern",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8D898"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_dutch_harbour",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 620,
+      "display_name": "Table Design Dutch Harbour",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8D898"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_canal_houses",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 630,
+      "display_name": "Table Design Canal Houses",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684808"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_dutch_polder",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 590,
+      "display_name": "Table Design Dutch Polder",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685808"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_wadden_sea",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 620,
+      "display_name": "Table Design Wadden Sea",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#987858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_black_marble",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 660,
+      "display_name": "Table Design Black Marble",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_emerald",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "fantasy",
+      "price_coins": 650,
+      "display_name": "Table Design Emerald",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#886848"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_holographic",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 660,
+      "display_name": "Table Design Holographic",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_synthwave",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 650,
+      "display_name": "Table Design Synthwave",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8C898"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_graffiti",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 600,
+      "display_name": "Table Design Graffiti",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#D8A838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_sakura",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "nature",
+      "price_coins": 620,
+      "display_name": "Table Design Sakura",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#785828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_rainy_tokyo",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 640,
+      "display_name": "Table Design Rainy Tokyo",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#31A8E9"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_amsterdam_canals",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 630,
+      "display_name": "Table Design Amsterdam Canals",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#C89858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_delft_blue",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 640,
+      "display_name": "Table Design Delft Blue",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#124083"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_dutch_tulip_fields",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 600,
+      "display_name": "Table Design Dutch Tulip Fields",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#F8C888"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_white_marble",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 660,
+      "display_name": "Table Design White Marble",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#A88858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_rose_gold",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "royal",
+      "price_coins": 680,
+      "display_name": "Table Design Rose Gold",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#A88868"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_sapphire",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 650,
+      "display_name": "Table Design Sapphire",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#785838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_crimson",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "warm",
+      "price_coins": 620,
+      "display_name": "Table Design Crimson",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#584838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_celestial",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 690,
+      "display_name": "Table Design Celestial",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#A3A977"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_prismatic",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "cosmic",
+      "price_coins": 700,
+      "display_name": "Table Design Prismatic",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#987858"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_vaporwave",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 640,
+      "display_name": "Table Design Vaporwave",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#EF59B7"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_pixel_world",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 600,
+      "display_name": "Table Design Pixel World",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_circuit_board",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "neon",
+      "price_coins": 650,
+      "display_name": "Table Design Circuit Board",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#31FADD"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_steampunk",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "classic",
+      "price_coins": 680,
+      "display_name": "Table Design Steampunk",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_giethoorn",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 630,
+      "display_name": "Table Design Giethoorn Canal Garden",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_delft_blue_ornate",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 660,
+      "display_name": "Table Design Delft Blue Ornate",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#685838"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_nautical_lakeside",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 660,
+      "display_name": "Table Design Luxury Nautical Lakeside",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#684828"
+        ]
+      }
+    },
+    {
+      "item_id": "table_design_zeeland_dunes",
+      "item_type": "table_design",
+      "category_group": "table_designs",
+      "category_theme": "dutch",
+      "price_coins": 600,
+      "display_name": "Table Design Zeeland Dunes",
+      "is_active": true,
+      "style": {
+        "border_style": "solid",
+        "border_colors": [
+          "#987848"
+        ]
+      }
     }
   ]
 }

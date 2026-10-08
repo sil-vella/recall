@@ -450,6 +450,14 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
 
     final myPacks = _myPackItems(visible);
     final myPackIds = _myPackItemIds(myPacks);
+    final myTables = myPacks.where((item) => item['item_type']?.toString() == 'table_design').toList();
+    final myCardBacks = myPacks.where((item) => item['item_type']?.toString() == 'card_back').toList();
+    final myConsumables = visible.where((item) {
+      final type = item['item_type']?.toString() ?? '';
+      if (type != 'booster' && type != 'booster_pack') return false;
+      return _heldBoosterCount(item) > 0;
+    }).toList()
+      ..sort((a, b) => (a['display_name']?.toString() ?? '').compareTo(b['display_name']?.toString() ?? ''));
 
     final consumables = <Map<String, dynamic>>[];
     final cardBacks = <Map<String, dynamic>>[];
@@ -484,16 +492,20 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                 accentHeaderStyle: true,
                 isExpanded: _expandedSection == _kAccordionMyPacks,
                 onExpandedChanged: () => _handleSectionToggled(_kAccordionMyPacks),
-                child: _myPacksAccordionContent(myPacks),
+                child: _myPacksAccordionContent(
+                  tables: myTables,
+                  cardBacks: myCardBacks,
+                  consumables: myConsumables,
+                ),
               ),
               CollapsibleSectionWidget(
-                title: _kAccordionConsumables,
-                icon: Icons.shopping_bag_outlined,
-                isExpanded: _expandedSection == _kAccordionConsumables,
-                onExpandedChanged: () => _handleSectionToggled(_kAccordionConsumables),
+                title: _kAccordionTable,
+                icon: Icons.table_restaurant_outlined,
+                isExpanded: _expandedSection == _kAccordionTable,
+                onExpandedChanged: () => _handleSectionToggled(_kAccordionTable),
                 child: _categorizedAccordionContent(
-                  consumables,
-                  emptyMessage: 'No consumables in the shop right now.',
+                  tables,
+                  emptyMessage: 'No table designs in the shop right now.',
                 ),
               ),
               CollapsibleSectionWidget(
@@ -507,13 +519,13 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
                 ),
               ),
               CollapsibleSectionWidget(
-                title: _kAccordionTable,
-                icon: Icons.table_restaurant_outlined,
-                isExpanded: _expandedSection == _kAccordionTable,
-                onExpandedChanged: () => _handleSectionToggled(_kAccordionTable),
+                title: _kAccordionConsumables,
+                icon: Icons.shopping_bag_outlined,
+                isExpanded: _expandedSection == _kAccordionConsumables,
+                onExpandedChanged: () => _handleSectionToggled(_kAccordionConsumables),
                 child: _categorizedAccordionContent(
-                  tables,
-                  emptyMessage: 'No table designs in the shop right now.',
+                  consumables,
+                  emptyMessage: 'No consumables in the shop right now.',
                 ),
               ),
             ],
@@ -523,25 +535,72 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     );
   }
 
-  /// Owned packs grid inside the My Packs accordion (defaults closed).
-  Widget _myPacksAccordionContent(List<Map<String, dynamic>> myPacks) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppPadding.defaultPadding.left),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.widgetContainerBackground,
-          borderRadius: AppBorderRadius.largeRadius,
-          border: Border.all(color: AppColors.casinoBorderColor),
+  int _heldBoosterCount(Map<String, dynamic> item) {
+    final grant = item['grant'];
+    var key = item['item_id']?.toString() ?? '';
+    if (grant is Map) {
+      final boosterKey = grant['booster_key']?.toString().trim() ?? '';
+      if (boosterKey.isNotEmpty) key = boosterKey;
+    }
+    final boosters = _inventory['boosters'];
+    if (boosters is! Map || key.isEmpty) return 0;
+    final raw = boosters[key];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '') ?? 0;
+  }
+
+  /// Owned packs inside My Packs, split by type.
+  Widget _myPacksAccordionContent({
+    required List<Map<String, dynamic>> tables,
+    required List<Map<String, dynamic>> cardBacks,
+    required List<Map<String, dynamic>> consumables,
+  }) {
+    final sections = <Widget>[
+      if (tables.isNotEmpty)
+        _shopSection(
+          title: 'Tables',
+          child: _shopItemGrid(tables, showPrice: false, inMyPacks: true),
         ),
-        child: Padding(
-          padding: AppPadding.cardPadding,
-          child: _shopItemGrid(
-            myPacks,
-            showPrice: false,
-            emptyMessage: 'No packs yet — shop below.',
+      if (cardBacks.isNotEmpty)
+        _shopSection(
+          title: 'Card Covers',
+          child: _shopItemGrid(cardBacks, showPrice: false, inMyPacks: true),
+        ),
+      if (consumables.isNotEmpty)
+        _shopSection(
+          title: 'Consumables',
+          child: _shopItemGrid(consumables, showPrice: false, inMyPacks: true),
+        ),
+    ];
+    if (sections.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppPadding.defaultPadding.left),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.widgetContainerBackground,
+            borderRadius: AppBorderRadius.largeRadius,
+            border: Border.all(color: AppColors.casinoBorderColor),
+          ),
+          child: Padding(
+            padding: AppPadding.cardPadding,
+            child: Text(
+              'No packs yet — shop below.',
+              style: AppTextStyles.bodySmall(color: AppColors.lightGray),
+            ),
           ),
         ),
-      ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final section in sections)
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppPadding.defaultPadding.left),
+            child: section,
+          ),
+      ],
     );
   }
 
@@ -592,6 +651,7 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
   Widget _shopItemGrid(
     List<Map<String, dynamic>> items, {
     bool showPrice = true,
+    bool inMyPacks = false,
     String? emptyMessage,
   }) {
     if (items.isEmpty) {
@@ -606,6 +666,9 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
         ),
       );
     }
+    final portraitTiles = items.every(
+      (item) => item['item_type']?.toString() == 'table_design',
+    );
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -613,10 +676,14 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
         crossAxisCount: 3,
         crossAxisSpacing: AppPadding.smallPadding.left,
         mainAxisSpacing: AppPadding.smallPadding.top,
-        childAspectRatio: 0.80,
+        childAspectRatio: portraitTiles ? 0.55 : 0.80,
       ),
       itemCount: items.length,
-      itemBuilder: (context, index) => _buildItemTile(items[index], showPrice: showPrice),
+      itemBuilder: (context, index) => _buildItemTile(
+        items[index],
+        showPrice: showPrice,
+        inMyPacks: inMyPacks,
+      ),
     );
   }
 
@@ -758,10 +825,14 @@ class _DutchCustomizeScreenState extends BaseScreenState<DutchCustomizeScreen> {
     );
   }
 
-  Widget _buildItemTile(Map<String, dynamic> item, {bool showPrice = true}) {
+  Widget _buildItemTile(
+    Map<String, dynamic> item, {
+    bool showPrice = true,
+    bool inMyPacks = false,
+  }) {
     final id = item['item_id']?.toString() ?? '';
     final type = item['item_type']?.toString() ?? '';
-    final owned = _isOwned(item);
+    final owned = inMyPacks || _isOwned(item);
     final equipped = _isEquipped(item);
     final canEquip = type == 'card_back' || type == 'table_design';
     final selected = _selectedItemId == id;

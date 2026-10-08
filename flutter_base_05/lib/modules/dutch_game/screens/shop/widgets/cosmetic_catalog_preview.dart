@@ -7,14 +7,18 @@ import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../../../../utils/dev_logger.dart';
 import '../../../../../../utils/widgets/felt_texture_widget.dart';
 import '../../../models/card_display_config.dart';
+import '../../../utils/card_dimensions.dart';
 import '../../../models/card_model.dart';
 import '../../../utils/consumables_catalog_bootstrap.dart';
 import '../../../utils/dutch_game_play_table_style_mapping.dart';
 import '../../../widgets/card_widget.dart';
 import '../../game_play/utils/table_design_style_helpers.dart';
 
-const double kCardBackPreviewAspect = 0.63;
-const double kTableDesignPreviewAspect = 1.55;
+/// Width / height of a playing card. Matches [CardDimensions.CARD_ASPECT_RATIO].
+const double kCardBackPreviewAspect = CardDimensions.CARD_ASPECT_RATIO;
+
+/// Width / height of shop table overlays (portrait 576×1024).
+const double kTableDesignPreviewAspect = 576 / 1024;
 
 enum CosmeticPreviewSize { thumbnail, modal }
 
@@ -136,28 +140,23 @@ class CosmeticCatalogPreview extends StatelessWidget {
   }
 
   Size _tableDesignBounds(double maxWidth, double maxHeight, BuildContext context) {
-    if (size == CosmeticPreviewSize.thumbnail) {
-      final capW = math.min(110.0, maxWidth);
-      final capH = math.min(104.0, maxHeight);
-      var w = capW;
-      var h = w / kTableDesignPreviewAspect;
-      if (h > capH) {
-        h = capH;
-        w = h * kTableDesignPreviewAspect;
-      }
-      return Size(w, h);
-    }
-
     final screen = MediaQuery.sizeOf(context);
-    final capW = math.min(screen.width * 0.88, 560.0);
-    final capH = screen.height * 0.50;
-    var w = math.min(capW, maxWidth);
-    var h = w / kTableDesignPreviewAspect;
-    if (h > capH || h > maxHeight) {
-      h = math.min(capH, maxHeight);
-      w = h * kTableDesignPreviewAspect;
+    final boundedH = maxHeight.isFinite && maxHeight > 0 ? maxHeight : screen.height * 0.72;
+    final boundedW = maxWidth.isFinite && maxWidth > 0 ? maxWidth : screen.width * 0.78;
+    final capW = size == CosmeticPreviewSize.thumbnail
+        ? math.min(120.0, boundedW)
+        : math.min(screen.width * 0.78, boundedW);
+    final capH = size == CosmeticPreviewSize.thumbnail
+        ? boundedH
+        : math.min(screen.height * 0.72, boundedH);
+
+    var h = capH;
+    var w = h * kTableDesignPreviewAspect;
+    if (w > capW) {
+      w = capW;
+      h = w / kTableDesignPreviewAspect;
     }
-    return Size(w, h);
+    return Size(math.max(1, w), math.max(1, h));
   }
 
   void _logItemPreview(Map<String, dynamic> item) {
@@ -291,11 +290,13 @@ class _TableDesignCatalogPreview extends StatelessWidget {
                         Positioned.fill(
                           child: SizedBox.expand(
                             child: overlayNetworkUrl == null
-                                ? TableDesignStyleHelpers.defaultTableOverlayImage()
+                                ? TableDesignStyleHelpers.defaultTableOverlayImage(
+                                    fit: BoxFit.contain,
+                                  )
                                 : TableDesignStyleHelpers.wrapCosmeticTableDesignOverlay(
                                     Image.network(
                                       overlayNetworkUrl,
-                                      fit: BoxFit.cover,
+                                      fit: BoxFit.contain,
                                       alignment: Alignment.center,
                                       gaplessPlayback: true,
                                       errorBuilder: (_, error, __) {
@@ -305,7 +306,9 @@ class _TableDesignCatalogPreview extends StatelessWidget {
                                             'skinId=$skinId url=$overlayNetworkUrl error=$error',
                                           );
                                         }
-                                        return TableDesignStyleHelpers.defaultTableOverlayImage();
+                                        return TableDesignStyleHelpers.defaultTableOverlayImage(
+                                          fit: BoxFit.contain,
+                                        );
                                       },
                                     ),
                                   ),

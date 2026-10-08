@@ -34,6 +34,8 @@ class CosmeticPreviewModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = cosmeticCatalogItemShortTitle(item);
+    final isTable = item['item_type']?.toString() == 'table_design';
+    final screen = MediaQuery.sizeOf(context);
 
     return PopScope(
       canPop: true,
@@ -46,8 +48,8 @@ class CosmeticPreviewModal extends StatelessWidget {
         ),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(context).width * 0.95,
-            maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+            maxWidth: screen.width * (isTable ? 0.72 : 0.95),
+            maxHeight: screen.height * 0.88,
           ),
           child: DecoratedBox(
             decoration: BoxDecoration(

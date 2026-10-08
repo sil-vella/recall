@@ -17,7 +17,8 @@ Local Docker MongoDB only.
 
 Usage (from repo root):
   python3 playbooks/00_local/backfill_mastery_from_wins_points.py
-  python3 playbooks/00_local/backfill_mastery_from_wins_points.py --apply
+  python3 playbooks/00_local/backfill_mastery_from_wins_points.py --humans-only
+  python3 playbooks/00_local/backfill_mastery_from_wins_points.py --humans-only --apply
 
 Reads MONGODB_PASSWORD from .env.local or the environment.
 """
@@ -81,32 +82,39 @@ def _mongosh(password: str, js: str, *, container: str) -> str:
     return result.stdout.strip()
 
 
-def _fetch_users(password: str, *, container: str) -> list[dict]:
-    js = """
+def _fetch_users(password: str, *, container: str, humans_only: bool) -> list[dict]:
+    human_match = (
+        ", is_comp_player: { $ne: true }"
+        if humans_only
+        else ""
+    )
+    js = f"""
 var d = db.getSiblingDB('external_system');
 var cur = d.users.find(
-  { 'modules.dutch_game': { $exists: true } },
-  {
+  {{ 'modules.dutch_game': {{ $exists: true }}{human_match} }},
+  {{
     _id: 1,
+    is_comp_player: 1,
     'modules.dutch_game.wins': 1,
     'modules.dutch_game.points': 1,
     'modules.dutch_game.mastery': 1
-  }
+  }}
 );
 var rows = [];
-cur.forEach(function(u) {
-  var dg = (u.modules && u.modules.dutch_game) ? u.modules.dutch_game : {};
-  function num(v) {
+cur.forEach(function(u) {{
+  var dg = (u.modules && u.modules.dutch_game) ? u.modules.dutch_game : {{}};
+  function num(v) {{
     var n = typeof v === 'number' ? v : parseInt(v, 10);
     return isNaN(n) ? 0 : n;
-  }
-  rows.push({
+  }}
+  rows.push({{
     id: u._id.valueOf(),
     wins: num(dg.wins),
     points: num(dg.points),
-    mastery: num(dg.mastery)
-  });
-});
+    mastery: num(dg.mastery),
+    is_comp_player: !!u.is_comp_player
+  }});
+}});
 print(JSON.stringify(rows));
 """
     raw = _mongosh(password, js, container=container)
@@ -120,17 +128,24 @@ def _apply(password: str, updates: list[dict], *, container: str) -> int:
     if not updates:
         return 0
     payload = json.dumps(updates)
+    # Missing mastery must match previous===0 (Mongo {field:0} does not match missing).
     js = f"""
 var d = db.getSiblingDB('external_system');
 var updates = {payload};
 var nowIso = new Date().toISOString();
 var changed = 0;
+var skipped = 0;
 updates.forEach(function(row) {{
+  var masteryFilter = row.previous === 0
+    ? {{ $or: [
+        {{ 'modules.dutch_game.mastery': {{ $exists: false }} }},
+        {{ 'modules.dutch_game.mastery': null }},
+        {{ 'modules.dutch_game.mastery': 0 }}
+      ] }}
+    : {{ 'modules.dutch_game.mastery': row.previous }};
+  var filter = Object.assign({{ _id: ObjectId(row.id) }}, masteryFilter);
   var res = d.users.updateOne(
-    {{
-      _id: ObjectId(row.id),
-      'modules.dutch_game.mastery': row.previous
-    }},
+    filter,
     {{ $set: {{
       'modules.dutch_game.mastery': row.mastery,
       'modules.dutch_game.last_updated': nowIso,
@@ -138,8 +153,9 @@ updates.forEach(function(row) {{
     }} }}
   );
   if (res.modifiedCount > 0) changed += 1;
+  else skipped += 1;
 }});
-print(JSON.stringify({{ updated: changed, candidates: updates.length }}));
+print(JSON.stringify({{ updated: changed, skipped: skipped, candidates: updates.length }}));
 """
     raw = _mongosh(password, js, container=container)
     line = next((ln for ln in raw.splitlines() if ln.startswith("{")), raw)
@@ -155,6 +171,11 @@ def main() -> int:
         help="Write mastery on local MongoDB (default: dry-run only)",
     )
     parser.add_argument(
+        "--humans-only",
+        action="store_true",
+        help="Skip computer players (is_comp_player != true)",
+    )
+    parser.add_argument(
         "--container",
         default=DEFAULT_CONTAINER,
         help="Local Docker MongoDB container name",
@@ -168,7 +189,7 @@ def main() -> int:
         return 1
 
     container = (os.environ.get("MONGODB_CONTAINER") or args.container).strip()
-    users = _fetch_users(password, container=container)
+    users = _fetch_users(password, container=container, humans_only=args.humans_only)
     updates = []
     skipped_live = 0
     skipped_same = 0
@@ -204,8 +225,9 @@ def main() -> int:
             }
         )
 
+    scope = "humans-only" if args.humans_only else "all-users"
     print(
-        f"users={len(users)} to_update={len(updates)} "
+        f"scope={scope} users={len(users)} to_update={len(updates)} "
         f"unchanged={skipped_same} left_live={skipped_live} stays_zero={skipped_zero}"
     )
     for row in updates[:8]:
@@ -227,6 +249,12 @@ def main() -> int:
         container=container,
     )
     print(f"updated={changed}")
+    if changed != len(updates):
+        print(
+            f"WARNING: expected {len(updates)} updates, got {changed}",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

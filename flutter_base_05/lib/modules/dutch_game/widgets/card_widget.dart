@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/card_display_config.dart';
@@ -122,21 +120,6 @@ class CardWidget extends StatelessWidget {
     final gameState = Map<String, dynamic>.from(gameStateRaw);
     final nested = gameState['special_event_id']?.toString().trim() ?? '';
     return nested.isNotEmpty;
-  }
-
-  /// Thin frame around the custom back art — keep in sync with shop `card_back_*` packs / catalog.
-  Color _cardBackFrameBorderColor(String equippedCardBackId) {
-    final style = ConsumablesCatalogBootstrap.getStyleForItem(equippedCardBackId);
-    final catalogColor = _parseHexColor(style['frame_border_color']?.toString());
-    if (catalogColor != null) return catalogColor;
-    switch (equippedCardBackId.trim()) {
-      case 'card_back_ocean':
-        return AppColors.matchPotGold;
-      case 'card_back_ember':
-        return AppColors.casinoBorderColor;
-      default:
-        return AppColors.casinoBorderColor;
-    }
   }
 
   Color? _parseHexColor(String? value) {
@@ -451,8 +434,7 @@ class CardWidget extends StatelessWidget {
     );
   }
 
-  /// Build the card back
-  /// Structure must EXACTLY match front face: Container -> Padding -> Column -> same children structure
+  /// Build the card back. Art fills the full card face.
   Widget _buildCardBack(Size dimensions) {
     // Calculate border radius from card dimensions (SSOT approach)
     // Use dynamic calculation from CardDimensions if using default borderRadius (8.0)
@@ -467,14 +449,7 @@ class CardWidget extends StatelessWidget {
     final effectiveForceDefaultBack = forceDefaultBack || specialEventActive;
     final equippedCardBackId = (ownerCardBackId ?? '').trim();
     final baseColor = effectiveForceDefaultBack ? AppColors.primaryColor : _cardBackBaseColor(equippedCardBackId);
-    final frameBorderColor =
-        effectiveForceDefaultBack ? AppColors.casinoBorderColor : _cardBackFrameBorderColor(equippedCardBackId);
     final isPracticeMode = currentGameId.startsWith('practice_room_');
-
-    final frameInset = (dimensions.width * 0.04).clamp(2.0, 7.0);
-    final artPadding = (dimensions.width * 0.022).clamp(2.0, 5.0);
-    final innerRadius = math.max(2.0, borderRadius - 2.0);
-    const double kFrameStroke = 1.2;
 
     Widget artChild;
     final useDefaultCardBackAsset =
@@ -482,7 +457,7 @@ class CardWidget extends StatelessWidget {
     if (useDefaultCardBackAsset) {
       artChild = Image(
         image: const AssetImage(TableDesignStyleHelpers.defaultCardBackAsset),
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           
           return Icon(
@@ -502,7 +477,7 @@ class CardWidget extends StatelessWidget {
       final useEmberTint = equippedCardBackId == 'card_back_ember';
       Widget netImage = Image.network(
         imageUrl,
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) {
             return child;
@@ -517,7 +492,7 @@ class CardWidget extends StatelessWidget {
           
           return Image(
             image: const AssetImage(TableDesignStyleHelpers.defaultCardBackAsset),
-            fit: BoxFit.contain,
+            fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               
               return Icon(
@@ -557,30 +532,7 @@ class CardWidget extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: Padding(
-          padding: EdgeInsets.all(frameInset),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: baseColor,
-              borderRadius: BorderRadius.circular(innerRadius),
-              border: Border.all(color: frameBorderColor, width: kFrameStroke),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(artPadding),
-              child: Center(
-                child: LayoutBuilder(
-                  builder: (context, c) {
-                    return SizedBox(
-                      width: c.maxWidth,
-                      height: c.maxHeight,
-                      child: artChild,
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
+        child: SizedBox.expand(child: artChild),
       ),
     );
   }

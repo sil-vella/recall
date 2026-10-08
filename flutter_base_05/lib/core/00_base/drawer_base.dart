@@ -16,6 +16,11 @@ class CustomDrawer extends StatelessWidget {
 
   const CustomDrawer({super.key});
 
+  void _leaveDrawer(BuildContext context, String path) {
+    Navigator.of(context).pop();
+    NavigationManager().navigateTo(path);
+  }
+
   bool _isRouteActive(String currentPath, String routePath) {
     if (routePath == '/') return currentPath == '/';
     return currentPath == routePath || currentPath.startsWith('$routePath/');
@@ -135,7 +140,7 @@ class CustomDrawer extends StatelessWidget {
                         trailing: _isRouteActive(currentPath, '/')
                             ? Icon(Icons.check_circle, color: AppColors.accentColor, size: 18)
                             : Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
-                        onTap: () => context.go('/'),
+                        onTap: () => _leaveDrawer(context, '/'),
                       ),
                     ),
                   ),
@@ -155,7 +160,7 @@ class CustomDrawer extends StatelessWidget {
                           trailing: active
                               ? Icon(Icons.check_circle, color: AppColors.accentColor, size: 18)
                               : Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
-                          onTap: () => context.go(route.path),
+                          onTap: () => _leaveDrawer(context, route.path),
                         ),
                       ),
                     );

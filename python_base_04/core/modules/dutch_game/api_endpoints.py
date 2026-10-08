@@ -26,6 +26,7 @@ from core.modules.notification_module.global_broadcast_service import load_globa
 from tools.dev_logger import customlog
 from core.modules.admob_rewards_module import admob_client_config as admob_cfg
 from .wins_level_rank_matcher import WinsLevelRankMatcher
+from .mastery import match_mastery_delta
 
 dutch_api = Blueprint('dutch_api', __name__)
 
@@ -37,6 +38,9 @@ LOGGING_SWITCH = (os.environ.get("DUTCH_DEV_LOG") or "").strip().lower() in ("1"
 
 # Per-match win facts for time-bounded leaderboards (insert-only; idempotent via unique index).
 MATCH_WIN_OUTCOMES_COLL = "dutch_match_win_outcomes"
+# Public bundle default. Callers may still pass max_entries up to the absolute cap.
+LEADERBOARD_BUNDLE_DEFAULT_MAX = 100
+LEADERBOARD_BUNDLE_ABS_MAX = 10000
 CONSUMABLE_TX_COLL = "dutch_consumable_transactions"
 
 BOOSTER_MULTIPLIER = 1.5
@@ -1120,6 +1124,10 @@ def update_game_stats():
                 match_end_points = _int_from_game_result_row(
                     player_result, "total_end_points", "totalEndPoints"
                 )
+                match_end_cards = _int_from_game_result_row(
+                    player_result, "end_card_count", "endCardCount"
+                )
+                mastery_delta = match_mastery_delta(match_end_points, match_end_cards)
                 match_duration_seconds = _int_from_game_result_row(
                     player_result, "duration_seconds", "durationSeconds", "duration"
                 )
@@ -1244,6 +1252,8 @@ def update_game_stats():
                     inc_fields['modules.dutch_game.win_duration_seconds_total'] = (
                         match_duration_seconds
                     )
+                if mastery_delta > 0:
+                    inc_fields['modules.dutch_game.mastery'] = mastery_delta
                 if inc_fields:
                     update_operation['$inc'] = inc_fields
                 result = db_manager.db["users"].update_one({"_id": user_id}, update_operation)
@@ -1265,6 +1275,7 @@ def update_game_stats():
                         "final_win_coins": coins_to_add if is_winner else 0,
                         "win_rate": new_win_rate,
                         "win_streak_current": new_win_streak,
+                        "mastery_added": mastery_delta,
                         "newly_unlocked_achievements": newly_unlocked_achievements,
                         **({"rank": target_rank} if rank_should_increase else {}),
                         **({"level": target_user_level} if level_changed else {}),
@@ -1348,6 +1359,7 @@ def update_game_stats():
                 uid = player.get("user_id")
                 if uid:
                     read_cache.invalidate_init_stats(_app_manager, str(uid))
+            read_cache.invalidate_leaderboard_bundles(_app_manager)
             return jsonify(response_data), 200
         return jsonify({"success": False, "message": "Failed to update any player statistics", "error": "All updates failed", "errors": errors}), 500
     except Exception as e:
@@ -1366,6 +1378,7 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
                 "losses": 0,
                 "total_matches": 0,
                 "points": 0,
+                "mastery": 0,
                 "win_duration_seconds_total": 0,
                 "avg_win_duration_seconds": None,
                 "coins": 0,
@@ -1387,6 +1400,7 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             "subscription_tier": matcher.TIER_PROMOTIONAL,
             "level": matcher.DEFAULT_LEVEL,
             "rank": matcher.DEFAULT_RANK,
+            "mastery": 0,
         }
     if full:
         wins_n = int(dutch_game.get("wins", 0) or 0)
@@ -1400,6 +1414,7 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             "losses": dutch_game.get("losses", 0),
             "total_matches": dutch_game.get("total_matches", 0),
             "points": dutch_game.get("points", 0),
+            "mastery": int(dutch_game.get("mastery", 0) or 0),
             "win_duration_seconds_total": win_dur_total,
             "avg_win_duration_seconds": avg_win_dur,
             "coins": dutch_game.get("coins", 0),
@@ -1422,6 +1437,7 @@ def _dutch_stats_from_module(dutch_game: Optional[Dict[str, Any]], *, full: bool
             "subscription_tier": dutch_game.get("subscription_tier") or matcher.TIER_PROMOTIONAL,
             "level": dutch_game.get("level", matcher.DEFAULT_LEVEL),
             "rank": dutch_game.get("rank") or matcher.DEFAULT_RANK,
+            "mastery": int(dutch_game.get("mastery", 0) or 0),
             "win_streak_current": achcat.parse_stored_streak(dutch_game.get("win_streak_current")),
             "win_streak_best": achcat.parse_stored_streak(dutch_game.get("win_streak_best")),
             "achievements_unlocked_ids": achcat.achievements_unlocked_ids_sorted(dutch_game),
@@ -2991,9 +3007,12 @@ def _period_wins_match_filter(
     game_type: Optional[str],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
+    user_id: Optional[ObjectId] = None,
 ) -> Dict[str, Any]:
     """``$match`` for leaderboard aggregations (optional UTC window + optional rules variant)."""
     parts: List[Dict[str, Any]] = []
+    if user_id is not None:
+        parts.append({"user_id": user_id})
     if start is not None and end is not None:
         parts.append({"ended_at": {"$gte": start, "$lt": end}})
     if game_type == "clear_and_collect":
@@ -3068,16 +3087,18 @@ def _aggregate_period_wins_summaries_with_rank_tiers(
     end: Optional[datetime],
     max_entries: int,
     game_type: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+) -> Tuple[List[Dict[str, Any]], bool]:
     """Period wins per user with ``rank_tier`` (current stored rank) and ``username`` for client-side filtering.
 
-    ``max_entries`` caps rows returned (sorted by wins desc, then user_id).
+    Sort the full window, keep ``max_entries + 1``, then look up only those users.
+    The extra row sets ``truncated`` without joining the rest of the collection.
     """
     default_r = matcher.DEFAULT_RANK
-    cap = max(1, min(int(max_entries), 10000))
+    cap = max(1, min(int(max_entries), LEADERBOARD_BUNDLE_ABS_MAX))
     pipeline = [
         {"$match": _period_wins_match_filter(game_type, start=start, end=end)},
         *_period_wins_group_and_sort_stages(),
+        {"$limit": cap + 1},
         {
             "$lookup": {
                 "from": "users",
@@ -3089,6 +3110,7 @@ def _aggregate_period_wins_summaries_with_rank_tiers(
                             "_id": 0,
                             "username": {"$ifNull": ["$username", ""]},
                             "_raw_rank": {"$ifNull": ["$modules.dutch_game.rank", default_r]},
+                            "mastery": {"$ifNull": ["$modules.dutch_game.mastery", 0]},
                         }
                     },
                 ],
@@ -3109,12 +3131,16 @@ def _aggregate_period_wins_summaries_with_rank_tiers(
                         }
                     }
                 },
+                "mastery": {"$ifNull": [{"$arrayElemAt": ["$_u.mastery", 0]}, 0]},
             }
         },
         {"$project": {"_u": 0}},
-        {"$limit": cap},
     ]
-    return list(coll.aggregate(pipeline))
+    docs = list(coll.aggregate(pipeline))
+    truncated = len(docs) > cap
+    if truncated:
+        docs = docs[:cap]
+    return docs, truncated
 
 
 def _aggregate_period_wins_summaries_rank_tier(
@@ -3380,21 +3406,42 @@ def _bundle_rows_from_summaries_with_tiers(summaries: List[Dict[str, Any]]) -> L
                 "rank_tier": rt,
                 "period_points": int(doc.get("period_points") or 0),
                 "avg_win_seconds": avg_ws,
+                "mastery": _coerce_mastery(doc.get("mastery")),
             }
         )
     return out
 
 
-def _viewer_period_stats_from_summaries(
-    summaries: List[Dict[str, Any]], viewer_oid: ObjectId
-) -> Dict[str, Any]:
-    """Stats for one period from capped summary list (may miss user if beyond cap)."""
-    for doc in summaries:
-        if doc["_id"] == viewer_oid:
-            rt_raw = doc.get("rank_tier")
-            rt = matcher.normalize_rank(str(rt_raw) if rt_raw is not None else "") or matcher.DEFAULT_RANK
-            return {"wins": int(doc.get("wins") or 0), "rank_tier": rt, "in_period": True}
-    return {"wins": 0, "rank_tier": matcher.DEFAULT_RANK, "in_period": False}
+def _rank_tier_from_user_doc(udoc: Optional[Dict[str, Any]]) -> str:
+    dg = ((udoc or {}).get("modules") or {}).get("dutch_game") or {}
+    raw = dg.get("rank") if isinstance(dg, dict) else None
+    return matcher.normalize_rank(str(raw) if raw is not None else "") or matcher.DEFAULT_RANK
+
+
+def _aggregate_one_user_period_summary(
+    coll,
+    user_oid: ObjectId,
+    start: Optional[datetime],
+    end: Optional[datetime],
+    game_type: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """Wins, period points, and duration for one user. Empty when they have no wins in the window."""
+    pipeline = [
+        {"$match": _period_wins_match_filter(game_type, start=start, end=end, user_id=user_oid)},
+        *_period_wins_group_and_sort_stages(),
+    ]
+    docs = list(coll.aggregate(pipeline))
+    return docs[0] if docs else None
+
+
+def _leaderboard_bundle_cache_key(
+    max_entries: int,
+    game_type: Optional[str],
+    hist_months: int,
+    hist_years: int,
+) -> str:
+    gt = game_type or "all"
+    return f"leaderboard_bundle:{gt}:{int(max_entries)}:hm{int(hist_months)}:hy{int(hist_years)}"
 
 
 def _build_achievements_leaderboard_rows(
@@ -3455,6 +3502,97 @@ def _build_achievements_leaderboard_rows(
     return rows, truncated
 
 
+def _coerce_mastery(raw: Any) -> int:
+    try:
+        return max(0, int(raw or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _build_mastery_leaderboard_rows(
+    db_manager, limit: int
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """All-time board: users sorted by lifetime ``modules.dutch_game.mastery``."""
+    cap = max(int(limit), 1)
+    pipeline = [
+        {
+            "$match": {
+                "status": "active",
+                "modules.dutch_game.mastery": {"$gt": 0},
+            }
+        },
+        {
+            "$project": {
+                "username": {"$ifNull": ["$username", ""]},
+                "mastery": {"$ifNull": ["$modules.dutch_game.mastery", 0]},
+            }
+        },
+        {"$sort": {"mastery": -1, "_id": 1}},
+        {"$limit": cap + 1},
+    ]
+    docs = list(db_manager.db["users"].aggregate(pipeline))
+    truncated = len(docs) > cap
+    if truncated:
+        docs = docs[:cap]
+    rows: List[Dict[str, Any]] = []
+    for doc in docs:
+        rows.append(
+            {
+                "user_id": str(doc["_id"]),
+                "username": (doc.get("username") or "") or "",
+                "mastery": _coerce_mastery(doc.get("mastery")),
+            }
+        )
+    return rows, truncated
+
+
+def _viewer_mastery_rank_outside(db_manager, viewer_oid: ObjectId, stored: int) -> Optional[int]:
+    """1-based rank among active users. Ties break on ``_id`` ascending, same as the board sort."""
+    if stored <= 0 or db_manager is None:
+        return None
+    try:
+        users = db_manager.db["users"]
+        higher = users.count_documents(
+            {"status": "active", "modules.dutch_game.mastery": {"$gt": stored}}
+        )
+        tied_ahead = users.count_documents(
+            {
+                "status": "active",
+                "modules.dutch_game.mastery": stored,
+                "_id": {"$lt": viewer_oid},
+            }
+        )
+        return int(higher) + int(tied_ahead) + 1
+    except Exception:
+        return None
+
+
+def _viewer_mastery_from_rows(
+    rows: List[Dict[str, Any]],
+    viewer_uid: str,
+    udoc: Optional[Dict[str, Any]],
+    db_manager=None,
+    viewer_oid: Optional[ObjectId] = None,
+) -> Dict[str, Any]:
+    for idx, row in enumerate(rows):
+        if row.get("user_id") == viewer_uid:
+            return {
+                "rank": idx + 1,
+                "mastery": _coerce_mastery(row.get("mastery")),
+                "in_leaderboard": True,
+            }
+    dg = ((udoc or {}).get("modules") or {}).get("dutch_game") or {}
+    stored = _coerce_mastery(dg.get("mastery") if isinstance(dg, dict) else 0)
+    rank = None
+    if viewer_oid is not None and stored > 0:
+        rank = _viewer_mastery_rank_outside(db_manager, viewer_oid, stored)
+    return {
+        "rank": rank,
+        "mastery": stored,
+        "in_leaderboard": False,
+    }
+
+
 def _viewer_achievements_from_rows(
     rows: List[Dict[str, Any]], viewer_uid: str, udoc: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
@@ -3476,14 +3614,196 @@ def _viewer_achievements_from_rows(
     }
 
 
+def _viewer_period_from_rows(
+    rows: List[Dict[str, Any]],
+    viewer_uid: str,
+    viewer_oid: ObjectId,
+    coll,
+    start: Optional[datetime],
+    end: Optional[datetime],
+    game_type: Optional[str],
+    udoc: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Use a capped board row when present. Otherwise load this user's own period totals."""
+    for row in rows:
+        if str(row.get("user_id") or "") == viewer_uid:
+            rt_raw = row.get("rank_tier")
+            rt = matcher.normalize_rank(str(rt_raw) if rt_raw is not None else "") or matcher.DEFAULT_RANK
+            return {
+                "wins": int(row.get("wins") or 0),
+                "rank_tier": rt,
+                "in_period": True,
+                "in_leaderboard": True,
+            }
+    doc = _aggregate_one_user_period_summary(coll, viewer_oid, start, end, game_type)
+    tier = _rank_tier_from_user_doc(udoc)
+    wins = int((doc or {}).get("wins") or 0)
+    return {
+        "wins": wins,
+        "rank_tier": tier,
+        "in_period": wins > 0,
+        "in_leaderboard": False,
+    }
+
+
+def _rows_from_bundle_block(payload: Dict[str, Any], key: str) -> List[Dict[str, Any]]:
+    block = payload.get(key)
+    if not isinstance(block, dict):
+        return []
+    rows = block.get("rows")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _build_public_leaderboard_bundle(
+    db_manager,
+    *,
+    max_entries: int,
+    filter_game_type: Optional[str],
+    hist_months: int,
+    hist_years: int,
+) -> Dict[str, Any]:
+    """Shared boards only. Viewer is attached per request and is not part of this payload."""
+    now_utc = datetime.now(timezone.utc)
+    m_start, m_end = _utc_bounds_calendar_month(now_utc)
+    y_start, y_end = _utc_bounds_calendar_year(now_utc)
+    m_key = now_utc.strftime("%Y-%m")
+    y_key = str(now_utc.year)
+
+    coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
+    m_summ, m_truncated = _aggregate_period_wins_summaries_with_rank_tiers(
+        coll, m_start, m_end, max_entries, game_type=filter_game_type
+    )
+    y_summ, y_truncated = _aggregate_period_wins_summaries_with_rank_tiers(
+        coll, y_start, y_end, max_entries, game_type=filter_game_type
+    )
+    at_summ, at_truncated = _aggregate_period_wins_summaries_with_rank_tiers(
+        coll, None, None, max_entries, game_type=filter_game_type
+    )
+
+    ach_rows, ach_truncated = _build_achievements_leaderboard_rows(db_manager, max_entries)
+    mastery_rows, mastery_truncated = _build_mastery_leaderboard_rows(db_manager, max_entries)
+
+    payload: Dict[str, Any] = {
+        "success": True,
+        "segment_note": (
+            "rank_tier is each player's current stored rank at request time; "
+            "not rank at the time of each win. Filter tiers on the client."
+        ),
+        "max_entries": max_entries,
+        "game_type": filter_game_type,
+        "monthly": {
+            "period_key": m_key,
+            "range_start_utc": m_start.isoformat(),
+            "range_end_exclusive_utc": m_end.isoformat(),
+            "truncated": m_truncated,
+            "rows": _bundle_rows_from_summaries_with_tiers(m_summ),
+        },
+        "yearly": {
+            "period_key": y_key,
+            "range_start_utc": y_start.isoformat(),
+            "range_end_exclusive_utc": y_end.isoformat(),
+            "truncated": y_truncated,
+            "rows": _bundle_rows_from_summaries_with_tiers(y_summ),
+        },
+        "all_time": {
+            "period_key": "all",
+            "range_start_utc": None,
+            "range_end_exclusive_utc": None,
+            "truncated": at_truncated,
+            "rows": _bundle_rows_from_summaries_with_tiers(at_summ),
+        },
+        "achievements": {
+            "truncated": ach_truncated,
+            "rows": ach_rows,
+        },
+        "mastery": {
+            "truncated": mastery_truncated,
+            "rows": mastery_rows,
+        },
+    }
+    if hist_months > 0:
+        payload["monthly_history"] = _build_monthly_history(db_manager, coll, now_utc, hist_months)
+    if hist_years > 0:
+        payload["yearly_history"] = _build_yearly_history(db_manager, coll, now_utc, hist_years)
+    return payload
+
+
+def _attach_leaderboard_viewer(payload: Dict[str, Any], db_manager, filter_game_type: Optional[str]) -> None:
+    """Add ``viewer`` for this request. Outside the cap, still returns that user's wins and mastery."""
+    raw_viewer_uid = (request.args.get("user_id") or request.args.get("userId") or "").strip()
+    payload.pop("viewer", None)
+    if not raw_viewer_uid:
+        return
+    try:
+        viewer_oid = ObjectId(raw_viewer_uid)
+    except Exception:
+        return
+    udoc = db_manager.find_one("users", {"_id": viewer_oid})
+    now_utc = datetime.now(timezone.utc)
+    m_start, m_end = _utc_bounds_calendar_month(now_utc)
+    y_start, y_end = _utc_bounds_calendar_year(now_utc)
+    coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
+    payload["viewer"] = {
+        "user_id": raw_viewer_uid,
+        "username": (udoc or {}).get("username") or "",
+        "monthly": _viewer_period_from_rows(
+            _rows_from_bundle_block(payload, "monthly"),
+            raw_viewer_uid,
+            viewer_oid,
+            coll,
+            m_start,
+            m_end,
+            filter_game_type,
+            udoc,
+        ),
+        "yearly": _viewer_period_from_rows(
+            _rows_from_bundle_block(payload, "yearly"),
+            raw_viewer_uid,
+            viewer_oid,
+            coll,
+            y_start,
+            y_end,
+            filter_game_type,
+            udoc,
+        ),
+        "all_time": _viewer_period_from_rows(
+            _rows_from_bundle_block(payload, "all_time"),
+            raw_viewer_uid,
+            viewer_oid,
+            coll,
+            None,
+            None,
+            filter_game_type,
+            udoc,
+        ),
+        "achievements": _viewer_achievements_from_rows(
+            _rows_from_bundle_block(payload, "achievements"), raw_viewer_uid, udoc
+        ),
+        "mastery": _viewer_mastery_from_rows(
+            _rows_from_bundle_block(payload, "mastery"),
+            raw_viewer_uid,
+            udoc,
+            db_manager,
+            viewer_oid,
+        ),
+    }
+
+
 def get_period_wins_leaderboard_bundle_public():
     """Public (no auth): **single response** with current UTC month, year, and all-time period standings.
 
     Each row includes ``rank_tier`` (player's current stored competitive rank) so clients can filter by tier locally.
-    Rows are sorted by wins desc, then period win points sum asc, then avg win duration asc;
-    ``max_entries`` caps each period (default 2500, max 10000).
+    Rows are sorted by wins desc, then period win points sum asc, then avg win duration asc.
+    ``max_entries`` caps each board (default 100, max 10000). Older clients that omit it receive 100.
+    Clients that still send a higher ``max_entries`` keep that cap.
 
-    Query: ``max_entries`` / ``maxEntries``; optional ``user_id`` / ``userId`` for ``viewer`` (monthly + yearly stats).
+    The public boards are cached in Redis (``DUTCH_CACHE_LEADERBOARD_TTL``, default 60s) and dropped when
+    match stats are written. ``viewer`` is computed on each request and is not cached. A viewer outside the
+    cap still receives their period wins and lifetime mastery (and mastery rank).
+
+    Query: ``max_entries`` / ``maxEntries``; optional ``user_id`` / ``userId`` for ``viewer``.
     Optional ``game_type`` / ``gameType``: ``classic`` | ``clear_and_collect`` (omit or ``all`` = every win in period).
 
     Optional history (for hall-of-fame / history UIs): ``history_months`` / ``historyMonths`` (0–60, default 0),
@@ -3492,6 +3812,10 @@ def get_period_wins_leaderboard_bundle_public():
 
     ``achievements``: all-time rows sorted by unlocked achievement count (``count``, ``achievement_ids`` per user).
     Optional ``viewer.achievements`` when ``user_id`` is set.
+
+    ``mastery``: all-time rows sorted by lifetime ``modules.dutch_game.mastery``. Period win rows also
+    include that lifetime total; it does not change the wins sort. Optional ``viewer.mastery`` when
+    ``user_id`` is set.
 
     **Caveat:** ``rank_tier`` reflects the user document at request time, not at each win.
     """
@@ -3502,11 +3826,15 @@ def get_period_wins_leaderboard_bundle_public():
         if not db_manager:
             return jsonify({"success": False, "error": "Database unavailable"}), 503
 
-        raw_max = (request.args.get("max_entries") or request.args.get("maxEntries") or "2500").strip()
+        raw_max = (
+            request.args.get("max_entries")
+            or request.args.get("maxEntries")
+            or str(LEADERBOARD_BUNDLE_DEFAULT_MAX)
+        ).strip()
         try:
-            max_entries = min(max(int(raw_max), 1), 10000)
+            max_entries = min(max(int(raw_max), 1), LEADERBOARD_BUNDLE_ABS_MAX)
         except (TypeError, ValueError):
-            max_entries = 2500
+            max_entries = LEADERBOARD_BUNDLE_DEFAULT_MAX
 
         raw_hm = (request.args.get("history_months") or request.args.get("historyMonths") or "0").strip()
         raw_hy = (request.args.get("history_years") or request.args.get("historyYears") or "0").strip()
@@ -3533,92 +3861,22 @@ def get_period_wins_leaderboard_bundle_public():
             )
         filter_game_type = parsed_gt
 
-        now_utc = datetime.now(timezone.utc)
-        m_start, m_end = _utc_bounds_calendar_month(now_utc)
-        y_start, y_end = _utc_bounds_calendar_year(now_utc)
-        m_key = now_utc.strftime("%Y-%m")
-        y_key = str(now_utc.year)
-
-        coll = db_manager.db[MATCH_WIN_OUTCOMES_COLL]
-        m_summ = _aggregate_period_wins_summaries_with_rank_tiers(
-            coll, m_start, m_end, max_entries, game_type=filter_game_type
-        )
-        y_summ = _aggregate_period_wins_summaries_with_rank_tiers(
-            coll, y_start, y_end, max_entries, game_type=filter_game_type
-        )
-        at_summ = _aggregate_period_wins_summaries_with_rank_tiers(
-            coll, None, None, max_entries, game_type=filter_game_type
-        )
-
-        m_rows = _bundle_rows_from_summaries_with_tiers(m_summ)
-        y_rows = _bundle_rows_from_summaries_with_tiers(y_summ)
-        at_rows = _bundle_rows_from_summaries_with_tiers(at_summ)
-
-        m_truncated = len(m_summ) >= max_entries
-        y_truncated = len(y_summ) >= max_entries
-        at_truncated = len(at_summ) >= max_entries
-
-        ach_rows, ach_truncated = _build_achievements_leaderboard_rows(db_manager, max_entries)
-
-        viewer_out: Optional[Dict[str, Any]] = None
-        raw_viewer_uid = (request.args.get("user_id") or request.args.get("userId") or "").strip()
-        if raw_viewer_uid:
-            try:
-                viewer_oid = ObjectId(raw_viewer_uid)
-            except Exception:
-                viewer_oid = None
-            if viewer_oid is not None:
-                udoc = db_manager.find_one("users", {"_id": viewer_oid})
-                uname = (udoc or {}).get("username") or ""
-                viewer_out = {
-                    "user_id": raw_viewer_uid,
-                    "username": uname,
-                    "monthly": _viewer_period_stats_from_summaries(m_summ, viewer_oid),
-                    "yearly": _viewer_period_stats_from_summaries(y_summ, viewer_oid),
-                    "all_time": _viewer_period_stats_from_summaries(at_summ, viewer_oid),
-                    "achievements": _viewer_achievements_from_rows(ach_rows, raw_viewer_uid, udoc),
-                }
-
-        payload: Dict[str, Any] = {
-            "success": True,
-            "segment_note": (
-                "rank_tier is each player's current stored rank at request time; "
-                "not rank at the time of each win. Filter tiers on the client."
-            ),
-            "max_entries": max_entries,
-            "game_type": filter_game_type,
-            "monthly": {
-                "period_key": m_key,
-                "range_start_utc": m_start.isoformat(),
-                "range_end_exclusive_utc": m_end.isoformat(),
-                "truncated": m_truncated,
-                "rows": m_rows,
-            },
-            "yearly": {
-                "period_key": y_key,
-                "range_start_utc": y_start.isoformat(),
-                "range_end_exclusive_utc": y_end.isoformat(),
-                "truncated": y_truncated,
-                "rows": y_rows,
-            },
-            "all_time": {
-                "period_key": "all",
-                "range_start_utc": None,
-                "range_end_exclusive_utc": None,
-                "truncated": at_truncated,
-                "rows": at_rows,
-            },
-            "achievements": {
-                "truncated": ach_truncated,
-                "rows": ach_rows,
-            },
-        }
-        if hist_months > 0:
-            payload["monthly_history"] = _build_monthly_history(db_manager, coll, now_utc, hist_months)
-        if hist_years > 0:
-            payload["yearly_history"] = _build_yearly_history(db_manager, coll, now_utc, hist_years)
-        if viewer_out is not None:
-            payload["viewer"] = viewer_out
+        cache_key = _leaderboard_bundle_cache_key(max_entries, filter_game_type, hist_months, hist_years)
+        cached = read_cache.get_json(_app_manager, cache_key)
+        if isinstance(cached, dict) and cached.get("success") is True:
+            payload = dict(cached)
+        else:
+            payload = _build_public_leaderboard_bundle(
+                db_manager,
+                max_entries=max_entries,
+                filter_game_type=filter_game_type,
+                hist_months=hist_months,
+                hist_years=hist_years,
+            )
+            read_cache.set_json(
+                _app_manager, cache_key, payload, read_cache.leaderboard_bundle_ttl()
+            )
+        _attach_leaderboard_viewer(payload, db_manager, filter_game_type)
         return jsonify(payload), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,7 +15,9 @@ import '../../../managers/validated_event_emitter.dart';
 import '../../../utils/dutch_game_helpers.dart';
 import '../../../utils/game_ended_modal_pin.dart';
 import '../../../widgets/dutch_slice_builder.dart';
+import '../../../utils/match_mastery_delta.dart';
 import '../../../widgets/ui_kit/dutch_animated_cta_button.dart';
+import '../../../widgets/ui_kit/dutch_mastery_mark.dart';
 import '../../../../../utils/dev_logger.dart';
 
 const String _loggingSwitchDevLog = String.fromEnvironment('DUTCH_DEV_LOG', defaultValue: '');
@@ -712,6 +715,189 @@ Widget _tournamentLeaderboardSection(List<TournamentLeaderboardRow> rows) {
   );
 }
 
+int? _intFromWinnerField(dynamic raw) {
+  if (raw is int) return raw;
+  if (raw is num) return raw.toInt();
+  return int.tryParse(raw?.toString() ?? '');
+}
+
+/// Mastery gained this match for the local player — Lottie size matches home (48).
+Widget? _gameEndedMasterySection(
+  List<Map<String, dynamic>> orderedWinners,
+  String currentUserId,
+) {
+  if (currentUserId.isEmpty || orderedWinners.isEmpty) return null;
+  Map<String, dynamic>? me;
+  for (final e in orderedWinners) {
+    if (e['playerId']?.toString() == currentUserId) {
+      me = e;
+      break;
+    }
+  }
+  if (me == null) return null;
+  final points = _intFromWinnerField(me['points']) ?? 0;
+  final cards = _intFromWinnerField(me['cardCount']) ?? 0;
+  final delta = matchMasteryDelta(endPoints: points, endCards: cards);
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      SizedBox(height: AppPadding.defaultPadding.top),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.matchPotGold.withValues(alpha: 0.22),
+              AppColors.matchPotGoldLight.withValues(alpha: 0.08),
+            ],
+          ),
+          border: Border.all(color: AppColors.matchPotGold, width: 1.5),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 88,
+              height: 88,
+              child: Center(child: DutchMasteryStarsLottie(size: 48)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _MasteryEndMatchCopy(
+                deltaLabel: delta > 0 ? '+$delta' : '$delta',
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// MASTERY label stretches once, then `+N` does one sine wave pass.
+class _MasteryEndMatchCopy extends StatefulWidget {
+  const _MasteryEndMatchCopy({required this.deltaLabel});
+
+  final String deltaLabel;
+
+  @override
+  State<_MasteryEndMatchCopy> createState() => _MasteryEndMatchCopyState();
+}
+
+class _MasteryEndMatchCopyState extends State<_MasteryEndMatchCopy>
+    with TickerProviderStateMixin {
+  late final AnimationController _stretchController;
+  late final AnimationController _waveController;
+  late final Animation<double> _stretchX;
+
+  static final TextStyle _labelStyle =
+      AppTextStyles.caption(color: AppColors.matchPotGold).copyWith(
+    fontWeight: FontWeight.w800,
+    letterSpacing: 1.4,
+  );
+  static final TextStyle _deltaStyle =
+      AppTextStyles.headingLarge(color: AppColors.matchPotGold).copyWith(
+    fontWeight: FontWeight.w800,
+    height: 1.05,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _stretchController = AnimationController(
+      duration: const Duration(milliseconds: 650),
+      vsync: this,
+    );
+    _waveController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    // Stretch out then settle back to 1.0 once.
+    _stretchX = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1, end: 1.55)
+            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 45,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.55, end: 1)
+            .chain(CurveTween(curve: Curves.easeInOutCubic)),
+        weight: 55,
+      ),
+    ]).animate(_stretchController);
+
+    _stretchController.forward();
+    _stretchController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        _waveController.forward(); // one sine pass, no repeat
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _stretchController.dispose();
+    _waveController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chars = widget.deltaLabel.characters.toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedBuilder(
+          animation: _stretchController,
+          builder: (context, child) {
+            return Transform(
+              alignment: Alignment.centerLeft,
+              transform: Matrix4.diagonal3Values(_stretchX.value, 1, 1),
+              child: child,
+            );
+          },
+          child: Text('MASTERY', style: _labelStyle),
+        ),
+        const SizedBox(height: 2),
+        AnimatedBuilder(
+          animation: _waveController,
+          builder: (context, _) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < chars.length; i++)
+                  Transform.translate(
+                    offset: Offset(
+                      0,
+                      // One pass only; rest flat before start and after finish.
+                      (_waveController.isDismissed ||
+                              _waveController.status == AnimationStatus.completed)
+                          ? 0
+                          : -7 *
+                              math.sin(
+                                (_waveController.value * 2 * math.pi) +
+                                    (i * 0.55),
+                              ),
+                    ),
+                    child: Text(chars[i], style: _deltaStyle),
+                  ),
+              ],
+            );
+          },
+        ),
+        Text(
+          'How cleanly you finished',
+          style: AppTextStyles.bodySmall(color: AppColors.matchPotGoldLight),
+        ),
+      ],
+    );
+  }
+}
+
 Widget _gameEndedOrderedWinnersColumn(
   List<Map<String, dynamic>> orderedWinners,
   String currentUserId,
@@ -1060,6 +1246,8 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
       ctaMap = Map<String, dynamic>.from(ctaRaw.map((k, v) => MapEntry(k.toString(), v)));
     }
     final ctaLabel = ctaMap?['text']?.toString().trim() ?? '';
+    final masterySection =
+        hasRows ? _gameEndedMasterySection(d.orderedWinners, d.currentUserId) : null;
 
     return Material(
       color: AppColors.black.withValues(alpha: 0.54),
@@ -1135,6 +1323,7 @@ class _GameEndedModalLayerState extends State<_GameEndedModalLayer> {
                               SizedBox(height: AppPadding.smallPadding.top),
                             ],
                             _gameEndedOrderedWinnersColumn(d.orderedWinners, d.currentUserId),
+                            if (masterySection != null) masterySection,
                             if (d.tournamentLeaderboard != null && d.tournamentLeaderboard!.isNotEmpty)
                               _tournamentLeaderboardSection(d.tournamentLeaderboard!),
                           ],

@@ -45,7 +45,7 @@ Documentation/01_Active_Plans/
 Legacy game plans still live in `Documentation/00_Active_plans/` — update those in place; do not duplicate them.
 
 Index: [`00_MASTER_PLAN.md`](../../Documentation/01_Active_Plans/00_MASTER_PLAN.md).  
-Case study (HTML only, Overview + Technical in-page): [`case-study-dutch-card-game.html`](../../Documentation/01_Active_Plans/case-study-dutch-card-game.html).
+Case study (HTML only, Overview + Technical in-page): [`case-study-dutch-card-game.html`](../../Documentation/01_Active_Plans/case-study-dutch-card-game.html). Structure and dashboard linking: [case-study-rule.mdc](case-study-rule.mdc).
 
 ## Plan File Naming
 
@@ -196,7 +196,7 @@ curl -sS -X POST "${BASE}/api/item-check.php" -H "Content-Type: application/json
 
 **File:** `Documentation/01_Active_Plans/case-study-dutch-card-game.html`
 
-Update the HTML case study when implementation work **locks or changes** a decision about how the game or app is structured — not when polishing UI copy, renaming a local variable, or fixing a one-off bug with no design impact. Prefer the **Technical** version for architecture detail; keep **Overview** in sync when the product story changes.
+Update the HTML case study when implementation work **locks or changes** a decision about how the game or app is structured — not when polishing UI copy, renaming a local variable, or fixing a one-off bug with no design impact. Every case study must have **Overview** and **Technical** (see [case-study-rule.mdc](case-study-rule.mdc)). Prefer **Technical** for architecture detail; keep **Overview** in sync when the product story changes.
 
 ### Do record (architecture + game/app logic)
 

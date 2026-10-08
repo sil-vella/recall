@@ -12,6 +12,7 @@ import '../../modules/login_module/login_module.dart';
 import '../../modules/analytics_module/analytics_module.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_avatar.dart';
+import '../../modules/dutch_game/widgets/ui_kit/dutch_mastery_mark.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_section_header.dart';
 import '../../modules/dutch_game/widgets/ui_kit/dutch_settings_row.dart';
 import '../../core/services/shared_preferences.dart';
@@ -335,6 +336,12 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     if (_isGuestAccount) return true;
     final password = SharedPrefManager().getString('password');
     return password != null && password.isNotEmpty;
+  }
+
+  bool get _isPremiumSubscriber {
+    final raw = DutchGameHelpers.getUserDutchGameStats()?['subscription_tier'];
+    final tier = (raw is String ? raw : raw?.toString())?.trim().toLowerCase() ?? '';
+    return tier == 'premium';
   }
 
   Future<void> _handleDeleteAccount() async {
@@ -1305,6 +1312,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     final rank = userStats['rank'] as String? ?? 'beginner';
     final winRate = userStats['win_rate'] as double? ?? 0.0;
     final subscriptionTier = userStats['subscription_tier'] as String? ?? 'promotional';
+    final masteryRaw = userStats['mastery'];
+    final mastery = masteryRaw is num
+        ? masteryRaw.round()
+        : int.tryParse(masteryRaw?.toString() ?? '') ?? 0;
     
     return Container(
       decoration: accountPanelDecoration(),
@@ -1331,6 +1342,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          DutchMasteryMark.banner(
+            value: mastery,
+            semanticIdentifier: 'account_mastery',
+          ),
+          const SizedBox(height: 12),
           
           // Stats Grid
           Row(
@@ -1533,6 +1549,15 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
 
                   const SizedBox(height: 24),
 
+                  if (!_isPremiumSubscriber) ...[
+                    const PremiumSubscriptionSection(),
+                    const SizedBox(height: 24),
+                  ],
+
+                  _buildGameStatisticsCard(),
+
+                  const SizedBox(height: 24),
+
                   // Account Information — themed settings rows from the Dutch UI kit.
                   Container(
                     decoration: BoxDecoration(
@@ -1612,15 +1637,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                     ),
                   ),
                   
-                  const SizedBox(height: 24),
+                  if (_isPremiumSubscriber) ...[
+                    const SizedBox(height: 24),
+                    const PremiumSubscriptionSection(),
+                  ],
 
-                  const PremiumSubscriptionSection(),
-
-                  const SizedBox(height: 24),
-                  
-                  // Game Statistics Card
-                  _buildGameStatisticsCard(),
-                  
                   const SizedBox(height: 24),
                   
                   // Convert Guest Account Section (if guest account)

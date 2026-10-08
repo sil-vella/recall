@@ -2457,8 +2457,6 @@ class DutchGameRound {
       
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
       
-      final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
-      
       final collectionRank = player['collection_rank']?.toString() ?? 'none';
       
       final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
@@ -2492,30 +2490,33 @@ class DutchGameRound {
       
       _addActionToPlayerQueue(player, actionName, actionData);
       
-      
-      // For computer players, also add to known_cards (they need full data for logic)
-      if (!isHuman) {
-        final knownCardsRaw = player['known_cards'];
-        Map<String, dynamic> knownCards;
-        if (knownCardsRaw is Map) {
-          knownCards = Map<String, dynamic>.from(knownCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
-        } else {
-          knownCards = {};
-        }
-        final playerIdKey = actualPlayerId;
-        if (!knownCards.containsKey(playerIdKey)) {
-          knownCards[playerIdKey] = {};
-        }
-        knownCards[playerIdKey][drawnCard['cardId']] = {
-          'cardId': drawnCard['cardId'],
-          'rank': drawnCard['rank'],
-          'suit': drawnCard['suit'],
-          'points': drawnCard['points'],
-          'specialPower': drawnCard['specialPower'],
-          'handIndex': drawnCardIndex,
-        };
-        player['known_cards'] = knownCards;
-        
+      // Human and CPU: add drawn card to own known_cards (removed on play via updateKnownCards).
+      final knownCardsRaw = player['known_cards'];
+      Map<String, dynamic> knownCards;
+      if (knownCardsRaw is Map) {
+        knownCards = Map<String, dynamic>.from(knownCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+      } else {
+        knownCards = {};
+      }
+      final playerIdKey = actualPlayerId;
+      if (!knownCards.containsKey(playerIdKey)) {
+        knownCards[playerIdKey] = {};
+      }
+      knownCards[playerIdKey][drawnCard['cardId']] = {
+        'cardId': drawnCard['cardId'],
+        'rank': drawnCard['rank'],
+        'suit': drawnCard['suit'],
+        'points': drawnCard['points'],
+        'specialPower': drawnCard['specialPower'],
+        'handIndex': drawnCardIndex,
+      };
+      player['known_cards'] = knownCards;
+      if (LOGGING_SWITCH) {
+        customlog(
+          'DrawKnownCards: player=$actualPlayerId isHuman=$isHuman '
+          'cardId=${drawnCard['cardId']} rank=${drawnCard['rank']} '
+          'handIndex=$drawnCardIndex source=$source',
+        );
       }
       
       
@@ -6400,12 +6401,13 @@ class DutchGameRound {
 
   /// Get remember probability based on difficulty
   double _getRememberProbability(String difficulty) {
+    // Ladder shifted: easy←former hard; medium/hard spaced toward expert.
     switch (difficulty.toLowerCase()) {
-      case 'easy': return 0.70;
-      case 'medium': return 0.80;
-      case 'hard': return 0.90;
+      case 'easy': return 0.90;
+      case 'medium': return 0.933;
+      case 'hard': return 0.967;
       case 'expert': return 1.0;
-      default: return 0.80;
+      default: return 0.933;
     }
   }
 

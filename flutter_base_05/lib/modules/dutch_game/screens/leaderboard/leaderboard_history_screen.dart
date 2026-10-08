@@ -6,6 +6,7 @@ import '../../../../core/managers/navigation_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../utils/leaderboard_bundle_store.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 import '../../widgets/ui_kit/dutch_section_header.dart';
 
@@ -170,25 +171,7 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
     _hall = list;
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
-      if (api == null) {
-        _error = 'API not available';
-        if (mounted) setState(() => _loading = false);
-        return;
-      }
-      final response = await api.sendGetRequest(_bundleUrl());
-      if (response is! Map || response['success'] != true) {
-        _error =
-            (response is Map ? response['error']?.toString() : null) ?? 'Failed to load history';
-        if (mounted) setState(() => _loading = false);
-        return;
-      }
+  void _applyBundle(Map<dynamic, dynamic> response) {
       final mh = response['monthly_history'];
       _monthlyHistory = mh is List
           ? mh.map((e) => Map<String, dynamic>.from(e as Map)).toList()
@@ -220,8 +203,44 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
       }
 
       _rebuildHallOfFame(_monthlyHistory, _yearlyHistory, _currentMonthRows, _currentYearRows);
+      _error = null;
+  }
+
+  Future<void> _load() async {
+    const scope = LeaderboardBundleStore.historyScope;
+    final cached = await LeaderboardBundleStore.read(scope);
+    final hadCache = cached != null;
+    if (!mounted) return;
+    if (hadCache) {
+      _applyBundle(cached);
+      setState(() => _loading = false);
+    } else {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
+      if (api == null) {
+        if (!hadCache) _error = 'API not available';
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      final response = await api.sendGetRequest(_bundleUrl());
+      if (response is! Map || response['success'] != true) {
+        if (!hadCache) {
+          _error =
+              (response is Map ? response['error']?.toString() : null) ?? 'Failed to load history';
+        }
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      await LeaderboardBundleStore.write(scope, Map<String, dynamic>.from(response));
+      if (!mounted) return;
+      _applyBundle(response);
     } catch (e) {
-      _error = e.toString();
+      if (!hadCache) _error = e.toString();
     }
     if (mounted) {
       setState(() => _loading = false);
@@ -310,6 +329,22 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
       child: ListView(
         padding: AppPadding.defaultPadding,
         children: [
+          OutlinedButton.icon(
+            onPressed: () => NavigationManager().navigateTo('/dutch/leaderboard'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accentColor,
+              side: BorderSide(color: AppColors.casinoBorderColor),
+              backgroundColor: AppColors.widgetContainerBackground,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.arrow_back, size: 20),
+            label: Text(
+              'Back to live leaderboard',
+              style: AppTextStyles.bodyMedium(color: AppColors.accentColor),
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             'UTC periods · #1 wins (ties share the title). All-time counts include the current month and year.',
             style: AppTextStyles.caption(color: AppColors.textSecondary),
@@ -433,22 +468,6 @@ class _LeaderboardHistoryScreenState extends BaseScreenState<LeaderboardHistoryS
               winners: wl,
             );
           }),
-          const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: () => NavigationManager().navigateTo('/dutch/leaderboard'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.accentColor,
-              side: BorderSide(color: AppColors.casinoBorderColor),
-              backgroundColor: AppColors.widgetContainerBackground,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            icon: const Icon(Icons.arrow_back, size: 20),
-            label: Text(
-              'Back to live leaderboard',
-              style: AppTextStyles.bodyMedium(color: AppColors.accentColor),
-            ),
-          ),
         ],
       ),
     );

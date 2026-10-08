@@ -362,12 +362,13 @@ class ComputerPlayerFactory {
 
     // Jack swap flow: build game data → strategy loop (probability then try strategy; if no valid swap, continue to next) → pass playerIds and cardIds to SSOT.
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
+    // Ladder shifted: easy←former hard; medium/hard spaced toward expert.
     const jackSwapStrategies = [
-      {'id': 'dutch_caller_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
-      {'id': 'collection_three_swap', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
-      {'id': 'one_card_player_priority', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
-      {'id': 'lowest_opponent_higher_own', 'expert': 98, 'hard': 95, 'medium': 85, 'easy': 70},
-      {'id': 'random_except_own', 'expert': 98, 'hard': 95, 'medium': 95, 'easy': 90},
+      {'id': 'dutch_caller_swap', 'expert': 98, 'hard': 97, 'medium': 96, 'easy': 95},
+      {'id': 'collection_three_swap', 'expert': 98, 'hard': 97, 'medium': 96, 'easy': 95},
+      {'id': 'one_card_player_priority', 'expert': 98, 'hard': 97, 'medium': 96, 'easy': 95},
+      {'id': 'lowest_opponent_higher_own', 'expert': 98, 'hard': 97, 'medium': 96, 'easy': 95},
+      {'id': 'random_except_own', 'expert': 98, 'hard': 97, 'medium': 96, 'easy': 95},
     ];
 
     String? selectedStrategyId;
@@ -681,7 +682,7 @@ class ComputerPlayerFactory {
 
   /// Select a card based on strategy and evaluation weights
   /// [timerConfig] Optional timer configuration to influence decisions based on time pressure
-  /// [difficulty] Used for dump_same_rank_as_known_opponent probability
+  /// [difficulty] Used for dump_same_rank_as_known_opponent / avoid_human_known_same_rank
   String _selectCard(
     List<String> availableCards,
     Map<String, dynamic> cardSelection,
@@ -703,6 +704,19 @@ class ComputerPlayerFactory {
     
     // Prepare game data for YAML rules engine
     final gameData = _prepareGameDataForYAML(availableCards, currentPlayer, gameState);
+
+    // Prefer an own-known playable card whose rank is not in known_cards for any human.
+    final uniqueRankPick = _trySelectAvoidHumanKnownSameRank(
+      currentPlayer: currentPlayer,
+      gameState: gameState,
+      knownPlayableCards: List<String>.from(
+        (gameData['known_playable'] as List<dynamic>? ?? []).map((e) => e.toString()),
+      ),
+      difficulty: difficulty,
+    );
+    if (uniqueRankPick != null) {
+      return uniqueRankPick;
+    }
 
     // 1B hard avoid: known own cards matching opponent-known ranks are dump candidates.
     // Unknown own cards are never filtered by opponent rank (2A).
@@ -797,6 +811,162 @@ class ComputerPlayerFactory {
     return result;
   }
   
+  /// Prefer playing an own-known playable card whose rank is not among ranks in
+  /// each **human player's own** `known_cards[humanId]` (not this CPU's map).
+  /// Candidate pool is only [knownPlayableCards] (own known ∩ playable). Ignores other AIs.
+  /// Returns card id, or null to fall through to dump-skip + YAML.
+  String? _trySelectAvoidHumanKnownSameRank({
+    required Map<String, dynamic> currentPlayer,
+    required Map<String, dynamic> gameState,
+    required List<String> knownPlayableCards,
+    required String difficulty,
+  }) {
+    final selfId = currentPlayer['id']?.toString() ?? '';
+    final avoidProb = config.getAvoidHumanKnownSameRankProbability(difficulty);
+    final rolledIn = _random.nextDouble() < avoidProb;
+
+    if (!rolledIn) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'PlayCardUniqueRank: self=$selfId difficulty=$difficulty '
+          'rolledIn=false avoidProb=$avoidProb fellThrough=roll_fail',
+        );
+      }
+      return null;
+    }
+
+    if (knownPlayableCards.isEmpty) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'PlayCardUniqueRank: self=$selfId difficulty=$difficulty '
+          'rolledIn=true avoidProb=$avoidProb uniqueCount=0 '
+          'fellThrough=no_own_known_playable pool=own.known_cards',
+        );
+      }
+      return null;
+    }
+
+    final humanIds = <String>[];
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    for (final p in players) {
+      if (p is! Map) continue;
+      final id = p['id']?.toString() ?? '';
+      if (id.isEmpty || id == selfId) continue;
+      if (p['isHuman'] == true) {
+        humanIds.add(id);
+      }
+    }
+
+    // Source = human player's known_cards[self], not CPU.known_cards[humanId].
+    final humanKnownRanks = _collectHumanPlayerOwnKnownRanks(gameState, humanIds);
+    if (humanKnownRanks.isEmpty) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'PlayCardUniqueRank: self=$selfId difficulty=$difficulty '
+          'rolledIn=true avoidProb=$avoidProb humanIds=$humanIds '
+          'humanKnownRanks=[] uniqueCount=0 fellThrough=no_human_ranks '
+          'source=human.known_cards[humanId] pool=own.known_cards',
+        );
+      }
+      return null;
+    }
+
+    final uniqueRankCards = <String>[];
+    for (final cardId in knownPlayableCards) {
+      if (cardId.isEmpty || cardId == 'null') continue;
+      final card = _getCardById(gameState, cardId);
+      final rank = (card?['rank']?.toString() ?? '').toLowerCase();
+      if (rank.isEmpty || rank == '?' || rank == 'null') continue;
+      if (!humanKnownRanks.contains(rank)) {
+        uniqueRankCards.add(cardId);
+      }
+    }
+
+    if (uniqueRankCards.isEmpty) {
+      if (LOGGING_SWITCH) {
+        customlog(
+          'PlayCardUniqueRank: self=$selfId difficulty=$difficulty '
+          'rolledIn=true avoidProb=$avoidProb humanIds=$humanIds '
+          'humanKnownRanks=${humanKnownRanks.toList()} uniqueCount=0 '
+          'fellThrough=all_share_human_rank source=human.known_cards[humanId] '
+          'pool=own.known_cards',
+        );
+      }
+      return null;
+    }
+
+    final selected = _selectHighestPointsCardIncludingJacks(uniqueRankCards, gameState);
+    if (LOGGING_SWITCH) {
+      customlog(
+        'PlayCardUniqueRank: self=$selfId difficulty=$difficulty '
+        'rolledIn=true avoidProb=$avoidProb humanIds=$humanIds '
+        'humanKnownRanks=${humanKnownRanks.toList()} '
+        'uniqueCount=${uniqueRankCards.length} selected=$selected '
+        'fellThrough=false source=human.known_cards[humanId] pool=own.known_cards',
+      );
+    }
+    return selected;
+  }
+
+  /// Ranks from each human player's own hand knowledge:
+  /// `players[human].known_cards[humanId]` — not the acting CPU's known_cards.
+  Set<String> _collectHumanPlayerOwnKnownRanks(
+    Map<String, dynamic> gameState,
+    List<String> humanIds,
+  ) {
+    final ranks = <String>{};
+    if (humanIds.isEmpty) return ranks;
+    final humanIdSet = humanIds.toSet();
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    for (final p in players) {
+      if (p is! Map) continue;
+      final humanId = p['id']?.toString() ?? '';
+      if (!humanIdSet.contains(humanId)) continue;
+      final knownCards = p['known_cards'] as Map<String, dynamic>? ?? {};
+      final ownBucket = knownCards[humanId];
+      if (ownBucket is! Map) continue;
+      for (final entry in ownBucket.entries) {
+        final cardData = entry.value;
+        if (cardData is! Map) continue;
+        final rank = (cardData['rank']?.toString() ?? '').toLowerCase();
+        if (rank.isNotEmpty && rank != '?' && rank != 'null') {
+          ranks.add(rank);
+        }
+      }
+    }
+    return ranks;
+  }
+
+  /// Highest-points among [cardIds] (jacks allowed). Ties: random among max.
+  String _selectHighestPointsCardIncludingJacks(
+    List<String> cardIds,
+    Map<String, dynamic> gameState,
+  ) {
+    if (cardIds.isEmpty) {
+      throw ArgumentError('cardIds must not be empty');
+    }
+    var highestPoints = -1;
+    final top = <String>[];
+    for (final cardId in cardIds) {
+      final card = _getCardById(gameState, cardId);
+      final points = card?['points'] is num
+          ? (card!['points'] as num).toInt()
+          : int.tryParse(card?['points']?.toString() ?? '') ?? 0;
+      if (points > highestPoints) {
+        highestPoints = points;
+        top
+          ..clear()
+          ..add(cardId);
+      } else if (points == highestPoints) {
+        top.add(cardId);
+      }
+    }
+    if (top.isEmpty) {
+      return cardIds[_random.nextInt(cardIds.length)];
+    }
+    return top[_random.nextInt(top.length)];
+  }
+
   /// Prepare game data for YAML rules engine
   Map<String, dynamic> _prepareGameDataForYAML(List<String> availableCards, 
                                                 Map<String, dynamic> currentPlayer, 
@@ -982,12 +1152,13 @@ class ComputerPlayerFactory {
   
   /// Get probability of playing optimally based on difficulty
   double _getOptimalPlayProbability(String difficulty) {
+    // Ladder shifted: easy←former hard; medium/hard spaced toward expert.
     switch (difficulty.toLowerCase()) {
-      case 'easy': return 0.6;
-      case 'medium': return 0.8;
-      case 'hard': return 0.95;
+      case 'easy': return 0.95;
+      case 'medium': return 0.967;
+      case 'hard': return 0.983;
       case 'expert': return 1.0;
-      default: return 0.8;
+      default: return 0.967;
     }
   }
   

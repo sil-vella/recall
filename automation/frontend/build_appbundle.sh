@@ -102,8 +102,18 @@ flutter build appbundle \
   --build-number="$BUILD_NUMBER" \
   "${DART_DEFINE_ARGS[@]}"
 
+# Repo-relative path as an OSC 8 link. The dashboard terminal reveals it in Finder.
+log_finder_path() {
+  local abs="$1"
+  local rel uri
+  rel="${abs#"$REPO_ROOT"/}"
+  uri="file://${abs}"
+  printf '\033]8;;%s\033\\%s\033]8;;\033\\\n' "$uri" "$rel"
+}
+
 if [[ -f "$OUTPUT_AAB" ]]; then
   echo "App Bundle build completed: $OUTPUT_AAB"
+  log_finder_path "$OUTPUT_AAB"
   ls -lh "$OUTPUT_AAB"
   echo "Upload to Play Console: Release → Create new release → Upload this AAB"
 else

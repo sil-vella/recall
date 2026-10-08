@@ -1005,6 +1005,39 @@ class WSEventHandler {
       
     }
   }
+  /// Dart `server_maintenance` (drain broadcast, rejected matchmaking, or rejected connect).
+  ///
+  /// Shown with the same instant modal as [handleWsInstantNotification] and create-room errors.
+  void handleServerMaintenance(dynamic data) {
+    try {
+      final map =
+          data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      final userMessage = map['message']?.toString().trim();
+      final body = (userMessage != null && userMessage.isNotEmpty)
+          ? userMessage
+          : 'Server is in maintenance mode. New games are not available.';
+      if (LOGGING_SWITCH) {
+        customlog('server_maintenance: show instant modal body=$body');
+      }
+      final id = 'server_maintenance_${DateTime.now().millisecondsSinceEpoch}';
+      final instant = <String, dynamic>{
+        'id': id,
+        'type': 'instant_ws',
+        'title': 'Server maintenance',
+        'body': body,
+        'timestamp': map['timestamp'] ?? DateTime.now().toIso8601String(),
+        'data': <String, dynamic>{
+          'source': 'server_maintenance',
+        },
+      };
+      _moduleManager
+          .getModuleByType<NotificationsModule>()
+          ?.addPendingWsInstant(instant);
+    } catch (e) {
+      // Error handling server maintenance
+    }
+  }
+
   /// Handle core ws_instant_notification event (Dart backend pushes instant notification to session).
   void handleWsInstantNotification(dynamic data) {
     try {

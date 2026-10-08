@@ -8,6 +8,7 @@ export 'dutch_animated_cta_button.dart';
 export 'dutch_avatar.dart';
 export 'dutch_edit_text_dialog.dart';
 export 'dutch_empty_state_card.dart';
+export 'dutch_mastery_mark.dart';
 export 'dutch_responsive_shell.dart';
 export 'dutch_section_header.dart';
 export 'dutch_settings_row.dart';

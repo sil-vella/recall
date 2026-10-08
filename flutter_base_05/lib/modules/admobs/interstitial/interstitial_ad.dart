@@ -3,17 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:provider/provider.dart';
-
 import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
-import '../../../../core/managers/services_manager.dart';
-import '../../../../core/services/shared_preferences.dart';
 import '../../dutch_game/utils/dutch_firebase_analytics.dart';
 import '../ad_experience_policy.dart';
 import '../admob_config_store.dart';
 import '../admob_trace.dart';
+import '../remove_ads_offer.dart';
 import '../../promotional_ads_module/route_path_utils.dart';
 
 /// Preloads and shows AdMob interstitials after the navigation gate in [PromotionalAdsModule].
@@ -113,9 +110,9 @@ class InterstitialAdModule extends ModuleBase {
       },
       onAdDismissedFullScreenContent: (Ad dismissed) {
         dismissed.dispose();
-        _recordViewBestEffort(context);
         loadAd();
         onClosed();
+        unawaited(RemoveAdsOffer.onInterstitialDismissed(context));
       },
       onAdFailedToShowFullScreenContent: (Ad failed, AdError error) {
         failed.dispose();
@@ -125,18 +122,6 @@ class InterstitialAdModule extends ModuleBase {
     );
 
     ad.show();
-  }
-
-  void _recordViewBestEffort(BuildContext context) {
-    try {
-      final servicesManager = Provider.of<ServicesManager>(context, listen: false);
-      final sharedPref = servicesManager.getService<SharedPrefManager>('shared_pref');
-      if (sharedPref == null) return;
-      final adViews = sharedPref.getInt('interstitial_ad_views') ?? 0;
-      sharedPref.setInt('interstitial_ad_views', adViews + 1);
-    } catch (_) {
-      // Optional analytics
-    }
   }
 
   @override

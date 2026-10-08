@@ -5,6 +5,7 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../utils/dutch_game_helpers.dart';
 import '../../utils/progression_ladder.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
+import '../../widgets/ui_kit/dutch_mastery_mark.dart';
 
 const int _tabRanks = 0;
 const int _tabLevels = 1;
@@ -103,6 +104,7 @@ class _ProgressionScreenState extends BaseScreenState<ProgressionScreen> {
 
     final userLevel = resolveUserLevelFromStats(_stats);
     final wins = _int(_stats?['wins']);
+    final mastery = _int(_stats?['mastery']);
     final summary = buildProgressionSummary(_stats);
     final rankEntries = buildRankLadderEntries(userLevel: userLevel, wins: wins);
     final levelEntries = buildLevelLadderEntries(userLevel: userLevel, wins: wins);
@@ -117,10 +119,10 @@ class _ProgressionScreenState extends BaseScreenState<ProgressionScreen> {
         children: [
           Semantics(
             identifier: 'progression_summary',
-            label: 'Your wins, level, and rank',
+            label: 'Your mastery, wins, level, and rank',
             child: Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _ProgressionSummaryCard(summary: summary),
+              child: _ProgressionSummaryCard(summary: summary, mastery: mastery),
             ),
           ),
           Padding(
@@ -198,9 +200,13 @@ class _ProgressionScreenState extends BaseScreenState<ProgressionScreen> {
 }
 
 class _ProgressionSummaryCard extends StatelessWidget {
-  const _ProgressionSummaryCard({required this.summary});
+  const _ProgressionSummaryCard({
+    required this.summary,
+    required this.mastery,
+  });
 
   final ProgressionSummary summary;
+  final int mastery;
 
   @override
   Widget build(BuildContext context) {
@@ -217,6 +223,11 @@ class _ProgressionSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          DutchMasteryMark.banner(
+            value: mastery,
+            semanticIdentifier: 'progression_mastery',
+          ),
+          const SizedBox(height: 14),
           Row(
             children: [
               Icon(Icons.insights, color: AppColors.matchPotGold, size: 32),

@@ -24,6 +24,13 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="${ADMOB_APPLICATION_ID}"/>
+        <!--
+          Android 16 ignores portrait locks on large screens (sw >= 600dp).
+          Keep the portrait lock until the table layout is ready for free resizing.
+        -->
+        <property
+            android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY"
+            android:value="true" />
         <!-- AdMob vs Firebase Analytics: both ship AD_SERVICES_CONFIG; prefer AdMob (GMA). -->
         <property
             android:name="android.adservices.AD_SERVICES_CONFIG"

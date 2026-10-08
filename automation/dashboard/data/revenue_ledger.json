@@ -1552,7 +1552,361 @@
       "updated_at": "2026-08-18T14:21:11+0200"
     }
   },
-  "expenses": [],
+  "download_entries": {
+    "2026-07-20|appstore|downloads|6772967073": {
+      "date": "2026-07-20",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-20|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-20",
+      "source": "play",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-21|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-21",
+      "source": "play",
+      "kind": "downloads",
+      "units": 2.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-22|appstore|downloads|6772967073": {
+      "date": "2026-07-22",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-22|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-22",
+      "source": "play",
+      "kind": "downloads",
+      "units": 2.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-23|appstore|downloads|6772967073": {
+      "date": "2026-07-23",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-24|appstore|downloads|6772967073": {
+      "date": "2026-07-24",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-25|appstore|downloads|6772967073": {
+      "date": "2026-07-25",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-25|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-25",
+      "source": "play",
+      "kind": "downloads",
+      "units": 2.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-26|appstore|downloads|6772967073": {
+      "date": "2026-07-26",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-26|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-26",
+      "source": "play",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-27|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-27",
+      "source": "play",
+      "kind": "downloads",
+      "units": 2.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-28|appstore|downloads|6772967073": {
+      "date": "2026-07-28",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-28|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-28",
+      "source": "play",
+      "kind": "downloads",
+      "units": 4.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-29|appstore|downloads|6772967073": {
+      "date": "2026-07-29",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 3.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-29|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-29",
+      "source": "play",
+      "kind": "downloads",
+      "units": 4.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-30|appstore|downloads|6772967073": {
+      "date": "2026-07-30",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-30|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-30",
+      "source": "play",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-31|appstore|downloads|6772967073": {
+      "date": "2026-07-31",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-07-31|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-07-31",
+      "source": "play",
+      "kind": "downloads",
+      "units": 4.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-01|appstore|downloads|6772967073": {
+      "date": "2026-08-01",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-01|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-08-01",
+      "source": "play",
+      "kind": "downloads",
+      "units": 5.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-02|appstore|downloads|6772967073": {
+      "date": "2026-08-02",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-03|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-08-03",
+      "source": "play",
+      "kind": "downloads",
+      "units": 2.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-04|appstore|downloads|6772967073": {
+      "date": "2026-08-04",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 2.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-04|play|downloads|com.reignofplay.dutch": {
+      "date": "2026-08-04",
+      "source": "play",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "com.reignofplay.dutch",
+      "label": "com.reignofplay.dutch",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-05|appstore|downloads|6772967073": {
+      "date": "2026-08-05",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-06|appstore|downloads|6772967073": {
+      "date": "2026-08-06",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-07|appstore|downloads|6772967073": {
+      "date": "2026-08-07",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-08|appstore|downloads|6772967073": {
+      "date": "2026-08-08",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-09|appstore|downloads|6772967073": {
+      "date": "2026-08-09",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-10|appstore|downloads|6772967073": {
+      "date": "2026-08-10",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-12|appstore|downloads|6772967073": {
+      "date": "2026-08-12",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-13|appstore|downloads|6772967073": {
+      "date": "2026-08-13",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-14|appstore|downloads|6772967073": {
+      "date": "2026-08-14",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-15|appstore|downloads|6772967073": {
+      "date": "2026-08-15",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 1.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    },
+    "2026-08-16|appstore|downloads|6772967073": {
+      "date": "2026-08-16",
+      "source": "appstore",
+      "kind": "downloads",
+      "units": 2.0,
+      "app_id": "6772967073",
+      "label": "Dutch Card Game",
+      "updated_at": "2026-08-18T14:33:21+0200"
+    }
+  },
+  "expenses": [
+    {
+      "id": "4f14b365-22f9-40c0-ac48-f76a103b4f72",
+      "type": "ads",
+      "amount": 10.0,
+      "currency": "EUR",
+      "description": "FB Your opponent played your rank. What's your move? reel for dutch. 5days",
+      "date": "2026-08-26",
+      "created_at": "2026-08-26T14:28:20+0200"
+    },
+    {
+      "id": "3ccbb98b-db1b-4d61-b6b8-9d4bd4f296b3",
+      "type": "tools",
+      "amount": 4.64,
+      "currency": "EUR",
+      "description": "kling ai",
+      "date": "2026-08-28",
+      "created_at": "2026-08-28T11:16:23+0200"
+    }
+  ],
   "filters": {
     "kind": "estimated",
     "from": "2025-01-20",
@@ -4619,5 +4973,5 @@
     "warnings": [],
     "loaded_at": "2026-08-18T14:33:21+0200"
   },
-  "active_subtab": "revenue"
+  "active_subtab": "expense"
 }

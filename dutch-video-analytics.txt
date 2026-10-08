@@ -1,0 +1,63 @@
+Paid ad reel — Facebook Insights
+Your opponent played your rank. What's your move?
+https://www.facebook.com/reel/2206036776862396/
+Post id: 101232742353934_1066324272575480
+Published: 2026-08-03T10:31:23Z
+Reel length: 11306 ms (~11.3s)
+
+Fetched: 29 Aug 2026 11:47 UTC
+Source: dashboard facebook_post_metrics (Graph Page Insights)
+Page: 101232742353934
+
+
+                         26 Aug     27 Aug 09:20 UTC    29 Aug 11:47 UTC    vs 27 Aug
+  Video views            26        338                 1240             +902
+  Unique viewers         22        183                 535              +352
+  Organic views          --         29                  31               +2
+  Paid views             --         309                 1209             +900
+  Organic unique                    22                  22               0
+  Paid unique                       161                 512              +351
+  15s views              5         304                 1182             +878
+  Autoplayed                                        1083
+  Clicked to play                                   157
+  Complete organic                  7                  9               +2
+  Complete paid                     297                1173             +876
+  Complete 30s paid                 297                1173             +876
+  Media views            220       239                 241              +2
+  Reach (unique media)             366                 736              +370
+  Reactions              1         1                   1               0
+  Clicks                            1                   1               0
+  Avg watch                         7.5s                9.9s
+  Total view time                   ~65.4 min          ~236.8 min
+  Organic view time                 ~7.3 min            ~8.3 min
+
+Paid share of views:     1209 / 1240 = 97.5%
+15s hold:                1182 / 1240 = 95.3%
+Paid complete / paid:    1173 / 1209 = 97.0%
+Avg watch vs length:     9868 / 11306 = 87%
+
+Organic unique is still 22. Almost all new viewers since 27 Aug are paid.
+Reactions and clicks are unchanged (1 / 1). Media impressions barely moved (239 -> 241);
+video-view and reach metrics are what the ad is driving.
+
+Raw 29 Aug (milliseconds where noted)
+  post_video_views                    1240
+  post_video_views_unique             535
+  post_video_views_organic             31
+  post_video_views_organic_unique      22
+  post_video_views_paid               1209
+  post_video_views_paid_unique       512
+  post_video_views_15s               1182
+  post_video_views_autoplayed        1083
+  post_video_views_clicked_to_play  157
+  post_video_complete_views_organic  9
+  post_video_complete_views_paid      1173
+  post_video_complete_views_30s_paid 1173
+  post_media_view                    241
+  post_total_media_view_unique        736
+  post_clicks                        1
+  post_video_avg_time_watched         9868
+  post_video_view_time              14209950
+  post_video_view_time_organic       500996
+  post_video_length                  11306
+  reactions / likes / comments        1 / 1 / 0

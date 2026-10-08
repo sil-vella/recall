@@ -175,6 +175,9 @@ class _FeatureSlotState extends State<FeatureSlot> {
     }
 
     final side = calculatedHeight;
+    if (feature.tileAssetPath != null) {
+      return _buildHomeArtTile(feature, side);
+    }
     final iconSize = (side * 0.4).clamp(40.0, 96.0);
 
     const borderRadius = BorderRadius.all(Radius.circular(12));
@@ -254,6 +257,42 @@ class _FeatureSlotState extends State<FeatureSlot> {
           ],
         ),
       ),
+      ),
+    );
+  }
+
+  /// Menu art already includes the gold frame and the label.
+  Widget _buildHomeArtTile(HomeScreenButtonFeatureDescriptor feature, double side) {
+    return Center(
+      child: Semantics(
+        button: true,
+        label: feature.text,
+        child: Container(
+          width: side,
+          height: side,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: feature.onTap,
+              child: Image.asset(
+                feature.tileAssetPath!,
+                width: side,
+                height: side,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

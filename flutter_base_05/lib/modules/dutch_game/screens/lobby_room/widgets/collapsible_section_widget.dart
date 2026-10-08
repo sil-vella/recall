@@ -8,6 +8,8 @@ class CollapsibleSectionWidget extends StatefulWidget {
   final String title;
   final Widget child;
   final IconData? icon;
+  /// Full menu tile used as the accordion header. The art includes the label.
+  final String? headerAssetPath;
   /// Optional felt / texture behind the header row (e.g. Join Random table tier).
   final Widget? headerBackdrop;
   final bool initiallyExpanded;
@@ -23,6 +25,7 @@ class CollapsibleSectionWidget extends StatefulWidget {
     required this.title,
     required this.child,
     this.icon,
+    this.headerAssetPath,
     this.headerBackdrop,
     this.initiallyExpanded = false,
     this.isExpanded,
@@ -127,7 +130,13 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
               horizontal: AppPadding.defaultPadding.left,
               vertical: AppPadding.smallPadding.top,
             ),
-            child: ClipRRect(
+            child: widget.headerAssetPath != null
+                ? _ArtAccordionHeader(
+                    assetPath: widget.headerAssetPath!,
+                    title: widget.title,
+                    expanded: _isExpanded,
+                  )
+                : ClipRRect(
               borderRadius: BorderRadius.circular(AppBorderRadius.large),
               child: Stack(
                 alignment: Alignment.center,
@@ -213,6 +222,56 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Square menu art used as an accordion header. The image already includes the label.
+class _ArtAccordionHeader extends StatelessWidget {
+  const _ArtAccordionHeader({
+    required this.assetPath,
+    required this.title,
+    required this.expanded,
+  });
+
+  final String assetPath;
+  final String title;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final tile = (width * 0.78).clamp(220.0, 320.0);
+    return Semantics(
+      button: true,
+      identifier: 'lobby_section_${title.toLowerCase().replaceAll(' ', '_')}',
+      label: title,
+      child: Align(
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: tile,
+          height: tile,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(assetPath, fit: BoxFit.cover),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: AnimatedRotation(
+                  turns: expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 300),
+                  child: const Icon(
+                    Icons.expand_more,
+                    color: AppColors.white,
+                    size: 28,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

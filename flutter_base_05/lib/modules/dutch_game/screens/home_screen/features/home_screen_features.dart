@@ -30,7 +30,7 @@ class HomeScreenFeatureRegistrar {
       featureId: 'dutch_game_play',
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: 'Play Dutch',
-      iconSvgPath: 'assets/images/icons/play-icon.svg',
+      tileAssetPath: 'assets/images/icons/play-dutch.webp',
       onTap: () {
         
         AnalyticsService.logEvent(name: 'home_play_dutch_tap');
@@ -43,7 +43,7 @@ class HomeScreenFeatureRegistrar {
           
         }
       },
-      heightPercentage: 0.25, // 25% of available height (max card height)
+      heightPercentage: 0.28, // 28% of available height (max card height)
       priority: 10,
       textStyle: _homeButtonLabelStyle,
     );
@@ -65,7 +65,7 @@ class HomeScreenFeatureRegistrar {
       featureId: 'dutch_game_demo',
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: 'Demo',
-      iconSvgPath: 'assets/images/icons/learn-icon.svg',
+      tileAssetPath: 'assets/images/icons/demo.webp',
       onTap: () {
         
         AnalyticsService.logEvent(name: 'home_demo_tap');
@@ -78,7 +78,7 @@ class HomeScreenFeatureRegistrar {
           
         }
       },
-      heightPercentage: 0.25, // 25% of available height (max card height)
+      heightPercentage: 0.28, // 28% of available height (max card height)
       priority: 20,
       textStyle: _homeButtonLabelStyle,
     );
@@ -97,7 +97,7 @@ class HomeScreenFeatureRegistrar {
       context: context,
       featureId: 'home_leaderboard',
       text: 'Leaderboard',
-      icon: Icons.emoji_events,
+      tileAssetPath: 'assets/images/icons/leaderboard.webp',
       path: '/dutch/leaderboard',
       analyticsName: 'home_leaderboard_tap',
       priority: 30,
@@ -109,7 +109,7 @@ class HomeScreenFeatureRegistrar {
       context: context,
       featureId: 'home_customize',
       text: 'Customize',
-      icon: Icons.palette_outlined,
+      tileAssetPath: 'assets/images/icons/customize.webp',
       path: '/dutch-customize',
       analyticsName: 'home_customize_tap',
       priority: 40,
@@ -121,7 +121,7 @@ class HomeScreenFeatureRegistrar {
       context: context,
       featureId: 'home_account',
       text: 'Account',
-      icon: Icons.account_circle,
+      tileAssetPath: 'assets/images/icons/account.webp',
       path: '/account',
       analyticsName: 'home_account_tap',
       priority: 50,
@@ -132,7 +132,7 @@ class HomeScreenFeatureRegistrar {
     required BuildContext context,
     required String featureId,
     required String text,
-    required IconData icon,
+    required String tileAssetPath,
     required String path,
     required String analyticsName,
     required int priority,
@@ -141,7 +141,7 @@ class HomeScreenFeatureRegistrar {
       featureId: featureId,
       slotId: HomeScreenFeatureSlots.slotButtons,
       text: text,
-      icon: icon,
+      tileAssetPath: tileAssetPath,
       onTap: () {
         AnalyticsService.logEvent(name: analyticsName);
         try {
@@ -150,7 +150,7 @@ class HomeScreenFeatureRegistrar {
           // Navigation failure is surfaced by router / screen layer.
         }
       },
-      heightPercentage: 0.25,
+      heightPercentage: 0.28,
       priority: priority,
       textStyle: _homeButtonLabelStyle,
     );

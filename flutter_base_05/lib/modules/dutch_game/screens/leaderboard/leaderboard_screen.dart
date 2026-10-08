@@ -8,14 +8,25 @@ import '../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../backend_core/utils/rank_matcher.dart';
 import '../../utils/dutch_game_helpers.dart';
+import '../../utils/leaderboard_bundle_store.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
+import '../../widgets/ui_kit/dutch_mastery_mark.dart';
 import '../lobby_room/widgets/collapsible_section_widget.dart';
 
-const int _kLeaderboardDisplayLimit = 100;
+const int _kLeaderboardDisplayLimit = LeaderboardBundleStore.maxEntries;
 
-/// Route: `/dutch/leaderboard` — one bundle fetch; monthly/yearly/all-time; rank tier filtered on device.
+/// Rank board mode on the main leaderboard (peer to History / Achievements screens).
+enum LeaderboardRankMode { wins, mastery }
+
+/// Route: `/dutch/leaderboard` — one bundle fetch; Wins or Mastery ranking; monthly/yearly/all-time for wins.
 class LeaderboardScreen extends BaseScreen {
-  const LeaderboardScreen({Key? key}) : super(key: key);
+  const LeaderboardScreen({
+    Key? key,
+    this.initialRankMode = LeaderboardRankMode.wins,
+  }) : super(key: key);
+
+  /// Opens on Wins or Mastery (e.g. deep link `/dutch/leaderboard/mastery`).
+  final LeaderboardRankMode initialRankMode;
 
   @override
   String computeTitle(BuildContext context) => 'Leaderboard';
@@ -43,25 +54,29 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   List<Map<String, dynamic>> _rawMonthly = [];
   List<Map<String, dynamic>> _rawYearly = [];
   List<Map<String, dynamic>> _rawAllTime = [];
+  List<Map<String, dynamic>> _rawMastery = [];
   String _monthlyPeriodKey = '';
   String _yearlyPeriodKey = '';
   Map<String, dynamic>? _bundleViewer;
-  bool _monthlyTruncated = false;
-  bool _yearlyTruncated = false;
-  bool _allTimeTruncated = false;
-  /// `monthly` | `yearly` | `all_time` (client-side period scope).
+  /// Wins (period wins ranking) or Mastery (all-time mastery ranking).
+  late LeaderboardRankMode _rankMode;
+  /// `monthly` | `yearly` | `all_time` (client-side period scope; wins mode only).
   String _periodScope = 'monthly';
-  /// `null` = all ranks (client-side filter only).
+  /// `null` = all ranks (client-side filter only; wins mode only).
   String? _selectedRankTier;
   /// `null` = all game types; `classic` | `clear_and_collect` (server-filtered bundle).
   String? _selectedGameType;
+  int _loadToken = 0;
 
   @override
   void initState() {
     super.initState();
+    _rankMode = widget.initialRankMode;
     DutchGameHelpers.fetchPublicInitConfig();
     _load();
   }
+
+  bool get _isMasteryMode => _rankMode == LeaderboardRankMode.mastery;
 
   List<Map<String, dynamic>> _filteredAndRanked(
     List<Map<String, dynamic>> raw, {
@@ -94,7 +109,26 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   List<Map<String, dynamic>> get _visibleYearly => _filteredAndRanked(_rawYearly);
   List<Map<String, dynamic>> get _visibleAllTime =>
       _filteredAndRanked(_rawAllTime, ignoreRankTier: true);
-  List<Map<String, dynamic>> get _visibleRows {
+
+  /// All-time mastery board from bundle ``mastery`` (sorted client-side by mastery desc).
+  List<Map<String, dynamic>> get _visibleMastery {
+    final sorted = List<Map<String, dynamic>>.from(_rawMastery)
+      ..sort((a, b) {
+        final c = _masteryFromRow(b).compareTo(_masteryFromRow(a));
+        if (c != 0) return c;
+        final na = (a['username'] ?? '').toString().toLowerCase();
+        final nb = (b['username'] ?? '').toString().toLowerCase();
+        return na.compareTo(nb);
+      });
+    final top = sorted.take(_displayLimit).toList();
+    return List.generate(top.length, (i) {
+      final m = Map<String, dynamic>.from(top[i]);
+      m['rank'] = i + 1;
+      return m;
+    });
+  }
+
+  List<Map<String, dynamic>> get _visibleWinsRows {
     switch (_periodScope) {
       case 'yearly':
         return _visibleYearly;
@@ -105,32 +139,57 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     }
   }
 
+  List<Map<String, dynamic>> get _visibleRows =>
+      _isMasteryMode ? _visibleMastery : _visibleWinsRows;
+
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _loadError = null;
-    });
+    final token = ++_loadToken;
+    final scope = LeaderboardBundleStore.scopeFor(gameType: _selectedGameType);
+    final bundleUrl = _leaderboardBundleUrl();
+    final cached = await LeaderboardBundleStore.read(scope);
+    if (!mounted || token != _loadToken) return;
+    final hadCache = cached != null;
+    if (hadCache) {
+      _applyBundleResponse(cached);
+      setState(() => _loading = false);
+    } else {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
     try {
       final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
       if (api == null) {
-        _loadError = 'API not available';
+        if (!hadCache && token == _loadToken) {
+          _loadError = 'API not available';
+          _rawMonthly = [];
+          _rawYearly = [];
+          _rawAllTime = [];
+          _rawMastery = [];
+          _bundleViewer = null;
+        }
+        if (mounted && token == _loadToken) setState(() => _loading = false);
+        return;
+      }
+      final response = await api.sendGetRequest(bundleUrl);
+      if (!mounted || token != _loadToken) return;
+      if (response is Map && response['success'] == true) {
+        await LeaderboardBundleStore.write(scope, Map<String, dynamic>.from(response));
+      }
+      if (!mounted || token != _loadToken) return;
+      _applyBundleResponse(response);
+    } catch (e) {
+      if (!hadCache && token == _loadToken) {
+        _loadError = e.toString();
         _rawMonthly = [];
         _rawYearly = [];
         _rawAllTime = [];
+        _rawMastery = [];
         _bundleViewer = null;
-        if (mounted) setState(() => _loading = false);
-        return;
       }
-      final response = await api.sendGetRequest(_leaderboardBundleUrl());
-      _applyBundleResponse(response);
-    } catch (e) {
-      _loadError = e.toString();
-      _rawMonthly = [];
-      _rawYearly = [];
-      _rawAllTime = [];
-      _bundleViewer = null;
     }
-    if (mounted) {
+    if (mounted && token == _loadToken) {
       setState(() {
         _loading = false;
       });
@@ -144,6 +203,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
       _rawMonthly = [];
       _rawYearly = [];
       _rawAllTime = [];
+      _rawMastery = [];
       _bundleViewer = null;
       return;
     }
@@ -151,9 +211,9 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     final m = response['monthly'];
     final y = response['yearly'];
     final at = response['all_time'];
+    final mastery = response['mastery'];
     if (m is Map) {
       _monthlyPeriodKey = m['period_key']?.toString() ?? '';
-      _monthlyTruncated = m['truncated'] == true;
       final rows = m['rows'];
       _rawMonthly = rows is List
           ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
@@ -163,7 +223,6 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     }
     if (y is Map) {
       _yearlyPeriodKey = y['period_key']?.toString() ?? '';
-      _yearlyTruncated = y['truncated'] == true;
       final rows = y['rows'];
       _rawYearly = rows is List
           ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
@@ -172,13 +231,20 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
       _rawYearly = [];
     }
     if (at is Map) {
-      _allTimeTruncated = at['truncated'] == true;
       final rows = at['rows'];
       _rawAllTime = rows is List
           ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
           : [];
     } else {
       _rawAllTime = [];
+    }
+    if (mastery is Map) {
+      final rows = mastery['rows'];
+      _rawMastery = rows is List
+          ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+    } else {
+      _rawMastery = [];
     }
     final v = response['viewer'];
     _bundleViewer = v is Map ? Map<String, dynamic>.from(v) : null;
@@ -206,21 +272,12 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     }
   }
 
-  bool _truncatedForScope() {
-    switch (_periodScope) {
-      case 'yearly':
-        return _yearlyTruncated;
-      case 'all_time':
-        return _allTimeTruncated;
-      default:
-        return _monthlyTruncated;
-    }
-  }
-
   String _leaderboardBundleUrl() {
     final login = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final uid = login['userId']?.toString() ?? login['user_id']?.toString() ?? '';
-    final params = <String, String>{};
+    final params = <String, String>{
+      'max_entries': '${LeaderboardBundleStore.maxEntries}',
+    };
     if (uid.isNotEmpty) {
       params['user_id'] = uid;
     }
@@ -254,20 +311,23 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     }
   }
 
-  /// Collapsed filter tab title — reflects current period, rank, and game type.
+  /// Collapsed filter tab title — reflects mode, period/rank (wins), and game type.
   String _filterSectionTitle() {
-    final period = _periodScopeLabel();
     final game = _selectedGameType == 'classic'
         ? 'Classic'
         : (_selectedGameType == 'clear_and_collect'
             ? 'Clear and Collect'
             : 'All types');
+    if (_isMasteryMode) {
+      return 'Filters · Mastery · All time · $game';
+    }
+    final period = _periodScopeLabel();
     final rank = _periodScope == 'all_time'
         ? 'Global'
         : ((_selectedRankTier == null || _selectedRankTier!.isEmpty)
             ? 'All ranks'
             : _capitalizeRank(_selectedRankTier!));
-    return 'Filters · $period · $rank · $game';
+    return 'Filters · Wins · $period · $rank · $game';
   }
 
   String? _currentUserId() {
@@ -302,6 +362,9 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   }
 
   String _periodTitle() {
+    if (_isMasteryMode) {
+      return 'Mastery · All time · how cleanly you finish${_gameTypeFilterSuffix()}';
+    }
     final String base;
     switch (_periodScope) {
       case 'yearly':
@@ -321,15 +384,21 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     final rankSuffix = _periodScope == 'all_time' || t == null || t.isEmpty
         ? ''
         : ' · ${_capitalizeRank(t)} only';
-    return '$base${_gameTypeFilterSuffix()}$rankSuffix';
+    return 'Wins · $base${_gameTypeFilterSuffix()}$rankSuffix';
   }
 
   String _emptyMessage() {
-    final span = _emptySpanLabel();
     final gt = _selectedGameType;
     final modeLabel = gt == 'clear_and_collect'
         ? 'Clear and Collect'
         : (gt == 'classic' ? 'Classic' : null);
+    if (_isMasteryMode) {
+      if (modeLabel != null) {
+        return 'No $modeLabel mastery rankings yet.';
+      }
+      return 'No mastery rankings yet.';
+    }
+    final span = _emptySpanLabel();
     final t = _selectedRankTier;
     if (modeLabel != null && t != null && t.isNotEmpty) {
       return 'No $modeLabel wins recorded $span for ${_capitalizeRank(t)} players yet.';
@@ -343,11 +412,6 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     return 'No wins recorded $span yet.';
   }
 
-  String? _truncationNote() {
-    if (!_truncatedForScope()) return null;
-    return 'Server list may be capped; some players beyond the cap are omitted.';
-  }
-
   @override
   Widget buildContent(BuildContext context) {
     if (_loading) {
@@ -358,19 +422,25 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
 
     final visibleRows = _visibleRows;
     final uid = _currentUserId();
-    final viewerLine = _viewerLine(
-      uid: uid,
-      bundleViewer: _bundleViewer,
-      periodKey: _periodScope,
-      filteredRows: visibleRows,
-      selectedTier: _selectedRankTier,
-    );
+    final viewerLine = _isMasteryMode
+        ? _masteryViewerLine(
+            uid: uid,
+            bundleViewer: _bundleViewer,
+            filteredRows: visibleRows,
+          )
+        : _winsViewerLine(
+            uid: uid,
+            bundleViewer: _bundleViewer,
+            periodKey: _periodScope,
+            filteredRows: visibleRows,
+            selectedTier: _selectedRankTier,
+          );
 
     final periodBody = _PeriodLeaderboardBody(
       error: _loadError,
       rows: visibleRows,
+      rankMode: _rankMode,
       viewerLine: viewerLine,
-      truncationNote: _truncationNote(),
       periodLabel: _periodTitle(),
       emptyMessage: _emptyMessage(),
       onRetry: _load,
@@ -383,12 +453,24 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
+            child: Padding(
+              padding: AppPadding.defaultPadding.copyWith(bottom: 8),
+              child: _LeaderboardActionsRow(
+                onHistory: () =>
+                    NavigationManager().navigateTo('/dutch/leaderboard/history'),
+                onAchievements: () =>
+                    NavigationManager().navigateTo('/dutch/leaderboard/achievements'),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
             child: Semantics(
               identifier: 'leaderboard_podium',
               child: Padding(
                 padding: AppPadding.defaultPadding.copyWith(bottom: 8),
                 child: _LeaderboardPodium(
                   rows: visibleRows,
+                  rankMode: _rankMode,
                   periodError: _loadError,
                 ),
               ),
@@ -410,6 +492,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
                     8,
                   ),
                   child: _LeaderboardFiltersPanel(
+                    rankMode: _rankMode,
                     periodScope: _periodScope,
                     onPeriodScopeChanged: (scope) =>
                         setState(() => _periodScope = scope),
@@ -427,12 +510,9 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: AppPadding.defaultPadding.copyWith(bottom: 8),
-              child: _LeaderboardActionsRow(
-                onHistory: () =>
-                    NavigationManager().navigateTo('/dutch/leaderboard/history'),
-                onAchievements: () =>
-                    NavigationManager().navigateTo('/dutch/leaderboard/achievements'),
-                onRefresh: _load,
+              child: _LeaderboardRankModeBar(
+                mode: _rankMode,
+                onChanged: (mode) => setState(() => _rankMode = mode),
               ),
             ),
           ),
@@ -454,6 +534,12 @@ String _displayNameFromPeriodRow(Map<String, dynamic> row) {
     return 'Player $tail';
   }
   return 'Player';
+}
+
+int _masteryFromRow(Map<String, dynamic> row) {
+  final v = row['mastery'];
+  if (v is num) return v.round();
+  return int.tryParse(v?.toString() ?? '') ?? 0;
 }
 
 int _periodPointsFromRow(Map<String, dynamic> row) {
@@ -487,8 +573,8 @@ String _formatDurationHrMinSec(num? totalSeconds) {
   return '${h}h ${m}m ${s}s';
 }
 
-/// Viewer subtitle from bundle ``viewer.monthly`` / ``viewer.yearly`` and client-filtered rows.
-String? _viewerLine({
+/// Viewer subtitle for Wins mode from bundle ``viewer.monthly`` / ``viewer.yearly`` and filtered rows.
+String? _winsViewerLine({
   required String? uid,
   required Map<String, dynamic>? bundleViewer,
   required String periodKey,
@@ -528,14 +614,148 @@ String? _viewerLine({
   return noWinsMsg;
 }
 
-/// Top 3 for the active period (2nd – 1st – 3rd), aligned with list ordering from the API.
+/// Viewer subtitle for Mastery mode from bundle ``viewer.mastery``.
+String? _masteryViewerLine({
+  required String? uid,
+  required Map<String, dynamic>? bundleViewer,
+  required List<Map<String, dynamic>> filteredRows,
+}) {
+  if (bundleViewer == null) return null;
+  final block = bundleViewer['mastery'];
+  if (block is! Map) return null;
+  final stats = Map<String, dynamic>.from(block);
+  final mastery = (stats['mastery'] as num?)?.toInt() ?? 0;
+  if (mastery <= 0) {
+    return 'Your mastery: none recorded yet';
+  }
+  final viewerUid = uid ?? bundleViewer['user_id']?.toString() ?? '';
+  if (viewerUid.isNotEmpty) {
+    final idx =
+        filteredRows.indexWhere((r) => r['user_id']?.toString() == viewerUid);
+    if (idx >= 0) {
+      return 'Your position: #${idx + 1} · $mastery mastery';
+    }
+  }
+  final rank = stats['rank'];
+  if (rank is num && rank.toInt() > 0) {
+    return 'Your position: #${rank.toInt()} · $mastery mastery';
+  }
+  if (stats['in_leaderboard'] == false) {
+    return 'Your position: not in the top $_kLeaderboardDisplayLimit · $mastery mastery';
+  }
+  return 'Your position: $mastery mastery';
+}
+
+/// Primary Wins | Mastery control — equal weight for both ranking modes.
+class _LeaderboardRankModeBar extends StatelessWidget {
+  const _LeaderboardRankModeBar({
+    required this.mode,
+    required this.onChanged,
+  });
+
+  final LeaderboardRankMode mode;
+  final ValueChanged<LeaderboardRankMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'leaderboard_rank_mode',
+      label: 'Leaderboard ranking mode',
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.widgetContainerBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.casinoBorderColor),
+        ),
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          children: [
+            Expanded(
+              child: _modeSegment(
+                label: 'Wins',
+                icon: Icons.emoji_events,
+                selected: mode == LeaderboardRankMode.wins,
+                semanticsId: 'leaderboard_mode_wins',
+                onTap: () => onChanged(LeaderboardRankMode.wins),
+              ),
+            ),
+            Expanded(
+              child: _modeSegment(
+                label: 'Mastery',
+                icon: Icons.auto_awesome,
+                selected: mode == LeaderboardRankMode.mastery,
+                semanticsId: 'leaderboard_mode_mastery',
+                onTap: () => onChanged(LeaderboardRankMode.mastery),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modeSegment({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required String semanticsId,
+    required VoidCallback onTap,
+  }) {
+    return Semantics(
+      identifier: semanticsId,
+      button: true,
+      selected: selected,
+      label: label,
+      child: Material(
+        color: selected
+            ? AppColors.accentContrast
+            : AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: selected
+                      ? AppColors.textOnAccent
+                      : AppColors.textOnPrimary.withValues(alpha: 0.75),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: AppTextStyles.bodyMedium(
+                    color: selected
+                        ? AppColors.textOnAccent
+                        : AppColors.textOnPrimary,
+                  ).copyWith(
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Top 3 for the active ranking (2nd – 1st – 3rd), aligned with list ordering.
 class _LeaderboardPodium extends StatelessWidget {
   const _LeaderboardPodium({
     required this.rows,
+    required this.rankMode,
     required this.periodError,
   });
 
   final List<Map<String, dynamic>> rows;
+  final LeaderboardRankMode rankMode;
   final String? periodError;
 
   @override
@@ -555,9 +775,9 @@ class _LeaderboardPodium extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Expanded(child: _PodiumPlace(place: 2, row: r2)),
-        Expanded(child: _PodiumPlace(place: 1, row: r1)),
-        Expanded(child: _PodiumPlace(place: 3, row: r3)),
+        Expanded(child: _PodiumPlace(place: 2, row: r2, rankMode: rankMode)),
+        Expanded(child: _PodiumPlace(place: 1, row: r1, rankMode: rankMode)),
+        Expanded(child: _PodiumPlace(place: 3, row: r3, rankMode: rankMode)),
       ],
     );
   }
@@ -567,10 +787,12 @@ class _PodiumPlace extends StatelessWidget {
   const _PodiumPlace({
     required this.place,
     required this.row,
+    required this.rankMode,
   });
 
   final int place;
   final Map<String, dynamic>? row;
+  final LeaderboardRankMode rankMode;
 
   static const Color _silverTone = Color(0xFFB0BEC5);
   static const Color _bronzeTone = Color(0xFFA67C52);
@@ -607,9 +829,11 @@ class _PodiumPlace extends StatelessWidget {
     final name = hasData ? _displayNameFromPeriodRow(row!) : '—';
     final wins = hasData ? (row!['wins']?.toString() ?? '0') : '';
     final periodPts = hasData ? _periodPointsFromRow(row!) : 0;
+    final mastery = hasData ? _masteryFromRow(row!) : 0;
     final avgSec = hasData ? _avgWinSecondsFromRow(row!) : null;
     final avgTimeLabel =
         avgSec != null ? _formatDurationHrMinSec(avgSec) : null;
+    final isMastery = rankMode == LeaderboardRankMode.mastery;
     final iconSize = place == 1 ? 36.0 : 28.0;
     final topPad = place == 1 ? 0.0 : 10.0;
 
@@ -621,7 +845,7 @@ class _PodiumPlace extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(top: topPad),
             child: Icon(
-              Icons.emoji_events,
+              isMastery ? Icons.auto_awesome : Icons.emoji_events,
               size: iconSize,
               color: hasData ? _iconColor : AppColors.textSecondary.withValues(alpha: 0.35),
             ),
@@ -636,24 +860,33 @@ class _PodiumPlace extends StatelessWidget {
               fontWeight: place == 1 ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
-          if (hasData && wins.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              '$wins wins',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.caption(color: AppColors.textSecondary),
-            ),
-            Text(
-              '$periodPts pts',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.caption(color: AppColors.textTertiary),
-            ),
-            if (avgTimeLabel != null)
+          if (hasData) ...[
+            const SizedBox(height: 4),
+            if (isMastery) ...[
+              DutchMasteryMark.chip(value: mastery),
+              if (wins.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '$wins wins',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.caption(color: AppColors.textTertiary),
+                ),
+              ],
+            ] else ...[
               Text(
-                avgTimeLabel,
+                [
+                  '$wins wins',
+                  '$periodPts pts',
+                  if (avgTimeLabel != null) avgTimeLabel,
+                ].join(' · '),
                 textAlign: TextAlign.center,
-                style: AppTextStyles.caption(color: AppColors.textTertiary),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.caption(color: AppColors.textSecondary),
               ),
+              const SizedBox(height: 4),
+              DutchMasteryMark.chip(value: mastery),
+            ],
           ],
           const SizedBox(height: 8),
           Container(
@@ -687,17 +920,15 @@ class _PodiumPlace extends StatelessWidget {
   }
 }
 
-/// History + refresh — below rank tier, above viewer position / list.
+/// History + Achievements — pull-to-refresh remains on the scroll view.
 class _LeaderboardActionsRow extends StatelessWidget {
   const _LeaderboardActionsRow({
     required this.onHistory,
     required this.onAchievements,
-    required this.onRefresh,
   });
 
   final VoidCallback onHistory;
   final VoidCallback onAchievements;
-  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -708,59 +939,40 @@ class _LeaderboardActionsRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Semantics(
-                identifier: 'leaderboard_history',
-                button: true,
-                label: 'Leaderboard history',
-                child: OutlinedButton.icon(
-                  onPressed: onHistory,
-                  style: buttonStyle,
-                  icon: const Icon(Icons.history, size: 20),
-                  label: Text(
-                    'History',
-                    style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Semantics(
-                identifier: 'leaderboard_achievements',
-                button: true,
-                label: 'Achievement ranks',
-                child: OutlinedButton.icon(
-                  onPressed: onAchievements,
-                  style: buttonStyle,
-                  icon: const Icon(Icons.workspace_premium, size: 20),
-                  label: Text(
-                    'Achievements',
-                    style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Semantics(
-          identifier: 'leaderboard_refresh',
-          button: true,
-          label: 'Refresh leaderboard',
-          child: SizedBox(
-            width: double.infinity,
+        Expanded(
+          child: Semantics(
+            identifier: 'leaderboard_history',
+            button: true,
+            label: 'Leaderboard history',
             child: OutlinedButton.icon(
-              onPressed: onRefresh,
+              onPressed: onHistory,
               style: buttonStyle,
-              icon: const Icon(Icons.refresh, size: 20),
+              icon: const Icon(Icons.history, size: 20),
               label: Text(
-                'Refresh',
+                'History',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Semantics(
+            identifier: 'leaderboard_achievements',
+            button: true,
+            label: 'Achievement ranks',
+            child: OutlinedButton.icon(
+              onPressed: onAchievements,
+              style: buttonStyle,
+              icon: const Icon(Icons.workspace_premium, size: 20),
+              label: Text(
+                'Achievements',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.bodyMedium(color: AppColors.textOnPrimary),
               ),
             ),
@@ -851,8 +1063,10 @@ class _LeaderboardFilterChipBar extends StatelessWidget {
 }
 
 /// Period, game type, and rank filters — uniform label + chip rows.
+/// Period/rank apply to Wins mode only; Mastery is all-time (game type still applies).
 class _LeaderboardFiltersPanel extends StatelessWidget {
   const _LeaderboardFiltersPanel({
+    required this.rankMode,
     required this.periodScope,
     required this.onPeriodScopeChanged,
     required this.selectedGameType,
@@ -862,6 +1076,7 @@ class _LeaderboardFiltersPanel extends StatelessWidget {
     required this.onRankTierChanged,
   });
 
+  final LeaderboardRankMode rankMode;
   final String periodScope;
   final ValueChanged<String> onPeriodScopeChanged;
   final String? selectedGameType;
@@ -906,6 +1121,45 @@ class _LeaderboardFiltersPanel extends StatelessWidget {
         ),
     ];
 
+    final isMastery = rankMode == LeaderboardRankMode.mastery;
+    final gameTypeBar = _LeaderboardFilterChipBar(
+      label: 'Game type',
+      chips: [
+        _LeaderboardChipOption(
+          label: 'All',
+          selected: selectedGameType == null,
+          onSelect: () => onGameTypeChanged(null),
+          semanticsIdentifier: 'leaderboard_game_type_all',
+        ),
+        _LeaderboardChipOption(
+          label: 'Classic',
+          selected: selectedGameType == 'classic',
+          onSelect: () => onGameTypeChanged('classic'),
+          semanticsIdentifier: 'leaderboard_game_type_classic',
+        ),
+        _LeaderboardChipOption(
+          label: 'Clear and Collect',
+          selected: selectedGameType == 'clear_and_collect',
+          onSelect: () => onGameTypeChanged('clear_and_collect'),
+          semanticsIdentifier: 'leaderboard_game_type_clear_and_collect',
+        ),
+      ],
+    );
+
+    if (isMastery) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Mastery is all-time. Period and rank filters apply to Wins.',
+            style: AppTextStyles.caption(color: AppColors.textTertiary),
+          ),
+          const SizedBox(height: 12),
+          gameTypeBar,
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -933,29 +1187,7 @@ class _LeaderboardFiltersPanel extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        _LeaderboardFilterChipBar(
-          label: 'Game type',
-          chips: [
-            _LeaderboardChipOption(
-              label: 'All',
-              selected: selectedGameType == null,
-              onSelect: () => onGameTypeChanged(null),
-              semanticsIdentifier: 'leaderboard_game_type_all',
-            ),
-            _LeaderboardChipOption(
-              label: 'Classic',
-              selected: selectedGameType == 'classic',
-              onSelect: () => onGameTypeChanged('classic'),
-              semanticsIdentifier: 'leaderboard_game_type_classic',
-            ),
-            _LeaderboardChipOption(
-              label: 'Clear and Collect',
-              selected: selectedGameType == 'clear_and_collect',
-              onSelect: () => onGameTypeChanged('clear_and_collect'),
-              semanticsIdentifier: 'leaderboard_game_type_clear_and_collect',
-            ),
-          ],
-        ),
+        gameTypeBar,
         const SizedBox(height: 12),
         if (periodScope != 'all_time')
           _LeaderboardFilterChipBar(
@@ -971,8 +1203,8 @@ class _PeriodLeaderboardBody {
   const _PeriodLeaderboardBody({
     required this.error,
     required this.rows,
+    required this.rankMode,
     required this.viewerLine,
-    required this.truncationNote,
     required this.periodLabel,
     required this.emptyMessage,
     required this.onRetry,
@@ -980,8 +1212,8 @@ class _PeriodLeaderboardBody {
 
   final String? error;
   final List<Map<String, dynamic>> rows;
+  final LeaderboardRankMode rankMode;
   final String? viewerLine;
-  final String? truncationNote;
   final String periodLabel;
   final String emptyMessage;
   final Future<void> Function() onRetry;
@@ -1011,7 +1243,6 @@ class _PeriodLeaderboardBody {
         padding: const EdgeInsets.only(bottom: 2),
         child: _PeriodLeaderboardHeader(
           periodLabel: periodLabel,
-          truncationNote: truncationNote,
           viewerLine: viewerLine,
         ),
       ),
@@ -1022,7 +1253,9 @@ class _PeriodLeaderboardBody {
         const SizedBox(height: 16),
         DutchEmptyStateCard(
           message: emptyMessage,
-          icon: Icons.emoji_events_outlined,
+          icon: rankMode == LeaderboardRankMode.mastery
+              ? Icons.auto_awesome_outlined
+              : Icons.emoji_events_outlined,
           semanticIdentifier: 'leaderboard_empty',
         ),
       ]);
@@ -1033,7 +1266,7 @@ class _PeriodLeaderboardBody {
         } else {
           children.add(const SizedBox(height: 6));
         }
-        children.add(_LeaderboardRankRow(row: rows[i]));
+        children.add(_LeaderboardRankRow(row: rows[i], rankMode: rankMode));
       }
     }
 
@@ -1049,12 +1282,10 @@ class _PeriodLeaderboardBody {
 class _PeriodLeaderboardHeader extends StatelessWidget {
   const _PeriodLeaderboardHeader({
     required this.periodLabel,
-    required this.truncationNote,
     required this.viewerLine,
   });
 
   final String periodLabel;
-  final String? truncationNote;
   final String? viewerLine;
 
   @override
@@ -1066,13 +1297,6 @@ class _PeriodLeaderboardHeader extends StatelessWidget {
           periodLabel,
           style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
         ),
-        if (truncationNote != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            truncationNote!,
-            style: AppTextStyles.caption(color: AppColors.textTertiary),
-          ),
-        ],
         if (viewerLine != null) ...[
           const SizedBox(height: 6),
           Semantics(
@@ -1090,89 +1314,119 @@ class _PeriodLeaderboardHeader extends StatelessWidget {
 }
 
 class _LeaderboardRankRow extends StatelessWidget {
-  const _LeaderboardRankRow({required this.row});
+  const _LeaderboardRankRow({
+    required this.row,
+    required this.rankMode,
+  });
 
   final Map<String, dynamic> row;
+  final LeaderboardRankMode rankMode;
 
   @override
   Widget build(BuildContext context) {
     final rank = row['rank']?.toString() ?? '';
     final rankNum = int.tryParse(rank);
     final isFirstPlace = rankNum == 1;
+    final isMastery = rankMode == LeaderboardRankMode.mastery;
     final name = _displayNameFromPeriodRow(row);
     final wins = row['wins']?.toString() ?? '0';
     final periodPts = _periodPointsFromRow(row);
+    final mastery = _masteryFromRow(row);
     final avgSec = _avgWinSecondsFromRow(row);
     final avgTimeLabel = avgSec != null ? _formatDurationHrMinSec(avgSec) : '—';
     final statColor = isFirstPlace
         ? AppColors.matchPotGold
         : AppColors.white.withValues(alpha: 0.72);
     final statCaption = AppTextStyles.caption(color: AppColors.textSecondary);
+    final borderColor = isFirstPlace
+        ? AppColors.matchPotGold
+        : (isMastery
+            ? AppColors.matchPotGold.withValues(alpha: 0.35)
+            : AppColors.accentContrast.withValues(alpha: 0.45));
+
+    final nameStyle = AppTextStyles.bodyMedium(
+      color: isFirstPlace
+          ? AppColors.white
+          : AppColors.white.withValues(alpha: 0.92),
+    ).copyWith(
+      fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
+    );
+    final rankStyle = AppTextStyles.bodyMedium(
+      color: isFirstPlace
+          ? AppColors.matchPotGold
+          : AppColors.white.withValues(alpha: 0.88),
+    ).copyWith(
+      fontWeight: isFirstPlace ? FontWeight.w800 : FontWeight.bold,
+    );
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: isFirstPlace
-            ? AppColors.matchPotGold.withValues(alpha: 0.14)
-            : AppColors.accentContrast.withValues(alpha: 0.14),
+        // Same dark plum as the Wins | Mastery control row.
+        color: AppColors.accentContrast,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isFirstPlace
-              ? AppColors.matchPotGold
-              : AppColors.accentContrast.withValues(alpha: 0.45),
+          color: borderColor,
           width: isFirstPlace ? 2 : 1,
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (rank.isNotEmpty)
-            SizedBox(
-              width: isFirstPlace ? 52 : 44,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (isFirstPlace) ...[
-                    Icon(Icons.emoji_events, size: 18, color: AppColors.matchPotGold),
-                    const SizedBox(width: 4),
-                  ],
-                  Text(
-                    '#$rank',
-                    style: AppTextStyles.bodyMedium(
-                      color: isFirstPlace
-                          ? AppColors.matchPotGold
-                          : AppColors.white.withValues(alpha: 0.88),
-                    ).copyWith(
-                      fontWeight: isFirstPlace ? FontWeight.w800 : FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: Text(
-              name,
-              style: AppTextStyles.bodyMedium(
-                color: isFirstPlace
-                    ? AppColors.white
-                    : AppColors.white.withValues(alpha: 0.92),
-              ).copyWith(
-                fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
+          Row(
             children: [
-              Text(
-                '$wins wins',
-                style: AppTextStyles.bodyMedium(color: statColor).copyWith(
-                  fontWeight: isFirstPlace ? FontWeight.w600 : FontWeight.normal,
+              const Spacer(),
+              if (isMastery)
+                Text(
+                  '$wins wins',
+                  style: AppTextStyles.bodyMedium(color: statColor).copyWith(
+                    fontWeight:
+                        isFirstPlace ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                )
+              else
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$wins wins',
+                      style: AppTextStyles.bodyMedium(color: statColor).copyWith(
+                        fontWeight:
+                            isFirstPlace ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('$periodPts pts', style: statCaption),
+                    const SizedBox(width: 8),
+                    Text(avgTimeLabel, style: statCaption),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              if (rank.isNotEmpty) ...[
+                if (isFirstPlace) ...[
+                  Icon(
+                    isMastery ? Icons.auto_awesome : Icons.emoji_events,
+                    size: 18,
+                    color: AppColors.matchPotGold,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Text('#$rank', style: rankStyle),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  name,
+                  style: nameStyle,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text('$periodPts pts', style: statCaption),
-              Text(avgTimeLabel, style: statCaption),
+              DutchMasteryMark.chip(value: mastery),
             ],
           ),
         ],

@@ -1,0 +1,52 @@
+---
+description: Case studies are HTML only with Overview + Technical sides; dashboard Case Study sidebar must drive those in-page tabs. Use when creating or editing case studies, docs.js, or docs_discovery.
+globs: Documentation/**/case-study*.html,automation/dashboard/static/docs.js,automation/dashboard/docs_discovery.py,automation/dashboard/static/index.html
+alwaysApply: false
+---
+
+# Case study HTML + dashboard linking
+
+Applies in **template**, **Dutch**, and **Arcori**. Keep the three repos aligned.
+
+## Every case study
+
+- **HTML only** under `Documentation/`, filename matching `case-study` / `case_study` (`.html`).
+- **No markdown** on the dashboard Case Study tab (`02_CASE_STUDY.md` / `03_CASE_STUDY.md` are not the Case Study surface).
+- **Both sides are required** in the same file:
+  - **Overview** — plain-language / employer story
+  - **Technical** — architecture, APIs, stack decisions
+- Required IDs (do not rename):
+  - Tabs: `#btn-overview`, `#btn-technical`
+  - Panels: `#version-overview`, `#version-technical`
+- Expose `window.setCaseStudyVersion("overview"|"technical")` from the in-page switcher.
+- Reuse the shared visual system (hero, pillars, `.version-switch`, dark green CSS vars / fonts).
+
+```html
+<!-- ✅ GOOD -->
+<button id="btn-overview" data-version="overview">Overview</button>
+<button id="btn-technical" data-version="technical">Technical</button>
+<div id="version-overview" data-version-panel="overview">…</div>
+<div id="version-technical" data-version-panel="technical" hidden>…</div>
+```
+
+```html
+<!-- ❌ BAD — one version only, or MD-only case study -->
+```
+
+## Dashboard Case Study tab
+
+- Discovery: `docs_discovery.discover_case_studies` — HTML whose name matches `case[_-]?study`.
+- Sidebar sections **must** be Overview + Technical (`version-overview`, `version-technical`).
+- Sidebar clicks **must drive the in-page tabs** via `docs.js` `applyCaseStudyVersion` → `setCaseStudyVersion` or `#btn-*` click. Reuse the existing iframe; do not recreate it per click.
+- **Do not** rely on iframe `location.hash` alone (hash is dropped / ignored on load).
+- After changing `docs.js`, bump `docs.js?v=docs-N` in `automation/dashboard/static/index.html`.
+
+## Repo files
+
+| Repo | Case study file |
+|------|-----------------|
+| Template | `case-study-codebase-template.html` + `case-study-ops-dashboard.html` |
+| Dutch | `case-study-dutch-card-game.html` (product/stack; brief ops → template ops CS) |
+| Arcori | `Documentation/01_Active_Plans/case-study-*.html` (create HTML if only markdown exists) |
+
+Wiring: `automation/dashboard/static/docs.js`, `docs_discovery.py`. When you fix linking, copy `docs.js` to all three repos.

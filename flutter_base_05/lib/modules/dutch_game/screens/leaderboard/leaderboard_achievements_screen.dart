@@ -7,9 +7,10 @@ import '../../../../core/managers/state_manager.dart';
 import '../../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../utils/dutch_achievement_catalog.dart';
+import '../../utils/leaderboard_bundle_store.dart';
 import '../../widgets/ui_kit/dutch_empty_state_card.dart';
 
-const int _kAchievementsDisplayLimit = 100;
+const int _kAchievementsDisplayLimit = LeaderboardBundleStore.maxEntries;
 
 /// Route `/dutch/leaderboard/achievements` — all-time achievement count ranking from bundle `achievements`.
 class LeaderboardAchievementsScreen extends BaseScreen {
@@ -51,10 +52,16 @@ class _LeaderboardAchievementsScreenState
   String _bundleUrl() {
     final login = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final uid = login['userId']?.toString() ?? login['user_id']?.toString() ?? '';
-    if (uid.isEmpty) {
-      return '/public/dutch/leaderboard-period-wins-bundle';
+    final params = <String, String>{
+      'max_entries': '${LeaderboardBundleStore.maxEntries}',
+    };
+    if (uid.isNotEmpty) {
+      params['user_id'] = uid;
     }
-    return '/public/dutch/leaderboard-period-wins-bundle?user_id=${Uri.encodeQueryComponent(uid)}';
+    final q = params.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    return '/public/dutch/leaderboard-period-wins-bundle?$q';
   }
 
   List<Map<String, dynamic>> _rankedRows(List<Map<String, dynamic>> raw) {
@@ -96,47 +103,67 @@ class _LeaderboardAchievementsScreenState
     return 'Your position: $count achievements';
   }
 
+  void _applyBundle(Map<dynamic, dynamic> response) {
+    final block = response['achievements'];
+    if (block is Map) {
+      _truncated = block['truncated'] == true;
+      final rows = block['rows'];
+      _rows = rows is List
+          ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+    } else {
+      _truncated = false;
+      _rows = [];
+    }
+    final visible = _rankedRows(_rows);
+    final v = response['viewer'];
+    _viewerLine = _buildViewerLine(
+      v is Map ? Map<String, dynamic>.from(v) : null,
+      visible,
+    );
+    _rows = visible;
+    _error = null;
+  }
+
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final scope = LeaderboardBundleStore.scopeFor();
+    final cached = await LeaderboardBundleStore.read(scope);
+    final hadCache = cached != null;
+    if (!mounted) return;
+    if (hadCache) {
+      _applyBundle(cached);
+      setState(() => _loading = false);
+    } else {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final api = ModuleManager().getModuleByType<ConnectionsApiModule>();
       if (api == null) {
-        _error = 'API not available';
+        if (!hadCache) _error = 'API not available';
         if (mounted) setState(() => _loading = false);
         return;
       }
       final response = await api.sendGetRequest(_bundleUrl());
       if (response is! Map || response['success'] != true) {
-        _error = (response is Map ? response['error']?.toString() : null) ??
-            'Failed to load achievement ranks';
-        _rows = [];
+        if (!hadCache) {
+          _error = (response is Map ? response['error']?.toString() : null) ??
+              'Failed to load achievement ranks';
+          _rows = [];
+        }
         if (mounted) setState(() => _loading = false);
         return;
       }
-      final block = response['achievements'];
-      if (block is Map) {
-        _truncated = block['truncated'] == true;
-        final rows = block['rows'];
-        _rows = rows is List
-            ? rows.map((e) => Map<String, dynamic>.from(e as Map)).toList()
-            : [];
-      } else {
-        _truncated = false;
+      await LeaderboardBundleStore.write(scope, Map<String, dynamic>.from(response));
+      if (!mounted) return;
+      _applyBundle(response);
+    } catch (e) {
+      if (!hadCache) {
+        _error = e.toString();
         _rows = [];
       }
-      final visible = _rankedRows(_rows);
-      final v = response['viewer'];
-      _viewerLine = _buildViewerLine(
-        v is Map ? Map<String, dynamic>.from(v) : null,
-        visible,
-      );
-      _rows = visible;
-    } catch (e) {
-      _error = e.toString();
-      _rows = [];
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -241,6 +268,8 @@ class _LeaderboardAchievementsScreenState
               physics: const AlwaysScrollableScrollPhysics(),
               padding: AppPadding.defaultPadding,
               children: [
+                _backButton(),
+                const SizedBox(height: 16),
                 Text(
                   'All-time · most achievements unlocked',
                   style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
@@ -255,14 +284,12 @@ class _LeaderboardAchievementsScreenState
                   icon: Icons.workspace_premium_outlined,
                   semanticIdentifier: 'leaderboard_achievements_empty',
                 ),
-                const SizedBox(height: 16),
-                _backButton(),
               ],
             )
           : ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: AppPadding.defaultPadding,
-              itemCount: _rows.length + 2,
+              itemCount: _rows.length + 1,
               separatorBuilder: (_, i) =>
                   i == 0 ? const SizedBox(height: 4) : const SizedBox(height: 6),
               itemBuilder: (context, index) {
@@ -270,6 +297,8 @@ class _LeaderboardAchievementsScreenState
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _backButton(),
+                      const SizedBox(height: 16),
                       Text(
                         'All-time · most achievements unlocked',
                         style: AppTextStyles.bodySmall(color: AppColors.textSecondary),
@@ -293,12 +322,6 @@ class _LeaderboardAchievementsScreenState
                         ),
                       ],
                     ],
-                  );
-                }
-                if (index == _rows.length + 1) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: _backButton(),
                   );
                 }
                 final row = _rows[index - 1];

@@ -45,6 +45,86 @@ def env(name: str) -> str:
     return ""
 
 
+def persist_env_key(key: str, value: str) -> bool:
+    """Write key into WFRUN_ENV_FILE and update process env. Returns True if written."""
+    value = (value or "").strip()
+    if not value:
+        return False
+    os.environ[key] = value
+    env_file = os.environ.get("WFRUN_ENV_FILE", "").strip()
+    if not env_file:
+        return False
+    path = Path(env_file)
+    try:
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        lines = text.splitlines(keepends=True)
+        prefix = f"{key}="
+        replaced = False
+        out: list[str] = []
+        for line in lines:
+            stripped = line.lstrip()
+            if (
+                line.startswith(prefix)
+                or stripped.startswith(f"# {prefix}")
+                or stripped.startswith(f"#{prefix}")
+            ):
+                out.append(f"{key}={value}\n")
+                replaced = True
+            else:
+                out.append(line if line.endswith("\n") else line + "\n")
+        if not replaced:
+            if out and not out[-1].endswith("\n"):
+                out[-1] = out[-1] + "\n"
+            if out and out[-1].strip():
+                out.append("\n")
+            out.append(f"{key}={value}\n")
+        path.write_text("".join(out), encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
+def google_oauth_access_token(
+    *,
+    client_id_key: str,
+    client_secret_key: str,
+    refresh_token_key: str,
+    persist_rotated: bool = True,
+    reauth_hint: str = "",
+) -> str:
+    """Refresh a Google OAuth access token; persist rotated refresh_token when present."""
+    client_id = env(client_id_key)
+    client_secret = env(client_secret_key)
+    refresh = env(refresh_token_key)
+    if not client_id or not client_secret or not refresh:
+        raise RuntimeError(
+            f"Missing {client_id_key} / {client_secret_key} / {refresh_token_key}"
+        )
+    try:
+        payload = post_form(
+            "https://oauth2.googleapis.com/token",
+            {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh,
+                "grant_type": "refresh_token",
+            },
+        )
+    except RuntimeError as exc:
+        msg = str(exc)
+        if "invalid_grant" in msg.lower() or "revoked" in msg.lower():
+            hint = reauth_hint or f"Re-run OAuth and update {refresh_token_key}."
+            raise RuntimeError(f"reauth_required: {hint} ({msg})") from exc
+        raise
+    token = str(payload.get("access_token") or "").strip()
+    if not token:
+        raise RuntimeError("Google token refresh returned no access_token")
+    new_refresh = str(payload.get("refresh_token") or "").strip()
+    if persist_rotated and new_refresh and new_refresh != refresh:
+        persist_env_key(refresh_token_key, new_refresh)
+    return token
+
+
 def parse_date(value: str | None, *, default: date | None = None) -> date:
     raw = (value or "").strip()
     if not raw:

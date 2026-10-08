@@ -7,7 +7,7 @@ import json
 from datetime import date
 from typing import Any
 
-from revenue_common import env, http_json, iso_day, post_form, revenue_row
+from revenue_common import env, google_oauth_access_token, http_json, iso_day, revenue_row
 
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 NETWORK_REPORT_TMPL = (
@@ -16,26 +16,16 @@ NETWORK_REPORT_TMPL = (
 
 
 def _access_token() -> str:
-    client_id = env("ADMOB_CLIENT_ID")
-    client_secret = env("ADMOB_CLIENT_SECRET")
-    refresh = env("ADMOB_REFRESH_TOKEN")
-    if not client_id or not client_secret or not refresh:
-        raise RuntimeError(
-            "Missing ADMOB_CLIENT_ID / ADMOB_CLIENT_SECRET / ADMOB_REFRESH_TOKEN"
-        )
-    payload = post_form(
-        TOKEN_URI,
-        {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh,
-            "grant_type": "refresh_token",
-        },
+    return google_oauth_access_token(
+        client_id_key="ADMOB_CLIENT_ID",
+        client_secret_key="ADMOB_CLIENT_SECRET",
+        refresh_token_key="ADMOB_REFRESH_TOKEN",
+        persist_rotated=True,
+        reauth_hint=(
+            "Run automation/revenue/admob_oauth_get_refresh_token.py and write "
+            "ADMOB_REFRESH_TOKEN to env"
+        ),
     )
-    token = str(payload.get("access_token") or "").strip()
-    if not token:
-        raise RuntimeError("AdMob token refresh returned no access_token")
-    return token
 
 
 def _publisher_id() -> str:
@@ -60,7 +50,10 @@ def fetch_admob_estimated(start: date, end: date) -> dict[str, Any]:
         token = _access_token()
         pub = _publisher_id()
     except RuntimeError as exc:
-        return {"ok": False, "error": str(exc), "rows": []}
+        msg = str(exc)
+        if msg.startswith("reauth_required:"):
+            return {"ok": False, "error": msg, "rows": []}
+        return {"ok": False, "error": msg, "rows": []}
 
     url = NETWORK_REPORT_TMPL.format(pub=pub)
     body = {

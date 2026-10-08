@@ -178,7 +178,7 @@ python3 python_base_04/tools/ops_drain.py poll \
 - `drain_mode == true`
 - Two consecutive clear polls
 
-**`ready` does not require zero connections** — `dart_connections` may be > 0 (post-game lobby).
+`ops_drain.py` treats `dart_connections == 0` as idle: it reports `active_matches` and `room_count` as 0 and `matches_clear` as true, so a leftover in-memory room does not block deploy. When `dart_connections` is greater than 0, those counts are left as the server sent them (a post-game lobby can still be connected).
 
 **On timeout — abort:**
 
@@ -306,7 +306,7 @@ python3 python_base_04/tools/ops_drain.py status --base-url "$OPS_DRAIN_BASE_URL
 | POST | `/service/ops/drain-mode` | `X-Service-Key` | Dart only — `{"enabled": true\|false}` |
 | GET | `/service/ops/drain-status` | `X-Service-Key` | Dart only — match/connection counts |
 
-Dart WS event when blocked: `server_maintenance`.
+Dart WS event when blocked: `server_maintenance`. The Flutter client maps that event onto the existing instant-message modal (`title`: Server maintenance, `body`: the event `message`).
 
 ---
 

@@ -1,6 +1,6 @@
 # Master plan index
 
-**Last Updated:** 2026-08-18
+**Last Updated:** 2026-10-07
 
 ## Task Manager (`dutch`)
 
@@ -18,6 +18,11 @@ The label is **project-wide**. Do **not** create one board task per app-build pl
 
 | Plan | Status | Focus |
 |------|--------|--------|
+| [server-maintenance-modal.md](server-maintenance-modal.md) | Completed | `server_maintenance` → instant modal |
+| [player-match-mastery.md](player-match-mastery.md) | Completed | Lifetime mastery from finish quality; wins board unchanged |
+| [leaderboard-bundle-load.md](leaderboard-bundle-load.md) | Completed | 100-row boards, viewer outside the cap, cache then refresh |
+| [home-lobby-menu-art.md](home-lobby-menu-art.md) | Completed | WebP menu tiles on home and lobby accordion |
+| [base-screen-back.md](base-screen-back.md) | Completed | Back under top banner; session trail, not push-everywhere |
 | [cpu-player-decision-making.md](../00_Active_plans/cpu-player-decision-making.md) | In Progress | CPU known_cards / same-rank / miss chance |
 | [practice-demo-seat-id-fix.md](../00_Active_plans/practice-demo-seat-id-fix.md) | Implemented | Practice/demo local seat id |
 | [campaign-referral-deep-links.md](../00_Active_plans/campaign-referral-deep-links.md) | Completed | Campaign referral deep links |
@@ -29,6 +34,7 @@ The label is **project-wide**. Do **not** create one board task per app-build pl
 | Plan | Status | Focus | TM |
 |------|--------|--------|----|
 | [dashboard-revenue-tab.md](dashboard-revenue-tab.md) | Mostly done | Revenue tab — Play GCS · ASC · AdMob | Ops: Dashboard Revenue tab |
+| [dashboard-parallel-script-runs.md](dashboard-parallel-script-runs.md) | Completed | Same script in multiple PTY tabs + DOOGEE on launch_android | skipped — TM env missing |
 | [dashboard-revenue-downloads.md](dashboard-revenue-downloads.md) | Completed | Revenue → Downloads subtab | Ops: Dashboard Revenue tab |
 | [marketing-post-metrics.md](marketing-post-metrics.md) | In Progress | Metrics + Platform posts browser | Ops: Marketing post metrics |
 | [plan-dutch-narrative-html.md](plan-dutch-narrative-html.md) | Completed | HTML case study | Ops: Case study HTML |

@@ -38,6 +38,8 @@ class HomeScreenButtonFeatureDescriptor extends FeatureDescriptor {
   final IconData? icon;
   /// Optional vector asset above the text; when set, used instead of [icon].
   final String? iconSvgPath;
+  /// Full menu tile (art includes the label). When set, the tile is this image.
+  final String? tileAssetPath;
 
   HomeScreenButtonFeatureDescriptor({
     required String featureId,
@@ -52,6 +54,7 @@ class HomeScreenButtonFeatureDescriptor extends FeatureDescriptor {
     this.textStyle,
     this.icon,
     this.iconSvgPath,
+    this.tileAssetPath,
     int priority = 100,
     Map<String, dynamic>? metadata,
   }) : super(

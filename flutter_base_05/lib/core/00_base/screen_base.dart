@@ -78,6 +78,9 @@ abstract class BaseScreen extends StatefulWidget {
   /// When false, [BaseScreen] omits the top AdMob banner bar (e.g. in-game full-bleed UI).
   bool get showAdBannerBars => true;
 
+  /// When false, hides the session Back control under the banner (e.g. in-match play).
+  bool get showSessionBack => true;
+
   @override
   BaseScreenState createState();
 }
@@ -760,6 +763,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                             slot: 'top',
                             hostKey: topBannerHostKey,
                           ),
+                        if (widget.showSessionBack) const _BackUnderBanner(),
                         Expanded(
                           child: ListenableBuilder(
                             listenable: StateManager(),
@@ -955,6 +959,54 @@ class BaseTextField extends StatelessWidget {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
+    );
+  }
+}
+
+/// Session back control, placed just under the top ad banner.
+class _BackUnderBanner extends StatelessWidget {
+  const _BackUnderBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final navigationManager = NavigationManager();
+    return ListenableBuilder(
+      listenable: navigationManager,
+      builder: (context, _) {
+        if (!navigationManager.shouldShowBack) {
+          return const SizedBox.shrink();
+        }
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Semantics(
+            button: true,
+            label: 'Back',
+            identifier: 'screen_back',
+            child: TextButton.icon(
+              onPressed: navigationManager.goBack,
+              icon: const Icon(Icons.arrow_back, color: AppColors.white, size: 20),
+              label: Text(
+                'Back',
+                style: AppTextStyles.bodyMedium(color: AppColors.white).copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.white,
+                backgroundColor: Colors.transparent,
+                disabledBackgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                side: BorderSide.none,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

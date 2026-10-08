@@ -8,13 +8,13 @@ computer_settings:
   default_difficulty: "medium"
   decision_delay_seconds: 1.0
   error_rate: 0.05
-  # Miss chance to play (probability of not playing when action is available)
-  # Kept low so CPUs rarely skip draw / play / peek / swap.
+  # Miss chance to play (probability of not playing when action is available).
+  # Ladder shifted: easy←former hard; medium/hard spaced toward expert.
   miss_chance_to_play:
-    easy: 0.02    # 2% miss chance
-    medium: 0.01  # 1% miss chance
-    hard: 0.0     # 0% miss chance
-    expert: 0.0   # 0% miss chance
+    easy: 0.0
+    medium: 0.0
+    hard: 0.0
+    expert: 0.0
 
 # Difficulty levels and their corresponding behaviors
 difficulties:
@@ -22,72 +22,72 @@ difficulties:
     name: "Easy"
     description: "Beginner-friendly AI with simple decision making"
     decision_delay_seconds: 3.0
-    error_rate: 0.1  # 10% chance of making suboptimal decisions
+    error_rate: 0.02  # 10% chance of making suboptimal decisions
     
     # Card selection strategy
     card_selection:
       strategy: "random"  # random, points_low, points_high, special_power
-      special_power_preference: 0.3  # 30% preference for special cards
+      special_power_preference: 0.7  # 30% preference for special cards
       
     # Dutch calling strategy
     dutch_strategy:
       min_cards_threshold: 1
       max_points_threshold: 3
-      call_probability: 0.8  # 80% chance to call when conditions met
+      call_probability: 0.95  # 80% chance to call when conditions met
       
     # Special card usage
     special_cards:
       jack_swap:
-        use_probability: 0.6  # 60% chance to use Jack swap
+        use_probability: 0.9  # 60% chance to use Jack swap
         target_strategy: "random"  # random, lowest_points, highest_points
       queen_peek:
-        use_probability: 0.7  # 70% chance to use Queen peek
+        use_probability: 0.9  # 70% chance to use Queen peek
         target_strategy: "random"  # random, most_cards, least_cards
 
   medium:
     name: "Medium"
     description: "Balanced AI with moderate decision making"
     decision_delay_seconds: 2.5
-    error_rate: 0.05  # 5% chance of making suboptimal decisions
+    error_rate: 0.013  # 5% chance of making suboptimal decisions
     
     card_selection:
       strategy: "points_low"  # Prefer lower point cards
-      special_power_preference: 0.5  # 50% preference for special cards
+      special_power_preference: 0.733  # 50% preference for special cards
       
     dutch_strategy:
       min_cards_threshold: 2
       max_points_threshold: 5
-      call_probability: 0.9
+      call_probability: 0.967
       
     special_cards:
       jack_swap:
-        use_probability: 0.8
+        use_probability: 0.933
         target_strategy: "lowest_points"
       queen_peek:
-        use_probability: 0.8
+        use_probability: 0.933
         target_strategy: "most_cards"
 
   hard:
     name: "Hard"
     description: "Advanced AI with strategic decision making"
     decision_delay_seconds: 2.0
-    error_rate: 0.02  # 2% chance of making suboptimal decisions
+    error_rate: 0.007  # 2% chance of making suboptimal decisions
     
     card_selection:
       strategy: "strategic"  # Complex strategic evaluation
-      special_power_preference: 0.7  # 70% preference for special cards
+      special_power_preference: 0.767  # 70% preference for special cards
       
     dutch_strategy:
       min_cards_threshold: 3
       max_points_threshold: 7
-      call_probability: 0.95
+      call_probability: 0.983
       
     special_cards:
       jack_swap:
-        use_probability: 0.9
+        use_probability: 0.967
         target_strategy: "strategic"  # Complex target selection
       queen_peek:
-        use_probability: 0.9
+        use_probability: 0.967
         target_strategy: "strategic"
 
   expert:
@@ -133,10 +133,10 @@ events:
     
     # Strategy selection probabilities
     optimal_play_probability:
-      easy: 0.6      # 60% chance to play optimally
-      medium: 0.8    # 80% chance to play optimally
-      hard: 0.95     # 95% chance to play optimally
-      expert: 1.0    # 100% chance to play optimally (always optimal)
+      easy: 0.95      # easy←former hard
+      medium: 0.967
+      hard: 0.983
+      expert: 1.0
     
     # Strategy definitions
     strategies:
@@ -146,10 +146,18 @@ events:
     # Chance to dump a known own card whose rank matches a known opponent card (1B hard avoid).
     # Applied only to known own cards; unknown own cards are never filtered by opponent rank.
     dump_same_rank_as_known_opponent:
-      easy: 0.12
-      medium: 0.06
-      hard: 0.02
+      easy: 0.02
+      medium: 0.013
+      hard: 0.007
       expert: 0.0
+
+    # Prefer playing an own-known playable card whose rank is not in human.known_cards[humanId]
+    # (human's own known hand — not CPU.known_cards[humanId]). Pool = CPU own known only. Other AIs ignored.
+    avoid_human_known_same_rank:
+      easy: 0.80
+      medium: 0.867
+      hard: 0.933
+      expert: 1.0
     
     # NEW: YAML-driven strategy rules
     strategy_rules:
@@ -195,17 +203,17 @@ events:
   same_rank_play:
     # Decision logic for same rank plays
     play_probability:
-      easy: 0.9     # 90% chance to attempt (10% miss)
-      medium: 0.95  # 95% chance to attempt (5% miss)
-      hard: 0.98    # 98% chance to attempt (2% miss)
-      expert: 1.0   # 100% chance - never misses
+      easy: 0.98      # easy←former hard
+      medium: 0.987
+      hard: 0.993
+      expert: 1.0
     
     # Probability of playing WRONG rank (accuracy)
     wrong_rank_probability:
-      easy: 0.25    # 25% chance to play wrong card
-      medium: 0.10  # 10% chance to play wrong card
-      hard: 0.02    # 2% chance to play wrong card
-      expert: 0.0   # 0% chance - always accurate
+      easy: 0.02      # easy←former hard
+      medium: 0.013
+      hard: 0.007
+      expert: 0.0
     
     # NEW: Strategy rules for intelligent card selection
     strategy_rules:
@@ -253,9 +261,9 @@ events:
     
     # Strategy selection probabilities (similar to play_card)
     optimal_swap_probability:
-      easy: 0.6      # 60% chance to swap optimally
-      medium: 0.8    # 80% chance to swap optimally
-      hard: 0.95     # 95% chance to swap optimally
+      easy: 0.95      # 60% chance to swap optimally
+      medium: 0.967    # 80% chance to swap optimally
+      hard: 0.983     # 95% chance to swap optimally
       expert: 1.0    # 100% chance to swap optimally (always optimal)
     
     # NEW: YAML-driven strategy rules (ordered from expert down to easy)
@@ -279,9 +287,9 @@ events:
           target_strategy: "collection_three_swap"
         execution_probability:
           expert: 1.0    # 100% chance to execute if condition met
-          hard: 0.95     # 95% chance to execute if condition met
-          medium: 0.7    # 70% chance to execute if condition met
-          easy: 0.5      # 50% chance to execute if condition met
+          hard: 0.983     # 95% chance to execute if condition met
+          medium: 0.967    # 70% chance to execute if condition met
+          easy: 0.95      # 50% chance to execute if condition met
       
       # Rule 2: If any player (excl. acting) has only 1 card in hand, swap that card with any other player's card
       - name: "one_card_player_priority"
@@ -300,9 +308,9 @@ events:
           target_strategy: "one_card_player_priority"
         execution_probability:
           expert: 1.0    # 100% chance to execute if condition met
-          hard: 0.95     # 95% chance to execute if condition met
-          medium: 0.7    # 70% chance to execute if condition met
-          easy: 0.5      # 50% chance to execute if condition met
+          hard: 0.983     # 95% chance to execute if condition met
+          medium: 0.967    # 70% chance to execute if condition met
+          easy: 0.95      # 50% chance to execute if condition met
       
       # Rule 3 (Expert/Hard): Swap if player knows opponent's lowest point card and has higher point card in own known cards
       - name: "swap_lowest_opponent_for_higher_own"
@@ -321,9 +329,9 @@ events:
           target_strategy: "lowest_opponent_higher_own"
         execution_probability:
           expert: 1.0    # 100% chance to execute if condition met
-          hard: 0.95     # 95% chance to execute if condition met
-          medium: 0.7    # 70% chance to execute if condition met
-          easy: 0.5      # 50% chance to execute if condition met
+          hard: 0.983     # 95% chance to execute if condition met
+          medium: 0.967    # 70% chance to execute if condition met
+          easy: 0.95      # 50% chance to execute if condition met
       
       # Rule 4: Random swap of 2 cards from other players only (excl. collection, not our hand)
       - name: "random_swap_except_own"
@@ -342,8 +350,8 @@ events:
         execution_probability:
           expert: 0.0    # 0% (expert uses rule 1 or 2)
           hard: 0.0      # 0% (hard uses rule 1 or 2 or skip)
-          medium: 0.5    # 50% chance when rule 1/2 don't execute
-          easy: 0.4      # 40% chance when rule 1/2/3 don't execute
+          medium: 0.0    # 50% chance when rule 1/2 don't execute
+          easy: 0.0      # 40% chance when rule 1/2/3 don't execute
       
       # Rule 5 (Medium/Easy): Random swap: our card <-> other player's card
       - name: "swap_random_two_players"
@@ -366,8 +374,8 @@ events:
         execution_probability:
           expert: 0.0    # 0% chance (expert uses rule 1 or 2)
           hard: 0.0      # 0% chance (hard uses rule 1 or 2 or skip)
-          medium: 0.4    # 40% chance when rule 1/2/3 don't execute
-          easy: 0.6      # 60% chance when rule 1/2/3/4 don't execute
+          medium: 0.0    # 40% chance when rule 1/2/3 don't execute
+          easy: 0.0      # 60% chance when rule 1/2/3/4 don't execute
       
       # Rule 6: Skip swap (fallback)
       - name: "skip_jack_swap"
@@ -388,9 +396,9 @@ events:
     # Decision logic for Queen peek
     # Prefer own unknown cards first; if none, peek another player. Skip only rarely.
     optimal_peek_probability:
-      easy: 0.6      # 60% chance to peek optimally
-      medium: 0.8    # 80% chance to peek optimally
-      hard: 0.95     # 95% chance to peek optimally
+      easy: 0.95      # 60% chance to peek optimally
+      medium: 0.967    # 80% chance to peek optimally
+      hard: 0.983     # 95% chance to peek optimally
       expert: 1.0    # 100% chance to peek optimally (always optimal)
     
     # NEW: YAML-driven strategy rules (ordered from expert down to easy)
@@ -413,8 +421,8 @@ events:
         execution_probability:
           expert: 1.0
           hard: 1.0
-          medium: 0.98
-          easy: 0.95
+          medium: 1.0
+          easy: 1.0
       
       # Rule 2: Whole own hand already known (or rule 1 missed) — peek an opponent's card
       - name: "peek_random_other_player"
@@ -434,8 +442,8 @@ events:
         execution_probability:
           expert: 1.0
           hard: 1.0
-          medium: 0.98
-          easy: 0.95
+          medium: 1.0
+          easy: 1.0
       
       # Rule 3: Skip peek (rare fallback only)
       - name: "skip_queen_peek"
@@ -449,9 +457,9 @@ events:
   collect_from_discard:
     # Decision logic for collecting from discard pile
     optimal_collect_probability:
-      easy: 0.6      # 60% chance to collect optimally
-      medium: 0.8    # 80% chance to collect optimally
-      hard: 0.95     # 95% chance to collect optimally
+      easy: 0.95      # 60% chance to collect optimally
+      medium: 0.967    # 80% chance to collect optimally
+      hard: 0.983     # 95% chance to collect optimally
       expert: 1.0    # 100% chance to collect optimally (always optimal)
     
     # YAML-driven strategy rules (ordered from expert down to easy)
@@ -474,9 +482,9 @@ events:
           type: "collect_from_discard"
         execution_probability:
           expert: 1.0    # 100% chance to execute if condition met
-          hard: 0.95     # 95% chance to execute if condition met
-          medium: 0.7    # 70% chance to execute if condition met
-          easy: 0.5      # 50% chance to execute if condition met
+          hard: 0.983     # 95% chance to execute if condition met
+          medium: 0.967    # 70% chance to execute if condition met
+          easy: 0.95      # 50% chance to execute if condition met
       
       # Rule 2 (Medium/Easy): Collect if same rank as collection rank
       - name: "collect_if_same_rank"
@@ -492,9 +500,9 @@ events:
           type: "collect_from_discard"
         execution_probability:
           expert: 0.0    # 0% chance (expert uses rule 1)
-          hard: 0.05     # 5% chance (hard prefers rule 1)
-          medium: 0.3    # 30% chance (medium uses this as fallback)
-          easy: 0.5      # 50% chance (easy uses this more often)
+          hard: 0.017     # 5% chance (hard prefers rule 1)
+          medium: 0.033    # 30% chance (medium uses this as fallback)
+          easy: 0.05      # 50% chance (easy uses this more often)
       
       # Rule 3: Skip collection (fallback)
       - name: "skip_collect"

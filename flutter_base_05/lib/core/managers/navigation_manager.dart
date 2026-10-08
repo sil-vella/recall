@@ -90,6 +90,11 @@ class NavigationManager extends ChangeNotifier {
   
   // Analytics tracking
   AnalyticsModule? _analyticsModule;
+
+  /// Screens left behind by [navigateTo] / [navigateToPush]. Home never shows a back target.
+  final List<String> _backStack = [];
+  bool _suppressBackRecord = false;
+  static const int _backStackLimit = 16;
   
   factory NavigationManager() => _instance;
   NavigationManager._internal() {
@@ -324,6 +329,7 @@ class NavigationManager extends ChangeNotifier {
     
     try {
       if (_routerInstance != null) {
+        _noteDeparture(finalRoute);
         _routerInstance!.go(finalRoute);
       } else if (_navigationCallback != null) {
         _navigationCallback!(finalRoute);
@@ -364,6 +370,7 @@ class NavigationManager extends ChangeNotifier {
       if (_routerInstance != null) {
         final currentPath = _routerInstance!.routeInformationProvider.value.uri.path;
         final targetPath = Uri.parse(finalRoute).path;
+        _noteDeparture(finalRoute);
         if (currentPath == targetPath) {
           _routerInstance!.go(finalRoute);
         } else {
@@ -374,6 +381,78 @@ class NavigationManager extends ChangeNotifier {
       }
     } catch (e) {
       // Navigation failed
+    }
+  }
+
+  /// True when this screen was opened from another screen, or a match is stacked underneath.
+  bool get shouldShowBack {
+    if (getCurrentRoute() == '/') return false;
+    if (_routerInstance?.canPop() ?? false) return true;
+    return _backTarget() != null;
+  }
+
+  /// Pop a pushed match, otherwise return to the screen this one was opened from.
+  void goBack() {
+    if (_routerInstance?.canPop() ?? false) {
+      _routerInstance!.pop();
+      notifyListeners();
+      return;
+    }
+    final target = _backTarget();
+    if (target == null) return;
+    final idx = _backStack.lastIndexOf(target);
+    if (idx >= 0) {
+      _backStack.removeRange(idx, _backStack.length);
+    }
+    _suppressBackRecord = true;
+    try {
+      navigateTo(target);
+    } finally {
+      _suppressBackRecord = false;
+    }
+    notifyListeners();
+  }
+
+  String? _backTarget() {
+    final current = getCurrentRoute();
+    for (var i = _backStack.length - 1; i >= 0; i--) {
+      final path = Uri.tryParse(_backStack[i])?.path ?? _backStack[i];
+      if (path.isNotEmpty && path != current) return _backStack[i];
+    }
+    return null;
+  }
+
+  /// Remember the page being left. Returning to a page already in the trail trims it.
+  void _noteDeparture(String finalRoute) {
+    if (_suppressBackRecord || _routerInstance == null) return;
+    final currentUri = _routerInstance!.routeInformationProvider.value.uri;
+    final currentPath = currentUri.path;
+    final currentLocation = currentUri.toString();
+    final targetPath = Uri.parse(finalRoute).path;
+    if (targetPath.isEmpty || targetPath == '/') {
+      if (_backStack.isNotEmpty) {
+        _backStack.clear();
+        notifyListeners();
+      }
+      return;
+    }
+    if (currentPath == targetPath) return;
+
+    final existing = _backStack.indexWhere((entry) {
+      final path = Uri.tryParse(entry)?.path ?? entry;
+      return path == targetPath;
+    });
+    if (existing >= 0) {
+      _backStack.removeRange(existing, _backStack.length);
+      notifyListeners();
+      return;
+    }
+    if (_backStack.isEmpty || _backStack.last != currentLocation) {
+      _backStack.add(currentLocation);
+      if (_backStack.length > _backStackLimit) {
+        _backStack.removeAt(0);
+      }
+      notifyListeners();
     }
   }
   

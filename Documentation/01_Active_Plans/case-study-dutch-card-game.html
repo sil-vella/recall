@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dutch Card Game · Stack · Ops Desk — Case Study</title>
-  <meta name="description" content="Solo case study: Dutch multiplayer card game on Flask/Mongo/Dart/Flutter, plus local ops dashboard with marketing and revenue.">
+  <title>Dutch Card Game — Case Study</title>
+  <meta name="description" content="Solo case study: Dutch multiplayer card game on Flask/Mongo/Dart/Flutter — game and live stack. Ops desk documented in the template repo.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -500,32 +500,32 @@
     }
   </style>
 </head>
+
 <body>
   <header class="hero">
     <div class="wrap hero-inner">
       <p class="eyebrow">Case study · solo project · Reign of Play</p>
-      <h1>Dutch Card Game · Live Stack · Ops Desk</h1>
+      <h1>Dutch Card Game</h1>
       <p class="hero-lead">
-        A shipped multiplayer card game on iOS and Android — built on an older Flask / MongoDB / Dart
-        WebSocket / Flutter stack — plus the local ops dashboard I use to run scripts, publish
-        social, and track revenue without leaving the product repo.
+        A shipped multiplayer card game on iOS and Android — Dutch shedding/memory rules, lobbies,
+        ranks, and coins — on an older Flask / MongoDB / Dart WebSocket / Flutter stack.
       </p>
 
       <div class="pillars" aria-label="Project pillars">
         <div class="pillar">
           <span class="pillar-num">01</span>
           <strong>The game</strong>
-          <span>Dutch shedding/memory rules, lobbies, ranks, coins, practice + live multiplayer</span>
+          <span>Dutch rules, lobbies, ranks, coins, practice + live multiplayer</span>
         </div>
         <div class="pillar">
           <span class="pillar-num">02</span>
           <strong>Live stack</strong>
-          <span>Flask API · Mongo · Redis · Dart game WS · Flutter client · store billing</span>
+          <span>Flask API · Mongo · Redis · Dart game WS · Flutter · store billing</span>
         </div>
         <div class="pillar">
           <span class="pillar-num">03</span>
-          <strong>Ops desk</strong>
-          <span>wfrun dashboard — scripts, Task Manager, marketing, revenue, docs</span>
+          <strong>Ops (brief)</strong>
+          <span>Local wfrun dash in-repo — full ops story lives in the template case study</span>
         </div>
       </div>
 
@@ -541,12 +541,11 @@
         <button type="button" id="btn-technical" aria-pressed="false" data-version="technical">Technical</button>
       </div>
       <p class="version-hint" id="version-hint">
-        Overview — plain-language story of the Dutch card game, stack, and ops desk.
+        Overview — plain-language story of the Dutch card game and live stack.
       </p>
     </div>
   </header>
 
-  <!-- ========== OVERVIEW ========== -->
   <div class="version" id="version-overview" data-version-panel="overview">
     <main>
       <section id="ov-snapshot">
@@ -557,22 +556,22 @@
             Dutch is a digital take on the Dutch shedding / memory card game: clear your hand or
             finish with the lowest points, call <strong>Dutch</strong> to lock the endgame, and climb
             ranks with coins on the line. It ships on the App Store and Google Play under
-            <code>com.reignofplay.dutch</code>. The codebase behind it is an older Reign of Play
-            stack — Flask and MongoDB for durable product truth, a Dart WebSocket server for hot
-            match traffic, Flutter for the client — not the newer FastAPI / Postgres template.
+            <code>com.reignofplay.dutch</code>. The codebase is an older Reign of Play stack —
+            Flask and MongoDB for durable product truth, a Dart WebSocket server for hot match
+            traffic, Flutter for the client — not the newer FastAPI / Postgres template.
           </p>
           <div class="stat-row">
             <div class="stat"><strong>2</strong><span>Store fronts (iOS + Android)</span></div>
-            <div class="stat"><strong>3</strong><span>Runtimes in play (Flask · Dart WS · Flutter)</span></div>
-            <div class="stat"><strong>6</strong><span>Ops dash tabs including Revenue</span></div>
-            <div class="stat"><strong>1</strong><span>Solo owner — product, ops, and growth</span></div>
+            <div class="stat"><strong>3</strong><span>Runtimes (Flask · Dart WS · Flutter)</span></div>
+            <div class="stat"><strong>1</strong><span>Shared match logic client ↔ game server</span></div>
+            <div class="stat"><strong>1</strong><span>Solo owner — product end to end</span></div>
           </div>
           <nav aria-label="Overview sections">
             <ul class="toc">
               <li><a href="#ov-problem">The problem</a></li>
-              <li><a href="#ov-game">Pillar 1 — The game</a></li>
-              <li><a href="#ov-stack">Pillar 2 — Live stack</a></li>
-              <li><a href="#ov-ops">Pillar 3 — Ops desk</a></li>
+              <li><a href="#ov-game">The game</a></li>
+              <li><a href="#ov-stack">Live stack</a></li>
+              <li><a href="#ov-ops">Ops (brief)</a></li>
               <li><a href="#ov-impact">Impact</a></li>
             </ul>
           </nav>
@@ -589,7 +588,7 @@
       <section id="ov-problem">
         <div class="wrap">
           <p class="section-kicker">02 — The problem</p>
-          <h2>Ship a game, then keep running it alone</h2>
+          <h2>Ship a multiplayer card game alone</h2>
           <div class="two-col">
             <div>
               <p>
@@ -597,17 +596,11 @@
                 rank progression, practice AI vs real multiplayer, App Store and Play billing, ads,
                 and a VPS that stays healthy through deploys.
               </p>
-              <p>
-                After launch, the same solo loop continues — releases, social posts, and revenue
-                checks. A CLI script menu helps, but I still needed a browser desk for marketing,
-                revenue, docs, and planning next to the code that ships the game.
-              </p>
             </div>
             <div class="story-block">
               <p>
-                <strong style="color: var(--ink);">Goal:</strong> one product repo that is both the
-                live Dutch game and the ops surface I use every week — honest about its older stack,
-                not rewritten as a template story.
+                <strong style="color: var(--ink);">Goal:</strong> one product repo that is the live
+                Dutch game — honest about its older stack, not rewritten as a FastAPI template story.
               </p>
             </div>
           </div>
@@ -616,7 +609,7 @@
 
       <section id="ov-game">
         <div class="wrap">
-          <p class="section-kicker">03 — Pillar 1 · The game</p>
+          <p class="section-kicker">03 — The game</p>
           <h2>Dutch rules players already know, online</h2>
           <p class="lede">
             Draw, play, peek with Queens, swap with Jacks, call Dutch, win by emptying your hand or
@@ -629,6 +622,7 @@
               <ul>
                 <li>Coin-gated multiplayer tables with rank / table tiers</li>
                 <li>Progression from wins → level → rank (declarative catalogs)</li>
+                <li>Mastery from how light a finish is — both jokers score highest, separate from the wins ladder</li>
                 <li>Shop cosmetics and consumables; premium / promotional tiers</li>
                 <li>Guest or Google sign-in; Apple and Google Play purchases</li>
                 <li>AdMob rewarded paths alongside IAP</li>
@@ -661,7 +655,7 @@
 
       <section id="ov-stack">
         <div class="wrap">
-          <p class="section-kicker">04 — Pillar 2 · Live stack</p>
+          <p class="section-kicker">04 — Live stack</p>
           <h2>Older base, still the production truth</h2>
           <p class="lede">
             Dutch did not migrate to the FastAPI / Postgres template. Production authority is
@@ -692,31 +686,24 @@
 
       <section id="ov-ops">
         <div class="wrap">
-          <p class="section-kicker">05 — Pillar 3 · Ops desk</p>
-          <h2>Same repo, browser twin of wfrun</h2>
+          <p class="section-kicker">05 — Ops (brief)</p>
+          <h2>Local desk exists; the deep case study does not live here</h2>
           <p class="lede">
-            The CLI runner stays default. The dashboard is the place I open when I want scripts,
-            a planning board, marketing compose, revenue KPIs, and docs without leaving Dutch.
+            Dutch ships with the same local <code>wfrun</code> dashboard pattern (scripts, Task Manager,
+            marketing, revenue/downloads, docs) so day-to-day ops stay next to the game env.
+            That surface is <strong>ported from the template</strong> — this Dutch case study does not
+            retell Scripts, Marketing, Revenue, or Downloads in full.
           </p>
-          <ul>
-            <li><strong>Scripts</strong> — discover and run automation with a live PTY terminal</li>
-            <li><strong>Task Manager</strong> — planning board proxied same-origin</li>
-            <li><strong>Marketing</strong> — compose once; publish to Facebook, YouTube, TikTok; metrics</li>
-            <li><strong>Revenue</strong> — AdMob / Play / App Store estimated + settled; expense ledger; profit</li>
-            <li><strong>Docs / Case Study</strong> — browse <code>Documentation/</code> and this narrative</li>
-          </ul>
-
+          <div class="callout">
+            <strong>Full ops / marketing / revenue case study:</strong> see the template repo’s
+            <code>case-study-ops-dashboard.html</code> (Ops Dashboard · Marketing Desk). This page
+            stays about the Dutch product and stack.
+          </div>
           <figure class="shot">
               <div class="shot-frame has-image" data-shot="06">
                 <img src="images/06.png" alt="Dashboard tabs">
               </div>
-              <figcaption>Reference — ops chrome.</figcaption>
-            </figure>
-            <figure class="shot">
-              <div class="shot-frame has-image" data-shot="07">
-                <img src="images/07.png" alt="Revenue KPIs">
-              </div>
-              <figcaption>Reference — growth desk.</figcaption>
+              <figcaption>Reference — ops chrome in Dutch (brief).</figcaption>
             </figure>
         </div>
       </section>
@@ -728,61 +715,57 @@
           <ul>
             <li>A live multiplayer card game on both mobile stores from one solo-owned repo.</li>
             <li>Honest architecture docs — Flask/Mongo/Dart, not a pretend FastAPI rewrite.</li>
-            <li>Ops, marketing, and revenue live beside the same env the game deploys with.</li>
             <li>Shared match logic between client and game server reduces “works in practice, breaks online.”</li>
-            <li>Patterns (dashboard, marketing, revenue) can still port to other RoP products without claiming Dutch is the new template.</li>
           </ul>
           <div class="two-col">
             <div>
               <h3>Scope</h3>
               <p>
                 Solo end-to-end: game rules and UX, Flask modules, Dart WS, Flutter client, billing,
-                ads, VPS deploy playbooks, and the local ops desk.
+                ads, and VPS deploy playbooks.
               </p>
             </div>
             <div>
               <h3>What’s next</h3>
               <p>
-                Keep improving CPU AI and progression catalogs, harden Play GCS revenue access,
-                and deepen marketing metrics — without forcing a premature stack migration.
+                Keep improving CPU AI and progression catalogs — without forcing a premature stack
+                migration to FastAPI/Postgres.
               </p>
             </div>
           </div>
           <div class="callout">
             <strong>Prefer depth?</strong> Switch to <em>Technical</em> for module paths, data shape,
-            dash APIs, and the hard problems that showed up in production.
+            and production hard problems on the game stack.
           </div>
         </div>
       </section>
     </main>
   </div>
 
-  <!-- ========== TECHNICAL ========== -->
   <div class="version" id="version-technical" data-version-panel="technical" hidden>
     <main>
       <section id="tech-snapshot">
         <div class="wrap">
           <p class="section-kicker">01 — Snapshot</p>
-          <h2>Flask + Mongo product · Dart match plane · Flutter client · aiohttp ops</h2>
+          <h2>Flask + Mongo product · Dart match plane · Flutter client</h2>
           <p class="lede">
             Product code lives in <code>python_base_04/</code>, <code>dart_bkend_base_01/</code>, and
-            <code>flutter_base_05/</code>. Ops plane is <code>automation/dashboard/</code> plus
-            <code>automation/marketing/</code> and <code>automation/revenue/</code>. Env SSOT:
-            <code>.env.local</code> / <code>.env.prod</code> and Flutter dart-defines — not secrets in the browser UI.
+            <code>flutter_base_05/</code>. Env SSOT: <code>.env.local</code> / <code>.env.prod</code>
+            and Flutter dart-defines. Local ops automation is present in-repo but documented in the
+            template ops case study.
           </p>
           <div class="stat-row">
             <div class="stat"><strong>Flask 3</strong><span>Gunicorn HTTP API + modules</span></div>
             <div class="stat"><strong>Mongo</strong><span>Primary app database</span></div>
             <div class="stat"><strong>Dart WS</strong><span>Multiplayer match server</span></div>
-            <div class="stat"><strong>:8765</strong><span>Local wfrun dashboard</span></div>
+            <div class="stat"><strong>Flutter</strong><span>Client + shared_logic mirror</span></div>
           </div>
           <nav aria-label="Technical sections">
             <ul class="toc">
               <li><a href="#tech-principles">Principles</a></li>
               <li><a href="#tech-game">Game systems</a></li>
               <li><a href="#tech-stack">Product stack</a></li>
-              <li><a href="#tech-dashboard">Ops dash</a></li>
-              <li><a href="#tech-growth">Marketing &amp; revenue</a></li>
+              <li><a href="#tech-ops">Ops (brief)</a></li>
               <li><a href="#tech-architecture">Architecture</a></li>
               <li><a href="#tech-hard">Hard problems</a></li>
               <li><a href="#tech-next">Stack &amp; next</a></li>
@@ -796,11 +779,10 @@
           <p class="section-kicker">02 — Principles</p>
           <h2>Non-negotiables on this older base</h2>
           <ul>
-            <li>Features live in <strong>modules</strong> wired through <code>module_registry</code> / AppManager — not one-off Flask blueprints scattered forever.</li>
+            <li>Features live in <strong>modules</strong> wired through <code>module_registry</code> / AppManager.</li>
             <li>Match rules shared in <code>backend_core/shared_logic/</code> between Flutter and Dart.</li>
-            <li>Mongo is the durable store; Redis for session / auth-generation / caches — not Postgres for Dutch gameplay data.</li>
+            <li>Mongo is the durable store; Redis for session / auth-generation / caches.</li>
             <li>Env files SSOT; never log tokens, <code>.p8</code>, or Play service-account JSON.</li>
-            <li>CLI <code>wfrun</code> remains default; dashboard is opt-in.</li>
             <li>Do not describe Dutch as FastAPI + Postgres — that is a different template.</li>
           </ul>
         </div>
@@ -813,7 +795,9 @@
           <ul>
             <li>Lobby create/join; coin check + deduct on multiplayer <code>start_match</code></li>
             <li>Progression: wins → level → rank via <code>progression_config.json</code></li>
-            <li>Table tiers, consumables, achievements as declarative JSON (SSOT docs under <code>Documentation/Dutch_game/</code>)</li>
+            <li>Mastery: lifetime <code>modules.dutch_game.mastery</code>, added at match end for every player from leftover points then card count. Both jokers (0 points, 2 cards) is the top finish (252), above an empty hand (202), because that hold is the skill result even though the match still prefers fewer cards. The wins leaderboard sort is unchanged; mastery is shown on each row and on its own board.</li>
+            <li>Leaderboard bundle: the public wins, mastery, and achievements boards return the first 100 rows. The same response still carries the signed-in player's own wins and mastery when they sit outside that list. Redis keeps the shared boards for about a minute and drops them when a match writes stats; the app paints the last saved bundle immediately, then replaces it with the refresh.</li>
+            <li>Table tiers, consumables, achievements as declarative JSON (SSOT under <code>Documentation/Dutch_game/</code>)</li>
             <li>Practice = simulated CPU; multiplayer can use DB comp players</li>
             <li>Subscription tiers: promotional / free / regular + IAP coin packs</li>
             <li>Init revision-gated catalogs via get-init-data / public init-config</li>
@@ -846,7 +830,7 @@ dart_bkend_base_01/      Game WebSocket server
 flutter_base_05/         Flutter client · managers · dutch_game
 docker-compose.yml       Mongo · Redis · Flask · Dart
 playbooks/rop01/         Ansible deploy / backup / landing
-automation/              wfrun · dashboard · marketing · revenue
+automation/              wfrun · dashboard (ported; see template ops CS)
 Documentation/           Dutch_game · VPS · billing · flutter_base_05
 website/                 dutch.reignofplay.com landing</pre>
           <h3>Notable Python modules</h3>
@@ -865,63 +849,29 @@ website/                 dutch.reignofplay.com landing</pre>
         </div>
       </section>
 
-      <section id="tech-dashboard">
+      <section id="tech-ops">
         <div class="wrap">
-          <p class="section-kicker">05 — Ops dash</p>
-          <h2><code>automation/dashboard/serve.py</code></h2>
-          <ul>
-            <li>aiohttp app on <code>:8765</code>; script discovery + <code>/ws/run</code> PTY + xterm.js</li>
-            <li>Task Manager same-origin <code>/tm/*</code> proxy</li>
-            <li>Docs / Case Study via <code>docs_discovery.py</code> under <code>Documentation/</code></li>
-            <li>Brand via session / <code>REPO_BRAND</code> (Dutch dashboard)</li>
-          </ul>
-          <figure class="shot">
-              <div class="shot-frame has-image" data-shot="06t">
-                <img src="images/06.png" alt="Dashboard tabs">
-              </div>
-              <figcaption>Reference — dash chrome.</figcaption>
-            </figure>
-            <figure class="shot">
-              <div class="shot-frame has-image" data-shot="08">
-                <img src="images/08.jpg" alt="Scripts PTY">
-              </div>
-              <figcaption>Reference — runners.</figcaption>
-            </figure>
-        </div>
-      </section>
-
-      <section id="tech-growth">
-        <div class="wrap">
-          <p class="section-kicker">06 — Marketing &amp; revenue</p>
-          <h2>Growth surfaces in-repo</h2>
-          <ul>
-            <li><strong>Marketing:</strong> <code>automation/marketing/*</code> — FB / YT / TT publish, metrics, OAuth refresh; dash Saved + Platform posts</li>
-            <li><strong>Revenue:</strong> <code>automation/revenue/*</code> — AdMob network report, Play GCS CSVs, ASC sales/finance; OpenSSL JWT (no PyJWT pip)</li>
-            <li>Persisted ledger <code>dashboard/data/revenue_ledger.json</code> — filters, last table load, day entries, expenses, profit = rev − exp</li>
-            <li>Package filter <code>com.reignofplay.dutch</code>; Apple ID <code>6772967073</code></li>
-          </ul>
-          <figure class="shot">
-              <div class="shot-frame has-image" data-shot="07t">
-                <img src="images/07.png" alt="Revenue KPIs">
-              </div>
-              <figcaption>Reference — revenue tab.</figcaption>
-            </figure>
+          <p class="section-kicker">05 — Ops (brief)</p>
+          <h2>Present in-repo; detailed elsewhere</h2>
+          <p>
+            <code>automation/dashboard/</code>, <code>automation/marketing/</code>, and
+            <code>automation/revenue/</code> are wired for Dutch day-to-day work. Full narrative —
+            Scripts PTY (including the same runner in more than one tab), Marketing publish/metrics,
+            Revenue + Downloads ledgers, campaign queue —
+            belongs in the template’s <code>case-study-ops-dashboard.html</code>, not duplicated here.
+          </p>
         </div>
       </section>
 
       <section id="tech-architecture">
         <div class="wrap">
-          <p class="section-kicker">07 — Architecture</p>
-          <h2>Product + ops plane</h2>
+          <p class="section-kicker">06 — Architecture</p>
+          <h2>Product plane</h2>
           <pre class="flow">Flutter ──HTTPS/WS──► edge / Flask :8000 ──► MongoDB
                         │                      Redis
                         └─ Dart game WS :8080
                               shared_logic ↔ Flutter dutch_game
 
-wfrun (local|prod env)
-  └─ automation/dashboard/serve.py :8765
-        Scripts | Task Manager | Marketing | Revenue | Docs | Case Study
-  └─ automation/marketing/* · automation/revenue/*
 playbooks/rop01/ ──► VPS docker compose (Flask · Dart · Mongo · Redis)</pre>
           <figure class="shot">
               <div class="shot-frame has-image" data-shot="09">
@@ -934,34 +884,20 @@ playbooks/rop01/ ──► VPS docker compose (Flask · Dart · Mongo · Redis)<
 
       <section id="tech-hard">
         <div class="wrap">
-          <p class="section-kicker">08 — Hard problems</p>
+          <p class="section-kicker">07 — Hard problems</p>
           <h2>What production taught</h2>
-          <div class="two-col">
-            <div>
-              <h3>Game / stack</h3>
-              <ul>
-                <li>Keep Flutter and Dart match logic shared — drift creates “practice works, live doesn’t.”</li>
-                <li>Coin deduct timing on match start vs practice / promotional tier exceptions.</li>
-                <li>Guest + Google + JWT refresh with Redis auth-generation bumps.</li>
-                <li>Store billing: Apple Server API vs Play Billing; AdMob separate from IAP.</li>
-              </ul>
-            </div>
-            <div>
-              <h3>Ops / growth</h3>
-              <ul>
-                <li>Play GCS 403 until SA invited with financial + bulk report account permissions.</li>
-                <li>“All-time revenue” is tracked ledger coverage after Refresh — not a magic lifetime API.</li>
-                <li>ASC sales reports are per-day downloads — slow ranges need patience.</li>
-                <li>Task Manager CSRF fixed with same-origin <code>/tm</code> proxy.</li>
-              </ul>
-            </div>
-          </div>
+          <ul>
+            <li>Keep Flutter and Dart match logic shared — drift creates “practice works, live doesn’t.”</li>
+            <li>Coin deduct timing on match start vs practice / promotional tier exceptions.</li>
+            <li>Guest + Google + JWT refresh with Redis auth-generation bumps.</li>
+            <li>Store billing: Apple Server API vs Play Billing; AdMob separate from IAP.</li>
+          </ul>
         </div>
       </section>
 
       <section id="tech-next">
         <div class="wrap">
-          <p class="section-kicker">09 — Stack &amp; next</p>
+          <p class="section-kicker">08 — Stack &amp; next</p>
           <h2>Implementation surface</h2>
           <div class="stack">
             <span class="chip">Flask</span>
@@ -971,17 +907,12 @@ playbooks/rop01/ ──► VPS docker compose (Flask · Dart · Mongo · Redis)<
             <span class="chip">Flutter</span>
             <span class="chip">Docker Compose</span>
             <span class="chip">Ansible</span>
-            <span class="chip">aiohttp dash</span>
-            <span class="chip">AdMob · Play · ASC</span>
-            <span class="chip">Meta · YouTube · TikTok</span>
           </div>
           <h3>Next</h3>
           <ul>
             <li>CPU AI / progression polish; referral and ops module depth as needed.</li>
-            <li>Revenue: confirm Play bucket access; grow tracked date range; keep expense ledger honest.</li>
             <li>Stack migration to FastAPI/Postgres is <em>not</em> assumed — only if a deliberate project starts.</li>
           </ul>
-
         </div>
       </section>
     </main>
@@ -989,11 +920,12 @@ playbooks/rop01/ ──► VPS docker compose (Flask · Dart · Mongo · Redis)<
 
   <footer>
     <div class="wrap">
-      <span>Dutch Card Game · Live stack · Ops desk — case study</span>
+      <span>Dutch Card Game — case study (product · stack)</span>
+      <span>Ops detail → template case-study-ops-dashboard.html</span>
     </div>
   </footer>
 
-  <script>
+<script>
     (function () {
       const panels = {
         overview: document.getElementById("version-overview"),
@@ -1002,8 +934,8 @@ playbooks/rop01/ ──► VPS docker compose (Flask · Dart · Mongo · Redis)<
       const buttons = document.querySelectorAll(".version-switch button");
       const hint = document.getElementById("version-hint");
       const hints = {
-        overview: "Overview — plain-language story of the Dutch card game, stack, and ops desk.",
-        technical: "Technical — Flask/Mongo/Dart/Flutter layout, game systems, dash, marketing & revenue.",
+        overview: "Overview — plain-language story of the Dutch card game and live stack.",
+        technical: "Technical — Flask/Mongo/Dart/Flutter layout, game systems, architecture.",
       };
 
       function setVersion(version) {
@@ -1018,10 +950,17 @@ playbooks/rop01/ ──► VPS docker compose (Flask · Dart · Mongo · Redis)<
         try {
           localStorage.setItem("dutch-case-study-version", version);
         } catch (_) {}
-        if (location.hash && !document.querySelector(location.hash)) {
-          history.replaceState(null, "", location.pathname + location.search);
+        const expected =
+          version === "technical" ? "#version-technical" : "#version-overview";
+        if (location.hash !== expected) {
+          history.replaceState(
+            null,
+            "",
+            location.pathname + location.search + expected
+          );
         }
       }
+      window.setCaseStudyVersion = setVersion;
 
       buttons.forEach((btn) => {
         btn.addEventListener("click", () => setVersion(btn.dataset.version));

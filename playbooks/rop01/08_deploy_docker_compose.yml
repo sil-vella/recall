@@ -506,6 +506,25 @@
       failed_when: flask_health_http.rc != 0
       when: compose_up_result is defined and compose_up_result.changed | default(false)
 
+    # Host-wide: drops every image no container is using (old Dutch tags and
+    # other leftovers). Images still referenced by a container are kept.
+    # Runs only after Flask /health passes, so a failed deploy does not delete
+    # the image the running containers still need.
+    - name: Remove Docker images not used by a container
+      shell: sg docker -c "docker image prune -a -f"
+      register: image_prune_result
+      changed_when: "'Total reclaimed space: 0B' not in (image_prune_result.stdout | default(''))"
+      when:
+        - flask_health_http is defined
+        - flask_health_http.rc | default(1) == 0
+
+    - name: Display unused-image cleanup result
+      debug:
+        msg: "{{ (image_prune_result.stdout_lines | default(['docker image prune produced no output']))[-1] }}"
+      when:
+        - image_prune_result is defined
+        - not (image_prune_result.skipped | default(false))
+
     - name: Record deployed Flask image tag on VPS
       copy:
         content: "{{ flask_image_tag | default(lookup('env', 'FLASK_IMAGE_TAG') | default('latest', true), true) }}\n"

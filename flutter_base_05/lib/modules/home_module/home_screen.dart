@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/app_manager.dart';
+import '../../core/managers/state_manager.dart';
 import '../../core/widgets/feature_slot.dart';
+import '../../utils/consts/theme_consts.dart';
+import '../dutch_game/utils/dutch_game_helpers.dart';
+import '../dutch_game/widgets/ui_kit/dutch_mastery_mark.dart';
 
 class HomeScreen extends BaseScreen {
   const HomeScreen({Key? key}) : super(key: key);
@@ -67,15 +71,46 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
     }
   }
 
+  int _masteryFromStats() {
+    final raw = DutchGameHelpers.getUserDutchGameStats()?['mastery'];
+    if (raw is num) return raw.round();
+    return int.tryParse(raw?.toString() ?? '') ?? 0;
+  }
+
   @override
   Widget buildContent(BuildContext context) {
-    return Center(
-      child: FeatureSlot(
-        scopeKey: featureScopeKey,
-        slotId: 'home_screen_buttons',
-        contract: 'home_screen_button',
-        useTemplate: false,
-      ),
+    return ListenableBuilder(
+      listenable: StateManager(),
+      builder: (context, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppPadding.defaultPadding.left,
+                AppPadding.smallPadding.top,
+                AppPadding.defaultPadding.right,
+                AppPadding.smallPadding.bottom,
+              ),
+              child: DutchMasteryMark.banner(
+                value: _masteryFromStats(),
+                semanticIdentifier: 'home_mastery',
+                showIconBadge: false,
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: FeatureSlot(
+                  scopeKey: featureScopeKey,
+                  slotId: 'home_screen_buttons',
+                  contract: 'home_screen_button',
+                  useTemplate: false,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

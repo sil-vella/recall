@@ -62,6 +62,8 @@ class WSEventListener {
     // Core: instant notification pushed by Dart backend
     _registerWsInstantNotificationListener();
 
+    _registerServerMaintenanceListener();
+
     _registerInboxChangedListener();
 
     _registerRestartInviteListener();
@@ -190,6 +192,13 @@ class WSEventListener {
     });
   }
 
+  /// Drain / maintenance: Dart sends [server_maintenance]; show the instant modal.
+  void _registerServerMaintenanceListener() {
+    _socket?.on('server_maintenance', (data) {
+      _eventHandler.handleServerMaintenance(data);
+    });
+  }
+
   /// Python → Dart HTTP → push: client should GET /notifications/messages.
   void _registerInboxChangedListener() {
     _socket?.on('inbox_changed', (data) {
@@ -255,6 +264,7 @@ class WSEventListener {
     _socket?.off('rooms_list');
     _socket?.off('message');
     _socket?.off('ws_instant_notification');
+    _socket?.off('server_maintenance');
     _socket?.off('inbox_changed');
     _socket?.off('restart_invite');
     _socket?.off('error');

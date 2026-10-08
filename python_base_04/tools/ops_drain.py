@@ -69,7 +69,51 @@ def _request(
         )
     if not isinstance(body, dict):
         raise SystemExit(f"Unexpected response: {body!r}")
-    return body
+    return _clear_idle_match_counts(body)
+
+
+def _as_int(value: Any) -> Optional[int]:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _clear_idle_match_counts(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Zero leftover match/room counts when no Dart sockets are connected.
+
+    A room can stay in a non-terminal phase after every player disconnects.
+    That must not block deploy drain.
+    """
+    if "dart_connections" not in data:
+        return data
+    connections = _as_int(data.get("dart_connections"))
+    if connections != 0:
+        return data
+
+    cleared = dict(data)
+    cleared["active_matches"] = 0
+    cleared["room_count"] = 0
+    checks = dict(cleared.get("checks") or {})
+    checks["matches_clear"] = True
+    store_in_flight = _as_int(cleared.get("store_in_flight"))
+    if "store_clear" not in checks and store_in_flight is not None:
+        checks["store_clear"] = store_in_flight == 0
+    cleared["checks"] = checks
+    if cleared.get("drain_mode") is True and checks.get("store_clear") is True:
+        cleared["ready"] = True
+
+    dart = cleared.get("dart")
+    if isinstance(dart, dict):
+        dart_cleared = dict(dart)
+        dart_connections = _as_int(dart_cleared.get("dart_connections"))
+        if dart_connections is None or dart_connections == 0:
+            dart_cleared["active_matches"] = 0
+            dart_cleared["room_count"] = 0
+            dart_cleared["matches_clear"] = True
+            dart_cleared["dart_connections"] = 0
+            cleared["dart"] = dart_cleared
+    return cleared
 
 
 def cmd_enter(base_url: str) -> int:

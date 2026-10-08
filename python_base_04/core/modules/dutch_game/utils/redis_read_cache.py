@@ -41,6 +41,10 @@ def broadcast_ttl() -> int:
     return _int_env("DUTCH_CACHE_BROADCAST_TTL", 60)
 
 
+def leaderboard_bundle_ttl() -> int:
+    return _int_env("DUTCH_CACHE_LEADERBOARD_TTL", 60)
+
+
 def _full_key(logical_key: str) -> str:
     return f"{_CACHE_PREFIX}{logical_key}"
 
@@ -120,6 +124,11 @@ def invalidate_init_stats(app_manager, user_id: str) -> None:
     uid = str(user_id or "").strip()
     if uid:
         delete_logical_key(app_manager, f"init_stats:{uid}")
+
+
+def invalidate_leaderboard_bundles(app_manager) -> None:
+    """Drop every cached public leaderboard bundle (all game types and caps)."""
+    delete_prefix(app_manager, "leaderboard_bundle:")
 
 
 def get_init_stats_cached(app_manager, user_id: str) -> Optional[Dict[str, Any]]:

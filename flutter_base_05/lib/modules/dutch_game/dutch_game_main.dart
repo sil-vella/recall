@@ -350,6 +350,17 @@ class DutchGameMain extends ModuleBase {
       drawerPosition: 999,
     );
 
+    // Deep link: same main board opened on Mastery mode (no separate screen).
+    navigationManager.registerRoute(
+      path: '/dutch/leaderboard/mastery',
+      screen: (BuildContext context) => const LeaderboardScreen(
+        initialRankMode: LeaderboardRankMode.mastery,
+      ),
+      drawerTitle: null,
+      drawerIcon: null,
+      drawerPosition: 999,
+    );
+
     navigationManager.registerRoute(
       path: '/dutch/achievements',
       screen: (BuildContext context) => const AchievementsScreen(),

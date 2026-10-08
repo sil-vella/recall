@@ -11,6 +11,9 @@ LOG="$REPO_ROOT/global.log"
 LOCAL_ENV="$REPO_ROOT/.env.local"
 
 export DUTCH_DEV_LOG="${DUTCH_DEV_LOG:-1}"
+# Default away from 8080 (often taken by other Docker stacks, e.g. Arcori_dart).
+# Override: PORT=8080 ./playbooks/00_local/run_dart_ws_to_global_log.sh
+export PORT="${PORT:-8082}"
 
 if [ -f "$LOCAL_ENV" ]; then
   set -a
@@ -21,8 +24,12 @@ else
   echo "⚠️  Warning: $LOCAL_ENV not found — Dart WS will not send X-Service-Key (Python validate will fail if auth enabled)." >&2
 fi
 
+# Re-apply after .env.local in case it sets PORT; still default to 8082 if unset/empty.
+export PORT="${PORT:-8082}"
+
 cd "$REPO_ROOT/dart_bkend_base_01"
 echo "---- run_dart_ws_to_global_log start $(date '+%Y-%m-%d %H:%M:%S') cwd=$(pwd) ----" >&2
+echo "   PORT=$PORT (Flutter local needs --dart-define=WS_URL=ws://127.0.0.1:$PORT)" >&2
 if [ -n "${DART_BACKEND_SERVICE_KEY:-}" ]; then
   echo "   DART_BACKEND_SERVICE_KEY: set (${#DART_BACKEND_SERVICE_KEY} chars)" >&2
 else

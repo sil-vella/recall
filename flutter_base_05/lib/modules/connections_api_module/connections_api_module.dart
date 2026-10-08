@@ -218,7 +218,7 @@ class ConnectionsApiModule extends ModuleBase {
         return decodedResponse;
       } catch (e) {
         return {
-          "message": "An unexpected error occurred",
+          "message": "An unexpected error occurred. Please try again later.",
           "error": "Server error",
           "details": response.body,
           "status": response.statusCode,

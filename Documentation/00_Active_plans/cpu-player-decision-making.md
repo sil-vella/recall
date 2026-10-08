@@ -170,10 +170,13 @@ Docs note: `COMP_PLAYER_JACK_SWAP.md` lists outdated 0% fallbacks; live `getJack
 - Play-card opponent same-rank skip (1B+2A) implemented: `dump_same_rank_as_known_opponent` YAML + factory safe/risky split; `PlayCardOpponentRank:` logs (`LOGGING_SWITCH = true` in factories).
 - Wrong same-rank left unchanged (intended broadcast under acting owner).
 - Queen peek skips reduced + opponent-only after own unknowns; own-unknown-first kept; `QueenPeekDecision:` logs.
+- Difficulty probability ladder shifted (easy←former hard; medium/hard toward expert) in both YAMLs + optimal/jack/remember code.
+- Play gate `avoid_human_known_same_rank` (0.80/0.867/0.933/1.0): before dump-skip+YAML, prefer an **own-known playable** card whose rank is not in **human** `known_cards[humanId]` (human’s own map — not CPU’s `known_cards[humanId]`); pool = CPU `known_playable` only; log `PlayCardUniqueRank:` with `source=human.known_cards[humanId] pool=own.known_cards`.
+- Human draw now adds to own `known_cards` like CPUs (`DrawKnownCards:`); play/same-rank still removes via `updateKnownCards` (drawn card 100%, others remember-prob).
 
 ## Next Steps
 
-1. Redeploy backend; filter `global.log` for `QueenPeekDecision:` — expect `use=true` often, `ownHand=true` while unknowns remain, then `ownHand=false` for opponents.
+1. Redeploy backend; filter `global.log` for `PlayCardUniqueRank:` (humans-only known ranks) and `QueenPeekDecision:`.
 2. Runtime verify: filter `global.log` for `PlayCardOpponentRank:` after peek + CPU play.
 3. Decide miss/skip policy for same-rank window.
 4. Implement same-rank miss reduction.
@@ -198,7 +201,8 @@ Docs note: `COMP_PLAYER_JACK_SWAP.md` lists outdated 0% fallbacks; live `getJack
 - Play dump skip: unknowns never filtered; known matching opponent ranks skipped unless `allowDump` (easy 0.12 … expert 0.0). When `!allowDump`, known-risky also stripped from `playable_cards` so P3 random fallback cannot dump. Optimal-play roll uses difficulty (not strategy name).
 - `PlayCardOpponentRank` logs include `knownRiskyDetail`, `rule=`, `selectedWasRisky=` for live verification.
 - `miss_chance_to_play` lowered: easy 0.02, medium 0.01, hard/expert 0.0 (draw/play/peek/swap/collect).
-- Queen peek: own unknown first; then opponents only; execution_probability easy 0.95 / medium 0.98 / hard+expert 1.0.)
+- Queen peek: own unknown first; then opponents only; execution_probability all difficulties 1.0 after ladder shift.
+- Difficulty % ladder (2026-10-04): easy←former hard; medium/hard interpolate toward expert (YAML + hardcoded optimal/jack/remember). Dutch call *thresholds* unchanged (not percentages).)
 
 ## Task Manager
 

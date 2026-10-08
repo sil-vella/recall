@@ -188,3 +188,4 @@ playbooks/00_local/app_media_static/
 
 # adb_screenrecord.sh output (playbooks/frontend/adb_screenrecord.sh)
 recordings/
+automation/frontend/launch_android_assets/

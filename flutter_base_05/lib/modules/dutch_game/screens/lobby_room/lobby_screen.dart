@@ -415,7 +415,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                       opacity: multiplayerBlocked ? 0.55 : 1,
                       child: CollapsibleSectionWidget(
                         title: 'Join Random',
-                        icon: Icons.flash_on,
+                        headerAssetPath: 'assets/images/icons/quick-join.webp',
                         isExpanded: _expandedSection == 'Join Random',
                         onExpandedChanged: () =>
                             _handleSectionToggled('Join Random'),
@@ -427,7 +427,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                   ),
                   CollapsibleSectionWidget(
                     title: 'Practice',
-                    icon: Icons.school,
+                    headerAssetPath: 'assets/images/icons/practice.webp',
                     isExpanded: _expandedSection == 'Practice',
                     onExpandedChanged: () =>
                         _handleSectionToggled('Practice'),

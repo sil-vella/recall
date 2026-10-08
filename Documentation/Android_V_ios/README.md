@@ -54,11 +54,11 @@ On **macOS 13 / Ventura**, the latest Xcode is often **15.2**, which cannot sati
 
 | File | Setting |
 |------|---------|
-| `ios/Podfile` | `platform :ios, '13.0'`; pods `IPHONEOS_DEPLOYMENT_TARGET = 13.0` |
-| `ios/Runner.xcodeproj` | `IPHONEOS_DEPLOYMENT_TARGET = 13.0` |
-| `ios/Flutter/AppFrameworkInfo.plist` | `MinimumOSVersion` **13.0** |
+| `ios/Podfile` | `platform :ios, '15.0'`; pods `IPHONEOS_DEPLOYMENT_TARGET = 15.0` |
+| `ios/Runner.xcodeproj` | `IPHONEOS_DEPLOYMENT_TARGET = 15.0` |
+| `ios/Flutter/AppFrameworkInfo.plist` | `MinimumOSVersion` **15.0** |
 
-`firebase_analytics` on iOS requires deployment target **≥ 13.0** (was **12.0** before first iOS simulator build).
+Flutter **3.47+** (Xcode 27) requires iOS **15.0**. `firebase_analytics` still needs **≥ 13.0**, which 15.0 satisfies.
 
 ---
 
@@ -125,7 +125,7 @@ When **Xcode ≥ 15.3** is available:
 | `MarketplaceKit` / undefined symbols on link | GMA iOS **11.6+** | Confirm `google_mobile_ads` **5.1.0** |
 | Firebase Swift `sending` / `FIRAllocatedUnfairLock` | Firebase iOS 11.4+ on Xcode 15.2 | Confirm `firebase_core` **3.3.0** |
 | Pod install: GoogleUtilities conflict | `google_sign_in_ios` 6.x + Firebase 10 | Confirm override **5.7.6** |
-| CocoaPods deployment target 12 vs Firebase 13 | Old iOS target | Confirm Podfile / project **13.0** |
+| CocoaPods: Flutter requires a higher minimum deployment target | Podfile below Flutter 3.47's iOS 15 floor | Confirm Podfile / project **15.0** |
 | Simulator not listed | Sim shutdown | Re-run launch config (script boots sim) |
 | **Stuck on green splash** after `flutter run` | Session refresh / API call blocking startup | See [§7 Splash stuck on iOS](#7-splash-stuck-on-ios) |
 

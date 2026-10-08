@@ -275,7 +275,7 @@ Fingerprint helper: `flutter_base_05/tools/scripts/get_sha1_fingerprint.sh`
 
 **`ios/Podfile`**
 
-- `platform :ios, '13.0'` (required by `firebase_analytics`)
+- `platform :ios, '15.0'` (Flutter 3.47+ / Xcode 27; also satisfies `firebase_analytics` ≥ 13.0)
 - `use_frameworks!`
 - `flutter_install_all_ios_pods`
 

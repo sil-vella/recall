@@ -6,6 +6,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
+import '../../../../utils/android_system_ui.dart';
 import '../../dutch_game/utils/dutch_firebase_analytics.dart';
 import '../ad_experience_policy.dart';
 import '../admob_config_store.dart';
@@ -110,17 +111,20 @@ class InterstitialAdModule extends ModuleBase {
       },
       onAdDismissedFullScreenContent: (Ad dismissed) {
         dismissed.dispose();
+        applyAndroidImmersiveBottomBar();
         loadAd();
         onClosed();
         unawaited(RemoveAdsOffer.onInterstitialDismissed(context));
       },
       onAdFailedToShowFullScreenContent: (Ad failed, AdError error) {
         failed.dispose();
+        applyAndroidImmersiveBottomBar();
         loadAd();
         onClosed();
       },
     );
 
+    restoreAndroidSystemUiForFullscreenAd();
     ad.show();
   }
 

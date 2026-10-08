@@ -1345,6 +1345,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           DutchMasteryMark.banner(
             value: mastery,
             semanticIdentifier: 'account_mastery',
+            showIconBadge: false,
           ),
           const SizedBox(height: 12),
           

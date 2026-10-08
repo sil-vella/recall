@@ -19,6 +19,7 @@ import 'modules/promotional_ads_module/promotional_ads_config_loader.dart';
 import 'modules/admobs/admob_bootstrap.dart';
 import 'modules/admobs/admob_config_bootstrap.dart';
 import 'modules/admobs/admob_config_store.dart';
+import 'utils/android_system_ui.dart';
 import 'utils/dev_logger.dart';
 import 'utils/web_bootstrap_log.dart';
 import 'utils/consts/config.dart';
@@ -57,19 +58,6 @@ Future<void> _lockPortraitOrientation() async {
   }
 }
 
-/// Hides the Android system navigation bar so the app uses the full screen height;
-/// the bar can be revealed briefly with an edge swipe. Status bar stays visible.
-void _applyAndroidImmersiveBottomBar() {
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
-  try {
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.immersiveSticky,
-    );
-  } catch (_) {
-    // Best-effort; some embedders may not support manual UI mode.
-  }
-}
-
 Future<void> main() async {
   webBootstrapLog('main() start');
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -103,7 +91,7 @@ Future<void> main() async {
       }
     }
   }
-  _applyAndroidImmersiveBottomBar();
+  applyAndroidImmersiveBottomBar();
 
   webBootstrapLog('PromotionalAdsConfigLoader.initialize start');
   await PromotionalAdsConfigLoader.initialize();
@@ -210,7 +198,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _applyAndroidImmersiveBottomBar();
+      applyAndroidImmersiveBottomBar();
     }
   }
 

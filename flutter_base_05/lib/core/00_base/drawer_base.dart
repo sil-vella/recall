@@ -92,31 +92,55 @@ class CustomDrawer extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      DutchAvatar(
-                        displayName: displayName.isNotEmpty
-                            ? displayName
-                            : (email.isNotEmpty ? email : 'Player'),
-                        imageUrl: avatarDisplay.imageUrl,
-                        assetPath: avatarDisplay.assetPath,
-                        size: 38,
-                        semanticIdentifier: 'drawer_profile_avatar',
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          displayName.isNotEmpty
-                              ? displayName
-                              : (email.isNotEmpty ? email : 'Welcome'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.bodyMedium(color: AppColors.white).copyWith(
-                            fontWeight: FontWeight.w600,
+                  Semantics(
+                    button: true,
+                    label: 'Open account',
+                    identifier: 'drawer_profile_account_link',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _leaveDrawer(context, '/account'),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              DutchAvatar(
+                                displayName: displayName.isNotEmpty
+                                    ? displayName
+                                    : (email.isNotEmpty ? email : 'Player'),
+                                imageUrl: avatarDisplay.imageUrl,
+                                assetPath: avatarDisplay.assetPath,
+                                size: 38,
+                                semanticIdentifier: 'drawer_profile_avatar',
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  displayName.isNotEmpty
+                                      ? displayName
+                                      : (email.isNotEmpty ? email : 'Welcome'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.bodyMedium(color: AppColors.white)
+                                      .copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor:
+                                        AppColors.white.withValues(alpha: 0.55),
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: AppColors.textSecondary,
+                                size: 20,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),

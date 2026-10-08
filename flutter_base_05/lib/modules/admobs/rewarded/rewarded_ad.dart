@@ -9,6 +9,7 @@ import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../core/managers/services_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
+import '../../../../utils/android_system_ui.dart';
 import '../../dutch_game/utils/dutch_firebase_analytics.dart';
 import '../ad_experience_policy.dart';
 import '../admob_config_store.dart';
@@ -135,18 +136,21 @@ class RewardedAdModule extends ModuleBase {
       onAdShowedFullScreenContent: (Ad a) {},
       onAdDismissedFullScreenContent: (Ad dismissed) {
         dismissed.dispose();
+        applyAndroidImmersiveBottomBar();
         unawaited(loadAd());
         if (!completer.isCompleted) completer.complete();
         onAdClosed?.call();
       },
       onAdFailedToShowFullScreenContent: (Ad failed, AdError error) {
         failed.dispose();
+        applyAndroidImmersiveBottomBar();
         unawaited(loadAd());
         if (!completer.isCompleted) completer.complete();
         onAdClosed?.call();
       },
     );
 
+    restoreAndroidSystemUiForFullscreenAd();
     ad.show(
       onUserEarnedReward: (AdWithoutView adView, RewardItem reward) {
         unawaited(DutchFirebaseAnalytics.logAdmobRewardedEarned());

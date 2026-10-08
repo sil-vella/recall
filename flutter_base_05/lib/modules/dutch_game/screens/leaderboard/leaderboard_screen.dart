@@ -18,7 +18,7 @@ const int _kLeaderboardDisplayLimit = LeaderboardBundleStore.maxEntries;
 /// Rank board mode on the main leaderboard (peer to History / Achievements screens).
 enum LeaderboardRankMode { wins, mastery }
 
-/// Route: `/dutch/leaderboard` — one bundle fetch; Wins or Mastery ranking; monthly/yearly/all-time for wins.
+/// Route: `/dutch/leaderboard` — one bundle fetch; Wins or Mastery ranking over the same period filters.
 class LeaderboardScreen extends BaseScreen {
   const LeaderboardScreen({
     Key? key,
@@ -58,11 +58,11 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   String _monthlyPeriodKey = '';
   String _yearlyPeriodKey = '';
   Map<String, dynamic>? _bundleViewer;
-  /// Wins (period wins ranking) or Mastery (all-time mastery ranking).
+  /// Wins (period wins sort) or Mastery (same filtered rows, sorted by mastery).
   late LeaderboardRankMode _rankMode;
-  /// `monthly` | `yearly` | `all_time` (client-side period scope; wins mode only).
+  /// `monthly` | `yearly` | `all_time` (client-side period scope for Wins and Mastery).
   String _periodScope = 'monthly';
-  /// `null` = all ranks (client-side filter only; wins mode only).
+  /// `null` = all ranks (client-side filter for Wins and Mastery; ignored for all-time).
   String? _selectedRankTier;
   /// `null` = all game types; `classic` | `clear_and_collect` (server-filtered bundle).
   String? _selectedGameType;
@@ -78,26 +78,35 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
 
   bool get _isMasteryMode => _rankMode == LeaderboardRankMode.mastery;
 
-  List<Map<String, dynamic>> _filteredAndRanked(
-    List<Map<String, dynamic>> raw, {
-    bool ignoreRankTier = false,
-  }) {
+  List<Map<String, dynamic>> _rawForCurrentPeriod() {
+    switch (_periodScope) {
+      case 'yearly':
+        return _rawYearly;
+      case 'all_time':
+        return _rawAllTime;
+      default:
+        return _rawMonthly;
+    }
+  }
+
+  /// Same period + rank + game-type rows the Wins tab uses (game type is server-side).
+  List<Map<String, dynamic>> _filteredWinsRowsForCurrentFilters() {
+    final ignoreRankTier = _periodScope == 'all_time';
     final tierLc =
         ignoreRankTier ? null : _selectedRankTier?.toLowerCase().trim();
     final filtered = <Map<String, dynamic>>[];
-    if (tierLc == null || tierLc.isEmpty) {
-      for (final r in raw) {
-        filtered.add(Map<String, dynamic>.from(r));
-      }
-    } else {
-      for (final r in raw) {
+    for (final r in _rawForCurrentPeriod()) {
+      if (tierLc != null && tierLc.isNotEmpty) {
         final rt = (r['rank_tier'] ?? '').toString().toLowerCase();
-        if (rt == tierLc) {
-          filtered.add(Map<String, dynamic>.from(r));
-        }
+        if (rt != tierLc) continue;
       }
+      filtered.add(Map<String, dynamic>.from(r));
     }
-    final top = filtered.take(_displayLimit).toList();
+    return filtered;
+  }
+
+  List<Map<String, dynamic>> _rankRows(List<Map<String, dynamic>> rows) {
+    final top = rows.take(_displayLimit).toList();
     return List.generate(top.length, (i) {
       final m = Map<String, dynamic>.from(top[i]);
       m['rank'] = i + 1;
@@ -105,38 +114,29 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     });
   }
 
-  List<Map<String, dynamic>> get _visibleMonthly => _filteredAndRanked(_rawMonthly);
-  List<Map<String, dynamic>> get _visibleYearly => _filteredAndRanked(_rawYearly);
-  List<Map<String, dynamic>> get _visibleAllTime =>
-      _filteredAndRanked(_rawAllTime, ignoreRankTier: true);
+  /// Wins mode: keep server wins sort, apply filters, cap, assign ranks.
+  List<Map<String, dynamic>> get _visibleWinsRows =>
+      _rankRows(_filteredWinsRowsForCurrentFilters());
 
-  /// All-time mastery board from bundle ``mastery`` (sorted client-side by mastery desc).
+  /// Mastery mode: hydrate from the same filtered wins rows, sort by mastery.
   List<Map<String, dynamic>> get _visibleMastery {
-    final sorted = List<Map<String, dynamic>>.from(_rawMastery)
+    final sorted = _filteredWinsRowsForCurrentFilters()
       ..sort((a, b) {
         final c = _masteryFromRow(b).compareTo(_masteryFromRow(a));
         if (c != 0) return c;
+        final wa = (a['wins'] as num?)?.toInt() ??
+            int.tryParse(a['wins']?.toString() ?? '') ??
+            0;
+        final wb = (b['wins'] as num?)?.toInt() ??
+            int.tryParse(b['wins']?.toString() ?? '') ??
+            0;
+        final wc = wb.compareTo(wa);
+        if (wc != 0) return wc;
         final na = (a['username'] ?? '').toString().toLowerCase();
         final nb = (b['username'] ?? '').toString().toLowerCase();
         return na.compareTo(nb);
       });
-    final top = sorted.take(_displayLimit).toList();
-    return List.generate(top.length, (i) {
-      final m = Map<String, dynamic>.from(top[i]);
-      m['rank'] = i + 1;
-      return m;
-    });
-  }
-
-  List<Map<String, dynamic>> get _visibleWinsRows {
-    switch (_periodScope) {
-      case 'yearly':
-        return _visibleYearly;
-      case 'all_time':
-        return _visibleAllTime;
-      default:
-        return _visibleMonthly;
-    }
+    return _rankRows(sorted);
   }
 
   List<Map<String, dynamic>> get _visibleRows =>
@@ -311,23 +311,21 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     }
   }
 
-  /// Collapsed filter tab title — reflects mode, period/rank (wins), and game type.
+  /// Collapsed filter tab title — mode, period/rank, and game type (Wins and Mastery).
   String _filterSectionTitle() {
     final game = _selectedGameType == 'classic'
         ? 'Classic'
         : (_selectedGameType == 'clear_and_collect'
             ? 'Clear and Collect'
             : 'All types');
-    if (_isMasteryMode) {
-      return 'Filters · Mastery · All time · $game';
-    }
+    final mode = _isMasteryMode ? 'Mastery' : 'Wins';
     final period = _periodScopeLabel();
     final rank = _periodScope == 'all_time'
         ? 'Global'
         : ((_selectedRankTier == null || _selectedRankTier!.isEmpty)
             ? 'All ranks'
             : _capitalizeRank(_selectedRankTier!));
-    return 'Filters · Wins · $period · $rank · $game';
+    return 'Filters · $mode · $period · $rank · $game';
   }
 
   String? _currentUserId() {
@@ -362,9 +360,7 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
   }
 
   String _periodTitle() {
-    if (_isMasteryMode) {
-      return 'Mastery · All time · how cleanly you finish${_gameTypeFilterSuffix()}';
-    }
+    final mode = _isMasteryMode ? 'Mastery' : 'Wins';
     final String base;
     switch (_periodScope) {
       case 'yearly':
@@ -384,7 +380,8 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     final rankSuffix = _periodScope == 'all_time' || t == null || t.isEmpty
         ? ''
         : ' · ${_capitalizeRank(t)} only';
-    return 'Wins · $base${_gameTypeFilterSuffix()}$rankSuffix';
+    final masteryHint = _isMasteryMode ? ' · how cleanly you finish' : '';
+    return '$mode · $base${_gameTypeFilterSuffix()}$rankSuffix$masteryHint';
   }
 
   String _emptyMessage() {
@@ -392,24 +389,19 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
     final modeLabel = gt == 'clear_and_collect'
         ? 'Clear and Collect'
         : (gt == 'classic' ? 'Classic' : null);
-    if (_isMasteryMode) {
-      if (modeLabel != null) {
-        return 'No $modeLabel mastery rankings yet.';
-      }
-      return 'No mastery rankings yet.';
-    }
+    final metric = _isMasteryMode ? 'mastery rankings' : 'wins';
     final span = _emptySpanLabel();
     final t = _selectedRankTier;
     if (modeLabel != null && t != null && t.isNotEmpty) {
-      return 'No $modeLabel wins recorded $span for ${_capitalizeRank(t)} players yet.';
+      return 'No $modeLabel $metric recorded $span for ${_capitalizeRank(t)} players yet.';
     }
     if (modeLabel != null) {
-      return 'No $modeLabel wins recorded $span yet.';
+      return 'No $modeLabel $metric recorded $span yet.';
     }
     if (t != null && t.isNotEmpty) {
-      return 'No wins recorded $span for ${_capitalizeRank(t)} players yet.';
+      return 'No $metric recorded $span for ${_capitalizeRank(t)} players yet.';
     }
-    return 'No wins recorded $span yet.';
+    return 'No $metric recorded $span yet.';
   }
 
   @override
@@ -426,7 +418,9 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
         ? _masteryViewerLine(
             uid: uid,
             bundleViewer: _bundleViewer,
+            periodKey: _periodScope,
             filteredRows: visibleRows,
+            selectedTier: _selectedRankTier,
           )
         : _winsViewerLine(
             uid: uid,
@@ -492,7 +486,6 @@ class _LeaderboardScreenState extends BaseScreenState<LeaderboardScreen> {
                     8,
                   ),
                   child: _LeaderboardFiltersPanel(
-                    rankMode: _rankMode,
                     periodScope: _periodScope,
                     onPeriodScopeChanged: (scope) =>
                         setState(() => _periodScope = scope),
@@ -614,36 +607,54 @@ String? _winsViewerLine({
   return noWinsMsg;
 }
 
-/// Viewer subtitle for Mastery mode from bundle ``viewer.mastery``.
+/// Viewer subtitle for Mastery mode — position on the filtered wins-derived board.
 String? _masteryViewerLine({
   required String? uid,
   required Map<String, dynamic>? bundleViewer,
+  required String periodKey,
   required List<Map<String, dynamic>> filteredRows,
+  required String? selectedTier,
 }) {
   if (bundleViewer == null) return null;
-  final block = bundleViewer['mastery'];
-  if (block is! Map) return null;
-  final stats = Map<String, dynamic>.from(block);
-  final mastery = (stats['mastery'] as num?)?.toInt() ?? 0;
-  if (mastery <= 0) {
-    return 'Your mastery: none recorded yet';
-  }
+  final masteryBlock = bundleViewer['mastery'];
+  final lifetimeMastery = masteryBlock is Map
+      ? ((masteryBlock['mastery'] as num?)?.toInt() ?? 0)
+      : 0;
   final viewerUid = uid ?? bundleViewer['user_id']?.toString() ?? '';
   if (viewerUid.isNotEmpty) {
     final idx =
         filteredRows.indexWhere((r) => r['user_id']?.toString() == viewerUid);
     if (idx >= 0) {
-      return 'Your position: #${idx + 1} · $mastery mastery';
+      final rowMastery = _masteryFromRow(filteredRows[idx]);
+      return 'Your position: #${idx + 1} · $rowMastery mastery';
     }
   }
-  final rank = stats['rank'];
-  if (rank is num && rank.toInt() > 0) {
-    return 'Your position: #${rank.toInt()} · $mastery mastery';
+  final ps = bundleViewer[periodKey];
+  final periodStats = ps is Map ? Map<String, dynamic>.from(ps) : null;
+  final winsInPeriod = (periodStats?['wins'] as num?)?.toInt() ?? 0;
+  final yrTier = periodStats?['rank_tier']?.toString() ?? '';
+  final inPeriod = periodStats?['in_period'] == true;
+  if (selectedTier != null &&
+      selectedTier.isNotEmpty &&
+      yrTier.isNotEmpty &&
+      yrTier.toLowerCase() != selectedTier.toLowerCase() &&
+      winsInPeriod > 0) {
+    return 'Your tier is $yrTier'
+        '${lifetimeMastery > 0 ? ' ($lifetimeMastery mastery)' : ''}'
+        '; not on this rank board.';
   }
-  if (stats['in_leaderboard'] == false) {
-    return 'Your position: not in the top $_kLeaderboardDisplayLimit · $mastery mastery';
+  final noWinsMsg = periodKey == 'all_time'
+      ? 'Your position: no wins recorded yet'
+      : 'Your position: no wins in this period yet';
+  if (!inPeriod && winsInPeriod <= 0) {
+    return lifetimeMastery > 0
+        ? '$noWinsMsg · $lifetimeMastery mastery'
+        : noWinsMsg;
   }
-  return 'Your position: $mastery mastery';
+  if (lifetimeMastery > 0) {
+    return 'Your position: not in the top $_kLeaderboardDisplayLimit · $lifetimeMastery mastery';
+  }
+  return noWinsMsg;
 }
 
 /// Primary Wins | Mastery control — equal weight for both ranking modes.
@@ -1062,11 +1073,9 @@ class _LeaderboardFilterChipBar extends StatelessWidget {
   }
 }
 
-/// Period, game type, and rank filters — uniform label + chip rows.
-/// Period/rank apply to Wins mode only; Mastery is all-time (game type still applies).
+/// Period, game type, and rank filters — same controls for Wins and Mastery.
 class _LeaderboardFiltersPanel extends StatelessWidget {
   const _LeaderboardFiltersPanel({
-    required this.rankMode,
     required this.periodScope,
     required this.onPeriodScopeChanged,
     required this.selectedGameType,
@@ -1076,7 +1085,6 @@ class _LeaderboardFiltersPanel extends StatelessWidget {
     required this.onRankTierChanged,
   });
 
-  final LeaderboardRankMode rankMode;
   final String periodScope;
   final ValueChanged<String> onPeriodScopeChanged;
   final String? selectedGameType;
@@ -1121,45 +1129,6 @@ class _LeaderboardFiltersPanel extends StatelessWidget {
         ),
     ];
 
-    final isMastery = rankMode == LeaderboardRankMode.mastery;
-    final gameTypeBar = _LeaderboardFilterChipBar(
-      label: 'Game type',
-      chips: [
-        _LeaderboardChipOption(
-          label: 'All',
-          selected: selectedGameType == null,
-          onSelect: () => onGameTypeChanged(null),
-          semanticsIdentifier: 'leaderboard_game_type_all',
-        ),
-        _LeaderboardChipOption(
-          label: 'Classic',
-          selected: selectedGameType == 'classic',
-          onSelect: () => onGameTypeChanged('classic'),
-          semanticsIdentifier: 'leaderboard_game_type_classic',
-        ),
-        _LeaderboardChipOption(
-          label: 'Clear and Collect',
-          selected: selectedGameType == 'clear_and_collect',
-          onSelect: () => onGameTypeChanged('clear_and_collect'),
-          semanticsIdentifier: 'leaderboard_game_type_clear_and_collect',
-        ),
-      ],
-    );
-
-    if (isMastery) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Mastery is all-time. Period and rank filters apply to Wins.',
-            style: AppTextStyles.caption(color: AppColors.textTertiary),
-          ),
-          const SizedBox(height: 12),
-          gameTypeBar,
-        ],
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1187,7 +1156,29 @@ class _LeaderboardFiltersPanel extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        gameTypeBar,
+        _LeaderboardFilterChipBar(
+          label: 'Game type',
+          chips: [
+            _LeaderboardChipOption(
+              label: 'All',
+              selected: selectedGameType == null,
+              onSelect: () => onGameTypeChanged(null),
+              semanticsIdentifier: 'leaderboard_game_type_all',
+            ),
+            _LeaderboardChipOption(
+              label: 'Classic',
+              selected: selectedGameType == 'classic',
+              onSelect: () => onGameTypeChanged('classic'),
+              semanticsIdentifier: 'leaderboard_game_type_classic',
+            ),
+            _LeaderboardChipOption(
+              label: 'Clear and Collect',
+              selected: selectedGameType == 'clear_and_collect',
+              onSelect: () => onGameTypeChanged('clear_and_collect'),
+              semanticsIdentifier: 'leaderboard_game_type_clear_and_collect',
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
         if (periodScope != 'all_time')
           _LeaderboardFilterChipBar(

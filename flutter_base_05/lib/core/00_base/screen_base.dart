@@ -703,6 +703,9 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       ],
     );
 
+    final screenBackground = _fullBleedScreenBackground(widget.getBackground(context));
+    final hasImageBackground = screenBackground.image != null;
+
     final scaffold = Scaffold(
       backgroundColor: AppColors.scaffoldBackgroundColor,
       appBar: appBar,
@@ -710,59 +713,53 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       floatingActionButton: widget.getFloatingActionButton(context),
       bottomNavigationBar: widget.getBottomNavigationBar(context),
 
-      body: SafeArea(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.scaffoldBackgroundColor,
-                      AppColors.scaffoldDeepPlumColor,
-                    ],
-                  ),
+      // Gradient + decorative image fill the full body; SafeArea only insets content
+      // so left/right/bottom never show blank scaffold strips.
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.scaffoldBackgroundColor,
+                    AppColors.scaffoldDeepPlumColor,
+                  ],
                 ),
               ),
             ),
+          ),
+          if (screenBackground.image != null || screenBackground.color != null)
             Positioned.fill(
-              child: Container(
-                decoration: widget.getBackground(context) ?? const BoxDecoration(),
-                // (AppBackgrounds.backgrounds.isNotEmpty
-                //   ? BoxDecoration(
-                //       image: DecorationImage(
-                //         image: AssetImage(AppBackgrounds.backgrounds[0]),
-                //         fit: BoxFit.cover,
-                //         colorFilter: ColorFilter.mode(
-                //           AppColors.primaryColor.withOpacity(0.7),
-                //           BlendMode.darken,
-                //         ),
-                //       ),
-                //     )
-                //   : BoxDecoration(
-                //       color: AppColors.primaryColor,
-                //     )
-                // ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Column(
-                      mainAxisSize: MainAxisSize.max,
+              child: Opacity(
+                opacity: hasImageBackground ? 0.5 : 1.0,
+                child: DecoratedBox(decoration: screenBackground),
+              ),
+            ),
+          Positioned.fill(
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.max,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FeatureSlot(
+                    scopeKey: widget.runtimeType.toString(),
+                    slotId: 'header',
+                    title: 'Notices',
+                  ),
+                  if (widget.showAdBannerBars)
+                    _AdBannerBar(
+                      bannerAdModule: bannerAdModule,
+                      slot: 'top',
+                      hostKey: topBannerHostKey,
+                    ),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        FeatureSlot(
-                          scopeKey: widget.runtimeType.toString(),
-                          slotId: 'header',
-                          title: 'Notices',
-                        ),
-                        if (widget.showAdBannerBars)
-                          _AdBannerBar(
-                            bannerAdModule: bannerAdModule,
-                            slot: 'top',
-                            hostKey: topBannerHostKey,
-                          ),
                         if (widget.showSessionBack) const _BackUnderBanner(),
                         Expanded(
                           child: ListenableBuilder(
@@ -771,14 +768,14 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                           ),
                         ),
                       ],
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            ],
           ),
-        ),
+        ],
+      ),
     );
 
     return scaffold;
@@ -786,6 +783,38 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   /// Abstract method to be implemented by child classes
   Widget buildContent(BuildContext context);
+}
+
+/// Forces screen art to [BoxFit.cover] so contain/bottomRight never leaves a blank side strip.
+BoxDecoration _fullBleedScreenBackground(Decoration? decoration) {
+  if (decoration is! BoxDecoration) {
+    return const BoxDecoration();
+  }
+  final image = decoration.image;
+  if (image == null) {
+    return BoxDecoration(
+      color: decoration.color,
+      gradient: decoration.gradient,
+    );
+  }
+  return BoxDecoration(
+    color: decoration.color,
+    gradient: decoration.gradient,
+    image: DecorationImage(
+      image: image.image,
+      fit: BoxFit.cover,
+      alignment: image.alignment,
+      colorFilter: image.colorFilter,
+      centerSlice: image.centerSlice,
+      repeat: image.repeat,
+      matchTextDirection: image.matchTextDirection,
+      scale: image.scale,
+      opacity: image.opacity,
+      filterQuality: image.filterQuality,
+      invertColors: image.invertColors,
+      isAntiAlias: image.isAntiAlias,
+    ),
+  );
 }
 
 class BaseCard extends StatelessWidget {
@@ -963,7 +992,7 @@ class BaseTextField extends StatelessWidget {
   }
 }
 
-/// Session back control, placed just under the top ad banner.
+/// Session back control at the top of the content area (below header/banner).
 class _BackUnderBanner extends StatelessWidget {
   const _BackUnderBanner();
 
